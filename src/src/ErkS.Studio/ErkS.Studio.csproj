@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyTitle>Erk-S Studio</AssemblyTitle>
+    <Version Condition="'$(StudioReleaseVersion)' == ''">0.1.0</Version>
+    <Version Condition="'$(StudioReleaseVersion)' != ''">$(StudioReleaseVersion)</Version>
+    <InformationalVersion Condition="'$(StudioReleaseLabel)' != ''">$(StudioReleaseLabel)</InformationalVersion>
+    <ApplicationIcon>Assets\logo-erks.ico</ApplicationIcon>
+    <StudioProductRoot>$(MSBuildProjectDirectory)\..\..\..</StudioProductRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ErkS.Studio.App\ErkS.Studio.App.csproj" />
+    <ProjectReference Include="..\ErkS.Studio.Contracts\ErkS.Studio.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\logo-erks.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\logo-erks-*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- DevMod marker: lets the running host find the source checkout so
+       DevUpdate can rebuild and hot-reload the app module. -->
+  <Target Name="WriteDevRootMarker"
+          AfterTargets="Build"
+          Condition="'$(StudioProductBuild)' != 'true'">
+    <WriteLinesToFile
+        File="$(TargetDir)ErkS.Studio.devroot"
+        Lines="$([System.IO.Path]::GetFullPath('$(StudioProductRoot)'))"
+        Overwrite="true"
+        WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <Target Name="WritePublishedDevRootMarker"
+          AfterTargets="Publish"
+          Condition="'$(StudioDevBundle)' == 'true'">
+    <WriteLinesToFile
+        File="$(PublishDir)ErkS.Studio.devroot"
+        Lines="$([System.IO.Path]::GetFullPath('$(StudioProductRoot)'))"
+        Overwrite="true"
+        WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile
+        File="$(PublishDir)ErkS.Studio.static"
+        Lines="ApplicationControl"
+        Overwrite="true"
+        WriteOnlyWhenDifferent="true" />
+  </Target>
+
+</Project>

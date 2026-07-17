@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <Version Condition="'$(StudioReleaseVersion)' == ''">0.1.0</Version>
+    <Version Condition="'$(StudioReleaseVersion)' != ''">$(StudioReleaseVersion)</Version>
+    <InformationalVersion Condition="'$(StudioReleaseLabel)' == ''">0.1.0-dev</InformationalVersion>
+    <InformationalVersion Condition="'$(StudioReleaseLabel)' != ''">$(StudioReleaseLabel)</InformationalVersion>
+    <!-- Product root: src/src/ErkS.Studio.App -> up 3 levels -->
+    <StudioProductRoot>$(MSBuildProjectDirectory)\..\..\..</StudioProductRoot>
+    <StudioDevAppDir>$(StudioProductRoot)\builds\devmod\app</StudioDevAppDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ErkS.Platform.Core\ErkS.Platform.Core.csproj" />
+    <ProjectReference Include="..\ErkS.Platform.Pdf\ErkS.Platform.Pdf.csproj" />
+    <ProjectReference Include="..\ErkS.Platform.Publishing\ErkS.Platform.Publishing.csproj" />
+    <ProjectReference Include="..\ErkS.Studio.Contracts\ErkS.Studio.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\*.svg" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\ErkS.Studio\Assets\logo-erks.ico"
+             Link="Assets\logo-erks.ico"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- DevMod: every build refreshes the folder the running host reloads from. -->
+  <Target Name="PublishToDevModFolder"
+          AfterTargets="Build"
+          Condition="'$(StudioProductBuild)' != 'true'">
+    <MakeDir Directories="$(StudioDevAppDir)" />
+    <ItemGroup>
+      <DevAppOutput Include="$(TargetDir)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DevAppOutput)"
+          DestinationFiles="@(DevAppOutput->'$(StudioDevAppDir)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

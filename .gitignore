@@ -1,0 +1,66 @@
+# Build and test outputs
+**/bin/
+**/obj/
+builds/
+tmp/
+artifacts/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# IDE and local tooling
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Local runtime and machine-specific configuration
+*.devroot
+*.static
+*.local
+*.local.json
+appsettings.*.local.json
+.env
+.env.*
+!.env.example
+
+# Credentials, certificates, and signing material
+*.pfx
+*.p12
+*.pem
+*.key
+*.jwk
+*.snk
+
+# Erk-S user/project data
+Studio Projects/
+*.erksproject
+*.erksalbum
+*.erkscompany
+incoming-sheets/
+albums/
+reports/
+archive/
+
+# Native design files and generated document deliverables
+*.rvt
+*.rfa
+*.dwg
+*.dxf
+*.ifc
+*.nwc
+*.nwd
+**/incoming-sheets/**/*.pdf
+**/sources/**/deliveries/**/*.pdf
+**/albums/**/*.pdf
+**/reports/**/*.pdf
+**/archive/**/*.pdf
+
+# Packaged binaries
+*.zip
+*.7z
+*.nupkg

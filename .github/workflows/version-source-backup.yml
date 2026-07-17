@@ -1,0 +1,38 @@
+name: Version source backup
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "demo-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Create immutable source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists."
+            exit 0
+          fi
+
+          prerelease=""
+          if [[ "$TAG_NAME" == *-* ]]; then
+            prerelease="--prerelease"
+          fi
+
+          gh release create "$TAG_NAME" \
+            --title "Erk-S Studio $TAG_NAME" \
+            --generate-notes \
+            $prerelease
