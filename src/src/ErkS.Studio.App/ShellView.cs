@@ -1114,6 +1114,19 @@ internal sealed partial class ShellView : IDisposable
             StudioProjectCreationGrant? selectedGrant = dialog.SelectedCreationGrant;
             if (selectedOrganization is null && selectedGrant is null)
                 throw new InvalidOperationException("Төсөл үүсгэх байгууллага эсвэл эрх сонгогдоогүй байна.");
+            StudioRelationshipAction relationshipAction = selectedGrant is null
+                ? StudioRelationshipAction.CreateProjectForClient
+                : StudioRelationshipAction.RedeemProjectCreationGrant;
+            string relationshipCounterparty = selectedGrant is null
+                ? string.IsNullOrWhiteSpace(request.ClientName) ? "Захиалагч" : request.ClientName
+                : $"{selectedGrant.OrganizationName} / {request.ClientName}";
+            if (!StudioRelationshipBoundary.Confirm(
+                    Window.GetWindow(Root),
+                    relationshipAction,
+                    relationshipCounterparty))
+            {
+                return;
+            }
             string localPath = Path.Combine(
                 ProjectWorkspacePaths.DefaultRoot,
                 SafePathSegment(request.Code),

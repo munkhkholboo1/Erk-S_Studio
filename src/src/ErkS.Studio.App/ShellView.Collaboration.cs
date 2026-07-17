@@ -17,9 +17,11 @@ internal sealed partial class ShellView
         "Гишүүн урих",
         "Бүртгэлтэй хэрэглэгчид багийн урилга илгээх",
         primary: true);
-    private readonly Button removeTeamMemberButton = StudioWidgets.CreateButton("Хасах / урилга цуцлах");
+    private readonly Button removeTeamMemberButton = StudioWidgets.CreateButton("Багаас хасах");
+    private readonly Button leaveProjectButton = StudioWidgets.CreateButton("Төслөөс гарах хүсэлт");
     private readonly Button companyProjectGrantButton = StudioWidgets.CreateButton("Төсөл үүсгэх эрх");
     private StudioProjectMembershipInvitationListResponse notificationInvitations = new();
+    private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
     private StudioProjectCreationGrantListResponse notificationGrants = new();
     private bool refreshingNotifications;
 
@@ -30,6 +32,7 @@ internal sealed partial class ShellView
         if (!account.IsSignedIn)
         {
             notificationInvitations = new StudioProjectMembershipInvitationListResponse();
+            notificationExitRequests = new StudioProjectMembershipExitRequestListResponse();
             notificationGrants = new StudioProjectCreationGrantListResponse();
             UpdateNotificationsButton();
             return;
@@ -39,6 +42,7 @@ internal sealed partial class ShellView
         try
         {
             notificationInvitations = await account.ListMembershipInvitationsAsync();
+            notificationExitRequests = await account.ListMembershipExitRequestsAsync();
             notificationGrants = await account.ListProjectCreationGrantsAsync();
             UpdateNotificationsButton();
         }
@@ -56,6 +60,8 @@ internal sealed partial class ShellView
     private void UpdateNotificationsButton()
     {
         int count = notificationInvitations.Received.Count(item =>
+                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
+            notificationExitRequests.AwaitingApproval.Count(item =>
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationGrants.Received.Count(item =>
                 item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
@@ -77,7 +83,11 @@ internal sealed partial class ShellView
         if (!await EnsureSignedInAsync())
             return;
         await RefreshNotificationsAsync(silent: false);
-        var dialog = new StudioNotificationsDialog(account, notificationInvitations, notificationGrants)
+        var dialog = new StudioNotificationsDialog(
+            account,
+            notificationInvitations,
+            notificationExitRequests,
+            notificationGrants)
         {
             Owner = Window.GetWindow(Root),
         };
@@ -86,7 +96,24 @@ internal sealed partial class ShellView
         if (dialog.ProjectsChanged)
         {
             await RefreshProjectsAsync();
-            SetStatus("Зөвшөөрсөн төсөл таны төслийн жагсаалтад нэмэгдлээ.");
+            if (state.HasOpenProject &&
+                state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
+            {
+                try
+                {
+                    StudioCloudProjectDetail latest = await account.GetProjectAsync(state.Project.Cloud.ServerProjectId);
+                    state.LinkCurrentProjectToCloud(latest, account.Current!.ServerUrl, preserveCreation: true);
+                    await ApplyCloudProjectRenderProfileAsync(latest);
+                    await RefreshProjectTeamAsync();
+                }
+                catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+                {
+                    SetStatus("Төслийн баг шинэчлэгдсэн боловч нээлттэй төслийг дахин уншиж чадсангүй: " + exception.Message);
+                    return;
+                }
+            }
+            SetStatus("Төслийн access болон багийн мэдээлэл шинэчлэгдлээ.");
         }
     }
 
@@ -95,22 +122,41 @@ internal sealed partial class ShellView
         var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
         inviteTeamMemberButton.Click += async (_, _) => await InviteTeamMemberAsync();
         removeTeamMemberButton.Click += async (_, _) => await RemoveSelectedTeamMemberAsync();
+        leaveProjectButton.Click += async (_, _) => await RequestLeaveProjectAsync();
         participantsList.SelectionChanged += (_, _) => RefreshTeamActionUi();
         actions.Children.Add(inviteTeamMemberButton);
         actions.Children.Add(removeTeamMemberButton);
+        actions.Children.Add(leaveProjectButton);
         return actions;
     }
 
     private void RefreshTeamActionUi()
     {
         bool canManage = CanManageProjectTeam();
+        MemberRow? selected = participantsList.SelectedItem as MemberRow;
+        bool selectedIsCurrentAccount = selected is not null &&
+            selected.Email.Equals(account.Current?.Email ?? "", StringComparison.OrdinalIgnoreCase);
         inviteTeamMemberButton.IsEnabled = canManage;
-        removeTeamMemberButton.IsEnabled = canManage && participantsList.SelectedItem is MemberRow;
+        removeTeamMemberButton.IsEnabled = canManage && selected is not null &&
+            (selected.IsInvitation || !selectedIsCurrentAccount);
+        bool pendingExit = state.HasOpenProject && notificationExitRequests.Requested.Any(item =>
+            item.ProjectId.Equals(state.Project.Cloud.ServerProjectId, StringComparison.OrdinalIgnoreCase) &&
+            item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase));
+        leaveProjectButton.IsEnabled = state.HasOpenProject &&
+            account.IsSignedIn &&
+            state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+            !pendingExit;
+        removeTeamMemberButton.Content = selected?.IsInvitation == true
+            ? "Урилга цуцлах"
+            : "Багаас хасах";
         string reason = canManage
             ? "Бүртгэлтэй хэрэглэгчид урилга илгээнэ"
             : "Төслийн баг удирдах role шаардлагатай";
         inviteTeamMemberButton.ToolTip = reason;
         removeTeamMemberButton.ToolTip = reason;
+        leaveProjectButton.ToolTip = pendingExit
+            ? "Төсөл үүсгэгч байгууллагын шийдвэр хүлээгдэж байна"
+            : "Төсөл үүсгэгч байгууллагад гарах хүсэлт илгээх";
     }
 
     private bool CanManageProjectTeam() =>
@@ -152,6 +198,13 @@ internal sealed partial class ShellView
             };
             if (dialog.ShowDialog() != true || dialog.Draft is null)
                 return;
+            if (!StudioRelationshipBoundary.Confirm(
+                    Window.GetWindow(Root),
+                    StudioRelationshipAction.InviteProjectMember,
+                    dialog.Draft.Email))
+            {
+                return;
+            }
             StudioProjectMembershipInvitation invitation = await account.InviteProjectMemberAsync(
                 state.Project.Cloud.ServerProjectId,
                 dialog.Draft.Email,
@@ -170,15 +223,24 @@ internal sealed partial class ShellView
     {
         if (!CanManageProjectTeam() || participantsList.SelectedItem is not MemberRow row)
             return;
-        string action = row.IsInvitation ? "урилгыг цуцлах" : "төслийн багаас хасах";
-        MessageBoxResult confirmation = MessageBox.Show(
-            Window.GetWindow(Root),
-            $"{row.Name} хэрэглэгчийг {action} уу?",
-            "Erk-S Studio",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        if (confirmation != MessageBoxResult.Yes)
+        if (row.IsInvitation)
+        {
+            MessageBoxResult confirmation = MessageBox.Show(
+                Window.GetWindow(Root),
+                $"{row.Name} хэрэглэгчийн хүлээгдэж буй урилгыг цуцлах уу?",
+                "Erk-S Studio",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirmation != MessageBoxResult.Yes)
+                return;
+        }
+        else if (!StudioRelationshipBoundary.Confirm(
+                     Window.GetWindow(Root),
+                     StudioRelationshipAction.RemoveProjectMember,
+                     row.Name))
+        {
             return;
+        }
 
         try
         {
@@ -200,6 +262,38 @@ internal sealed partial class ShellView
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
             SetStatus("Багийн өөрчлөлт хийгдсэнгүй: " + exception.Message);
+        }
+    }
+
+    private async Task RequestLeaveProjectAsync()
+    {
+        if (!state.HasOpenProject || !account.IsSignedIn ||
+            !state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        if (!StudioRelationshipBoundary.Confirm(
+                Window.GetWindow(Root),
+                StudioRelationshipAction.RequestProjectExit,
+                CompanyDisplayName(state.Project.Foundation.DesignCompany.OrganizationSnapshot)))
+        {
+            return;
+        }
+
+        try
+        {
+            StudioProjectMembershipExitRequest request = await account.RequestProjectExitAsync(
+                state.Project.Cloud.ServerProjectId,
+                "Studio-оос төслөөс гарах хүсэлт илгээв.");
+            await RefreshNotificationsAsync();
+            RefreshTeamActionUi();
+            SetStatus(
+                $"Төслөөс гарах хүсэлтийг {request.ApprovalOrganizationName} байгууллагад илгээлээ. " +
+                "Зөвшөөрөх хүртэл таны эрх хэвээр байна.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Төслөөс гарах хүсэлт илгээгдсэнгүй: " + exception.Message);
         }
     }
 
@@ -243,16 +337,28 @@ internal sealed partial class ShellView
         RefreshTeamActionUi();
     }
 
-    private List<MemberRow> ActiveProjectMemberRows() =>
-        state.Project.Foundation.DesignCompany.Members
+    private List<MemberRow> ActiveProjectMemberRows()
+    {
+        string projectId = state.Project.Cloud.ServerProjectId;
+        HashSet<string> pendingExitEmails = notificationExitRequests.Requested
+            .Concat(notificationExitRequests.AwaitingApproval)
+            .Where(item =>
+                item.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase) &&
+                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.ParticipantEmail)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return state.Project.Foundation.DesignCompany.Members
             .Select(member => new MemberRow(
                 member.FullName,
                 string.Join(", ", member.Roles),
                 member.Email,
                 member.Id,
-                "Идэвхтэй",
+                pendingExitEmails.Contains(member.Email)
+                    ? "Гарах хүсэлт хүлээгдэж байна"
+                    : "Идэвхтэй",
                 false))
             .ToList();
+    }
 
     private void RefreshCompanyGrantActionUi()
     {

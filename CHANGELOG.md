@@ -8,6 +8,17 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.2] - 2026-07-17
+
+- Kept team invitations in Pending state until the recipient explicitly accepts or declines.
+- Clarified the Studio team action as `Багаас хасах` for active members and `Урилга цуцлах` for pending invitations.
+- Added separate confirmation text so removing a member cannot be confused with revoking an invitation.
+- Added mandatory relationship-boundary acknowledgement for project creation, company grants, organization assignment, team invitations, membership acceptance, removal, exit decisions, and source custody transfer.
+- Added organization-approved project exit requests and notification handling instead of allowing a member to leave a live project immediately.
+- Preserved cloud source metadata when a local native source is relinked, and added explicit cloud source binding and custodian reassignment tools.
+- Kept RVT/DWG paths and native files local while synchronizing only source identity, manifest, document, report, and PDF data.
+- Added the neutral-platform responsibility model in `docs/RELATIONSHIP-BOUNDARY.md`.
+
 ## [0.1.0-dev.1] - 2026-07-17
 
 First complete source snapshot in `munkhkholboo1/Erk-S_Studio`.

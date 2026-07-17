@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.ComponentModel;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -103,10 +104,22 @@ internal sealed partial class ShellView
         var removeSource = StudioWidgets.CreateButton("Хасах");
         removeSource.ToolTip = "Бүртгэлээс хасна. Файл устгахгүй.";
         removeSource.Click += (_, _) => RemoveSelectedDesignSource();
+        var relinkNative = StudioWidgets.CreateButton("Эх файлыг дахин заах");
+        relinkNative.ToolTip = "RVT/DWG эх файлын локал байрлалыг энэ төхөөрөмж дээр солино. Файл cloud руу дамжихгүй.";
+        relinkNative.Click += (_, _) => RelinkSelectedNativeSource();
+        var bindCloudSource = StudioWidgets.CreateButton("Cloud source холбох");
+        bindCloudSource.ToolTip = "Өөрт хариуцуулсан cloud source key-г сонгосон локал эх үүсвэртэй холбоно.";
+        bindCloudSource.Click += async (_, _) => await BindSelectedCloudSourceAsync();
+        var transferCustody = StudioWidgets.CreateButton("Хариуцагч шилжүүлэх");
+        transferCustody.ToolTip = "Cloud source-ийн хариуцагчийг төслийн edit эрхтэй гишүүнд шилжүүлнэ. Native файл дамжихгүй.";
+        transferCustody.Click += async (_, _) => await TransferCloudSourceCustodyAsync();
         var rescan = StudioWidgets.CreateButton("Шинэчлэлт шалгах");
         rescan.ToolTip = "Source package-уудыг шалгаж, альбум болон PDF харагдацыг бүрэн шинэчилнэ.";
         rescan.Click += (_, _) => CheckForSourceUpdates();
         sourceGroup.Children.Add(addSource);
+        sourceGroup.Children.Add(relinkNative);
+        sourceGroup.Children.Add(bindCloudSource);
+        sourceGroup.Children.Add(transferCustody);
         sourceGroup.Children.Add(removeSource);
         sourceGroup.Children.Add(rescan);
         ribbon.Children.Add(sourceGroup);
@@ -231,6 +244,173 @@ internal sealed partial class ShellView
         RefreshSourceWorkspace();
         SetStatus($"Эх үүсвэрийн бүртгэлийг хаслаа: {selected.Source.DisplayName}. Файлууд хэвээр үлдсэн.");
     }
+
+    private void RelinkSelectedNativeSource()
+    {
+        if (!EnsureProjectContentPermission() ||
+            designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Локал эх файлыг дахин заах",
+            Filter = NativeSourceFilter(selected.Source.Kind),
+            CheckFileExists = true,
+            Multiselect = false,
+            FileName = string.IsNullOrWhiteSpace(selected.Source.NativeDocumentPath)
+                ? ""
+                : selected.Source.NativeDocumentPath,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(Root)) != true)
+            return;
+
+        selected.Source.NativeDocumentPath = Path.GetFullPath(dialog.FileName);
+        selected.Source.NativeDocumentTitle = Path.GetFileName(dialog.FileName);
+        selected.Source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        selected.Source.Metadata["local.nativeRelinkedAtUtc"] = DateTimeOffset.UtcNow.ToString("O");
+        state.SaveProject();
+        RefreshSourceWorkspace(selected.Source.Id);
+        SetStatus(
+            $"Локал эх файл дахин холбогдлоо: {selected.Source.NativeDocumentTitle}. " +
+            "Файл болон бүтэн зам Cloud ERA руу илгээгдэхгүй.");
+    }
+
+    private static string NativeSourceFilter(DesignSourceKind kind) => kind switch
+    {
+        DesignSourceKind.Revit => "Revit project (*.rvt)|*.rvt|All files (*.*)|*.*",
+        DesignSourceKind.AutoCad => "AutoCAD drawing (*.dwg)|*.dwg|All files (*.*)|*.*",
+        DesignSourceKind.CityGen => "CityGen source (*.json;*.geojson;*.zip)|*.json;*.geojson;*.zip|All files (*.*)|*.*",
+        DesignSourceKind.Pdf => "PDF document (*.pdf)|*.pdf|All files (*.*)|*.*",
+        _ => "All files (*.*)|*.*",
+    };
+
+    private async Task BindSelectedCloudSourceAsync()
+    {
+        if (!EnsureProjectContentPermission() ||
+            designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
+        {
+            return;
+        }
+        if (!account.IsSignedIn ||
+            !state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
+        {
+            SetStatus("Cloud source холбохын өмнө Cloud ERA project нээнэ үү.");
+            return;
+        }
+
+        string projectId = state.Project.Cloud.ServerProjectId;
+        try
+        {
+            IReadOnlyList<StudioCloudDesignPackage> packages = await account.ListDesignPackagesAsync(projectId);
+            string currentEmail = account.Current?.Email ?? "";
+            List<StudioCloudSourcePackage> available = LatestCloudSources(packages)
+                .Where(source => source.CustodianEmail.Equals(currentEmail, StringComparison.OrdinalIgnoreCase))
+                .Where(source => !state.Project.Sources.Any(local =>
+                    !ReferenceEquals(local, selected.Source) &&
+                    ProjectCloudSyncMetadata.CloudSourceKey(local).Equals(source.SourceKey, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (available.Count == 0)
+            {
+                SetStatus(
+                    "Танд хариуцуулсан, локал source-т холбогдоогүй Cloud source алга. " +
+                    "Төслийн admin эхлээд Хариуцагч шилжүүлэх үйлдлээр томилно.");
+                return;
+            }
+
+            var dialog = new CloudSourceBindingDialog(available) { Owner = Window.GetWindow(Root) };
+            if (dialog.ShowDialog() != true || dialog.SelectedSource is null)
+                return;
+            if (!state.HasOpenProject ||
+                !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            ProjectCloudSyncMetadata.BindToCloudSource(
+                state.Project,
+                selected.Source,
+                dialog.SelectedSource.SourceKey);
+            state.SaveProject();
+            RefreshSourceWorkspace(selected.Source.Id);
+            RefreshSyncUi();
+            SetStatus(
+                $"{selected.Source.DisplayName} локал эх үүсвэрийг {dialog.SelectedSource.SourceDocumentReference} cloud source-т холболоо. " +
+                "RVT/DWG файл болон локал зам server рүү дамжаагүй.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Cloud source холбож чадсангүй: " + exception.Message);
+        }
+    }
+
+    private async Task TransferCloudSourceCustodyAsync()
+    {
+        if (!state.HasOpenProject || !CanManageProjectTeam())
+        {
+            SetStatus("Cloud source-ийн хариуцагч шилжүүлэхэд төслийн баг удирдах role шаардлагатай.");
+            return;
+        }
+        string projectId = state.Project.Cloud.ServerProjectId;
+        try
+        {
+            StudioCloudProjectDetail project = await account.GetProjectAsync(projectId);
+            IReadOnlyList<StudioProjectRole> roleCatalog = await account.ListProjectRolesAsync();
+            HashSet<string> editRoles = roleCatalog
+                .Where(role => role.CanEditContent)
+                .Select(role => role.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            List<StudioCloudParticipant> participants = project.Participants
+                .Where(participant =>
+                    participant.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
+                    participant.Roles.Any(editRoles.Contains))
+                .ToList();
+            IReadOnlyList<StudioCloudDesignPackage> packages = await account.ListDesignPackagesAsync(projectId);
+            List<StudioCloudSourcePackage> sources = LatestCloudSources(packages);
+            if (sources.Count == 0 || participants.Count == 0)
+            {
+                SetStatus("Шилжүүлэх cloud source эсвэл concept content edit эрхтэй идэвхтэй гишүүн алга.");
+                return;
+            }
+
+            var dialog = new CloudSourceCustodyDialog(sources, participants)
+            {
+                Owner = Window.GetWindow(Root),
+            };
+            if (dialog.ShowDialog() != true || dialog.Draft is null)
+                return;
+            if (!StudioRelationshipBoundary.Confirm(
+                    Window.GetWindow(Root),
+                    StudioRelationshipAction.TransferSourceCustody,
+                    dialog.Draft.DisplayLabel))
+            {
+                return;
+            }
+
+            await account.AssignSourceCustodianAsync(
+                projectId,
+                dialog.Draft.SourceKey,
+                dialog.Draft.ParticipantId);
+            SetStatus(
+                $"Cloud source хариуцагч шилжлээ: {dialog.Draft.DisplayLabel}. " +
+                "Native файлыг талууд платформоос гадуур хүлээлцэж, шинэ хариуцагч локал файлаа дахин холбоно.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Cloud source хариуцагч шилжсэнгүй: " + exception.Message);
+        }
+    }
+
+    private static List<StudioCloudSourcePackage> LatestCloudSources(
+        IReadOnlyList<StudioCloudDesignPackage> packages) => packages
+        .SelectMany(package => package.SourcePackages)
+        .Where(source => !string.IsNullOrWhiteSpace(source.SourceKey))
+        .GroupBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.OrderByDescending(source => source.ExportedAtUtc).First())
+        .OrderBy(source => source.SourceDocumentReference, StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     private void OpenSelectedSourceFolder()
     {

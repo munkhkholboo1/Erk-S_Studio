@@ -193,6 +193,7 @@ internal sealed class StudioNotificationsDialog : Window
     private readonly Button acceptButton = StudioWidgets.CreatePrimaryButton("Зөвшөөрөх");
     private readonly Button declineButton = StudioWidgets.CreateButton("Татгалзах");
     private StudioProjectMembershipInvitationListResponse invitationData;
+    private StudioProjectMembershipExitRequestListResponse exitRequestData;
     private StudioProjectCreationGrantListResponse grantData;
 
     public bool ProjectsChanged { get; private set; }
@@ -200,10 +201,12 @@ internal sealed class StudioNotificationsDialog : Window
     public StudioNotificationsDialog(
         StudioAccountService account,
         StudioProjectMembershipInvitationListResponse invitations,
+        StudioProjectMembershipExitRequestListResponse exitRequests,
         StudioProjectCreationGrantListResponse grants)
     {
         this.account = account;
         invitationData = invitations;
+        exitRequestData = exitRequests;
         grantData = grants;
         Title = "Мэдэгдэл";
         Width = 820;
@@ -246,7 +249,7 @@ internal sealed class StudioNotificationsDialog : Window
         view.Columns.Add(new GridViewColumn { Header = "Төрөл", Width = 150, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(NotificationRow.Type)) });
         view.Columns.Add(new GridViewColumn { Header = "Төсөл / байгууллага", Width = 270, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(NotificationRow.Title)) });
         view.Columns.Add(new GridViewColumn { Header = "Role / эрх", Width = 210, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(NotificationRow.Detail)) });
-        view.Columns.Add(new GridViewColumn { Header = "Дуусах", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(NotificationRow.Expires)) });
+        view.Columns.Add(new GridViewColumn { Header = "Огноо", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(NotificationRow.Expires)) });
         notifications.View = view;
         notifications.SelectionChanged += (_, _) => RefreshActions();
         root.Children.Add(notifications);
@@ -264,6 +267,17 @@ internal sealed class StudioNotificationsDialog : Window
                 string.Join(", ", item.Roles),
                 item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 item,
+                null,
+                null)));
+        rows.AddRange(exitRequestData.AwaitingApproval
+            .Where(item => item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+            .Select(item => new NotificationRow(
+                "Төслөөс гарах хүсэлт",
+                $"{item.ProjectCode}  {item.ProjectName}",
+                $"{item.ParticipantDisplayName}  ·  {item.AffectedSourceKeys.Length} source",
+                item.RequestedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                null,
+                item,
                 null)));
         rows.AddRange(grantData.Received
             .Where(item => item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
@@ -272,6 +286,7 @@ internal sealed class StudioNotificationsDialog : Window
                 item.OrganizationName,
                 "Нэг удаагийн эрх",
                 item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                null,
                 null,
                 item)));
         notifications.ItemsSource = rows;
@@ -283,31 +298,55 @@ internal sealed class StudioNotificationsDialog : Window
 
     private void RefreshActions()
     {
-        bool invitationSelected = (notifications.SelectedItem as NotificationRow)?.Invitation is not null;
-        acceptButton.IsEnabled = invitationSelected;
-        declineButton.IsEnabled = invitationSelected;
+        NotificationRow? selected = notifications.SelectedItem as NotificationRow;
+        bool decisionSelected = selected?.Invitation is not null || selected?.ExitRequest is not null;
+        acceptButton.IsEnabled = decisionSelected;
+        declineButton.IsEnabled = decisionSelected;
         if ((notifications.SelectedItem as NotificationRow)?.Grant is not null)
             status.Text = "Энэ эрхийг Төслүүд > Шинэ төсөл хэсгээс ашиглана.";
     }
 
     private async Task AcceptSelectedAsync()
     {
-        StudioProjectMembershipInvitation? invitation = (notifications.SelectedItem as NotificationRow)?.Invitation;
-        if (invitation is null)
+        NotificationRow? selected = notifications.SelectedItem as NotificationRow;
+        StudioProjectMembershipInvitation? invitation = selected?.Invitation;
+        StudioProjectMembershipExitRequest? exitRequest = selected?.ExitRequest;
+        if (invitation is null && exitRequest is null)
             return;
-        SetBusy(true, "Урилгыг зөвшөөрч байна...");
+        StudioRelationshipAction action = invitation is not null
+            ? StudioRelationshipAction.AcceptProjectMembership
+            : StudioRelationshipAction.DecideProjectExit;
+        string counterparty = invitation is not null
+            ? invitation.InvitedByEmail
+            : exitRequest!.ParticipantDisplayName;
+        if (!StudioRelationshipBoundary.Confirm(this, action, counterparty))
+            return;
+        SetBusy(true, invitation is not null
+            ? "Урилгыг зөвшөөрч байна..."
+            : "Гарах хүсэлтийг зөвшөөрч байна...");
         try
         {
-            await account.AcceptMembershipInvitationAsync(invitation.InvitationId);
-            invitationData.Received.RemoveAll(item =>
-                item.InvitationId.Equals(invitation.InvitationId, StringComparison.OrdinalIgnoreCase));
+            if (invitation is not null)
+            {
+                await account.AcceptMembershipInvitationAsync(invitation.InvitationId);
+                invitationData.Received.RemoveAll(item =>
+                    item.InvitationId.Equals(invitation.InvitationId, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                await account.DecideProjectExitAsync(exitRequest!.RequestId, approve: true);
+                exitRequestData.AwaitingApproval.RemoveAll(item =>
+                    item.RequestId.Equals(exitRequest.RequestId, StringComparison.OrdinalIgnoreCase));
+            }
             ProjectsChanged = true;
             RefreshRows();
-            status.Text = $"{invitation.ProjectCode} төсөлд нэгдлээ.";
+            status.Text = invitation is not null
+                ? $"{invitation.ProjectCode} төсөлд нэгдлээ."
+                : $"{exitRequest!.ParticipantDisplayName} хэрэглэгчийн гарах хүсэлтийг зөвшөөрлөө.";
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            status.Text = "Урилгыг зөвшөөрч чадсангүй: " + exception.Message;
+            status.Text = "Шийдвэрийг хадгалж чадсангүй: " + exception.Message;
         }
         finally
         {
@@ -317,21 +356,43 @@ internal sealed class StudioNotificationsDialog : Window
 
     private async Task DeclineSelectedAsync()
     {
-        StudioProjectMembershipInvitation? invitation = (notifications.SelectedItem as NotificationRow)?.Invitation;
-        if (invitation is null)
+        NotificationRow? selected = notifications.SelectedItem as NotificationRow;
+        StudioProjectMembershipInvitation? invitation = selected?.Invitation;
+        StudioProjectMembershipExitRequest? exitRequest = selected?.ExitRequest;
+        if (invitation is null && exitRequest is null)
             return;
-        SetBusy(true, "Урилгаас татгалзаж байна...");
+        if (exitRequest is not null && !StudioRelationshipBoundary.Confirm(
+                this,
+                StudioRelationshipAction.DecideProjectExit,
+                exitRequest.ParticipantDisplayName))
+        {
+            return;
+        }
+        SetBusy(true, invitation is not null
+            ? "Урилгаас татгалзаж байна..."
+            : "Гарах хүсэлтээс татгалзаж байна...");
         try
         {
-            await account.DeclineMembershipInvitationAsync(invitation.InvitationId);
-            invitationData.Received.RemoveAll(item =>
-                item.InvitationId.Equals(invitation.InvitationId, StringComparison.OrdinalIgnoreCase));
+            if (invitation is not null)
+            {
+                await account.DeclineMembershipInvitationAsync(invitation.InvitationId);
+                invitationData.Received.RemoveAll(item =>
+                    item.InvitationId.Equals(invitation.InvitationId, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                await account.DecideProjectExitAsync(exitRequest!.RequestId, approve: false);
+                exitRequestData.AwaitingApproval.RemoveAll(item =>
+                    item.RequestId.Equals(exitRequest.RequestId, StringComparison.OrdinalIgnoreCase));
+            }
             RefreshRows();
-            status.Text = "Урилгаас татгалзлаа.";
+            status.Text = invitation is not null
+                ? "Урилгаас татгалзлаа."
+                : "Гарах хүсэлтээс татгалзлаа. Гишүүний access хэвээр үлдэнэ.";
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            status.Text = "Урилгаас татгалзаж чадсангүй: " + exception.Message;
+            status.Text = "Шийдвэрийг хадгалж чадсангүй: " + exception.Message;
         }
         finally
         {
@@ -356,6 +417,7 @@ internal sealed class StudioNotificationsDialog : Window
         string Detail,
         string Expires,
         StudioProjectMembershipInvitation? Invitation,
+        StudioProjectMembershipExitRequest? ExitRequest,
         StudioProjectCreationGrant? Grant);
 }
 
@@ -476,6 +538,13 @@ internal sealed class ProjectCreationGrantDialog : Window
     {
         if (string.IsNullOrWhiteSpace(verifiedEmail))
             return;
+        if (!StudioRelationshipBoundary.Confirm(
+                this,
+                StudioRelationshipAction.IssueProjectCreationGrant,
+                verifiedEmail))
+        {
+            return;
+        }
         sendButton.IsEnabled = false;
         try
         {

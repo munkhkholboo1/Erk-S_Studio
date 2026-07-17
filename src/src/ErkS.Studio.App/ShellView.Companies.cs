@@ -462,14 +462,13 @@ internal sealed partial class ShellView
         string currentName = string.IsNullOrWhiteSpace(assignment.OrganizationSnapshot.DisplayName)
             ? assignment.OrganizationName
             : assignment.OrganizationSnapshot.DisplayName;
-        MessageBoxResult confirmation = MessageBox.Show(
-            Window.GetWindow((DependencyObject)Root),
-            $"Зураг төслийн байгууллагыг солих уу?\n\n{ValueOrDash(currentName)}  ->  {CompanyDisplayName(profile)}\n\nӨмнөх assignment төслийн түүхэнд хадгалагдана.",
-            "Erk-S Studio",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        if (confirmation != MessageBoxResult.Yes)
+        if (!StudioRelationshipBoundary.Confirm(
+                Window.GetWindow((DependencyObject)Root),
+                StudioRelationshipAction.AssignDesignOrganization,
+                $"{ValueOrDash(currentName)}  ->  {CompanyDisplayName(profile)}"))
+        {
             return;
+        }
 
         bool cloudLinked = project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(project.Cloud.ServerProjectId);

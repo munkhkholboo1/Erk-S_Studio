@@ -239,7 +239,8 @@ internal sealed class StudioAccountService : IDisposable
                 TargetEmail = NormalizeEmail(targetEmail),
                 Roles = roles.Where(role => !string.IsNullOrWhiteSpace(role)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             },
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task<StudioCloudProjectDetail> AcceptMembershipInvitationAsync(
@@ -249,7 +250,8 @@ internal sealed class StudioAccountService : IDisposable
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PostAuthorizedAsync<StudioCloudProjectDetail>(
             "/api/cloud-era/v1/project-membership-invitations/" + Uri.EscapeDataString(invitationId) + "/accept",
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task DeclineMembershipInvitationAsync(
@@ -260,7 +262,8 @@ internal sealed class StudioAccountService : IDisposable
         await SendAuthorizedNoContentAsync(
             HttpMethod.Post,
             "/api/cloud-era/v1/project-membership-invitations/" + Uri.EscapeDataString(invitationId) + "/decline",
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task RevokeMembershipInvitationAsync(
@@ -273,7 +276,8 @@ internal sealed class StudioAccountService : IDisposable
             HttpMethod.Delete,
             "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
             "/membership-invitations/" + Uri.EscapeDataString(invitationId),
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task DeactivateParticipantAsync(
@@ -286,7 +290,58 @@ internal sealed class StudioAccountService : IDisposable
             HttpMethod.Delete,
             "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
             "/participants/" + Uri.EscapeDataString(participantId),
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+    }
+
+    public async Task<StudioProjectMembershipExitRequestListResponse> ListMembershipExitRequestsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioProjectMembershipExitRequestListResponse>(
+            "/api/cloud-era/v1/project-membership-exit-requests",
             cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioProjectMembershipExitRequest> RequestProjectExitAsync(
+        string projectId,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioProjectMembershipExitRequestCreateRequest, StudioProjectMembershipExitRequest>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/membership-exit-requests",
+            new StudioProjectMembershipExitRequestCreateRequest { Reason = reason?.Trim() ?? "" },
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+    }
+
+    public async Task<StudioProjectMembershipExitRequest> DecideProjectExitAsync(
+        string requestId,
+        bool approve,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        string decision = approve ? "approve" : "decline";
+        return await PostAuthorizedAsync<StudioProjectMembershipExitRequest>(
+            "/api/cloud-era/v1/project-membership-exit-requests/" + Uri.EscapeDataString(requestId) + "/" + decision,
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudSourcePackage> AssignSourceCustodianAsync(
+        string projectId,
+        string sourceKey,
+        string participantId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PutAuthorizedAsync<StudioCloudSourceCustodianAssignRequest, StudioCloudSourcePackage>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/sources/" + Uri.EscapeDataString(sourceKey) + "/custodian",
+            new StudioCloudSourceCustodianAssignRequest { ParticipantId = participantId },
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task<StudioProjectCreationGrantListResponse> ListProjectCreationGrantsAsync(
@@ -307,7 +362,8 @@ internal sealed class StudioAccountService : IDisposable
         return await PostAuthorizedAsync<StudioProjectCreationGrantCreateRequest, StudioProjectCreationGrant>(
             "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId) + "/project-creation-grants",
             new StudioProjectCreationGrantCreateRequest { TargetEmail = NormalizeEmail(targetEmail) },
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task RevokeProjectCreationGrantAsync(
@@ -318,7 +374,8 @@ internal sealed class StudioAccountService : IDisposable
         await SendAuthorizedNoContentAsync(
             HttpMethod.Delete,
             "/api/cloud-era/v1/project-creation-grants/" + Uri.EscapeDataString(grantId),
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task<StudioCloudProjectDetail> CreateProjectFromGrantAsync(
@@ -330,7 +387,8 @@ internal sealed class StudioAccountService : IDisposable
         return await PostAuthorizedAsync<StudioCloudProjectCreateRequest, StudioCloudProjectDetail>(
             "/api/cloud-era/v1/project-creation-grants/" + Uri.EscapeDataString(grantId) + "/projects",
             request,
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task<IReadOnlyList<StudioCloudOrganization>> ListOrganizationsAsync(CancellationToken cancellationToken = default)
@@ -562,7 +620,8 @@ internal sealed class StudioAccountService : IDisposable
         return await PostAuthorizedAsync<StudioCloudProjectCreateRequest, StudioCloudProjectDetail>(
             "/api/cloud-era/v1/projects",
             request,
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public async Task<StudioCloudProjectDetail> AssignDesignOrganizationAsync(
@@ -574,7 +633,8 @@ internal sealed class StudioAccountService : IDisposable
         return await PutAuthorizedAsync<StudioCloudDesignOrganizationAssignmentRequest, StudioCloudProjectDetail>(
             "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/design-organization",
             new StudioCloudDesignOrganizationAssignmentRequest { OrganizationId = organizationId },
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
     public void OpenAccountRegistration()
@@ -691,7 +751,8 @@ internal sealed class StudioAccountService : IDisposable
     private async Task<TResponse> PostAuthorizedAsync<TRequest, TResponse>(
         string path,
         TRequest value,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool relationshipBoundaryAcknowledged = false)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(session.ServerUrl, path))
@@ -699,15 +760,20 @@ internal sealed class StudioAccountService : IDisposable
             Content = JsonContent.Create(value, options: JsonOptions),
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        AddRelationshipBoundaryAcknowledgement(request, relationshipBoundaryAcknowledged);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
 
-    private async Task<TResponse> PostAuthorizedAsync<TResponse>(string path, CancellationToken cancellationToken)
+    private async Task<TResponse> PostAuthorizedAsync<TResponse>(
+        string path,
+        CancellationToken cancellationToken,
+        bool relationshipBoundaryAcknowledged = false)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(session.ServerUrl, path));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        AddRelationshipBoundaryAcknowledgement(request, relationshipBoundaryAcknowledged);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
@@ -715,7 +781,8 @@ internal sealed class StudioAccountService : IDisposable
     private async Task<TResponse> PutAuthorizedAsync<TRequest, TResponse>(
         string path,
         TRequest value,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool relationshipBoundaryAcknowledged = false)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, path))
@@ -723,6 +790,7 @@ internal sealed class StudioAccountService : IDisposable
             Content = JsonContent.Create(value, options: JsonOptions),
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        AddRelationshipBoundaryAcknowledgement(request, relationshipBoundaryAcknowledged);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
@@ -730,15 +798,29 @@ internal sealed class StudioAccountService : IDisposable
     private async Task SendAuthorizedNoContentAsync(
         HttpMethod method,
         string path,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool relationshipBoundaryAcknowledged = false)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is required.");
         using HttpRequestMessage request = new(method, BuildUri(session.ServerUrl, path));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        AddRelationshipBoundaryAcknowledgement(request, relationshipBoundaryAcknowledged);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         if (response.IsSuccessStatusCode)
             return;
         await ReadResponseAsync<object>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    private static void AddRelationshipBoundaryAcknowledgement(
+        HttpRequestMessage request,
+        bool acknowledged)
+    {
+        if (acknowledged)
+        {
+            request.Headers.TryAddWithoutValidation(
+                StudioRelationshipBoundary.HeaderName,
+                StudioRelationshipBoundary.PolicyVersion);
+        }
     }
 
     private async Task<TResponse> PostAsync<TRequest, TResponse>(

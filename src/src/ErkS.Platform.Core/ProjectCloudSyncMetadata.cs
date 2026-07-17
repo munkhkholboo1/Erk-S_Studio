@@ -48,7 +48,7 @@ public static class ProjectCloudSyncMetadata
             throw new ArgumentException("Manifest SHA-256 is required.", nameof(manifestSha256));
 
         source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        source.Metadata[SourceKeyKey] = source.Id;
+        source.Metadata[SourceKeyKey] = Value(source.Metadata, SourceKeyKey, source.Id);
         source.Metadata[SourceApplicationKey] = SourceApplication(manifest.Source.Application);
         source.Metadata[SourceDocumentReferenceKey] = manifest.Source.DocumentTitle?.Trim() ?? "";
         source.Metadata[ManifestIdKey] = manifest.PackageId.ToString("N");
@@ -57,6 +57,30 @@ public static class ProjectCloudSyncMetadata
         source.Metadata[WorkPackageIdKey] = manifest.WorkPackageId?.Trim() ?? "";
         source.Metadata[SheetCountKey] = manifest.Sheets.Count.ToString(CultureInfo.InvariantCulture);
         source.Metadata[ContentHashKey] = manifestSha256.Trim().ToLowerInvariant();
+        MarkPending(project);
+    }
+
+    public static string CloudSourceKey(ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return Value(source.Metadata, SourceKeyKey, source.Id);
+    }
+
+    public static void BindToCloudSource(
+        ProjectWorkspace project,
+        ProjectDesignSource source,
+        string sourceKey)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(source);
+        string normalized = (sourceKey ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            throw new ArgumentException("Cloud source key is required.", nameof(sourceKey));
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        source.Metadata[SourceKeyKey] = normalized;
+        source.Metadata.Remove(SyncedManifestIdKey);
+        source.Metadata.Remove(SyncedContentHashKey);
         MarkPending(project);
     }
 

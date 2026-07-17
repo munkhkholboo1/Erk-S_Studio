@@ -58,6 +58,37 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void LocalSourceCanRebindToCloudSourceWithoutPublishingNativePath()
+    {
+        ProjectWorkspace project = Project();
+        ProjectDesignSource source = project.Sources.Single();
+        source.NativeDocumentPath = @"E:\private\handover\building.rvt";
+        var manifest = new SheetPackageManifest
+        {
+            SchemaVersion = 4,
+            PackageId = Guid.NewGuid(),
+            ExportedAtUtc = DateTimeOffset.UtcNow,
+            Source = new SheetPackageSource
+            {
+                SourceId = source.Id,
+                Application = SheetSourceApplication.Revit,
+                DocumentTitle = "building.rvt",
+                DocumentPath = source.NativeDocumentPath,
+            },
+            Sheets = [new SheetPackageEntry { SheetId = "A-01", Sha256 = "sheet-hash" }],
+        };
+
+        ProjectCloudSyncMetadata.BindToCloudSource(project, source, "cloud-source-42");
+        ProjectCloudSyncMetadata.RecordPackage(project, source, manifest, "ABC123");
+
+        ProjectSourceSyncCandidate candidate = Assert.Single(ProjectCloudSyncMetadata.SourcePackages(project));
+        Assert.Equal("cloud-source-42", candidate.SourceKey);
+        Assert.Equal("building.rvt", candidate.SourceDocumentReference);
+        Assert.DoesNotContain("private", candidate.SourceDocumentReference, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("E:\\", candidate.SourceDocumentReference, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void BuiltAlbumHashControlsPendingAndSyncedState()
     {
         string root = Path.Combine(Path.GetTempPath(), "erks-cloud-sync-tests", Guid.NewGuid().ToString("N"));

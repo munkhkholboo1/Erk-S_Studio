@@ -205,6 +205,37 @@ internal sealed class StudioProjectMembershipInvitation
     public string Status { get; set; } = "";
 }
 
+internal sealed class StudioProjectMembershipExitRequestCreateRequest
+{
+    public string Reason { get; set; } = "";
+}
+
+internal sealed class StudioProjectMembershipExitRequestListResponse
+{
+    public DateTimeOffset ServerTimeUtc { get; set; }
+    public List<StudioProjectMembershipExitRequest> Requested { get; set; } = [];
+    public List<StudioProjectMembershipExitRequest> AwaitingApproval { get; set; } = [];
+}
+
+internal sealed class StudioProjectMembershipExitRequest
+{
+    public string RequestId { get; set; } = "";
+    public string ProjectId { get; set; } = "";
+    public string ProjectCode { get; set; } = "";
+    public string ProjectName { get; set; } = "";
+    public string ParticipantId { get; set; } = "";
+    public string ParticipantEmail { get; set; } = "";
+    public string ParticipantDisplayName { get; set; } = "";
+    public string ApprovalOrganizationId { get; set; } = "";
+    public string ApprovalOrganizationName { get; set; } = "";
+    public string Reason { get; set; } = "";
+    public string[] AffectedSourceKeys { get; set; } = [];
+    public DateTimeOffset RequestedAtUtc { get; set; }
+    public string Status { get; set; } = "";
+    public string DecidedByEmail { get; set; } = "";
+    public DateTimeOffset? DecidedAtUtc { get; set; }
+}
+
 internal sealed class StudioProjectRoleListResponse
 {
     public List<StudioProjectRole> Roles { get; set; } = [];
@@ -328,6 +359,14 @@ internal sealed class StudioCloudSourcePackage
     public string OwnerOrganizationSnapshotId { get; set; } = "";
     public string RegisteredBy { get; set; } = "";
     public DateTimeOffset RegisteredAtUtc { get; set; }
+    public string CustodianParticipantId { get; set; } = "";
+    public string CustodianEmail { get; set; } = "";
+    public string CustodyStatus { get; set; } = "";
+}
+
+internal sealed class StudioCloudSourceCustodianAssignRequest
+{
+    public string ParticipantId { get; set; } = "";
 }
 
 internal sealed class StudioCloudDesignPackage
