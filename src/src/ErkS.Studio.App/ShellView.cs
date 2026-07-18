@@ -1959,9 +1959,10 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
-    private AlbumBuildResult BuildLatestAlbum()
+    private AlbumBuildResult BuildLatestAlbum(bool collectUi = true)
     {
-        CollectUiToProject();
+        if (collectUi)
+            CollectUiToProject();
         string outputFolder = state.ResolveOutputFolder();
         Directory.CreateDirectory(outputFolder);
         string outputPath = Path.Combine(outputFolder, $"{SafeFileName(state.Album.Title)}.pdf");
@@ -2052,6 +2053,19 @@ internal sealed partial class ShellView : IDisposable
                 ProjectCloudSyncMetadata.MarkSourceSynced(source);
             }
 
+            // Server-side source registration can advance the canonical
+            // project version. Pull it again so the PDF is generated from the
+            // exact snapshot that the upload endpoint will accept.
+            canonical = await account.GetProjectAsync(projectId);
+            state.LinkCurrentProjectToCloud(
+                canonical,
+                account.Current!.ServerUrl,
+                preserveCreation: true,
+                preserveSyncState: true);
+            await ApplyCloudProjectRenderProfileAsync(canonical);
+            BindFoundationFieldsToUi();
+            string canonicalProjectToken = canonical.Project.ConcurrencyToken;
+
             IReadOnlyList<ProjectSourceSyncCandidate> localSources =
                 ProjectCloudSyncMetadata.SourcePackages(state.Project);
             IReadOnlyList<StudioCloudDesignPackage> designPackages =
@@ -2096,7 +2110,7 @@ internal sealed partial class ShellView : IDisposable
                     SetStatus(localSources.Count == 0
                         ? "Studio-ийн автомат хуудаснуудаар album revision бэлтгэж байна..."
                         : "Бүх source бүрэн байна. Studio album revision бэлтгэж байна...");
-                    AlbumBuildResult build = BuildLatestAlbum();
+                    AlbumBuildResult build = BuildLatestAlbum(collectUi: false);
                     cloud.SyncStatus = ProjectSyncStatuses.Syncing;
                     state.SaveProject();
                     string localHash = state.Project.PrimaryAlbum.LastPdfSha256;
@@ -2112,7 +2126,8 @@ internal sealed partial class ShellView : IDisposable
                             serverAlbum.AlbumId,
                             build.OutputPath,
                             build.PageCount,
-                            state.Project.PrimaryAlbum.LastPageSizeSummary);
+                            state.Project.PrimaryAlbum.LastPageSizeSummary,
+                            canonicalProjectToken);
                     }
                     syncedAlbumHash = localHash;
                     syncedRevisionId = syncedRevision.RevisionId;
