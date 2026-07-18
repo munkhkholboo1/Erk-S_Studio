@@ -55,7 +55,33 @@ function Read-HistoryFile {
         return @()
     }
 
-    return @(ConvertFrom-Json -InputObject $raw)
+    return @(Expand-HistoryEntry -Value (ConvertFrom-Json -InputObject $raw))
+}
+
+function Expand-HistoryEntry {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) {
+        return
+    }
+    if ($Value -is [System.Array]) {
+        foreach ($item in $Value) {
+            Expand-HistoryEntry -Value $item
+        }
+        return
+    }
+
+    $versionProperty = $Value.PSObject.Properties["Version"]
+    if ($null -ne $versionProperty -and -not [string]::IsNullOrWhiteSpace([string]$versionProperty.Value)) {
+        Write-Output $Value
+        return
+    }
+
+    # PowerShell 5 can serialize a returned array as { value, Count }.
+    $wrappedValueProperty = $Value.PSObject.Properties["value"]
+    if ($null -ne $wrappedValueProperty) {
+        Expand-HistoryEntry -Value $wrappedValueProperty.Value
+    }
 }
 
 $versions = Resolve-ReleaseVersion -Value $ReleaseVersion

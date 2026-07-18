@@ -8,6 +8,10 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.7] - 2026-07-18
+
+- Normalize legacy PowerShell 5 update-history wrappers during Studio publication so prior release entries remain intact when a new version is added.
+
 ## [0.1.0-dev.6] - 2026-07-18
 
 - Add an explicit edit, save, and cancel workflow for project foundation information, with role-based write access and immutable project-code and Cloud land fields.
