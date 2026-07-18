@@ -99,11 +99,9 @@ internal sealed partial class ShellView
         companyNewButton.Click += async (_, _) => await CreateCompanyDraftAsync();
         companySaveButton.Click += async (_, _) => await SaveSelectedCompanyAsync();
         companyUseInProjectButton.Click += async (_, _) => await UseSelectedCompanyInOpenProjectAsync();
-        companyProjectGrantButton.Click += async (_, _) => await OpenProjectCreationGrantDialogAsync();
         actions.Children.Add(refreshButton);
         actions.Children.Add(companyNewButton);
         actions.Children.Add(companySaveButton);
-        actions.Children.Add(companyProjectGrantButton);
         actions.Children.Add(companyUseInProjectButton);
         DockPanel.SetDock(actions, Dock.Right);
         header.Children.Add(actions);
@@ -398,7 +396,6 @@ internal sealed partial class ShellView
 
     private void RefreshCompanyProjectActionUi()
     {
-        RefreshCompanyGrantActionUi();
         if (!state.HasOpenProject)
         {
             companyUseInProjectButton.Content = "Төсөлд ашиглах";

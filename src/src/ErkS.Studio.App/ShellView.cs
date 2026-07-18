@@ -1164,12 +1164,10 @@ internal sealed partial class ShellView : IDisposable
             return;
 
         IReadOnlyList<StudioCloudOrganization> organizations;
-        StudioProjectCreationGrantListResponse creationGrants;
         try
         {
             SetStatus("Бүртгэлд хамаарах байгууллагуудыг уншиж байна...");
             organizations = await account.ListOrganizationsAsync();
-            creationGrants = await account.ListProjectCreationGrantsAsync();
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
@@ -1177,37 +1175,32 @@ internal sealed partial class ShellView : IDisposable
             return;
         }
 
-        List<StudioProjectCreationGrant> activeGrants = creationGrants.Received
-            .Where(item =>
-                item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
-                item.ExpiresAtUtc > DateTimeOffset.UtcNow)
-            .ToList();
-        if (organizations.Count == 0 && activeGrants.Count == 0)
+        bool hasManagedDesignOrganization = organizations.Any(item =>
+            item.OrganizationType.Equals("DesignCompany", StringComparison.OrdinalIgnoreCase) &&
+            (item.CurrentUserRole.Equals("Organization Owner", StringComparison.OrdinalIgnoreCase) ||
+             item.CurrentUserRole.Equals("Organization Admin", StringComparison.OrdinalIgnoreCase)));
+        if (!hasManagedDesignOrganization)
         {
             SelectPage(StudioPage.Companies);
-            SetStatus("Төсөл үүсгэхийн өмнө Компани хэсэгт байгууллагын бүртгэл үүсгэж эсвэл байгууллагын эрх авна уу.");
+            SetStatus("Төсөл үүсгэхийн өмнө Компани хэсэгт админ эрхтэй зураг төслийн байгууллага үүсгэнэ үү.");
             return;
         }
 
-        var dialog = new NewProjectDialog(organizations, activeGrants) { Owner = Window.GetWindow(Root) };
+        var dialog = new NewProjectDialog(organizations) { Owner = Window.GetWindow(Root) };
         if (dialog.ShowDialog() != true)
             return;
         try
         {
             ProjectCreationRequest request = AttachAccountIdentity(dialog.CreationRequest);
             StudioCloudOrganization? selectedOrganization = dialog.SelectedOrganization;
-            StudioProjectCreationGrant? selectedGrant = dialog.SelectedCreationGrant;
-            if (selectedOrganization is null && selectedGrant is null)
-                throw new InvalidOperationException("Төсөл үүсгэх байгууллага эсвэл эрх сонгогдоогүй байна.");
-            StudioRelationshipAction relationshipAction = selectedGrant is null
-                ? StudioRelationshipAction.CreateProjectForClient
-                : StudioRelationshipAction.RedeemProjectCreationGrant;
-            string relationshipCounterparty = selectedGrant is null
-                ? string.IsNullOrWhiteSpace(request.ClientName) ? "Захиалагч" : request.ClientName
-                : $"{selectedGrant.OrganizationName} / {request.ClientName}";
+            if (selectedOrganization is null)
+                throw new InvalidOperationException("Төсөл үүсгэх байгууллага сонгогдоогүй байна.");
+            string relationshipCounterparty = string.IsNullOrWhiteSpace(request.ClientName)
+                ? selectedOrganization.LegalName
+                : request.ClientName;
             if (!StudioRelationshipBoundary.Confirm(
                     Window.GetWindow(Root),
-                    relationshipAction,
+                    StudioRelationshipAction.CreateProjectForClient,
                     relationshipCounterparty))
             {
                 return;
@@ -1232,15 +1225,11 @@ internal sealed partial class ShellView : IDisposable
                 InitiatorOrganizationId = request.InitiatorOrganizationId,
                 InitiatorOrganizationName = request.InitiatorOrganizationName,
             };
-            StudioCloudProjectDetail cloud = selectedGrant is null
-                ? await account.CreateProjectAsync(cloudRequest)
-                : await account.CreateProjectFromGrantAsync(selectedGrant.GrantId, cloudRequest);
+            StudioCloudProjectDetail cloud = await account.CreateProjectAsync(cloudRequest);
             state.NewProject(request);
             state.LinkCurrentProjectToCloud(cloud, account.Current!.ServerUrl, request);
             await ApplyCloudProjectRenderProfileAsync(cloud);
-            if (selectedGrant is null &&
-                selectedOrganization is not null &&
-                request.InitiatorType.Equals(ProjectInitiatorTypes.DesignOrganization, StringComparison.OrdinalIgnoreCase))
+            if (request.InitiatorType.Equals(ProjectInitiatorTypes.DesignOrganization, StringComparison.OrdinalIgnoreCase))
                 ApplyCompanyToOpenProject(MapCloudCompany(selectedOrganization), rebuildAlbum: false);
             EnterProjectWorkspace(StudioPage.Foundation);
             SetStatus($"Cloud ERA төсөл болон локал mirror үүслээ: {state.ProjectPath}");
