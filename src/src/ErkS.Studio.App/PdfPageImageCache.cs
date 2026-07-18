@@ -25,7 +25,7 @@ internal sealed class PdfPageImageCache
             return null;
         }
 
-        var fullPath = Path.GetFullPath(pdfPath);
+        var fullPath = await PdfPreviewFileCache.GetPreviewPathAsync(pdfPath, cancellationToken);
         var file = new FileInfo(fullPath);
         var currentDocumentKey = $"{fullPath}|{file.Length}|{file.LastWriteTimeUtc.Ticks}";
         var imageKey = new PageImageKey(currentDocumentKey, pageNumber, pixelWidth);

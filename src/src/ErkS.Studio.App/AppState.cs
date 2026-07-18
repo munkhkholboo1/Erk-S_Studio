@@ -157,7 +157,8 @@ public sealed class AppState : IDisposable
         StudioCloudProjectDetail cloudProject,
         string serverUrl,
         ProjectCreationRequest? creationRequest = null,
-        bool preserveCreation = false)
+        bool preserveCreation = false,
+        bool preserveSyncState = false)
     {
         ArgumentNullException.ThrowIfNull(cloudProject);
         StudioCloudProjectSummary summary = cloudProject.Project;
@@ -176,7 +177,8 @@ public sealed class AppState : IDisposable
         Project.Cloud.ServerProjectId = summary.ProjectId;
         Project.Cloud.ServerUrl = serverUrl.TrimEnd('/');
         Project.Cloud.CloudProjectCode = summary.ProjectCode;
-        Project.Cloud.SyncStatus = ProjectSyncStatuses.Linked;
+        if (!preserveSyncState)
+            Project.Cloud.SyncStatus = ProjectSyncStatuses.Linked;
         Project.Cloud.CurrentUserRoles = summary.CurrentUserRoles
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)

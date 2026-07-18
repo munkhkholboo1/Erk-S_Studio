@@ -1737,9 +1737,15 @@ internal sealed partial class ShellView
                 return;
             }
 
-            var pdf = new FileInfo(targetPdfPath);
+            string previewPdfPath = await PdfPreviewFileCache.GetPreviewPathAsync(targetPdfPath);
+            if (navigationSerial != albumPdfNavigationSerial)
+            {
+                return;
+            }
+
+            var pdf = new FileInfo(previewPdfPath);
             var documentKey = $"{pdf.FullName}|{pdf.LastWriteTimeUtc.Ticks}|{pdf.Length}";
-            var builder = new UriBuilder(new Uri(targetPdfPath))
+            var builder = new UriBuilder(new Uri(previewPdfPath))
             {
                 Query = $"erksVersion={pdf.LastWriteTimeUtc.Ticks}-{pdf.Length}",
                 Fragment = $"page={targetPage}&zoom=page-fit",

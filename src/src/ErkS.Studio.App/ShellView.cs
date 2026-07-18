@@ -1465,6 +1465,7 @@ internal sealed partial class ShellView : IDisposable
             SetStatus(state.LastOpenMigratedLegacyProject
                 ? $"Legacy project шинэ workspace болсон. Эх файл хэвээр: {path}"
                 : $"Төсөл нээгдлээ: {state.ProjectPath}");
+            _ = RefreshCurrentProjectCloudAccessAsync();
         }
         catch (Exception exception)
         {
@@ -1870,6 +1871,15 @@ internal sealed partial class ShellView : IDisposable
             !string.IsNullOrWhiteSpace(cloud.ServerProjectId);
         syncButton.IsEnabled = linked && account.IsSignedIn && !syncInProgress && CanEditProjectContent();
         syncButton.Content = syncInProgress ? "Syncing..." : "Sync";
+        syncButton.ToolTip = refreshingCurrentProjectAccess
+            ? "Cloud ERA access эрхийг шинэчилж байна"
+            : !linked
+                ? "Энэ төслийг Cloud ERA project-той холбоход Sync идэвхжинэ"
+                : !account.IsSignedIn
+                    ? "Sync хийхийн тулд бүртгэлээрээ нэвтэрнэ үү"
+                    : !CanEditProjectContent()
+                        ? "Таны project role Sync хийх эрхгүй байна"
+                        : "Эх үүсвэр, album snapshot-ийг Cloud ERA руу sync хийх";
         if (!linked)
         {
             syncSummaryText.Foreground = StudioTheme.MutedTextBrush;

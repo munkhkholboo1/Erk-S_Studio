@@ -24,6 +24,56 @@ internal sealed partial class ShellView
     private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
     private StudioProjectCreationGrantListResponse notificationGrants = new();
     private bool refreshingNotifications;
+    private bool refreshingCurrentProjectAccess;
+
+    private async Task RefreshCurrentProjectCloudAccessAsync(bool reportResult = false)
+    {
+        if (refreshingCurrentProjectAccess ||
+            !state.HasOpenProject ||
+            !account.IsSignedIn ||
+            !state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
+        {
+            RefreshTeamActionUi();
+            RefreshSyncUi();
+            return;
+        }
+
+        string projectId = state.Project.Cloud.ServerProjectId;
+        refreshingCurrentProjectAccess = true;
+        RefreshTeamActionUi();
+        RefreshSyncUi();
+        try
+        {
+            StudioCloudProjectDetail latest = await account.GetProjectAsync(projectId);
+            if (!state.HasOpenProject ||
+                !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            state.LinkCurrentProjectToCloud(
+                latest,
+                account.Current!.ServerUrl,
+                preserveCreation: true,
+                preserveSyncState: true);
+            await ApplyCloudProjectRenderProfileAsync(latest);
+            BindProjectToUi();
+            if (reportResult)
+                SetStatus("Cloud ERA access болон төслийн багийн мэдээлэл шинэчлэгдлээ.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            if (reportResult || state.Project.Cloud.CurrentUserScopes.Count == 0)
+                SetStatus("Cloud ERA access эрхийг шинэчилж чадсангүй: " + exception.Message);
+        }
+        finally
+        {
+            refreshingCurrentProjectAccess = false;
+            RefreshTeamActionUi();
+            RefreshSyncUi();
+        }
+    }
 
     private async Task RefreshNotificationsAsync(bool silent = true)
     {
@@ -151,7 +201,9 @@ internal sealed partial class ShellView
             : "Багаас хасах";
         string reason = canManage
             ? "Бүртгэлтэй хэрэглэгчид урилга илгээнэ"
-            : "Төслийн баг удирдах role шаардлагатай";
+            : refreshingCurrentProjectAccess
+                ? "Cloud ERA access эрхийг шинэчилж байна"
+                : "Төслийн баг удирдах role шаардлагатай";
         inviteTeamMemberButton.ToolTip = reason;
         removeTeamMemberButton.ToolTip = reason;
         leaveProjectButton.ToolTip = pendingExit
