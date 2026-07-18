@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
@@ -18,6 +20,9 @@ namespace ErkS.Studio;
 /// </summary>
 internal sealed class StudioHostWindow : Window
 {
+    private const int WmGetMinMaxInfo = 0x0024;
+    private const uint MonitorDefaultToNearest = 0x00000002;
+
     private static readonly Brush BarBackground = new SolidColorBrush(Color.FromRgb(22, 25, 29));
     private static readonly Brush BarBorder = new SolidColorBrush(Color.FromRgb(47, 52, 60));
     private static readonly Brush BarText = new SolidColorBrush(Color.FromRgb(164, 171, 182));
@@ -44,6 +49,7 @@ internal sealed class StudioHostWindow : Window
     private DispatcherTimer? devReloadTimer;
     private bool reloadInProgress;
     private bool staticFallback;
+    private HwndSource? windowSource;
     private readonly TextBlock maximizeGlyph = new()
     {
         Text = "\uE922",
@@ -85,6 +91,7 @@ internal sealed class StudioHostWindow : Window
         root.Children.Add(contentHost);
         Content = root;
         StateChanged += (_, _) => maximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        SourceInitialized += (_, _) => AttachWindowBoundsHook();
 
         PreviewKeyDown += (_, args) =>
         {
@@ -96,6 +103,8 @@ internal sealed class StudioHostWindow : Window
         };
         Closed += (_, _) =>
         {
+            windowSource?.RemoveHook(WindowProc);
+            windowSource = null;
             devWatcher?.Dispose();
             if (loaded is not null)
             {
@@ -104,6 +113,93 @@ internal sealed class StudioHostWindow : Window
         };
 
         LoadAppModule();
+    }
+
+    private void AttachWindowBoundsHook()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        windowSource = HwndSource.FromHwnd(handle);
+        windowSource?.AddHook(WindowProc);
+    }
+
+    private static IntPtr WindowProc(
+        IntPtr hwnd,
+        int message,
+        IntPtr wParam,
+        IntPtr lParam,
+        ref bool handled)
+    {
+        if (message != WmGetMinMaxInfo || lParam == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        var monitorInfo = new MonitorInfo
+        {
+            Size = Marshal.SizeOf<MonitorInfo>(),
+        };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            return IntPtr.Zero;
+        }
+
+        var bounds = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+        bounds.MaxPosition.X = monitorInfo.WorkArea.Left - monitorInfo.MonitorArea.Left;
+        bounds.MaxPosition.Y = monitorInfo.WorkArea.Top - monitorInfo.MonitorArea.Top;
+        bounds.MaxSize.X = monitorInfo.WorkArea.Right - monitorInfo.WorkArea.Left;
+        bounds.MaxSize.Y = monitorInfo.WorkArea.Bottom - monitorInfo.WorkArea.Top;
+        bounds.MaxTrackSize = bounds.MaxSize;
+        Marshal.StructureToPtr(bounds, lParam, false);
+        handled = true;
+        return IntPtr.Zero;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MinMaxInfo
+    {
+        public NativePoint Reserved;
+        public NativePoint MaxSize;
+        public NativePoint MaxPosition;
+        public NativePoint MinTrackSize;
+        public NativePoint MaxTrackSize;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect MonitorArea;
+        public NativeRect WorkArea;
+        public uint Flags;
     }
 
     private static ImageSource? TryLoadWindowIcon()

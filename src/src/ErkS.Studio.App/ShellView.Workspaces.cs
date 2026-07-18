@@ -22,6 +22,11 @@ internal sealed partial class ShellView
     private readonly ListBox designSourcesWorkspaceList = new();
     private readonly ListView receivedSheetsWorkspaceList = new();
     private readonly TextBlock sourceDetailsText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock sourceWorkflowText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Button openNativeSourceButton = StudioWidgets.CreateIconTextButton(
+        "icon-sources.svg",
+        "Эх файл нээх",
+        "RVT/DWG эх файлыг өөрийн мэргэжлийн программ дээр нээнэ.");
 
     private readonly ListBox albumPagesWorkspaceList = new();
     private readonly ToggleButton albumListViewToggle = new();
@@ -81,6 +86,12 @@ internal sealed partial class ShellView
         sourceDetailsText.Margin = new Thickness(2, 4, 2, 10);
         var details = new StackPanel();
         details.Children.Add(sourceDetailsText);
+        sourceWorkflowText.Foreground = StudioTheme.MutedTextBrush;
+        sourceWorkflowText.Margin = new Thickness(2, 0, 2, 10);
+        details.Children.Add(sourceWorkflowText);
+        openNativeSourceButton.Margin = new Thickness(0, 0, 0, 6);
+        openNativeSourceButton.Click += (_, _) => OpenSelectedNativeSource();
+        details.Children.Add(openNativeSourceButton);
         var openFolder = StudioWidgets.CreateIconTextButton("icon-sources.svg", "Inbox нээх");
         openFolder.Click += (_, _) => OpenSelectedSourceFolder();
         details.Children.Add(openFolder);
@@ -228,7 +239,9 @@ internal sealed partial class ShellView
 
         state.AddDesignSource(dialog.ResultSource);
         RefreshSourceWorkspace(dialog.ResultSource.Id);
-        SetStatus($"Эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}");
+        SetStatus(dialog.ResultSource.Kind == DesignSourceKind.Revit
+            ? $"RVT эх үүсвэр холбогдлоо: {dialog.ResultSource.DisplayName}. Revit-ийн Альбум хэсгээс Studio руу илгээнэ."
+            : $"Эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}");
     }
 
     private void RemoveSelectedDesignSource()
@@ -424,6 +437,34 @@ internal sealed partial class ShellView
         Process.Start(new ProcessStartInfo(selected.Source.InboxFolder) { UseShellExecute = true });
     }
 
+    private void OpenSelectedNativeSource()
+    {
+        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected ||
+            string.IsNullOrWhiteSpace(selected.Source.NativeDocumentPath))
+        {
+            return;
+        }
+
+        string path = selected.Source.NativeDocumentPath;
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            SetStatus($"Эх файл олдсонгүй. Байршлыг дахин заана уу: {path}");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            SetStatus(selected.Source.Kind == DesignSourceKind.Revit
+                ? "RVT файлыг Revit дээр нээлээ. Erk-S Platform > Альбум > Studio руу илгээх үйлдлээр sheets шинэчилнэ."
+                : $"Эх файлыг нээлээ: {selected.Source.NativeDocumentTitle}");
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Эх файл нээгдсэнгүй: {exception.Message}");
+        }
+    }
+
     private void RefreshSourceWorkspace(string? selectSourceId = null)
     {
         if (selectSourceId is null && designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem current)
@@ -478,6 +519,8 @@ internal sealed partial class ShellView
         if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
         {
             sourceDetailsText.Text = "Эх үүсвэр сонгоно уу.";
+            sourceWorkflowText.Text = "";
+            openNativeSourceButton.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -496,6 +539,17 @@ internal sealed partial class ShellView
             $"Inbox\n{source.InboxFolder}\n\n" +
             $"Native файл\n{(string.IsNullOrWhiteSpace(source.NativeDocumentPath) ? "Локал эх файл холбогдоогүй" : source.NativeDocumentPath)}\n\n" +
             $"Source ID\n{source.Id}";
+        openNativeSourceButton.Visibility = string.IsNullOrWhiteSpace(source.NativeDocumentPath)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        sourceWorkflowText.Text = source.Kind switch
+        {
+            DesignSourceKind.Revit when sheetCount == 0 =>
+                "RVT холбоос бэлэн. Revit дээр файлаа нээгээд Erk-S Platform > Альбум > Studio руу илгээхэд хуудаснууд энд автоматаар орж ирнэ.",
+            DesignSourceKind.Revit =>
+                "Revit дээр өөрчлөлт хийсний дараа Erk-S Platform > Альбум > Studio руу илгээхэд нэмэгдсэн, өөрчлөгдсөн, хасагдсан хуудаснууд автоматаар шинэчлэгдэнэ.",
+            _ => "Native эх файл Studio болон Cloud ERA руу хуулагдахгүй; зөвхөн энэ төхөөрөмж дээрх холбоос хадгалагдана.",
+        };
     }
 
     private void AddSelectedSheetsToAlbum()
