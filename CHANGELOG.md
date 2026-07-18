@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.3] - 2026-07-18
+
+- Refresh Cloud ERA project roles and scopes automatically when an older local mirror opens.
+- Restore `team.manage` and `concept.write` access so authorized Project Admin users can invite members and sync without recreating the project.
+- Render album previews and thumbnails from versioned local cache copies instead of locking the canonical generated PDF.
+- Keep album rebuild and Cloud sync available while the album PDF is open in Studio.
+
 ## [0.1.0-dev.2] - 2026-07-17
 
 - Kept team invitations in Pending state until the recipient explicitly accepts or declines.
