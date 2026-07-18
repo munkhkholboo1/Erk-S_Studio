@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.4] - 2026-07-18
+
+- Keep the maximized custom Studio window inside the active monitor's Windows work area, including secondary displays with their own taskbar and DPI.
+- Clarify that a linked RVT sends its vector PDF and manifest from Revit's Album workflow while the native file remains local.
+- Add a direct action for opening a linked native source from the Studio source workspace.
+- Stamp the generated Demo setup executable with the requested release label and assembly version, with a packaging gate that rejects mismatched metadata.
+
 ## [0.1.0-dev.3] - 2026-07-18
 
 - Refresh Cloud ERA project roles and scopes automatically when an older local mirror opens.

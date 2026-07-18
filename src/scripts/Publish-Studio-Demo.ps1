@@ -27,11 +27,16 @@ $ProjectPath = Join-Path $SourceRoot "src\ErkS.Studio\ErkS.Studio.csproj"
 $InstallerRoot = Join-Path $ProductRoot "installer"
 $InstallerSource = Join-Path $InstallerRoot "ErkS.Studio.Setup.cs"
 $InstallerManifest = Join-Path $InstallerRoot "ErkS.Studio.Setup.manifest"
+$GeneratedInstallerSource = Join-Path $InstallerBuildDirectory "ErkS.Studio.Setup.Release.cs"
 $CscCandidates = @(
     (Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"),
     (Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe")
 )
 $CscExe = $CscCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+
+if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+    throw "AssemblyVersion нь 0.0.1 эсвэл 0.0.1.1 хэлбэртэй байна."
+}
 
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
@@ -170,6 +175,22 @@ foreach ($RequiredPath in $InstallerSource, $InstallerManifest, $IconPath, $Payl
     }
 }
 
+$InstallerSourceText = Get-Content -LiteralPath $InstallerSource -Raw -Encoding UTF8
+$InstallerSourceText = $InstallerSourceText.Replace('Demo V0.001', "Demo $ReleaseVersion")
+$InstallerSourceText = [Text.RegularExpressions.Regex]::Replace(
+    $InstallerSourceText,
+    '\[assembly: AssemblyVersion\("[^"]+"\)\]',
+    ('[assembly: AssemblyVersion("' + $AssemblyVersion + '")]'))
+$InstallerSourceText = [Text.RegularExpressions.Regex]::Replace(
+    $InstallerSourceText,
+    '\[assembly: AssemblyFileVersion\("[^"]+"\)\]',
+    ('[assembly: AssemblyFileVersion("' + $AssemblyVersion + '")]'))
+$InstallerSourceText = [Text.RegularExpressions.Regex]::Replace(
+    $InstallerSourceText,
+    '\[assembly: AssemblyInformationalVersion\("[^"]+"\)\]',
+    ('[assembly: AssemblyInformationalVersion("Demo ' + $ReleaseVersion + '")]'))
+Set-Content -LiteralPath $GeneratedInstallerSource -Value $InstallerSourceText -Encoding UTF8
+
 $FrameworkDirectory = Split-Path -Parent $CscExe
 $References = @(
     "System.dll",
@@ -196,10 +217,14 @@ $CompilerArguments = @(
     "/resource:$PayloadZip,ErkS.Studio.Payload"
 )
 $CompilerArguments += $References | ForEach-Object { "/reference:$_" }
-$CompilerArguments += $InstallerSource
+$CompilerArguments += $GeneratedInstallerSource
 & $CscExe @CompilerArguments
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $SetupPath -PathType Leaf)) {
     throw "Erk-S Studio setup compilation failed. Exit code: $LASTEXITCODE"
+}
+$SetupVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($SetupPath)
+if ($SetupVersion.ProductVersion -ne "Demo $ReleaseVersion") {
+    throw "Release gate: setup ProductVersion нь Demo $ReleaseVersion биш байна: $($SetupVersion.ProductVersion)"
 }
 
 $SmokeInstallDirectory = [IO.Path]::GetFullPath((Join-Path $OutputDirectory "installer-smoke"))
