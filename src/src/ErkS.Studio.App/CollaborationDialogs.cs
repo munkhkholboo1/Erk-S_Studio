@@ -279,6 +279,18 @@ internal sealed class StudioNotificationsDialog : Window
                 null,
                 item,
                 null)));
+        rows.AddRange(exitRequestData.Requested
+            .Where(item => item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+            .Select(item => new NotificationRow(
+                "Гарах хүсэлт · хүлээгдэж байна",
+                $"{item.ProjectCode}  {item.ProjectName}",
+                string.IsNullOrWhiteSpace(item.ApprovalOrganizationName)
+                    ? "Төсөл үүсгэгчийн шийдвэр хүлээж байна"
+                    : $"{item.ApprovalOrganizationName} байгууллагын шийдвэр хүлээж байна",
+                item.RequestedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                null,
+                null,
+                null)));
         rows.AddRange(grantData.Received
             .Where(item => item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
             .Select(item => new NotificationRow(
@@ -419,6 +431,84 @@ internal sealed class StudioNotificationsDialog : Window
         StudioProjectMembershipInvitation? Invitation,
         StudioProjectMembershipExitRequest? ExitRequest,
         StudioProjectCreationGrant? Grant);
+}
+
+internal sealed class ProjectDeletionDialog : Window
+{
+    private readonly string projectCode;
+    private readonly TextBox confirmationBox = new();
+    private readonly TextBox reasonBox = new()
+    {
+        AcceptsReturn = true,
+        MinHeight = 72,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+    };
+    private readonly Button deleteButton = StudioWidgets.CreatePrimaryButton("Төсөл устгах");
+
+    public string Reason => reasonBox.Text.Trim();
+
+    public ProjectDeletionDialog(string projectCode, string projectName)
+    {
+        this.projectCode = projectCode.Trim();
+        Title = "Төсөл устгах";
+        Width = 610;
+        Height = 455;
+        MinWidth = 540;
+        MinHeight = 420;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ResizeMode = ResizeMode.CanResize;
+        StudioTheme.Apply(this);
+        Content = BuildContent(projectName);
+    }
+
+    private UIElement BuildContent(string projectName)
+    {
+        var root = new DockPanel { Margin = new Thickness(24) };
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 18, 0, 0),
+        };
+        var cancel = StudioWidgets.CreateButton("Болих");
+        cancel.IsCancel = true;
+        deleteButton.IsEnabled = false;
+        deleteButton.Click += (_, _) => DialogResult = true;
+        actions.Children.Add(cancel);
+        actions.Children.Add(deleteButton);
+        DockPanel.SetDock(actions, Dock.Bottom);
+        root.Children.Add(actions);
+
+        var content = new StackPanel();
+        content.Children.Add(StudioWidgets.CreateTitle("Төслийг идэвхтэй жагсаалтаас устгах"));
+        content.Children.Add(StudioWidgets.CreateHint($"{projectCode} · {projectName}"));
+        content.Children.Add(new TextBlock
+        {
+            Text = "Төсөл бүх оролцогчийн Cloud жагсаалтаас хасагдана. Серверийн canonical мэдээлэл, approval ба аудитын түүх хадгалагдана; энэ төхөөрөмж дээрх эх файл, mirror болон PDF устахгүй.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = StudioTheme.WarningBrush,
+            Margin = new Thickness(0, 16, 0, 18),
+            LineHeight = 19,
+        });
+        content.Children.Add(FormLabel("Баталгаажуулахын тулд төслийн кодыг бичнэ үү"));
+        confirmationBox.Margin = new Thickness(0, 6, 0, 14);
+        confirmationBox.TextChanged += (_, _) => deleteButton.IsEnabled =
+            confirmationBox.Text.Trim().Equals(projectCode, StringComparison.OrdinalIgnoreCase);
+        content.Children.Add(confirmationBox);
+        content.Children.Add(FormLabel("Шалтгаан (заавал биш)"));
+        reasonBox.Margin = new Thickness(0, 6, 0, 0);
+        content.Children.Add(reasonBox);
+        root.Children.Add(content);
+        return root;
+    }
+
+    private static TextBlock FormLabel(string text) => new()
+    {
+        Text = text,
+        Foreground = StudioTheme.TextBrush,
+        FontWeight = FontWeights.SemiBold,
+    };
 }
 
 internal sealed class ProjectCreationGrantDialog : Window

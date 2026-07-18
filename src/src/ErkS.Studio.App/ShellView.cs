@@ -66,6 +66,30 @@ internal sealed partial class ShellView : IDisposable
     private readonly TextBlock accountStatusText = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock accountLicenseText = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly Button accountButton = StudioWidgets.CreateGlyphButton("\uE77B", "Нэвтрэх");
+    private readonly Button notificationsRailButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE7F4",
+        "Мэдэгдэл",
+        "Багийн урилга болон шийдвэр хүлээж буй хүсэлтүүд");
+    private readonly TextBlock notificationsRailBadgeText = new()
+    {
+        FontSize = 8.5,
+        FontWeight = FontWeights.Bold,
+        Foreground = Brushes.White,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Border notificationsRailBadge = new()
+    {
+        MinWidth = 16,
+        Height = 16,
+        Padding = new Thickness(3, 0, 3, 0),
+        CornerRadius = new CornerRadius(8),
+        Background = StudioTheme.DangerBrush,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Top,
+        IsHitTestVisible = false,
+        Visibility = Visibility.Collapsed,
+    };
     private bool accountInitialized;
     private bool accountAvatarLoading;
     private string loadedProfileImageKey = "";
@@ -130,6 +154,7 @@ internal sealed partial class ShellView : IDisposable
     };
     private readonly TextBlock albumInfoText = new();
     private readonly DispatcherTimer autoRebuildTimer;
+    private readonly DispatcherTimer notificationRefreshTimer;
     private string? lastAlbumPath;
 
     public UIElement Root { get; }
@@ -143,6 +168,19 @@ internal sealed partial class ShellView : IDisposable
             if (autoRebuildCheck.IsChecked == true && state.HasOpenProject)
             {
                 UpdateAlbum(silent: true);
+            }
+        };
+        notificationRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
+        notificationRefreshTimer.Tick += async (_, _) =>
+        {
+            await RefreshNotificationsAsync();
+            if (projectWorkspaceOpen && state.HasOpenProject)
+            {
+                await CheckCurrentProjectAccessAsync();
+            }
+            else if (activePage == StudioPage.Projects)
+            {
+                await RefreshProjectsAsync(refreshNotifications: false);
             }
         };
 
@@ -173,6 +211,7 @@ internal sealed partial class ShellView : IDisposable
     public void Dispose()
     {
         autoRebuildTimer.Stop();
+        notificationRefreshTimer.Stop();
         projectThumbnailLoadCancellation?.Cancel();
         projectThumbnailLoadCancellation?.Dispose();
         albumPdfViewer.Dispose();
@@ -282,6 +321,10 @@ internal sealed partial class ShellView : IDisposable
         accountButton.Margin = new Thickness(4, 0, 0, 0);
         accountButton.VerticalAlignment = VerticalAlignment.Center;
         accountButton.Click += async (_, _) => await ToggleAccountAsync();
+        notificationsRailButton.Margin = new Thickness(0);
+        notificationsRailButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        notificationsRailButton.Click += async (_, _) => await ShowNotificationsAsync();
+        notificationsRailBadge.Child = notificationsRailBadgeText;
 
         var details = new StackPanel
         {
@@ -298,12 +341,18 @@ internal sealed partial class ShellView : IDisposable
         DockPanel.SetDock(avatar, Dock.Left);
         row.Children.Add(avatar);
         row.Children.Add(details);
+        var accountPanel = new StackPanel();
+        var notificationHost = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        notificationHost.Children.Add(notificationsRailButton);
+        notificationHost.Children.Add(notificationsRailBadge);
+        accountPanel.Children.Add(notificationHost);
+        accountPanel.Children.Add(row);
         return new Border
         {
             BorderBrush = StudioTheme.BorderBrush,
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(14, 12, 10, 12),
-            Child = row,
+            Child = accountPanel,
         };
     }
 
@@ -494,10 +543,12 @@ internal sealed partial class ShellView : IDisposable
         var refresh = StudioWidgets.CreateGlyphButton("\uE72C", "Төслийн жагсаалтыг шинэчлэх");
         refresh.Click += async (_, _) => await RefreshProjectsAsync();
         notificationsButton.Click += async (_, _) => await ShowNotificationsAsync();
+        projectLifecycleButton.Click += async (_, _) => await RunSelectedProjectLifecycleActionAsync();
         productUpdateButton.Click += async (_, _) => await CheckForProductUpdateAsync(interactive: true);
         actions.Children.Add(create);
         actions.Children.Add(openFile);
         actions.Children.Add(notificationsButton);
+        actions.Children.Add(projectLifecycleButton);
         actions.Children.Add(productUpdateButton);
         actions.Children.Add(refresh);
         DockPanel.SetDock(actions, Dock.Right);
@@ -553,6 +604,7 @@ internal sealed partial class ShellView : IDisposable
         ScrollViewer.SetHorizontalScrollBarVisibility(projectsList, ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(projectsList, ScrollBarVisibility.Auto);
         projectsList.MouseDoubleClick += (_, _) => OpenSelectedProject();
+        projectsList.SelectionChanged += (_, _) => UpdateSelectedProjectLifecycleAction();
         projectsList.KeyDown += (_, args) =>
         {
             if (args.Key != System.Windows.Input.Key.Enter)
@@ -789,6 +841,7 @@ internal sealed partial class ShellView : IDisposable
         if (accountInitialized)
             return;
         accountInitialized = true;
+        notificationRefreshTimer.Start();
         await dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
         _ = CheckForProductUpdateAsync(interactive: false);
         bool restored = await account.TryRestoreAsync();
@@ -900,18 +953,20 @@ internal sealed partial class ShellView : IDisposable
         _ = RefreshProjectsAsync();
     }
 
-    private async Task RefreshProjectsAsync()
+    private async Task RefreshProjectsAsync(bool refreshNotifications = true)
     {
         if (!account.IsSignedIn)
         {
             projectRows = Array.Empty<ProjectRow>();
             projectRefreshNotice = "";
-            await RefreshNotificationsAsync();
+            if (refreshNotifications)
+                await RefreshNotificationsAsync();
             ApplyProjectFilter();
             return;
         }
 
-        await RefreshNotificationsAsync();
+        if (refreshNotifications)
+            await RefreshNotificationsAsync();
         RefreshLocalProjectCompanySnapshotsFromCache();
         List<ProjectCatalogItem> localProjects = new LocalProjectCatalog().ListProjects().ToList();
         var rows = new List<ProjectRow>();
@@ -919,6 +974,10 @@ internal sealed partial class ShellView : IDisposable
         try
         {
             IReadOnlyList<StudioCloudProjectSummary> cloudProjects = await account.ListProjectsAsync();
+            var accessibleProjectIds = cloudProjects
+                .Select(item => item.ProjectId)
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var matchedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (StudioCloudProjectSummary cloud in cloudProjects)
             {
@@ -946,12 +1005,25 @@ internal sealed partial class ShellView : IDisposable
                     local?.ProjectPath ?? "",
                     local?.IsLegacyProject ?? false,
                     cloud.ProjectId,
-                    local is null));
+                    local is null,
+                    cloud.CurrentUserIsCreator,
+                    cloud.CurrentUserScopes));
             }
 
             rows.AddRange(localProjects
-                .Where(item => !matchedPaths.Contains(item.ProjectPath))
+                .Where(item =>
+                    !matchedPaths.Contains(item.ProjectPath) &&
+                    !item.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
                 .Select(ToProjectRow));
+
+            if (state.HasOpenProject &&
+                state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId) &&
+                !accessibleProjectIds.Contains(state.Project.Cloud.ServerProjectId))
+            {
+                CloseCurrentCloudProjectAfterAccessEnded(
+                    "Төслийн гишүүний эрх дууссан тул Cloud төсөл таны жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+            }
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
@@ -968,6 +1040,7 @@ internal sealed partial class ShellView : IDisposable
         projectRefreshNotice = string.IsNullOrWhiteSpace(cloudError) ? "" : "Cloud түр холбогдсонгүй";
         projectsSummaryText.ToolTip = LocalProjectCatalog.DefaultRoot;
         ApplyProjectFilter();
+        UpdateSelectedProjectLifecycleAction();
         StartProjectThumbnailLoading(rows);
     }
 
@@ -1426,7 +1499,9 @@ internal sealed partial class ShellView : IDisposable
         project.ProjectPath,
         project.IsLegacyProject,
         project.ProjectId,
-        false);
+        false,
+        false,
+        []);
 
     private static string ProjectStageLabel(string stage)
     {
@@ -1756,13 +1831,7 @@ internal sealed partial class ShellView : IDisposable
             string syncedAlbumHash = currentRevision?.PdfSha256 ?? "";
             string syncedRevisionId = currentRevision?.RevisionId ?? "";
             string syncNote;
-            if (localSources.Count == 0)
-            {
-                syncNote = currentRevision is null
-                    ? "Empty template album sync хийгдлээ; source package болон PDF revision одоогоор байхгүй."
-                    : $"Энэ төхөөрөмжид source байхгүй тул server album R{currentRevision.RevisionNumber} хэвээр хадгалагдлаа.";
-            }
-            else if (missingRemoteSources.Count > 0)
+            if (missingRemoteSources.Count > 0)
             {
                 syncNote = $"{missingRemoteSources.Count} remote source энэ төхөөрөмжид байхгүй тул хэсэгчилсэн PDF-ээр бүтэн album солигдоогүй.";
             }
@@ -1776,7 +1845,9 @@ internal sealed partial class ShellView : IDisposable
                 }
                 else
                 {
-                    SetStatus("Бүх source бүрэн байна. Studio album revision бэлтгэж байна...");
+                    SetStatus(localSources.Count == 0
+                        ? "Studio-ийн автомат хуудаснуудаар album revision бэлтгэж байна..."
+                        : "Бүх source бүрэн байна. Studio album revision бэлтгэж байна...");
                     AlbumBuildResult build = BuildLatestAlbum();
                     cloud.SyncStatus = ProjectSyncStatuses.Syncing;
                     state.SaveProject();
@@ -1797,7 +1868,9 @@ internal sealed partial class ShellView : IDisposable
                     }
                     syncedAlbumHash = localHash;
                     syncedRevisionId = syncedRevision.RevisionId;
-                    syncNote = $"Бүтэн album R{syncedRevision.RevisionNumber} sync хийгдлээ.";
+                    syncNote = localSources.Count == 0
+                        ? $"Studio-ийн автомат {build.PageCount} хуудастай album R{syncedRevision.RevisionNumber} sync хийгдлээ."
+                        : $"Бүтэн album R{syncedRevision.RevisionNumber} sync хийгдлээ.";
                 }
             }
 
@@ -2214,7 +2287,9 @@ internal sealed partial class ShellView : IDisposable
             string path,
             bool isLegacy,
             string serverProjectId,
-            bool isCloudOnly)
+            bool isCloudOnly,
+            bool currentUserIsCreator,
+            IReadOnlyList<string> currentUserScopes)
         {
             Code = code;
             Name = name;
@@ -2226,6 +2301,8 @@ internal sealed partial class ShellView : IDisposable
             IsLegacy = isLegacy;
             ServerProjectId = serverProjectId;
             IsCloudOnly = isCloudOnly;
+            CurrentUserIsCreator = currentUserIsCreator;
+            CurrentUserScopes = currentUserScopes.ToArray();
         }
 
         public string Code { get; }
@@ -2239,6 +2316,16 @@ internal sealed partial class ShellView : IDisposable
         public bool IsLegacy { get; }
         public string ServerProjectId { get; }
         public bool IsCloudOnly { get; }
+        public bool CurrentUserIsCreator { get; }
+        public IReadOnlyList<string> CurrentUserScopes { get; }
+        public bool CanDelete =>
+            CurrentUserIsCreator &&
+            !string.IsNullOrWhiteSpace(ServerProjectId) &&
+            CurrentUserScopes.Any(scope => scope.Equals("project.delete", StringComparison.OrdinalIgnoreCase));
+        public bool CanLeave =>
+            !CurrentUserIsCreator &&
+            !string.IsNullOrWhiteSpace(ServerProjectId) &&
+            CurrentUserScopes.Any(scope => scope.Equals("project.leave", StringComparison.OrdinalIgnoreCase));
         public string PreviewLabel => IsCloudOnly
             ? "CLOUD ERA"
             : Connection.StartsWith("Cloud", StringComparison.OrdinalIgnoreCase) ? "CLOUD MIRROR" : "LOCAL PROJECT";

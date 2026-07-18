@@ -659,6 +659,15 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         return page;
     }
 
+    private const double CoverTableLeftMm = 68.275;
+    private const double CoverReviewRoleRightMm = 131.275;
+    private const double CoverReviewNameRightMm = 171.275;
+    private const double CoverReviewRightMm = 196.275;
+    private const double CoverCompanyRoleLeftMm = 226.275;
+    private const double CoverCompanyRoleRightMm = 284.975;
+    private const double CoverCompanyNameRightMm = 326.725;
+    private const double CoverTableRightMm = 351.725;
+
     private static void DrawConceptCoverPage(
         PdfDocument document,
         AlbumBuildRequest request,
@@ -759,30 +768,30 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             XStringFormats.CenterLeft);
         DrawSketchCoverApprovalTable(gfx, border, fine, reviewRows, companyColumn, tableBottomMm);
 
-        DrawCoverCellText(gfx, "Албан тушаал", 68.275, 153.86, 138.275, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", 138.275, 153.86, 166.275, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", 166.275, 153.86, 196.275, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Албан тушаал", 226.275, 153.86, 292.975, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", 292.975, 153.86, 321.725, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", 321.725, 153.86, 351.725, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", CoverTableLeftMm, 153.86, CoverReviewRoleRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", CoverReviewRoleRightMm, 153.86, CoverReviewNameRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", CoverReviewNameRightMm, 153.86, CoverReviewRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", CoverCompanyRoleLeftMm, 153.86, CoverCompanyRoleRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", CoverCompanyRoleRightMm, 153.86, CoverCompanyNameRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", CoverCompanyNameRightMm, 153.86, CoverTableRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
 
         foreach (var row in reviewRows)
         {
-            DrawCoverCellText(gfx, row.Member is null ? "" : DisplayRoles(row.Member), 68.275, row.BottomMm, 138.275, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
-            DrawCoverCellText(gfx, row.Member?.FullName ?? "", 138.275, row.BottomMm, 166.275, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
+            DrawCoverCellText(gfx, row.Member is null ? "" : DisplayRoles(row.Member), CoverTableLeftMm, row.BottomMm, CoverReviewRoleRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
+            DrawCoverCellText(gfx, row.Member?.FullName ?? "", CoverReviewRoleRightMm, row.BottomMm, CoverReviewNameRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
         }
 
         DrawCoverCellText(gfx, "Захиалагч", 196.275, companyColumn.ClientTitleBottomMm, 226.275, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Иргэн", 226.275, companyColumn.ClientDataBottomMm, 292.975, companyColumn.ClientTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, ValueOrDash(clientName), 292.975, companyColumn.ClientDataBottomMm, 321.725, companyColumn.ClientTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Иргэн", CoverCompanyRoleLeftMm, companyColumn.ClientDataBottomMm, CoverCompanyRoleRightMm, companyColumn.ClientTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, ValueOrDash(clientName), CoverCompanyRoleRightMm, companyColumn.ClientDataBottomMm, CoverCompanyNameRightMm, companyColumn.ClientTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
         DrawCoverCellText(gfx, "Гүйцэтгэсэн", 196.275, companyColumn.CompanyTitleBottomMm, 351.725, companyColumn.ClientDataBottomMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 5.7);
         DrawCompanyLogoOrMark(gfx, company, CoverRect(196.275, tableBottomMm, 226.275, companyColumn.CompanyTitleBottomMm), bodyTextHeightMm);
-        DrawCoverCellText(gfx, "Албан тушаал", 226.275, companyColumn.CompanyHeaderBottomMm, 292.975, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", 292.975, companyColumn.CompanyHeaderBottomMm, 321.725, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", 321.725, companyColumn.CompanyHeaderBottomMm, 351.725, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, companyRole, 226.275, tableBottomMm, 292.975, companyColumn.CompanyHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, companyRepresentative.Name, 292.975, tableBottomMm, 321.725, companyColumn.CompanyHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", CoverCompanyRoleLeftMm, companyColumn.CompanyHeaderBottomMm, CoverCompanyRoleRightMm, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", CoverCompanyRoleRightMm, companyColumn.CompanyHeaderBottomMm, CoverCompanyNameRightMm, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", CoverCompanyNameRightMm, companyColumn.CompanyHeaderBottomMm, CoverTableRightMm, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, companyRole, CoverCompanyRoleLeftMm, tableBottomMm, CoverCompanyRoleRightMm, companyColumn.CompanyHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, companyRepresentative.Name, CoverCompanyRoleRightMm, tableBottomMm, CoverCompanyNameRightMm, companyColumn.CompanyHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
         DrawCoverText(gfx, "Улаанбаатар хот", CoverCenteredRect(210.0, 26.125, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
         DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, 15.625, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
@@ -796,11 +805,11 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         CoverCompanyColumn companyColumn,
         double tableBottomMm)
     {
-        const double x0 = 68.275;
+        const double x0 = CoverTableLeftMm;
         var y0 = tableBottomMm;
-        const double x1 = 351.725;
+        const double x1 = CoverTableRightMm;
         const double y1 = 161.86;
-        const double rightX0 = 196.275;
+        const double rightX0 = CoverReviewRightMm;
         const double headerY0 = 153.86;
 
         DrawCoverLine(gfx, border, x0, y0, x1, y0);
@@ -810,18 +819,18 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawCoverLine(gfx, border, x0, headerY0, x1, headerY0);
         DrawCoverLine(gfx, border, rightX0, y0, rightX0, y1);
 
-        DrawCoverLine(gfx, fine, 138.275, y0, 138.275, y1);
-        DrawCoverLine(gfx, fine, 166.275, y0, 166.275, y1);
-        DrawCoverLine(gfx, fine, 226.275, companyColumn.ClientDataBottomMm, 226.275, y1);
-        DrawCoverLine(gfx, fine, 292.975, companyColumn.ClientDataBottomMm, 292.975, y1);
-        DrawCoverLine(gfx, fine, 321.725, companyColumn.ClientDataBottomMm, 321.725, y1);
-        DrawCoverLine(gfx, fine, 226.275, y0, 226.275, companyColumn.CompanyTitleBottomMm);
-        DrawCoverLine(gfx, fine, 292.975, y0, 292.975, companyColumn.CompanyTitleBottomMm);
-        DrawCoverLine(gfx, fine, 321.725, y0, 321.725, companyColumn.CompanyTitleBottomMm);
+        DrawCoverLine(gfx, fine, CoverReviewRoleRightMm, y0, CoverReviewRoleRightMm, y1);
+        DrawCoverLine(gfx, fine, CoverReviewNameRightMm, y0, CoverReviewNameRightMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, companyColumn.ClientDataBottomMm, CoverCompanyRoleLeftMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, companyColumn.ClientDataBottomMm, CoverCompanyRoleRightMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, companyColumn.ClientDataBottomMm, CoverCompanyNameRightMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, y0, CoverCompanyRoleLeftMm, companyColumn.CompanyTitleBottomMm);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, y0, CoverCompanyRoleRightMm, companyColumn.CompanyTitleBottomMm);
+        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, y0, CoverCompanyNameRightMm, companyColumn.CompanyTitleBottomMm);
 
         DrawCoverLine(gfx, fine, rightX0, companyColumn.ClientDataBottomMm, x1, companyColumn.ClientDataBottomMm);
         DrawCoverLine(gfx, fine, rightX0, companyColumn.CompanyTitleBottomMm, x1, companyColumn.CompanyTitleBottomMm);
-        DrawCoverLine(gfx, fine, 226.275, companyColumn.CompanyHeaderBottomMm, x1, companyColumn.CompanyHeaderBottomMm);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, companyColumn.CompanyHeaderBottomMm, x1, companyColumn.CompanyHeaderBottomMm);
 
         for (var index = 0; index < reviewRows.Count - 1; index++)
         {
@@ -893,9 +902,14 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             return;
         }
 
-        var font = CreateCoverFont(printedTextHeightMm, bold);
+        (XFont font, double fittedTextHeightMm) = CreateCoverFontToFitLongestWord(
+            gfx,
+            text,
+            rect.Width,
+            printedTextHeightMm,
+            bold);
         var lines = WrapCoverText(gfx, text, font, rect.Width);
-        var lineHeight = Mm(CoverLineHeightMm(printedTextHeightMm));
+        var lineHeight = Mm(CoverLineHeightMm(fittedTextHeightMm));
         var totalHeight = lines.Count * lineHeight;
         var y = rect.Y + Math.Max(0, (rect.Height - totalHeight) * 0.5);
         foreach (var line in lines)
@@ -915,6 +929,37 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             FontName,
             Mm(CoverFontEmSizeMm(printedTextHeightMm)),
             bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
+
+    private static (XFont Font, double PrintedTextHeightMm) CreateCoverFontToFitLongestWord(
+        XGraphics gfx,
+        string text,
+        double maxWidth,
+        double printedTextHeightMm,
+        bool bold)
+    {
+        XFont font = CreateCoverFont(printedTextHeightMm, bold);
+        string longestWord = text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .OrderByDescending(word => gfx.MeasureString(word, font).Width)
+            .FirstOrDefault() ?? "";
+        if (longestWord.Length == 0)
+        {
+            return (font, printedTextHeightMm);
+        }
+
+        double measuredWidth = gfx.MeasureString(longestWord, font).Width;
+        if (measuredWidth <= maxWidth)
+        {
+            return (font, printedTextHeightMm);
+        }
+
+        double fittedTextHeightMm = Math.Max(
+            1.5,
+            printedTextHeightMm * maxWidth / measuredWidth * 0.98);
+        return (CreateCoverFont(fittedTextHeightMm, bold), fittedTextHeightMm);
+    }
 
     private static double CoverFontEmSizeMm(double printedTextHeightMm) =>
         printedTextHeightMm / BuildingArchitectureConceptPageLayout.ArialCapHeightRatio;
@@ -967,12 +1012,9 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
                     continue;
                 }
 
-                var fragments = BreakCoverWord(gfx, word, font, maxWidth);
-                for (var index = 0; index < fragments.Count - 1; index++)
-                {
-                    lines.Add(fragments[index]);
-                }
-                current = fragments[^1];
+                // Names and formal titles must remain whole; the drawing font is
+                // fitted to the longest token before wrapping.
+                current = word;
             }
 
             if (current.Length > 0)
@@ -982,36 +1024,6 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         }
 
         return lines;
-    }
-
-    private static IReadOnlyList<string> BreakCoverWord(
-        XGraphics gfx,
-        string word,
-        XFont font,
-        double maxWidth)
-    {
-        var fragments = new List<string>();
-        var current = "";
-        foreach (var character in word)
-        {
-            var candidate = current + character;
-            if (current.Length > 0 && gfx.MeasureString(candidate, font).Width > maxWidth)
-            {
-                fragments.Add(current);
-                current = character.ToString();
-            }
-            else
-            {
-                current = candidate;
-            }
-        }
-
-        if (current.Length > 0)
-        {
-            fragments.Add(current);
-        }
-
-        return fragments.Count == 0 ? new[] { "" } : fragments;
     }
 
     private static double MeasureCoverTextHeightMm(
@@ -1025,9 +1037,14 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             return 0;
         }
 
-        var font = CreateCoverFont(printedTextHeightMm, false);
+        (XFont font, double fittedTextHeightMm) = CreateCoverFontToFitLongestWord(
+            gfx,
+            text,
+            Mm(widthMm),
+            printedTextHeightMm,
+            false);
         var lineCount = WrapCoverText(gfx, text, font, Mm(widthMm)).Count;
-        return lineCount * CoverLineHeightMm(printedTextHeightMm);
+        return lineCount * CoverLineHeightMm(fittedTextHeightMm);
     }
 
     private static IReadOnlyList<CoverReviewRow> BuildCoverReviewRows(
@@ -1037,8 +1054,8 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
     {
         const double rowsTopMm = 153.86;
         const double baseRowsHeightMm = 60.0;
-        const double roleTextWidthMm = 66.0;
-        const double nameTextWidthMm = 25.6;
+        const double roleTextWidthMm = CoverReviewRoleRightMm - CoverTableLeftMm - 2.4;
+        const double nameTextWidthMm = CoverReviewNameRightMm - CoverReviewRoleRightMm - 2.4;
         const double cellVerticalPaddingMm = 1.2;
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
         var baseRowHeightMm = baseRowsHeightMm / Math.Max(1, rowCount);
@@ -1079,8 +1096,8 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         const double headerHeightMm = 8.0;
         const double baseClientDataHeightMm = 16.0;
         const double baseCompanyDataHeightMm = 20.0;
-        const double roleTextWidthMm = 64.3;
-        const double nameTextWidthMm = 26.35;
+        const double roleTextWidthMm = CoverCompanyRoleRightMm - CoverCompanyRoleLeftMm - 2.4;
+        const double nameTextWidthMm = CoverCompanyNameRightMm - CoverCompanyRoleRightMm - 2.4;
         const double cellVerticalPaddingMm = 1.2;
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
 

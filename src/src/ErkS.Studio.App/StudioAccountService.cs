@@ -196,6 +196,36 @@ internal sealed class StudioAccountService : IDisposable
             cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task DeleteProjectAsync(
+        string projectId,
+        string confirmProjectCode,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Delete,
+            BuildUri(
+                session.ServerUrl,
+                "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId)))
+        {
+            Content = JsonContent.Create(
+                new StudioCloudProjectDeleteRequest
+                {
+                    ConfirmProjectCode = confirmProjectCode?.Trim() ?? "",
+                    Reason = reason?.Trim() ?? "",
+                },
+                options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        AddRelationshipBoundaryAcknowledgement(request, acknowledged: true);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        if (response.IsSuccessStatusCode)
+            return;
+        await ReadResponseAsync<object>(response, cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudAccountLookupResponse> LookupAccountAsync(
         string email,
         CancellationToken cancellationToken = default)

@@ -82,6 +82,7 @@ internal sealed partial class ShellView
     private bool removeCompanyLogoRequested;
     private bool bindingCompanyEditor;
     private bool refreshingCompanies;
+    private bool companyCatalogCloudVerified;
 
     private UIElement BuildCompaniesPage()
     {
@@ -268,6 +269,7 @@ internal sealed partial class ShellView
             return;
         if (!account.IsSignedIn)
         {
+            companyCatalogCloudVerified = false;
             companyEntries = [];
             companyLibraryList.ItemsSource = Array.Empty<CompanyListRow>();
             ClearCompanyEditor();
@@ -290,6 +292,7 @@ internal sealed partial class ShellView
             try
             {
                 IReadOnlyList<StudioCloudOrganization> cloudItems = await account.ListOrganizationsAsync();
+                companyCatalogCloudVerified = true;
                 var merged = new List<CompanyCatalogEntry>();
                 foreach (StudioCloudOrganization cloud in cloudItems)
                 {
@@ -340,6 +343,7 @@ internal sealed partial class ShellView
             }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
+                companyCatalogCloudVerified = false;
                 companyEntries = cached.OrderBy(item => CompanyDisplayName(item.Profile), StringComparer.CurrentCultureIgnoreCase).ToList();
                 companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · локал cache · Cloud шинэчлэгдсэнгүй";
                 SetStatus("Компанийн cloud сан шинэчлэгдсэнгүй: " + exception.Message);
@@ -420,12 +424,17 @@ internal sealed partial class ShellView
         bool sameOrganization = !string.IsNullOrWhiteSpace(assignedId) &&
             assignedId.Equals(selected!.OrganizationId, StringComparison.OrdinalIgnoreCase);
         bool canManage = selectedCompanyEntry?.CanManage == true;
-        companyUseInProjectButton.IsEnabled = sameOrganization || canManage;
+        bool canonicalCloudProfile = companyCatalogCloudVerified &&
+            selectedCompanyEntry?.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase) == true &&
+            !selected!.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase);
+        companyUseInProjectButton.IsEnabled = canonicalCloudProfile && canManage;
         companyUseInProjectButton.Content = sameOrganization
             ? "Төслийн мэдээлэл шинэчлэх"
             : "Төслийн компани болгох";
-        companyUseInProjectButton.ToolTip = sameOrganization
-            ? "Cloud ERA компанийн одоогийн бүртгэлийг төслийн snapshot-д шинэчлэх"
+        companyUseInProjectButton.ToolTip = !canonicalCloudProfile
+            ? "Байгууллагын Cloud ERA бүртгэлийг шинэчилж баталгаажуулсны дараа төсөлд ашиглана."
+            : sameOrganization && canManage
+                ? "Cloud ERA компанийн одоогийн бүртгэлийг төслийн snapshot-д шинэчлэх"
             : canManage
                 ? ProjectCompanySelectionPolicy(state.Project)
                 : "Энэ компанийн нэр дээр төсөл хэрэгжүүлэх эрх шаардлагатай.";
@@ -444,18 +453,24 @@ internal sealed partial class ShellView
 
         ProjectWorkspace project = state.Project;
         ProjectCompanyAssignment assignment = project.Foundation.DesignCompany;
+        if (!companyCatalogCloudVerified ||
+            !selectedCompanyEntry.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase) ||
+            profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase))
+        {
+            SetStatus("Байгууллагын мэдээллийг Cloud ERA-д баталгаажуулж шинэчилсний дараа төсөлд ашиглана.");
+            return;
+        }
+        if (!selectedCompanyEntry.CanManage)
+        {
+            SetStatus("Сонгосон компанийн нэр дээр төсөл хэрэгжүүлэх эрх баталгаажаагүй байна.");
+            return;
+        }
         bool sameOrganization = !string.IsNullOrWhiteSpace(assignment.OrganizationId) &&
             assignment.OrganizationId.Equals(profile.OrganizationId, StringComparison.OrdinalIgnoreCase);
         if (sameOrganization)
         {
             ApplyCompanyToOpenProject(profile, rebuildAlbum: true);
             SetStatus($"{CompanyDisplayName(profile)} компанийн Cloud ERA мэдээлэл төсөлд шинэчлэгдлээ.");
-            return;
-        }
-
-        if (!selectedCompanyEntry.CanManage)
-        {
-            SetStatus("Сонгосон компанийн нэр дээр төсөл хэрэгжүүлэх эрх баталгаажаагүй байна.");
             return;
         }
 
@@ -635,7 +650,6 @@ internal sealed partial class ShellView
     {
         pendingCompanyLogoPath = "";
         store.Save(companyEntries);
-        ApplyCompanyToOpenProject(profile, rebuildAlbum: true);
         RefreshCompanyList(profile.OrganizationId);
         companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · cloud sync хүлээгдэж байна";
         SetStatus("Компанийн мэдээлэл локал cache-д хадгалагдлаа. Cloud sync хүлээгдэж байна: " + reason);
@@ -667,6 +681,8 @@ internal sealed partial class ShellView
         companyLogoOffsetYSlider.Value = profile.LogoOffsetY;
         bindingCompanyEditor = false;
         SetCompanyEditorEnabled(entry.CanManage);
+        libraryCompanyRegistrationBox.IsReadOnly = !entry.CanManage ||
+            !entry.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase);
         LoadCompanyLogoPreview(profile.LogoPath);
         companyLibraryStatus.Text = string.Join(" · ", new[]
         {

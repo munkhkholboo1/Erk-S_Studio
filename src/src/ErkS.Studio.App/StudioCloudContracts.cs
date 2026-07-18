@@ -102,7 +102,14 @@ internal sealed class StudioCloudProjectSummary
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public string[] CurrentUserRoles { get; set; } = [];
     public string[] CurrentUserScopes { get; set; } = [];
+    public bool CurrentUserIsCreator { get; set; }
     public string ConcurrencyToken { get; set; } = "";
+}
+
+internal sealed class StudioCloudProjectDeleteRequest
+{
+    public string ConfirmProjectCode { get; set; } = "";
+    public string Reason { get; set; } = "";
 }
 
 internal sealed class StudioCloudProjectDetail

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,12 +20,104 @@ internal sealed partial class ShellView
         primary: true);
     private readonly Button removeTeamMemberButton = StudioWidgets.CreateButton("Багаас хасах");
     private readonly Button leaveProjectButton = StudioWidgets.CreateButton("Төслөөс гарах хүсэлт");
+    private readonly Button projectLifecycleButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE74D",
+        "Төслийн үйлдэл",
+        "Сонгосон төслийг устгах эсвэл гарах хүсэлт илгээх");
     private readonly Button companyProjectGrantButton = StudioWidgets.CreateButton("Төсөл үүсгэх эрх");
     private StudioProjectMembershipInvitationListResponse notificationInvitations = new();
     private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
     private StudioProjectCreationGrantListResponse notificationGrants = new();
     private bool refreshingNotifications;
     private bool refreshingCurrentProjectAccess;
+
+    private void UpdateSelectedProjectLifecycleAction()
+    {
+        ProjectRow? selected = projectsList.SelectedItem as ProjectRow;
+        bool canDelete = selected?.CanDelete == true;
+        bool canLeave = selected?.CanLeave == true;
+        projectLifecycleButton.IsEnabled = account.IsSignedIn && (canDelete || canLeave);
+        string label = canDelete
+            ? "Төсөл устгах"
+            : canLeave ? "Төслөөс гарах" : "Төслийн үйлдэл";
+        if (projectLifecycleButton.Content is StackPanel stack &&
+            stack.Children.Count > 1 &&
+            stack.Children[1] is TextBlock text)
+        {
+            text.Text = label;
+        }
+        projectLifecycleButton.ToolTip = canDelete
+            ? "Cloud төслийг soft-delete хийх; локал файлууд хэвээр үлдэнэ"
+            : canLeave
+                ? "Байгууллагад төслөөс гарах хүсэлт илгээх"
+                : "Эхлээд Cloud төсөл сонгоно уу";
+    }
+
+    private async Task RunSelectedProjectLifecycleActionAsync()
+    {
+        if (!account.IsSignedIn || projectsList.SelectedItem is not ProjectRow selected)
+            return;
+
+        if (selected.CanDelete)
+        {
+            if (!StudioRelationshipBoundary.Confirm(
+                    Window.GetWindow(Root),
+                    StudioRelationshipAction.DeleteProject,
+                    $"{selected.Code} · {selected.Name}"))
+            {
+                return;
+            }
+            var dialog = new ProjectDeletionDialog(selected.Code, selected.Name)
+            {
+                Owner = Window.GetWindow(Root),
+            };
+            if (dialog.ShowDialog() != true)
+                return;
+            try
+            {
+                await account.DeleteProjectAsync(
+                    selected.ServerProjectId,
+                    selected.Code,
+                    dialog.Reason);
+                if (state.HasOpenProject &&
+                    state.Project.Cloud.ServerProjectId.Equals(selected.ServerProjectId, StringComparison.OrdinalIgnoreCase))
+                {
+                    CloseCurrentCloudProjectAfterAccessEnded(
+                        "Төсөл идэвхтэй Cloud жагсаалтаас устгагдлаа. Локал файлууд хэвээр үлдсэн.");
+                }
+                await RefreshProjectsAsync();
+                SetStatus("Төсөл идэвхтэй Cloud жагсаалтаас устгагдлаа. Canonical мэдээлэл ба аудитын түүх хадгалагдсан.");
+            }
+            catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+            {
+                SetStatus("Төсөл устгагдсангүй: " + exception.Message);
+            }
+            return;
+        }
+
+        if (!selected.CanLeave || !StudioRelationshipBoundary.Confirm(
+                Window.GetWindow(Root),
+                StudioRelationshipAction.RequestProjectExit,
+                $"{selected.Code} · {selected.CompanyLabel}"))
+        {
+            return;
+        }
+        try
+        {
+            StudioProjectMembershipExitRequest request = await account.RequestProjectExitAsync(
+                selected.ServerProjectId,
+                "Studio төслийн жагсаалтаас гарах хүсэлт илгээв.");
+            await RefreshNotificationsAsync();
+            UpdateSelectedProjectLifecycleAction();
+            SetStatus(
+                $"Гарах хүсэлтийг {request.ApprovalOrganizationName} байгууллагад илгээлээ. " +
+                "Зөвшөөрөх хүртэл төсөл таны жагсаалтад хэвээр байна.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Төслөөс гарах хүсэлт илгээгдсэнгүй: " + exception.Message);
+        }
+    }
 
     private async Task RefreshCurrentProjectCloudAccessAsync(bool reportResult = false)
     {
@@ -64,6 +157,14 @@ internal sealed partial class ShellView
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
+            if (exception is StudioAccountException accountException &&
+                accountException.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+            {
+                CloseCurrentCloudProjectAfterAccessEnded(
+                    "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+                _ = RefreshProjectsAsync();
+                return;
+            }
             if (reportResult || state.Project.Cloud.CurrentUserScopes.Count == 0)
                 SetStatus("Cloud ERA access эрхийг шинэчилж чадсангүй: " + exception.Message);
         }
@@ -72,6 +173,34 @@ internal sealed partial class ShellView
             refreshingCurrentProjectAccess = false;
             RefreshTeamActionUi();
             RefreshSyncUi();
+        }
+    }
+
+    private async Task CheckCurrentProjectAccessAsync()
+    {
+        if (!state.HasOpenProject ||
+            !account.IsSignedIn ||
+            !state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
+        {
+            return;
+        }
+
+        string projectId = state.Project.Cloud.ServerProjectId;
+        try
+        {
+            await account.GetProjectAsync(projectId);
+        }
+        catch (StudioAccountException exception) when (
+            exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+        {
+            CloseCurrentCloudProjectAfterAccessEnded(
+                "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+            await RefreshProjectsAsync(refreshNotifications: false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            // Түр сүлжээ тасрах нь project access цуцлагдсан гэсэн үг биш.
         }
     }
 
@@ -113,10 +242,19 @@ internal sealed partial class ShellView
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationExitRequests.AwaitingApproval.Count(item =>
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
+            notificationExitRequests.Requested.Count(item =>
+                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationGrants.Received.Count(item =>
                 item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
                 item.ExpiresAtUtc > DateTimeOffset.UtcNow);
         notificationsButton.IsEnabled = account.IsSignedIn;
+        notificationsRailButton.IsEnabled = account.IsSignedIn;
+        notificationsRailBadgeText.Text = count > 99
+            ? "99+"
+            : count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        notificationsRailBadge.Visibility = count == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         if (notificationsButton.Content is StackPanel stack &&
             stack.Children.Count > 1 &&
             stack.Children[1] is TextBlock label)
@@ -126,6 +264,19 @@ internal sealed partial class ShellView
         notificationsButton.ToolTip = count == 0
             ? "Шинэ мэдэгдэл алга"
             : $"{count} хүлээгдэж буй мэдэгдэл";
+        notificationsRailButton.ToolTip = count == 0
+            ? "Багийн урилга болон шийдвэр хүлээж буй хүсэлт алга"
+            : $"{count} хүлээгдэж буй мэдэгдэл. Нээж шийдвэрлэх";
+    }
+
+    private void CloseCurrentCloudProjectAfterAccessEnded(string message)
+    {
+        if (state.HasOpenProject)
+            state.CloseProject();
+        projectWorkspaceOpen = false;
+        RebuildNavigation();
+        SelectPage(StudioPage.Projects);
+        SetStatus(message);
     }
 
     private async Task ShowNotificationsAsync()

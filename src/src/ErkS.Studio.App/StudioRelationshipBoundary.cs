@@ -15,6 +15,7 @@ internal enum StudioRelationshipAction
     AssignDesignOrganization,
     TransferSourceCustody,
     CreateProjectForClient,
+    DeleteProject,
 }
 
 internal static class StudioRelationshipBoundary
@@ -46,6 +47,7 @@ internal static class StudioRelationshipBoundary
         StudioRelationshipAction.AssignDesignOrganization => "Зураг төслийн байгууллага сонгох эсвэл солих",
         StudioRelationshipAction.TransferSourceCustody => "Эх үүсвэрийн хариуцагч шилжүүлэх",
         StudioRelationshipAction.CreateProjectForClient => "Захиалагчтай төсөл үүсгэх",
+        StudioRelationshipAction.DeleteProject => "Өөрийн үүсгэсэн төслийг идэвхтэй жагсаалтаас устгах",
         _ => "Талуудын хооронд эрх, үүрэг үүсгэх",
     };
 
@@ -190,6 +192,10 @@ internal static class StudioRelationshipBoundary
             StudioRelationshipAction.CreateProjectForClient =>
                 "Захиалагчийн нэр, мэдээлэл оруулах нь захиалагч зөвшөөрсөн, гэрээ байгуулсан, төлөөлөх эрх олгосон эсвэл " +
                 "оруулсан мэдээлэл үнэн зөв гэдгийг Erk-S баталгаажуулсан гэсэн үг биш. Мэдээлэл оруулагч хууль ёсны үндэслэлээ хариуцна.",
+            StudioRelationshipAction.DeleteProject =>
+                "Устгаснаар төсөл бүх оролцогчийн идэвхтэй Cloud жагсаалтаас хасагдана. Canonical мэдээлэл, approval болон аудитын түүх " +
+                "маргаан, алдаа эсвэл сэргээх шаардлагад зориулан серверт хадгалагдана. Локал RVT/DWG, mirror болон PDF файлууд устахгүй. " +
+                "Энэ үйлдэл захиалагч болон бусад талтай байгуулсан гэрээ, төлбөр, оюуны өмчийн харилцааг цуцлахгүй.",
             _ =>
                 "Энэ нь зөвхөн платформ дахь техникийн эрх ба мэдээллийн холбоосыг өөрчилнө; талуудын хуулийн харилцааг үүсгэхгүй, батлахгүй.",
         };

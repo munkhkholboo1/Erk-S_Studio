@@ -8,6 +8,15 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.5] - 2026-07-18
+
+- Restrict company management to explicit active organization owners and administrators; cached or directory-only company records can no longer be claimed or edited as the current user's organization.
+- Require a fresh canonical Cloud company selection before assigning a design organization to a project or generating its company snapshot.
+- Add Studio notification handling for invitations, membership decisions, project-exit requests, and organization-aware project removal.
+- Allow a newly created project to synchronize its Studio-generated album pages before any Revit, AutoCAD, or other native source is linked.
+- Keep album rebuilding and Cloud synchronization independent from the PDF preview file lock by using versioned preview copies.
+- Improve cover approval-table word wrapping and keep long personal names intact.
+
 ## [0.1.0-dev.4] - 2026-07-18
 
 - Keep the maximized custom Studio window inside the active monitor's Windows work area, including secondary displays with their own taskbar and DPI.
