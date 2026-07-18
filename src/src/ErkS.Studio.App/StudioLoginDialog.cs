@@ -78,8 +78,7 @@ internal sealed class StudioLoginDialog : Window
             Margin = new Thickness(0, 14, 0, 0),
             Padding = new Thickness(10),
             Background = StudioTheme.PanelBrush,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(5),
             Child = StudioWidgets.CreateHint(
                 "Нууц үг хадгалагдахгүй. Лицензийн activation Windows Credential Manager-д хадгалагдаж, дараагийн нээлтээр session автоматаар сэргээнэ."),

@@ -196,6 +196,18 @@ internal sealed class StudioAccountService : IDisposable
             cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task<StudioCloudProjectDetail> UpdateProjectInformationAsync(
+        string projectId,
+        StudioCloudProjectInformationUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PutAuthorizedAsync<StudioCloudProjectInformationUpdateRequest, StudioCloudProjectDetail>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/information",
+            request,
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task DeleteProjectAsync(
         string projectId,
         string confirmProjectCode,

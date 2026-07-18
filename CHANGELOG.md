@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.6] - 2026-07-18
+
+- Add an explicit edit, save, and cancel workflow for project foundation information, with role-based write access and immutable project-code and Cloud land fields.
+- Save Cloud project information through the canonical server API while safely queuing local mirror changes when an older server runtime does not expose the update endpoint yet.
+- Preserve pending Studio edits across canonical refreshes and keep the last server snapshot separate from locally authored project information.
+- Preserve confirmed design-company assignments during Cloud refresh, avoid repeated company selection, and retain assignment history when the canonical company changes.
+- Unify Studio dialogs and native window chrome with the dark product theme and remove the remaining bright separator borders.
+
 ## [0.1.0-dev.5] - 2026-07-18
 
 - Restrict company management to explicit active organization owners and administrators; cached or directory-only company records can no longer be claimed or edited as the current user's organization.

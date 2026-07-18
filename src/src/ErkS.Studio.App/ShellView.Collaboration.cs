@@ -172,6 +172,7 @@ internal sealed partial class ShellView
         {
             refreshingCurrentProjectAccess = false;
             RefreshTeamActionUi();
+            RefreshFoundationEditUi();
             RefreshSyncUi();
         }
     }
@@ -377,6 +378,29 @@ internal sealed partial class ShellView
         return state.Project.Cloud.HasScope("concept.write");
     }
 
+    private bool CanEditProjectInformation()
+    {
+        if (!state.HasOpenProject)
+            return false;
+        if (!state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!account.IsSignedIn)
+            return false;
+
+        HashSet<string> editableRoles = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "ProjectAdmin",
+            "Client",
+            "AuthoritySpecialist",
+            "AuthorityDepartmentHead",
+            "ChiefArchitect",
+            "DesignCompanyAdmin",
+            "MajorArchitect",
+            "Architect",
+        };
+        return state.Project.Cloud.CurrentUserRoles.Any(editableRoles.Contains);
+    }
+
     private bool EnsureProjectContentPermission()
     {
         if (CanEditProjectContent())
@@ -428,7 +452,7 @@ internal sealed partial class ShellView
             return;
         if (row.IsInvitation)
         {
-            MessageBoxResult confirmation = MessageBox.Show(
+            MessageBoxResult confirmation = StudioMessageDialog.Show(
                 Window.GetWindow(Root),
                 $"{row.Name} хэрэглэгчийн хүлээгдэж буй урилгыг цуцлах уу?",
                 "Erk-S Studio",

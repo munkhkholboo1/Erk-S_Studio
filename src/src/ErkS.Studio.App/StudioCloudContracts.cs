@@ -151,12 +151,31 @@ internal sealed class StudioCloudProjectInformation
     public string Name { get; set; } = "";
     public string Location { get; set; } = "";
     public string BuildingPurpose { get; set; } = "";
+    public decimal? Capacity { get; set; }
+    public string CapacityUnit { get; set; } = "";
+    public decimal? FootprintSquareMeters { get; set; }
+    public decimal? GrossFloorAreaSquareMeters { get; set; }
+    public decimal? HeightMeters { get; set; }
+    public int? FloorsAboveGround { get; set; }
+    public int? FloorsBelowGround { get; set; }
+}
+
+internal sealed class StudioCloudProjectInformationUpdateRequest
+{
+    public string Name { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public string PlanningAuthorityName { get; set; } = "";
+    public string DesignOrganizationName { get; set; } = "";
+    public string Location { get; set; } = "";
+    public string BuildingPurpose { get; set; } = "";
+    public string CapacityUnit { get; set; } = "";
 }
 
 internal sealed class StudioCloudSiteAndLand
 {
     public string[] ParcelNumbers { get; set; } = [];
     public string[] Addresses { get; set; } = [];
+    public string[] RestrictionReferences { get; set; } = [];
 }
 
 internal sealed class StudioCloudOrganizationAssignment

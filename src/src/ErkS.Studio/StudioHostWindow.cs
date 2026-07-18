@@ -24,7 +24,6 @@ internal sealed class StudioHostWindow : Window
     private const uint MonitorDefaultToNearest = 0x00000002;
 
     private static readonly Brush BarBackground = new SolidColorBrush(Color.FromRgb(22, 25, 29));
-    private static readonly Brush BarBorder = new SolidColorBrush(Color.FromRgb(47, 52, 60));
     private static readonly Brush BarText = new SolidColorBrush(Color.FromRgb(164, 171, 182));
     private static readonly Brush HostBackground = new SolidColorBrush(Color.FromRgb(18, 20, 23));
     private static readonly Brush ChromeHover = new SolidColorBrush(Color.FromRgb(40, 44, 51));
@@ -285,8 +284,7 @@ internal sealed class StudioHostWindow : Window
         return new Border
         {
             Background = BarBackground,
-            BorderBrush = BarBorder,
-            BorderThickness = new Thickness(0, 0, 0, 1),
+            BorderThickness = new Thickness(0),
             Child = bar,
         };
     }

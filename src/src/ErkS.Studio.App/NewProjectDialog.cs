@@ -145,8 +145,7 @@ internal sealed class NewProjectDialog : Window
     private UIElement BuildOrganizationDetails() => new Border
     {
         Background = StudioTheme.PanelBrush,
-        BorderBrush = StudioTheme.BorderBrush,
-        BorderThickness = new Thickness(1),
+        BorderThickness = new Thickness(0),
         CornerRadius = new CornerRadius(StudioTheme.CornerRadius),
         Padding = new Thickness(12, 9, 12, 9),
         MinHeight = 58,
@@ -227,7 +226,7 @@ internal sealed class NewProjectDialog : Window
         DialogResult = true;
     }
 
-    private void ShowRequiredMessage(string message) => MessageBox.Show(
+    private void ShowRequiredMessage(string message) => StudioMessageDialog.Show(
         this,
         message,
         "Erk-S Studio",

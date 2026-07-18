@@ -1,5 +1,7 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -18,8 +20,8 @@ internal static class StudioTheme
     public static Color PanelColor { get; } = Color.FromRgb(24, 27, 32);
     public static Color PanelAltColor { get; } = Color.FromRgb(32, 36, 42);
     public static Color InputColor { get; } = Color.FromRgb(20, 23, 27);
-    public static Color BorderColor { get; } = Color.FromRgb(47, 52, 60);
-    public static Color BorderHoverColor { get; } = Color.FromRgb(69, 76, 88);
+    public static Color BorderColor { get; } = Color.FromRgb(35, 39, 45);
+    public static Color BorderHoverColor { get; } = Color.FromRgb(55, 61, 70);
     public static Color TextColor { get; } = Color.FromRgb(242, 244, 247);
     public static Color MutedTextColor { get; } = Color.FromRgb(164, 171, 182);
     public static Color FaintTextColor { get; } = Color.FromRgb(116, 124, 137);
@@ -96,12 +98,53 @@ internal static class StudioTheme
         window.FontSize = FontSize;
         window.Background = WindowBackgroundBrush;
         window.Foreground = TextBrush;
+        window.BorderThickness = new Thickness(0);
         window.Icon ??= windowIcon ??= TryLoadWindowIcon();
         if (!window.Resources.MergedDictionaries.Contains(SharedStyles))
         {
             window.Resources.MergedDictionaries.Add(SharedStyles);
         }
+        window.SourceInitialized += (_, _) => ApplyNativeDarkChrome(window);
     }
+
+    private static void ApplyNativeDarkChrome(Window window)
+    {
+        try
+        {
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero)
+                return;
+
+            int enabled = 1;
+            int caption = ToColorRef(WindowBackgroundColor);
+            int border = ToColorRef(WindowBackgroundColor);
+            int text = ToColorRef(TextColor);
+            _ = DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref enabled, sizeof(int));
+            _ = DwmSetWindowAttribute(handle, DwmwaBorderColor, ref border, sizeof(int));
+            _ = DwmSetWindowAttribute(handle, DwmwaCaptionColor, ref caption, sizeof(int));
+            _ = DwmSetWindowAttribute(handle, DwmwaTextColor, ref text, sizeof(int));
+        }
+        catch (DllNotFoundException)
+        {
+        }
+        catch (EntryPointNotFoundException)
+        {
+        }
+    }
+
+    private static int ToColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
+
+    private const int DwmwaUseImmersiveDarkMode = 20;
+    private const int DwmwaBorderColor = 34;
+    private const int DwmwaCaptionColor = 35;
+    private const int DwmwaTextColor = 36;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref int attributeValue,
+        int attributeSize);
 
     private static ImageSource? TryLoadWindowIcon()
     {
@@ -157,7 +200,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@Button@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="MinHeight" Value="34"/>
     <Setter Property="Padding" Value="12,6"/>
     <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -204,7 +247,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@Button@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="MinHeight" Value="32"/>
     <Setter Property="Padding" Value="10,5"/>
     <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -522,7 +565,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@WindowBg@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="0"/>
     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     <Setter Property="VerticalContentAlignment" Value="Stretch"/>
@@ -537,16 +580,14 @@ internal static class StudioTheme
             </Grid.RowDefinitions>
             <Border Grid.Row="0"
                     Background="@@Panel@@"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1,1,1,0">
+                    BorderThickness="0">
               <TabPanel x:Name="HeaderPanel"
                         IsItemsHost="True"
                         KeyboardNavigation.TabIndex="1"/>
             </Border>
             <Border Grid.Row="1"
                     Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="{TemplateBinding BorderThickness}"
+                    BorderThickness="0"
                     Padding="{TemplateBinding Padding}">
               <ContentPresenter x:Name="PART_SelectedContentHost"
                                 ContentSource="SelectedContent"
@@ -574,8 +615,7 @@ internal static class StudioTheme
           <Grid SnapsToDevicePixels="True">
             <Border x:Name="Bd"
                     Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="0,0,1,0"/>
+                    BorderThickness="0"/>
             <Border x:Name="AccentLine"
                     Height="2"
                     VerticalAlignment="Top"
@@ -661,7 +701,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@Input@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="2"/>
     <Setter Property="SnapsToDevicePixels" Value="True"/>
   </Style>
@@ -670,7 +710,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@Input@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="2"/>
     <Setter Property="SnapsToDevicePixels" Value="True"/>
   </Style>
@@ -697,7 +737,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Muted@@"/>
     <Setter Property="Background" Value="@@Panel@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="10,7"/>
     <Setter Property="MinHeight" Value="34"/>
     <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -768,11 +808,90 @@ internal static class StudioTheme
     </Setter>
   </Style>
 
+  <Style TargetType="{x:Type Slider}">
+    <Setter Property="Foreground" Value="@@Accent@@"/>
+    <Setter Property="Background" Value="@@PanelAlt@@"/>
+    <Setter Property="Height" Value="24"/>
+    <Setter Property="MinWidth" Value="120"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Slider}">
+          <Grid Background="Transparent">
+            <Track x:Name="PART_Track" VerticalAlignment="Center">
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                  <RepeatButton.Template>
+                    <ControlTemplate TargetType="{x:Type RepeatButton}">
+                      <Border Height="4" Background="@@Accent@@" CornerRadius="2"/>
+                    </ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.DecreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Width="14" Height="14">
+                  <Thumb.Template>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                      <Border x:Name="ThumbBd" Background="@@Text@@" CornerRadius="7"/>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="ThumbBd" Property="Background" Value="@@AccentSoft@@"/>
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                  <RepeatButton.Template>
+                    <ControlTemplate TargetType="{x:Type RepeatButton}">
+                      <Border Height="4" Background="@@PanelAlt@@" CornerRadius="2"/>
+                    </ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.IncreaseRepeatButton>
+            </Track>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="{x:Type ProgressBar}">
+    <Setter Property="Foreground" Value="@@Accent@@"/>
+    <Setter Property="Background" Value="@@PanelAlt@@"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ProgressBar}">
+          <Grid ClipToBounds="True">
+            <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="4"/>
+            <Border x:Name="PART_Indicator"
+                    Background="{TemplateBinding Foreground}"
+                    CornerRadius="4"
+                    HorizontalAlignment="Left"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsIndeterminate" Value="True">
+              <Setter TargetName="PART_Indicator" Property="HorizontalAlignment" Value="Stretch"/>
+              <Setter TargetName="PART_Indicator" Property="Opacity" Value="0.55"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style TargetType="{x:Type ToolTip}">
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@PanelAlt@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="8,5"/>
     <Setter Property="MaxWidth" Value="360"/>
     <Setter Property="Template">
@@ -795,7 +914,7 @@ internal static class StudioTheme
     <Setter Property="Foreground" Value="@@Text@@"/>
     <Setter Property="Background" Value="@@Panel@@"/>
     <Setter Property="BorderBrush" Value="@@Border@@"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="4"/>
     <Setter Property="SnapsToDevicePixels" Value="True"/>
     <Setter Property="Template">
@@ -838,9 +957,9 @@ internal static class StudioTheme
   </Style>
 
   <Style TargetType="{x:Type Separator}">
-    <Setter Property="Background" Value="@@Border@@"/>
-    <Setter Property="Height" Value="1"/>
-    <Setter Property="Margin" Value="0,4"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Height" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
     <Setter Property="SnapsToDevicePixels" Value="True"/>
   </Style>
 

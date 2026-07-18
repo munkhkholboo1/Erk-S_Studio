@@ -216,6 +216,7 @@ public sealed class SheetPackageTests : IDisposable
             Description = "Барилга архитектурын загвар зураг",
             Channel = ProjectCreationChannels.Studio,
             InitiatorType = ProjectInitiatorTypes.DesignOrganization,
+            InitiatorOrganizationId = "org-erk-s",
             InitiatorOrganizationName = "Erk-S зураг төслийн компани",
             ClientName = "З.Бат",
             SiteAddress = "Улаанбаатар хот",
@@ -229,6 +230,8 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal(ProjectCreationChannels.Studio, loaded.Creation.Channel);
         Assert.Equal(ProjectInitiatorTypes.DesignOrganization, loaded.Creation.InitiatorType);
         Assert.Equal("Erk-S зураг төслийн компани", loaded.Creation.InitiatorOrganizationName);
+        Assert.Equal("org-erk-s", loaded.Foundation.DesignCompany.OrganizationId);
+        Assert.Equal("org-erk-s", loaded.Foundation.DesignCompany.OrganizationSnapshot.OrganizationId);
         Assert.Equal(ProjectInitiationSourceTypes.DesignOrganizationCreated, loaded.Foundation.InitiationBasis.SourceType);
         Assert.Equal("Erk-S зураг төслийн компани", loaded.DesignOrganizationName);
         Assert.Equal("StudioSelfCreated", loaded.Foundation.DesignCompany.AssignmentSource);
@@ -255,6 +258,28 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal("", project.DesignOrganizationName);
         Assert.Equal("", project.Foundation.DesignCompany.AssignmentSource);
         Assert.Null(project.Foundation.DesignCompany.AssignedAtUtc);
+    }
+
+    [Fact]
+    public void ProjectWorkspaceStore_RestoresLegacySelfCreatedCompanyIdentityOnLoad()
+    {
+        var project = ProjectWorkspaceStore.Create(new ProjectCreationRequest
+        {
+            Code = "STUDIO-DESIGN-LEGACY",
+            Name = "Legacy design project",
+            InitiatorType = ProjectInitiatorTypes.DesignOrganization,
+            InitiatorOrganizationId = "org-design-legacy",
+            InitiatorOrganizationName = "Legacy Design LLC",
+        });
+        project.Foundation.DesignCompany.OrganizationId = "";
+        project.Foundation.DesignCompany.OrganizationSnapshot.OrganizationId = "";
+        var path = Path.Combine(workDirectory, "legacy-design", ProjectWorkspace.DefaultFileName);
+
+        ProjectWorkspaceStore.Save(project, path);
+        ProjectWorkspace loaded = ProjectWorkspaceStore.Load(path);
+
+        Assert.Equal("org-design-legacy", loaded.Foundation.DesignCompany.OrganizationId);
+        Assert.Equal("org-design-legacy", loaded.Foundation.DesignCompany.OrganizationSnapshot.OrganizationId);
     }
 
     [Fact]

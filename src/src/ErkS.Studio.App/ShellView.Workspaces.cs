@@ -212,8 +212,7 @@ internal sealed partial class ShellView
         var headerStyle = new Style(typeof(GridViewColumnHeader));
         headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, StudioTheme.PanelAltBrush));
         headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.MutedTextBrush));
-        headerStyle.Setters.Add(new Setter(Control.BorderBrushProperty, StudioTheme.BorderBrush));
-        headerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0, 0, 1, 1)));
+        headerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
         headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 5, 7, 5)));
         view.ColumnHeaderContainerStyle = headerStyle;
         view.Columns.Add(new GridViewColumn { Header = "Дугаар", Width = 90, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Number)) });
@@ -2431,8 +2430,7 @@ internal sealed partial class ShellView
         var header = new Border
         {
             Background = StudioTheme.PanelAltBrush,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(0, 0, 0, 1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(10, 7, 10, 7),
             Child = headerContent,
         };
@@ -2443,8 +2441,7 @@ internal sealed partial class ShellView
         return new Border
         {
             Background = StudioTheme.PanelBrush,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = borderThickness,
+            BorderThickness = new Thickness(0),
             Child = dock,
         };
     }

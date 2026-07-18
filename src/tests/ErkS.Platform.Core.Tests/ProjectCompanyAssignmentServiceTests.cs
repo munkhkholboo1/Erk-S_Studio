@@ -144,4 +144,89 @@ public sealed class ProjectCompanyAssignmentServiceTests
         Assert.Equal("StudioCloudSelected", project.Foundation.DesignCompany.AssignmentSource);
         Assert.Equal(ProjectSyncStatuses.Linked, project.Cloud.SyncStatus);
     }
+
+    [Fact]
+    public void MergeCloudAssignmentDoesNotClearConfirmedCompanyWhenServerOmitsAssignment()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(new ProjectCreationRequest
+        {
+            Code = "CLOUD-003",
+            Name = "Cloud project",
+            InitiatorType = ProjectInitiatorTypes.DesignOrganization,
+            InitiatorOrganizationId = "org-design-1",
+            InitiatorOrganizationName = "Erk-S Design",
+        });
+        project.Foundation.DesignCompany.AssignmentSource = "StudioCloudSelected";
+
+        bool changed = ProjectCompanyAssignmentService.MergeCloudAssignment(
+            project,
+            "",
+            "",
+            null);
+
+        Assert.False(changed);
+        Assert.Equal("org-design-1", project.Foundation.DesignCompany.OrganizationId);
+        Assert.Equal("Erk-S Design", project.Foundation.DesignCompany.OrganizationName);
+        Assert.Equal("StudioCloudSelected", project.Foundation.DesignCompany.AssignmentSource);
+    }
+
+    [Fact]
+    public void MergeCloudAssignmentConfirmsPendingCompanyWithoutReselection()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(new ProjectCreationRequest
+        {
+            Code = "CLOUD-004",
+            Name = "Cloud project",
+        });
+        project.Cloud.Origin = ProjectOrigins.Cloud;
+        project.Cloud.ServerProjectId = "server-project-1";
+        var company = new CompanyProfile
+        {
+            OrganizationId = "org-design-2",
+            OrganizationType = "DesignCompany",
+            Name = "Another company",
+            DisplayName = "Another Design",
+        };
+        ProjectCompanyAssignmentService.AssignToProject(project, company, DateTimeOffset.UtcNow);
+
+        bool changed = ProjectCompanyAssignmentService.MergeCloudAssignment(
+            project,
+            "org-design-2",
+            "Another company",
+            company);
+
+        Assert.True(changed);
+        Assert.Equal("org-design-2", project.Foundation.DesignCompany.OrganizationId);
+        Assert.Equal("StudioCloudSelected", project.Foundation.DesignCompany.AssignmentSource);
+        Assert.Empty(project.Foundation.DesignCompany.History);
+    }
+
+    [Fact]
+    public void MergeCloudAssignmentAcceptsCanonicalCompanyChangeAndKeepsHistory()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(new ProjectCreationRequest
+        {
+            Code = "CLOUD-005",
+            Name = "Cloud project",
+            InitiatorType = ProjectInitiatorTypes.DesignOrganization,
+            InitiatorOrganizationId = "org-design-1",
+            InitiatorOrganizationName = "Original company",
+        });
+
+        bool changed = ProjectCompanyAssignmentService.MergeCloudAssignment(
+            project,
+            "org-design-2",
+            "Replacement company",
+            new CompanyProfile
+            {
+                OrganizationId = "org-design-2",
+                OrganizationType = "DesignCompany",
+                Name = "Replacement company",
+            });
+
+        Assert.True(changed);
+        Assert.Equal("org-design-2", project.Foundation.DesignCompany.OrganizationId);
+        Assert.Equal("CloudERA", project.Foundation.DesignCompany.AssignmentSource);
+        Assert.Equal("org-design-1", Assert.Single(project.Foundation.DesignCompany.History).OrganizationId);
+    }
 }

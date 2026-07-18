@@ -76,8 +76,7 @@ internal sealed class StudioUpdateDialog : Window
         content.Children.Add(new Border
         {
             Background = StudioTheme.PanelBrush,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(StudioTheme.CornerRadius),
             Padding = new Thickness(14),
             Margin = new Thickness(0, 4, 0, 0),

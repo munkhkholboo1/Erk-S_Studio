@@ -117,11 +117,17 @@ public static class ProjectWorkspaceStore
                 },
                 DesignCompany = new ProjectCompanyAssignment
                 {
+                    OrganizationId = designOrganizationCreated
+                        ? request.InitiatorOrganizationId.Trim()
+                        : "",
                     OrganizationName = designOrganizationCreated ? organizationName : "",
                     AssignmentSource = designOrganizationCreated ? "StudioSelfCreated" : "",
                     AssignedAtUtc = designOrganizationCreated ? createdAtUtc : null,
                     OrganizationSnapshot = new CompanyProfile
                     {
+                        OrganizationId = designOrganizationCreated
+                            ? request.InitiatorOrganizationId.Trim()
+                            : "",
                         Name = designOrganizationCreated ? organizationName : "",
                     },
                 },
@@ -137,6 +143,12 @@ public static class ProjectWorkspaceStore
         project.Cloud ??= new ProjectCloudLink();
         project.Cloud.CurrentUserRoles ??= [];
         project.Cloud.CurrentUserScopes ??= [];
+        project.Cloud.ServerSnapshot ??= new ProjectServerSnapshot();
+        project.Cloud.ServerSnapshot.Information ??= new ProjectServerInformation();
+        project.Cloud.ServerSnapshot.SiteAndLand ??= new ProjectServerSiteAndLand();
+        project.Cloud.ServerSnapshot.SiteAndLand.ParcelNumbers ??= [];
+        project.Cloud.ServerSnapshot.SiteAndLand.Addresses ??= [];
+        project.Cloud.ServerSnapshot.SiteAndLand.RestrictionReferences ??= [];
         project.Creation ??= new ProjectCreationInfo();
         project.Foundation ??= new ProjectFoundation();
         project.Foundation.InitiationBasis ??= new ProjectInitiationBasis();
@@ -154,6 +166,26 @@ public static class ProjectWorkspaceStore
         project.Foundation.DesignCompany.OrganizationSnapshot.Signers ??= [];
         project.Foundation.DesignCompany.Members ??= [];
         project.Foundation.DesignCompany.History ??= [];
+        ProjectCompanyAssignment assignment = project.Foundation.DesignCompany;
+        CompanyProfile companySnapshot = assignment.OrganizationSnapshot;
+        if (string.IsNullOrWhiteSpace(assignment.OrganizationId) &&
+            !string.IsNullOrWhiteSpace(companySnapshot.OrganizationId))
+        {
+            assignment.OrganizationId = companySnapshot.OrganizationId.Trim();
+        }
+        if (string.IsNullOrWhiteSpace(assignment.OrganizationId) &&
+            project.Creation.InitiatorType.Equals(ProjectInitiatorTypes.DesignOrganization, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(project.Creation.InitiatorOrganizationId) &&
+            (assignment.AssignmentSource.Equals("StudioSelfCreated", StringComparison.OrdinalIgnoreCase) ||
+             assignment.OrganizationName.Equals(project.Creation.InitiatorOrganizationName, StringComparison.OrdinalIgnoreCase)))
+        {
+            assignment.OrganizationId = project.Creation.InitiatorOrganizationId.Trim();
+        }
+        if (string.IsNullOrWhiteSpace(companySnapshot.OrganizationId) &&
+            !string.IsNullOrWhiteSpace(assignment.OrganizationId))
+        {
+            companySnapshot.OrganizationId = assignment.OrganizationId;
+        }
         foreach (var member in project.Foundation.DesignCompany.Members)
         {
             member.Roles ??= [];

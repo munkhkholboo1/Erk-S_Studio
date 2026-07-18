@@ -167,90 +167,31 @@ public sealed class AppState : IDisposable
             throw new InvalidDataException("Cloud project ID is empty.");
         }
 
-        Project.ProjectId = summary.ProjectId;
-        Project.Identity.Code = summary.ProjectCode;
-        Project.Identity.Name = summary.Name;
-        Project.Identity.StageName = string.IsNullOrWhiteSpace(summary.CurrentStage)
-            ? Project.Identity.StageName
-            : summary.CurrentStage;
-        Project.Cloud.Origin = ProjectOrigins.Cloud;
-        Project.Cloud.ServerProjectId = summary.ProjectId;
+        ProjectCanonicalSyncService.Apply(Project, ToServerSnapshot(cloudProject));
         Project.Cloud.ServerUrl = serverUrl.TrimEnd('/');
-        Project.Cloud.CloudProjectCode = summary.ProjectCode;
         if (!preserveSyncState)
             Project.Cloud.SyncStatus = ProjectSyncStatuses.Linked;
-        Project.Cloud.CurrentUserRoles = summary.CurrentUserRoles
+        Project.Cloud.CurrentUserRoles = (summary.CurrentUserRoles ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        Project.Cloud.CurrentUserScopes = summary.CurrentUserScopes
+        Project.Cloud.CurrentUserScopes = (summary.CurrentUserScopes ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        Project.Foundation.InitiationBasis.ClientName = summary.ClientName;
-        Project.Foundation.InitiationBasis.SiteAddress = string.IsNullOrWhiteSpace(cloudProject.ProjectInformation.Location)
-            ? cloudProject.SiteAndLand.Addresses.FirstOrDefault() ?? ""
-            : cloudProject.ProjectInformation.Location;
-        Project.Foundation.InitiationBasis.LandReference = string.Join(", ", cloudProject.SiteAndLand.ParcelNumbers);
-        Project.Foundation.InitiationBasis.ServerRecordId = summary.ProjectId;
-        Project.Foundation.PlanningTask.IssuingAuthorityName = summary.PlanningAuthorityName;
-        ProjectCompanyAssignment companyAssignment = Project.Foundation.DesignCompany;
-        string cloudOrganizationId = cloudProject.ConceptAssignment?.OrganizationId ?? "";
-        bool sameCompany = !string.IsNullOrWhiteSpace(cloudOrganizationId) &&
-            companyAssignment.OrganizationId.Equals(cloudOrganizationId, StringComparison.OrdinalIgnoreCase);
-        string preservedLogoPath = sameCompany ? companyAssignment.OrganizationSnapshot.LogoPath : "";
-        companyAssignment.OrganizationId = cloudOrganizationId;
         StudioCloudOrganizationRenderProfile? renderProfile = cloudProject.DesignOrganizationProfile;
-        companyAssignment.OrganizationName = renderProfile?.LegalName ?? summary.DesignOrganizationName;
-        if (renderProfile is not null)
-        {
-            companyAssignment.OrganizationSnapshot = new CompanyProfile
-            {
-                OrganizationId = renderProfile.OrganizationId,
-                Name = renderProfile.LegalName,
-                DisplayName = renderProfile.DisplayName,
-                ShortName = renderProfile.ShortName,
-                RegistrationNumber = renderProfile.RegistrationNumber,
-                Address = renderProfile.Address,
-                Phone = renderProfile.Phone,
-                PhoneNumbers = string.IsNullOrWhiteSpace(renderProfile.Phone) ? [] : [renderProfile.Phone],
-                Email = renderProfile.Email,
-                WebSite = renderProfile.Website,
-                LicenseScope = renderProfile.LicenseScope,
-                LicenseNumber = renderProfile.LicenseNumber,
-                DirectorTitle = renderProfile.DirectorTitle,
-                DirectorName = renderProfile.DirectorName,
-                LogoPath = preservedLogoPath,
-                LogoScale = renderProfile.LogoScale,
-                LogoOffsetX = renderProfile.LogoOffsetX,
-                LogoOffsetY = renderProfile.LogoOffsetY,
-                Signers = string.IsNullOrWhiteSpace(renderProfile.DirectorName)
-                    ? []
-                    : [new CompanySigner
-                    {
-                        Role = renderProfile.DirectorTitle,
-                        FullName = renderProfile.DirectorName,
-                    }],
-            };
-        }
-        else if (!sameCompany)
-        {
-            companyAssignment.OrganizationSnapshot = new CompanyProfile
-            {
-                OrganizationId = cloudOrganizationId,
-                Name = summary.DesignOrganizationName,
-                DisplayName = summary.DesignOrganizationName,
-            };
-        }
-        else
-        {
-            companyAssignment.OrganizationSnapshot.OrganizationId = cloudOrganizationId;
-            if (string.IsNullOrWhiteSpace(companyAssignment.OrganizationSnapshot.Name))
-                companyAssignment.OrganizationSnapshot.Name = summary.DesignOrganizationName;
-            if (string.IsNullOrWhiteSpace(companyAssignment.OrganizationSnapshot.DisplayName))
-                companyAssignment.OrganizationSnapshot.DisplayName = summary.DesignOrganizationName;
-        }
+        string cloudOrganizationId = cloudProject.ConceptAssignment?.OrganizationId ?? "";
+        if (string.IsNullOrWhiteSpace(cloudOrganizationId))
+            cloudOrganizationId = renderProfile?.OrganizationId ?? "";
+        CompanyProfile? cloudCompany = renderProfile is null
+            ? null
+            : ToCompanyProfile(renderProfile);
+        ProjectCompanyAssignmentService.MergeCloudAssignment(
+            Project,
+            cloudOrganizationId,
+            summary.DesignOrganizationName,
+            cloudCompany);
 
         List<StudioCloudParticipant> activeParticipants = cloudProject.Participants
             .Where(item => item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
@@ -296,6 +237,75 @@ public sealed class AppState : IDisposable
         SaveProject();
         ProjectReplaced?.Invoke();
     }
+
+    private static ProjectServerSnapshot ToServerSnapshot(StudioCloudProjectDetail cloudProject)
+    {
+        StudioCloudProjectSummary summary = cloudProject.Project;
+        StudioCloudProjectInformation information = cloudProject.ProjectInformation ?? new();
+        StudioCloudSiteAndLand siteAndLand = cloudProject.SiteAndLand ?? new();
+        return new ProjectServerSnapshot
+        {
+            ProjectId = summary.ProjectId,
+            ProjectCode = summary.ProjectCode,
+            Name = summary.Name,
+            Status = summary.Status,
+            CurrentStage = summary.CurrentStage,
+            ClientName = summary.ClientName,
+            PlanningAuthorityName = summary.PlanningAuthorityName,
+            DesignOrganizationName = summary.DesignOrganizationName,
+            UpdatedAtUtc = summary.UpdatedAtUtc,
+            ConcurrencyToken = summary.ConcurrencyToken,
+            Information = new ProjectServerInformation
+            {
+                ProjectId = information.ProjectId,
+                ProjectCode = information.ProjectCode,
+                Name = information.Name,
+                Location = information.Location,
+                BuildingPurpose = information.BuildingPurpose,
+                Capacity = information.Capacity,
+                CapacityUnit = information.CapacityUnit,
+                FootprintSquareMeters = information.FootprintSquareMeters,
+                GrossFloorAreaSquareMeters = information.GrossFloorAreaSquareMeters,
+                HeightMeters = information.HeightMeters,
+                FloorsAboveGround = information.FloorsAboveGround,
+                FloorsBelowGround = information.FloorsBelowGround,
+            },
+            SiteAndLand = new ProjectServerSiteAndLand
+            {
+                ParcelNumbers = (siteAndLand.ParcelNumbers ?? []).ToList(),
+                Addresses = (siteAndLand.Addresses ?? []).ToList(),
+                RestrictionReferences = (siteAndLand.RestrictionReferences ?? []).ToList(),
+            },
+        };
+    }
+
+    private static CompanyProfile ToCompanyProfile(StudioCloudOrganizationRenderProfile profile) => new()
+    {
+        OrganizationId = profile.OrganizationId,
+        Name = profile.LegalName,
+        DisplayName = profile.DisplayName,
+        ShortName = profile.ShortName,
+        RegistrationNumber = profile.RegistrationNumber,
+        Address = profile.Address,
+        Phone = profile.Phone,
+        PhoneNumbers = string.IsNullOrWhiteSpace(profile.Phone) ? [] : [profile.Phone],
+        Email = profile.Email,
+        WebSite = profile.Website,
+        LicenseScope = profile.LicenseScope,
+        LicenseNumber = profile.LicenseNumber,
+        DirectorTitle = profile.DirectorTitle,
+        DirectorName = profile.DirectorName,
+        LogoScale = profile.LogoScale,
+        LogoOffsetX = profile.LogoOffsetX,
+        LogoOffsetY = profile.LogoOffsetY,
+        Signers = string.IsNullOrWhiteSpace(profile.DirectorName)
+            ? []
+            : [new CompanySigner
+            {
+                Role = profile.DirectorTitle,
+                FullName = profile.DirectorName,
+            }],
+    };
 
     private static ProjectMember ToProjectMember(StudioCloudParticipant participant) => new()
     {

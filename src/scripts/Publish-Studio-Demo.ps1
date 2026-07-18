@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.2",
-    [string]$AssemblyVersion = "0.0.1.2",
+    [string]$ReleaseVersion = "V0.001.3",
+    [string]$AssemblyVersion = "0.0.1.3",
     [string]$OutputDirectory = ""
 )
 

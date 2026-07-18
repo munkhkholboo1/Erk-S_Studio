@@ -127,10 +127,10 @@ internal sealed partial class ShellView
 
         var splitter = new GridSplitter
         {
-            Width = 1,
+            Width = 8,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Background = StudioTheme.BorderBrush,
+            Background = Brushes.Transparent,
         };
         Grid.SetColumn(splitter, 1);
         body.Children.Add(splitter);
@@ -210,8 +210,7 @@ internal sealed partial class ShellView
             Height = 190,
             HorizontalAlignment = HorizontalAlignment.Left,
             Background = Brushes.White,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             ClipToBounds = true,
             Child = previewGrid,
         };
@@ -427,14 +426,16 @@ internal sealed partial class ShellView
         bool canonicalCloudProfile = companyCatalogCloudVerified &&
             selectedCompanyEntry?.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase) == true &&
             !selected!.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase);
-        companyUseInProjectButton.IsEnabled = canonicalCloudProfile && canManage;
+        companyUseInProjectButton.IsEnabled = canonicalCloudProfile && canManage && !sameOrganization;
         companyUseInProjectButton.Content = sameOrganization
-            ? "Төслийн мэдээлэл шинэчлэх"
-            : "Төслийн компани болгох";
+            ? "Төсөлд сонгогдсон"
+            : string.IsNullOrWhiteSpace(assignedId)
+                ? "Төслийн компани болгох"
+                : "Компани солих";
         companyUseInProjectButton.ToolTip = !canonicalCloudProfile
             ? "Байгууллагын Cloud ERA бүртгэлийг шинэчилж баталгаажуулсны дараа төсөлд ашиглана."
-            : sameOrganization && canManage
-                ? "Cloud ERA компанийн одоогийн бүртгэлийг төслийн snapshot-д шинэчлэх"
+            : sameOrganization
+                ? "Энэ компани төсөлд баталгаажсан. Бүртгэлийн шинэчлэлт автоматаар төслийн snapshot-д орно."
             : canManage
                 ? ProjectCompanySelectionPolicy(state.Project)
                 : "Энэ компанийн нэр дээр төсөл хэрэгжүүлэх эрх шаардлагатай.";
@@ -469,8 +470,7 @@ internal sealed partial class ShellView
             assignment.OrganizationId.Equals(profile.OrganizationId, StringComparison.OrdinalIgnoreCase);
         if (sameOrganization)
         {
-            ApplyCompanyToOpenProject(profile, rebuildAlbum: true);
-            SetStatus($"{CompanyDisplayName(profile)} компанийн Cloud ERA мэдээлэл төсөлд шинэчлэгдлээ.");
+            SetStatus($"{CompanyDisplayName(profile)} компани энэ төсөлд аль хэдийн баталгаажсан байна.");
             return;
         }
 
@@ -981,6 +981,25 @@ internal sealed partial class ShellView
         if (!string.IsNullOrWhiteSpace(profile.Name))
             return profile.Name.Trim();
         return profile.ShortName.Trim();
+    }
+
+    private void RefreshProjectCompanySelectorUi()
+    {
+        bool assigned = state.HasOpenProject &&
+            ProjectCompanyAssignmentService.HasAssignedOrganization(state.Project);
+        string label = assigned ? "Компани солих" : "Компани сонгох";
+        if (projectCompanyLibraryButton.Content is StackPanel stack &&
+            stack.Children.OfType<TextBlock>().LastOrDefault() is { } text)
+        {
+            text.Text = label;
+        }
+        else
+        {
+            projectCompanyLibraryButton.Content = label;
+        }
+        projectCompanyLibraryButton.ToolTip = assigned
+            ? "Төслийн баталгаажсан зураг төслийн байгууллагыг санаатайгаар солих"
+            : "Төслийн зураг төслийн байгууллагыг компанийн сангаас сонгох";
     }
 
     private static string ProjectCompanyAssignmentDescription(ProjectWorkspace project)

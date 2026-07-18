@@ -112,8 +112,7 @@ internal static class StudioRelationshipBoundary
             {
                 Margin = new Thickness(0, 16, 0, 0),
                 Padding = new Thickness(16),
-                BorderBrush = StudioTheme.BorderBrush,
-                BorderThickness = new Thickness(1),
+                BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(6),
                 Background = StudioTheme.PanelBrush,
             };

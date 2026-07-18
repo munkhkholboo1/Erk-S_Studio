@@ -107,9 +107,70 @@ public sealed class ProjectCloudLink
     public string LastSyncNote { get; set; } = "";
     public List<string> CurrentUserRoles { get; set; } = [];
     public List<string> CurrentUserScopes { get; set; } = [];
+    public ProjectServerSnapshot ServerSnapshot { get; set; } = new();
+    public PendingProjectInformationUpdate? PendingProjectInformation { get; set; }
 
     public bool HasScope(string scope) => CurrentUserScopes.Any(value =>
         value.Equals(scope, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>
+/// Canonical project information saved in Studio while an older server runtime
+/// does not yet expose the project-information update endpoint.
+/// </summary>
+public sealed class PendingProjectInformationUpdate
+{
+    public string Name { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public string PlanningAuthorityName { get; set; } = "";
+    public string DesignOrganizationName { get; set; } = "";
+    public string Location { get; set; } = "";
+    public string BuildingPurpose { get; set; } = "";
+    public string CapacityUnit { get; set; } = "";
+    public DateTimeOffset QueuedAtUtc { get; set; }
+}
+
+/// <summary>
+/// Last canonical project record received from Erk-S Server. Studio keeps this
+/// as a local mirror only; the server remains the source of truth.
+/// </summary>
+public sealed class ProjectServerSnapshot
+{
+    public string ProjectId { get; set; } = "";
+    public string ProjectCode { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string CurrentStage { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public string PlanningAuthorityName { get; set; } = "";
+    public string DesignOrganizationName { get; set; } = "";
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public string ConcurrencyToken { get; set; } = "";
+    public ProjectServerInformation Information { get; set; } = new();
+    public ProjectServerSiteAndLand SiteAndLand { get; set; } = new();
+}
+
+public sealed class ProjectServerInformation
+{
+    public string ProjectId { get; set; } = "";
+    public string ProjectCode { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Location { get; set; } = "";
+    public string BuildingPurpose { get; set; } = "";
+    public decimal? Capacity { get; set; }
+    public string CapacityUnit { get; set; } = "";
+    public decimal? FootprintSquareMeters { get; set; }
+    public decimal? GrossFloorAreaSquareMeters { get; set; }
+    public decimal? HeightMeters { get; set; }
+    public int? FloorsAboveGround { get; set; }
+    public int? FloorsBelowGround { get; set; }
+}
+
+public sealed class ProjectServerSiteAndLand
+{
+    public List<string> ParcelNumbers { get; set; } = [];
+    public List<string> Addresses { get; set; } = [];
+    public List<string> RestrictionReferences { get; set; } = [];
 }
 
 public sealed class ProjectCreationInfo

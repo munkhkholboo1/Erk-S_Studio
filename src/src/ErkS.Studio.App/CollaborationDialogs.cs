@@ -80,8 +80,7 @@ internal sealed class ProjectMemberInvitationDialog : Window
         var resultBorder = new Border
         {
             Background = StudioTheme.PanelAltBrush,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(StudioTheme.CornerRadius),
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(0, 4, 0, 12),
@@ -158,12 +157,12 @@ internal sealed class ProjectMemberInvitationDialog : Window
             .ToList();
         if (string.IsNullOrWhiteSpace(verifiedEmail))
         {
-            MessageBox.Show(this, "Эхлээд бүртгэлтэй хэрэглэгчийг хайж баталгаажуулна уу.", "Erk-S Studio");
+            StudioMessageDialog.Show(this, "Эхлээд бүртгэлтэй хэрэглэгчийг хайж баталгаажуулна уу.");
             return;
         }
         if (selectedRoles.Count == 0)
         {
-            MessageBox.Show(this, "Дор хаяж нэг role сонгоно уу.", "Erk-S Studio");
+            StudioMessageDialog.Show(this, "Дор хаяж нэг role сонгоно уу.");
             return;
         }
         Draft = new ProjectInvitationDraft(verifiedEmail, selectedRoles);

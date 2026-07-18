@@ -65,14 +65,13 @@ internal static class StudioWidgets
         };
     }
 
-    /// <summary>Panel card with the shared background, border, and padding.</summary>
+    /// <summary>Panel card with the shared background and padding.</summary>
     public static Border CreateCard(UIElement child)
     {
         return new Border
         {
             Background = StudioTheme.PanelBrush,
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(StudioTheme.CornerRadius),
             Padding = new Thickness(StudioTheme.SpaceLg),
             Margin = new Thickness(0, 0, 0, StudioTheme.SpaceSm),
@@ -254,7 +253,7 @@ internal static class StudioWidgets
         return row;
     }
 
-    /// <summary>Thin status strip for the bottom of tool windows.</summary>
+    /// <summary>Quiet status strip for the bottom of tool windows.</summary>
     public static Border CreateStatusBar(TextBlock statusText)
     {
         statusText.Foreground = StudioTheme.MutedTextBrush;
@@ -263,8 +262,7 @@ internal static class StudioWidgets
         statusText.Margin = new Thickness(0);
         return new Border
         {
-            BorderBrush = StudioTheme.BorderBrush,
-            BorderThickness = new Thickness(0, 1, 0, 0),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(StudioTheme.SpaceMd, 4, StudioTheme.SpaceMd, 4),
             Child = statusText,
         };

@@ -224,7 +224,7 @@ internal sealed class DesignSourceDialog : Window
         var name = nameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
-            MessageBox.Show(this, "Эх үүсвэрийн нэр оруулна уу.", "Erk-S Studio", MessageBoxButton.OK, MessageBoxImage.Information);
+            StudioMessageDialog.Show(this, "Эх үүсвэрийн нэр оруулна уу.", "Erk-S Studio", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
