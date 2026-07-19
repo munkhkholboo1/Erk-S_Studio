@@ -120,6 +120,101 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void BuiltAlbum_CreatesLocalDraftRevisionWithPinnedFoundationAndSources()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "erks-revision-build-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "albums"));
+        string projectPath = Path.Combine(root, ProjectWorkspace.DefaultFileName);
+        string pdfPath = Path.Combine(root, "albums", "concept.pdf");
+        File.WriteAllBytes(pdfPath, [0x25, 0x50, 0x44, 0x46]);
+        ProjectWorkspace project = Project();
+        project.Foundation.Version = 7;
+        project.Foundation.DesignCompany.OrganizationId = "company-snapshot-7";
+        Guid packageId = Guid.Parse("45e08692-b0a4-4b82-88dc-e6e844a6bd52");
+        ProjectCloudSyncMetadata.RecordPackage(project, project.Sources.Single(), new SheetPackageManifest
+        {
+            SchemaVersion = 4,
+            PackageId = packageId,
+            ExportedAtUtc = DateTimeOffset.UtcNow,
+            Source = new SheetPackageSource { SourceId = "source-1", Application = SheetSourceApplication.Revit },
+            Sheets = [new SheetPackageEntry { SheetId = "sheet-1", Sha256 = "hash" }],
+        }, new string('c', 64));
+        StudioAlbumDocument album = new();
+
+        try
+        {
+            ProjectCloudSyncMetadata.RecordBuiltAlbum(
+                project,
+                album,
+                projectPath,
+                pdfPath,
+                3,
+                "A3 landscape",
+                "architect@erks.local");
+
+            DeliverableRevisionRecord revision = Assert.Single(album.Revisions);
+            Assert.Equal(project.PrimaryAlbum.LastPdfSha256, revision.Sha256);
+            Assert.Equal(7, revision.FoundationVersion);
+            Assert.Equal("company-snapshot-7", revision.CompanySnapshotId);
+            Assert.Equal([packageId.ToString("N")], revision.SourcePackageIds);
+            Assert.Equal("architect@erks.local", revision.CreatedBy);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Conflict_DoesNotMarkProjectSyncedAndKeepsPendingLocalEdit()
+    {
+        ProjectWorkspace project = Project();
+        var pending = new PendingProjectInformationUpdate
+        {
+            Name = "Local edit",
+            Location = "Local address",
+            QueuedAtUtc = DateTimeOffset.UtcNow,
+        };
+
+        ProjectCloudSyncMetadata.MarkConflict(
+            project,
+            pending,
+            "server-token-2",
+            "Server project changed.");
+
+        Assert.Equal(ProjectSyncStatuses.Conflict, project.Cloud.SyncStatus);
+        Assert.Same(pending, project.Cloud.PendingProjectInformation);
+        Assert.Equal("server-token-2", project.Cloud.LastServerConcurrencyToken);
+        Assert.Equal("Server project changed.", project.Cloud.LastSyncError);
+        Assert.Null(project.Cloud.LastSyncedAtUtc);
+    }
+
+    [Fact]
+    public void ServerHashMismatch_IsRejectedBeforeSyncAcknowledgement()
+    {
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() =>
+            ProjectCloudSyncMetadata.ValidateAlbumAcknowledgement(
+                "expected-hash",
+                "server-hash",
+                "revision-1"));
+
+        Assert.Contains("hash", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SourceRegistrationMismatch_IsRejectedBeforeSourceIsMarkedSynced()
+    {
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() =>
+            ProjectCloudSyncMetadata.ValidateSourceAcknowledgement(
+                "manifest-1",
+                "hash-1",
+                "manifest-other",
+                "hash-1"));
+
+        Assert.Contains("manifest", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void CurrentAccountRolesAndScopesRoundTripWithProjectMirror()
     {
         string root = Path.Combine(Path.GetTempPath(), "erks-cloud-role-tests", Guid.NewGuid().ToString("N"));

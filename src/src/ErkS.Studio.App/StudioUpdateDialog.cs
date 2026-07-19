@@ -129,7 +129,7 @@ internal sealed class StudioUpdateDialog : Window
         {
             string installerPath = await updateService.DownloadAsync(update, progress, cancellation.Token);
             statusText.Text = "Studio-г хааж шинэчлэлтийг суулгаж байна...";
-            StudioUpdateService.LaunchInstaller(installerPath);
+            await updateService.VerifyAndLaunchInstallerAsync(installerPath, update, cancellation.Token);
             allowClose = true;
             DialogResult = true;
             Application.Current.Shutdown();

@@ -132,6 +132,41 @@ public static class ProjectCloudSyncMetadata
         candidate.Source.Metadata[SyncedContentHashKey] = candidate.ContentHash;
     }
 
+    public static void ValidateSourceAcknowledgement(
+        string expectedManifestId,
+        string expectedContentHash,
+        string actualManifestId,
+        string actualContentHash)
+    {
+        if (string.IsNullOrWhiteSpace(actualManifestId) ||
+            !actualManifestId.Trim().Equals(expectedManifestId?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Cloud source acknowledgement manifest ID does not match the pending package.");
+        }
+        if (string.IsNullOrWhiteSpace(actualContentHash) ||
+            !actualContentHash.Trim().Equals(expectedContentHash?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Cloud source acknowledgement content hash does not match the pending package.");
+        }
+    }
+
+    public static void ValidateAlbumAcknowledgement(
+        string expectedPdfSha256,
+        string actualPdfSha256,
+        string revisionId)
+    {
+        if (string.IsNullOrWhiteSpace(revisionId))
+            throw new InvalidDataException("Cloud album acknowledgement revision ID is empty.");
+        if (string.IsNullOrWhiteSpace(actualPdfSha256) ||
+            !actualPdfSha256.Trim().Equals(expectedPdfSha256?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Cloud album acknowledgement PDF hash does not match the uploaded canonical album.");
+        }
+    }
+
     public static void RecordBuiltAlbum(
         ProjectWorkspace project,
         string projectPath,
@@ -154,6 +189,35 @@ public static class ProjectCloudSyncMetadata
         album.LastPageSizeSummary = pageSizeSummary?.Trim() ?? "";
         if (!sha256.Equals(project.Cloud.LastSyncedAlbumSha256, StringComparison.OrdinalIgnoreCase))
             MarkPending(project);
+    }
+
+    public static void RecordBuiltAlbum(
+        ProjectWorkspace project,
+        StudioAlbumDocument albumDocument,
+        string projectPath,
+        string outputPath,
+        int pageCount,
+        string pageSizeSummary,
+        string createdBy)
+    {
+        ArgumentNullException.ThrowIfNull(albumDocument);
+        RecordBuiltAlbum(project, projectPath, outputPath, pageCount, pageSizeSummary);
+        ProjectAlbumRecord album = project.PrimaryAlbum;
+        DeliverableRevisionLifecycle.CreateDraft(
+            albumDocument,
+            new DeliverableRevisionInput
+            {
+                PdfPath = album.LastPdfPath,
+                Sha256 = album.LastPdfSha256,
+                SourcePackageIds = SourcePackages(project).Select(item => item.ManifestId).ToList(),
+                FoundationVersion = project.Foundation.Version,
+                CompanySnapshotId = project.Foundation.DesignCompany.OrganizationId,
+                PageCount = pageCount,
+                PageSizeSummary = pageSizeSummary,
+                CreatedBy = createdBy,
+                AuditNote = "Studio canonical album build",
+            },
+            DateTimeOffset.UtcNow);
     }
 
     public static void MarkSynced(
@@ -180,6 +244,22 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.SyncStatus = ProjectSyncStatuses.Error;
         project.Cloud.LastSyncError = message?.Trim() ?? "";
         project.Cloud.LastSyncNote = "";
+    }
+
+    public static void MarkConflict(
+        ProjectWorkspace project,
+        PendingProjectInformationUpdate pendingInformation,
+        string serverConcurrencyToken,
+        string message)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(pendingInformation);
+        project.Cloud.PendingProjectInformation = pendingInformation;
+        project.Cloud.SyncStatus = ProjectSyncStatuses.Conflict;
+        project.Cloud.LastServerConcurrencyToken = serverConcurrencyToken?.Trim() ?? "";
+        project.Cloud.LastSyncError = message?.Trim() ?? "";
+        project.Cloud.LastSyncNote =
+            "Local edit was preserved. Review the server snapshot before saving or syncing again.";
     }
 
     private static void MarkPending(ProjectWorkspace project)

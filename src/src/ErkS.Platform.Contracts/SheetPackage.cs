@@ -123,6 +123,13 @@ public sealed class SheetPackageEntry
     /// <summary>Project-neutral classification used by future auto-layout rules.</summary>
     public string ContentKind { get; set; } = "";
 
+    /// <summary>
+    /// Optional source-sheet narrative. Revit uses its "Хуудасны тайлбар"
+    /// parameter; Studio may override it per album page without changing the
+    /// authoring file. Missing values preserve schema 1-4 compatibility.
+    /// </summary>
+    public string SheetDescription { get; set; } = "";
+
     public string BuildingId { get; set; } = "";
 
     public string BuildingName { get; set; } = "";

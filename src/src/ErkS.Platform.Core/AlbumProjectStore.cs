@@ -41,14 +41,53 @@ public static class AlbumProjectStore
 
     private static void Normalize(AlbumProject project)
     {
+        project.ProjectId = project.ProjectId?.Trim() ?? "";
+        project.ServerProjectId = project.ServerProjectId?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(project.ProjectId) &&
+            !string.IsNullOrWhiteSpace(project.ServerProjectId))
+        {
+            project.ProjectId = project.ServerProjectId;
+        }
+        project.InitiationBasis ??= new ProjectInitiationBasis();
+        project.InitiationBasis.Documents ??= [];
+        project.InitiationBasis.ClientType = ProjectClientTypes.Normalize(
+            project.InitiationBasis.ClientType);
+        project.InitiationBasis.ClientOrganizationSnapshot ??= new CompanyProfile();
+        project.InitiationBasis.ClientOrganizationSnapshot.Normalize();
+        project.PlanningTask ??= new PlanningTaskInformation();
+        project.PlanningTask.Requirements ??= [];
+        project.PlanningTask.Documents ??= [];
+        project.PlanningTask.AuthorityMembers ??= [];
+        project.ApprovalWorkflow ??= new ProjectApprovalWorkflow();
+        project.ApprovalWorkflow.Normalize();
         project.Company ??= new CompanyProfile();
         project.Company.Normalize();
         project.Participants ??= [];
+        foreach (ProjectParticipant participant in project.Participants)
+        {
+            participant.FamilyName ??= "";
+            participant.GivenName ??= "";
+            participant.FullName ??= "";
+            participant.Role ??= "";
+            participant.Email ??= "";
+            if (!string.IsNullOrWhiteSpace(participant.FamilyName) ||
+                !string.IsNullOrWhiteSpace(participant.GivenName))
+            {
+                participant.FullName = MongolianPersonNameFormatter.ForDisplay(
+                    participant.FamilyName,
+                    participant.GivenName,
+                    participant.FullName);
+            }
+        }
         project.Stages ??= [];
         project.WorkPackages ??= [];
         project.Documents ??= [];
         project.SourceFolders ??= [];
         project.DesignSources ??= [];
+        project.Visualizations ??= new ProjectVisualizationSource();
+        project.Visualizations.Normalize(string.IsNullOrWhiteSpace(project.ProjectId)
+            ? null
+            : project.ProjectId);
         project.Album ??= new AlbumDefinition();
         project.Album.Sections ??= [];
         project.Album.Pages ??= [];

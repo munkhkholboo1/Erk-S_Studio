@@ -63,6 +63,38 @@ public sealed class ProjectCompanyAssignmentServiceTests
     }
 
     [Fact]
+    public void RefreshAssignedSnapshotPropagatesDocumentAvailability()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("ATD-003", "Document source update");
+        project.Foundation.DesignCompany.OrganizationId = "org-design-1";
+        project.Foundation.DesignCompany.OrganizationName = "Design company";
+        project.Foundation.DesignCompany.OrganizationSnapshot = new CompanyProfile
+        {
+            OrganizationId = "org-design-1",
+            Name = "Design company",
+            RegistrationCertificateDocuments =
+            [
+                new ProjectFileReference
+                {
+                    Id = "certificate-1",
+                    Category = ProjectDocumentCategories.CompanyRegistrationCertificate,
+                    RelativePath = "certificate.pdf",
+                    Sha256 = "abc",
+                    IsAvailable = true,
+                },
+            ],
+        };
+        CompanyProfile current = project.Foundation.DesignCompany.OrganizationSnapshot.Clone();
+        Assert.Single(current.RegistrationCertificateDocuments).IsAvailable = false;
+
+        bool changed = ProjectCompanyAssignmentService.RefreshAssignedSnapshot(project, current);
+
+        Assert.True(changed);
+        Assert.False(Assert.Single(project.Foundation.DesignCompany.OrganizationSnapshot
+            .RegistrationCertificateDocuments).IsAvailable);
+    }
+
+    [Fact]
     public void LegacySelfCreatedAssignmentReceivesCloudOrganizationIdentity()
     {
         ProjectWorkspace project = ProjectWorkspaceStore.Create(new ProjectCreationRequest
@@ -228,5 +260,53 @@ public sealed class ProjectCompanyAssignmentServiceTests
         Assert.Equal("org-design-2", project.Foundation.DesignCompany.OrganizationId);
         Assert.Equal("CloudERA", project.Foundation.DesignCompany.AssignmentSource);
         Assert.Equal("org-design-1", Assert.Single(project.Foundation.DesignCompany.History).OrganizationId);
+    }
+
+    [Fact]
+    public void MergeCloudAssignmentPreservesLocalDocumentAssetsForTheSameCompany()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(new ProjectCreationRequest
+        {
+            Code = "CLOUD-DOC-001",
+            Name = "Cloud project",
+            InitiatorType = ProjectInitiatorTypes.DesignOrganization,
+            InitiatorOrganizationId = "org-design-1",
+            InitiatorOrganizationName = "Erk-S Design",
+        });
+        project.Foundation.DesignCompany.OrganizationSnapshot.RegistrationCertificateDocuments =
+        [
+            new ProjectFileReference
+            {
+                Category = ProjectDocumentCategories.CompanyRegistrationCertificate,
+                RelativePath = @"C:\local-cache\registration.pdf",
+                Sha256 = "registration-hash",
+                PageCount = 2,
+            },
+        ];
+        project.Foundation.DesignCompany.OrganizationSnapshot.DesignLicenseDocuments =
+        [
+            new ProjectFileReference
+            {
+                Category = ProjectDocumentCategories.CompanyDesignLicense,
+                RelativePath = @"C:\local-cache\license.pdf",
+                Sha256 = "license-hash",
+                PageCount = 1,
+            },
+        ];
+
+        bool changed = ProjectCompanyAssignmentService.MergeCloudAssignment(
+            project,
+            "org-design-1",
+            "Erk-S Design updated",
+            new CompanyProfile
+            {
+                OrganizationId = "org-design-1",
+                Name = "Erk-S Design updated",
+            });
+
+        Assert.True(changed);
+        CompanyProfile snapshot = project.Foundation.DesignCompany.OrganizationSnapshot;
+        Assert.Equal("registration-hash", Assert.Single(snapshot.RegistrationCertificateDocuments).Sha256);
+        Assert.Equal("license-hash", Assert.Single(snapshot.DesignLicenseDocuments).Sha256);
     }
 }

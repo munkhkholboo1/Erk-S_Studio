@@ -2,7 +2,10 @@
 param(
     [string]$ReleaseVersion = "V0.001.3",
     [string]$AssemblyVersion = "0.0.1.3",
-    [string]$OutputDirectory = ""
+    [string]$OutputDirectory = "",
+    [string]$CodeSigningThumbprint = $env:ERKS_CODE_SIGN_CERT_THUMBPRINT,
+    [string]$ExpectedPublisher = "Erk-S LLC",
+    [string]$TimestampUrl = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,9 +37,89 @@ $CscCandidates = @(
 )
 $CscExe = $CscCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 
+function Get-CodeSigningContext {
+    param([string]$Thumbprint)
+
+    $NormalizedThumbprint = ($Thumbprint -replace '\s', '').ToUpperInvariant()
+    if ([string]::IsNullOrWhiteSpace($NormalizedThumbprint)) {
+        throw "Release signing certificate is required. Set ERKS_CODE_SIGN_CERT_THUMBPRINT or pass -CodeSigningThumbprint."
+    }
+
+    $Certificate = @(
+        Get-ChildItem -Path Cert:\CurrentUser\My, Cert:\LocalMachine\My -CodeSigningCert -ErrorAction SilentlyContinue
+    ) | Where-Object {
+        $_.Thumbprint -eq $NormalizedThumbprint -and $_.HasPrivateKey
+    } | Select-Object -First 1
+    if (-not $Certificate) {
+        throw "Code-signing certificate '$NormalizedThumbprint' with a private key was not found."
+    }
+
+    $Publisher = $Certificate.GetNameInfo(
+        [Security.Cryptography.X509Certificates.X509NameType]::SimpleName,
+        $false)
+    if ($Publisher -ne $ExpectedPublisher) {
+        throw "Code-signing publisher '$Publisher' does not match required publisher '$ExpectedPublisher'."
+    }
+
+    $WindowsKitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+    $SignTool = Get-ChildItem -LiteralPath $WindowsKitsRoot -Filter "signtool.exe" -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.DirectoryName -like "*\x64" } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+    if (-not $SignTool) {
+        throw "Windows SDK signtool.exe was not found."
+    }
+
+    return [pscustomobject]@{
+        Certificate = $Certificate
+        SignTool = $SignTool.FullName
+        UseMachineStore = $Certificate.PSParentPath -like "*LocalMachine*"
+    }
+}
+
+function Invoke-ErkSCodeSign {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)]$SigningContext
+    )
+
+    $SignArguments = @("sign")
+    if ($SigningContext.UseMachineStore) {
+        $SignArguments += "/sm"
+    }
+    $SignArguments += @(
+        "/sha1", $SigningContext.Certificate.Thumbprint,
+        "/fd", "SHA256",
+        "/tr", $TimestampUrl,
+        "/td", "SHA256",
+        "/v",
+        $Path
+    )
+    & $SigningContext.SignTool @SignArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Authenticode signing failed for '$Path'. Exit code: $LASTEXITCODE"
+    }
+
+    & $SigningContext.SignTool verify /pa /all /v $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "Authenticode verification failed for '$Path'. Exit code: $LASTEXITCODE"
+    }
+
+    $Signature = Get-AuthenticodeSignature -LiteralPath $Path
+    $Publisher = $Signature.SignerCertificate.GetNameInfo(
+        [Security.Cryptography.X509Certificates.X509NameType]::SimpleName,
+        $false)
+    if ($Signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+        $Publisher -ne $ExpectedPublisher) {
+        throw "Release gate rejected '$Path': signature status '$($Signature.Status)', publisher '$Publisher'."
+    }
+}
+
 if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
     throw "AssemblyVersion нь 0.0.1 эсвэл 0.0.1.1 хэлбэртэй байна."
 }
+
+$SigningContext = Get-CodeSigningContext -Thumbprint $CodeSigningThumbprint
 
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
@@ -162,6 +245,8 @@ if ($VersionInfo.ProductVersion -notlike "*Demo $ReleaseVersion*") {
     throw "Release gate: executable ProductVersion нь Demo $ReleaseVersion биш байна: $($VersionInfo.ProductVersion)"
 }
 
+Invoke-ErkSCodeSign -Path $PublishedExe -SigningContext $SigningContext
+
 Compress-Archive -Path (Join-Path $PublishDirectory "*") -DestinationPath $PortableZip -CompressionLevel Optimal
 Copy-Item -LiteralPath $PortableZip -Destination $PayloadZip -Force
 
@@ -226,6 +311,8 @@ $SetupVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($SetupPath)
 if ($SetupVersion.ProductVersion -ne "Demo $ReleaseVersion") {
     throw "Release gate: setup ProductVersion нь Demo $ReleaseVersion биш байна: $($SetupVersion.ProductVersion)"
 }
+
+Invoke-ErkSCodeSign -Path $SetupPath -SigningContext $SigningContext
 
 $SmokeInstallDirectory = [IO.Path]::GetFullPath((Join-Path $OutputDirectory "installer-smoke"))
 $ExpectedSmokePrefix = $OutputDirectory.TrimEnd('\') + '\'
@@ -365,6 +452,10 @@ $ReleaseMetadata = [ordered]@{
     sha256 = $SetupHash
     sizeBytes = (Get-Item -LiteralPath $SetupPath).Length
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
+    authenticodeSigned = $true
+    publisher = $ExpectedPublisher
+    signingCertificateThumbprint = $SigningContext.Certificate.Thumbprint
+    timestampUrl = $TimestampUrl
     productDataIncluded = $false
     devUpdateIncluded = $false
 }

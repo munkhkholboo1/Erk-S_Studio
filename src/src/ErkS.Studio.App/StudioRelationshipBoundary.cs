@@ -8,6 +8,8 @@ internal enum StudioRelationshipAction
     InviteProjectMember,
     AcceptProjectMembership,
     RemoveProjectMember,
+    UpdateProjectMemberRoles,
+    AssignProjectArchitect,
     RequestProjectExit,
     DecideProjectExit,
     IssueProjectCreationGrant,
@@ -40,6 +42,8 @@ internal static class StudioRelationshipBoundary
         StudioRelationshipAction.InviteProjectMember => "Төслийн багийн урилга илгээх",
         StudioRelationshipAction.AcceptProjectMembership => "Төслийн багт нэгдэх",
         StudioRelationshipAction.RemoveProjectMember => "Төслийн гишүүнийг хасах",
+        StudioRelationshipAction.UpdateProjectMemberRoles => "Төслийн гишүүний үүрэг, эрхийг өөрчлөх",
+        StudioRelationshipAction.AssignProjectArchitect => "Төслийн архитектор томилох",
         StudioRelationshipAction.RequestProjectExit => "Төслөөс гарах хүсэлт илгээх",
         StudioRelationshipAction.DecideProjectExit => "Төслөөс гарах хүсэлтийг шийдвэрлэх",
         StudioRelationshipAction.IssueProjectCreationGrant => "Байгууллагын нэр дээр төсөл үүсгэх эрх олгох",
@@ -170,6 +174,14 @@ internal static class StudioRelationshipBoundary
             StudioRelationshipAction.RemoveProjectMember =>
                 "Хассанаар платформын access хаагдаж, хариуцаж байсан cloud source Unassigned болно. PDF, manifest ба аудитын " +
                 "түүх үлдэнэ. Энэ үйлдэл төлбөр, оюуны өмч, ажлын үр дүн эсвэл эх файл хүлээлцсэн маргааныг шийдвэрлэхгүй.",
+            StudioRelationshipAction.UpdateProjectMemberRoles =>
+                "Role өөрчилснөөр тухайн гишүүний төсөл харах, эх үүсвэр боловсруулах, альбум илгээх эсвэл баг удирдах техникийн эрх " +
+                "шууд өөрчлөгдөнө. Энэ нь ажлын байр, гэрээ, төлбөр, мэргэжлийн хариуцлага эсвэл эх файл хүлээлцсэн баримт биш. " +
+                "Major architect role-г өөр хүнд өгөхөд төслийн үндсэн архитекторын томилгоо мөн шилжинэ.",
+            StudioRelationshipAction.AssignProjectArchitect =>
+                "Томилсноор бүртгэлтэй оролцогч төслийн үндсэн архитекторын role авч, түүний profile нэр альбумын булангийн " +
+                "хүснэгтэд ашиглагдана. Erk-S нь тухайн хүний мэргэжлийн эрх, хөдөлмөрийн харилцаа, байгууллагыг төлөөлөх бүрэн эрх " +
+                "эсвэл хуулийн хариуцлагыг баталгаажуулахгүй; томилогч тал эдгээр үндэслэлийг өөрөө хариуцна.",
             StudioRelationshipAction.RequestProjectExit =>
                 "Гарах хүсэлт батлагдах хүртэл access хэвээр байна. Хүсэлт нь гэрээ цуцалсан, тооцоо нийлсэн, ажлын үр дүн " +
                 "болон эх файл хүлээлцсэн баримт биш.",

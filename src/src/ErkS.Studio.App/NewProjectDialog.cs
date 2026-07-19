@@ -18,7 +18,10 @@ internal sealed class NewProjectDialog : Window
     };
     private readonly TextBox codeBox = new();
     private readonly TextBox nameBox = new();
+    private readonly ComboBox clientTypeBox = new();
     private readonly TextBox clientNameBox = new();
+    private Grid? clientNameRow;
+    private TextBlock? clientNameLabel;
     private readonly TextBox clientEmailBox = new();
     private readonly TextBox siteAddressBox = new();
     private readonly TextBox descriptionBox = new()
@@ -49,6 +52,8 @@ internal sealed class NewProjectDialog : Window
                 InitiatorType = initiator?.Value ?? ProjectInitiatorTypes.DesignOrganization,
                 InitiatorOrganizationId = organization?.OrganizationId ?? "",
                 InitiatorOrganizationName = organization?.LegalName ?? "",
+                ClientType = (clientTypeBox.SelectedItem as ClientTypeOption)?.Value ??
+                    ProjectClientTypes.Citizen,
                 ClientName = clientNameBox.Text.Trim(),
                 ClientEmail = clientEmailBox.Text.Trim(),
                 SiteAddress = siteAddressBox.Text.Trim(),
@@ -90,12 +95,21 @@ internal sealed class NewProjectDialog : Window
         };
         initiatorTypeBox.SelectionChanged += (_, _) => RefreshOrganizationOptions();
         organizationBox.SelectionChanged += (_, _) => RefreshOrganizationDetails();
+        clientTypeBox.ItemsSource = new[]
+        {
+            new ClientTypeOption("Иргэн", ProjectClientTypes.Citizen),
+            new ClientTypeOption("Байгууллага", ProjectClientTypes.Organization),
+            new ClientTypeOption("Төрийн байгууллага", ProjectClientTypes.GovernmentAuthority),
+        };
+        clientTypeBox.SelectionChanged += (_, _) => RefreshClientNameEditor();
+        clientTypeBox.SelectedIndex = 0;
         TextSearch.SetTextPath(organizationBox, nameof(OrganizationOption.SearchText));
         createButton = StudioWidgets.CreatePrimaryButton("Төсөл үүсгэх");
         createButton.IsDefault = true;
         createButton.Click += (_, _) => Accept();
         StudioTheme.Apply(this);
         Content = BuildContent();
+        RefreshClientNameEditor();
 
         bool hasDesignOption = this.organizations.Any(item =>
             item.OrganizationType.Equals("DesignCompany", StringComparison.OrdinalIgnoreCase)) ||
@@ -134,7 +148,10 @@ internal sealed class NewProjectDialog : Window
             "Төслийн төрөл",
             ReadOnlyValue("Барилга архитектурын загвар зураг")));
         form.Children.Add(StudioWidgets.CreateFormRow("Үе шат", ReadOnlyValue("Загвар зураг")));
-        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагч", clientNameBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн төрөл", clientTypeBox));
+        clientNameRow = StudioWidgets.CreateFormRow("Захиалагчийн нэр", clientNameBox);
+        clientNameLabel = clientNameRow.Children.OfType<TextBlock>().FirstOrDefault();
+        form.Children.Add(clientNameRow);
         form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн и-мэйл", clientEmailBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Товч мэдээлэл", descriptionBox));
@@ -151,6 +168,17 @@ internal sealed class NewProjectDialog : Window
         MinHeight = 58,
         Child = organizationDetails,
     };
+
+    private void RefreshClientNameEditor()
+    {
+        string clientType = (clientTypeBox.SelectedItem as ClientTypeOption)?.Value ??
+            ProjectClientTypes.Citizen;
+        if (clientNameLabel is not null)
+            clientNameLabel.Text = ProjectClientTypes.ClientNameFieldLabel(clientType);
+        clientNameBox.ToolTip = ProjectClientTypes.ShowsDirectClientName(clientType)
+            ? "Захиалагч иргэний овог, нэр"
+            : "Нүүр хуудас болон төслийн мэдээлэлд бичигдэх байгууллагын нэр";
+    }
 
     private void RefreshOrganizationOptions()
     {
@@ -223,6 +251,12 @@ internal sealed class NewProjectDialog : Window
             ShowRequiredMessage("Төсөл үүсгэх байгууллага эсвэл олгогдсон эрхээ сонгоно уу.");
             return;
         }
+        if (string.IsNullOrWhiteSpace(request.ClientName))
+        {
+            ShowRequiredMessage(ProjectClientTypes.ClientNameFieldLabel(request.ClientType) + "-ийг оруулна уу.");
+            clientNameBox.Focus();
+            return;
+        }
         DialogResult = true;
     }
 
@@ -261,6 +295,11 @@ internal sealed class NewProjectDialog : Window
     }
 
     private sealed record InitiatorOption(string Label, string Value, string RequiredOrganizationType)
+    {
+        public override string ToString() => Label;
+    }
+
+    private sealed record ClientTypeOption(string Label, string Value)
     {
         public override string ToString() => Label;
     }

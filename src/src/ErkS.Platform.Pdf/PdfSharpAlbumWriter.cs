@@ -24,9 +24,8 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         document.Info.Title = request.Project.Album.Title;
         document.Info.Author = request.Project.Company.Name;
 
-        var generatedPages = request.Project.Album.Composition
-            .Where(item => item.Kind == AlbumCompositionKind.Generated)
-            .OrderBy(item => item.Order)
+        var generatedPages = BuildingArchitectureConceptGeneratedPagePlanner
+            .Create(request.Project)
             .ToList();
         if (generatedPages.Count > 0)
         {
@@ -53,28 +52,39 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
                 var sheet = buildPage.Sheet;
                 if (!File.Exists(sheet.PdfPath))
                 {
-                    warnings.Add($"Missing PDF skipped: {sheet.DisplayLabel} ({sheet.PdfPath})");
-                    continue;
+                    throw new InvalidDataException(
+                        $"Verified PDF disappeared before composition: {sheet.DisplayLabel} ({sheet.PdfPath})");
                 }
 
-                try
+                if (buildPage.Format.Kind == PageFormatKind.SourceAsIs)
                 {
-                    if (buildPage.Format.Kind == PageFormatKind.SourceAsIs)
-                    {
-                        ImportSourceAsIs(document, sheet.PdfPath);
-                    }
-                    else
-                    {
-                        ComposeFormattedPages(document, request.Project, buildPage);
-                    }
+                    ImportSourceAsIs(document, sheet.PdfPath);
+                }
+                else
+                {
+                    ComposeFormattedPages(document, request.Project, buildPage);
+                }
 
-                    sheetCount++;
-                }
-                catch (Exception exception)
-                {
-                    warnings.Add($"Sheet failed to compose: {sheet.DisplayLabel}: {exception.Message}");
-                }
+                sheetCount++;
             }
+        }
+
+        int firstVisualizationNumber = BuildingArchitectureConceptAlbumSequencer.NextAutomaticNumber(
+            request.Project.Album,
+            request.Sections.SelectMany(section => section.Pages).Select(page => page.StudioNumber),
+            generatedPages.Count);
+        IReadOnlyList<VisualizationAlbumPagePlan> visualizationPages =
+            string.IsNullOrWhiteSpace(request.Project.ProjectId)
+                ? VisualizationPageLayoutPlanner.Create(
+                    request.Project.Visualizations,
+                    firstVisualizationNumber)
+                : VisualizationPageLayoutPlanner.Create(
+                    request.Project.Visualizations,
+                    request.Project.ProjectId,
+                    firstVisualizationNumber);
+        foreach (VisualizationAlbumPagePlan plan in visualizationPages)
+        {
+            DrawVisualizationPage(document, request.Project, plan, warnings);
         }
 
         if (document.PageCount == 0)
@@ -191,7 +201,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         var format = buildPage.Format;
         if (BuildingArchitectureConceptPageLayout.IsCanonical(format))
         {
-            DrawConceptSheetChrome(gfx, project, buildPage.Title, buildPage.Number);
+            DrawConceptSheetChrome(gfx, project, buildPage);
             return;
         }
 
@@ -235,13 +245,18 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static void DrawConceptSheetChrome(
         XGraphics gfx,
         AlbumProject project,
-        string sheetTitle,
-        string sheetNumber)
+        AlbumBuildPage buildPage)
     {
+        bool isElevation = BuildingArchitectureConceptPageLayout.IsElevationSheet(
+            buildPage.Sheet.Entry.ContentKind,
+            buildPage.Sheet.Entry.Name,
+            buildPage.Definition.TemplateSlotId);
         var borderPen = new XPen(XColors.Black, Mm(0.35));
         var finePen = new XPen(XColors.Black, Mm(0.10));
         var frame = ToPoints(BuildingArchitectureConceptPageLayout.Frame);
-        var header = ToPoints(BuildingArchitectureConceptPageLayout.SheetTitleArea);
+        var header = ToPoints(isElevation
+            ? BuildingArchitectureConceptPageLayout.ElevationSheetTitleArea
+            : BuildingArchitectureConceptPageLayout.SheetTitleArea);
         var corner = ToPoints(BuildingArchitectureConceptPageLayout.TitleBlockArea);
         var paperBrush = new XSolidBrush(XColor.FromArgb(254, 254, 254));
 
@@ -251,17 +266,32 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         // form restores its graphics state; otherwise some renderers reuse black.
         gfx.DrawRectangle(paperBrush, header);
         gfx.DrawRectangle(paperBrush, corner);
+        if (isElevation)
+        {
+            gfx.DrawRectangle(
+                paperBrush,
+                ToPoints(BuildingArchitectureConceptPageLayout.ElevationInformationArea));
+        }
         gfx.DrawRectangle(borderPen, frame);
         gfx.DrawLine(
             borderPen,
             Mm(BuildingArchitectureConceptPageLayout.FrameLeftMm),
-            Mm(BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm),
+            Mm(isElevation
+                ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
+                : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm),
             Mm(BuildingArchitectureConceptPageLayout.FrameRightMm),
-            Mm(BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm));
+            Mm(isElevation
+                ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
+                : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm));
+
+        if (isElevation)
+        {
+            DrawConceptElevationHeader(gfx, project, buildPage, borderPen);
+        }
 
         DrawFittedText(
             gfx,
-            sheetTitle,
+            buildPage.Title,
             header.Left + Mm(3),
             header.Top + Mm(0.8),
             header.Width - Mm(6),
@@ -270,7 +300,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             false,
             XStringFormats.CenterRight);
 
-        DrawConceptCornerTable(gfx, project, sheetNumber, borderPen, finePen);
+        DrawConceptCornerTable(gfx, project, buildPage.Number, borderPen, finePen);
         DrawFittedText(
             gfx,
             "Sheet generated by Erk-S Platform",
@@ -281,6 +311,228 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             3.6,
             false,
             XStringFormats.CenterRight);
+    }
+
+    private static void DrawConceptSheetChrome(
+        XGraphics gfx,
+        AlbumProject project,
+        string title,
+        string number)
+    {
+        var borderPen = new XPen(XColors.Black, Mm(0.35));
+        var finePen = new XPen(XColors.Black, Mm(0.10));
+        var frame = ToPoints(BuildingArchitectureConceptPageLayout.Frame);
+        var header = ToPoints(BuildingArchitectureConceptPageLayout.SheetTitleArea);
+        var corner = ToPoints(BuildingArchitectureConceptPageLayout.TitleBlockArea);
+        var paperBrush = new XSolidBrush(XColor.FromArgb(254, 254, 254));
+
+        gfx.DrawRectangle(paperBrush, header);
+        gfx.DrawRectangle(paperBrush, corner);
+        gfx.DrawRectangle(borderPen, frame);
+        gfx.DrawLine(
+            borderPen,
+            Mm(BuildingArchitectureConceptPageLayout.FrameLeftMm),
+            Mm(BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm),
+            Mm(BuildingArchitectureConceptPageLayout.FrameRightMm),
+            Mm(BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm));
+        DrawFittedText(
+            gfx,
+            title,
+            header.Left + Mm(3),
+            header.Top + Mm(0.8),
+            header.Width - Mm(6),
+            header.Height - Mm(1.6),
+            8.5,
+            false,
+            XStringFormats.CenterRight);
+        DrawConceptCornerTable(gfx, project, number, borderPen, finePen);
+        DrawFittedText(
+            gfx,
+            "Sheet generated by Erk-S Platform",
+            Mm(335),
+            Mm(292.4),
+            Mm(79),
+            Mm(3.6),
+            3.6,
+            false,
+            XStringFormats.CenterRight);
+    }
+
+    private static void DrawConceptElevationHeader(
+        XGraphics gfx,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        XPen borderPen)
+    {
+        var info = BuildingArchitectureConceptPageLayout.ElevationInformationArea;
+        double x0 = BuildingArchitectureConceptPageLayout.FrameLeftMm;
+        double xRole = BuildingArchitectureConceptPageLayout.ElevationRoleColumnRightMm;
+        double xApproval = BuildingArchitectureConceptPageLayout.ElevationApprovalPanelRightMm;
+        double x1 = BuildingArchitectureConceptPageLayout.FrameRightMm;
+        double y0 = BuildingArchitectureConceptPageLayout.FrameTopMm;
+        double y1 = BuildingArchitectureConceptPageLayout.ElevationInformationBottomMm;
+        double titleBottom = BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm;
+
+        gfx.DrawLine(borderPen, Mm(x0), Mm(y1), Mm(x1), Mm(y1));
+        foreach (double dividerX in BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm)
+            gfx.DrawLine(borderPen, Mm(dividerX), Mm(y0), Mm(dividerX), Mm(y1));
+        gfx.DrawLine(borderPen, Mm(x0), Mm(titleBottom), Mm(x1), Mm(titleBottom));
+
+        ConceptElevationHeaderSnapshot roster = ConceptElevationHeaderResolver.Resolve(
+            project.ApprovalWorkflow,
+            project.PlanningTask);
+        DrawElevationRoster(gfx, roster, x0, xRole, xApproval, y0, y1);
+
+        const double paddingMm = 3.0;
+        const double headingHeightMm = 5.0;
+        DrawElevationHeaderLabel(
+            gfx,
+            "ТАЙЛБАР",
+            new XRect(
+                Mm(xApproval + paddingMm),
+                Mm(y0 + 1.8),
+                Mm(x1 - xApproval - paddingMm * 2),
+                Mm(headingHeightMm)));
+        string description = buildPage.Definition.ElevationDescriptionOverride
+            ?? buildPage.Sheet.Entry.SheetDescription;
+        DrawTopAlignedFittedText(
+            gfx,
+            description,
+            new XRect(
+                Mm(xApproval + paddingMm),
+                Mm(y0 + headingHeightMm + 2.0),
+                Mm(x1 - xApproval - paddingMm * 2),
+                Mm(info.Height - headingHeightMm - 4.0)),
+            BuildingArchitectureConceptPageLayout.CornerTextHeightMm,
+            1.5,
+            bold: false);
+    }
+
+    private static void DrawElevationRoster(
+        XGraphics gfx,
+        ConceptElevationHeaderSnapshot roster,
+        double x0,
+        double xRole,
+        double xApproval,
+        double y0,
+        double y1)
+    {
+        IReadOnlyList<ProjectApprovalEntry> approved = roster.ApprovedBy;
+        IReadOnlyList<ProjectApprovalEntry> reviewed = roster.ReviewedBy;
+        const double paddingMm = 3.0;
+        const double headingHeightMm = 4.5;
+        const double gapMm = 1.0;
+        int rowCount = Math.Max(1, approved.Count) + reviewed.Count;
+        double rowsHeight = Math.Max(
+            0,
+            y1 - y0 - paddingMm * 2 - headingHeightMm * 2 - gapMm);
+        double rowHeight = rowCount == 0 ? 0 : rowsHeight / rowCount;
+        double y = y0 + paddingMm;
+
+        DrawElevationHeaderLabel(
+            gfx,
+            "БАТЛАВ:",
+            new XRect(Mm(x0 + paddingMm), Mm(y), Mm(xRole - x0 - paddingMm * 2), Mm(headingHeightMm)));
+        y += headingHeightMm;
+        foreach (ProjectApprovalEntry entry in approved)
+        {
+            DrawElevationRosterRow(gfx, entry, x0, xRole, xApproval, y, y + rowHeight, paddingMm);
+            y += rowHeight;
+        }
+
+        y += gapMm;
+        DrawElevationHeaderLabel(
+            gfx,
+            "ХЯНАВ:",
+            new XRect(Mm(x0 + paddingMm), Mm(y), Mm(xRole - x0 - paddingMm * 2), Mm(headingHeightMm)));
+        y += headingHeightMm;
+        foreach (ProjectApprovalEntry entry in reviewed)
+        {
+            DrawElevationRosterRow(gfx, entry, x0, xRole, xApproval, y, y + rowHeight, paddingMm);
+            y += rowHeight;
+        }
+    }
+
+    private static void DrawElevationRosterRow(
+        XGraphics gfx,
+        ProjectApprovalEntry entry,
+        double x0,
+        double xRole,
+        double xApproval,
+        double y0,
+        double y1,
+        double paddingMm)
+    {
+        DrawFittedCornerText(
+            gfx,
+            ConceptCoverApprovalResolver.DisplayPosition(entry).ToUpperInvariant(),
+            new XRect(
+                Mm(x0 + paddingMm),
+                Mm(y0 + 0.2),
+                Mm(xRole - x0 - paddingMm * 2),
+                Mm(Math.Max(0.1, y1 - y0 - 0.4))),
+            false,
+            XStringFormats.CenterLeft);
+        DrawFittedCornerText(
+            gfx,
+            entry.PersonName.ToUpperInvariant(),
+            new XRect(
+                Mm(xRole + 1.0),
+                Mm(y0 + 0.2),
+                Mm(xApproval - xRole - 2.0),
+                Mm(Math.Max(0.1, y1 - y0 - 0.4))),
+            false,
+            XStringFormats.Center);
+    }
+
+    private static void DrawElevationHeaderLabel(XGraphics gfx, string text, XRect rect)
+    {
+        XFont font = CreateCornerFont(
+            BuildingArchitectureConceptPageLayout.CornerTextHeightMm,
+            bold: true);
+        gfx.DrawString(text, font, XBrushes.Black, rect, XStringFormats.CenterLeft);
+    }
+
+    private static void DrawTopAlignedFittedText(
+        XGraphics gfx,
+        string? text,
+        XRect rect,
+        double maximumPrintedHeightMm,
+        double minimumPrintedHeightMm,
+        bool bold)
+    {
+        if (string.IsNullOrWhiteSpace(text) || rect.Width <= 0 || rect.Height <= 0)
+            return;
+
+        double printedHeightMm = maximumPrintedHeightMm;
+        XFont font;
+        IReadOnlyList<string> lines;
+        double lineHeight;
+        while (true)
+        {
+            font = CreateCornerFont(printedHeightMm, bold);
+            lines = WrapCoverText(gfx, text.Trim(), font, rect.Width);
+            lineHeight = Mm(printedHeightMm * BuildingArchitectureConceptPageLayout.CornerLineHeightFactor);
+            bool fits = lines.All(line => gfx.MeasureString(line, font).Width <= rect.Width + 0.01) &&
+                lines.Count * lineHeight <= rect.Height + 0.01;
+            if (fits || printedHeightMm <= minimumPrintedHeightMm)
+                break;
+            printedHeightMm = Math.Max(minimumPrintedHeightMm, printedHeightMm - 0.1);
+        }
+
+        double y = rect.Y;
+        foreach (string line in lines)
+        {
+            gfx.DrawString(
+                line,
+                font,
+                XBrushes.Black,
+                new XRect(rect.X, y, rect.Width, lineHeight),
+                XStringFormats.CenterLeft);
+            y += lineHeight;
+            if (y > rect.Bottom + 0.01)
+                break;
+        }
     }
 
     private static void DrawConceptCornerTable(
@@ -322,29 +574,31 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         var companyName = CompanyDisplayName(company, project.DesignOrganizationName);
         var companyRepresentative = ResolveCompanyRepresentative(project);
         var architect = ResolveArchitect(project);
-        var clientName = string.IsNullOrWhiteSpace(project.InitiationBasis.ClientName)
-            ? project.ClientName
-            : project.InitiationBasis.ClientName;
+        var clientName = ProjectClientTypes.ResolveCoverPersonName(
+            project.InitiationBasis.ClientType,
+            project.InitiationBasis.ClientName,
+            project.InitiationBasis.ClientRepresentativeName,
+            project.ClientName);
         var companyRole = string.IsNullOrWhiteSpace(companyName)
             ? companyRepresentative.Role
             : $"\"{companyName}\" {companyRepresentative.Role}".Trim();
 
         DrawCompanyLogoOrMark(gfx, company, TopLeftRect(x0, y0, x1, y4));
-        DrawCellText(gfx, project.Name, x1, y0, x2, y1, 6.8, false, XStringFormats.CenterLeft);
-        DrawCellText(gfx, "Нэр", x2, y0, x3, y1, 6.7, false, XStringFormats.Center);
-        DrawCellText(gfx, "Гарын үсэг", x3, y0, x4, y1, 6.7, false, XStringFormats.Center);
-        DrawCellText(gfx, "Загвар", x4, y0, x5, y1, 6.7, false, XStringFormats.Center);
+        DrawCellText(gfx, project.Name, x1, y0, x2, y1, false, XStringFormats.CenterLeft);
+        DrawCellText(gfx, "Нэр", x2, y0, x3, y1, false, XStringFormats.Center);
+        DrawCellText(gfx, "Гарын үсэг", x3, y0, x4, y1, false, XStringFormats.Center);
+        DrawCellText(gfx, "Загвар", x4, y0, x5, y1, false, XStringFormats.Center);
 
-        DrawCellText(gfx, companyRole, x1, y1, x2, y2, 6.3, false, XStringFormats.CenterLeft);
-        DrawCellText(gfx, companyRepresentative.Name, x2, y1, x3, y2, 6.3, false, XStringFormats.Center);
+        DrawCellText(gfx, companyRole, x1, y1, x2, y2, false, XStringFormats.CenterLeft);
+        DrawCellText(gfx, companyRepresentative.Name, x2, y1, x3, y2, false, XStringFormats.Center);
 
-        DrawCellText(gfx, "Архитектор", x1, y2, x2, y3, 6.5, false, XStringFormats.CenterLeft);
-        DrawCellText(gfx, architect, x2, y2, x3, y3, 6.3, false, XStringFormats.Center);
-        DrawCellText(gfx, $"Хуудас-{ValueOrDash(sheetNumber)}", x4, y2, x5, y3, 6.0, false, XStringFormats.Center);
+        DrawCellText(gfx, "Архитектор", x1, y2, x2, y3, false, XStringFormats.CenterLeft);
+        DrawCellText(gfx, architect, x2, y2, x3, y3, false, XStringFormats.Center);
+        DrawCellText(gfx, $"Хуудас-{ValueOrDash(sheetNumber)}", x4, y2, x5, y3, false, XStringFormats.Center);
 
-        DrawCellText(gfx, "Захиалагч", x1, y3, x2, y4, 6.5, false, XStringFormats.CenterLeft);
-        DrawCellText(gfx, ValueOrDash(clientName), x2, y3, x3, y4, 6.3, false, XStringFormats.Center);
-        DrawCellText(gfx, $"{DateTime.Now:yyyy} он", x4, y3, x5, y4, 6.0, false, XStringFormats.Center);
+        DrawCellText(gfx, "Захиалагч", x1, y3, x2, y4, false, XStringFormats.CenterLeft);
+        DrawCellText(gfx, ValueOrDash(clientName), x2, y3, x3, y4, false, XStringFormats.Center);
+        DrawCellText(gfx, $"{DateTime.Now:yyyy} он", x4, y3, x5, y4, false, XStringFormats.Center);
     }
 
     private static void DrawCellText(
@@ -354,22 +608,74 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         double y0Mm,
         double x1Mm,
         double y1Mm,
-        double fontSize,
         bool bold,
         XStringFormat format)
     {
-        var paddingMm = format == XStringFormats.CenterLeft ? 1.8 : 0.8;
-        DrawFittedText(
+        var horizontalPaddingMm = format == XStringFormats.CenterLeft ? 1.2 : 0.6;
+        DrawFittedCornerText(
             gfx,
             text,
-            Mm(x0Mm + paddingMm),
-            Mm(y0Mm + 0.6),
-            Mm(x1Mm - x0Mm - paddingMm * 2),
-            Mm(y1Mm - y0Mm - 1.2),
-            fontSize,
+            new XRect(
+                Mm(x0Mm + horizontalPaddingMm),
+                Mm(y0Mm + 0.4),
+                Mm(x1Mm - x0Mm - horizontalPaddingMm * 2),
+                Mm(y1Mm - y0Mm - 0.8)),
             bold,
             format);
     }
+
+    private static void DrawFittedCornerText(
+        XGraphics gfx,
+        string? text,
+        XRect rect,
+        bool bold,
+        XStringFormat format)
+    {
+        if (string.IsNullOrWhiteSpace(text) || rect.Width <= 0 || rect.Height <= 0)
+            return;
+
+        string value = text.Trim();
+        double printedHeightMm = BuildingArchitectureConceptPageLayout.CornerTextHeightMm;
+        XFont font;
+        IReadOnlyList<string> lines;
+        double lineHeight;
+        while (true)
+        {
+            font = CreateCornerFont(printedHeightMm, bold);
+            lines = WrapCoverText(gfx, value, font, rect.Width);
+            lineHeight = Mm(printedHeightMm * BuildingArchitectureConceptPageLayout.CornerLineHeightFactor);
+            bool widthFits = lines.All(line => gfx.MeasureString(line, font).Width <= rect.Width + 0.01);
+            bool heightFits = lines.Count * lineHeight <= rect.Height + 0.01;
+            if ((widthFits && heightFits) ||
+                printedHeightMm <= BuildingArchitectureConceptPageLayout.CornerMinimumTextHeightMm)
+            {
+                break;
+            }
+
+            printedHeightMm = Math.Max(
+                BuildingArchitectureConceptPageLayout.CornerMinimumTextHeightMm,
+                printedHeightMm - 0.1);
+        }
+
+        double totalHeight = lines.Count * lineHeight;
+        double y = rect.Y + Math.Max(0, (rect.Height - totalHeight) * 0.5);
+        foreach (string line in lines)
+        {
+            gfx.DrawString(
+                line,
+                font,
+                XBrushes.Black,
+                new XRect(rect.X, y, rect.Width, lineHeight),
+                format);
+            y += lineHeight;
+        }
+    }
+
+    private static XFont CreateCornerFont(double printedTextHeightMm, bool bold) =>
+        new(
+            FontName,
+            Mm(printedTextHeightMm / BuildingArchitectureConceptPageLayout.ArialCapHeightRatio),
+            bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
 
     private static (string Role, string Name) ResolveCompanyRepresentative(AlbumProject project)
     {
@@ -390,12 +696,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static string ResolveArchitect(AlbumProject project)
     {
-        return project.Participants
-                   .Where(candidate => candidate.Role.Contains("architect", StringComparison.OrdinalIgnoreCase))
-                   .OrderBy(candidate => candidate.Role.Contains("Major", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-                   .Select(candidate => candidate.FullName)
-                   .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
-               ?? "";
+        return AppointedArchitectResolver.ForDocument(project.Participants);
     }
 
     private static string CompanyDisplayName(CompanyProfile company, string fallback = "")
@@ -446,6 +747,37 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         }
 
         DrawFittedText(gfx, ValueOrDash(mark), inner.X, inner.Y, inner.Width, inner.Height, 8, true, XStringFormats.Center);
+    }
+
+    private static void DrawCompanyLogoOnly(
+        XGraphics gfx,
+        CompanyProfile company,
+        XRect rect)
+    {
+        var inner = new XRect(
+            rect.X + Mm(1.5),
+            rect.Y + Mm(1.5),
+            Math.Max(0, rect.Width - Mm(3)),
+            Math.Max(0, rect.Height - Mm(3)));
+        _ = TryDrawCompanyLogo(gfx, company, inner);
+    }
+
+    private static string ResolveAlbumAssetPath(string? projectFolder, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "";
+        if (Path.IsPathRooted(path) || string.IsNullOrWhiteSpace(projectFolder))
+            return path;
+        try
+        {
+            string root = Path.GetFullPath(projectFolder);
+            string candidate = Path.GetFullPath(Path.Combine(root, path));
+            return ProjectWorkspacePaths.IsInside(root, candidate) ? candidate : "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static bool TryDrawCompanyLogo(XGraphics gfx, CompanyProfile company, XRect rect)
@@ -635,18 +967,18 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static void DrawGeneratedPage(
         PdfDocument document,
         AlbumBuildRequest request,
-        AlbumCompositionItem item)
+        ConceptGeneratedPagePlan plan)
     {
-        switch (item.GeneratedPageKind)
+        switch (plan.Component.GeneratedPageKind)
         {
             case AlbumGeneratedPageKind.Cover:
-                DrawConceptCoverPage(document, request, item);
+                DrawConceptCoverPage(document, request, plan.Component);
                 break;
             case AlbumGeneratedPageKind.DesignOrganization:
-                DrawDesignOrganizationPage(document, request, item);
+                DrawDesignOrganizationPage(document, request, plan);
                 break;
             case AlbumGeneratedPageKind.PlanningTask:
-                DrawPlanningTaskPage(document, request, item);
+                DrawPlanningTaskPage(document, request, plan);
                 break;
         }
     }
@@ -659,14 +991,14 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         return page;
     }
 
-    private const double CoverTableLeftMm = 68.275;
-    private const double CoverReviewRoleRightMm = 131.275;
-    private const double CoverReviewNameRightMm = 171.275;
-    private const double CoverReviewRightMm = 196.275;
-    private const double CoverCompanyRoleLeftMm = 226.275;
-    private const double CoverCompanyRoleRightMm = 284.975;
-    private const double CoverCompanyNameRightMm = 326.725;
-    private const double CoverTableRightMm = 351.725;
+    private const double CoverTableLeftMm = BuildingArchitectureConceptPageLayout.CoverTableLeftMm;
+    private const double CoverReviewRoleRightMm = BuildingArchitectureConceptPageLayout.CoverReviewRoleRightMm;
+    private const double CoverReviewNameRightMm = BuildingArchitectureConceptPageLayout.CoverReviewNameRightMm;
+    private const double CoverReviewRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedLeftMm;
+    private const double CoverCompanyRoleLeftMm = BuildingArchitectureConceptPageLayout.CoverProcessedLogoRightMm;
+    private const double CoverCompanyRoleRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedRoleRightMm;
+    private const double CoverCompanyNameRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedNameRightMm;
+    private const double CoverTableRightMm = BuildingArchitectureConceptPageLayout.CoverTableRightMm;
 
     private static void DrawConceptCoverPage(
         PdfDocument document,
@@ -678,57 +1010,68 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         var border = new XPen(XColors.Black, Mm(0.25));
         var fine = new XPen(XColors.Black, Mm(0.10));
         var company = request.Project.Company;
-        var authorityMembers = request.Project.PlanningTask.AuthorityMembers;
-        var approved = authorityMembers.FirstOrDefault(member => HasRole(member, "Chief Architect"));
-        var approvals = authorityMembers
-            .Where(member => !ReferenceEquals(member, approved))
-            .Where(member => member.Roles.Count > 0 || !string.IsNullOrWhiteSpace(member.FullName))
-            .Take(8)
-            .ToList();
-        var reviewRowCount = Math.Clamp(approvals.Count, 1, 8);
+        ConceptCoverApprovalSnapshot approvalSnapshot = ConceptCoverApprovalResolver.Resolve(
+            request.Project.ApprovalWorkflow,
+            request.Project.PlanningTask);
         var companyRepresentative = ResolveCompanyRepresentative(request.Project);
         var companyName = CompanyDisplayName(company, request.Project.DesignOrganizationName);
         var companyRole = string.IsNullOrWhiteSpace(companyName)
             ? companyRepresentative.Role
             : $"\"{companyName}\" {companyRepresentative.Role}".Trim();
-        var clientName = string.IsNullOrWhiteSpace(request.Project.InitiationBasis.ClientName)
+        ProjectInitiationBasis initiationBasis = request.Project.InitiationBasis;
+        var canonicalClientName = string.IsNullOrWhiteSpace(initiationBasis.ClientName)
             ? request.Project.ClientName
-            : request.Project.InitiationBasis.ClientName;
+            : initiationBasis.ClientName;
+        string clientType = ProjectClientTypes.Normalize(initiationBasis.ClientType);
+        string clientRole = ProjectClientTypes.ResolveCoverRole(
+            clientType,
+            canonicalClientName,
+            initiationBasis.ClientRepresentativePosition);
+        string clientRepresentativeName = ProjectClientTypes.ResolveCoverPersonName(
+            clientType,
+            canonicalClientName,
+            initiationBasis.ClientRepresentativeName,
+            request.Project.ClientName);
+        CompanyProfile clientOrganization = (initiationBasis.ClientOrganizationSnapshot ?? new CompanyProfile()).Clone();
+        clientOrganization.Name = canonicalClientName;
+        clientOrganization.DisplayName = canonicalClientName;
+        clientOrganization.LogoPath = ResolveAlbumAssetPath(
+            request.Project.ProjectFolder,
+            clientOrganization.LogoPath);
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
         const double projectNameTextHeightMm = BuildingArchitectureConceptPageLayout.CoverProjectNameTextHeightMm;
-        var approvedRole = (approved is null ? "Ерөнхий архитектор" : DisplayRoles(approved)).ToUpperInvariant();
-        var approvedName = (approved?.FullName ?? "").ToUpperInvariant();
-        var approvedRoleHeightMm = MeasureCoverTextHeightMm(gfx, approvedRole, 120.0, bodyTextHeightMm);
-        var approvedNameHeightMm = MeasureCoverTextHeightMm(gfx, approvedName, 75.0, bodyTextHeightMm);
-        var approvedRowHeightMm = Math.Max(8.0, Math.Max(approvedRoleHeightMm, approvedNameHeightMm) + 1.2);
-        const double approvedRowTopMm = 262.205;
-        var reviewRows = BuildCoverReviewRows(gfx, approvals, reviewRowCount);
-        var companyColumn = BuildCoverCompanyColumn(
+        IReadOnlyList<CoverApprovedRow> approvedRows = BuildCoverApprovedRows(gfx, approvalSnapshot.ApprovedBy);
+        var reviewRows = BuildCoverReviewRows(gfx, approvalSnapshot.EndorsedBy);
+        var processedColumn = BuildCoverProcessedColumn(
             gfx,
             companyRole,
             companyRepresentative.Name,
-            clientName);
+            clientRole,
+            clientRepresentativeName);
         var reviewTableBottomMm = reviewRows.Count == 0 ? 93.86 : reviewRows[^1].BottomMm;
-        var tableBottomMm = Math.Min(reviewTableBottomMm, companyColumn.BottomMm);
+        var tableBottomMm = Math.Min(reviewTableBottomMm, processedColumn.BottomMm);
 
         gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
         gfx.DrawRectangle(border, ToPoints(BuildingArchitectureConceptPageLayout.Frame));
 
         DrawCoverText(gfx, "БАТЛАВ:", CoverCenteredRect(210.0, 281.205, 50.0, 8.0), bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverText(
-            gfx,
-            approvedRole,
-            CoverRect(105.8, approvedRowTopMm - approvedRowHeightMm, 225.8, approvedRowTopMm),
-            bodyTextHeightMm,
-            false,
-            XStringFormats.CenterLeft);
-        DrawCoverText(
-            gfx,
-            approvedName,
-            CoverRect(277.4, approvedRowTopMm - approvedRowHeightMm, 352.4, approvedRowTopMm),
-            bodyTextHeightMm,
-            false,
-            XStringFormats.CenterLeft);
+        foreach (CoverApprovedRow row in approvedRows)
+        {
+            DrawCoverText(
+                gfx,
+                ConceptCoverApprovalResolver.DisplayPosition(row.Entry).ToUpperInvariant(),
+                CoverRect(105.8, row.BottomMm, 225.8, row.TopMm),
+                bodyTextHeightMm,
+                false,
+                XStringFormats.CenterLeft);
+            DrawCoverText(
+                gfx,
+                row.Entry.PersonName.ToUpperInvariant(),
+                CoverRect(277.4, row.BottomMm, 352.4, row.TopMm),
+                bodyTextHeightMm,
+                false,
+                XStringFormats.CenterLeft);
+        }
 
         DrawCoverText(
             gfx,
@@ -766,7 +1109,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             bodyTextHeightMm,
             false,
             XStringFormats.CenterLeft);
-        DrawSketchCoverApprovalTable(gfx, border, fine, reviewRows, companyColumn, tableBottomMm);
+        DrawSketchCoverApprovalTable(gfx, border, fine, reviewRows, processedColumn, tableBottomMm);
 
         DrawCoverCellText(gfx, "Албан тушаал", CoverTableLeftMm, 153.86, CoverReviewRoleRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
         DrawCoverCellText(gfx, "Нэр", CoverReviewRoleRightMm, 153.86, CoverReviewNameRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
@@ -777,21 +1120,32 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         foreach (var row in reviewRows)
         {
-            DrawCoverCellText(gfx, row.Member is null ? "" : DisplayRoles(row.Member), CoverTableLeftMm, row.BottomMm, CoverReviewRoleRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
-            DrawCoverCellText(gfx, row.Member?.FullName ?? "", CoverReviewRoleRightMm, row.BottomMm, CoverReviewNameRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
+            DrawCoverCellText(gfx, ConceptCoverApprovalResolver.DisplayPosition(row.Entry), CoverTableLeftMm, row.BottomMm, CoverReviewRoleRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
+            DrawCoverCellText(gfx, row.Entry.PersonName, CoverReviewRoleRightMm, row.BottomMm, CoverReviewNameRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
         }
 
-        DrawCoverCellText(gfx, "Захиалагч", 196.275, companyColumn.ClientTitleBottomMm, 226.275, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Иргэн", CoverCompanyRoleLeftMm, companyColumn.ClientDataBottomMm, CoverCompanyRoleRightMm, companyColumn.ClientTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, ValueOrDash(clientName), CoverCompanyRoleRightMm, companyColumn.ClientDataBottomMm, CoverCompanyNameRightMm, companyColumn.ClientTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedTopSectionTitle, CoverReviewRightMm, processedColumn.TopHeaderBottomMm, CoverCompanyRoleLeftMm, BuildingArchitectureConceptPageLayout.CoverTableTopMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCompanyLogoOrMark(gfx, company, CoverRect(CoverReviewRightMm, processedColumn.TopDataBottomMm, CoverCompanyRoleLeftMm, processedColumn.TopHeaderBottomMm), bodyTextHeightMm);
+        DrawCoverCellText(gfx, companyRole, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm, CoverCompanyRoleRightMm, processedColumn.TopHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, companyRepresentative.Name, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm, CoverCompanyNameRightMm, processedColumn.TopHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
-        DrawCoverCellText(gfx, "Гүйцэтгэсэн", 196.275, companyColumn.CompanyTitleBottomMm, 351.725, companyColumn.ClientDataBottomMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 5.7);
-        DrawCompanyLogoOrMark(gfx, company, CoverRect(196.275, tableBottomMm, 226.275, companyColumn.CompanyTitleBottomMm), bodyTextHeightMm);
-        DrawCoverCellText(gfx, "Албан тушаал", CoverCompanyRoleLeftMm, companyColumn.CompanyHeaderBottomMm, CoverCompanyRoleRightMm, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", CoverCompanyRoleRightMm, companyColumn.CompanyHeaderBottomMm, CoverCompanyNameRightMm, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", CoverCompanyNameRightMm, companyColumn.CompanyHeaderBottomMm, CoverTableRightMm, companyColumn.CompanyTitleBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, companyRole, CoverCompanyRoleLeftMm, tableBottomMm, CoverCompanyRoleRightMm, companyColumn.CompanyHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, companyRepresentative.Name, CoverCompanyRoleRightMm, tableBottomMm, CoverCompanyNameRightMm, companyColumn.CompanyHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedBottomSectionTitle, CoverReviewRightMm, processedColumn.BottomHeaderBottomMm, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", CoverCompanyRoleLeftMm, processedColumn.BottomHeaderBottomMm, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", CoverCompanyRoleRightMm, processedColumn.BottomHeaderBottomMm, CoverCompanyNameRightMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", CoverCompanyNameRightMm, processedColumn.BottomHeaderBottomMm, CoverTableRightMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        if (ProjectClientTypes.UsesLogo(clientType))
+        {
+            DrawCompanyLogoOnly(
+                gfx,
+                clientOrganization,
+                CoverRect(
+                    CoverReviewRightMm,
+                    tableBottomMm,
+                    CoverCompanyRoleLeftMm,
+                    processedColumn.BottomHeaderBottomMm));
+        }
+        DrawCoverCellText(gfx, clientRole, CoverCompanyRoleLeftMm, tableBottomMm, CoverCompanyRoleRightMm, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, ValueOrDash(clientRepresentativeName), CoverCompanyRoleRightMm, tableBottomMm, CoverCompanyNameRightMm, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
         DrawCoverText(gfx, "Улаанбаатар хот", CoverCenteredRect(210.0, 26.125, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
         DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, 15.625, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
@@ -802,15 +1156,15 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         XPen border,
         XPen fine,
         IReadOnlyList<CoverReviewRow> reviewRows,
-        CoverCompanyColumn companyColumn,
+        CoverProcessedColumn processedColumn,
         double tableBottomMm)
     {
         const double x0 = CoverTableLeftMm;
         var y0 = tableBottomMm;
         const double x1 = CoverTableRightMm;
-        const double y1 = 161.86;
+        const double y1 = BuildingArchitectureConceptPageLayout.CoverTableTopMm;
         const double rightX0 = CoverReviewRightMm;
-        const double headerY0 = 153.86;
+        const double headerY0 = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
 
         DrawCoverLine(gfx, border, x0, y0, x1, y0);
         DrawCoverLine(gfx, border, x0, y1, x1, y1);
@@ -821,16 +1175,15 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         DrawCoverLine(gfx, fine, CoverReviewRoleRightMm, y0, CoverReviewRoleRightMm, y1);
         DrawCoverLine(gfx, fine, CoverReviewNameRightMm, y0, CoverReviewNameRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, companyColumn.ClientDataBottomMm, CoverCompanyRoleLeftMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, companyColumn.ClientDataBottomMm, CoverCompanyRoleRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, companyColumn.ClientDataBottomMm, CoverCompanyNameRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, y0, CoverCompanyRoleLeftMm, companyColumn.CompanyTitleBottomMm);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, y0, CoverCompanyRoleRightMm, companyColumn.CompanyTitleBottomMm);
-        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, y0, CoverCompanyNameRightMm, companyColumn.CompanyTitleBottomMm);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm, CoverCompanyRoleLeftMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm, CoverCompanyRoleRightMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, processedColumn.TopDataBottomMm, CoverCompanyNameRightMm, y1);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, y0, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm);
+        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, y0, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm);
+        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, y0, CoverCompanyNameRightMm, processedColumn.TopDataBottomMm);
 
-        DrawCoverLine(gfx, fine, rightX0, companyColumn.ClientDataBottomMm, x1, companyColumn.ClientDataBottomMm);
-        DrawCoverLine(gfx, fine, rightX0, companyColumn.CompanyTitleBottomMm, x1, companyColumn.CompanyTitleBottomMm);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, companyColumn.CompanyHeaderBottomMm, x1, companyColumn.CompanyHeaderBottomMm);
+        DrawCoverLine(gfx, fine, rightX0, processedColumn.TopDataBottomMm, x1, processedColumn.TopDataBottomMm);
+        DrawCoverLine(gfx, fine, rightX0, processedColumn.BottomHeaderBottomMm, x1, processedColumn.BottomHeaderBottomMm);
 
         for (var index = 0; index < reviewRows.Count - 1; index++)
         {
@@ -1047,55 +1400,90 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         return lineCount * CoverLineHeightMm(fittedTextHeightMm);
     }
 
-    private static IReadOnlyList<CoverReviewRow> BuildCoverReviewRows(
+    private static IReadOnlyList<CoverApprovedRow> BuildCoverApprovedRows(
         XGraphics gfx,
-        IReadOnlyList<ProjectMember> approvals,
-        int rowCount)
+        IReadOnlyList<ProjectApprovalEntry> approvals)
     {
-        const double rowsTopMm = 153.86;
-        const double baseRowsHeightMm = 60.0;
-        const double roleTextWidthMm = CoverReviewRoleRightMm - CoverTableLeftMm - 2.4;
-        const double nameTextWidthMm = CoverReviewNameRightMm - CoverReviewRoleRightMm - 2.4;
+        const double rowsTopMm = 262.205;
+        const double roleTextWidthMm = 120.0;
+        const double nameTextWidthMm = 75.0;
         const double cellVerticalPaddingMm = 1.2;
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
-        var baseRowHeightMm = baseRowsHeightMm / Math.Max(1, rowCount);
-        var rows = new List<CoverReviewRow>(rowCount);
+        var rows = new List<CoverApprovedRow>(approvals.Count);
         var topMm = rowsTopMm;
 
-        for (var index = 0; index < rowCount; index++)
+        foreach (ProjectApprovalEntry entry in approvals)
         {
-            var member = index < approvals.Count ? approvals[index] : null;
-            var roleHeightMm = MeasureCoverTextHeightMm(
+            string role = ConceptCoverApprovalResolver.DisplayPosition(entry).ToUpperInvariant();
+            string name = entry.PersonName.ToUpperInvariant();
+            double roleHeightMm = MeasureCoverTextHeightMm(
                 gfx,
-                member is null ? "" : DisplayRoles(member),
+                role,
                 roleTextWidthMm,
                 bodyTextHeightMm);
-            var nameHeightMm = MeasureCoverTextHeightMm(
+            double nameHeightMm = MeasureCoverTextHeightMm(
                 gfx,
-                member?.FullName,
+                name,
                 nameTextWidthMm,
                 bodyTextHeightMm);
-            var requiredHeightMm = Math.Max(roleHeightMm, nameHeightMm) + cellVerticalPaddingMm;
-            var rowHeightMm = Math.Max(baseRowHeightMm, requiredHeightMm);
-            var bottomMm = topMm - rowHeightMm;
-            rows.Add(new CoverReviewRow(member, bottomMm, topMm));
+            double rowHeightMm = Math.Max(
+                8.0,
+                Math.Max(roleHeightMm, nameHeightMm) + cellVerticalPaddingMm);
+            double bottomMm = topMm - rowHeightMm;
+            rows.Add(new CoverApprovedRow(entry, bottomMm, topMm));
             topMm = bottomMm;
         }
 
         return rows;
     }
 
-    private static CoverCompanyColumn BuildCoverCompanyColumn(
+    private static IReadOnlyList<CoverReviewRow> BuildCoverReviewRows(
+        XGraphics gfx,
+        IReadOnlyList<ProjectApprovalEntry> approvals)
+    {
+        const double rowsTopMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
+        const double baseRowsHeightMm = BuildingArchitectureConceptPageLayout.CoverReviewRowsBaseHeightMm;
+        const double roleTextWidthMm = CoverReviewRoleRightMm - CoverTableLeftMm - 2.4;
+        const double nameTextWidthMm = CoverReviewNameRightMm - CoverReviewRoleRightMm - 2.4;
+        const double cellVerticalPaddingMm = 1.2;
+        const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
+        var baseRowHeightMm = baseRowsHeightMm / Math.Max(1, approvals.Count);
+        var rows = new List<CoverReviewRow>(approvals.Count);
+        var topMm = rowsTopMm;
+
+        foreach (ProjectApprovalEntry entry in approvals)
+        {
+            var roleHeightMm = MeasureCoverTextHeightMm(
+                gfx,
+                ConceptCoverApprovalResolver.DisplayPosition(entry),
+                roleTextWidthMm,
+                bodyTextHeightMm);
+            var nameHeightMm = MeasureCoverTextHeightMm(
+                gfx,
+                entry.PersonName,
+                nameTextWidthMm,
+                bodyTextHeightMm);
+            var requiredHeightMm = Math.Max(roleHeightMm, nameHeightMm) + cellVerticalPaddingMm;
+            var rowHeightMm = Math.Max(baseRowHeightMm, requiredHeightMm);
+            var bottomMm = topMm - rowHeightMm;
+            rows.Add(new CoverReviewRow(entry, bottomMm, topMm));
+            topMm = bottomMm;
+        }
+
+        return rows;
+    }
+
+    private static CoverProcessedColumn BuildCoverProcessedColumn(
         XGraphics gfx,
         string companyRole,
         string companyRepresentativeName,
+        string clientTypeLabel,
         string clientName)
     {
-        const double clientTitleBottomMm = 153.86;
-        const double titleHeightMm = 8.0;
-        const double headerHeightMm = 8.0;
-        const double baseClientDataHeightMm = 16.0;
-        const double baseCompanyDataHeightMm = 20.0;
+        const double topHeaderBottomMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
+        const double titleHeightMm = BuildingArchitectureConceptPageLayout.CoverSectionHeaderHeightMm;
+        const double baseClientDataHeightMm = BuildingArchitectureConceptPageLayout.CoverClientDataBaseHeightMm;
+        const double baseCompanyDataHeightMm = BuildingArchitectureConceptPageLayout.CoverCompanyDataBaseHeightMm;
         const double roleTextWidthMm = CoverCompanyRoleRightMm - CoverCompanyRoleLeftMm - 2.4;
         const double nameTextWidthMm = CoverCompanyNameRightMm - CoverCompanyRoleRightMm - 2.4;
         const double cellVerticalPaddingMm = 1.2;
@@ -1103,7 +1491,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         var clientRoleHeightMm = MeasureCoverTextHeightMm(
             gfx,
-            "Иргэн",
+            clientTypeLabel,
             roleTextWidthMm,
             bodyTextHeightMm);
         var clientNameHeightMm = MeasureCoverTextHeightMm(
@@ -1111,13 +1499,6 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             clientName,
             nameTextWidthMm,
             bodyTextHeightMm);
-        var clientDataHeightMm = Math.Max(
-            baseClientDataHeightMm,
-            Math.Max(clientRoleHeightMm, clientNameHeightMm) + cellVerticalPaddingMm);
-        var clientDataBottomMm = clientTitleBottomMm - clientDataHeightMm;
-        var companyTitleBottomMm = clientDataBottomMm - titleHeightMm;
-        var companyHeaderBottomMm = companyTitleBottomMm - headerHeightMm;
-
         var companyRoleHeightMm = MeasureCoverTextHeightMm(
             gfx,
             companyRole,
@@ -1128,15 +1509,18 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             companyRepresentativeName,
             nameTextWidthMm,
             bodyTextHeightMm);
-        var companyDataHeightMm = Math.Max(
-            baseCompanyDataHeightMm,
-            Math.Max(companyRoleHeightMm, companyNameHeightMm) + cellVerticalPaddingMm);
-        var bottomMm = companyHeaderBottomMm - companyDataHeightMm;
-        return new CoverCompanyColumn(
-            clientTitleBottomMm,
-            clientDataBottomMm,
-            companyTitleBottomMm,
-            companyHeaderBottomMm,
+        var sharedDataHeightMm = Math.Max(
+            Math.Max(baseClientDataHeightMm, baseCompanyDataHeightMm),
+            Math.Max(
+                Math.Max(clientRoleHeightMm, clientNameHeightMm),
+                Math.Max(companyRoleHeightMm, companyNameHeightMm)) + cellVerticalPaddingMm);
+        var topDataBottomMm = topHeaderBottomMm - sharedDataHeightMm;
+        var bottomHeaderBottomMm = topDataBottomMm - titleHeightMm;
+        var bottomMm = bottomHeaderBottomMm - sharedDataHeightMm;
+        return new CoverProcessedColumn(
+            topHeaderBottomMm,
+            topDataBottomMm,
+            bottomHeaderBottomMm,
             bottomMm);
     }
 
@@ -1146,111 +1530,41 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static XRect CoverRect(double x0Mm, double y0Mm, double x1Mm, double y1Mm) =>
         ToPoints(BuildingArchitectureConceptPageLayout.FromBottomLeft(x0Mm, y0Mm, x1Mm, y1Mm));
 
-    private sealed record CoverReviewRow(ProjectMember? Member, double BottomMm, double TopMm);
+    private sealed record CoverApprovedRow(ProjectApprovalEntry Entry, double BottomMm, double TopMm);
 
-    private sealed record CoverCompanyColumn(
-        double ClientTitleBottomMm,
-        double ClientDataBottomMm,
-        double CompanyTitleBottomMm,
-        double CompanyHeaderBottomMm,
+    private sealed record CoverReviewRow(ProjectApprovalEntry Entry, double BottomMm, double TopMm);
+
+    private sealed record CoverProcessedColumn(
+        double TopHeaderBottomMm,
+        double TopDataBottomMm,
+        double BottomHeaderBottomMm,
         double BottomMm);
-
-    private static bool HasRole(ProjectMember member, string role) =>
-        member.Roles.Any(candidate => candidate.Contains(role, StringComparison.OrdinalIgnoreCase));
-
-    private static string DisplayRoles(ProjectMember member) =>
-        string.Join(", ", member.Roles.Select(DisplayRole).Distinct(StringComparer.OrdinalIgnoreCase));
-
-    private static string DisplayRole(string role)
-    {
-        if (role.Contains("Chief Architect", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Ерөнхий архитектор";
-        }
-        if (role.Contains("Department Head", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Хэлтсийн дарга";
-        }
-        if (role.Contains("Authority Specialist", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Хот байгуулалтын мэргэжилтэн";
-        }
-        return role;
-    }
 
     private static void DrawDesignOrganizationPage(
         PdfDocument document,
         AlbumBuildRequest request,
-        AlbumCompositionItem item)
+        ConceptGeneratedPagePlan plan)
     {
         var page = AddA3LandscapePage(document);
         using var gfx = XGraphics.FromPdfPage(page);
-        DrawGeneratedPageChrome(gfx, page, request.Project, item);
-
-        var border = new XPen(XColors.Black, 0.55);
-        var fine = new XPen(XColor.FromArgb(155, 163, 173), 0.4);
-        var muted = new XSolidBrush(XColor.FromArgb(92, 101, 112));
-        var company = request.Project.Company;
-
-        var identityRect = new XRect(Mm(20), Mm(28), Mm(120), Mm(225));
-        gfx.DrawRectangle(border, identityRect);
-        DrawCompanyIdentity(gfx, company, new XRect(Mm(28), Mm(39), Mm(104), Mm(48)), 15);
-        gfx.DrawLine(fine, Mm(28), Mm(95), Mm(132), Mm(95));
-        DrawInfoRow(gfx, "БАЙГУУЛЛАГА", ValueOrDash(company.Name), 28, 103, 104, 18);
-        DrawInfoRow(gfx, "ТОВЧ НЭР", ValueOrDash(company.ShortName), 28, 123, 104, 13);
-        DrawInfoRow(gfx, "РЕГИСТР", ValueOrDash(company.RegistrationNumber), 28, 138, 104, 13);
-        DrawInfoRow(gfx, "ХОТ / ДҮҮРЭГ", ValueOrDash(company.RegisteredCity), 28, 153, 104, 13);
-        DrawInfoRow(gfx, "ХАЯГ", ValueOrDash(company.Address), 28, 168, 104, 18);
-        DrawInfoRow(gfx, "УТАС", ValueOrDash(CompanyPhoneText(company)), 28, 188, 104, 15);
-        DrawInfoRow(gfx, "И-МЭЙЛ", ValueOrDash(company.Email), 28, 205, 104, 13);
-        DrawInfoRow(gfx, "ВЭБ", ValueOrDash(company.WebSite), 28, 220, 104, 13);
-        DrawInfoRow(gfx, "ЛИЦЕНЗ", ValueOrDash(CompanyLicenseText(company)), 28, 235, 104, 14);
-
-        var tableX = 147d;
-        var tableY = 28d;
-        var tableWidth = 263d;
-        var headerHeight = 15d;
-        gfx.DrawRectangle(border, Mm(tableX), Mm(tableY), Mm(tableWidth), Mm(225));
-        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(239, 242, 246)), Mm(tableX), Mm(tableY), Mm(tableWidth), Mm(headerHeight));
-        DrawFittedText(gfx, "ТӨСӨЛД ОРОЛЦОГЧИД", Mm(tableX + 5), Mm(tableY), Mm(tableWidth - 10), Mm(headerHeight), 11, true, XStringFormats.CenterLeft);
-
-        var roleWidth = 88d;
-        var nameWidth = 105d;
-        var emailWidth = tableWidth - roleWidth - nameWidth;
-        var rowY = tableY + headerHeight;
-        DrawTableRow(gfx, border, muted, tableX, rowY, roleWidth, nameWidth, emailWidth,
-            "ҮҮРЭГ", "НЭР", "И-МЭЙЛ", true);
-        rowY += 13;
-
-        var people = company.Signers
-            .Select(signer => new ProjectParticipant { Role = signer.Role, FullName = signer.FullName })
-            .Concat(request.Project.Participants)
-            .Where(person => !string.IsNullOrWhiteSpace(person.FullName))
-            .DistinctBy(person => $"{person.Role}|{person.FullName}|{person.Email}", StringComparer.OrdinalIgnoreCase)
-            .Take(12)
-            .ToList();
-        foreach (var person in people)
-        {
-            DrawTableRow(gfx, border, muted, tableX, rowY, roleWidth, nameWidth, emailWidth,
-                ValueOrDash(person.Role), ValueOrDash(person.FullName), ValueOrDash(person.Email), false);
-            rowY += 13;
-        }
-
-        if (people.Count == 0)
-        {
-            DrawTableRow(gfx, border, muted, tableX, rowY, roleWidth, nameWidth, emailWidth,
-                "-", "Мэдээлэл бүрдээгүй", "-", false);
-        }
+        DrawGeneratedPageChrome(gfx, page, request.Project, plan.Title, plan.Number);
+        DrawGeneratedDocumentContent(gfx, request.Project, plan);
     }
 
     private static void DrawPlanningTaskPage(
         PdfDocument document,
         AlbumBuildRequest request,
-        AlbumCompositionItem item)
+        ConceptGeneratedPagePlan plan)
     {
         var page = AddA3LandscapePage(document);
         using var gfx = XGraphics.FromPdfPage(page);
-        DrawGeneratedPageChrome(gfx, page, request.Project, item);
+        DrawGeneratedPageChrome(gfx, page, request.Project, plan.Title, plan.Number);
+
+        if (plan.DocumentPages.Count > 0)
+        {
+            DrawGeneratedDocumentContent(gfx, request.Project, plan);
+            return;
+        }
 
         var border = new XPen(XColors.Black, 0.55);
         var muted = new XSolidBrush(XColor.FromArgb(92, 101, 112));
@@ -1262,7 +1576,18 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawInfoRow(gfx, "АТД ДУГААР", ValueOrDash(task.AtdNumber), 25, 56, 175, 17);
         DrawInfoRow(gfx, "ОЛГОСОН ОГНОО", FormatDate(task.IssuedAtUtc), 25, 75, 175, 17);
         DrawInfoRow(gfx, "ТӨЛӨВ", ValueOrDash(task.Status), 25, 94, 175, 17);
-        DrawInfoRow(gfx, "ЗАХИАЛАГЧ", ValueOrDash(basis.ClientName), 25, 113, 175, 17);
+        DrawInfoRow(
+            gfx,
+            "ЗАХИАЛАГЧ",
+            ValueOrDash(ProjectClientTypes.ResolveCoverPersonName(
+                basis.ClientType,
+                basis.ClientName,
+                basis.ClientRepresentativeName,
+                request.Project.ClientName)),
+            25,
+            113,
+            175,
+            17);
         DrawInfoRow(gfx, "ТӨСЛИЙН БАЙРШИЛ", ValueOrDash(basis.SiteAddress), 25, 132, 175, 24);
 
         gfx.DrawRectangle(border, Mm(212), Mm(28), Mm(198), Mm(135));
@@ -1299,10 +1624,294 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         XGraphics gfx,
         PdfPage page,
         AlbumProject project,
-        AlbumCompositionItem item)
+        string title,
+        string number)
     {
         gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
-        DrawConceptSheetChrome(gfx, project, item.Title, item.Number);
+        DrawConceptSheetChrome(gfx, project, title, number);
+    }
+
+    private static void DrawGeneratedDocumentContent(
+        XGraphics gfx,
+        AlbumProject project,
+        ConceptGeneratedPagePlan plan)
+    {
+        var muted = new XSolidBrush(XColor.FromArgb(92, 101, 112));
+        DrawFittedText(
+            gfx,
+            plan.DocumentLabel,
+            Mm(20),
+            Mm(17),
+            Mm(320),
+            Mm(9),
+            10.5,
+            true,
+            XStringFormats.CenterLeft);
+        if (plan.BatchCount > 1)
+        {
+            DrawFittedText(
+                gfx,
+                $"{plan.BatchNumber}/{plan.BatchCount}",
+                Mm(350),
+                Mm(17),
+                Mm(60),
+                Mm(9),
+                8.5,
+                false,
+                XStringFormats.CenterRight);
+        }
+
+        if (plan.DocumentPages.Count == 0)
+        {
+            DrawGeneratedDocumentPlaceholder(gfx, project, plan, muted);
+            return;
+        }
+
+        var content = new XRect(Mm(20), Mm(29), Mm(390), Mm(226));
+        IReadOnlyList<XRect> tiles = CreateDocumentTileLayout(content, plan.DocumentPages.Count);
+        for (int index = 0; index < plan.DocumentPages.Count; index++)
+        {
+            DrawDocumentTile(gfx, project, plan.DocumentPages[index], tiles[index], muted);
+        }
+    }
+
+    private static void DrawGeneratedDocumentPlaceholder(
+        XGraphics gfx,
+        AlbumProject project,
+        ConceptGeneratedPagePlan plan,
+        XBrush muted)
+    {
+        var border = new XPen(XColor.FromArgb(176, 183, 192), Mm(0.15));
+        var rect = new XRect(Mm(55), Mm(54), Mm(320), Mm(164));
+        gfx.DrawRectangle(border, rect);
+        string primary = plan.DocumentKind == ConceptGeneratedDocumentKind.ApprovedPlanningTask
+            ? ValueOrDash(project.PlanningTask.IssuingAuthorityName)
+            : ValueOrDash(CompanyDisplayName(project.Company, project.DesignOrganizationName));
+        string secondary = plan.DocumentKind == ConceptGeneratedDocumentKind.ApprovedPlanningTask
+            ? $"АТД {ValueOrDash(project.PlanningTask.AtdNumber)}"
+            : $"Регистр {ValueOrDash(project.Company.RegistrationNumber)}";
+        DrawFittedText(gfx, primary, rect.X + Mm(20), rect.Y + Mm(45), rect.Width - Mm(40), Mm(28), 15, true, XStringFormats.Center);
+        DrawFittedText(gfx, secondary, rect.X + Mm(20), rect.Y + Mm(78), rect.Width - Mm(40), Mm(18), 10, false, XStringFormats.Center);
+        gfx.DrawString(
+            "Хуулбар оруулаагүй",
+            new XFont(FontName, 8.5),
+            muted,
+            new XRect(rect.X + Mm(20), rect.Y + Mm(112), rect.Width - Mm(40), Mm(14)),
+            XStringFormats.Center);
+    }
+
+    private static IReadOnlyList<XRect> CreateDocumentTileLayout(XRect area, int count)
+    {
+        const double gapMm = 7;
+        double gap = Mm(gapMm);
+        if (count <= 1)
+            return [area];
+        if (count == 2)
+        {
+            double width = (area.Width - gap) * 0.5;
+            return
+            [
+                new XRect(area.X, area.Y, width, area.Height),
+                new XRect(area.X + width + gap, area.Y, width, area.Height),
+            ];
+        }
+        if (count == 3)
+        {
+            double width = (area.Width - gap) * 0.5;
+            double rightHeight = (area.Height - gap) * 0.5;
+            return
+            [
+                new XRect(area.X, area.Y, width, area.Height),
+                new XRect(area.X + width + gap, area.Y, width, rightHeight),
+                new XRect(area.X + width + gap, area.Y + rightHeight + gap, width, rightHeight),
+            ];
+        }
+
+        double tileWidth = (area.Width - gap) * 0.5;
+        double tileHeight = (area.Height - gap) * 0.5;
+        return
+        [
+            new XRect(area.X, area.Y, tileWidth, tileHeight),
+            new XRect(area.X + tileWidth + gap, area.Y, tileWidth, tileHeight),
+            new XRect(area.X, area.Y + tileHeight + gap, tileWidth, tileHeight),
+            new XRect(area.X + tileWidth + gap, area.Y + tileHeight + gap, tileWidth, tileHeight),
+        ];
+    }
+
+    private static void DrawDocumentTile(
+        XGraphics gfx,
+        AlbumProject project,
+        ConceptGeneratedDocumentPage documentPage,
+        XRect tile,
+        XBrush muted)
+    {
+        var frame = new XPen(XColor.FromArgb(166, 174, 184), Mm(0.12));
+        gfx.DrawRectangle(XBrushes.White, tile);
+        gfx.DrawRectangle(frame, tile);
+        string? path = ResolveDocumentPath(project, documentPage.Document.RelativePath);
+        if (path is null)
+        {
+            DrawFittedText(gfx, "Файл олдсонгүй", tile.X + Mm(8), tile.Y, tile.Width - Mm(16), tile.Height, 10, true, XStringFormats.Center);
+            return;
+        }
+
+        var imageArea = new XRect(
+            tile.X + Mm(3),
+            tile.Y + Mm(3),
+            tile.Width - Mm(6),
+            tile.Height - Mm(9));
+        try
+        {
+            if (Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                using var form = XPdfForm.FromFile(path);
+                form.PageNumber = documentPage.SourcePageNumber;
+                DrawContainedImage(gfx, form, imageArea);
+            }
+            else
+            {
+                using var image = XImage.FromFile(path);
+                DrawContainedImage(gfx, image, imageArea);
+            }
+
+            string pageLabel = documentPage.Document.PageCount > 1
+                ? $"{documentPage.SourcePageNumber}/{documentPage.Document.PageCount}"
+                : Path.GetFileName(documentPage.Document.OriginalFileName);
+            gfx.DrawString(
+                pageLabel,
+                new XFont(FontName, 6.5),
+                muted,
+                new XRect(tile.X + Mm(3), tile.Bottom - Mm(6), tile.Width - Mm(6), Mm(4)),
+                XStringFormats.CenterRight);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            DrawFittedText(gfx, "Баримтыг уншиж чадсангүй", tile.X + Mm(8), tile.Y, tile.Width - Mm(16), tile.Height, 9, true, XStringFormats.Center);
+        }
+    }
+
+    private static void DrawContainedImage(XGraphics gfx, XImage image, XRect target)
+    {
+        double sourceWidth = Math.Max(1, image.PointWidth);
+        double sourceHeight = Math.Max(1, image.PointHeight);
+        double scale = Math.Min(target.Width / sourceWidth, target.Height / sourceHeight);
+        double width = sourceWidth * scale;
+        double height = sourceHeight * scale;
+        double x = target.X + (target.Width - width) * 0.5;
+        double y = target.Y + (target.Height - height) * 0.5;
+        gfx.DrawImage(image, x, y, width, height);
+    }
+
+    private static void DrawVisualizationPage(
+        PdfDocument document,
+        AlbumProject project,
+        VisualizationAlbumPagePlan plan,
+        ICollection<string> warnings)
+    {
+        PdfPage page = AddA3LandscapePage(document);
+        using XGraphics gfx = XGraphics.FromPdfPage(page);
+        DrawGeneratedPageChrome(gfx, page, project, plan.Title, plan.Number);
+        var tilePen = new XPen(XColor.FromArgb(200, 204, 210), Mm(0.10));
+
+        foreach (VisualizationImageTilePlan tile in plan.Tiles)
+        {
+            XRect frame = ToPoints(tile.Frame);
+            gfx.DrawRectangle(XBrushes.White, frame);
+            string? path = ResolveDocumentPath(project, tile.Image.RelativePath);
+            if (path is null)
+            {
+                warnings.Add($"Visualization image was not found: {tile.Image.OriginalFileName}");
+                DrawFittedText(
+                    gfx,
+                    "Зураг олдсонгүй",
+                    frame.X + Mm(5),
+                    frame.Y,
+                    frame.Width - Mm(10),
+                    frame.Height,
+                    9,
+                    false,
+                    XStringFormats.Center);
+                gfx.DrawRectangle(tilePen, frame);
+                continue;
+            }
+
+            try
+            {
+                using XImage image = XImage.FromFile(path);
+                if (tile.FitMode == VisualizationImageFitMode.CenterCrop)
+                {
+                    DrawCroppedVisualizationImage(
+                        gfx,
+                        image,
+                        frame,
+                        tile.Image.FocalPointX,
+                        tile.Image.FocalPointY);
+                }
+                else
+                {
+                    DrawContainedImage(gfx, image, frame);
+                }
+                gfx.DrawRectangle(tilePen, frame);
+            }
+            catch (Exception exception) when (
+                exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+            {
+                warnings.Add($"Visualization image could not be read: {tile.Image.OriginalFileName}");
+                DrawFittedText(
+                    gfx,
+                    "Зургийг уншиж чадсангүй",
+                    frame.X + Mm(5),
+                    frame.Y,
+                    frame.Width - Mm(10),
+                    frame.Height,
+                    9,
+                    false,
+                    XStringFormats.Center);
+                gfx.DrawRectangle(tilePen, frame);
+            }
+        }
+    }
+
+    private static void DrawCroppedVisualizationImage(
+        XGraphics gfx,
+        XImage image,
+        XRect target,
+        double focalPointX,
+        double focalPointY)
+    {
+        double sourceWidth = Math.Max(1d, image.PointWidth);
+        double sourceHeight = Math.Max(1d, image.PointHeight);
+        double sourceRatio = sourceWidth / sourceHeight;
+        double targetRatio = target.Width / target.Height;
+        double cropWidth = sourceWidth;
+        double cropHeight = sourceHeight;
+
+        if (sourceRatio > targetRatio)
+            cropWidth = sourceHeight * targetRatio;
+        else
+            cropHeight = sourceWidth / targetRatio;
+
+        double focusX = Math.Clamp(focalPointX, 0d, 1d) * sourceWidth;
+        double focusY = Math.Clamp(focalPointY, 0d, 1d) * sourceHeight;
+        double cropX = Math.Clamp(focusX - cropWidth * 0.5d, 0d, sourceWidth - cropWidth);
+        double cropY = Math.Clamp(focusY - cropHeight * 0.5d, 0d, sourceHeight - cropHeight);
+        gfx.DrawImage(
+            image,
+            target,
+            new XRect(cropX, cropY, cropWidth, cropHeight),
+            XGraphicsUnit.Point);
+    }
+
+    private static string? ResolveDocumentPath(AlbumProject project, string relativeOrAbsolutePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath))
+            return null;
+        string path = Path.IsPathRooted(relativeOrAbsolutePath)
+            ? Path.GetFullPath(relativeOrAbsolutePath)
+            : string.IsNullOrWhiteSpace(project.ProjectFolder)
+                ? Path.GetFullPath(relativeOrAbsolutePath)
+                : Path.GetFullPath(Path.Combine(project.ProjectFolder, relativeOrAbsolutePath));
+        return File.Exists(path) ? path : null;
     }
 
     private static void DrawCompanyIdentity(
@@ -1433,6 +2042,11 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static string ValueOrDash(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+
+    private static string FirstNonEmpty(string? primary, string? fallback) =>
+        !string.IsNullOrWhiteSpace(primary)
+            ? primary.Trim()
+            : fallback?.Trim() ?? "";
 
     private static void DrawCoverPage(PdfDocument document, AlbumBuildRequest request)
     {

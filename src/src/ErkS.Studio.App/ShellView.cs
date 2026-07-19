@@ -103,8 +103,33 @@ internal sealed partial class ShellView : IDisposable
     private readonly TextBox projectCodeBox = new();
     private readonly TextBox basisSourceBox = new();
     private readonly TextBox requestNumberBox = new();
+    private readonly ComboBox clientTypeBox = new();
     private readonly TextBox clientNameBox = new();
     private readonly TextBox clientEmailBox = new();
+    private readonly TextBox clientRepresentativePositionBox = new();
+    private readonly TextBox clientRepresentativeNameBox = new();
+    private FrameworkElement? clientNameRow;
+    private TextBlock? clientNameLabel;
+    private FrameworkElement? clientRepresentativePositionRow;
+    private FrameworkElement? clientRepresentativeNameRow;
+    private readonly Image clientLogoPreview = new()
+    {
+        Width = 112,
+        Height = 64,
+        Stretch = Stretch.Uniform,
+        Visibility = Visibility.Collapsed,
+    };
+    private readonly TextBlock clientLogoText = new()
+    {
+        Foreground = StudioTheme.MutedTextBrush,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Button clientChooseLogoButton = StudioWidgets.CreateButton("Лого сонгох");
+    private readonly Button clientRemoveLogoButton = StudioWidgets.CreateButton("Лого арилгах");
+    private string pendingClientLogoPath = "";
+    private bool clientLogoRemovalPending;
+    private bool clientEditorInitialized;
     private readonly TextBox siteAddressBox = new();
     private readonly TextBox landReferenceBox = new();
     private readonly TextBox basisSourceOrganizationBox = new();
@@ -183,6 +208,12 @@ internal sealed partial class ShellView : IDisposable
             if (autoRebuildCheck.IsChecked == true && state.HasOpenProject)
             {
                 UpdateAlbum(silent: true);
+                if (activePage == StudioPage.Sources)
+                {
+                    string? selectedSource =
+                        (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
+                    RefreshSourceWorkspace(selectedSource);
+                }
             }
         };
         notificationRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
@@ -210,11 +241,18 @@ internal sealed partial class ShellView : IDisposable
         state.Library.Changed += () => dispatcher.BeginInvoke(new Action(OnLibraryChanged));
         state.Intake.PackageProcessed += result => dispatcher.BeginInvoke(new Action(() => OnPackageProcessed(result)));
         state.Intake.IntakeError += message => dispatcher.BeginInvoke(new Action(() => SetStatus(message)));
+        state.AssetSourcesChanged += () => dispatcher.BeginInvoke(new Action(OnAssetSourcesChanged));
         state.ProjectReplaced += () => dispatcher.BeginInvoke(new Action(() =>
         {
             if (state.HasOpenProject)
             {
                 BindProjectToUi();
+            }
+            else
+            {
+                boundAlbumProjectId = null;
+                lastAlbumPath = null;
+                ResetAlbumPreviewForProjectChange();
             }
         }));
         account.StateChanged += () => dispatcher.BeginInvoke(new Action(UpdateAccountUi));
@@ -402,12 +440,19 @@ internal sealed partial class ShellView : IDisposable
         }
 
         navPanel.Children.Add(BuildProjectContextBlock());
-        AddNavItem(StudioPage.Overview, "Ерөнхий", "icon-project.svg");
-        AddNavItem(StudioPage.Foundation, "Суурь", "icon-project.svg");
-        AddNavItem(StudioPage.Sources, "Эх үүсвэр", "icon-sources.svg");
-        AddNavItem(StudioPage.Albums, "Альбум", "icon-album.svg");
-        AddNavItem(StudioPage.Reports, "Тайлан", "icon-publish.svg");
-        AddNavItem(StudioPage.Archive, "Архив", "icon-company.svg");
+        AddNavItem(StudioPage.Overview, ProjectSurfaceLabel("overview", "Ерөнхий"), "icon-project.svg");
+        AddNavItem(StudioPage.Foundation, ProjectSurfaceLabel("foundation", "Суурь"), "icon-project.svg");
+        AddNavItem(StudioPage.Sources, ProjectSurfaceLabel("sources", "Эх үүсвэр"), "icon-sources.svg");
+        AddNavItem(StudioPage.Albums, ProjectSurfaceLabel("albums", "Альбум"), "icon-album.svg");
+        AddNavItem(StudioPage.Reports, ProjectSurfaceLabel("reports", "Тайлан"), "icon-publish.svg");
+        AddNavItem(StudioPage.Archive, ProjectSurfaceLabel("archive", "Архив"), "icon-company.svg");
+    }
+
+    private string ProjectSurfaceLabel(string sectionId, string fallback)
+    {
+        ProjectServerSurfaceSection? section = state.Project.Cloud.ServerSnapshot.Surface.Sections
+            .FirstOrDefault(item => item.Id.Equals(sectionId, StringComparison.OrdinalIgnoreCase));
+        return string.IsNullOrWhiteSpace(section?.Label) ? fallback : section.Label.Trim();
     }
 
     private UIElement BuildProjectContextBlock()
@@ -1387,6 +1432,10 @@ internal sealed partial class ShellView : IDisposable
         }
         RefreshFoundationEditUi();
         RefreshSyncUi();
+        if (activePage == StudioPage.Sources && state.HasOpenProject)
+        {
+            RefreshSourceDetails();
+        }
     }
 
     private UIElement BuildAccountAvatar()
@@ -1546,9 +1595,7 @@ internal sealed partial class ShellView : IDisposable
         {
             state.OpenProject(path);
             EnterProjectWorkspace();
-            lastAlbumPath = string.IsNullOrWhiteSpace(state.Project.PrimaryAlbum.LastPdfPath)
-                ? null
-                : ProjectWorkspacePaths.ResolveInsideProject(state.ProjectPath!, state.Project.PrimaryAlbum.LastPdfPath);
+            lastAlbumPath = ResolveCurrentProjectAlbumPath();
             SetStatus(state.LastOpenMigratedLegacyProject
                 ? $"Legacy project шинэ workspace болсон. Эх файл хэвээр: {path}"
                 : $"Төсөл нээгдлээ: {state.ProjectPath}");
@@ -1630,14 +1677,196 @@ internal sealed partial class ShellView : IDisposable
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн нэр", projectNameBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Үндэслэлийн төрөл", basisSourceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Хүсэлтийн дугаар", requestNumberBox));
-        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагч", clientNameBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн төрөл", BuildClientTypeEditor()));
+        clientNameRow = StudioWidgets.CreateFormRow("Захиалагчийн нэр", clientNameBox);
+        clientNameLabel = (clientNameRow as Grid)?.Children.OfType<TextBlock>().FirstOrDefault();
+        form.Children.Add(clientNameRow);
         form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн и-мэйл", clientEmailBox));
+        clientRepresentativePositionRow = StudioWidgets.CreateFormRow(
+            "Төлөөлөгчийн албан тушаал",
+            clientRepresentativePositionBox);
+        clientRepresentativeNameRow = StudioWidgets.CreateFormRow(
+            "Төлөөлөгчийн нэр",
+            clientRepresentativeNameBox);
+        form.Children.Add(clientRepresentativePositionRow);
+        form.Children.Add(clientRepresentativeNameRow);
+        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн лого", BuildClientLogoEditor()));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Газрын холбоос", landReferenceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Эх байгууллага", basisSourceOrganizationBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Товч мэдээлэл", basisSummaryBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Cloud ERA", cloudLinkText));
         return StudioWidgets.CreateScrollHost(form);
+    }
+
+    private UIElement BuildClientTypeEditor()
+    {
+        if (!clientEditorInitialized)
+        {
+            clientTypeBox.ItemsSource = new[]
+            {
+                new ClientTypeOption("Иргэн", ProjectClientTypes.Citizen),
+                new ClientTypeOption("Байгууллага", ProjectClientTypes.Organization),
+                new ClientTypeOption("Төрийн байгууллага", ProjectClientTypes.GovernmentAuthority),
+            };
+            clientTypeBox.SelectionChanged += (_, _) => RefreshClientLogoEditor();
+            clientChooseLogoButton.Click += (_, _) => ChooseClientLogo();
+            clientRemoveLogoButton.Click += (_, _) => RemoveClientLogo();
+            clientEditorInitialized = true;
+        }
+
+        return clientTypeBox;
+    }
+
+    private UIElement BuildClientLogoEditor()
+    {
+        var details = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+        details.Children.Add(clientLogoText);
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 7, 0, 0),
+        };
+        actions.Children.Add(clientChooseLogoButton);
+        actions.Children.Add(clientRemoveLogoButton);
+        details.Children.Add(actions);
+
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        panel.Children.Add(clientLogoPreview);
+        panel.Children.Add(details);
+        return panel;
+    }
+
+    private string SelectedClientType =>
+        (clientTypeBox.SelectedItem as ClientTypeOption)?.Value ?? ProjectClientTypes.Citizen;
+
+    private void SelectClientType(string? value)
+    {
+        if (!clientEditorInitialized)
+            _ = BuildClientTypeEditor();
+        string normalized = ProjectClientTypes.Normalize(value);
+        clientTypeBox.SelectedItem = clientTypeBox.Items
+            .OfType<ClientTypeOption>()
+            .FirstOrDefault(option => option.Value.Equals(normalized, StringComparison.Ordinal));
+        if (clientTypeBox.SelectedItem is null && clientTypeBox.Items.Count > 0)
+            clientTypeBox.SelectedIndex = 0;
+    }
+
+    private void ChooseClientLogo()
+    {
+        if (!foundationEditMode || !ProjectClientTypes.UsesLogo(SelectedClientType))
+            return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Захиалагч байгууллагын лого сонгох",
+            Filter = "Зургийн файл (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg",
+            Multiselect = false,
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(Root)) != true)
+            return;
+
+        pendingClientLogoPath = dialog.FileName;
+        clientLogoRemovalPending = false;
+        RefreshClientLogoEditor();
+    }
+
+    private void RemoveClientLogo()
+    {
+        if (!foundationEditMode)
+            return;
+        pendingClientLogoPath = "";
+        clientLogoRemovalPending = true;
+        RefreshClientLogoEditor();
+    }
+
+    private void RefreshClientLogoEditor()
+    {
+        bool usesLogo = ProjectClientTypes.UsesLogo(SelectedClientType);
+        bool editable = foundationEditMode && !foundationSaveInProgress && usesLogo;
+        if (clientNameRow is not null)
+            clientNameRow.Visibility = Visibility.Visible;
+        if (clientNameLabel is not null)
+            clientNameLabel.Text = ProjectClientTypes.ClientNameFieldLabel(SelectedClientType);
+        if (clientRepresentativePositionRow is not null)
+            clientRepresentativePositionRow.Visibility = usesLogo ? Visibility.Visible : Visibility.Collapsed;
+        if (clientRepresentativeNameRow is not null)
+            clientRepresentativeNameRow.Visibility = usesLogo ? Visibility.Visible : Visibility.Collapsed;
+        clientRepresentativePositionBox.IsReadOnly = !editable;
+        clientRepresentativeNameBox.IsReadOnly = !editable;
+        clientChooseLogoButton.IsEnabled = editable;
+        clientRemoveLogoButton.IsEnabled = editable &&
+            (!string.IsNullOrWhiteSpace(pendingClientLogoPath) ||
+             (!clientLogoRemovalPending && state.HasOpenProject &&
+              !string.IsNullOrWhiteSpace(state.Project.Foundation.InitiationBasis
+                  .ClientOrganizationSnapshot.LogoPath)));
+
+        if (!usesLogo)
+        {
+            clientLogoPreview.Source = null;
+            clientLogoPreview.Visibility = Visibility.Collapsed;
+            clientLogoText.Text = "Иргэн захиалагчийн логоны нүд нүүр хуудсанд хоосон байна.";
+            return;
+        }
+
+        CompanyProfile clientOrganization = state.HasOpenProject
+            ? state.Project.Foundation.InitiationBasis.ClientOrganizationSnapshot
+            : new CompanyProfile();
+        string storedPath = state.HasOpenProject && !clientLogoRemovalPending
+            ? clientOrganization.LogoPath
+            : "";
+        string path = string.IsNullOrWhiteSpace(pendingClientLogoPath)
+            ? ResolveClientLogoPath(storedPath)
+            : pendingClientLogoPath;
+        clientLogoText.Text = !string.IsNullOrWhiteSpace(pendingClientLogoPath)
+            ? Path.GetFileName(pendingClientLogoPath)
+            : string.IsNullOrWhiteSpace(storedPath)
+                ? "Лого сонгоогүй"
+                : ProjectAssetDisplayName.Resolve(
+                    clientOrganization.LogoOriginalFileName,
+                    storedPath,
+                    "Захиалагчийн лого");
+        clientLogoPreview.Source = LoadLocalBitmap(path);
+        clientLogoPreview.Visibility = clientLogoPreview.Source is null
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private string ResolveClientLogoPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "";
+        if (Path.IsPathRooted(path) || string.IsNullOrWhiteSpace(state.ProjectPath))
+            return path;
+        try
+        {
+            return ProjectWorkspacePaths.ResolveInsideProject(state.ProjectPath, path);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static BitmapSource? LoadLocalBitmap(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return null;
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(Path.GetFullPath(path), UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private UIElement BuildPlanningTaskTab()
@@ -1647,7 +1876,13 @@ internal sealed partial class ShellView : IDisposable
         form.Children.Add(StudioWidgets.CreateFormRow("Олгосон байгууллага", atdAuthorityBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төлөв", atdStatusBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Шаардлага, нөхцөл", atdSummaryBox));
-        form.Children.Add(StudioWidgets.CreateSectionHeader("Зөвшөөрөх ба батлах эрхтэй оролцогчид"));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("АТД-ийн батлагдсан хуулбар"));
+        form.Children.Add(BuildAtdDocumentEditor());
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Нүүр хуудасны баталгаажуулалт"));
+        form.Children.Add(BuildConceptApprovalEditor());
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Cloud ERA эрхтэй оролцогчид"));
+        form.Children.Add(StudioWidgets.CreateHint(
+            "Энэ нь төслийн эрх, гишүүнчлэлийн лавлагаа бөгөөд нүүр хуудасны БАТЛАВ, ЗӨВШӨӨРӨЛЦСӨН мөрийг автоматаар өөрчлөхгүй."));
         ConfigureMemberList(atdParticipantsList);
         form.Children.Add(atdParticipantsList);
         return StudioWidgets.CreateScrollHost(form);
@@ -1671,6 +1906,8 @@ internal sealed partial class ShellView : IDisposable
 
         form.Children.Add(StudioWidgets.CreateHint(
             "Компанийн project snapshot нь нүүр хуудас, компанийн мэдээллийн хуудас болон булангийн хүснэгтэд автоматаар хэрэглэгдэнэ. Задгай profile болон эх файлууд энэ төсөлд нээгдэхгүй."));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Төслийн архитектор"));
+        form.Children.Add(BuildProjectArchitectAssignment());
         form.Children.Add(StudioWidgets.CreateSectionHeader("Төслийн баг"));
         form.Children.Add(BuildTeamActions());
         ConfigureParticipantsList();
@@ -1716,7 +1953,10 @@ internal sealed partial class ShellView : IDisposable
             return;
         }
 
+        pendingClientLogoPath = "";
+        clientLogoRemovalPending = false;
         foundationEditMode = true;
+        StartAtdDocumentEdit();
         RefreshFoundationEditUi();
         projectNameBox.Focus();
         projectNameBox.CaretIndex = projectNameBox.Text.Length;
@@ -1729,6 +1969,8 @@ internal sealed partial class ShellView : IDisposable
             return;
 
         foundationEditMode = false;
+        pendingClientLogoPath = "";
+        clientLogoRemovalPending = false;
         BindFoundationFieldsToUi();
         RefreshFoundationEditUi();
         SetStatus("Хадгалаагүй өөрчлөлтийг буцаалаа.");
@@ -1744,12 +1986,29 @@ internal sealed partial class ShellView : IDisposable
             projectNameBox.Focus();
             return;
         }
+        if (string.IsNullOrWhiteSpace(clientNameBox.Text))
+        {
+            SetStatus(ProjectClientTypes.ClientNameFieldLabel(SelectedClientType) + " хоосон байж болохгүй.");
+            clientNameBox.Focus();
+            return;
+        }
         if (!CanEditProjectInformation())
         {
             SetStatus("Таны project role төслийн мэдээлэл хадгалах эрхгүй байна.");
             return;
         }
 
+        ProjectFoundationEditDraft draft;
+        try
+        {
+            draft = CaptureFoundationEditDraft();
+        }
+        catch (Exception exception) when (
+            exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            SetStatus("Захиалагчийн лого хадгалахад алдаа: " + exception.Message);
+            return;
+        }
         bool linked = state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId);
         if (linked && !await EnsureSignedInAsync())
@@ -1758,25 +2017,42 @@ internal sealed partial class ShellView : IDisposable
         foundationSaveInProgress = true;
         RefreshFoundationEditUi();
         bool cloudUpdateQueued = false;
+        string cloudSaveNotice = "";
         try
         {
             int foundationVersionBefore = state.Project.Foundation.Version;
             if (linked)
             {
-                StudioCloudProjectInformationUpdateRequest request = CreateCloudProjectInformationRequest();
+                StudioCloudProjectInformationUpdateRequest request = draft.CreateCloudRequest(
+                    state.Project.DesignOrganizationName,
+                    state.Project.Cloud.ServerSnapshot.Information.CapacityUnit);
                 try
                 {
                     StudioCloudProjectDetail updated = await account.UpdateProjectInformationAsync(
                         state.Project.Cloud.ServerProjectId,
-                        request);
-                    state.Project.Cloud.PendingProjectInformation = null;
+                        request,
+                        await EnsureProjectConcurrencyTokenAsync(state.Project.Cloud.ServerProjectId));
+                    ProjectInformationReconciliationResult reconciliation =
+                        ProjectInformationSaveReconciler.Compare(request, updated, DateTimeOffset.UtcNow);
+                    state.Project.Cloud.PendingProjectInformation = reconciliation.PendingUpdate;
                     state.LinkCurrentProjectToCloud(
                         updated,
                         account.Current!.ServerUrl,
                         preserveCreation: true,
                         preserveSyncState: true);
-                    state.Project.Cloud.PendingProjectInformation = null;
-                    bool studioMetadataChanged = ApplyStudioFoundationMetadataFromUi();
+                    if (!reconciliation.AcceptedByServer)
+                    {
+                        PendingProjectInformationUpdate pending = reconciliation.PendingUpdate!;
+                        cloudSaveNotice = BuildCanonicalDifferenceNotice(reconciliation.Differences);
+                        ProjectCloudSyncMetadata.MarkConflict(
+                            state.Project,
+                            pending,
+                            state.Project.Cloud.ServerSnapshot.ConcurrencyToken,
+                            cloudSaveNotice);
+                        cloudUpdateQueued = true;
+                    }
+
+                    bool studioMetadataChanged = ApplyStudioFoundationMetadata(draft);
                     if (studioMetadataChanged && state.Project.Foundation.Version <= foundationVersionBefore)
                         state.Project.Foundation.Version = foundationVersionBefore + 1;
                 }
@@ -1784,34 +2060,103 @@ internal sealed partial class ShellView : IDisposable
                     exception.StatusCode is System.Net.HttpStatusCode.NotFound or
                         System.Net.HttpStatusCode.MethodNotAllowed)
                 {
-                    bool changed = FoundationUiDiffersFromProject();
-                    ApplyCanonicalFoundationFromUi();
-                    _ = ApplyStudioFoundationMetadataFromUi();
+                    bool changed = FoundationDraftDiffersFromProject(draft);
+                    ApplyCanonicalFoundation(draft);
+                    _ = ApplyStudioFoundationMetadata(draft);
                     if (changed && state.Project.Foundation.Version <= foundationVersionBefore)
                         state.Project.Foundation.Version = foundationVersionBefore + 1;
-                    state.Project.Cloud.PendingProjectInformation = ToPendingProjectInformation(request);
+                    state.Project.Cloud.PendingProjectInformation =
+                        ProjectInformationSaveReconciler.CreatePendingUpdate(request, DateTimeOffset.UtcNow);
                     state.Project.Cloud.SyncStatus = ProjectSyncStatuses.Pending;
                     state.Project.Cloud.LastSyncError = "";
                     state.Project.Cloud.LastSyncNote =
                         "Төслийн мэдээлэл локал mirror-т хадгалагдсан; Cloud ERA server update хүлээгдэж байна.";
                     cloudUpdateQueued = true;
                 }
+                catch (StudioAccountException exception) when (
+                    exception.StatusCode is System.Net.HttpStatusCode.Conflict or
+                        System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    ApplyCanonicalFoundation(draft);
+                    _ = ApplyStudioFoundationMetadata(draft);
+                    PendingProjectInformationUpdate pending =
+                        ProjectInformationSaveReconciler.CreatePendingUpdate(request, DateTimeOffset.UtcNow);
+                    state.Project.Cloud.PendingProjectInformation = pending;
+                    try
+                    {
+                        StudioCloudProjectDetail latest = await account.GetProjectAsync(
+                            state.Project.Cloud.ServerProjectId);
+                        state.LinkCurrentProjectToCloud(
+                            latest,
+                            account.Current!.ServerUrl,
+                            preserveCreation: true,
+                            preserveSyncState: true);
+                    }
+                    catch (Exception refreshError) when (
+                        refreshError is StudioAccountException or HttpRequestException or TaskCanceledException)
+                    {
+                        state.Project.Cloud.LastSyncNote =
+                            "Conflict илэрсэн боловч server snapshot refresh амжилтгүй: " + refreshError.Message;
+                    }
+
+                    string currentToken = state.Project.Cloud.ServerSnapshot.ConcurrencyToken;
+                    ProjectCloudSyncMetadata.MarkConflict(
+                        state.Project,
+                        pending,
+                        currentToken,
+                        exception.Message);
+                    state.SaveProject();
+                    foundationEditMode = true;
+                    BindFoundationFieldsToUi();
+                    RefreshFoundationEditUi();
+                    RefreshSyncUi();
+                    StudioMessageDialog.Show(
+                        Window.GetWindow(Root),
+                        BuildProjectInformationConflictMessage(pending, state.Project.Cloud.ServerSnapshot),
+                        "Төслийн мэдээллийн зөрчил",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    SetStatus("Cloud conflict: локал засварыг хадгаллаа. Server мэдээллийг харьцуулж дахин засна уу.");
+                    return;
+                }
+                catch (Exception exception) when (
+                    exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+                {
+                    bool changed = FoundationDraftDiffersFromProject(draft);
+                    ApplyCanonicalFoundation(draft);
+                    _ = ApplyStudioFoundationMetadata(draft);
+                    if (changed && state.Project.Foundation.Version <= foundationVersionBefore)
+                        state.Project.Foundation.Version = foundationVersionBefore + 1;
+                    state.Project.Cloud.PendingProjectInformation =
+                        ProjectInformationSaveReconciler.CreatePendingUpdate(request, DateTimeOffset.UtcNow);
+                    ProjectCloudSyncMetadata.MarkError(state.Project, exception.Message);
+                    state.Project.Cloud.LastSyncNote =
+                        "Төслийн мэдээллийн өөрчлөлт локал mirror-т хадгалагдсан бөгөөд Cloud ERA update хүлээгдэж байна.";
+                    cloudUpdateQueued = true;
+                    cloudSaveNotice =
+                        "Өөрчлөлт локал төсөлд хадгалагдлаа. Cloud ERA шинэчлэлт амжилтгүй: " + exception.Message;
+                }
             }
             else
             {
-                bool changed = FoundationUiDiffersFromProject();
-                CollectUiToProject();
+                bool changed = FoundationDraftDiffersFromProject(draft);
+                ApplyFoundationDraft(draft);
                 if (changed)
                     state.Project.Foundation.Version++;
             }
 
             state.SaveProject();
             foundationEditMode = false;
+            pendingClientLogoPath = "";
+            clientLogoRemovalPending = false;
             BindProjectToUi();
+            UpdateAlbum(silent: true, statusPrefix: "Төслийн суурь мэдээлэл шинэчлэгдлээ");
             RefreshProjects();
             RebuildNavigation();
             SelectPage(StudioPage.Foundation);
-            SetStatus(cloudUpdateQueued
+            SetStatus(!string.IsNullOrWhiteSpace(cloudSaveNotice)
+                ? cloudSaveNotice
+                : cloudUpdateQueued
                 ? "Төслийн мэдээлэл хадгалагдлаа. Cloud ERA server update бэлэн болмогц Sync-ээр илгээгдэнэ."
                 : linked
                     ? "Төслийн мэдээлэл Cloud ERA болон локал mirror-т хадгалагдлаа."
@@ -1828,95 +2173,160 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
-    private bool FoundationUiDiffersFromProject()
+    private ProjectFoundationEditDraft CaptureFoundationEditDraft()
+    {
+        string clientType = ProjectClientTypes.Normalize(SelectedClientType);
+        string clientLogoPath = state.Project.Foundation.InitiationBasis
+            .ClientOrganizationSnapshot.LogoPath;
+        string clientLogoOriginalFileName = state.Project.Foundation.InitiationBasis
+            .ClientOrganizationSnapshot.LogoOriginalFileName;
+        if (!ProjectClientTypes.UsesLogo(clientType) || clientLogoRemovalPending)
+        {
+            clientLogoPath = "";
+            clientLogoOriginalFileName = "";
+        }
+        else if (!string.IsNullOrWhiteSpace(pendingClientLogoPath))
+        {
+            clientLogoPath = ProjectDocumentFileStore.StoreInsideProject(
+                state.ProjectPath ?? throw new InvalidOperationException("Project path is missing."),
+                "client-logo",
+                pendingClientLogoPath);
+            clientLogoOriginalFileName = Path.GetFileName(pendingClientLogoPath);
+        }
+
+        return new ProjectFoundationEditDraft(
+            projectNameBox.Text,
+            basisSourceBox.Text,
+            requestNumberBox.Text,
+            clientType,
+            clientNameBox.Text,
+            clientEmailBox.Text,
+            ProjectClientTypes.UsesLogo(clientType) ? clientRepresentativePositionBox.Text : "",
+            ProjectClientTypes.UsesLogo(clientType) ? clientRepresentativeNameBox.Text : "",
+            clientLogoPath,
+            clientLogoOriginalFileName,
+            siteAddressBox.Text,
+            landReferenceBox.Text,
+            basisSourceOrganizationBox.Text,
+            basisSummaryBox.Text,
+            atdNumberBox.Text,
+            atdAuthorityBox.Text,
+            atdStatusBox.Text,
+            atdSummaryBox.Text,
+            atdDocumentDrafts,
+            CaptureConceptDesignApprovalDraft());
+    }
+
+    private bool FoundationDraftDiffersFromProject(ProjectFoundationEditDraft draft)
     {
         ProjectWorkspace project = state.Project;
         ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
         PlanningTaskInformation atd = project.Foundation.PlanningTask;
-        return !string.Equals(project.Identity.Name, projectNameBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.SourceType, basisSourceBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.RequestNumber, requestNumberBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.ClientName, clientNameBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.ClientEmail, clientEmailBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.SiteAddress, siteAddressBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.LandReference, landReferenceBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.SourceOrganizationName, basisSourceOrganizationBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.Summary, basisSummaryBox.Text, StringComparison.Ordinal) ||
-            !string.Equals(atd.AtdNumber, atdNumberBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(atd.IssuingAuthorityName, atdAuthorityBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(atd.Status, atdStatusBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(atd.Summary, atdSummaryBox.Text, StringComparison.Ordinal);
+        return !string.Equals(project.Identity.Name, draft.Name, StringComparison.Ordinal) ||
+            !string.Equals(basis.SourceType, draft.BasisSourceType, StringComparison.Ordinal) ||
+            !string.Equals(basis.RequestNumber, draft.RequestNumber, StringComparison.Ordinal) ||
+            !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientName, draft.ClientName, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientEmail, draft.ClientEmail, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientRepresentativePosition, draft.ClientRepresentativePosition, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientRepresentativeName, draft.ClientRepresentativeName, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientOrganizationSnapshot.LogoPath, draft.ClientLogoPath, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientOrganizationSnapshot.LogoOriginalFileName, draft.ClientLogoOriginalFileName, StringComparison.Ordinal) ||
+            !string.Equals(basis.SiteAddress, draft.SiteAddress, StringComparison.Ordinal) ||
+            !string.Equals(basis.LandReference, draft.LandReference, StringComparison.Ordinal) ||
+            !string.Equals(basis.SourceOrganizationName, draft.SourceOrganizationName, StringComparison.Ordinal) ||
+            !string.Equals(basis.Summary, draft.BasisSummary, StringComparison.Ordinal) ||
+            !string.Equals(atd.AtdNumber, draft.AtdNumber, StringComparison.Ordinal) ||
+            !string.Equals(atd.IssuingAuthorityName, draft.AtdAuthorityName, StringComparison.Ordinal) ||
+            !string.Equals(atd.Status, draft.AtdStatus, StringComparison.Ordinal) ||
+            !string.Equals(atd.Summary, draft.AtdSummary, StringComparison.Ordinal) ||
+            AtdDocumentDraftsDifferFromProject(draft.AtdDocuments) ||
+            ConceptApprovalDiffers(project.Foundation.ApprovalWorkflow, draft.ConceptDesignApproval);
     }
 
-    private bool ApplyStudioFoundationMetadataFromUi()
+    private bool ApplyStudioFoundationMetadata(ProjectFoundationEditDraft draft)
     {
         ProjectInitiationBasis basis = state.Project.Foundation.InitiationBasis;
         PlanningTaskInformation atd = state.Project.Foundation.PlanningTask;
         bool changed =
-            !string.Equals(basis.SourceType, basisSourceBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.RequestNumber, requestNumberBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.ClientEmail, clientEmailBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(basis.SourceOrganizationName, basisSourceOrganizationBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(atd.AtdNumber, atdNumberBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(atd.Status, atdStatusBox.Text.Trim(), StringComparison.Ordinal) ||
-            !string.Equals(atd.Summary, atdSummaryBox.Text, StringComparison.Ordinal);
+            !string.Equals(basis.SourceType, draft.BasisSourceType, StringComparison.Ordinal) ||
+            !string.Equals(basis.RequestNumber, draft.RequestNumber, StringComparison.Ordinal) ||
+            !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientEmail, draft.ClientEmail, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientRepresentativePosition, draft.ClientRepresentativePosition, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientRepresentativeName, draft.ClientRepresentativeName, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientOrganizationSnapshot.LogoPath, draft.ClientLogoPath, StringComparison.Ordinal) ||
+            !string.Equals(basis.ClientOrganizationSnapshot.LogoOriginalFileName, draft.ClientLogoOriginalFileName, StringComparison.Ordinal) ||
+            !string.Equals(basis.SourceOrganizationName, draft.SourceOrganizationName, StringComparison.Ordinal) ||
+            !string.Equals(atd.AtdNumber, draft.AtdNumber, StringComparison.Ordinal) ||
+            !string.Equals(atd.Status, draft.AtdStatus, StringComparison.Ordinal) ||
+            !string.Equals(atd.Summary, draft.AtdSummary, StringComparison.Ordinal) ||
+            AtdDocumentDraftsDifferFromProject(draft.AtdDocuments) ||
+            ConceptApprovalDiffers(state.Project.Foundation.ApprovalWorkflow, draft.ConceptDesignApproval);
 
-        basis.SourceType = basisSourceBox.Text.Trim();
-        basis.RequestNumber = requestNumberBox.Text.Trim();
-        basis.ClientEmail = clientEmailBox.Text.Trim();
-        basis.SourceOrganizationName = basisSourceOrganizationBox.Text.Trim();
-        atd.AtdNumber = atdNumberBox.Text.Trim();
-        atd.Status = atdStatusBox.Text.Trim();
-        atd.Summary = atdSummaryBox.Text;
+        basis.SourceType = draft.BasisSourceType;
+        basis.RequestNumber = draft.RequestNumber;
+        basis.ClientType = draft.ClientType;
+        basis.ClientEmail = draft.ClientEmail;
+        basis.ClientRepresentativePosition = draft.ClientRepresentativePosition;
+        basis.ClientRepresentativeName = draft.ClientRepresentativeName;
+        basis.SourceOrganizationName = draft.SourceOrganizationName;
+        basis.ClientOrganizationSnapshot.Name = draft.ClientName;
+        basis.ClientOrganizationSnapshot.DisplayName = draft.ClientName;
+        basis.ClientOrganizationSnapshot.OrganizationType = draft.ClientType switch
+        {
+            ProjectClientTypes.GovernmentAuthority => "GovernmentAuthority",
+            ProjectClientTypes.Organization => "ClientOrganization",
+            _ => "Citizen",
+        };
+        basis.ClientOrganizationSnapshot.LogoPath = draft.ClientLogoPath;
+        basis.ClientOrganizationSnapshot.LogoOriginalFileName = draft.ClientLogoOriginalFileName;
+        atd.AtdNumber = draft.AtdNumber;
+        atd.Status = draft.AtdStatus;
+        atd.Summary = draft.AtdSummary;
+        ApplyAtdDocumentDrafts(draft.AtdDocuments);
+        ApplyConceptApprovalDraft(draft.ConceptDesignApproval);
         return changed;
     }
 
-    private StudioCloudProjectInformationUpdateRequest CreateCloudProjectInformationRequest() => new()
-    {
-        Name = projectNameBox.Text.Trim(),
-        ClientName = clientNameBox.Text.Trim(),
-        PlanningAuthorityName = atdAuthorityBox.Text.Trim(),
-        DesignOrganizationName = state.Project.DesignOrganizationName,
-        Location = siteAddressBox.Text.Trim(),
-        BuildingPurpose = basisSummaryBox.Text.Trim(),
-        CapacityUnit = state.Project.Cloud.ServerSnapshot.Information.CapacityUnit,
-    };
-
-    private void ApplyCanonicalFoundationFromUi()
+    private void ApplyCanonicalFoundation(ProjectFoundationEditDraft draft)
     {
         ProjectInitiationBasis basis = state.Project.Foundation.InitiationBasis;
-        state.Project.Identity.Name = projectNameBox.Text.Trim();
-        state.Project.Identity.Description = basisSummaryBox.Text.Trim();
-        basis.ClientName = clientNameBox.Text.Trim();
-        basis.SiteAddress = siteAddressBox.Text.Trim();
-        basis.Summary = basisSummaryBox.Text;
-        state.Project.Foundation.PlanningTask.IssuingAuthorityName = atdAuthorityBox.Text.Trim();
+        state.Project.Identity.Name = draft.Name;
+        state.Project.Identity.Description = draft.BasisSummary.Trim();
+        basis.ClientName = draft.ClientName;
+        basis.SiteAddress = draft.SiteAddress;
+        basis.Summary = draft.BasisSummary;
+        state.Project.Foundation.PlanningTask.IssuingAuthorityName = draft.AtdAuthorityName;
     }
 
-    private static PendingProjectInformationUpdate ToPendingProjectInformation(
-        StudioCloudProjectInformationUpdateRequest request) => new()
+    private void ApplyFoundationDraft(ProjectFoundationEditDraft draft)
     {
-        Name = request.Name,
-        ClientName = request.ClientName,
-        PlanningAuthorityName = request.PlanningAuthorityName,
-        DesignOrganizationName = request.DesignOrganizationName,
-        Location = request.Location,
-        BuildingPurpose = request.BuildingPurpose,
-        CapacityUnit = request.CapacityUnit,
-        QueuedAtUtc = DateTimeOffset.UtcNow,
-    };
+        ApplyCanonicalFoundation(draft);
+        state.Project.Foundation.InitiationBasis.LandReference = draft.LandReference;
+        _ = ApplyStudioFoundationMetadata(draft);
+    }
 
     private static StudioCloudProjectInformationUpdateRequest ToCloudProjectInformationRequest(
-        PendingProjectInformationUpdate pending) => new()
+        PendingProjectInformationUpdate pending) => ProjectInformationSaveReconciler.CreateRequest(pending);
+
+    private static string BuildCanonicalDifferenceNotice(IReadOnlyList<string> differences)
     {
-        Name = pending.Name,
-        ClientName = pending.ClientName,
-        PlanningAuthorityName = pending.PlanningAuthorityName,
-        DesignOrganizationName = pending.DesignOrganizationName,
-        Location = pending.Location,
-        BuildingPurpose = pending.BuildingPurpose,
-        CapacityUnit = pending.CapacityUnit,
-    };
+        string[] labels = differences.Select(field => field switch
+        {
+            "Name" => "төслийн нэр",
+            "ClientName" => "захиалагч",
+            "PlanningAuthorityName" => "АТД олгосон байгууллага",
+            "DesignOrganizationName" => "зураг төслийн байгууллага",
+            "Location" => "төслийн хаяг",
+            "BuildingPurpose" => "товч мэдээлэл",
+            "CapacityUnit" => "хүчин чадлын нэгж",
+            _ => field,
+        }).ToArray();
+
+        return "Өөрчлөлт локал төсөлд хадгалагдлаа. Cloud ERA эрх болон эх сурвалжийн " +
+            $"дүрмээр дараах мэдээллийг баталгаажуулаагүй: {string.Join(", ", labels)}.";
+    }
 
     private void SaveProject()
     {
@@ -1978,7 +2388,11 @@ internal sealed partial class ShellView : IDisposable
         string outputPath = Path.Combine(outputFolder, $"{SafeFileName(state.Album.Title)}.pdf");
         AlbumBuildResult result = state.Builder.Build(state.CreateAlbumBuildProject(), state.Library, outputPath);
         lastAlbumPath = result.OutputPath;
-        state.RecordBuiltAlbum(result.OutputPath, result.PageCount, "Studio generated album");
+        state.RecordBuiltAlbum(
+            result.OutputPath,
+            result.PageCount,
+            "Studio generated album",
+            account.Current?.Email ?? Environment.UserName);
         state.SaveProject();
         if (activePage == StudioPage.Albums)
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
@@ -1990,6 +2404,11 @@ internal sealed partial class ShellView : IDisposable
     {
         if (!state.HasOpenProject || syncInProgress)
             return;
+        if (!CanEditProjectContent())
+        {
+            SetStatus("Таны project role source package болон album publish хийх эрхгүй байна.");
+            return;
+        }
         if (!await EnsureSignedInAsync())
             return;
 
@@ -2017,14 +2436,25 @@ internal sealed partial class ShellView : IDisposable
 
             string projectId = cloud.ServerProjectId;
             PendingProjectInformationUpdate? pendingInformation = cloud.PendingProjectInformation;
+            ProjectInformationReconciliationResult? informationReconciliation = null;
+            string projectInformationNotice = "";
             StudioCloudProjectDetail canonical;
             if (pendingInformation is not null)
             {
                 SetStatus("Хүлээгдэж буй төслийн мэдээллийг Cloud ERA руу илгээж байна...");
+                StudioCloudProjectInformationUpdateRequest informationRequest =
+                    ToCloudProjectInformationRequest(pendingInformation);
                 canonical = await account.UpdateProjectInformationAsync(
                     projectId,
-                    ToCloudProjectInformationRequest(pendingInformation));
-                cloud.PendingProjectInformation = null;
+                    informationRequest,
+                    await EnsureProjectConcurrencyTokenAsync(projectId));
+                informationReconciliation = ProjectInformationSaveReconciler.Compare(
+                    informationRequest,
+                    canonical,
+                    pendingInformation.QueuedAtUtc);
+                cloud.PendingProjectInformation = informationReconciliation.PendingUpdate;
+                if (!informationReconciliation.AcceptedByServer)
+                    projectInformationNotice = BuildCanonicalDifferenceNotice(informationReconciliation.Differences);
             }
             else
             {
@@ -2036,7 +2466,6 @@ internal sealed partial class ShellView : IDisposable
                 account.Current!.ServerUrl,
                 preserveCreation: true,
                 preserveSyncState: true);
-            state.Project.Cloud.PendingProjectInformation = null;
             await ApplyCloudProjectRenderProfileAsync(canonical);
             cloud = state.Project.Cloud;
             cloud.SyncStatus = ProjectSyncStatuses.Syncing;
@@ -2048,7 +2477,9 @@ internal sealed partial class ShellView : IDisposable
                 ProjectCloudSyncMetadata.PendingSourcePackages(state.Project);
             foreach (ProjectSourceSyncCandidate source in sourcePackages)
             {
-                await account.RegisterSourcePackageAsync(projectId, new StudioCloudSourcePackageCreateRequest
+                StudioCloudSourcePackage acknowledgement = await account.RegisterSourcePackageAsync(
+                    projectId,
+                    new StudioCloudSourcePackageCreateRequest
                 {
                     SourceKey = source.SourceKey,
                     SourceApplication = source.SourceApplication,
@@ -2060,6 +2491,11 @@ internal sealed partial class ShellView : IDisposable
                     SheetCount = source.SheetCount,
                     ContentHash = source.ContentHash,
                 });
+                ProjectCloudSyncMetadata.ValidateSourceAcknowledgement(
+                    source.ManifestId,
+                    source.ContentHash,
+                    acknowledgement.ManifestId,
+                    acknowledgement.ContentHash);
                 ProjectCloudSyncMetadata.MarkSourceSynced(source);
             }
 
@@ -2125,7 +2561,11 @@ internal sealed partial class ShellView : IDisposable
                             build.PageCount,
                             state.Project.PrimaryAlbum.LastPageSizeSummary);
                     }
-                    syncedAlbumHash = localHash;
+                    ProjectCloudSyncMetadata.ValidateAlbumAcknowledgement(
+                        localHash,
+                        syncedRevision.PdfSha256,
+                        syncedRevision.RevisionId);
+                    syncedAlbumHash = syncedRevision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = syncedRevision.RevisionId;
                     syncNote = localSources.Count == 0
                         ? $"Studio-ийн автомат {build.PageCount} хуудастай album R{syncedRevision.RevisionNumber} sync хийгдлээ."
@@ -2143,10 +2583,54 @@ internal sealed partial class ShellView : IDisposable
                 latest.Project.ConcurrencyToken,
                 DateTimeOffset.UtcNow,
                 syncNote);
+            if (informationReconciliation is { AcceptedByServer: false, PendingUpdate: not null })
+            {
+                ProjectCloudSyncMetadata.MarkConflict(
+                    state.Project,
+                    informationReconciliation.PendingUpdate,
+                    latest.Project.ConcurrencyToken,
+                    projectInformationNotice);
+            }
             state.SaveProject();
             BindProjectToUi();
             await RefreshProjectsAsync();
+            if (!string.IsNullOrWhiteSpace(projectInformationNotice))
+            {
+                SetStatus(projectInformationNotice);
+                return;
+            }
             SetStatus($"Sync дууслаа: {sourcePackages.Count} source package. {syncNote}");
+        }
+        catch (StudioAccountException exception) when (
+            exception.StatusCode is System.Net.HttpStatusCode.Conflict or
+                System.Net.HttpStatusCode.PreconditionFailed)
+        {
+            PendingProjectInformationUpdate pending = state.Project.Cloud.PendingProjectInformation
+                ?? new PendingProjectInformationUpdate { QueuedAtUtc = DateTimeOffset.UtcNow };
+            try
+            {
+                StudioCloudProjectDetail latest = await account.GetProjectAsync(state.Project.Cloud.ServerProjectId);
+                state.LinkCurrentProjectToCloud(
+                    latest,
+                    account.Current!.ServerUrl,
+                    preserveCreation: true,
+                    preserveSyncState: true);
+            }
+            catch (Exception refreshError) when (
+                refreshError is StudioAccountException or HttpRequestException or TaskCanceledException)
+            {
+                state.Project.Cloud.LastSyncNote =
+                    "Conflict илэрсэн боловч server snapshot refresh амжилтгүй: " + refreshError.Message;
+            }
+
+            ProjectCloudSyncMetadata.MarkConflict(
+                state.Project,
+                pending,
+                state.Project.Cloud.ServerSnapshot.ConcurrencyToken,
+                exception.Message);
+            state.SaveProject();
+            RefreshCloudLinkText();
+            SetStatus("Sync зогслоо: server төсөл өөрчлөгдсөн. Локал засвар хадгалагдсан, Refresh хийж шийдвэрлэнэ үү.");
         }
         catch (Exception exception)
         {
@@ -2188,6 +2672,39 @@ internal sealed partial class ShellView : IDisposable
             server.RegisteredBy.Equals(currentAccount, StringComparison.OrdinalIgnoreCase);
     }
 
+    private async Task<string> EnsureProjectConcurrencyTokenAsync(string projectId)
+    {
+        string token = state.Project.Cloud.ServerSnapshot.ConcurrencyToken?.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(token))
+            return token;
+
+        StudioCloudProjectDetail canonical = await account.GetProjectAsync(projectId);
+        state.LinkCurrentProjectToCloud(
+            canonical,
+            account.Current!.ServerUrl,
+            preserveCreation: true,
+            preserveSyncState: true);
+        token = state.Project.Cloud.ServerSnapshot.ConcurrencyToken?.Trim() ?? "";
+        return !string.IsNullOrWhiteSpace(token)
+            ? token
+            : throw new StudioAccountException(
+                "Cloud ERA server concurrency token буцаасангүй. Төслийн мэдээллийг өөрчлөхгүй.");
+    }
+
+    private static string BuildProjectInformationConflictMessage(
+        PendingProjectInformationUpdate local,
+        ProjectServerSnapshot server)
+    {
+        return
+            "Энэ төслийг өөр хэрэглэгч эсвэл өөр төхөөрөмж дээр шинэчилсэн байна. " +
+            "Studio server мэдээллийг дарж бичээгүй, таны локал засварыг хадгалсан.\n\n" +
+            $"ЛОКАЛ\nНэр: {local.Name}\nХаяг: {local.Location}\nЗориулалт: {local.BuildingPurpose}\n\n" +
+            $"SERVER\nНэр: {server.Name}\nХаяг: {server.Information.Location}\n" +
+            $"Зориулалт: {server.Information.BuildingPurpose}\n\n" +
+            "Засварлах төлөв нээлттэй үлдсэн. Server хувилбарыг ашиглах бол Болих, " +
+            "локал өөрчлөлтөө дахин илгээх бол мэдээллээ шалгаад Хадгалах дарна уу.";
+    }
+
     private void RefreshSyncUi()
     {
         if (!state.HasOpenProject)
@@ -2226,6 +2743,7 @@ internal sealed partial class ShellView : IDisposable
         syncSummaryText.Foreground = cloud.SyncStatus switch
         {
             ProjectSyncStatuses.Error => StudioTheme.DangerBrush,
+            ProjectSyncStatuses.Conflict => StudioTheme.DangerBrush,
             ProjectSyncStatuses.Pending => StudioTheme.WarningBrush,
             ProjectSyncStatuses.Synced => StudioTheme.SuccessBrush,
             _ => StudioTheme.MutedTextBrush,
@@ -2247,6 +2765,16 @@ internal sealed partial class ShellView : IDisposable
         {
             return;
         }
+
+        if (!string.Equals(
+                boundAlbumProjectId,
+                state.Project.ProjectId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            ResetAlbumPreviewForProjectChange();
+            boundAlbumProjectId = state.Project.ProjectId;
+        }
+        lastAlbumPath = ResolveCurrentProjectAlbumPath();
         foundationEditMode = false;
         var project = state.Project;
         var assignment = project.Foundation.DesignCompany;
@@ -2257,7 +2785,13 @@ internal sealed partial class ShellView : IDisposable
 
         var atd = project.Foundation.PlanningTask;
         atdParticipantsList.ItemsSource = atd.AuthorityMembers
-            .Select(member => new MemberRow(member.FullName, string.Join(", ", member.Roles), member.Email))
+            .Select(member => new MemberRow(
+                MongolianPersonNameFormatter.ForDisplay(
+                    member.FamilyName,
+                    member.GivenName,
+                    member.FullName),
+                string.Join(", ", member.Roles),
+                member.Email))
             .ToList();
 
         companyDisplayNameBox.Text = CompanyDisplayName(company);
@@ -2305,6 +2839,26 @@ internal sealed partial class ShellView : IDisposable
         RefreshSyncUi();
     }
 
+    private string? ResolveCurrentProjectAlbumPath()
+    {
+        if (!state.HasOpenProject || string.IsNullOrWhiteSpace(state.ProjectPath) ||
+            string.IsNullOrWhiteSpace(state.Project.PrimaryAlbum.LastPdfPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ProjectWorkspacePaths.ResolveInsideProject(
+                state.ProjectPath,
+                state.Project.PrimaryAlbum.LastPdfPath);
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
     private void BindFoundationFieldsToUi()
     {
         if (!state.HasOpenProject)
@@ -2317,8 +2871,14 @@ internal sealed partial class ShellView : IDisposable
         projectCodeBox.Text = project.Code;
         basisSourceBox.Text = basis.SourceType;
         requestNumberBox.Text = basis.RequestNumber;
+        SelectClientType(basis.ClientType);
         clientNameBox.Text = basis.ClientName;
         clientEmailBox.Text = basis.ClientEmail;
+        clientRepresentativePositionBox.Text = basis.ClientRepresentativePosition;
+        clientRepresentativeNameBox.Text = basis.ClientRepresentativeName;
+        pendingClientLogoPath = "";
+        clientLogoRemovalPending = false;
+        RefreshClientLogoEditor();
         siteAddressBox.Text = basis.SiteAddress;
         landReferenceBox.Text = basis.LandReference;
         basisSourceOrganizationBox.Text = basis.SourceOrganizationName;
@@ -2327,6 +2887,8 @@ internal sealed partial class ShellView : IDisposable
         atdAuthorityBox.Text = atd.IssuingAuthorityName;
         atdStatusBox.Text = atd.Status;
         atdSummaryBox.Text = atd.Summary;
+        BindAtdDocumentsFromProject();
+        BindConceptApprovalEditor();
     }
 
     private void CollectUiToProject()
@@ -2338,8 +2900,17 @@ internal sealed partial class ShellView : IDisposable
         var basis = project.Foundation.InitiationBasis;
         basis.SourceType = basisSourceBox.Text.Trim();
         basis.RequestNumber = requestNumberBox.Text.Trim();
+        basis.ClientType = ProjectClientTypes.Normalize(SelectedClientType);
         basis.ClientName = clientNameBox.Text.Trim();
         basis.ClientEmail = clientEmailBox.Text.Trim();
+        basis.ClientRepresentativePosition = ProjectClientTypes.UsesLogo(basis.ClientType)
+            ? clientRepresentativePositionBox.Text.Trim()
+            : "";
+        basis.ClientRepresentativeName = ProjectClientTypes.UsesLogo(basis.ClientType)
+            ? clientRepresentativeNameBox.Text.Trim()
+            : "";
+        basis.ClientOrganizationSnapshot.Name = basis.ClientName;
+        basis.ClientOrganizationSnapshot.DisplayName = basis.ClientName;
         basis.SiteAddress = siteAddressBox.Text.Trim();
         basis.LandReference = landReferenceBox.Text.Trim();
         basis.SourceOrganizationName = basisSourceOrganizationBox.Text.Trim();
@@ -2350,6 +2921,7 @@ internal sealed partial class ShellView : IDisposable
         atd.IssuingAuthorityName = atdAuthorityBox.Text.Trim();
         atd.Status = atdStatusBox.Text.Trim();
         atd.Summary = atdSummaryBox.Text;
+        ApplyAtdDocumentDrafts();
 
         state.Album.Title = string.IsNullOrWhiteSpace(albumTitleBox.Text)
             ? "Барилга архитектурын загвар зургийн альбум"
@@ -2404,6 +2976,11 @@ internal sealed partial class ShellView : IDisposable
         landReferenceBox.ToolTip = linked
             ? "Газрын мэдээлэл Cloud ERA дахь эрх бүхий эх сурвалжаас шинэчлэгдэнэ."
             : null;
+        atdAddDocumentsButton.IsEnabled = fieldsEditable;
+        atdRemoveDocumentButton.IsEnabled = fieldsEditable && atdDocumentsList.SelectedItem is not null;
+        clientTypeBox.IsEnabled = fieldsEditable;
+        RefreshClientLogoEditor();
+        RefreshConceptApprovalEditorUi();
     }
 
     private void RefreshCloudLinkText()
@@ -2419,7 +2996,8 @@ internal sealed partial class ShellView : IDisposable
 
     private void RefreshParticipantsList()
     {
-        participantsList.ItemsSource = ActiveProjectMemberRows();
+        BindParticipantRows(ActiveProjectMemberRows());
+        RefreshProjectArchitectUi();
         RefreshTeamActionUi();
         _ = RefreshProjectTeamAsync();
     }
@@ -2461,11 +3039,16 @@ internal sealed partial class ShellView : IDisposable
         string buildingPurpose = project.Cloud.PendingProjectInformation?.BuildingPurpose
             ?? canonical.BuildingPurpose;
         string scale = CanonicalScaleSummary(canonical);
+        ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
+        string clientPersonName = ProjectClientTypes.ResolveCoverPersonName(
+            basis.ClientType,
+            basis.ClientName,
+            basis.ClientRepresentativeName);
         projectOverviewText.Text =
             $"{project.Code}\n{project.Name}\n\n" +
             $"Үе шат: {project.Identity.StageName}\n" +
             $"Үүсгэсэн тал: {ProjectCreatorLabel(project.Creation.InitiatorType, project.Creation.InitiatorOrganizationName)}\n" +
-            $"Захиалагч: {ValueOrDash(project.Foundation.InitiationBasis.ClientName)}\n" +
+            $"Захиалагч: {ValueOrDash(clientPersonName)}\n" +
             $"Байршил: {ValueOrDash(project.Foundation.InitiationBasis.SiteAddress)}\n" +
             $"Зориулалт: {ValueOrDash(buildingPurpose)}\n" +
             (string.IsNullOrWhiteSpace(scale) ? "" : $"Үндсэн үзүүлэлт: {scale}\n") +
@@ -2496,6 +3079,22 @@ internal sealed partial class ShellView : IDisposable
         if (information.FloorsBelowGround is int belowGround)
             values.Add($"зоорь {belowGround}");
         return string.Join(" · ", values);
+    }
+
+    private void OnAssetSourcesChanged()
+    {
+        if (!state.HasOpenProject)
+            return;
+        if (autoRebuildCheck.IsChecked == true)
+        {
+            SetStatus("Холбосон PDF/зураг өөрчлөгдлөө. Альбумыг шинэчилж байна...");
+            autoRebuildTimer.Stop();
+            autoRebuildTimer.Start();
+        }
+        else
+        {
+            SetStatus("Холбосон PDF/зураг өөрчлөгдсөн байна. Альбумын 'Шинэчлэлт шалгах' үйлдлийг ажиллуулна уу.");
+        }
     }
 
     private void OnLibraryChanged()
@@ -2534,7 +3133,7 @@ internal sealed partial class ShellView : IDisposable
         }
         if (!result.IsLossless)
         {
-            SetStatus($"Багцын алдаа: {Path.GetFileName(result.ManifestPath)} - {string.Join("; ", result.Issues.Take(2))}");
+            SetStatus($"Rejected package: {Path.GetFileName(result.ManifestPath)} - {string.Join("; ", result.Issues.Take(2))}");
         }
         else if (result.Manifest!.PackageScope == SheetPackageScope.FullSnapshot)
         {
@@ -2575,6 +3174,11 @@ internal sealed partial class ShellView : IDisposable
     }
 
     private static string ValueOrDash(string value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string FirstNonEmpty(string? primary, string? fallback) =>
+        !string.IsNullOrWhiteSpace(primary)
+            ? primary.Trim()
+            : fallback?.Trim() ?? "";
 
     private static string ProjectCreatorLabel(string initiatorType, string organization)
     {
@@ -2666,13 +3270,19 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
+    private sealed record ClientTypeOption(string Label, string Value)
+    {
+        public override string ToString() => Label;
+    }
+
     private sealed record MemberRow(
         string Name,
         string Roles,
         string Email,
         string Identifier = "",
         string Status = "Идэвхтэй",
-        bool IsInvitation = false);
+        bool IsInvitation = false,
+        string[]? RoleCodes = null);
     private sealed record ReportRow(string Type, string Title, string Status, int Version);
     private sealed record ArchiveRow(string Type, string Title, string Status, string ArchivedAt);
 }

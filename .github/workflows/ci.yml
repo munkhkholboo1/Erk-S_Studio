@@ -1,0 +1,156 @@
+name: Studio CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  studio-ci:
+    name: studio-ci
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore src/ErkS.Studio.slnx
+
+      - name: Verify generated Cloud ERA client
+        shell: pwsh
+        run: src/scripts/Test-CloudEraGeneratedClient.ps1
+
+      - name: Build Release
+        run: dotnet build src/ErkS.Studio.slnx -c Release --no-restore
+
+      - name: Unit and integration tests with coverage
+        run: >-
+          dotnet test src/tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj
+          -c Release --no-build --no-restore
+          --collect:"XPlat Code Coverage"
+          --results-directory artifacts/test-results
+          --logger "trx;LogFileName=all-tests.trx"
+
+      - name: Studio service boundary tests
+        run: >-
+          dotnet test src/tests/ErkS.Studio.App.Tests/ErkS.Studio.App.Tests.csproj
+          -c Release --no-build --no-restore
+          --results-directory artifacts/app-tests
+          --logger "trx;LogFileName=studio-app-tests.trx"
+
+      - name: Security regression tests
+        run: >-
+          dotnet test src/tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj
+          -c Release --no-build --no-restore
+          --filter "FullyQualifiedName~SheetPackageSecurityTests|FullyQualifiedName~AlbumBuildIntegrityTests|FullyQualifiedName~UpdatePackageSecurityTests"
+          --results-directory artifacts/security-tests
+          --logger "trx;LogFileName=security-tests.trx"
+
+      - name: Vector PDF golden tests
+        run: >-
+          dotnet test src/tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj
+          -c Release --no-build --no-restore
+          --filter "FullyQualifiedName~PdfVectorPipelineTests"
+          --results-directory artifacts/pdf-tests
+          --logger "trx;LogFileName=pdf-golden-tests.trx"
+
+      - name: Enforce security branch coverage
+        shell: pwsh
+        run: |
+          $coverage = Get-ChildItem artifacts/test-results -Filter coverage.cobertura.xml -Recurse |
+            Select-Object -First 1
+          if (-not $coverage) { throw "Coverage report was not generated." }
+          [xml]$report = Get-Content -LiteralPath $coverage.FullName -Raw
+          $required = @(
+            "ErkS.Platform.Contracts.SheetPackagePathSecurity",
+            "ErkS.Platform.Contracts.SheetPackageReader",
+            "ErkS.Platform.Core.UpdatePackageSecurityPolicy"
+          )
+          foreach ($name in $required) {
+            $class = $report.coverage.packages.package.classes.class |
+              Where-Object { $_.name -eq $name } |
+              Select-Object -First 1
+            if (-not $class) { throw "Coverage class '$name' was not found." }
+            $rate = [double]$class.'branch-rate'
+            Write-Host "$name branch coverage: $([math]::Round($rate * 100, 2))%"
+            if ($rate -lt 0.90) { throw "$name branch coverage is below 90%." }
+          }
+
+      - name: WPF product publish smoke
+        run: >-
+          dotnet publish src/src/ErkS.Studio/ErkS.Studio.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:StudioProductBuild=true
+          -p:StudioReleaseVersion=0.0.0.1
+          -p:StudioReleaseLabel="CI Smoke"
+          -o artifacts/wpf-publish
+
+      - name: Validate product payload
+        shell: pwsh
+        run: |
+          $root = Resolve-Path artifacts/wpf-publish
+          $exe = Join-Path $root "ErkS.Studio.exe"
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            throw "WPF publish did not produce ErkS.Studio.exe."
+          }
+          $forbidden = Get-ChildItem -LiteralPath $root -File -Recurse | Where-Object {
+            $_.Name -like "*.devroot" -or
+            $_.Name -like "*.static" -or
+            $_.Extension -in ".erksproject", ".erksalbum", ".rvt", ".dwg"
+          }
+          if ($forbidden) {
+            throw "Product payload contains forbidden files: $($forbidden.FullName -join ', ')"
+          }
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 256 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) {
+            throw "Published application is not a valid Windows executable."
+          }
+
+      - name: Validate signed-release gate syntax
+        shell: pwsh
+        run: |
+          $script = Resolve-Path src/scripts/Publish-Studio-Demo.ps1
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            $script,
+            [ref]$tokens,
+            [ref]$errors)
+          if ($errors.Count) { throw ($errors | Out-String) }
+          $text = Get-Content -LiteralPath $script -Raw
+          foreach ($required in "/fd", "SHA256", "/tr", "Get-AuthenticodeSignature", "ExpectedPublisher") {
+            if (-not $text.Contains($required, [StringComparison]::Ordinal)) {
+              throw "Release signing gate is missing '$required'."
+            }
+          }
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-ci-reports-${{ github.run_id }}
+          path: |
+            artifacts/test-results
+            artifacts/app-tests
+            artifacts/security-tests
+            artifacts/pdf-tests
+          if-no-files-found: warn
+          retention-days: 14

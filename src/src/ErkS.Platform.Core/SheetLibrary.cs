@@ -51,6 +51,8 @@ public sealed class SheetLibraryChange
     public Guid PackageId { get; init; }
     public int UpdatedSheetCount { get; init; }
     public IReadOnlyList<string> RemovedSheetKeys { get; init; } = [];
+    public IReadOnlyList<string> Issues { get; init; } = [];
+    public bool Rejected { get; init; }
     public bool FullSnapshotApplied { get; init; }
     public bool StaleSnapshotIgnored { get; init; }
     public bool HasChanges => UpdatedSheetCount > 0 || RemovedSheetKeys.Count > 0 || FullSnapshotApplied;
@@ -88,11 +90,38 @@ public sealed class SheetLibrary
         }
     }
 
+    public IReadOnlyList<SheetRecord> VerifiedSnapshot()
+    {
+        lock (sync)
+        {
+            return sheets.Values
+                .Where(record => record.IsVerified)
+                .OrderBy(record => record.Source.Application)
+                .ThenBy(record => record.Entry.Discipline, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(record => record.Entry.Number, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    public SheetRecord? FindVerified(string key)
+    {
+        lock (sync)
+        {
+            var record = sheets.GetValueOrDefault(key);
+            return record?.IsVerified == true ? record : null;
+        }
+    }
+
     public SheetLibraryChange Absorb(SheetPackageLoadResult loadResult, string? sourceIdOverride = null)
     {
-        if (loadResult.Manifest is null)
+        if (!loadResult.IsLossless || loadResult.Manifest is null)
         {
-            return new SheetLibraryChange();
+            return new SheetLibraryChange
+            {
+                PackageId = loadResult.Manifest?.PackageId ?? Guid.Empty,
+                Rejected = true,
+                Issues = loadResult.Issues.ToList(),
+            };
         }
 
         var manifest = loadResult.Manifest;
@@ -100,7 +129,20 @@ public sealed class SheetLibrary
             ? manifest.Source.SourceId
             : sourceIdOverride;
         var sourceIdentity = SheetRecord.MakeSourceIdentity(manifest.Source, sourceId);
-        var directory = Path.GetDirectoryName(loadResult.ManifestPath) ?? "";
+        var verifiedPaths = new Dictionary<SheetPackageEntry, string>(ReferenceEqualityComparer.Instance);
+        foreach (var entry in manifest.Sheets)
+        {
+            if (!loadResult.TryGetVerifiedPdfPath(entry, out var verifiedPath))
+            {
+                return new SheetLibraryChange
+                {
+                    PackageId = manifest.PackageId,
+                    Rejected = true,
+                    Issues = ["Verified PDF path is unavailable."],
+                };
+            }
+            verifiedPaths[entry] = verifiedPath;
+        }
         var incomingKeys = manifest.Sheets
             .Select(entry => SheetRecord.MakeKey(manifest.Source, entry, sourceId))
             .ToHashSet(StringComparer.Ordinal);
@@ -163,9 +205,9 @@ public sealed class SheetLibrary
                     Source = manifest.Source,
                     PackageId = manifest.PackageId,
                     ManifestPath = loadResult.ManifestPath,
-                    PdfPath = Path.Combine(directory, entry.PdfFileName),
+                    PdfPath = verifiedPaths[entry],
                     ExportedAtUtc = manifest.ExportedAtUtc,
-                    IsVerified = loadResult.IsLossless,
+                    IsVerified = true,
                 };
 
                 // Latest export wins; ignore stale packages arriving late.

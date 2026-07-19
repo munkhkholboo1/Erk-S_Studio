@@ -38,6 +38,9 @@ public sealed class ProjectWorkspace
     /// </summary>
     public List<ProjectDesignSource> Sources { get; set; } = [];
 
+    /// <summary>Studio-owned raster source for automatically composed visualization pages.</summary>
+    public ProjectVisualizationSource Visualizations { get; set; } = new();
+
     public ProjectDeliverables Deliverables { get; set; } = new();
 
     public ProjectArchive Archive { get; set; } = new();
@@ -127,6 +130,7 @@ public sealed class PendingProjectInformationUpdate
     public string Location { get; set; } = "";
     public string BuildingPurpose { get; set; } = "";
     public string CapacityUnit { get; set; } = "";
+    public ProjectServerFoundationUpdate Foundation { get; set; } = new();
     public DateTimeOffset QueuedAtUtc { get; set; }
 }
 
@@ -146,8 +150,74 @@ public sealed class ProjectServerSnapshot
     public string DesignOrganizationName { get; set; } = "";
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public string ConcurrencyToken { get; set; } = "";
+    public ProjectServerSurface Surface { get; set; } = new();
     public ProjectServerInformation Information { get; set; } = new();
+    public ProjectServerFoundation Foundation { get; set; } = new();
     public ProjectServerSiteAndLand SiteAndLand { get; set; } = new();
+}
+
+public sealed class ProjectServerSurface
+{
+    public string SchemaVersion { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public List<ProjectServerSurfaceSection> Sections { get; set; } = [];
+    public List<ProjectServerSurfaceSection> FoundationSections { get; set; } = [];
+}
+
+public sealed class ProjectServerSurfaceSection
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "";
+    public string Icon { get; set; } = "";
+    public int Order { get; set; }
+}
+
+public sealed class ProjectServerFoundation
+{
+    public bool IsAvailable { get; set; }
+    public int Version { get; set; } = 1;
+    public ProjectServerInitiationBasis InitiationBasis { get; set; } = new();
+    public ProjectServerPlanningTask PlanningTask { get; set; } = new();
+}
+
+public sealed class ProjectServerInitiationBasis
+{
+    public string SourceType { get; set; } = "";
+    public string RequestNumber { get; set; } = "";
+    public DateTimeOffset? RequestedAtUtc { get; set; }
+    public string ClientName { get; set; } = "";
+    public string ClientEmail { get; set; } = "";
+    public string SiteAddress { get; set; } = "";
+    public string LandReference { get; set; } = "";
+    public string SourceOrganizationName { get; set; } = "";
+    public string ServerRecordId { get; set; } = "";
+    public string Summary { get; set; } = "";
+}
+
+public sealed class ProjectServerPlanningTask
+{
+    public string AtdNumber { get; set; } = "";
+    public DateTimeOffset? IssuedAtUtc { get; set; }
+    public string IssuingAuthorityName { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Summary { get; set; } = "";
+    public List<string> Requirements { get; set; } = [];
+}
+
+public sealed class ProjectServerFoundationUpdate
+{
+    public bool IsAvailable { get; set; }
+    public string SourceType { get; set; } = "";
+    public string RequestNumber { get; set; } = "";
+    public string ClientEmail { get; set; } = "";
+    public string SiteAddress { get; set; } = "";
+    public string LandReference { get; set; } = "";
+    public string SourceOrganizationName { get; set; } = "";
+    public string BasisSummary { get; set; } = "";
+    public string AtdNumber { get; set; } = "";
+    public string AtdAuthorityName { get; set; } = "";
+    public string AtdStatus { get; set; } = "";
+    public string AtdSummary { get; set; } = "";
 }
 
 public sealed class ProjectServerInformation
@@ -195,6 +265,7 @@ public sealed class ProjectCreationRequest
     public string InitiatorOrganizationName { get; init; } = "";
     public string InitiatorUserId { get; init; } = "";
     public string InitiatorDisplayName { get; init; } = "";
+    public string ClientType { get; init; } = ProjectClientTypes.Citizen;
     public string ClientName { get; init; } = "";
     public string ClientEmail { get; init; } = "";
     public string SiteAddress { get; init; } = "";
@@ -221,6 +292,86 @@ public static class ProjectInitiationSourceTypes
     public const string DesignOrganizationCreated = "DesignOrganizationCreated";
 }
 
+public static class ProjectClientTypes
+{
+    public const string Citizen = "Citizen";
+    public const string Organization = "Organization";
+    public const string GovernmentAuthority = "GovernmentAuthority";
+
+    public static string Normalize(string? value)
+    {
+        if (string.Equals(value, Organization, StringComparison.OrdinalIgnoreCase))
+            return Organization;
+        if (string.Equals(value, GovernmentAuthority, StringComparison.OrdinalIgnoreCase))
+            return GovernmentAuthority;
+        return Citizen;
+    }
+
+    public static string DisplayName(string? value) => Normalize(value) switch
+    {
+        Organization => "Байгууллага",
+        GovernmentAuthority => "Төрийн байгууллага",
+        _ => "Иргэн",
+    };
+
+    public static bool UsesLogo(string? value) =>
+        !Normalize(value).Equals(Citizen, StringComparison.Ordinal);
+
+    public static bool ShowsDirectClientName(string? value) =>
+        Normalize(value).Equals(Citizen, StringComparison.Ordinal);
+
+    public static string ClientNameFieldLabel(string? value) => Normalize(value) switch
+    {
+        Organization => "Захиалагч байгууллагын нэр",
+        GovernmentAuthority => "Төрийн байгууллагын нэр",
+        _ => "Захиалагчийн нэр",
+    };
+
+    /// <summary>
+    /// Resolves the text printed in the client position cell. For organizations,
+    /// the legal/display name is part of the cover identity and the client type
+    /// is only a classification.
+    /// </summary>
+    public static string ResolveCoverRole(
+        string? clientType,
+        string? clientName,
+        string? representativePosition)
+    {
+        string normalized = Normalize(clientType);
+        if (normalized.Equals(Citizen, StringComparison.Ordinal))
+            return DisplayName(normalized);
+
+        string organizationName = clientName?.Trim() ?? "";
+        string position = representativePosition?.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(organizationName) && !string.IsNullOrWhiteSpace(position))
+            return $"{organizationName} {position}";
+        if (!string.IsNullOrWhiteSpace(organizationName))
+            return organizationName;
+        if (!string.IsNullOrWhiteSpace(position))
+            return position;
+        return DisplayName(normalized);
+    }
+
+    /// <summary>
+    /// Resolves the person printed in the client section of generated pages.
+    /// Organization names and legacy client values must never replace the
+    /// explicitly selected representative for non-citizen clients.
+    /// </summary>
+    public static string ResolveCoverPersonName(
+        string? clientType,
+        string? clientName,
+        string? representativeName,
+        string? citizenFallback = null)
+    {
+        if (!ShowsDirectClientName(clientType))
+            return representativeName?.Trim() ?? "";
+
+        if (!string.IsNullOrWhiteSpace(clientName))
+            return clientName.Trim();
+        return citizenFallback?.Trim() ?? "";
+    }
+}
+
 public static class ProjectOrigins
 {
     public const string Local = "Local";
@@ -234,6 +385,7 @@ public static class ProjectSyncStatuses
     public const string Pending = "Pending";
     public const string Syncing = "Syncing";
     public const string Synced = "Synced";
+    public const string Conflict = "Conflict";
     public const string Error = "Error";
 }
 
@@ -247,6 +399,7 @@ public sealed class ProjectFoundation
     public int Version { get; set; } = 1;
     public ProjectInitiationBasis InitiationBasis { get; set; } = new();
     public PlanningTaskInformation PlanningTask { get; set; } = new();
+    public ProjectApprovalWorkflow ApprovalWorkflow { get; set; } = new();
     public ProjectCompanyAssignment DesignCompany { get; set; } = new();
 }
 
@@ -255,8 +408,14 @@ public sealed class ProjectInitiationBasis
     public string SourceType { get; set; } = ProjectInitiationSourceTypes.AtdRequest;
     public string RequestNumber { get; set; } = "";
     public DateTimeOffset? RequestedAtUtc { get; set; }
+    public string ClientType { get; set; } = ProjectClientTypes.Citizen;
     public string ClientName { get; set; } = "";
     public string ClientEmail { get; set; } = "";
+    /// <summary>Non-citizen client's representative position printed on the cover.</summary>
+    public string ClientRepresentativePosition { get; set; } = "";
+    /// <summary>Non-citizen client's representative name printed on the cover.</summary>
+    public string ClientRepresentativeName { get; set; } = "";
+    public CompanyProfile ClientOrganizationSnapshot { get; set; } = new();
     public string SiteAddress { get; set; } = "";
     public string LandReference { get; set; } = "";
     public string SourceOrganizationName { get; set; } = "";
@@ -307,6 +466,10 @@ public sealed class ProjectCompanyAssignmentHistoryEntry
 public sealed class ProjectMember
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    /// <summary>Registered profile surname/ovog. Empty only for legacy or offline members.</summary>
+    public string FamilyName { get; set; } = "";
+    /// <summary>Registered profile given name/ner. Empty only for legacy or offline members.</summary>
+    public string GivenName { get; set; } = "";
     public string FullName { get; set; } = "";
     public string Email { get; set; } = "";
     public List<string> Roles { get; set; } = [];
@@ -318,9 +481,44 @@ public sealed class ProjectFileReference
     public string Category { get; set; } = "";
     public string Title { get; set; } = "";
     public string RelativePath { get; set; } = "";
+    public string OriginalFileName { get; set; } = "";
+    /// <summary>
+    /// Local file selected by the user. Studio keeps an owned copy for album
+    /// generation and uses this link only to detect later source revisions.
+    /// </summary>
+    public string LinkedSourcePath { get; set; } = "";
+    public DateTimeOffset? LinkedSourceLastWriteTimeUtc { get; set; }
+    /// <summary>
+    /// Missing linked files remain registered but are excluded from generated
+    /// album pages. This lets a temporarily unavailable source be restored.
+    /// </summary>
+    public bool IsAvailable { get; set; } = true;
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public int PageCount { get; set; } = 1;
     public string ServerDocumentId { get; set; } = "";
     public string Sha256 { get; set; } = "";
     public int Version { get; set; } = 1;
+    public DateTimeOffset AddedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    public ProjectFileReference Clone() => new()
+    {
+        Id = Id,
+        Category = Category,
+        Title = Title,
+        RelativePath = RelativePath,
+        OriginalFileName = OriginalFileName,
+        LinkedSourcePath = LinkedSourcePath,
+        LinkedSourceLastWriteTimeUtc = LinkedSourceLastWriteTimeUtc,
+        IsAvailable = IsAvailable,
+        ContentType = ContentType,
+        SizeBytes = SizeBytes,
+        PageCount = PageCount,
+        ServerDocumentId = ServerDocumentId,
+        Sha256 = Sha256,
+        Version = Version,
+        AddedAtUtc = AddedAtUtc,
+    };
 }
 
 public sealed class ProjectDeliverables
@@ -367,6 +565,14 @@ public sealed class ProjectArchiveRecord
     public string Type { get; set; } = "";
     public string Title { get; set; } = "";
     public string Status { get; set; } = "Archived";
+    public string RevisionId { get; set; } = "";
+    public int RevisionNumber { get; set; }
+    public int FoundationVersion { get; set; } = 1;
+    public string CompanySnapshotId { get; set; } = "";
+    public int PageCount { get; set; }
+    public string PageSizeSummary { get; set; } = "";
+    public string CreatedBy { get; set; } = "";
+    public string AuditNote { get; set; } = "";
     public string RelativePath { get; set; } = "";
     public string Sha256 { get; set; } = "";
     public DateTimeOffset ArchivedAtUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -383,7 +589,7 @@ public sealed class ProjectMigrationInfo
 /// <summary>One album document stored below a project workspace.</summary>
 public sealed class StudioAlbumDocument
 {
-    public const int CurrentFormatVersion = 1;
+    public const int CurrentFormatVersion = 2;
 
     public int FormatVersion { get; set; } = CurrentFormatVersion;
     public string DocumentType { get; set; } = "ErkSAlbum";
@@ -402,10 +608,31 @@ public sealed class StudioAlbumDocument
 
 public sealed class DeliverableRevisionRecord
 {
+    public string RevisionId { get; set; } = Guid.NewGuid().ToString("N");
+    public int RevisionNumber { get; set; } = 1;
     public int Version { get; set; } = 1;
+    public string ParentRevisionId { get; set; } = "";
     public string Status { get; set; } = "Draft";
     public int FoundationVersion { get; set; } = 1;
+    public string CompanySnapshotId { get; set; } = "";
+    public List<string> SourcePackageIds { get; set; } = [];
     public string PdfPath { get; set; } = "";
     public string Sha256 { get; set; } = "";
+    public int PageCount { get; set; }
+    public string PageSizeSummary { get; set; } = "";
+    public string CreatedBy { get; set; } = "";
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+    public string ReviewStatus { get; set; } = "Draft";
+    public DeliverableApprovalRecord? ApprovalRecord { get; set; }
+    public DateTimeOffset? ReleasedAtUtc { get; set; }
+    public string SupersededByRevisionId { get; set; } = "";
+    public string AuditNote { get; set; } = "";
+}
+
+public sealed class DeliverableApprovalRecord
+{
+    public string Status { get; set; } = "Approved";
+    public string ApprovedBy { get; set; } = "";
+    public DateTimeOffset ApprovedAtUtc { get; set; }
+    public string Note { get; set; } = "";
 }

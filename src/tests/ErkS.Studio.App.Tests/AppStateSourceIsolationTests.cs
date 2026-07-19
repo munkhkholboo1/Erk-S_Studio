@@ -1,0 +1,178 @@
+using ErkS.Platform.Core;
+using ErkS.Platform.Pdf;
+using ErkS.Studio;
+
+namespace ErkS.Studio.App.Tests;
+
+public sealed class AppStateSourceIsolationTests : IDisposable
+{
+    private readonly string workDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "erks-studio-source-isolation-tests",
+        Guid.NewGuid().ToString("N"));
+
+    public AppStateSourceIsolationTests()
+    {
+        Directory.CreateDirectory(workDirectory);
+    }
+
+    [Fact]
+    public void OpenProject_SourceFreeWorkspacePrunesPersistedSourcePages()
+    {
+        var (projectPath, _) = WriteProject(
+            sources: [],
+            pageKeys: ["foreign-source|sheet-01"],
+            lastPdfPath: "albums/stale.pdf");
+        using var state = new AppState();
+
+        state.OpenProject(projectPath);
+
+        Assert.Empty(state.Project.Sources);
+        Assert.Empty(state.Album.Pages);
+        Assert.Empty(state.Project.PrimaryAlbum.LastPdfPath);
+        StudioAlbumDocument persisted = StudioAlbumDocumentStore.Load(state.AlbumPath!);
+        Assert.Empty(persisted.Definition.Pages);
+    }
+
+    [Fact]
+    public void RemoveDesignSource_RemovesOnlyThatSourcesAlbumPages()
+    {
+        var sourceA = CreateSource("source-a", "Same name.rvt");
+        var sourceB = CreateSource("source-b", "Same name.rvt");
+        var (projectPath, _) = WriteProject(
+            sources: [sourceA, sourceB],
+            pageKeys: ["source-a|sheet-01", "source-b|sheet-01"],
+            lastPdfPath: "albums/stale.pdf");
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+
+        int removed = state.RemoveDesignSource(state.Project.Sources.Single(item => item.Id == "source-a"));
+
+        Assert.Equal(1, removed);
+        Assert.Equal("source-b", Assert.Single(state.Project.Sources).Id);
+        Assert.Equal("source-b|sheet-01", Assert.Single(state.Album.Pages).SheetKey);
+        Assert.Empty(state.Project.PrimaryAlbum.LastPdfPath);
+    }
+
+    [Fact]
+    public void AddDesignSource_SameFileNameInDifferentLocationsRemainsDistinct()
+    {
+        var (projectPath, _) = WriteProject(sources: [], pageKeys: [], lastPdfPath: "");
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+        ProjectDesignSource first = CreateSource("source-a", "Same name.rvt");
+        ProjectDesignSource second = CreateSource("source-b", "Same name.rvt");
+        second.InboxFolder = first.InboxFolder;
+
+        state.AddDesignSource(first);
+        state.AddDesignSource(second);
+
+        Assert.Equal(2, state.Project.Sources.Count);
+        Assert.Equal(2, state.Project.Sources.Select(source => source.Id).Distinct().Count());
+        Assert.Equal(2, state.Project.Sources.Select(source => source.InboxFolder).Distinct().Count());
+        Assert.All(state.Project.Sources, source => Assert.Equal("Same name.rvt", source.NativeDocumentTitle));
+    }
+
+    [Fact]
+    public void ReconcileProjectAssetSources_MissingAtdInvalidatesBuiltAlbum()
+    {
+        string sourcePath = Path.Combine(workDirectory, "approved-atd.png");
+        File.WriteAllBytes(
+            sourcePath,
+            Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("TEST-002", "Asset source test");
+        string projectFolder = Path.Combine(workDirectory, "asset-project");
+        string projectPath = Path.Combine(projectFolder, ProjectWorkspace.DefaultFileName);
+        ProjectDocumentAssetInspection inspection = ProjectDocumentAssetInspector.Inspect(sourcePath);
+        project.Foundation.PlanningTask.Documents.Add(new ProjectFileReference
+        {
+            Category = ProjectDocumentCategories.ApprovedPlanningTask,
+            RelativePath = ProjectDocumentFileStore.StoreInsideProject(
+                projectPath,
+                ProjectDocumentCategories.ApprovedPlanningTask,
+                sourcePath),
+            OriginalFileName = Path.GetFileName(sourcePath),
+            LinkedSourcePath = Path.GetFullPath(sourcePath),
+            ContentType = inspection.ContentType,
+            SizeBytes = inspection.SizeBytes,
+            PageCount = inspection.PageCount,
+            Sha256 = inspection.Sha256,
+        });
+        project.PrimaryAlbum.LastPdfPath = "albums/stale.pdf";
+        string albumPath = ProjectWorkspacePaths.ResolveInsideProject(
+            projectPath,
+            project.PrimaryAlbum.DocumentPath);
+        ProjectWorkspaceStore.Save(project, projectPath);
+        StudioAlbumDocumentStore.Save(new StudioAlbumDocument
+        {
+            ProjectId = project.ProjectId,
+            AlbumId = project.PrimaryAlbum.Id,
+            Definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition(project.PrimaryAlbum.Title),
+        }, albumPath);
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+
+        File.Delete(sourcePath);
+        ProjectAssetSourceReconciliationResult result = state.ReconcileProjectAssetSources();
+
+        Assert.Equal(1, result.MissingDocumentCount);
+        Assert.False(Assert.Single(state.Project.Foundation.PlanningTask.Documents).IsAvailable);
+        Assert.Empty(state.Project.PrimaryAlbum.LastPdfPath);
+        ProjectWorkspace persisted = ProjectWorkspaceStore.Load(projectPath);
+        Assert.False(Assert.Single(persisted.Foundation.PlanningTask.Documents).IsAvailable);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(workDirectory, recursive: true);
+        }
+        catch
+        {
+        }
+    }
+
+    private (string ProjectPath, string AlbumPath) WriteProject(
+        IReadOnlyList<ProjectDesignSource> sources,
+        IReadOnlyList<string> pageKeys,
+        string lastPdfPath)
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("TEST-001", "Source isolation test");
+        project.Sources = sources.ToList();
+        project.PrimaryAlbum.LastPdfPath = lastPdfPath;
+        string projectPath = Path.Combine(workDirectory, ProjectWorkspace.DefaultFileName);
+        string albumPath = ProjectWorkspacePaths.ResolveInsideProject(
+            projectPath,
+            project.PrimaryAlbum.DocumentPath);
+        var album = new StudioAlbumDocument
+        {
+            ProjectId = project.ProjectId,
+            AlbumId = project.PrimaryAlbum.Id,
+            Definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition(project.PrimaryAlbum.Title),
+        };
+        foreach (string pageKey in pageKeys)
+        {
+            album.Definition.Pages.Add(new AlbumPageDefinition { SheetKey = pageKey });
+        }
+
+        ProjectWorkspaceStore.Save(project, projectPath);
+        StudioAlbumDocumentStore.Save(album, albumPath);
+        return (projectPath, albumPath);
+    }
+
+    private ProjectDesignSource CreateSource(string id, string fileName)
+    {
+        string sourceFolder = Path.Combine(workDirectory, "sources", id, "deliveries");
+        return new ProjectDesignSource
+        {
+            Id = id,
+            Kind = DesignSourceKind.Revit,
+            Name = fileName,
+            NativeDocumentTitle = fileName,
+            NativeDocumentPath = Path.Combine(workDirectory, "native", id, fileName),
+            InboxFolder = sourceFolder,
+        };
+    }
+}

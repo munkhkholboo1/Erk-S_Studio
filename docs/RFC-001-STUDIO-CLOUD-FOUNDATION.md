@@ -174,13 +174,14 @@ Rules:
 - Exporters may use blank/non-plot guide layouts only to help the designer
   place the drawing correctly.
 
-## Sheet Package Contract Direction
+## Sheet Package Contract (Implemented Baseline)
 
-Current schema v1 already supports PDF, source, sheet number/name, size, hash,
-and project code. The next schema must carry Studio-owned format identity and
-source placement metadata.
+Schema v4 is the current implemented contract. Schemas 1-3 remain readable for
+backward compatibility, while all current producers must emit v4. The normative
+contract is maintained in `SHEET-PACKAGE-CONTRACT.md`.
 
-Required additions for schema v2:
+Schema v4 carries Studio-owned format identity, source identity, package scope,
+clean drawing-space geometry, source classification, and stable drawing-asset metadata:
 
 ```json
 {
@@ -199,10 +200,13 @@ Required additions for schema v2:
       "name": "1-р давхрын байгуулалт",
       "discipline": "BA",
       "revision": "0",
-      "formatId": "ERKS-WD-A3-L-01",
+      "pageFormatId": "ERKS-WD-A3-L-01",
       "widthMm": 420,
       "heightMm": 297,
-      "drawingContentBox": { "x": 20, "y": 25, "w": 340, "h": 252 },
+      "isCleanDrawingSpace": true,
+      "contentWidthMm": 340,
+      "contentHeightMm": 252,
+      "format": { "id": "ERKS-WD-A3-L-01", "geometryHash": "..." },
       "pdfFileName": "BA-101.pdf",
       "sha256": "..."
     }
@@ -267,14 +271,13 @@ and exporters are updated.
 1. Freeze this RFC as the initial boundary.
 2. Add Studio domain models for project, organization, participant, role,
    document set, and sheet format template.
-3. Add schema v2 draft for sheet package manifest.
-4. Add tests for manifest round-trip and sheet format validation.
-5. Add a minimal Sheet Format Engine that can load templates and validate PDF
-   page size/content boxes.
+3. Maintain schema v4 and its backward-compatible reader.
+4. Maintain tests for manifest round-trip, security, and sheet format validation.
+5. Extend the Sheet Format Engine without changing the v4 trust boundary.
 6. Add Studio UI pages for Project Info, Organizations, Roles, and Sheet
    Formats.
 7. Add License Manager sign-in boundary and project binding state.
-8. Update Revit/AutoCAD exporters to output clean sheet PDFs plus v2 manifests.
+8. Keep Revit/AutoCAD exporters aligned with clean sheet PDFs plus v4 manifests.
 9. Add Studio renderers for corner table, cover page, drawing list, and
    explanation note.
 10. Add website `/project/` workspace and backend APIs used by both Studio and

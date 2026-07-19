@@ -1,0 +1,2651 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "ErkS.LicenseServer | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/cloud-era/v1/capabilities": {
+      "get": {
+        "tags": [
+          "Cloud ERA"
+        ],
+        "operationId": "GetCloudEraCapabilities",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiCapabilitiesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/studio/session": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraStudioSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/studio/session/refresh": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraStudioSessionRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/studio/profile/photo": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraOrganizationUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraOrganizationUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/logo": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/accounts/lookup": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-roles": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/information": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInformationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-membership-invitations": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/membership-invitations": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraProjectMembershipInvitationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-membership-invitations/{invitationId}/accept": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-membership-invitations/{invitationId}/decline": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/membership-invitations/{invitationId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/participants/{participantId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "participantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/participants/{participantId}/roles": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "UpdateCloudEraParticipantRoles",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "participantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraParticipantRoleUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/concept-architect": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "AssignCloudEraConceptArchitect",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraConceptArchitectAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "GetCloudEraProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-membership-exit-requests": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/membership-exit-requests": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraProjectMembershipExitRequestCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-membership-exit-requests/{requestId}/{decision}": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/sources/{sourceKey}/custodian": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSourceCustodianAssignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-creation-grants": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/project-creation-grants": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraProjectCreationGrantCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-creation-grants/{grantId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/project-creation-grants/{grantId}/projects": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraProjectCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/design-organization/logo": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraProjects",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "CreateCloudEraProject",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraProjectCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/design-organization": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "AssignCloudEraDesignOrganization",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraDesignOrganizationAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/basis-sources": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraBasisSources",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CloudEraBasisSourceDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/documents": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraDocuments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CloudEraControlledDocumentDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/design-packages": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraDesignPackages",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CloudEraDesignPackageDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraAlbums",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CloudEraAlbumDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/ensure": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "EnsureCloudEraConceptAlbum",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/{revisionId}": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "GetCloudEraAlbumRevision",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumRevisionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/files/{fileId}": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/source-packages": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "RegisterCloudEraSourcePackage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSourcePackageCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSourcePackageDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "UploadCloudEraAlbumRevision",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumRevisionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/license/activate": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnlineLicenseActivateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CloudEraAlbumDto": {
+        "type": "object",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "designPackageId": {
+            "type": "string"
+          },
+          "albumType": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "currentRevisionId": {
+            "type": "string"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAlbumRevisionDto"
+            }
+          }
+        }
+      },
+      "CloudEraAlbumRevisionDto": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pdfFileId": {
+            "type": "string"
+          },
+          "pdfSha256": {
+            "type": "string"
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSizeSummary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "projectSnapshotId": {
+            "type": "string"
+          },
+          "organizationSnapshotId": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sectionManifest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAlbumSectionDto"
+            }
+          }
+        }
+      },
+      "CloudEraAlbumSectionDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageNumbers": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraApiCapabilitiesResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "apiBasePath": {
+            "type": "string"
+          },
+          "openApiDocumentPath": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "CloudEraApprovalDecisionDto": {
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string"
+          },
+          "albumId": {
+            "type": "string"
+          },
+          "albumRevisionId": {
+            "type": "string"
+          },
+          "albumPdfSha256": {
+            "type": "string"
+          },
+          "step": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "action": {
+            "type": "string"
+          },
+          "actorDisplayName": {
+            "type": "string"
+          },
+          "actorRole": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraApprovalRouteDto": {
+        "type": "object",
+        "properties": {
+          "approvalRouteSnapshotId": {
+            "type": "string"
+          },
+          "albumRevisionId": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraApprovalStepDto"
+            }
+          }
+        }
+      },
+      "CloudEraApprovalStepDto": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "role": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "assignedAccount": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraArchiveDto": {
+        "type": "object",
+        "properties": {
+          "archiveId": {
+            "type": "string"
+          },
+          "archiveType": {
+            "type": "string"
+          },
+          "albumId": {
+            "type": "string"
+          },
+          "approvedRevisionId": {
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "fileSha256": {
+            "type": "string"
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "uploadedBy": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBasisSourceDto": {
+        "type": "object",
+        "properties": {
+          "basisSourceId": {
+            "type": "string"
+          },
+          "requirementKey": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "issuerOrganization": {
+            "type": "string"
+          },
+          "documentNumber": {
+            "type": "string"
+          },
+          "issuedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "validUntilUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "verificationStatus": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraFileDto"
+            }
+          }
+        }
+      },
+      "CloudEraConceptArchitectAssignmentRequest": {
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraControlledDocumentDto": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "requirementKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "category": {
+            "type": "string"
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "documentNumber": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          },
+          "fileRevisions": {
+            "type": "array",
+            "items": { }
+          }
+        }
+      },
+      "CloudEraDesignOrganizationAssignmentRequest": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraDesignPackageDto": {
+        "type": "object",
+        "properties": {
+          "designPackageId": {
+            "type": "string"
+          },
+          "designPackageType": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "templateVersion": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "albumId": {
+            "type": "string"
+          },
+          "sourcePackages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraSourcePackageDto"
+            }
+          }
+        }
+      },
+      "CloudEraFileDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "scanStatus": {
+            "type": "string"
+          },
+          "uploadedBy": {
+            "type": "string"
+          },
+          "uploadedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraOrganizationAssignmentDto": {
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "organizationSnapshotId": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "nullable": true
+      },
+      "CloudEraOrganizationRenderProfileDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "licenseScope": {
+            "type": "string"
+          },
+          "licenseNumber": {
+            "type": "string"
+          },
+          "directorTitle": {
+            "type": "string"
+          },
+          "directorName": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": "string"
+          },
+          "logoScale": {
+            "type": "number",
+            "format": "double"
+          },
+          "logoOffsetX": {
+            "type": "number",
+            "format": "double"
+          },
+          "logoOffsetY": {
+            "type": "number",
+            "format": "double"
+          },
+          "isProjectSnapshot": {
+            "type": "boolean"
+          }
+        },
+        "nullable": true
+      },
+      "CloudEraOrganizationUpsertRequest": {
+        "type": "object",
+        "properties": {
+          "legalName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "organizationType": {
+            "type": "string"
+          },
+          "registeredCity": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phoneNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "email": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "licenseScope": {
+            "type": "string"
+          },
+          "licenseNumber": {
+            "type": "string"
+          },
+          "directorTitle": {
+            "type": "string"
+          },
+          "directorName": {
+            "type": "string"
+          },
+          "logoScale": {
+            "type": "number",
+            "format": "double"
+          },
+          "logoOffsetX": {
+            "type": "number",
+            "format": "double"
+          },
+          "logoOffsetY": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CloudEraParticipantDto": {
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string"
+          },
+          "accountEmail": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "familyName": {
+            "type": "string"
+          },
+          "givenName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stageScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraParticipantRoleUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CloudEraPlanningTaskDto": {
+        "type": "object",
+        "properties": {
+          "atdNumber": {
+            "type": "string"
+          },
+          "issuedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "issuingAuthorityName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CloudEraProjectActivityDto": {
+        "type": "object",
+        "properties": {
+          "activityId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "actorEmail": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraProjectCreateRequest": {
+        "type": "object",
+        "properties": {
+          "projectCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "clientEmail": {
+            "type": "string"
+          },
+          "initiatorType": {
+            "type": "string"
+          },
+          "initiatorOrganizationId": {
+            "type": "string"
+          },
+          "initiatorOrganizationName": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraProjectCreationGrantCreateRequest": {
+        "type": "object",
+        "properties": {
+          "targetEmail": {
+            "type": "string"
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CloudEraProjectDetailDto": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "surface": {
+            "$ref": "#/components/schemas/CloudEraProjectSurfaceDto"
+          },
+          "project": {
+            "$ref": "#/components/schemas/CloudEraProjectSummaryDto"
+          },
+          "projectInformation": {
+            "$ref": "#/components/schemas/CloudEraProjectInformationDto"
+          },
+          "foundation": {
+            "$ref": "#/components/schemas/CloudEraProjectFoundationDto"
+          },
+          "siteAndLand": {
+            "$ref": "#/components/schemas/CloudEraSiteAndLandDto"
+          },
+          "conceptAssignment": {
+            "$ref": "#/components/schemas/CloudEraOrganizationAssignmentDto"
+          },
+          "designOrganizationProfile": {
+            "$ref": "#/components/schemas/CloudEraOrganizationRenderProfileDto"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraParticipantDto"
+            }
+          },
+          "basisSources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBasisSourceDto"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraControlledDocumentDto"
+            }
+          },
+          "designPackages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraDesignPackageDto"
+            }
+          },
+          "albums": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAlbumDto"
+            }
+          },
+          "approvalRoutes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraApprovalRouteDto"
+            }
+          },
+          "approvalDecisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraApprovalDecisionDto"
+            }
+          },
+          "archives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraArchiveDto"
+            }
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraProjectActivityDto"
+            }
+          },
+          "basisReadiness": {
+            "$ref": "#/components/schemas/CloudEraReadinessDto"
+          },
+          "documentReadiness": {
+            "$ref": "#/components/schemas/CloudEraReadinessDto"
+          },
+          "albumStatus": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraProjectFoundationDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "initiationBasis": {
+            "$ref": "#/components/schemas/CloudEraProjectInitiationBasisDto"
+          },
+          "planningTask": {
+            "$ref": "#/components/schemas/CloudEraPlanningTaskDto"
+          }
+        }
+      },
+      "CloudEraProjectFoundationUpdateDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "type": "string"
+          },
+          "requestNumber": {
+            "type": "string"
+          },
+          "clientEmail": {
+            "type": "string"
+          },
+          "siteAddress": {
+            "type": "string"
+          },
+          "landReference": {
+            "type": "string"
+          },
+          "sourceOrganizationName": {
+            "type": "string"
+          },
+          "basisSummary": {
+            "type": "string"
+          },
+          "atdNumber": {
+            "type": "string"
+          },
+          "atdAuthorityName": {
+            "type": "string"
+          },
+          "atdStatus": {
+            "type": "string"
+          },
+          "atdSummary": {
+            "type": "string"
+          }
+        },
+        "nullable": true
+      },
+      "CloudEraProjectInformationDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "projectCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "buildingPurpose": {
+            "type": "string"
+          },
+          "capacity": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "capacityUnit": {
+            "type": "string"
+          },
+          "footprintSquareMeters": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "grossFloorAreaSquareMeters": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "heightMeters": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "floorsAboveGround": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "floorsBelowGround": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "CloudEraProjectInitiationBasisDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "type": "string"
+          },
+          "requestNumber": {
+            "type": "string"
+          },
+          "requestedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "clientEmail": {
+            "type": "string"
+          },
+          "siteAddress": {
+            "type": "string"
+          },
+          "landReference": {
+            "type": "string"
+          },
+          "sourceOrganizationName": {
+            "type": "string"
+          },
+          "serverRecordId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraProjectListResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraProjectSummaryDto"
+            }
+          }
+        }
+      },
+      "CloudEraProjectMembershipExitRequestCreateRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraProjectMembershipInvitationCreateRequest": {
+        "type": "object",
+        "properties": {
+          "targetEmail": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CloudEraProjectSummaryDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "projectCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currentStage": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "templateVersion": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "planningAuthorityName": {
+            "type": "string"
+          },
+          "designOrganizationName": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentUserRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentUserScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentUserIsCreator": {
+            "type": "boolean"
+          },
+          "concurrencyToken": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraProjectSurfaceDto": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraProjectSurfaceSectionDto"
+            }
+          },
+          "foundationSections": {
+            "type": "array",
+            "items": { }
+          },
+          "theme": {
+            "$ref": "#/components/schemas/CloudEraProjectSurfaceThemeDto"
+          }
+        }
+      },
+      "CloudEraProjectSurfaceSectionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CloudEraProjectSurfaceThemeDto": {
+        "type": "object",
+        "properties": {
+          "windowBackground": {
+            "type": "string"
+          },
+          "panel": {
+            "type": "string"
+          },
+          "panelAlt": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "border": {
+            "type": "string"
+          },
+          "borderHover": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "mutedText": {
+            "type": "string"
+          },
+          "faintText": {
+            "type": "string"
+          },
+          "accent": {
+            "type": "string"
+          },
+          "accentSoft": {
+            "type": "string"
+          },
+          "button": {
+            "type": "string"
+          },
+          "success": {
+            "type": "string"
+          },
+          "warning": {
+            "type": "string"
+          },
+          "danger": {
+            "type": "string"
+          },
+          "railWidth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cornerRadius": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spaceXs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spaceSm": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spaceMd": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spaceLg": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CloudEraReadinessDto": {
+        "type": "object",
+        "properties": {
+          "isReady": {
+            "type": "boolean"
+          },
+          "missingRequiredCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraReadinessItemDto"
+            }
+          }
+        }
+      },
+      "CloudEraReadinessItemDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSiteAndLandDto": {
+        "type": "object",
+        "properties": {
+          "parcelNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "restrictionReferences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CloudEraSourceCustodianAssignRequest": {
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSourcePackageCreateRequest": {
+        "type": "object",
+        "properties": {
+          "sourceKey": {
+            "type": "string"
+          },
+          "sourceApplication": {
+            "type": "string"
+          },
+          "sourceDocumentReference": {
+            "type": "string"
+          },
+          "manifestId": {
+            "type": "string"
+          },
+          "manifestSchemaVersion": {
+            "type": "string"
+          },
+          "exportedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workPackageId": {
+            "type": "string"
+          },
+          "sheetCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contentHash": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSourcePackageDto": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceKey": {
+            "type": "string"
+          },
+          "sourceApplication": {
+            "type": "string"
+          },
+          "sourceDocumentReference": {
+            "type": "string"
+          },
+          "manifestId": {
+            "type": "string"
+          },
+          "manifestSchemaVersion": {
+            "type": "string"
+          },
+          "exportedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stageId": {
+            "type": "string"
+          },
+          "workPackageId": {
+            "type": "string"
+          },
+          "sheetCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "ownerOrganizationSnapshotId": {
+            "type": "string"
+          },
+          "registeredBy": {
+            "type": "string"
+          },
+          "registeredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "custodianParticipantId": {
+            "type": "string"
+          },
+          "custodianEmail": {
+            "type": "string"
+          },
+          "custodyStatus": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraStudioSessionRefreshRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "licenseId": {
+            "type": "string"
+          },
+          "activationId": {
+            "type": "string"
+          },
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraStudioSessionRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "licenseId": {
+            "type": "string"
+          },
+          "activationId": {
+            "type": "string"
+          },
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "OnlineLicenseActivateRequest": {
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "activationCode": {
+            "type": "string"
+          },
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          },
+          "revitVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "ProjectInformationInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "planningAuthorityName": {
+            "type": "string"
+          },
+          "designOrganizationName": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "buildingPurpose": {
+            "type": "string"
+          },
+          "capacityUnit": {
+            "type": "string"
+          },
+          "foundation": {
+            "$ref": "#/components/schemas/CloudEraProjectFoundationUpdateDto"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Cloud ERA"
+    },
+    {
+      "name": "ErkS.LicenseServer"
+    }
+  ]
+}

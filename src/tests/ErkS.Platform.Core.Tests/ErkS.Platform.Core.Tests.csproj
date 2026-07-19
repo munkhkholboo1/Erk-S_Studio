@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\ErkS.CloudEra.Client\ErkS.CloudEra.Client.csproj" />
     <ProjectReference Include="..\..\src\ErkS.Platform.Core\ErkS.Platform.Core.csproj" />
     <ProjectReference Include="..\..\src\ErkS.Platform.Pdf\ErkS.Platform.Pdf.csproj" />
     <ProjectReference Include="..\..\src\ErkS.Platform.Contracts\ErkS.Platform.Contracts.csproj" />

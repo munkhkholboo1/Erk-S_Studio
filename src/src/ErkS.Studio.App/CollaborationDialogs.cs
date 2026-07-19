@@ -5,6 +5,7 @@ using System.Windows.Controls;
 namespace ErkS.Studio;
 
 internal sealed record ProjectInvitationDraft(string Email, IReadOnlyList<string> Roles);
+internal sealed record ProjectMemberRoleDraft(IReadOnlyList<string> Roles);
 
 internal sealed class ProjectMemberInvitationDialog : Window
 {
@@ -169,7 +170,7 @@ internal sealed class ProjectMemberInvitationDialog : Window
         DialogResult = true;
     }
 
-    private static string BuildRoleLabel(StudioProjectRole role)
+    internal static string BuildRoleLabel(StudioProjectRole role)
     {
         var capabilities = new List<string>();
         if (role.CanManageTeam)
@@ -181,6 +182,96 @@ internal sealed class ProjectMemberInvitationDialog : Window
         return capabilities.Count == 0
             ? role.Label
             : $"{role.Label}  ·  {string.Join(", ", capabilities)}";
+    }
+}
+
+internal sealed class ProjectMemberRoleDialog : Window
+{
+    private readonly StackPanel rolesPanel = new();
+    private readonly Button saveButton = StudioWidgets.CreatePrimaryButton("Хадгалах");
+
+    public ProjectMemberRoleDraft? Draft { get; private set; }
+
+    public ProjectMemberRoleDialog(
+        string memberName,
+        string email,
+        IReadOnlyList<StudioProjectRole> roles,
+        IReadOnlyCollection<string> assignedRoles)
+    {
+        Title = "Багийн гишүүний үүрэг";
+        Width = 620;
+        Height = 650;
+        MinWidth = 540;
+        MinHeight = 540;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        StudioTheme.Apply(this);
+        Content = BuildContent(memberName, email, roles, assignedRoles);
+    }
+
+    private UIElement BuildContent(
+        string memberName,
+        string email,
+        IReadOnlyList<StudioProjectRole> roles,
+        IReadOnlyCollection<string> assignedRoles)
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var footer = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0),
+        };
+        var cancel = StudioWidgets.CreateButton("Болих");
+        cancel.IsCancel = true;
+        saveButton.IsDefault = true;
+        saveButton.Click += (_, _) => Accept();
+        footer.Children.Add(cancel);
+        footer.Children.Add(saveButton);
+        DockPanel.SetDock(footer, Dock.Bottom);
+        root.Children.Add(footer);
+
+        HashSet<string> selected = assignedRoles
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var form = new StackPanel();
+        form.Children.Add(StudioWidgets.CreateTitle("Багийн гишүүний үүрэг"));
+        form.Children.Add(StudioWidgets.CreateHint(
+            $"{memberName}\n{email}\n\nНэг хэрэглэгч олон role-той байж болно. Role хадгалахад access эрх шууд шинэчлэгдэнэ."));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Төслийн role"));
+        foreach (StudioProjectRole role in roles)
+        {
+            rolesPanel.Children.Add(new CheckBox
+            {
+                Content = ProjectMemberInvitationDialog.BuildRoleLabel(role),
+                Tag = role.Code,
+                Margin = new Thickness(0, 3, 0, 3),
+                Foreground = StudioTheme.TextBrush,
+                IsChecked = selected.Contains(role.Code),
+            });
+        }
+        form.Children.Add(rolesPanel);
+        form.Children.Add(StudioWidgets.CreateHint(
+            "Major architect сонговол төслийн үндсэн архитектор энэ гишүүн рүү шилжиж, өмнөх хүн Architect role-тойгоо үлдэнэ."));
+        root.Children.Add(StudioWidgets.CreateScrollHost(form));
+        return root;
+    }
+
+    private void Accept()
+    {
+        List<string> selectedRoles = rolesPanel.Children
+            .OfType<CheckBox>()
+            .Where(item => item.IsChecked == true)
+            .Select(item => item.Tag as string ?? "")
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (selectedRoles.Count == 0)
+        {
+            StudioMessageDialog.Show(this, "Дор хаяж нэг role сонгоно уу.");
+            return;
+        }
+        Draft = new ProjectMemberRoleDraft(selectedRoles);
+        DialogResult = true;
     }
 }
 

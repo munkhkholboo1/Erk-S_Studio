@@ -22,18 +22,62 @@ public static class ProjectCanonicalSyncService
 
         ProjectServerInformation information = snapshot.Information ?? new();
         ProjectServerSiteAndLand siteAndLand = snapshot.SiteAndLand ?? new();
+        ProjectServerFoundation serverFoundation = snapshot.Foundation ?? new();
+        ProjectServerInitiationBasis serverBasis = serverFoundation.InitiationBasis ?? new();
+        ProjectServerPlanningTask serverPlanningTask = serverFoundation.PlanningTask ?? new();
         PendingProjectInformationUpdate? pending = project.Cloud.PendingProjectInformation;
+        ProjectServerFoundationUpdate? pendingFoundation = pending?.Foundation is { IsAvailable: true } value
+            ? value
+            : null;
+        bool applyFoundationDetails = serverFoundation.IsAvailable || pendingFoundation is not null;
         string projectCode = FirstValue(snapshot.ProjectCode, information.ProjectCode);
         string serverProjectName = FirstValue(snapshot.Name, information.Name);
         string projectName = pending is null ? serverProjectName : Clean(pending.Name);
-        string serverSiteAddress = FirstValue(information.Location, siteAndLand.Addresses.FirstOrDefault());
+        string serverSiteAddress = serverFoundation.IsAvailable
+            ? FirstValue(serverBasis.SiteAddress, information.Location)
+            : FirstValue(information.Location, siteAndLand.Addresses.FirstOrDefault());
         string siteAddress = pending is null ? serverSiteAddress : Clean(pending.Location);
-        string landReference = string.Join(", ", CleanValues(siteAndLand.ParcelNumbers));
-        string buildingPurpose = pending is null ? Clean(information.BuildingPurpose) : Clean(pending.BuildingPurpose);
-        string clientName = pending is null ? Clean(snapshot.ClientName) : Clean(pending.ClientName);
+        string serverLandReference = serverFoundation.IsAvailable
+            ? Clean(serverBasis.LandReference)
+            : string.Join(", ", CleanValues(siteAndLand.ParcelNumbers));
+        string landReference = pendingFoundation is null
+            ? serverLandReference
+            : Clean(pendingFoundation.LandReference);
+        string serverBuildingPurpose = serverFoundation.IsAvailable
+            ? FirstValue(serverBasis.Summary, information.BuildingPurpose)
+            : Clean(information.BuildingPurpose);
+        string buildingPurpose = pending is null ? serverBuildingPurpose : Clean(pending.BuildingPurpose);
+        string serverClientName = serverFoundation.IsAvailable
+            ? FirstValue(serverBasis.ClientName, snapshot.ClientName)
+            : Clean(snapshot.ClientName);
+        string clientName = pending is null ? serverClientName : Clean(pending.ClientName);
+        string serverPlanningAuthority = serverFoundation.IsAvailable
+            ? FirstValue(serverPlanningTask.IssuingAuthorityName, snapshot.PlanningAuthorityName)
+            : Clean(snapshot.PlanningAuthorityName);
         string planningAuthorityName = pending is null
-            ? Clean(snapshot.PlanningAuthorityName)
+            ? serverPlanningAuthority
             : Clean(pending.PlanningAuthorityName);
+        string basisSourceType = pendingFoundation is null
+            ? Clean(serverBasis.SourceType)
+            : Clean(pendingFoundation.SourceType);
+        string requestNumber = pendingFoundation is null
+            ? Clean(serverBasis.RequestNumber)
+            : Clean(pendingFoundation.RequestNumber);
+        string clientEmail = pendingFoundation is null
+            ? Clean(serverBasis.ClientEmail)
+            : Clean(pendingFoundation.ClientEmail);
+        string sourceOrganizationName = pendingFoundation is null
+            ? Clean(serverBasis.SourceOrganizationName)
+            : Clean(pendingFoundation.SourceOrganizationName);
+        string atdNumber = pendingFoundation is null
+            ? Clean(serverPlanningTask.AtdNumber)
+            : Clean(pendingFoundation.AtdNumber);
+        string atdStatus = pendingFoundation is null
+            ? Clean(serverPlanningTask.Status)
+            : Clean(pendingFoundation.AtdStatus);
+        string atdSummary = pendingFoundation is null
+            ? Clean(serverPlanningTask.Summary)
+            : Clean(pendingFoundation.AtdSummary);
         string currentStage = Clean(snapshot.CurrentStage);
 
         ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
@@ -48,7 +92,15 @@ public static class ProjectCanonicalSyncService
             !string.Equals(basis.SiteAddress, siteAddress, StringComparison.Ordinal) ||
             !string.Equals(basis.LandReference, landReference, StringComparison.Ordinal) ||
             !string.Equals(basis.Summary, buildingPurpose, StringComparison.Ordinal) ||
-            !string.Equals(planningTask.IssuingAuthorityName, planningAuthorityName, StringComparison.Ordinal);
+            !string.Equals(planningTask.IssuingAuthorityName, planningAuthorityName, StringComparison.Ordinal) ||
+            (applyFoundationDetails &&
+                (!string.Equals(basis.SourceType, basisSourceType, StringComparison.Ordinal) ||
+                 !string.Equals(basis.RequestNumber, requestNumber, StringComparison.Ordinal) ||
+                 !string.Equals(basis.ClientEmail, clientEmail, StringComparison.OrdinalIgnoreCase) ||
+                 !string.Equals(basis.SourceOrganizationName, sourceOrganizationName, StringComparison.Ordinal) ||
+                 !string.Equals(planningTask.AtdNumber, atdNumber, StringComparison.Ordinal) ||
+                 !string.Equals(planningTask.Status, atdStatus, StringComparison.Ordinal) ||
+                 !string.Equals(planningTask.Summary, atdSummary, StringComparison.Ordinal)));
 
         project.ProjectId = serverProjectId;
         project.Identity.Code = projectCode;
@@ -68,9 +120,30 @@ public static class ProjectCanonicalSyncService
         basis.ServerRecordId = serverProjectId;
         basis.Summary = buildingPurpose;
         planningTask.IssuingAuthorityName = planningAuthorityName;
+        if (applyFoundationDetails)
+        {
+            basis.SourceType = basisSourceType;
+            basis.RequestNumber = requestNumber;
+            basis.RequestedAtUtc = serverBasis.RequestedAtUtc;
+            basis.ClientEmail = clientEmail;
+            basis.SourceOrganizationName = sourceOrganizationName;
+            planningTask.AtdNumber = atdNumber;
+            planningTask.IssuedAtUtc = serverPlanningTask.IssuedAtUtc;
+            planningTask.Status = atdStatus;
+            planningTask.Summary = atdSummary;
+            planningTask.Requirements = CleanValues(serverPlanningTask.Requirements);
+        }
 
-        if (foundationChanged)
-            project.Foundation.Version++;
+        if (serverFoundation.IsAvailable && pendingFoundation is null)
+        {
+            project.Foundation.Version = Math.Max(1, serverFoundation.Version);
+        }
+        else if (foundationChanged)
+        {
+            project.Foundation.Version = Math.Max(
+                project.Foundation.Version,
+                Math.Max(1, serverFoundation.Version)) + 1;
+        }
 
         return foundationChanged;
     }
@@ -83,6 +156,9 @@ public static class ProjectCanonicalSyncService
     {
         ProjectServerInformation information = snapshot.Information ?? new();
         ProjectServerSiteAndLand siteAndLand = snapshot.SiteAndLand ?? new();
+        ProjectServerFoundation serverFoundation = snapshot.Foundation ?? new();
+        ProjectServerInitiationBasis serverBasis = serverFoundation.InitiationBasis ?? new();
+        ProjectServerPlanningTask serverPlanningTask = serverFoundation.PlanningTask ?? new();
         return new ProjectServerSnapshot
         {
             ProjectId = projectId,
@@ -95,6 +171,7 @@ public static class ProjectCanonicalSyncService
             DesignOrganizationName = Clean(snapshot.DesignOrganizationName),
             UpdatedAtUtc = snapshot.UpdatedAtUtc,
             ConcurrencyToken = Clean(snapshot.ConcurrencyToken),
+            Surface = Clone(snapshot.Surface),
             Information = new ProjectServerInformation
             {
                 ProjectId = FirstValue(information.ProjectId, projectId),
@@ -110,6 +187,33 @@ public static class ProjectCanonicalSyncService
                 FloorsAboveGround = information.FloorsAboveGround,
                 FloorsBelowGround = information.FloorsBelowGround,
             },
+            Foundation = new ProjectServerFoundation
+            {
+                IsAvailable = serverFoundation.IsAvailable,
+                Version = Math.Max(1, serverFoundation.Version),
+                InitiationBasis = new ProjectServerInitiationBasis
+                {
+                    SourceType = Clean(serverBasis.SourceType),
+                    RequestNumber = Clean(serverBasis.RequestNumber),
+                    RequestedAtUtc = serverBasis.RequestedAtUtc,
+                    ClientName = Clean(serverBasis.ClientName),
+                    ClientEmail = Clean(serverBasis.ClientEmail),
+                    SiteAddress = Clean(serverBasis.SiteAddress),
+                    LandReference = Clean(serverBasis.LandReference),
+                    SourceOrganizationName = Clean(serverBasis.SourceOrganizationName),
+                    ServerRecordId = Clean(serverBasis.ServerRecordId),
+                    Summary = Clean(serverBasis.Summary),
+                },
+                PlanningTask = new ProjectServerPlanningTask
+                {
+                    AtdNumber = Clean(serverPlanningTask.AtdNumber),
+                    IssuedAtUtc = serverPlanningTask.IssuedAtUtc,
+                    IssuingAuthorityName = Clean(serverPlanningTask.IssuingAuthorityName),
+                    Status = Clean(serverPlanningTask.Status),
+                    Summary = Clean(serverPlanningTask.Summary),
+                    Requirements = CleanValues(serverPlanningTask.Requirements),
+                },
+            },
             SiteAndLand = new ProjectServerSiteAndLand
             {
                 ParcelNumbers = CleanValues(siteAndLand.ParcelNumbers),
@@ -118,6 +222,32 @@ public static class ProjectCanonicalSyncService
             },
         };
     }
+
+    private static ProjectServerSurface Clone(ProjectServerSurface? surface)
+    {
+        surface ??= new ProjectServerSurface();
+        return new ProjectServerSurface
+        {
+            SchemaVersion = Clean(surface.SchemaVersion),
+            ProductName = Clean(surface.ProductName),
+            Sections = (surface.Sections ?? [])
+                .OrderBy(item => item.Order)
+                .Select(Clone)
+                .ToList(),
+            FoundationSections = (surface.FoundationSections ?? [])
+                .OrderBy(item => item.Order)
+                .Select(Clone)
+                .ToList(),
+        };
+    }
+
+    private static ProjectServerSurfaceSection Clone(ProjectServerSurfaceSection item) => new()
+    {
+        Id = Clean(item.Id),
+        Label = Clean(item.Label),
+        Icon = Clean(item.Icon),
+        Order = item.Order,
+    };
 
     private static string FirstValue(string? primary, string? fallback) =>
         !string.IsNullOrWhiteSpace(primary) ? primary.Trim() : Clean(fallback);

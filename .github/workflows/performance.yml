@@ -1,0 +1,41 @@
+name: Studio performance regression
+
+on:
+  schedule:
+    - cron: "20 18 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Run Studio performance regression suite
+        run: >-
+          dotnet run --project src/tools/ErkS.Studio.Performance/ErkS.Studio.Performance.csproj
+          -c Release --
+          --sheets 100,500,1000
+          --album-pages 500
+          --large-source-mb 1024
+          --output artifacts/performance/studio-performance.json
+
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-performance-${{ github.run_id }}
+          path: artifacts/performance/studio-performance.json
+          if-no-files-found: error
+          retention-days: 30

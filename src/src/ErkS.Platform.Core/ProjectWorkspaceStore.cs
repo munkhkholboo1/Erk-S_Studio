@@ -105,6 +105,7 @@ public static class ProjectWorkspaceStore
                         : designOrganizationCreated
                             ? ProjectInitiationSourceTypes.DesignOrganizationCreated
                             : ProjectInitiationSourceTypes.AtdRequest,
+                    ClientType = ProjectClientTypes.Normalize(request.ClientType),
                     ClientName = request.ClientName.Trim(),
                     ClientEmail = request.ClientEmail.Trim(),
                     SiteAddress = request.SiteAddress.Trim(),
@@ -139,20 +140,43 @@ public static class ProjectWorkspaceStore
 
     internal static void Normalize(ProjectWorkspace project)
     {
+        if (string.IsNullOrWhiteSpace(project.ProjectId))
+        {
+            project.ProjectId = Guid.NewGuid().ToString("N");
+        }
         project.Identity ??= new ProjectIdentity();
         project.Cloud ??= new ProjectCloudLink();
         project.Cloud.CurrentUserRoles ??= [];
         project.Cloud.CurrentUserScopes ??= [];
         project.Cloud.ServerSnapshot ??= new ProjectServerSnapshot();
+        project.Cloud.ServerSnapshot.Surface ??= new ProjectServerSurface();
+        project.Cloud.ServerSnapshot.Surface.Sections ??= [];
+        project.Cloud.ServerSnapshot.Surface.FoundationSections ??= [];
         project.Cloud.ServerSnapshot.Information ??= new ProjectServerInformation();
+        project.Cloud.ServerSnapshot.Foundation ??= new ProjectServerFoundation();
+        project.Cloud.ServerSnapshot.Foundation.InitiationBasis ??= new ProjectServerInitiationBasis();
+        project.Cloud.ServerSnapshot.Foundation.PlanningTask ??= new ProjectServerPlanningTask();
+        project.Cloud.ServerSnapshot.Foundation.PlanningTask.Requirements ??= [];
         project.Cloud.ServerSnapshot.SiteAndLand ??= new ProjectServerSiteAndLand();
         project.Cloud.ServerSnapshot.SiteAndLand.ParcelNumbers ??= [];
         project.Cloud.ServerSnapshot.SiteAndLand.Addresses ??= [];
         project.Cloud.ServerSnapshot.SiteAndLand.RestrictionReferences ??= [];
+        if (project.Cloud.PendingProjectInformation is { } pendingInformation)
+            pendingInformation.Foundation ??= new ProjectServerFoundationUpdate();
         project.Creation ??= new ProjectCreationInfo();
         project.Foundation ??= new ProjectFoundation();
         project.Foundation.InitiationBasis ??= new ProjectInitiationBasis();
         project.Foundation.InitiationBasis.Documents ??= [];
+        project.Foundation.InitiationBasis.ClientType = ProjectClientTypes.Normalize(
+            project.Foundation.InitiationBasis.ClientType);
+        project.Foundation.InitiationBasis.ClientOrganizationSnapshot ??= new CompanyProfile();
+        project.Foundation.InitiationBasis.ClientOrganizationSnapshot.Normalize();
+        if (ProjectClientTypes.UsesLogo(project.Foundation.InitiationBasis.ClientType) &&
+            string.IsNullOrWhiteSpace(project.Foundation.InitiationBasis.ClientOrganizationSnapshot.Name))
+        {
+            project.Foundation.InitiationBasis.ClientOrganizationSnapshot.Name =
+                project.Foundation.InitiationBasis.ClientName.Trim();
+        }
         project.Foundation.PlanningTask ??= new PlanningTaskInformation();
         project.Foundation.PlanningTask.Requirements ??= [];
         project.Foundation.PlanningTask.Documents ??= [];
@@ -160,9 +184,13 @@ public static class ProjectWorkspaceStore
         foreach (var member in project.Foundation.PlanningTask.AuthorityMembers)
         {
             member.Roles ??= [];
+            NormalizeRegisteredMemberName(member);
         }
+        project.Foundation.ApprovalWorkflow ??= new ProjectApprovalWorkflow();
+        project.Foundation.ApprovalWorkflow.Normalize();
         project.Foundation.DesignCompany ??= new ProjectCompanyAssignment();
         project.Foundation.DesignCompany.OrganizationSnapshot ??= new CompanyProfile();
+        project.Foundation.DesignCompany.OrganizationSnapshot.Normalize();
         project.Foundation.DesignCompany.OrganizationSnapshot.Signers ??= [];
         project.Foundation.DesignCompany.Members ??= [];
         project.Foundation.DesignCompany.History ??= [];
@@ -189,6 +217,7 @@ public static class ProjectWorkspaceStore
         foreach (var member in project.Foundation.DesignCompany.Members)
         {
             member.Roles ??= [];
+            NormalizeRegisteredMemberName(member);
         }
 
         project.Sources ??= [];
@@ -201,6 +230,9 @@ public static class ProjectWorkspaceStore
             }
             source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+
+        project.Visualizations ??= new ProjectVisualizationSource();
+        project.Visualizations.Normalize(project.ProjectId);
 
         project.Deliverables ??= new ProjectDeliverables();
         project.Deliverables.Albums ??= [];
@@ -216,10 +248,6 @@ public static class ProjectWorkspaceStore
 
         project.Archive ??= new ProjectArchive();
         project.Archive.Items ??= [];
-        if (string.IsNullOrWhiteSpace(project.ProjectId))
-        {
-            project.ProjectId = Guid.NewGuid().ToString("N");
-        }
         if (project.CreatedAtUtc == default)
         {
             project.CreatedAtUtc = DateTimeOffset.UtcNow;
@@ -263,6 +291,22 @@ public static class ProjectWorkspaceStore
                 StringComparison.OrdinalIgnoreCase)
                 ? project.Foundation.PlanningTask.IssuingAuthorityName
                 : project.DesignOrganizationName;
+        }
+    }
+
+    private static void NormalizeRegisteredMemberName(ProjectMember member)
+    {
+        member.FamilyName ??= "";
+        member.GivenName ??= "";
+        member.FullName ??= "";
+        member.Email ??= "";
+        if (!string.IsNullOrWhiteSpace(member.FamilyName) ||
+            !string.IsNullOrWhiteSpace(member.GivenName))
+        {
+            member.FullName = MongolianPersonNameFormatter.ForDisplay(
+                member.FamilyName,
+                member.GivenName,
+                member.FullName);
         }
     }
 }
@@ -322,6 +366,24 @@ public static class StudioAlbumDocumentStore
             item.MatchNameTerms ??= [];
         }
         album.Revisions ??= [];
+        int nextRevisionNumber = 1;
+        foreach (DeliverableRevisionRecord revision in album.Revisions.OrderBy(item => item.RevisionNumber > 0 ? item.RevisionNumber : item.Version))
+        {
+            if (string.IsNullOrWhiteSpace(revision.RevisionId))
+                revision.RevisionId = Guid.NewGuid().ToString("N");
+            revision.RevisionNumber = revision.RevisionNumber > 0
+                ? revision.RevisionNumber
+                : revision.Version > 0 ? revision.Version : nextRevisionNumber;
+            revision.Version = revision.RevisionNumber;
+            nextRevisionNumber = Math.Max(nextRevisionNumber, revision.RevisionNumber + 1);
+            revision.Status = string.IsNullOrWhiteSpace(revision.Status)
+                ? DeliverableRevisionStatuses.Draft
+                : revision.Status.Trim();
+            revision.ReviewStatus = string.IsNullOrWhiteSpace(revision.ReviewStatus)
+                ? revision.Status
+                : revision.ReviewStatus.Trim();
+            revision.SourcePackageIds ??= [];
+        }
         if (string.IsNullOrWhiteSpace(album.AlbumId))
         {
             album.AlbumId = "building-architecture-concept";
@@ -547,7 +609,12 @@ public static class LegacyAlbumProjectImporter
                 StringComparer.OrdinalIgnoreCase)
             .Select(group => new ProjectMember
             {
-                FullName = group.Select(item => item.FullName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "",
+                FamilyName = group.Select(item => item.FamilyName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "",
+                GivenName = group.Select(item => item.GivenName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "",
+                FullName = MongolianPersonNameFormatter.ForDisplay(
+                    group.Select(item => item.FamilyName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
+                    group.Select(item => item.GivenName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
+                    group.Select(item => item.FullName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))),
                 Email = group.Select(item => item.Email).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "",
                 Roles = group.Select(item => item.Role)
                     .Where(role => !string.IsNullOrWhiteSpace(role))
@@ -580,6 +647,8 @@ public static class LegacyAlbumProjectImporter
         }
         foreach (var participant in legacy.Participants)
         {
+            participant.FamilyName = RepairMojibake(participant.FamilyName);
+            participant.GivenName = RepairMojibake(participant.GivenName);
             participant.FullName = RepairMojibake(participant.FullName);
             participant.Role = RepairMojibake(participant.Role);
         }

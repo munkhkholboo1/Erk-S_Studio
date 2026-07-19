@@ -33,9 +33,33 @@ public sealed class WindowsFontResolver : IFontResolver
         {
             if (!registered)
             {
+                ValidateRequiredFonts(FontsDirectory);
                 GlobalFontSettings.FontResolver = new WindowsFontResolver();
                 registered = true;
             }
+        }
+    }
+
+    public static void ValidateRequiredFonts(string fontsDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(fontsDirectory))
+            throw new InvalidOperationException("Windows fonts directory is unavailable; Arial is required for Studio PDF output.");
+
+        string root = Path.GetFullPath(fontsDirectory);
+        string[] requiredFiles = Files
+            .Where(item => item.Key.StartsWith("arial#", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        string[] missing = requiredFiles
+            .Where(fileName => !File.Exists(Path.Combine(root, fileName)))
+            .ToArray();
+        if (missing.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"Arial font files required for Studio PDF output are missing: {string.Join(", ", missing)}. " +
+                $"Expected Windows fonts folder: {root}");
         }
     }
 

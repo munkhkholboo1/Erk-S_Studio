@@ -2,8 +2,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text.Json;
+using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 
@@ -30,6 +30,8 @@ internal static class StudioReleaseInfo
 {
     public const string ProductCode = "ErkS.Studio";
     public const string DefaultServerUrl = "https://erk-s.mn";
+    public const string ProductionUpdatePublisher = "Erk-S LLC";
+    public const string DevelopmentUpdatePublisher = "Erk-S CityGen DevMod Local";
 
     public static string DisplayVersion => typeof(StudioReleaseInfo).Assembly
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
@@ -37,6 +39,11 @@ internal static class StudioReleaseInfo
         ?? "Unknown";
 
     public static bool IsDevelopmentBuild => DisplayVersion.Contains("-dev", StringComparison.OrdinalIgnoreCase);
+
+    public static string ExpectedUpdatePublisher => IsDevelopmentBuild
+        ? Environment.GetEnvironmentVariable("ERKS_STUDIO_DEV_UPDATE_PUBLISHER")?.Trim()
+            ?? DevelopmentUpdatePublisher
+        : ProductionUpdatePublisher;
 
     public static string ApiVersion
     {
@@ -52,7 +59,7 @@ internal static class StudioReleaseInfo
     }
 }
 
-internal sealed class StudioUpdateService : IDisposable
+internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -60,6 +67,18 @@ internal sealed class StudioUpdateService : IDisposable
     };
 
     private readonly HttpClient httpClient = new() { Timeout = TimeSpan.FromMinutes(30) };
+    private readonly IAuthenticodeTrustVerifier authenticodeVerifier;
+
+    public StudioUpdateService()
+        : this(new WindowsAuthenticodeTrustVerifier())
+    {
+    }
+
+    internal StudioUpdateService(IAuthenticodeTrustVerifier authenticodeVerifier)
+    {
+        this.authenticodeVerifier = authenticodeVerifier
+            ?? throw new ArgumentNullException(nameof(authenticodeVerifier));
+    }
 
     public async Task<StudioUpdateLatestResponse> CheckAsync(CancellationToken cancellationToken = default)
     {
@@ -147,8 +166,12 @@ internal sealed class StudioUpdateService : IDisposable
             }
 
             progress?.Report(new StudioUpdateProgress(null, "Татсан багцыг шалгаж байна..."));
-            await VerifySha256Async(partial, update.Sha256, cancellationToken).ConfigureAwait(true);
-            EnsureWindowsExecutable(partial);
+            await UpdatePackageSecurityPolicy.VerifyInstallerAsync(
+                partial,
+                update.Sha256,
+                StudioReleaseInfo.ExpectedUpdatePublisher,
+                authenticodeVerifier,
+                cancellationToken).ConfigureAwait(true);
             File.Move(partial, destination, true);
             progress?.Report(new StudioUpdateProgress(100, "Шинэчлэлт суулгахад бэлэн боллоо."));
             return destination;
@@ -160,10 +183,18 @@ internal sealed class StudioUpdateService : IDisposable
         }
     }
 
-    public static void LaunchInstaller(string installerPath)
+    public async Task VerifyAndLaunchInstallerAsync(
+        string installerPath,
+        StudioUpdateLatestResponse update,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(installerPath) || !File.Exists(installerPath))
-            throw new FileNotFoundException("Шинэчлэлтийн installer олдсонгүй.", installerPath);
+        ArgumentNullException.ThrowIfNull(update);
+        await UpdatePackageSecurityPolicy.VerifyInstallerAsync(
+            installerPath,
+            update.Sha256,
+            StudioReleaseInfo.ExpectedUpdatePublisher,
+            authenticodeVerifier,
+            cancellationToken).ConfigureAwait(true);
 
         _ = Process.Start(new ProcessStartInfo
         {
@@ -179,12 +210,12 @@ internal sealed class StudioUpdateService : IDisposable
     {
         string value = Environment.GetEnvironmentVariable("ERKS_STUDIO_UPDATE_SERVER_URL")
             ?? StudioReleaseInfo.DefaultServerUrl;
-        if (!Uri.TryCreate(value.Trim().TrimEnd('/') + "/", UriKind.Absolute, out Uri? uri) ||
-            !IsAllowedTransport(uri))
+        if (!Uri.TryCreate(value.Trim().TrimEnd('/') + "/", UriKind.Absolute, out Uri? uri))
         {
             throw new InvalidOperationException("Studio update server нь HTTPS эсвэл local loopback хаяг байх ёстой.");
         }
 
+        UpdatePackageSecurityPolicy.ValidateTransport(uri, StudioReleaseInfo.IsDevelopmentBuild);
         return uri;
     }
 
@@ -196,15 +227,8 @@ internal sealed class StudioUpdateService : IDisposable
         Uri result = Uri.TryCreate(update.DownloadUrl, UriKind.Absolute, out Uri? absolute)
             ? absolute
             : new Uri(server, (update.DownloadUrl ?? "").TrimStart('/'));
-        if (!IsAllowedTransport(result))
-            throw new InvalidOperationException("Шинэчлэлтийн багцыг хамгаалалтгүй хаягаас татахгүй.");
+        UpdatePackageSecurityPolicy.ValidateTransport(result, StudioReleaseInfo.IsDevelopmentBuild);
         return result;
-    }
-
-    private static bool IsAllowedTransport(Uri uri)
-    {
-        return uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-            uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && uri.IsLoopback;
     }
 
     private static void ValidateSha256(string value)
@@ -214,35 +238,10 @@ internal sealed class StudioUpdateService : IDisposable
             throw new InvalidOperationException("Шинэчлэлтийн SHA-256 баталгаажуулалт дутуу байна.");
     }
 
-    private static async Task VerifySha256Async(string path, string expected, CancellationToken cancellationToken)
-    {
-        await using FileStream stream = new(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            128 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        string actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(true));
-        if (!actual.Equals(NormalizeSha256(expected), StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Татсан шинэчлэлтийн SHA-256 тохирсонгүй. Багцыг суулгахгүй.");
-    }
-
     private static string NormalizeSha256(string value) => (value ?? "")
         .Trim()
         .Replace(" ", "", StringComparison.Ordinal)
         .Replace("-", "", StringComparison.Ordinal);
-
-    private static void EnsureWindowsExecutable(string path)
-    {
-        FileInfo file = new(path);
-        if (file.Length < 64 * 1024)
-            throw new InvalidDataException("Шинэчлэлтийн installer бүрэн татагдсангүй.");
-
-        using FileStream stream = File.OpenRead(path);
-        if (stream.ReadByte() != 'M' || stream.ReadByte() != 'Z')
-            throw new InvalidDataException("Татсан шинэчлэлт Windows installer биш байна.");
-    }
 
     private static string SanitizeFileName(string value)
     {

@@ -153,6 +153,18 @@ public static class ProjectCompanyAssignmentService
                 nextSnapshot.DisplayName = cloudOrganizationName;
             if (sameOrganization && string.IsNullOrWhiteSpace(nextSnapshot.LogoPath))
                 nextSnapshot.LogoPath = previousSnapshot.LogoPath;
+            if (sameOrganization && nextSnapshot.RegistrationCertificateDocuments.Count == 0)
+            {
+                nextSnapshot.RegistrationCertificateDocuments = previousSnapshot.RegistrationCertificateDocuments
+                    .Select(document => document.Clone())
+                    .ToList();
+            }
+            if (sameOrganization && nextSnapshot.DesignLicenseDocuments.Count == 0)
+            {
+                nextSnapshot.DesignLicenseDocuments = previousSnapshot.DesignLicenseDocuments
+                    .Select(document => document.Clone())
+                    .ToList();
+            }
         }
         else if (sameOrganization)
         {
@@ -232,8 +244,24 @@ public static class ProjectCompanyAssignmentService
             left.LogoScale.Equals(right.LogoScale) &&
             left.LogoOffsetX.Equals(right.LogoOffsetX) &&
             left.LogoOffsetY.Equals(right.LogoOffsetY) &&
+            DocumentListsEqual(left.RegistrationCertificateDocuments, right.RegistrationCertificateDocuments) &&
+            DocumentListsEqual(left.DesignLicenseDocuments, right.DesignLicenseDocuments) &&
             Nullable.Equals(left.UpdatedAtUtc, right.UpdatedAtUtc);
     }
+
+    private static bool DocumentListsEqual(
+        IEnumerable<ProjectFileReference> left,
+        IEnumerable<ProjectFileReference> right) => left
+        .Select(DocumentIdentity)
+        .Order(StringComparer.Ordinal)
+        .SequenceEqual(
+            right.Select(DocumentIdentity)
+                .Order(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+
+    private static string DocumentIdentity(ProjectFileReference document) =>
+        $"{document.Category}|{document.Sha256}|{document.PageCount}|{document.RelativePath}|" +
+        $"{document.LinkedSourcePath}|{document.IsAvailable}|{document.Version}";
 
     private static string FirstValue(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";

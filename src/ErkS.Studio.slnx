@@ -1,18 +1,21 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/ErkS.CloudEra.Client/ErkS.CloudEra.Client.csproj" />
     <Project Path="src/ErkS.Platform.Contracts/ErkS.Platform.Contracts.csproj" />
     <Project Path="src/ErkS.Platform.Core/ErkS.Platform.Core.csproj" />
     <Project Path="src/ErkS.Platform.Pdf/ErkS.Platform.Pdf.csproj" />
-    <Project Path="src/ErkS.Platform.Publishing/ErkS.Platform.Publishing.csproj" />
     <Project Path="src/ErkS.Studio.App/ErkS.Studio.App.csproj" />
     <Project Path="src/ErkS.Studio.Contracts/ErkS.Studio.Contracts.csproj" />
     <Project Path="src/ErkS.Studio/ErkS.Studio.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj" />
+    <Project Path="tests/ErkS.Studio.App.Tests/ErkS.Studio.App.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/ErkS.PackageAcceptance/ErkS.PackageAcceptance.csproj" />
     <Project Path="tools/ErkS.Platform.SamplePackage/ErkS.Platform.SamplePackage.csproj" />
     <Project Path="tools/ErkS.Studio.ProjectTool/ErkS.Studio.ProjectTool.csproj" />
+    <Project Path="tools/ErkS.Studio.Performance/ErkS.Studio.Performance.csproj" />
   </Folder>
 </Solution>

@@ -1,120 +1,177 @@
-# Erk-S Platform Studio — Architecture
+# Erk-S Studio Architecture
 
-Cloud ERA суурь boundary, project/role/document ownership, Sheet Format Engine,
-болон AutoCAD/Revit exporter-ийн шинэ үүргийг
-[`RFC-001-STUDIO-CLOUD-FOUNDATION.md`](RFC-001-STUDIO-CLOUD-FOUNDATION.md)-д
-тогтоосон. Энэ architecture нь project workspace → source delivery →
-album/report pipeline-ийг тайлбарлана; RFC-001 нь model/API/renderer
-хэрэгжилтийн үндсэн гэрээ болно.
+## Product boundary
+
+Erk-S Cloud owns canonical project identity, organization assignments, collaboration,
+notifications, audit records, and published revisions. Erk-S Studio owns the local project
+workspace, source bindings, package intake, page composition, preview, and deliverable build.
+Erk-S Revit and CityGen AutoCAD own authoring and vector export only.
+
+```text
+RVT / DWG (local; never uploaded)
+        |
+        v
+Erk-S Revit / CityGen AutoCAD
+        |  vector PDFs + schema-v4 manifest + SHA-256
+        v
+project/sources/<source>/deliveries/<package>/
+        |
+        v
+SheetPackageAcceptanceValidator
+        |  fail closed, package atomic
+        v
+SheetLibrary (verified records only)
+        |
+        v
+AlbumBuilder -> IAlbumPdfWriter -> canonical vector album PDF
+        |
+        v
+DeliverableRevisionLifecycle (Draft -> Released -> Archive)
+        |
+        v
+Cloud ERA v1 (metadata + manifest + controlled PDF revision)
+```
 
 ## Project ownership
 
 ```text
 ProjectWorkspace (.erksproject)
-├── Foundation
-│   ├── InitiationBasis
-│   ├── PlanningTask (АТД)
-│   └── DesignCompany (stage-scoped snapshot)
-├── Sources
-├── Deliverables
-│   ├── Albums (.erksalbum)
-│   └── Reports
-└── Archive
+|-- Foundation
+|   |-- Initiation basis
+|   |-- Planning task (ATD)
+|   `-- Stage-scoped design-organization snapshot
+|-- Participants and roles
+|-- Sources
+|   `-- Local binding + accepted delivery metadata
+|-- Deliverables
+|   |-- Albums (.erksalbum + PDF revisions)
+|   `-- Reports
+`-- Archive (immutable snapshots)
 ```
 
-Studio root дээр зөвхөн project catalog байна. Source, album, report болон PDF
-нь заавал нээлттэй project-ийн child байна. Cloud/Local нь project type биш,
-origin/sync status юм.
+The Studio start screen shows projects only. Source, album, report, and archive workspaces
+exist only after a project is opened. `Cloud` and `Local` describe origin and sync state, not
+different project models.
 
-## Data flow
+## Trust boundaries
 
-```
-AutoCAD (Erk-S Platform plugin)          Revit (Erk-S Platform plugin)
-  Layout бүрийг vector PDF болгон          Sheet бүрийг vector PDF болгон
-  хэвлэж, manifest бичнэ                    хэвлэж, manifest бичнэ
-        │                                        │
-        ▼                                        ▼
- project-owned delivery folder  ◄──────  бусад эх үүсвэр (гар PDF, CityGen...)
-        │
-        │  *.erks-sheets.json (SHA-256 per PDF)
-        ▼
-  ErkS.Platform.Core.SheetIntakeService (FileSystemWatcher, бодит цаг)
-        │  hash verify → lossless / issues
-        ▼
-  SheetLibrary (сүүлийн экспорт нь ялна, key = app|docPath|sheetId)
-        │
-        ▼
-  AlbumBuilder → AlbumBuildRequest (sections, дараалал)
-        │
-        ▼
-  ErkS.Platform.Pdf.PdfSharpAlbumWriter
-        │  нүүр + гарчиг + vector merge (+ дараа нь: булангийн хүснэгт overlay)
-        ▼
-  album.pdf ──► ErkS.Platform.Publishing.AlbumPublishClient ──► erk-s.mn
-                                        (оролцогчид бодит цагт үзнэ)
-```
+### Connector input
 
-## Sheet package format (Contracts, schema v1)
+Every manifest and path is untrusted. Schema-v4 intake validates identifiers, package scope,
+relative paths, reparse points, SHA-256, PDF structure, page count, physical dimensions,
+inline format geometry, and clean drawing-space dimensions. The package is accepted as a whole
+or rejected as a whole. Rejection cannot delete or replace verified state.
 
-Багц = нэг фолдер доторх PDF-үүд + `<нэр>.erks-sheets.json` manifest:
+### Native file custody
 
-```json
-{
-  "schemaVersion": 1,
-  "packageId": "guid",
-  "source": {
-    "application": "AutoCad | Revit | Manual",
-    "applicationVersion": "AutoCAD 2026",
-    "documentPath": "C:\\...\\file.dwg",
-    "documentTitle": "file",
-    "projectCode": "ERKS-2026-014"
-  },
-  "exportedAtUtc": "2026-07-09T04:00:00Z",
-  "sheets": [
-    {
-      "sheetId": "LAYOUT-01",
-      "number": "AR-01",
-      "name": "Ерөнхий төлөвлөгөө",
-      "discipline": "AR",
-      "revision": "0",
-      "widthMm": 420, "heightMm": 297,
-      "pdfFileName": "sheet-01.pdf",
-      "sha256": "...",
-      "pageCount": 1
-    }
-  ]
-}
-```
+`DocumentPath` is a local binding hint, not uploaded content. Cloud source custody changes only
+who may maintain metadata and bind a replacement local file. It does not transfer the native
+file, copyright, payment rights, authorship, or contractual responsibility.
 
-Дүрэм:
-- Manifest-ийг PDF-үүдийн **дараа** бичнэ (watcher manifest дээр асдаг тул
-  бүрэн бус багц хэзээ ч уншигдахгүй).
-- Нэг хуудасны дахин экспорт нь өмнөхөө орлоно (`exportedAtUtc` шинэ нь ялна).
-- Хэш таарахгүй бол багц "алдаатай" гэж тэмдэглэгдэнэ — чимээгүй алгасахгүй.
+### Cloud state
 
-## Модулиудын хамаарал
+Cloud ERA is canonical for shared project state. Project mutation uses optimistic concurrency;
+source-package and revision operations use stable idempotency identities. Studio retains pending
+state after a timeout or partial failure and refreshes canonical state before declaring success.
 
-```
-Contracts ◄── Core ◄── Pdf
-                ▲        ▲
-                │        │
-            Publishing   │
-                ▲        │
-                └── Studio (WPF) ── SamplePackage (tool)
+### Product updates
+
+Product updates use HTTPS, SHA-256, PE validation, Windows Authenticode chain/revocation checks,
+and an exact publisher match. Development builds may use loopback HTTP; production builds may not.
+
+## Package and format model
+
+The current sheet package schema is version 4. One delivery folder contains one or more PDF
+files and a final `*.erks-sheets.json` manifest. `Delta` packages update selected sheets only;
+`FullSnapshot` packages describe the complete current set for one stable source and may remove
+only that source's omitted sheets.
+
+`PageFormatSpec` is parametric geometry in millimetres from the page top-left. It declares the
+physical page, drawing area, sheet-title area, title-block area, border/grid flags, orientation,
+binding edge, and a geometry hash. It is not CAD geometry and is shared by every connector.
+
+## PDF composition
+
+- `SourceAsIs` imports source pages directly and preserves their page boxes and order.
+- `PreserveDrawingSpace` imports a vector Form XObject at 1:1 scale and permits translation only.
+- A clean drawing-space mismatch greater than the contract tolerance stops the build.
+- Studio-generated cover/document pages and official page information are vector content.
+- Album output is written to a temporary file and atomically replaces the canonical PDF only
+  after every source is revalidated.
+
+The preview opens a copied/cache representation, so WebView/PDF-reader locks do not block a
+canonical rebuild.
+
+## Cloud contract
+
+```text
+StudioAccountService (application facade)
+        |
+        +-- ICloudEraContractClient
+        |      `-- CloudEraGeneratedContractClient
+        |              `-- OpenAPI-generated CloudEraGeneratedClient
+        |
+        +-- narrow UI boundaries (projects, organizations, collaboration, albums)
+        +-- centralized session refresh and ICredentialStore
+        `-- specialized multipart upload and concurrency operations
+
+Cloud ERA base:       /api/cloud-era/v1
+Capabilities:         /api/cloud-era/v1/capabilities
+OpenAPI document:     /api/cloud-era/openapi/v1.json
 ```
 
-- Core нь UI/PDF-ээс хамаарахгүй; `IAlbumPdfWriter` interface-ээр Pdf давхаргыг
-  урвуу хамааралтай холбоно.
-- Studio нь бүх давхаргыг угсарч WPF дээр харуулна; theme нь CityGen-тэй ижил
-  Erk-S dark style (StudioTheme).
+The generated client is the active transport for typed project, design-package, album, and
+source-package routes; it applies the current server URL, bearer token, and relationship-boundary
+policy to each request. Multipart PDF upload and `If-Match` updates remain explicit wrappers
+because those request shapes require specialized handling. The generated client and committed
+OpenAPI snapshot are deterministic CI inputs. Capability negotiation requires API major-version
+compatibility and the features needed by the current workflow. The removed
+`ErkS.Platform.Publishing` project and legacy `/api/platform/albums` contract are not part of the
+active architecture.
 
-## Ирээдүйн чиглэл
+## Revision lifecycle
 
-- **Булангийн хүснэгт**: CompanyProfile + project мэдээллээс PDF overlay-гээр
-  зурна (plugin-ууд corner table-ээ хасна). Overlay нь XGraphics.FromPdfPage-ээр
-  import хийсэн хуудсан дээр нэмж зурах хэлбэрээр хийгдэнэ.
-- **Сервер түгээлт**: Erk-S-Server дээр `/api/platform/albums` (upload) +
-  project viewer хуудас; оролцогчид album-ийн шинэ хувилбарыг бодит цагт үзнэ.
-- **Live push**: drop folder-оос гадна named pipe/HTTP push (хуучин ErkS_Bridge
-  протоколын туршлагыг ашиглана) — файлын систем нь үндсэн найдвартай суваг
-  хэвээр үлдэнэ.
+```text
+Draft -> ReadyForReview -> InReview -> Approved -> Released
+  ^              |             |
+  |              +-> ChangesRequested -> Superseded
+  +-------------------------------------- new child revision
+
+Released -> Superseded -> Archived
+Released ----------------> Archived
+```
+
+Each revision pins its PDF hash, source package IDs, foundation version, company snapshot,
+page count/size summary, creator, timestamps, review state, approval record, and audit note.
+`Approved` is workflow approval; it is not a statutory signature. Released PDF content cannot
+be edited. A later build creates a child revision and preserves the released snapshot.
+
+## Module dependencies
+
+```text
+ErkS.Platform.Contracts
+        ^
+        |
+ErkS.Platform.Core <--- ErkS.Platform.Pdf
+        ^                    ^
+        |                    |
+ErkS.CloudEra.Client     ErkS.Studio.App
+        ^                    ^
+        +--------------------+
+                 |
+             ErkS.Studio host
+```
+
+Core has no WPF dependency. PDF composition is behind `IAlbumPdfWriter`. UI workspaces consume
+canonical core state and service boundaries; they do not define package trust or cloud authority.
+
+## Verification layers
+
+1. Unit and regression tests for contracts, security, lifecycle, and sync policy.
+2. Structural vector-PDF golden tests for page boxes, operators, Form/Image XObjects, and 1:1 matrices.
+3. Canonical package acceptance for actual Revit and AutoCAD exports.
+4. WPF product publish smoke and payload scan.
+5. Signed release gate and installer smoke installation.
+6. Scheduled 100/500/1000-sheet and 500-page performance regression.
+
+See the linked contracts in the repository README for normative details.

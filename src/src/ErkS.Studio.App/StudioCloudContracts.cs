@@ -18,6 +18,8 @@ internal sealed class StudioSessionResponse
     public DateTimeOffset ExpiresAtUtc { get; set; }
     public string AccountEmail { get; set; } = "";
     public string DisplayName { get; set; } = "";
+    public string FamilyName { get; set; } = "";
+    public string GivenName { get; set; } = "";
     public string ProfileImageUrl { get; set; } = "";
     public string ProductCode { get; set; } = "";
     public string LicenseId { get; set; } = "";
@@ -114,12 +116,83 @@ internal sealed class StudioCloudProjectDeleteRequest
 
 internal sealed class StudioCloudProjectDetail
 {
+    public StudioCloudProjectSurface? Surface { get; set; }
     public StudioCloudProjectSummary Project { get; set; } = new();
     public StudioCloudProjectInformation ProjectInformation { get; set; } = new();
+    public StudioCloudProjectFoundation? Foundation { get; set; }
     public StudioCloudSiteAndLand SiteAndLand { get; set; } = new();
     public StudioCloudOrganizationAssignment? ConceptAssignment { get; set; }
     public StudioCloudOrganizationRenderProfile? DesignOrganizationProfile { get; set; }
     public List<StudioCloudParticipant> Participants { get; set; } = [];
+}
+
+internal sealed class StudioCloudProjectSurface
+{
+    public string SchemaVersion { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public List<StudioCloudProjectSurfaceSection> Sections { get; set; } = [];
+    public List<StudioCloudProjectSurfaceSection> FoundationSections { get; set; } = [];
+    public StudioCloudProjectSurfaceTheme Theme { get; set; } = new();
+}
+
+internal sealed class StudioCloudProjectSurfaceSection
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "";
+    public string Icon { get; set; } = "";
+    public int Order { get; set; }
+}
+
+internal sealed class StudioCloudProjectSurfaceTheme
+{
+    public string WindowBackground { get; set; } = "";
+    public string Panel { get; set; } = "";
+    public string PanelAlt { get; set; } = "";
+    public string Input { get; set; } = "";
+    public string Border { get; set; } = "";
+    public string BorderHover { get; set; } = "";
+    public string Text { get; set; } = "";
+    public string MutedText { get; set; } = "";
+    public string FaintText { get; set; } = "";
+    public string Accent { get; set; } = "";
+    public string AccentSoft { get; set; } = "";
+    public string Button { get; set; } = "";
+    public string Success { get; set; } = "";
+    public string Warning { get; set; } = "";
+    public string Danger { get; set; } = "";
+    public int RailWidth { get; set; }
+    public int CornerRadius { get; set; }
+}
+
+internal sealed class StudioCloudProjectFoundation
+{
+    public int Version { get; set; } = 1;
+    public StudioCloudProjectInitiationBasis InitiationBasis { get; set; } = new();
+    public StudioCloudPlanningTask PlanningTask { get; set; } = new();
+}
+
+internal sealed class StudioCloudProjectInitiationBasis
+{
+    public string SourceType { get; set; } = "";
+    public string RequestNumber { get; set; } = "";
+    public DateTimeOffset? RequestedAtUtc { get; set; }
+    public string ClientName { get; set; } = "";
+    public string ClientEmail { get; set; } = "";
+    public string SiteAddress { get; set; } = "";
+    public string LandReference { get; set; } = "";
+    public string SourceOrganizationName { get; set; } = "";
+    public string ServerRecordId { get; set; } = "";
+    public string Summary { get; set; } = "";
+}
+
+internal sealed class StudioCloudPlanningTask
+{
+    public string AtdNumber { get; set; } = "";
+    public DateTimeOffset? IssuedAtUtc { get; set; }
+    public string IssuingAuthorityName { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Summary { get; set; } = "";
+    public string[] Requirements { get; set; } = [];
 }
 
 internal sealed class StudioCloudOrganizationRenderProfile
@@ -169,6 +242,22 @@ internal sealed class StudioCloudProjectInformationUpdateRequest
     public string Location { get; set; } = "";
     public string BuildingPurpose { get; set; } = "";
     public string CapacityUnit { get; set; } = "";
+    public StudioCloudProjectFoundationUpdate Foundation { get; set; } = new();
+}
+
+internal sealed class StudioCloudProjectFoundationUpdate
+{
+    public string SourceType { get; set; } = "";
+    public string RequestNumber { get; set; } = "";
+    public string ClientEmail { get; set; } = "";
+    public string SiteAddress { get; set; } = "";
+    public string LandReference { get; set; } = "";
+    public string SourceOrganizationName { get; set; } = "";
+    public string BasisSummary { get; set; } = "";
+    public string AtdNumber { get; set; } = "";
+    public string AtdAuthorityName { get; set; } = "";
+    public string AtdStatus { get; set; } = "";
+    public string AtdSummary { get; set; } = "";
 }
 
 internal sealed class StudioCloudSiteAndLand
@@ -190,9 +279,21 @@ internal sealed class StudioCloudParticipant
     public string ParticipantId { get; set; } = "";
     public string AccountEmail { get; set; } = "";
     public string DisplayName { get; set; } = "";
+    public string FamilyName { get; set; } = "";
+    public string GivenName { get; set; } = "";
     public string OrganizationId { get; set; } = "";
     public string[] Roles { get; set; } = [];
     public string Status { get; set; } = "";
+}
+
+internal sealed class StudioConceptArchitectAssignmentRequest
+{
+    public string ParticipantId { get; set; } = "";
+}
+
+internal sealed class StudioParticipantRoleUpdateRequest
+{
+    public string[] Roles { get; set; } = [];
 }
 
 internal sealed class StudioCloudAccountLookupResponse
@@ -200,6 +301,8 @@ internal sealed class StudioCloudAccountLookupResponse
     public bool Found { get; set; }
     public string Email { get; set; } = "";
     public string DisplayName { get; set; } = "";
+    public string FamilyName { get; set; } = "";
+    public string GivenName { get; set; } = "";
 }
 
 internal sealed class StudioProjectMembershipInvitationCreateRequest
@@ -353,6 +456,26 @@ internal sealed class StudioCloudAlbumRevision
     public string PageSizeSummary { get; set; } = "";
     public string Status { get; set; } = "";
     public DateTimeOffset CreatedAtUtc { get; set; }
+}
+
+internal sealed class StudioCloudAlbumUploadStartRequest
+{
+    public string FileName { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string Sha256 { get; set; } = "";
+    public int PageCount { get; set; }
+    public string PageSizeSummary { get; set; } = "";
+    public int ChunkSizeBytes { get; set; }
+}
+
+internal sealed class StudioCloudAlbumUploadSession
+{
+    public string UploadId { get; set; } = "";
+    public int ChunkSizeBytes { get; set; }
+    public int TotalChunks { get; set; }
+    public int[] ReceivedChunks { get; set; } = [];
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public string CompletedRevisionId { get; set; } = "";
 }
 
 internal sealed class StudioCloudSourcePackageCreateRequest

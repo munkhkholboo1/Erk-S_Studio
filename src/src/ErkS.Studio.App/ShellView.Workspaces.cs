@@ -12,7 +12,10 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
+using ErkS.Platform.Pdf;
 using Microsoft.Web.WebView2.Wpf;
 
 namespace ErkS.Studio;
@@ -21,12 +24,21 @@ internal sealed partial class ShellView
 {
     private readonly ListBox designSourcesWorkspaceList = new();
     private readonly ListView receivedSheetsWorkspaceList = new();
+    private readonly Grid sourceContentHost = new();
+    private readonly TextBlock sourceContentTitle = new() { FontWeight = FontWeights.SemiBold };
     private readonly TextBlock sourceDetailsText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock sourceWorkflowText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button openNativeSourceButton = StudioWidgets.CreateIconTextButton(
         "icon-sources.svg",
         "Эх файл нээх",
         "RVT/DWG эх файлыг өөрийн мэргэжлийн программ дээр нээнэ.");
+    private readonly Button openSourceFolderButton = StudioWidgets.CreateIconTextButton(
+        "icon-sources.svg",
+        "Хавтас нээх");
+    private readonly Button relinkNativeSourceButton = StudioWidgets.CreateButton("Эх файлыг солих");
+    private readonly Button bindCloudSourceButton = StudioWidgets.CreateButton("Cloud source холбох");
+    private readonly Button transferSourceCustodyButton = StudioWidgets.CreateButton("Хариуцагч шилжүүлэх");
+    private readonly Button removeDesignSourceButton = StudioWidgets.CreateButton("Эх үүсвэр хасах");
 
     private readonly ListBox albumPagesWorkspaceList = new();
     private readonly ToggleButton albumListViewToggle = new();
@@ -51,6 +63,7 @@ internal sealed partial class ShellView
     private bool albumPdfViewerConfigured;
     private bool sourceRefreshInProgress;
     private string? loadedAlbumPdfDocumentKey;
+    private string? boundAlbumProjectId;
     private long albumPdfNavigationSerial;
     private CancellationTokenSource? albumThumbnailLoadCancellation;
     private string? selectedAlbumWorkspaceKey;
@@ -78,7 +91,11 @@ internal sealed partial class ShellView
         workspace.Children.Add(BuildPane("Эх үүсвэрүүд", designSourcesWorkspaceList, new Thickness(0, 0, 1, 0)));
 
         ConfigureReceivedSheetsList();
-        var sheetsPane = BuildPane("Хүлээн авсан sheets", receivedSheetsWorkspaceList, new Thickness(0, 0, 1, 0));
+        ConfigureVisualizationImagesList();
+        sourceContentTitle.Foreground = StudioTheme.TextBrush;
+        sourceContentHost.Children.Add(receivedSheetsWorkspaceList);
+        sourceContentHost.Children.Add(visualizationImagesWorkspaceList);
+        var sheetsPane = BuildPane(sourceContentTitle, sourceContentHost, new Thickness(0, 0, 1, 0));
         Grid.SetColumn(sheetsPane, 1);
         workspace.Children.Add(sheetsPane);
 
@@ -92,9 +109,28 @@ internal sealed partial class ShellView
         openNativeSourceButton.Margin = new Thickness(0, 0, 0, 6);
         openNativeSourceButton.Click += (_, _) => OpenSelectedNativeSource();
         details.Children.Add(openNativeSourceButton);
-        var openFolder = StudioWidgets.CreateIconTextButton("icon-sources.svg", "Inbox нээх");
-        openFolder.Click += (_, _) => OpenSelectedSourceFolder();
-        details.Children.Add(openFolder);
+        openSourceFolderButton.Click += (_, _) => OpenSelectedSourceFolder();
+        details.Children.Add(openSourceFolderButton);
+        relinkNativeSourceButton.Margin = new Thickness(0, 6, 0, 0);
+        relinkNativeSourceButton.ToolTip =
+            "RVT/DWG эх файлын локал байрлалыг энэ төхөөрөмж дээр солино. Файл cloud руу дамжихгүй.";
+        relinkNativeSourceButton.Click += (_, _) => RelinkSelectedNativeSource();
+        details.Children.Add(relinkNativeSourceButton);
+        bindCloudSourceButton.Margin = new Thickness(0, 6, 0, 0);
+        bindCloudSourceButton.ToolTip =
+            "Өөрт хариуцуулсан cloud source-ийг сонгосон локал эх үүсвэртэй холбоно.";
+        bindCloudSourceButton.Click += async (_, _) => await BindSelectedCloudSourceAsync();
+        details.Children.Add(bindCloudSourceButton);
+        transferSourceCustodyButton.Margin = new Thickness(0, 6, 0, 0);
+        transferSourceCustodyButton.ToolTip =
+            "Cloud source-ийн хариуцагчийг төслийн edit эрхтэй гишүүнд шилжүүлнэ. Native файл дамжихгүй.";
+        transferSourceCustodyButton.Click += async (_, _) => await TransferCloudSourceCustodyAsync();
+        details.Children.Add(transferSourceCustodyButton);
+        removeDesignSourceButton.Margin = new Thickness(0, 6, 0, 0);
+        removeDesignSourceButton.ToolTip = "Төслийн бүртгэлээс хасна. Эх файл болон хүлээн авсан файлуудыг устгахгүй.";
+        removeDesignSourceButton.Click += (_, _) => RemoveSelectedDesignSource();
+        details.Children.Add(removeDesignSourceButton);
+        details.Children.Add(BuildVisualizationSourceControls());
         var detailPane = BuildPane(
             "Эх үүсвэрийн мэдээлэл",
             new ScrollViewer { Content = details, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
@@ -112,37 +148,18 @@ internal sealed partial class ShellView
         addSource.Background = StudioTheme.AccentBrush;
         addSource.BorderBrush = StudioTheme.AccentBrush;
         addSource.Click += (_, _) => AddDesignSourceFromDialog();
-        var removeSource = StudioWidgets.CreateButton("Хасах");
-        removeSource.ToolTip = "Бүртгэлээс хасна. Файл устгахгүй.";
-        removeSource.Click += (_, _) => RemoveSelectedDesignSource();
-        var relinkNative = StudioWidgets.CreateButton("Эх файлыг дахин заах");
-        relinkNative.ToolTip = "RVT/DWG эх файлын локал байрлалыг энэ төхөөрөмж дээр солино. Файл cloud руу дамжихгүй.";
-        relinkNative.Click += (_, _) => RelinkSelectedNativeSource();
-        var bindCloudSource = StudioWidgets.CreateButton("Cloud source холбох");
-        bindCloudSource.ToolTip = "Өөрт хариуцуулсан cloud source key-г сонгосон локал эх үүсвэртэй холбоно.";
-        bindCloudSource.Click += async (_, _) => await BindSelectedCloudSourceAsync();
-        var transferCustody = StudioWidgets.CreateButton("Хариуцагч шилжүүлэх");
-        transferCustody.ToolTip = "Cloud source-ийн хариуцагчийг төслийн edit эрхтэй гишүүнд шилжүүлнэ. Native файл дамжихгүй.";
-        transferCustody.Click += async (_, _) => await TransferCloudSourceCustodyAsync();
+        var addVisualizationSource = StudioWidgets.CreateGlyphTextButton(
+            "\uEB9F",
+            "Харагдах байдал",
+            "Одоогийн төсөлд зурагт харагдах байдлын эх үүсвэр үүсгэх");
+        addVisualizationSource.Click += (_, _) => ConfigureVisualizationSourceForCurrentProject();
         var rescan = StudioWidgets.CreateButton("Шинэчлэлт шалгах");
-        rescan.ToolTip = "Source package-уудыг шалгаж, альбум болон PDF харагдацыг бүрэн шинэчилнэ.";
+        rescan.ToolTip = "Revit/AutoCAD package, АТД, гэрчилгээ, тусгай зөвшөөрөл болон харагдах байдлын зургийг шалгаж альбумыг шинэчилнэ.";
         rescan.Click += (_, _) => CheckForSourceUpdates();
         sourceGroup.Children.Add(addSource);
-        sourceGroup.Children.Add(relinkNative);
-        sourceGroup.Children.Add(bindCloudSource);
-        sourceGroup.Children.Add(transferCustody);
-        sourceGroup.Children.Add(removeSource);
+        sourceGroup.Children.Add(addVisualizationSource);
         sourceGroup.Children.Add(rescan);
         ribbon.Children.Add(sourceGroup);
-
-        var albumGroup = CreateRibbonGroup("ALBUM");
-        var addSelected = StudioWidgets.CreateIconTextButton("icon-album.svg", "Сонгосныг нэмэх");
-        addSelected.Click += (_, _) => AddSelectedSheetsToAlbum();
-        var addVisible = StudioWidgets.CreateButton("Харагдаж буй бүгд");
-        addVisible.Click += (_, _) => AddVisibleSheetsToAlbum();
-        albumGroup.Children.Add(addSelected);
-        albumGroup.Children.Add(addVisible);
-        ribbon.Children.Add(albumGroup);
         return ribbon;
     }
 
@@ -154,11 +171,14 @@ internal sealed partial class ShellView
         }
 
         sourceRefreshInProgress = true;
-        var selectedSourceId = (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.Source.Id;
+        var selectedSourceId = (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
         SheetIntakeScanResult scan;
+        var assetScan = new ProjectAssetSourceReconciliationResult();
         try
         {
             SetStatus("Шинэчлэлт шалгаж байна...");
+            assetScan.Merge(ReconcileCompanyAssetSources());
+            assetScan.Merge(state.ReconcileProjectAssetSources());
             scan = state.Intake.Rescan();
         }
         catch (Exception exception)
@@ -177,7 +197,7 @@ internal sealed partial class ShellView
                 autoRebuildTimer.Stop();
                 RefreshSourceWorkspace(selectedSourceId);
                 RefreshAlbumWorkspace();
-                UpdateAlbum(silent: false, statusPrefix: BuildSourceRefreshSummary(scan));
+                UpdateAlbum(silent: false, statusPrefix: BuildSourceRefreshSummary(scan, assetScan));
             }
             finally
             {
@@ -186,13 +206,27 @@ internal sealed partial class ShellView
         }), System.Windows.Threading.DispatcherPriority.Background);
     }
 
-    private static string BuildSourceRefreshSummary(SheetIntakeScanResult scan)
+    private static string BuildSourceRefreshSummary(
+        SheetIntakeScanResult scan,
+        ProjectAssetSourceReconciliationResult assets)
     {
         var summary = scan.ChangedPackageCount == 0
             ? $"{scan.ManifestCount} package шалгав, шинэ source өөрчлөлтгүй"
             : $"{scan.ChangedPackageCount} package шинэчлэгдэж, " +
               $"{scan.UpdatedSheetCount} sheet шинэчлэгдэн, {scan.RemovedSheetCount} sheet хасагдав";
-        return scan.ErrorCount == 0 ? summary : $"{summary}, {scan.ErrorCount} алдаа";
+        if (scan.RejectedPackageCount > 0)
+            summary += $", Rejected package: {scan.RejectedPackageCount}";
+        int updatedAssets = assets.UpdatedDocumentCount + assets.UpdatedVisualizationCount;
+        int missingAssets = assets.MissingDocumentCount + assets.MissingVisualizationCount;
+        int restoredAssets = assets.RestoredDocumentCount + assets.RestoredVisualizationCount;
+        if (updatedAssets > 0)
+            summary += $", Studio source шинэчлэгдсэн: {updatedAssets}";
+        if (missingAssets > 0)
+            summary += $", альбумаас хасагдсан source: {missingAssets}";
+        if (restoredAssets > 0)
+            summary += $", сэргэсэн source: {restoredAssets}";
+        int otherErrors = Math.Max(0, scan.ErrorCount - scan.RejectedPackageCount) + assets.ErrorCount;
+        return otherErrors == 0 ? summary : $"{summary}, {otherErrors} алдаа";
     }
 
     private void ConfigureReceivedSheetsList()
@@ -247,20 +281,24 @@ internal sealed partial class ShellView
     {
         if (!EnsureProjectContentPermission())
             return;
-        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
+        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem { Source: ProjectDesignSource source })
         {
             return;
         }
 
-        state.RemoveDesignSource(selected.Source);
+        int removedPageCount = state.RemoveDesignSource(source);
         RefreshSourceWorkspace();
-        SetStatus($"Эх үүсвэрийн бүртгэлийг хаслаа: {selected.Source.DisplayName}. Файлууд хэвээр үлдсэн.");
+        RefreshAlbumWorkspace();
+        UpdateAlbum(silent: true, statusPrefix: "Эх үүсвэр хасагдсан альбум шинэчлэгдлээ");
+        SetStatus(
+            $"Эх үүсвэрийн бүртгэл болон {removedPageCount} альбумын хуудасны холбоосыг хаслаа: " +
+            $"{source.DisplayName}. Эх файл, хүлээн авсан PDF-үүд хэвээр үлдсэн.");
     }
 
     private void RelinkSelectedNativeSource()
     {
         if (!EnsureProjectContentPermission() ||
-            designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
+            designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem { Source: ProjectDesignSource source })
         {
             return;
         }
@@ -268,24 +306,24 @@ internal sealed partial class ShellView
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "Локал эх файлыг дахин заах",
-            Filter = NativeSourceFilter(selected.Source.Kind),
+            Filter = NativeSourceFilter(source.Kind),
             CheckFileExists = true,
             Multiselect = false,
-            FileName = string.IsNullOrWhiteSpace(selected.Source.NativeDocumentPath)
+            FileName = string.IsNullOrWhiteSpace(source.NativeDocumentPath)
                 ? ""
-                : selected.Source.NativeDocumentPath,
+                : source.NativeDocumentPath,
         };
         if (dialog.ShowDialog(Window.GetWindow(Root)) != true)
             return;
 
-        selected.Source.NativeDocumentPath = Path.GetFullPath(dialog.FileName);
-        selected.Source.NativeDocumentTitle = Path.GetFileName(dialog.FileName);
-        selected.Source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        selected.Source.Metadata["local.nativeRelinkedAtUtc"] = DateTimeOffset.UtcNow.ToString("O");
+        source.NativeDocumentPath = Path.GetFullPath(dialog.FileName);
+        source.NativeDocumentTitle = Path.GetFileName(dialog.FileName);
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        source.Metadata["local.nativeRelinkedAtUtc"] = DateTimeOffset.UtcNow.ToString("O");
         state.SaveProject();
-        RefreshSourceWorkspace(selected.Source.Id);
+        RefreshSourceWorkspace(source.Id);
         SetStatus(
-            $"Локал эх файл дахин холбогдлоо: {selected.Source.NativeDocumentTitle}. " +
+            $"Локал эх файл дахин холбогдлоо: {source.NativeDocumentTitle}. " +
             "Файл болон бүтэн зам Cloud ERA руу илгээгдэхгүй.");
     }
 
@@ -301,7 +339,7 @@ internal sealed partial class ShellView
     private async Task BindSelectedCloudSourceAsync()
     {
         if (!EnsureProjectContentPermission() ||
-            designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
+            designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem { Source: ProjectDesignSource source })
         {
             return;
         }
@@ -319,10 +357,10 @@ internal sealed partial class ShellView
             IReadOnlyList<StudioCloudDesignPackage> packages = await account.ListDesignPackagesAsync(projectId);
             string currentEmail = account.Current?.Email ?? "";
             List<StudioCloudSourcePackage> available = LatestCloudSources(packages)
-                .Where(source => source.CustodianEmail.Equals(currentEmail, StringComparison.OrdinalIgnoreCase))
-                .Where(source => !state.Project.Sources.Any(local =>
-                    !ReferenceEquals(local, selected.Source) &&
-                    ProjectCloudSyncMetadata.CloudSourceKey(local).Equals(source.SourceKey, StringComparison.OrdinalIgnoreCase)))
+                .Where(cloudSource => cloudSource.CustodianEmail.Equals(currentEmail, StringComparison.OrdinalIgnoreCase))
+                .Where(cloudSource => !state.Project.Sources.Any(local =>
+                    !ReferenceEquals(local, source) &&
+                    ProjectCloudSyncMetadata.CloudSourceKey(local).Equals(cloudSource.SourceKey, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
             if (available.Count == 0)
             {
@@ -343,13 +381,13 @@ internal sealed partial class ShellView
 
             ProjectCloudSyncMetadata.BindToCloudSource(
                 state.Project,
-                selected.Source,
+                source,
                 dialog.SelectedSource.SourceKey);
             state.SaveProject();
-            RefreshSourceWorkspace(selected.Source.Id);
+            RefreshSourceWorkspace(source.Id);
             RefreshSyncUi();
             SetStatus(
-                $"{selected.Source.DisplayName} локал эх үүсвэрийг {dialog.SelectedSource.SourceDocumentReference} cloud source-т холболоо. " +
+                $"{source.DisplayName} локал эх үүсвэрийг {dialog.SelectedSource.SourceDocumentReference} cloud source-т холболоо. " +
                 "RVT/DWG файл болон локал зам server рүү дамжаагүй.");
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
@@ -426,25 +464,33 @@ internal sealed partial class ShellView
 
     private void OpenSelectedSourceFolder()
     {
-        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected ||
-            string.IsNullOrWhiteSpace(selected.Source.InboxFolder))
+        if (designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem { IsVisualization: true })
+        {
+            string visualizationFolder = ResolveVisualizationImageFolder();
+            Directory.CreateDirectory(visualizationFolder);
+            Process.Start(new ProcessStartInfo(visualizationFolder) { UseShellExecute = true });
+            return;
+        }
+
+        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem { Source: ProjectDesignSource source } ||
+            string.IsNullOrWhiteSpace(source.InboxFolder))
         {
             return;
         }
 
-        Directory.CreateDirectory(selected.Source.InboxFolder);
-        Process.Start(new ProcessStartInfo(selected.Source.InboxFolder) { UseShellExecute = true });
+        Directory.CreateDirectory(source.InboxFolder);
+        Process.Start(new ProcessStartInfo(source.InboxFolder) { UseShellExecute = true });
     }
 
     private void OpenSelectedNativeSource()
     {
-        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected ||
-            string.IsNullOrWhiteSpace(selected.Source.NativeDocumentPath))
+        if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem { Source: ProjectDesignSource source } ||
+            string.IsNullOrWhiteSpace(source.NativeDocumentPath))
         {
             return;
         }
 
-        string path = selected.Source.NativeDocumentPath;
+        string path = source.NativeDocumentPath;
         if (!File.Exists(path) && !Directory.Exists(path))
         {
             SetStatus($"Эх файл олдсонгүй. Байршлыг дахин заана уу: {path}");
@@ -454,9 +500,9 @@ internal sealed partial class ShellView
         try
         {
             Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            SetStatus(selected.Source.Kind == DesignSourceKind.Revit
+            SetStatus(source.Kind == DesignSourceKind.Revit
                 ? "RVT файлыг Revit дээр нээлээ. Erk-S Platform > Альбум > Studio руу илгээх үйлдлээр sheets шинэчилнэ."
-                : $"Эх файлыг нээлээ: {selected.Source.NativeDocumentTitle}");
+                : $"Эх файлыг нээлээ: {source.NativeDocumentTitle}");
         }
         catch (Exception exception)
         {
@@ -468,18 +514,27 @@ internal sealed partial class ShellView
     {
         if (selectSourceId is null && designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem current)
         {
-            selectSourceId = current.Source.Id;
+            selectSourceId = current.SelectionKey;
         }
 
-        var items = state.Project.Sources
+        ProjectVisualizationSource visualizations = CurrentProjectVisualizationSource();
+        var items = new List<SourceWorkspaceItem>();
+        if (visualizations.IsConfiguredForProject(state.Project.ProjectId))
+        {
+            items.Add(SourceWorkspaceItem.Visualizations(
+                visualizations.ImagesForProject(state.Project.ProjectId).Count,
+                visualizations.ImagesPerPage));
+        }
+        items.AddRange(state.Project.Sources
             .Select(source => new SourceWorkspaceItem(
                 source,
+                false,
                 SourceDocumentLabel(source),
                 $"{source.DisplayName}  |  {SourceStatusLabel(source.Status)}"))
-            .ToList();
+            .ToList());
         designSourcesWorkspaceList.ItemsSource = items;
         designSourcesWorkspaceList.SelectedItem = items.FirstOrDefault(item =>
-            string.Equals(item.Source.Id, selectSourceId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(item.SelectionKey, selectSourceId, StringComparison.OrdinalIgnoreCase));
         if (designSourcesWorkspaceList.SelectedItem is null && items.Count > 0)
         {
             designSourcesWorkspaceList.SelectedIndex = 0;
@@ -491,14 +546,25 @@ internal sealed partial class ShellView
 
     private void RefreshReceivedSheetWorkspace()
     {
-        var records = state.Library.Snapshot().AsEnumerable();
-        if (designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem selected)
+        bool visualizationsSelected =
+            designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem { IsVisualization: true };
+        receivedSheetsWorkspaceList.Visibility = visualizationsSelected ? Visibility.Collapsed : Visibility.Visible;
+        visualizationImagesWorkspaceList.Visibility = visualizationsSelected ? Visibility.Visible : Visibility.Collapsed;
+        sourceContentTitle.Text = visualizationsSelected ? "Харагдах байдлын зураг" : "Хүлээн авсан sheets";
+        if (visualizationsSelected)
         {
-            records = selected.Source.UseLegacySheetKeys
+            RefreshVisualizationImagesList();
+            return;
+        }
+
+        var records = state.Library.Snapshot().AsEnumerable();
+        if (designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem { Source: ProjectDesignSource source })
+        {
+            records = source.UseLegacySheetKeys
                 ? records.Where(record => string.IsNullOrWhiteSpace(record.SourceId))
                 : records.Where(record => string.Equals(
                     record.SourceId,
-                    selected.Source.Id,
+                    source.Id,
                     StringComparison.OrdinalIgnoreCase));
         }
 
@@ -515,15 +581,24 @@ internal sealed partial class ShellView
 
     private void RefreshSourceDetails()
     {
+        SetNativeSourceActionsVisible(false);
         if (designSourcesWorkspaceList.SelectedItem is not SourceWorkspaceItem selected)
         {
             sourceDetailsText.Text = "Эх үүсвэр сонгоно уу.";
             sourceWorkflowText.Text = "";
             openNativeSourceButton.Visibility = Visibility.Collapsed;
+            openSourceFolderButton.Visibility = Visibility.Collapsed;
+            visualizationSourceControls.Visibility = Visibility.Collapsed;
             return;
         }
 
-        var source = selected.Source;
+        if (selected.IsVisualization)
+        {
+            RefreshVisualizationSourceDetails();
+            return;
+        }
+
+        var source = selected.Source!;
         var sheetCount = state.Library.Snapshot().Count(record =>
             source.UseLegacySheetKeys
                 ? string.IsNullOrWhiteSpace(record.SourceId)
@@ -541,6 +616,9 @@ internal sealed partial class ShellView
         openNativeSourceButton.Visibility = string.IsNullOrWhiteSpace(source.NativeDocumentPath)
             ? Visibility.Collapsed
             : Visibility.Visible;
+        openSourceFolderButton.Visibility = Visibility.Visible;
+        visualizationSourceControls.Visibility = Visibility.Collapsed;
+        SetNativeSourceActionsVisible(true);
         sourceWorkflowText.Text = source.Kind switch
         {
             DesignSourceKind.Revit when sheetCount == 0 =>
@@ -551,128 +629,25 @@ internal sealed partial class ShellView
         };
     }
 
-    private void AddSelectedSheetsToAlbum()
+    private void SetNativeSourceActionsVisible(bool hasNativeSource)
     {
-        if (!EnsureProjectContentPermission())
-            return;
-        var records = receivedSheetsWorkspaceList.SelectedItems
-            .Cast<SheetWorkspaceItem>()
-            .Select(item => item.Record)
-            .ToList();
-        AddSheetsToAlbum(records);
-    }
+        Visibility sourceVisibility = hasNativeSource ? Visibility.Visible : Visibility.Collapsed;
+        relinkNativeSourceButton.Visibility = sourceVisibility;
+        removeDesignSourceButton.Visibility = sourceVisibility;
 
-    private void AddVisibleSheetsToAlbum()
-    {
-        if (!EnsureProjectContentPermission())
-            return;
-        var records = receivedSheetsWorkspaceList.Items
-            .Cast<SheetWorkspaceItem>()
-            .Select(item => item.Record)
-            .ToList();
-        AddSheetsToAlbum(records);
-    }
+        bool cloudProject = hasNativeSource &&
+            state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId);
+        bindCloudSourceButton.Visibility = cloudProject ? Visibility.Visible : Visibility.Collapsed;
+        transferSourceCustodyButton.Visibility = cloudProject && CanManageProjectTeam()
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-    private void AddSheetsToAlbum(IReadOnlyList<SheetRecord> records)
-    {
-        var added = 0;
-        var updated = 0;
-        Guid? lastAddedId = null;
-        foreach (var record in records)
-        {
-            var slot = string.Equals(
-                state.Album.TemplateId,
-                BuildingArchitectureConceptAlbumTemplate.TemplateId,
-                StringComparison.OrdinalIgnoreCase)
-                ? BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(state.Album, record.Entry)
-                : null;
-            var existingPage = state.Album.Pages.FirstOrDefault(page =>
-                string.Equals(page.SheetKey, record.Key, StringComparison.Ordinal));
-            if (existingPage is not null)
-            {
-                if (slot is not null && !string.Equals(
-                        existingPage.TemplateSlotId,
-                        slot.Id,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    existingPage.TemplateSlotId = slot.Id;
-                    existingPage.SectionId = BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(state.Album, slot);
-                    updated++;
-                }
-                if (PageFormatResolver.ApplySourceFormat(existingPage, record.Entry))
-                {
-                    updated++;
-                    lastAddedId = existingPage.Id;
-                }
-                continue;
-            }
-
-            var source = state.Project.Sources.FirstOrDefault(item =>
-                string.Equals(item.Id, record.SourceId, StringComparison.OrdinalIgnoreCase));
-            var page = new AlbumPageDefinition
-            {
-                SheetKey = record.Key,
-                TemplateSlotId = slot?.Id ?? "",
-                SectionId = slot is null
-                    ? ResolveDefaultSection(record, source)
-                    : BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(state.Album, slot),
-                PageFormatId = ResolveDefaultPageFormat(source),
-                PlacementMode = PagePlacementMode.FitDrawingArea,
-            };
-            PageFormatResolver.ApplySourceFormat(page, record.Entry);
-            state.Album.Pages.Add(page);
-            lastAddedId = page.Id;
-            added++;
-        }
-
-        if (string.Equals(
-                state.Album.TemplateId,
-                BuildingArchitectureConceptAlbumTemplate.TemplateId,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            var ordered = BuildingArchitectureConceptAlbumSequencer.OrderPages(
-                state.Album,
-                state.Album.Pages,
-                state.Library,
-                state.Project.Sources);
-            state.Album.Pages.Clear();
-            state.Album.Pages.AddRange(ordered);
-        }
-
-        RefreshAlbumWorkspace(lastAddedId);
-        SetStatus(added == 0 && updated == 0
-            ? "Сонгосон sheets альбумд аль хэдийн орсон байна."
-            : $"Альбум: {added} sheet нэмэгдэж, {updated} format шинэчлэгдлээ.");
-    }
-
-    private string ResolveDefaultPageFormat(ProjectDesignSource? source)
-    {
-        if (state.Project.Identity.StageCode.Contains("Concept", StringComparison.OrdinalIgnoreCase))
-        {
-            return PageFormatCatalog.ConceptA3LandscapeId;
-        }
-
-        return source?.Kind is DesignSourceKind.Pdf or DesignSourceKind.Folder
-            ? PageFormatCatalog.SourceAsIsId
-            : PageFormatCatalog.WorkingDrawingA3LandscapeId;
-    }
-
-    private Guid? ResolveDefaultSection(SheetRecord record, ProjectDesignSource? source)
-    {
-        var hints = new[] { record.Entry.Discipline, source?.Name }
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToList();
-        var match = state.Album.Sections.FirstOrDefault(section =>
-            hints.Any(hint => section.Title.Contains(hint!, StringComparison.OrdinalIgnoreCase) ||
-                              hint!.Contains(section.Title, StringComparison.OrdinalIgnoreCase)));
-        if (match is not null)
-        {
-            return match.Id;
-        }
-
-        return state.Album.Sections.Count > 1
-            ? state.Album.Sections[1].Id
-            : state.Album.Sections.FirstOrDefault()?.Id;
+        bool canEdit = hasNativeSource && CanEditProjectContent();
+        relinkNativeSourceButton.IsEnabled = canEdit;
+        removeDesignSourceButton.IsEnabled = canEdit;
+        bindCloudSourceButton.IsEnabled = canEdit && account.IsSignedIn;
+        transferSourceCustodyButton.IsEnabled = cloudProject && CanManageProjectTeam();
     }
 
     private static string SourceStatusLabel(string status) => status switch
@@ -1019,10 +994,21 @@ internal sealed partial class ShellView
         var save = StudioWidgets.CreateIconTextButton("icon-project.svg", "Хадгалах");
         save.Click += (_, _) => SaveProject();
         var updateAlbum = StudioWidgets.CreateIconTextButton("icon-album.svg", "Альбум шинэчлэх");
-        updateAlbum.ToolTip = "Төслийн мэдээлэл, формат болон хамгийн сүүлийн source sheet-үүдээр альбумыг дахин бүрдүүлнэ.";
+        updateAlbum.ToolTip = "Бүх linked source-ийг шалгаж, өөрчлөгдсөн мэдээллээр альбумыг дахин бүрдүүлнэ. Устсан source-ийн агуулга хуудсанд үлдэхгүй.";
         updateAlbum.Background = StudioTheme.AccentBrush;
         updateAlbum.BorderBrush = StudioTheme.AccentBrush;
         updateAlbum.Click += (_, _) => CheckForSourceUpdates();
+        var editVisualizations = StudioWidgets.CreateIconTextButton(
+            "icon-sources.svg",
+            "Харагдах байдал",
+            "Альбумын хуудсан дээрх зургуудыг сонгож идэвхгүй болгох эсвэл буцаан оруулах");
+        editVisualizations.Click += (_, _) => EditVisualizationAlbumPages();
+        var elevationInformation = StudioWidgets.CreateIconTextButton(
+            "icon-project.svg",
+            "Нүүр талын мэдээлэл");
+        elevationInformation.ToolTip =
+            "Сонгосон нүүр талын хуудасны тайлбарыг засна. БАТЛАВ болон ХЯНАВ нь АТД хэсгээс уншигдана.";
+        elevationInformation.Click += (_, _) => EditSelectedElevationSheetInformation();
         var open = StudioWidgets.CreateButton("PDF нээх");
         open.Click += (_, _) =>
         {
@@ -1033,6 +1019,8 @@ internal sealed partial class ShellView
         };
         documentGroup.Children.Add(save);
         documentGroup.Children.Add(updateAlbum);
+        documentGroup.Children.Add(editVisualizations);
+        documentGroup.Children.Add(elevationInformation);
         documentGroup.Children.Add(open);
         autoRebuildCheck.Content = "Auto шинэчлэлт";
         autoRebuildCheck.ToolTip = "Эх үүсвэр өөрчлөгдөхөд альбумыг автоматаар шинэчилнэ.";
@@ -1041,6 +1029,51 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(autoRebuildCheck);
         ribbon.Children.Add(documentGroup);
         return ribbon;
+    }
+
+    private void EditSelectedElevationSheetInformation()
+    {
+        if (!state.HasOpenProject || !CanEditProjectContent())
+            return;
+        if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem
+            {
+                IsGroup: false,
+                Page: AlbumPageDefinition page,
+            } selected)
+        {
+            SetStatus("Тайлбар засах нүүр талын хуудсаа сонгоно уу.");
+            return;
+        }
+
+        SheetRecord? sheet = state.Library.Find(page.SheetKey);
+        if (sheet == null || !BuildingArchitectureConceptPageLayout.IsElevationSheet(
+                sheet.Entry.ContentKind,
+                sheet.Entry.Name,
+                page.TemplateSlotId))
+        {
+            SetStatus("Энэ үйлдэл зөвхөн Нүүр тал төрлийн хуудсанд хамаарна.");
+            return;
+        }
+
+        ConceptElevationHeaderSnapshot roster = ConceptElevationHeaderResolver.Resolve(
+            state.Project.Foundation.ApprovalWorkflow,
+            state.Project.Foundation.PlanningTask);
+        var dialog = new ElevationSheetInformationDialog(
+            selected.Number,
+            selected.Title,
+            sheet.Entry.SheetDescription,
+            page.ElevationDescriptionOverride,
+            roster)
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        page.ElevationDescriptionOverride = dialog.DescriptionOverride;
+        state.SaveProject();
+        RefreshAlbumWorkspace(selectItemKey: selected.SelectionKey);
+        UpdateAlbum(silent: false, statusPrefix: "Нүүр талын мэдээлэл хадгалагдлаа");
     }
 
     private UIElement BuildAlbumProperties()
@@ -1116,16 +1149,21 @@ internal sealed partial class ShellView
         includeCoverCheck.IsChecked = state.Album.IncludeCover;
         includeTocCheck.IsChecked = state.Album.IncludeTableOfContents;
         var hasComposition = state.Album.Composition.Count > 0;
+        int visualizationImageCount = CurrentProjectVisualizationImages().Count;
         includeCoverCheck.Visibility = hasComposition ? Visibility.Collapsed : Visibility.Visible;
         if (hasComposition)
         {
             var ready = state.Album.Composition.Count(item =>
                 item.Kind == AlbumCompositionKind.Generated ||
+                (item.Id.Equals("visualizations", StringComparison.OrdinalIgnoreCase) &&
+                 visualizationImageCount > 0) ||
                 state.Album.Pages.Any(page => string.Equals(
                     page.TemplateSlotId,
                     item.Id,
                     StringComparison.OrdinalIgnoreCase)));
-            albumInfoText.Text = $"Бүрдэл {ready}/{state.Album.Composition.Count} · {state.Album.Pages.Count} source sheet";
+            albumInfoText.Text =
+                $"Бүрдэл {ready}/{state.Album.Composition.Count} · {state.Album.Pages.Count} source sheet · " +
+                $"{visualizationImageCount} зураг";
         }
         else
         {
@@ -1228,28 +1266,43 @@ internal sealed partial class ShellView
             return FlattenAlbumWorkspace(root);
         }
 
+        AlbumProject buildProject = state.CreateAlbumBuildProject();
+        IReadOnlyList<ConceptGeneratedPagePlan> generatedPlans =
+            BuildingArchitectureConceptGeneratedPagePlanner.Create(buildProject);
         var sequence = BuildingArchitectureConceptAlbumSequencer.Create(
             state.Album,
             state.Album.Pages,
             state.Library,
-            state.Project.Sources);
+            state.Project.Sources,
+            generatedPlans.Count);
+        int firstVisualizationNumber = BuildingArchitectureConceptAlbumSequencer.NextAutomaticNumber(
+            state.Album,
+            sequence,
+            generatedPlans.Count);
+        IReadOnlyList<VisualizationAlbumPagePlan> visualizationPlans =
+            VisualizationPageLayoutPlanner.Create(
+                buildProject.Visualizations,
+                buildProject.ProjectId,
+                firstVisualizationNumber);
 
         var studioPages = CreateAlbumWorkspaceGroup(
             $"{albumNodeKey}:studio-pages",
             AlbumWorkspaceNodeKind.Studio,
             "Studio хуудас");
-        foreach (var component in state.Album.Composition
-                     .Where(item => item.Kind == AlbumCompositionKind.Generated)
-                     .OrderBy(item => item.Order))
+        foreach (ConceptGeneratedPagePlan plan in generatedPlans)
         {
             studioPages.Children.Add(CreateAlbumWorkspacePage(new AlbumPageWorkspaceItem(
                 null,
-                component,
-                component.Number,
-                component.Number,
-                component.Title,
-                "Studio",
-                "")));
+                plan.Component,
+                plan.Number,
+                plan.Number,
+                plan.Title,
+                plan.DocumentLabel,
+                "")
+            {
+                GeneratedPageIndex = plan.OutputIndex,
+                GeneratedNavigationKey = plan.NavigationKey,
+            }));
         }
         root.Children.Add(studioPages);
 
@@ -1316,6 +1369,27 @@ internal sealed partial class ShellView
             root.Children.Add(sourceNode);
         }
 
+        if (visualizationPlans.Count > 0)
+        {
+            AlbumCompositionItem? visualizationComponent = state.Album.Composition.FirstOrDefault(item =>
+                item.Id.Equals("visualizations", StringComparison.OrdinalIgnoreCase));
+            var visualizationSourceNode = CreateAlbumWorkspaceGroup(
+                $"{albumNodeKey}:source:{VisualizationSourceSelectionKey}",
+                AlbumWorkspaceNodeKind.Source,
+                "Эх үүсвэр · Харагдах байдал");
+            var visualizationTypeNode = CreateAlbumWorkspaceGroup(
+                $"{visualizationSourceNode.Key}:type:visualizations",
+                AlbumWorkspaceNodeKind.DrawingType,
+                "Харагдах байдал");
+            foreach (VisualizationAlbumPagePlan plan in visualizationPlans)
+            {
+                visualizationTypeNode.Children.Add(CreateAlbumWorkspacePage(
+                    CreateVisualizationPageWorkspaceItem(plan, visualizationComponent)));
+            }
+            visualizationSourceNode.Children.Add(visualizationTypeNode);
+            root.Children.Add(visualizationSourceNode);
+        }
+
         return FlattenAlbumWorkspace(root);
     }
 
@@ -1373,7 +1447,9 @@ internal sealed partial class ShellView
     {
         Key = item.Page is AlbumPageDefinition page
             ? $"page:{page.Id:N}"
-            : $"component:{item.Component?.Id ?? Guid.NewGuid().ToString("N")}",
+            : !string.IsNullOrWhiteSpace(item.GeneratedNavigationKey)
+                ? $"component:{item.GeneratedNavigationKey}"
+                : $"component:{item.Component?.Id ?? Guid.NewGuid().ToString("N")}",
         Kind = AlbumWorkspaceNodeKind.Page,
         Title = item.Title,
         PageItem = item,
@@ -1381,7 +1457,11 @@ internal sealed partial class ShellView
 
     private static int CountAlbumWorkspacePages(AlbumWorkspaceNode node) =>
         node.PageItem is AlbumPageWorkspaceItem item
-            ? (item.Page is not null || item.Component?.Kind == AlbumCompositionKind.Generated ? 1 : 0)
+            ? (item.Page is not null ||
+               item.Component?.Kind == AlbumCompositionKind.Generated ||
+               item.VisualizationPlan is not null
+                ? 1
+                : 0)
             : node.Children.Sum(CountAlbumWorkspacePages);
 
     private static AlbumPageWorkspaceItem CreateSourcePageWorkspaceItem(ConceptAlbumSourcePage item)
@@ -1398,6 +1478,21 @@ internal sealed partial class ShellView
             "",
             "");
     }
+
+    private static AlbumPageWorkspaceItem CreateVisualizationPageWorkspaceItem(
+        VisualizationAlbumPagePlan plan,
+        AlbumCompositionItem? component) => new(
+            null,
+            component,
+            plan.Number,
+            plan.Number,
+            plan.Title,
+            $"{plan.Tiles.Count} зураг",
+            "Харагдах байдал")
+        {
+            GeneratedNavigationKey = plan.NavigationKey,
+            VisualizationPlan = plan,
+        };
 
     private static string ResolveAlbumWorkspaceSourceKey(ConceptAlbumSourcePage item)
     {
@@ -1489,6 +1584,24 @@ internal sealed partial class ShellView
             albumSectionBox.SelectedItem = albumSectionBox.Items
                 .Cast<SectionChoice>()
                 .FirstOrDefault(choice => choice.Id == page.SectionId);
+        }
+        else if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem
+                 {
+                     VisualizationPlan: VisualizationAlbumPagePlan
+                 } visualizationItem)
+        {
+            SetAlbumPagePropertiesEnabled(false);
+            albumPageNumberBox.Text = visualizationItem.Number;
+            albumPageTitleBox.Text = visualizationItem.Title;
+            albumPageFormatBox.ItemsSource = PageFormatCatalog.All;
+            albumPageFormatBox.SelectedItem = PageFormatCatalog.Resolve(PageFormatCatalog.ConceptA3LandscapeId);
+            albumPlacementBox.SelectedItem = null;
+            albumSectionBox.SelectedItem = albumSectionBox.Items
+                .Cast<SectionChoice>()
+                .FirstOrDefault(choice => string.Equals(
+                    choice.Label,
+                    "Харагдах байдал",
+                    StringComparison.OrdinalIgnoreCase));
         }
         else if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem compositionItem)
         {
@@ -1654,7 +1767,9 @@ internal sealed partial class ShellView
         }
 
         var sheet = state.Library.Find(sourcePage.SheetKey);
-        var format = PageFormatCatalog.Resolve(sourcePage);
+        var format = sheet is null
+            ? PageFormatCatalog.Resolve(sourcePage)
+            : PageFormatCatalog.ResolveForConceptPage(sourcePage, sheet.Entry);
         var width = format.Kind == PageFormatKind.SourceAsIs
             ? Math.Max(210, sheet?.Entry.WidthMm ?? 420)
             : format.WidthMm;
@@ -1684,7 +1799,7 @@ internal sealed partial class ShellView
                 ? sheet?.Entry.Name ?? selected.Title
                 : sourcePage.TitleOverride;
             var pageNumber = selected.Number;
-            AddConceptSheetPreviewChrome(canvas, pageTitle, pageNumber);
+            AddConceptSheetPreviewChrome(canvas, pageTitle, pageNumber, sourcePage, sheet?.Entry);
         }
         else
         {
@@ -1707,21 +1822,70 @@ internal sealed partial class ShellView
         ShowAlbumPreviewCanvas(canvas);
     }
 
+    private void ResetAlbumPreviewForProjectChange()
+    {
+        albumPdfNavigationSerial++;
+        albumThumbnailLoadCancellation?.Cancel();
+        albumThumbnailLoadCancellation?.Dispose();
+        albumThumbnailLoadCancellation = null;
+        loadedAlbumPdfDocumentKey = null;
+        selectedAlbumWorkspaceKey = null;
+        albumPagesWorkspaceList.SelectedItem = null;
+        albumPagesWorkspaceList.ItemsSource = null;
+
+        try
+        {
+            albumPdfViewer.CoreWebView2?.Navigate("about:blank");
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        if (albumPdfViewer.Parent is Panel currentParent)
+        {
+            currentParent.Children.Remove(albumPdfViewer);
+        }
+        albumPreviewHost.Children.Clear();
+        albumPreviewHost.Children.Add(new TextBlock
+        {
+            Text = "Альбумын хуудас сонгоно уу",
+            Foreground = Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+    }
+
     private int? ResolveBuiltAlbumPage(AlbumPageWorkspaceItem selected)
     {
         var project = state.CreateAlbumBuildProject();
-        var generated = project.Album.Composition
-            .Where(item => item.Kind == AlbumCompositionKind.Generated)
-            .OrderBy(item => item.Order)
-            .ToList();
+        List<ConceptGeneratedPagePlan> generated =
+            BuildingArchitectureConceptGeneratedPagePlanner.Create(project).ToList();
 
         if (selected.Component?.Kind == AlbumCompositionKind.Generated)
         {
+            if (selected.GeneratedPageIndex.HasValue)
+                return selected.GeneratedPageIndex.Value + 1;
             var generatedIndex = generated.FindIndex(item => string.Equals(
-                item.Id,
+                item.Component.Id,
                 selected.Component.Id,
                 StringComparison.OrdinalIgnoreCase));
             return generatedIndex < 0 ? null : generatedIndex + 1;
+        }
+
+        if (selected.VisualizationPlan is VisualizationAlbumPagePlan visualizationPlan)
+        {
+            int visualizationPageOffset = generated.Count;
+            if (generated.Count == 0 && project.Album.IncludeCover)
+                visualizationPageOffset++;
+            if (project.Album.IncludeTableOfContents)
+                visualizationPageOffset++;
+
+            AlbumBuildRequest visualizationRequest = AlbumBuilder.CreateRequest(project, state.Library);
+            visualizationPageOffset += visualizationRequest.Sections
+                .SelectMany(section => section.Pages)
+                .Where(buildPage => File.Exists(buildPage.Sheet.PdfPath))
+                .Sum(buildPage => Math.Max(1, buildPage.Sheet.Entry.PageCount));
+            return visualizationPageOffset + visualizationPlan.PageIndex + 1;
         }
 
         if (selected.Page is not AlbumPageDefinition selectedPage)
@@ -1899,6 +2063,12 @@ internal sealed partial class ShellView
             Background = Brushes.White,
         };
         var component = selected.Component;
+        if (selected.VisualizationPlan is VisualizationAlbumPagePlan visualizationPlan)
+        {
+            AddVisualizationPagePreview(canvas, visualizationPlan);
+            ShowAlbumPreviewCanvas(canvas);
+            return;
+        }
         if (component?.GeneratedPageKind == AlbumGeneratedPageKind.Cover)
         {
             AddConceptCoverPreview(canvas);
@@ -1908,8 +2078,8 @@ internal sealed partial class ShellView
 
         AddConceptSheetPreviewChrome(
             canvas,
-            component?.Title ?? selected.Title,
-            component?.Number ?? selected.Number);
+            selected.Title,
+            selected.Number);
 
         if (component?.Kind == AlbumCompositionKind.Generated)
         {
@@ -1949,23 +2119,41 @@ internal sealed partial class ShellView
         ShowAlbumPreviewCanvas(canvas);
     }
 
-    private void AddConceptSheetPreviewChrome(Canvas canvas, string title, string number)
+    private void AddConceptSheetPreviewChrome(
+        Canvas canvas,
+        string title,
+        string number,
+        AlbumPageDefinition? page = null,
+        SheetPackageEntry? entry = null)
     {
+        bool isElevation = entry is not null && BuildingArchitectureConceptPageLayout.IsElevationSheet(
+            entry.ContentKind,
+            entry.Name,
+            page?.TemplateSlotId);
         var frame = AddPreviewRectangle(canvas, BuildingArchitectureConceptPageLayout.Frame, Brushes.Transparent, Brushes.Black);
         frame.StrokeThickness = 0.9;
         AddPreviewLine(
             canvas,
             BuildingArchitectureConceptPageLayout.FrameLeftMm,
-            BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm,
+            isElevation
+                ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
+                : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm,
             BuildingArchitectureConceptPageLayout.FrameRightMm,
-            BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm);
+            isElevation
+                ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
+                : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm);
+        if (isElevation)
+            AddConceptElevationHeaderPreview(canvas, page, entry!);
+        PageRectMm titleArea = isElevation
+            ? BuildingArchitectureConceptPageLayout.ElevationSheetTitleArea
+            : BuildingArchitectureConceptPageLayout.SheetTitleArea;
         AddPreviewText(
             canvas,
             title,
-            20,
-            6.5,
-            390,
-            6.5,
+            titleArea.X + 5,
+            titleArea.Y + 1.5,
+            titleArea.Width - 10,
+            titleArea.Height - 2,
             7.5,
             FontWeights.Normal,
             Brushes.Black,
@@ -2008,11 +2196,15 @@ internal sealed partial class ShellView
         {
             companyRole = $"\"{companyName}\" {companyRole}";
         }
-        var architect = state.Project.Foundation.DesignCompany.Members
-            .Where(member => member.Roles.Any(role => role.Contains("architect", StringComparison.OrdinalIgnoreCase)))
-            .OrderBy(member => member.Roles.Any(role => role.Contains("Major", StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
-            .Select(member => member.FullName)
-            .FirstOrDefault() ?? "";
+        ProjectMember? appointedArchitect = state.Project.Foundation.DesignCompany.Members
+            .Where(member => member.Roles.Any(ProjectRoleSemantics.IsAppointedArchitect))
+            .FirstOrDefault();
+        var architect = appointedArchitect is null
+            ? ""
+            : MongolianPersonNameFormatter.ForDocument(
+                appointedArchitect.FamilyName,
+                appointedArchitect.GivenName,
+                appointedArchitect.FullName);
         var companyMark = string.IsNullOrWhiteSpace(company.ShortName) ? company.Name : company.ShortName;
 
         AddPreviewText(canvas, ValueOrDash(companyMark), x0 + 2, y0 + 7, x1 - x0 - 4, 14, 6.5, FontWeights.Bold, Brushes.DimGray);
@@ -2026,8 +2218,96 @@ internal sealed partial class ShellView
         AddPreviewCornerCell(canvas, architect, x2, y2, x3, y3);
         AddPreviewCornerCell(canvas, $"Хуудас-{ValueOrDash(number)}", x4, y2, x5, y3);
         AddPreviewCornerCell(canvas, "Захиалагч", x1, y3, x2, y4, TextAlignment.Left);
-        AddPreviewCornerCell(canvas, ValueOrDash(state.Project.Foundation.InitiationBasis.ClientName), x2, y3, x3, y4);
+        ProjectInitiationBasis basis = state.Project.Foundation.InitiationBasis;
+        AddPreviewCornerCell(
+            canvas,
+            ValueOrDash(ProjectClientTypes.ResolveCoverPersonName(
+                basis.ClientType,
+                basis.ClientName,
+                basis.ClientRepresentativeName)),
+            x2,
+            y3,
+            x3,
+            y4);
         AddPreviewCornerCell(canvas, $"{DateTime.Now:yyyy} он", x4, y3, x5, y4);
+    }
+
+    private void AddConceptElevationHeaderPreview(
+        Canvas canvas,
+        AlbumPageDefinition? page,
+        SheetPackageEntry entry)
+    {
+        double x0 = BuildingArchitectureConceptPageLayout.FrameLeftMm;
+        double xRole = BuildingArchitectureConceptPageLayout.ElevationRoleColumnRightMm;
+        double xApproval = BuildingArchitectureConceptPageLayout.ElevationApprovalPanelRightMm;
+        double x1 = BuildingArchitectureConceptPageLayout.FrameRightMm;
+        double y0 = BuildingArchitectureConceptPageLayout.FrameTopMm;
+        double y1 = BuildingArchitectureConceptPageLayout.ElevationInformationBottomMm;
+        AddPreviewLine(canvas, x0, y1, x1, y1);
+        foreach (double dividerX in BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm)
+            AddPreviewLine(canvas, dividerX, y0, dividerX, y1);
+
+        ConceptElevationHeaderSnapshot roster = ConceptElevationHeaderResolver.Resolve(
+            state.Project.Foundation.ApprovalWorkflow,
+            state.Project.Foundation.PlanningTask);
+        const double padding = 3.0;
+        const double headingHeight = 4.5;
+        const double gap = 1.0;
+        int rowCount = Math.Max(1, roster.ApprovedBy.Count) + roster.ReviewedBy.Count;
+        double rowHeight = (y1 - y0 - padding * 2 - headingHeight * 2 - gap) / rowCount;
+        double y = y0 + padding;
+        AddPreviewText(canvas, "БАТЛАВ:", x0 + padding, y, xRole - x0 - padding * 2, headingHeight, 9.4, FontWeights.Bold, Brushes.Black, TextAlignment.Left);
+        y += headingHeight;
+        foreach (ProjectApprovalEntry official in roster.ApprovedBy)
+        {
+            AddElevationOfficialPreview(canvas, official, x0, xRole, xApproval, y, rowHeight);
+            y += rowHeight;
+        }
+
+        y += gap;
+        AddPreviewText(canvas, "ХЯНАВ:", x0 + padding, y, xRole - x0 - padding * 2, headingHeight, 9.4, FontWeights.Bold, Brushes.Black, TextAlignment.Left);
+        y += headingHeight;
+        foreach (ProjectApprovalEntry official in roster.ReviewedBy)
+        {
+            AddElevationOfficialPreview(canvas, official, x0, xRole, xApproval, y, rowHeight);
+            y += rowHeight;
+        }
+
+        AddPreviewText(canvas, "ТАЙЛБАР", xApproval + padding, y0 + 2, x1 - xApproval - padding * 2, 5, 9.4, FontWeights.Bold, Brushes.Black, TextAlignment.Left);
+        string description = page?.ElevationDescriptionOverride ?? entry.SheetDescription;
+        AddPreviewText(canvas, description, xApproval + padding, y0 + 8, x1 - xApproval - padding * 2, y1 - y0 - 11, 9.4, FontWeights.Normal, Brushes.Black, TextAlignment.Left);
+    }
+
+    private static void AddElevationOfficialPreview(
+        Canvas canvas,
+        ProjectApprovalEntry official,
+        double x0,
+        double xRole,
+        double xApproval,
+        double y,
+        double height)
+    {
+        AddPreviewText(
+            canvas,
+            ConceptCoverApprovalResolver.DisplayPosition(official).ToUpperInvariant(),
+            x0 + 3,
+            y,
+            xRole - x0 - 6,
+            height,
+            8.6,
+            FontWeights.Normal,
+            Brushes.Black,
+            TextAlignment.Left);
+        AddPreviewText(
+            canvas,
+            official.PersonName.ToUpperInvariant(),
+            xRole + 1,
+            y,
+            xApproval - xRole - 2,
+            height,
+            8.6,
+            FontWeights.Normal,
+            Brushes.Black);
     }
 
     private static void AddPreviewCornerCell(
@@ -2039,7 +2319,79 @@ internal sealed partial class ShellView
         double y1,
         TextAlignment alignment = TextAlignment.Center)
     {
-        AddPreviewText(canvas, text, x0 + 1, y0 + 0.8, x1 - x0 - 2, y1 - y0 - 1.6, 5.5, FontWeights.Normal, Brushes.Black, alignment);
+        const double horizontalPaddingMm = 0.6;
+        const double verticalPaddingMm = 0.4;
+        double x = x0 + (alignment == TextAlignment.Left ? 1.2 : horizontalPaddingMm);
+        double width = Math.Max(1, x1 - x - horizontalPaddingMm);
+        double height = Math.Max(1, y1 - y0 - verticalPaddingMm * 2);
+        string value = text?.Trim() ?? "";
+        double printedHeightMm = BuildingArchitectureConceptPageLayout.CornerTextHeightMm;
+        TextBlock block;
+        while (true)
+        {
+            block = CreatePreviewCornerTextBlock(value, width, printedHeightMm, alignment);
+            block.Measure(new Size(width, double.PositiveInfinity));
+            bool widthFits = PreviewCornerWordsFit(value, printedHeightMm, width);
+            bool heightFits = block.DesiredSize.Height <= height + 0.01;
+            if ((widthFits && heightFits) ||
+                printedHeightMm <= BuildingArchitectureConceptPageLayout.CornerMinimumTextHeightMm)
+            {
+                break;
+            }
+
+            printedHeightMm = Math.Max(
+                BuildingArchitectureConceptPageLayout.CornerMinimumTextHeightMm,
+                printedHeightMm - 0.1);
+        }
+
+        double contentHeight = Math.Min(height, Math.Max(1, block.DesiredSize.Height));
+        block.Height = contentHeight;
+        Canvas.SetLeft(block, x);
+        Canvas.SetTop(block, y0 + verticalPaddingMm + Math.Max(0, (height - contentHeight) * 0.5));
+        canvas.Children.Add(block);
+    }
+
+    private static TextBlock CreatePreviewCornerTextBlock(
+        string text,
+        double width,
+        double printedHeightMm,
+        TextAlignment alignment) =>
+        new()
+        {
+            Text = text,
+            Width = width,
+            FontFamily = new FontFamily(BuildingArchitectureConceptPageLayout.FontFamilyName),
+            FontSize = printedHeightMm / BuildingArchitectureConceptPageLayout.ArialCapHeightRatio,
+            FontWeight = FontWeights.Normal,
+            Foreground = Brushes.Black,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.None,
+            TextAlignment = alignment,
+        };
+
+    private static bool PreviewCornerWordsFit(string text, double printedHeightMm, double width)
+    {
+        double fontSize = printedHeightMm / BuildingArchitectureConceptPageLayout.ArialCapHeightRatio;
+        return text
+            .Split(
+                new[] { ' ', '\t', '\r', '\n' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .All(word =>
+            {
+                var formatted = new FormattedText(
+                    word,
+                    System.Globalization.CultureInfo.CurrentUICulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface(
+                        new FontFamily(BuildingArchitectureConceptPageLayout.FontFamilyName),
+                        FontStyles.Normal,
+                        FontWeights.Normal,
+                        FontStretches.Normal),
+                    fontSize,
+                    Brushes.Black,
+                    1.0);
+                return formatted.WidthIncludingTrailingWhitespace <= width + 0.01;
+            });
     }
 
     private void AddConceptCoverPreview(Canvas canvas)
@@ -2051,30 +2403,40 @@ internal sealed partial class ShellView
             Brushes.Black);
         boundary.StrokeThickness = 0.6;
 
-        var members = state.Project.Foundation.PlanningTask.AuthorityMembers;
-        var approved = members.FirstOrDefault(member => HasProjectRole(member, "Chief Architect"));
-        var approvals = members
-            .Where(member => !ReferenceEquals(member, approved))
-            .Where(member => member.Roles.Count > 0 || !string.IsNullOrWhiteSpace(member.FullName))
-            .Take(8)
-            .ToList();
-        var reviewRowCount = Math.Clamp(approvals.Count, 1, 8);
+        ConceptCoverApprovalSnapshot approvalSnapshot = ConceptCoverApprovalResolver.Resolve(
+            state.Project.Foundation.ApprovalWorkflow,
+            state.Project.Foundation.PlanningTask);
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
         const double projectNameTextHeightMm = BuildingArchitectureConceptPageLayout.CoverProjectNameTextHeightMm;
-        var approvedRole = (approved is null ? "Ерөнхий архитектор" : DisplayProjectRoles(approved)).ToUpperInvariant();
-        var approvedName = (approved?.FullName ?? "").ToUpperInvariant();
-        var approvedRowHeightMm = Math.Max(
-            8.0,
-            Math.Max(
-                MeasureCoverPreviewTextHeightMm(approvedRole, 120, bodyTextHeightMm),
-                MeasureCoverPreviewTextHeightMm(approvedName, 75, bodyTextHeightMm)) + 1.2);
-        const double approvedRowTopMm = 262.205;
-
+        const double tableLeftMm = BuildingArchitectureConceptPageLayout.CoverTableLeftMm;
+        const double reviewRoleRightMm = BuildingArchitectureConceptPageLayout.CoverReviewRoleRightMm;
+        const double reviewNameRightMm = BuildingArchitectureConceptPageLayout.CoverReviewNameRightMm;
+        const double processedLeftMm = BuildingArchitectureConceptPageLayout.CoverProcessedLeftMm;
+        const double logoRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedLogoRightMm;
+        const double processedRoleRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedRoleRightMm;
+        const double processedNameRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedNameRightMm;
+        const double tableRightMm = BuildingArchitectureConceptPageLayout.CoverTableRightMm;
+        const double tableTopMm = BuildingArchitectureConceptPageLayout.CoverTableTopMm;
+        const double columnHeaderBottomMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
         AddCoverPreviewText(canvas, "БАТЛАВ:", BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 281.205, 50, 8), bodyTextHeightMm, FontWeights.Normal);
-        AddCoverPreviewText(canvas, approvedRole,
-            BuildingArchitectureConceptPageLayout.FromBottomLeft(105.8, approvedRowTopMm - approvedRowHeightMm, 225.8, approvedRowTopMm), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
-        AddCoverPreviewText(canvas, approvedName,
-            BuildingArchitectureConceptPageLayout.FromBottomLeft(277.4, approvedRowTopMm - approvedRowHeightMm, 352.4, approvedRowTopMm), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
+        const double approvedRowsTopMm = 262.205;
+        var approvedRowTopMm = approvedRowsTopMm;
+        foreach (ProjectApprovalEntry entry in approvalSnapshot.ApprovedBy)
+        {
+            string approvedRole = ConceptCoverApprovalResolver.DisplayPosition(entry).ToUpperInvariant();
+            string approvedName = entry.PersonName.ToUpperInvariant();
+            double approvedRowHeightMm = Math.Max(
+                8.0,
+                Math.Max(
+                    MeasureCoverPreviewTextHeightMm(approvedRole, 120, bodyTextHeightMm),
+                    MeasureCoverPreviewTextHeightMm(approvedName, 75, bodyTextHeightMm)) + 1.2);
+            double approvedRowBottomMm = approvedRowTopMm - approvedRowHeightMm;
+            AddCoverPreviewText(canvas, approvedRole,
+                BuildingArchitectureConceptPageLayout.FromBottomLeft(105.8, approvedRowBottomMm, 225.8, approvedRowTopMm), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
+            AddCoverPreviewText(canvas, approvedName,
+                BuildingArchitectureConceptPageLayout.FromBottomLeft(277.4, approvedRowBottomMm, 352.4, approvedRowTopMm), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
+            approvedRowTopMm = approvedRowBottomMm;
+        }
 
         AddCoverPreviewText(canvas, ValueOrDash(state.Project.Foundation.InitiationBasis.SiteAddress),
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 220.510, 180, 8), bodyTextHeightMm, FontWeights.Normal);
@@ -2083,32 +2445,31 @@ internal sealed partial class ShellView
         AddCoverPreviewText(canvas, "/ЗАГВАР ЗУРАГ/",
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 186.760, 110, 8), bodyTextHeightMm, FontWeights.Normal);
         AddCoverPreviewText(canvas, "ЗӨВШӨӨРӨЛЦСӨН:",
-            BuildingArchitectureConceptPageLayout.FromBottomLeft(68.275, 162.36, 196.275, 168.86), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
+            BuildingArchitectureConceptPageLayout.FromBottomLeft(tableLeftMm, 162.36, processedLeftMm, 168.86), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
         AddCoverPreviewText(canvas, "БОЛОВСРУУЛСАН:",
-            BuildingArchitectureConceptPageLayout.FromBottomLeft(196.275, 162.36, 351.725, 168.86), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
+            BuildingArchitectureConceptPageLayout.FromBottomLeft(processedLeftMm, 162.36, tableRightMm, 168.86), bodyTextHeightMm, FontWeights.Normal, TextAlignment.Left);
 
-        const double reviewRowsTopMm = 153.86;
-        const double reviewRowsBaseHeightMm = 60.0;
+        const double reviewRowsTopMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
+        const double reviewRowsBaseHeightMm = BuildingArchitectureConceptPageLayout.CoverReviewRowsBaseHeightMm;
         const double cellVerticalPaddingMm = 1.2;
-        var reviewRows = new List<(ProjectMember? Member, double BottomMm, double TopMm)>(reviewRowCount);
+        var reviewRows = new List<(ProjectApprovalEntry Entry, double BottomMm, double TopMm)>(approvalSnapshot.EndorsedBy.Count);
         var reviewRowTopMm = reviewRowsTopMm;
-        var reviewBaseRowHeightMm = reviewRowsBaseHeightMm / reviewRowCount;
-        for (var index = 0; index < reviewRowCount; index++)
+        var reviewBaseRowHeightMm = reviewRowsBaseHeightMm / approvalSnapshot.EndorsedBy.Count;
+        foreach (ProjectApprovalEntry entry in approvalSnapshot.EndorsedBy)
         {
-            var member = index < approvals.Count ? approvals[index] : null;
             var roleHeightMm = MeasureCoverPreviewTextHeightMm(
-                member is null ? "" : DisplayProjectRoles(member),
-                66.0,
+                ConceptCoverApprovalResolver.DisplayPosition(entry),
+                reviewRoleRightMm - tableLeftMm - 2.4,
                 bodyTextHeightMm);
             var nameHeightMm = MeasureCoverPreviewTextHeightMm(
-                member?.FullName ?? "",
-                25.6,
+                entry.PersonName,
+                reviewNameRightMm - reviewRoleRightMm - 2.4,
                 bodyTextHeightMm);
             var rowHeightMm = Math.Max(
                 reviewBaseRowHeightMm,
                 Math.Max(roleHeightMm, nameHeightMm) + cellVerticalPaddingMm);
             var reviewRowBottomMm = reviewRowTopMm - rowHeightMm;
-            reviewRows.Add((member, reviewRowBottomMm, reviewRowTopMm));
+            reviewRows.Add((entry, reviewRowBottomMm, reviewRowTopMm));
             reviewRowTopMm = reviewRowBottomMm;
         }
 
@@ -2123,79 +2484,165 @@ internal sealed partial class ShellView
         }
 
         var representativeName = representative?.FullName ?? "";
-        var clientName = ValueOrDash(state.Project.Foundation.InitiationBasis.ClientName);
-        const double clientTitleBottomMm = 153.86;
-        var clientDataHeightMm = Math.Max(
-            16.0,
+        ProjectInitiationBasis initiationBasis = state.Project.Foundation.InitiationBasis;
+        string clientType = ProjectClientTypes.Normalize(initiationBasis.ClientType);
+        string clientRole = ProjectClientTypes.ResolveCoverRole(
+            clientType,
+            initiationBasis.ClientName,
+            initiationBasis.ClientRepresentativePosition);
+        string clientRepresentativeName = ValueOrDash(ProjectClientTypes.ResolveCoverPersonName(
+            clientType,
+            initiationBasis.ClientName,
+            initiationBasis.ClientRepresentativeName));
+        CompanyProfile clientOrganization = initiationBasis.ClientOrganizationSnapshot;
+        const double topHeaderBottomMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
+        var clientRequiredHeightMm = Math.Max(
+            MeasureCoverPreviewTextHeightMm(
+                clientRole,
+                processedRoleRightMm - logoRightMm - 2.4,
+                bodyTextHeightMm),
+            MeasureCoverPreviewTextHeightMm(
+                clientRepresentativeName,
+                processedNameRightMm - processedRoleRightMm - 2.4,
+                bodyTextHeightMm));
+        var companyRequiredHeightMm = Math.Max(
+            MeasureCoverPreviewTextHeightMm(
+                companyRole,
+                processedRoleRightMm - logoRightMm - 2.4,
+                bodyTextHeightMm),
+            MeasureCoverPreviewTextHeightMm(
+                representativeName,
+                processedNameRightMm - processedRoleRightMm - 2.4,
+                bodyTextHeightMm));
+        var sharedDataHeightMm = Math.Max(
             Math.Max(
-                MeasureCoverPreviewTextHeightMm("Иргэн", 64.3, bodyTextHeightMm),
-                MeasureCoverPreviewTextHeightMm(clientName, 26.35, bodyTextHeightMm)) + cellVerticalPaddingMm);
-        var clientDataBottomMm = clientTitleBottomMm - clientDataHeightMm;
-        var companyTitleBottomMm = clientDataBottomMm - 8.0;
-        var companyHeaderBottomMm = companyTitleBottomMm - 8.0;
-        var companyDataHeightMm = Math.Max(
-            20.0,
-            Math.Max(
-                MeasureCoverPreviewTextHeightMm(companyRole, 64.3, bodyTextHeightMm),
-                MeasureCoverPreviewTextHeightMm(representativeName, 26.35, bodyTextHeightMm)) + cellVerticalPaddingMm);
-        var companyColumnBottomMm = companyHeaderBottomMm - companyDataHeightMm;
-        var tableBottomMm = Math.Min(reviewRows[^1].BottomMm, companyColumnBottomMm);
+                BuildingArchitectureConceptPageLayout.CoverClientDataBaseHeightMm,
+                BuildingArchitectureConceptPageLayout.CoverCompanyDataBaseHeightMm),
+            Math.Max(clientRequiredHeightMm, companyRequiredHeightMm) + cellVerticalPaddingMm);
+        var topDataBottomMm = topHeaderBottomMm - sharedDataHeightMm;
+        var bottomHeaderBottomMm = topDataBottomMm - BuildingArchitectureConceptPageLayout.CoverSectionHeaderHeightMm;
+        var processedColumnBottomMm = bottomHeaderBottomMm - sharedDataHeightMm;
+        var tableBottomMm = Math.Min(reviewRows[^1].BottomMm, processedColumnBottomMm);
 
         var table = AddPreviewRectangle(
             canvas,
-            BuildingArchitectureConceptPageLayout.FromBottomLeft(68.275, tableBottomMm, 351.725, 161.86),
+            BuildingArchitectureConceptPageLayout.FromBottomLeft(tableLeftMm, tableBottomMm, tableRightMm, tableTopMm),
             Brushes.White,
             Brushes.Black);
         table.StrokeThickness = 0.7;
-        AddPreviewBottomLine(canvas, 68.275, 153.86, 351.725, 153.86);
-        AddPreviewBottomLine(canvas, 196.275, tableBottomMm, 196.275, 161.86);
-        AddPreviewBottomLine(canvas, 138.275, tableBottomMm, 138.275, 161.86);
-        AddPreviewBottomLine(canvas, 166.275, tableBottomMm, 166.275, 161.86);
-        AddPreviewBottomLine(canvas, 226.275, clientDataBottomMm, 226.275, 161.86);
-        AddPreviewBottomLine(canvas, 292.975, clientDataBottomMm, 292.975, 161.86);
-        AddPreviewBottomLine(canvas, 321.725, clientDataBottomMm, 321.725, 161.86);
-        AddPreviewBottomLine(canvas, 226.275, tableBottomMm, 226.275, companyTitleBottomMm);
-        AddPreviewBottomLine(canvas, 292.975, tableBottomMm, 292.975, companyTitleBottomMm);
-        AddPreviewBottomLine(canvas, 321.725, tableBottomMm, 321.725, companyTitleBottomMm);
-        AddPreviewBottomLine(canvas, 196.275, clientDataBottomMm, 351.725, clientDataBottomMm);
-        AddPreviewBottomLine(canvas, 196.275, companyTitleBottomMm, 351.725, companyTitleBottomMm);
-        AddPreviewBottomLine(canvas, 226.275, companyHeaderBottomMm, 351.725, companyHeaderBottomMm);
+        AddPreviewBottomLine(canvas, tableLeftMm, columnHeaderBottomMm, tableRightMm, columnHeaderBottomMm);
+        AddPreviewBottomLine(canvas, processedLeftMm, tableBottomMm, processedLeftMm, tableTopMm);
+        AddPreviewBottomLine(canvas, reviewRoleRightMm, tableBottomMm, reviewRoleRightMm, tableTopMm);
+        AddPreviewBottomLine(canvas, reviewNameRightMm, tableBottomMm, reviewNameRightMm, tableTopMm);
+        AddPreviewBottomLine(canvas, logoRightMm, topDataBottomMm, logoRightMm, tableTopMm);
+        AddPreviewBottomLine(canvas, processedRoleRightMm, topDataBottomMm, processedRoleRightMm, tableTopMm);
+        AddPreviewBottomLine(canvas, processedNameRightMm, topDataBottomMm, processedNameRightMm, tableTopMm);
+        AddPreviewBottomLine(canvas, logoRightMm, tableBottomMm, logoRightMm, topDataBottomMm);
+        AddPreviewBottomLine(canvas, processedRoleRightMm, tableBottomMm, processedRoleRightMm, topDataBottomMm);
+        AddPreviewBottomLine(canvas, processedNameRightMm, tableBottomMm, processedNameRightMm, topDataBottomMm);
+        AddPreviewBottomLine(canvas, processedLeftMm, topDataBottomMm, tableRightMm, topDataBottomMm);
+        AddPreviewBottomLine(canvas, processedLeftMm, bottomHeaderBottomMm, tableRightMm, bottomHeaderBottomMm);
 
         for (var index = 0; index < reviewRows.Count - 1; index++)
         {
-            AddPreviewBottomLine(canvas, 68.275, reviewRows[index].BottomMm, 196.275, reviewRows[index].BottomMm);
+            AddPreviewBottomLine(canvas, tableLeftMm, reviewRows[index].BottomMm, processedLeftMm, reviewRows[index].BottomMm);
         }
 
-        AddCoverPreviewCell(canvas, "Албан тушаал", 68.275, 153.86, 138.275, 161.86);
-        AddCoverPreviewCell(canvas, "Нэр", 138.275, 153.86, 166.275, 161.86);
-        AddCoverPreviewCell(canvas, "Гарын үсэг", 166.275, 153.86, 196.275, 161.86);
-        AddCoverPreviewCell(canvas, "Албан тушаал", 226.275, 153.86, 292.975, 161.86);
-        AddCoverPreviewCell(canvas, "Нэр", 292.975, 153.86, 321.725, 161.86);
-        AddCoverPreviewCell(canvas, "Гарын үсэг", 321.725, 153.86, 351.725, 161.86);
+        AddCoverPreviewCell(canvas, "Албан тушаал", tableLeftMm, columnHeaderBottomMm, reviewRoleRightMm, tableTopMm);
+        AddCoverPreviewCell(canvas, "Нэр", reviewRoleRightMm, columnHeaderBottomMm, reviewNameRightMm, tableTopMm);
+        AddCoverPreviewCell(canvas, "Гарын үсэг", reviewNameRightMm, columnHeaderBottomMm, processedLeftMm, tableTopMm);
+        AddCoverPreviewCell(canvas, "Албан тушаал", logoRightMm, columnHeaderBottomMm, processedRoleRightMm, tableTopMm);
+        AddCoverPreviewCell(canvas, "Нэр", processedRoleRightMm, columnHeaderBottomMm, processedNameRightMm, tableTopMm);
+        AddCoverPreviewCell(canvas, "Гарын үсэг", processedNameRightMm, columnHeaderBottomMm, tableRightMm, tableTopMm);
 
         foreach (var row in reviewRows)
         {
-            AddCoverPreviewCell(canvas, row.Member is null ? "" : DisplayProjectRoles(row.Member), 68.275, row.BottomMm, 138.275, row.TopMm, TextAlignment.Left);
-            AddCoverPreviewCell(canvas, row.Member?.FullName ?? "", 138.275, row.BottomMm, 166.275, row.TopMm);
+            AddCoverPreviewCell(canvas, ConceptCoverApprovalResolver.DisplayPosition(row.Entry), tableLeftMm, row.BottomMm, reviewRoleRightMm, row.TopMm, TextAlignment.Left);
+            AddCoverPreviewCell(canvas, row.Entry.PersonName, reviewRoleRightMm, row.BottomMm, reviewNameRightMm, row.TopMm);
         }
 
         var companyMark = string.IsNullOrWhiteSpace(company.ShortName) ? company.Name : company.ShortName;
-        AddCoverPreviewCell(canvas, "Захиалагч", 196.275, clientTitleBottomMm, 226.275, 161.86);
-        AddCoverPreviewCell(canvas, "Иргэн", 226.275, clientDataBottomMm, 292.975, clientTitleBottomMm);
-        AddCoverPreviewCell(canvas, clientName, 292.975, clientDataBottomMm, 321.725, clientTitleBottomMm);
+        AddCoverPreviewCell(canvas, BuildingArchitectureConceptPageLayout.CoverProcessedTopSectionTitle, processedLeftMm, topHeaderBottomMm, logoRightMm, tableTopMm);
+        if (!TryAddCoverPreviewLogo(
+                canvas,
+                company,
+                BuildingArchitectureConceptPageLayout.FromBottomLeft(
+                    processedLeftMm,
+                    topDataBottomMm,
+                    logoRightMm,
+                    topHeaderBottomMm)))
+        {
+            AddCoverPreviewCell(canvas, ValueOrDash(companyMark), processedLeftMm, topDataBottomMm, logoRightMm, topHeaderBottomMm);
+        }
+        AddCoverPreviewCell(canvas, companyRole, logoRightMm, topDataBottomMm, processedRoleRightMm, topHeaderBottomMm);
+        AddCoverPreviewCell(canvas, representativeName, processedRoleRightMm, topDataBottomMm, processedNameRightMm, topHeaderBottomMm);
 
-        AddCoverPreviewCell(canvas, "Гүйцэтгэсэн", 196.275, companyTitleBottomMm, 351.725, clientDataBottomMm, TextAlignment.Left);
-        AddCoverPreviewCell(canvas, ValueOrDash(companyMark), 196.275, tableBottomMm, 226.275, companyTitleBottomMm);
-        AddCoverPreviewCell(canvas, "Албан тушаал", 226.275, companyHeaderBottomMm, 292.975, companyTitleBottomMm);
-        AddCoverPreviewCell(canvas, "Нэр", 292.975, companyHeaderBottomMm, 321.725, companyTitleBottomMm);
-        AddCoverPreviewCell(canvas, "Гарын үсэг", 321.725, companyHeaderBottomMm, 351.725, companyTitleBottomMm);
-        AddCoverPreviewCell(canvas, companyRole, 226.275, tableBottomMm, 292.975, companyHeaderBottomMm);
-        AddCoverPreviewCell(canvas, representativeName, 292.975, tableBottomMm, 321.725, companyHeaderBottomMm);
+        AddCoverPreviewCell(canvas, BuildingArchitectureConceptPageLayout.CoverProcessedBottomSectionTitle, processedLeftMm, bottomHeaderBottomMm, logoRightMm, topDataBottomMm);
+        AddCoverPreviewCell(canvas, "Албан тушаал", logoRightMm, bottomHeaderBottomMm, processedRoleRightMm, topDataBottomMm);
+        AddCoverPreviewCell(canvas, "Нэр", processedRoleRightMm, bottomHeaderBottomMm, processedNameRightMm, topDataBottomMm);
+        AddCoverPreviewCell(canvas, "Гарын үсэг", processedNameRightMm, bottomHeaderBottomMm, tableRightMm, topDataBottomMm);
+        if (ProjectClientTypes.UsesLogo(clientType))
+        {
+            _ = TryAddCoverPreviewLogo(
+                canvas,
+                clientOrganization,
+                BuildingArchitectureConceptPageLayout.FromBottomLeft(
+                    processedLeftMm,
+                    tableBottomMm,
+                    logoRightMm,
+                    bottomHeaderBottomMm));
+        }
+        AddCoverPreviewCell(canvas, clientRole, logoRightMm, tableBottomMm, processedRoleRightMm, bottomHeaderBottomMm);
+        AddCoverPreviewCell(canvas, clientRepresentativeName, processedRoleRightMm, tableBottomMm, processedNameRightMm, bottomHeaderBottomMm);
 
         AddCoverPreviewText(canvas, "Улаанбаатар хот",
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 26.125, 200, 12), bodyTextHeightMm, FontWeights.Normal);
         AddCoverPreviewText(canvas, $"{DateTime.Now:yyyy} он",
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 15.625, 90, 12), bodyTextHeightMm, FontWeights.Normal);
+    }
+
+    private bool TryAddCoverPreviewLogo(
+        Canvas canvas,
+        CompanyProfile company,
+        PageRectMm rect)
+    {
+        string path = ResolveClientLogoPath(company.LogoPath);
+        BitmapSource? bitmap = LoadLocalBitmap(path);
+        if (bitmap is null || rect.Width <= 3 || rect.Height <= 3)
+            return false;
+
+        company.Normalize();
+        double viewportWidth = rect.Width - 3;
+        double viewportHeight = rect.Height - 3;
+        var viewport = new Canvas
+        {
+            Width = viewportWidth,
+            Height = viewportHeight,
+            ClipToBounds = true,
+        };
+        Canvas.SetLeft(viewport, rect.X + 1.5);
+        Canvas.SetTop(viewport, rect.Y + 1.5);
+
+        double contain = Math.Min(
+            viewportWidth / Math.Max(1, bitmap.PixelWidth),
+            viewportHeight / Math.Max(1, bitmap.PixelHeight));
+        double width = bitmap.PixelWidth * contain * company.LogoScale;
+        double height = bitmap.PixelHeight * contain * company.LogoScale;
+        var image = new Image
+        {
+            Source = bitmap,
+            Width = width,
+            Height = height,
+            Stretch = Stretch.Fill,
+            SnapsToDevicePixels = true,
+        };
+        Canvas.SetLeft(image,
+            (viewportWidth - width) * 0.5 + company.LogoOffsetX * viewportWidth * 0.5);
+        Canvas.SetTop(image,
+            (viewportHeight - height) * 0.5 + company.LogoOffsetY * viewportHeight * 0.5);
+        viewport.Children.Add(image);
+        canvas.Children.Add(viewport);
+        return true;
     }
 
     private static void AddPreviewBottomLine(Canvas canvas, double x0, double y0, double x1, double y1)
@@ -2277,29 +2724,6 @@ internal sealed partial class ShellView
 
     private static double CoverPreviewFontEmSizeMm(double printedTextHeightMm) =>
         printedTextHeightMm / BuildingArchitectureConceptPageLayout.ArialCapHeightRatio;
-
-    private static bool HasProjectRole(ProjectMember member, string role) =>
-        member.Roles.Any(candidate => candidate.Contains(role, StringComparison.OrdinalIgnoreCase));
-
-    private static string DisplayProjectRoles(ProjectMember member) =>
-        string.Join(", ", member.Roles.Select(DisplayProjectRole).Distinct(StringComparer.OrdinalIgnoreCase));
-
-    private static string DisplayProjectRole(string role)
-    {
-        if (role.Contains("Chief Architect", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Ерөнхий архитектор";
-        }
-        if (role.Contains("Department Head", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Хэлтсийн дарга";
-        }
-        if (role.Contains("Authority Specialist", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Хот байгуулалтын мэргэжилтэн";
-        }
-        return role;
-    }
 
     private void ShowAlbumPreviewCanvas(Canvas canvas)
     {
@@ -2472,8 +2896,22 @@ internal sealed partial class ShellView
         return group;
     }
 
-    private sealed record SourceWorkspaceItem(ProjectDesignSource Source, string Name, string Detail)
+    private sealed record SourceWorkspaceItem(
+        ProjectDesignSource? Source,
+        bool IsVisualization,
+        string Name,
+        string Detail)
     {
+        public string SelectionKey => IsVisualization
+            ? VisualizationSourceSelectionKey
+            : Source?.Id ?? "";
+
+        public static SourceWorkspaceItem Visualizations(int imageCount, int imagesPerPage) => new(
+            null,
+            true,
+            "Харагдах байдал",
+            $"Зураг | {imageCount} зураг · {imagesPerPage}/хуудас");
+
         public override string ToString() => $"{Name}\n{Detail}";
     }
 
@@ -2524,6 +2962,9 @@ internal sealed partial class ShellView
         public int ChildCount { get; init; }
         public bool IsExpanded { get; init; } = true;
         public int? BuiltPageNumber { get; set; }
+        public int? GeneratedPageIndex { get; init; }
+        public string GeneratedNavigationKey { get; init; } = "";
+        public VisualizationAlbumPagePlan? VisualizationPlan { get; init; }
         public ImageSource? ThumbnailSource => thumbnailSource;
         public string ThumbnailMessage => thumbnailMessage;
 

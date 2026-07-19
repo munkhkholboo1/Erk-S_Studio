@@ -14,6 +14,7 @@ using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
+using ErkS.CloudEra.Client;
 using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
@@ -22,6 +23,8 @@ internal sealed record StudioAccountSession(
     string ServerUrl,
     string Email,
     string DisplayName,
+    string FamilyName,
+    string GivenName,
     string ProfileImageUrl,
     string LicenseType,
     DateTimeOffset LicenseExpiresAtUtc,
@@ -44,7 +47,16 @@ internal sealed class StudioAccountException : Exception
     }
 }
 
-internal sealed class StudioAccountService : IDisposable
+internal sealed class StudioAccountService :
+    IStudioSessionClient,
+    ILicenseClient,
+    IProjectsClient,
+    IOrganizationsClient,
+    ICollaborationClient,
+    ISourcePackagesClient,
+    IAlbumsClient,
+    IProfileImageClient,
+    IDisposable
 {
     public const string ProductCode = "ErkS.Studio";
     private const string PublicServerUrl = "https://erk-s.mn";
@@ -53,12 +65,17 @@ internal sealed class StudioAccountService : IDisposable
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly HttpClient httpClient = new() { Timeout = TimeSpan.FromMinutes(5) };
+    private readonly HttpClient httpClient;
+    private readonly ICredentialStore credentialStore;
+    private readonly ICloudEraContractClient cloudEraClient;
+    private readonly Dictionary<string, StudioRegisteredPersonName> registeredPersonNames =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly string metadataPath = Path.Combine(ResolveAccountDataRoot(), "account.json");
     private StudioAccountMetadata? metadata;
     private StudioActivationCredential? credential;
 
     public StudioAccountSession? Current { get; private set; }
+    public CloudEraCapabilitiesSnapshot? CurrentCapabilities { get; private set; }
 
     private static string ResolveAccountDataRoot()
     {
@@ -87,12 +104,31 @@ internal sealed class StudioAccountService : IDisposable
 
     public event Action? StateChanged;
 
+    public StudioAccountService()
+        : this(new WindowsCredentialStore())
+    {
+    }
+
+    internal StudioAccountService(ICredentialStore credentialStore)
+        : this(credentialStore, cloudEraClient: null)
+    {
+    }
+
+    internal StudioAccountService(
+        ICredentialStore credentialStore,
+        ICloudEraContractClient? cloudEraClient)
+    {
+        this.credentialStore = credentialStore ?? throw new ArgumentNullException(nameof(credentialStore));
+        httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        this.cloudEraClient = cloudEraClient ?? new CloudEraGeneratedContractClient(httpClient);
+    }
+
     public async Task<bool> TryRestoreAsync(CancellationToken cancellationToken = default)
     {
         metadata = ReadMetadata();
         if (metadata is null)
             return false;
-        credential = WindowsCredentialVault.Read<StudioActivationCredential>(CredentialTarget(metadata));
+        credential = credentialStore.Read<StudioActivationCredential>(CredentialTarget(metadata));
         if (credential is null)
             return false;
 
@@ -157,33 +193,36 @@ internal sealed class StudioAccountService : IDisposable
             "/api/studio/session",
             sessionRequest,
             cancellationToken).ConfigureAwait(true);
+        await NegotiateCapabilitiesAsync(normalizedServer, cancellationToken).ConfigureAwait(true);
 
         metadata = new StudioAccountMetadata
         {
             ServerUrl = normalizedServer,
             Email = normalizedEmail,
             DisplayName = session.DisplayName,
+            FamilyName = session.FamilyName,
+            GivenName = session.GivenName,
             ProfileImageUrl = session.ProfileImageUrl,
             LicenseType = session.LicenseType,
             LicenseExpiresAtUtc = session.LicenseExpiresAtUtc,
         };
+        SetCurrent(metadata, session);
         credential = new StudioActivationCredential
         {
             LicenseId = session.LicenseId,
             ActivationId = session.ActivationId,
             DeviceFingerprint = fingerprint,
         };
-        WindowsCredentialVault.Write(CredentialTarget(metadata), normalizedEmail, credential);
+        credentialStore.Write(CredentialTarget(metadata), normalizedEmail, credential);
         WriteMetadata(metadata);
-        SetCurrent(metadata, session);
         LastError = "";
     }
 
     public async Task<IReadOnlyList<StudioCloudProjectSummary>> ListProjectsAsync(CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        StudioCloudProjectListResponse response = await GetAuthorizedAsync<StudioCloudProjectListResponse>(
-            "/api/cloud-era/v1/projects",
+        StudioCloudProjectListResponse response = await cloudEraClient.ListProjectsAsync(
+            CurrentCloudEraContext(),
             cancellationToken).ConfigureAwait(true);
         return response.Projects;
     }
@@ -191,21 +230,29 @@ internal sealed class StudioAccountService : IDisposable
     public async Task<StudioCloudProjectDetail> GetProjectAsync(string projectId, CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await GetAuthorizedAsync<StudioCloudProjectDetail>(
-            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId),
+        StudioCloudProjectDetail project = await cloudEraClient.GetProjectAsync(
+            CurrentCloudEraContext(),
+            projectId,
             cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<StudioCloudProjectDetail> UpdateProjectInformationAsync(
         string projectId,
         StudioCloudProjectInformationUpdateRequest request,
+        string concurrencyToken,
         CancellationToken cancellationToken = default)
     {
+        RequireCapability(CloudEraFeatures.OptimisticConcurrency);
+        if (string.IsNullOrWhiteSpace(concurrencyToken))
+            throw new StudioAccountException("Cloud project concurrency token хоосон байна. Төслийг Refresh хийнэ үү.");
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await PutAuthorizedAsync<StudioCloudProjectInformationUpdateRequest, StudioCloudProjectDetail>(
+        StudioCloudProjectDetail project = await PutAuthorizedAsync<StudioCloudProjectInformationUpdateRequest, StudioCloudProjectDetail>(
             "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/information",
             request,
-            cancellationToken).ConfigureAwait(true);
+            cancellationToken,
+            ifMatchToken: concurrencyToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task DeleteProjectAsync(
@@ -243,9 +290,7 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await GetAuthorizedAsync<StudioCloudAccountLookupResponse>(
-            "/api/cloud-era/v1/accounts/lookup?email=" + Uri.EscapeDataString(NormalizeEmail(email)),
-            cancellationToken).ConfigureAwait(true);
+        return await LookupAccountCoreAsync(email, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<IReadOnlyList<StudioProjectRole>> ListProjectRolesAsync(
@@ -290,10 +335,11 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await PostAuthorizedAsync<StudioCloudProjectDetail>(
+        StudioCloudProjectDetail project = await PostAuthorizedAsync<StudioCloudProjectDetail>(
             "/api/cloud-era/v1/project-membership-invitations/" + Uri.EscapeDataString(invitationId) + "/accept",
             cancellationToken,
             relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task DeclineMembershipInvitationAsync(
@@ -334,6 +380,49 @@ internal sealed class StudioAccountService : IDisposable
             "/participants/" + Uri.EscapeDataString(participantId),
             cancellationToken,
             relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudProjectDetail> UpdateParticipantRolesAsync(
+        string projectId,
+        string participantId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureCapabilityAsync(
+            CloudEraFeatures.ParticipantRoleManagement,
+            cancellationToken).ConfigureAwait(true);
+        StudioCloudProjectDetail project = await cloudEraClient.UpdateParticipantRolesAsync(
+            CurrentCloudEraContext(),
+            projectId,
+            participantId,
+            new StudioParticipantRoleUpdateRequest
+            {
+                Roles = roles
+                    .Where(role => !string.IsNullOrWhiteSpace(role))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+            },
+            cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudProjectDetail> AssignConceptArchitectAsync(
+        string projectId,
+        string participantId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureCapabilityAsync(
+            CloudEraFeatures.ConceptArchitectAssignment,
+            cancellationToken).ConfigureAwait(true);
+        StudioCloudProjectDetail project = await cloudEraClient.AssignConceptArchitectAsync(
+            CurrentCloudEraContext(),
+            projectId,
+            new StudioConceptArchitectAssignmentRequest
+            {
+                ParticipantId = participantId?.Trim() ?? "",
+            },
+            cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<StudioProjectMembershipExitRequestListResponse> ListMembershipExitRequestsAsync(
@@ -426,11 +515,12 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await PostAuthorizedAsync<StudioCloudProjectCreateRequest, StudioCloudProjectDetail>(
+        StudioCloudProjectDetail project = await PostAuthorizedAsync<StudioCloudProjectCreateRequest, StudioCloudProjectDetail>(
             "/api/cloud-era/v1/project-creation-grants/" + Uri.EscapeDataString(grantId) + "/projects",
             request,
             cancellationToken,
             relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<IReadOnlyList<StudioCloudOrganization>> ListOrganizationsAsync(CancellationToken cancellationToken = default)
@@ -548,8 +638,9 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await GetAuthorizedAsync<List<StudioCloudAlbum>>(
-            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/albums",
+        return await cloudEraClient.ListAlbumsAsync(
+            CurrentCloudEraContext(),
+            projectId,
             cancellationToken).ConfigureAwait(true);
     }
 
@@ -558,8 +649,9 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await GetAuthorizedAsync<List<StudioCloudDesignPackage>>(
-            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/design-packages",
+        return await cloudEraClient.ListDesignPackagesAsync(
+            CurrentCloudEraContext(),
+            projectId,
             cancellationToken).ConfigureAwait(true);
     }
 
@@ -568,21 +660,11 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        try
-        {
-            return await PostAuthorizedAsync<StudioCloudAlbum>(
-                "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/albums/ensure",
-                cancellationToken).ConfigureAwait(true);
-        }
-        catch (StudioAccountException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            IReadOnlyList<StudioCloudAlbum> albums = await ListAlbumsAsync(projectId, cancellationToken).ConfigureAwait(true);
-            return albums.FirstOrDefault(item =>
-                    item.AlbumType.Equals(ProjectWorkspace.BuildingArchitectureConcept, StringComparison.OrdinalIgnoreCase))
-                ?? albums.SingleOrDefault()
-                ?? throw new StudioAccountException(
-                    "Cloud ERA server empty template album үүсгэх шинэчлэлгүй байна. Server update хийнэ үү.");
-        }
+        RequireCapability(CloudEraFeatures.AlbumRevisions);
+        return await cloudEraClient.EnsureConceptAlbumAsync(
+            CurrentCloudEraContext(),
+            projectId,
+            cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<StudioCloudSourcePackage> RegisterSourcePackageAsync(
@@ -591,8 +673,10 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await PostAuthorizedAsync<StudioCloudSourcePackageCreateRequest, StudioCloudSourcePackage>(
-            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/source-packages",
+        RequireCapability(CloudEraFeatures.SourcePackagesV4);
+        return await cloudEraClient.RegisterSourcePackageAsync(
+            CurrentCloudEraContext(),
+            projectId,
             value,
             cancellationToken).ConfigureAwait(true);
     }
@@ -612,6 +696,28 @@ internal sealed class StudioAccountService : IDisposable
 
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        FileInfo pdf = new(pdfPath);
+        bool supportsChunkedUpload = CurrentCapabilities is { } capabilities &&
+            CloudEraCapabilityPolicy.Supports(capabilities, CloudEraFeatures.ChunkedAlbumUploadsV1);
+        if (supportsChunkedUpload)
+        {
+            return await CloudEraChunkedAlbumUploader.UploadAsync(
+                httpClient,
+                session.ServerUrl,
+                session.AccessToken,
+                projectId,
+                albumId,
+                pdfPath,
+                pageCount,
+                pageSizeSummary,
+                cancellationToken).ConfigureAwait(true);
+        }
+        if (pdf.Length > 20L * 1024L * 1024L)
+        {
+            throw new StudioAccountException(
+                "Альбумын PDF 20 MB-аас том байна. Cloud ERA server-ийн chunk upload шинэчлэлт шаардлагатай; PDF-ийн вектор чанарыг бууруулахгүйгээр server-ээ шинэчилнэ үү.");
+        }
+
         using var content = new MultipartFormDataContent();
         content.Add(new StringContent(pageCount.ToString(CultureInfo.InvariantCulture)), "pageCount");
         content.Add(new StringContent(pageSizeSummary ?? ""), "pageSizeSummary");
@@ -659,11 +765,11 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await PostAuthorizedAsync<StudioCloudProjectCreateRequest, StudioCloudProjectDetail>(
-            "/api/cloud-era/v1/projects",
+        StudioCloudProjectDetail project = await cloudEraClient.CreateProjectAsync(
+            CurrentCloudEraContext(),
             request,
-            cancellationToken,
-            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+            cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<StudioCloudProjectDetail> AssignDesignOrganizationAsync(
@@ -672,11 +778,12 @@ internal sealed class StudioAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        return await PutAuthorizedAsync<StudioCloudDesignOrganizationAssignmentRequest, StudioCloudProjectDetail>(
-            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/design-organization",
+        StudioCloudProjectDetail project = await cloudEraClient.AssignDesignOrganizationAsync(
+            CurrentCloudEraContext(),
+            projectId,
             new StudioCloudDesignOrganizationAssignmentRequest { OrganizationId = organizationId },
-            cancellationToken,
-            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+            cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
     public void OpenAccountRegistration()
@@ -689,7 +796,7 @@ internal sealed class StudioAccountService : IDisposable
     {
         StudioAccountMetadata? saved = metadata ?? ReadMetadata();
         if (saved is not null)
-            WindowsCredentialVault.Delete(CredentialTarget(saved));
+            credentialStore.Delete(CredentialTarget(saved));
         try
         {
             if (File.Exists(metadataPath))
@@ -699,6 +806,8 @@ internal sealed class StudioAccountService : IDisposable
         {
         }
         Current = null;
+        CurrentCapabilities = null;
+        registeredPersonNames.Clear();
         metadata = null;
         credential = null;
         LastError = "";
@@ -707,6 +816,93 @@ internal sealed class StudioAccountService : IDisposable
 
     public void Dispose() => httpClient.Dispose();
 
+    private async Task<StudioCloudAccountLookupResponse> LookupAccountCoreAsync(
+        string email,
+        CancellationToken cancellationToken)
+    {
+        string normalizedEmail = NormalizeEmail(email);
+        StudioCloudAccountLookupResponse result = await GetAuthorizedAsync<StudioCloudAccountLookupResponse>(
+            "/api/cloud-era/v1/accounts/lookup?email=" + Uri.EscapeDataString(normalizedEmail),
+            cancellationToken).ConfigureAwait(true);
+        if (!result.Found)
+            return result;
+
+        StudioRegisteredPersonName name = StudioRegisteredPersonNameResolver.Resolve(
+            result.FamilyName,
+            result.GivenName,
+            result.DisplayName,
+            displayNameUsesCanonicalProfileOrder: true);
+        StudioRegisteredPersonNameResolver.Apply(result, name);
+        registeredPersonNames[normalizedEmail] = name;
+        return result;
+    }
+
+    private async Task<StudioCloudProjectDetail> ResolveProjectParticipantNamesAsync(
+        StudioCloudProjectDetail project,
+        CancellationToken cancellationToken)
+    {
+        foreach (StudioCloudParticipant participant in project.Participants ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(participant.AccountEmail))
+                continue;
+
+            string email = participant.AccountEmail.Trim();
+            StudioRegisteredPersonName? registeredName = null;
+            if (!string.IsNullOrWhiteSpace(participant.FamilyName) ||
+                !string.IsNullOrWhiteSpace(participant.GivenName))
+            {
+                registeredName = StudioRegisteredPersonNameResolver.Resolve(
+                    participant.FamilyName,
+                    participant.GivenName,
+                    participant.DisplayName,
+                    displayNameUsesCanonicalProfileOrder: false);
+            }
+            else if (Current is { } current &&
+                     email.Equals(current.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                registeredName = new StudioRegisteredPersonName(
+                    current.FamilyName,
+                    current.GivenName,
+                    current.DisplayName);
+            }
+            else if (registeredPersonNames.TryGetValue(email, out StudioRegisteredPersonName? cached))
+            {
+                registeredName = cached;
+            }
+            else
+            {
+                try
+                {
+                    StudioCloudAccountLookupResponse lookup = await LookupAccountCoreAsync(
+                        email,
+                        cancellationToken).ConfigureAwait(true);
+                    if (lookup.Found)
+                    {
+                        registeredName = new StudioRegisteredPersonName(
+                            lookup.FamilyName,
+                            lookup.GivenName,
+                            lookup.DisplayName);
+                    }
+                }
+                catch (Exception exception) when (
+                    !cancellationToken.IsCancellationRequested &&
+                    exception is StudioAccountException or HttpRequestException)
+                {
+                    // Older Cloud ERA servers may not expose account lookup. Keep the
+                    // snapshot intact instead of guessing which word is the surname.
+                }
+            }
+
+            if (registeredName is not null)
+            {
+                StudioRegisteredPersonNameResolver.Apply(participant, registeredName);
+                registeredPersonNames[email] = registeredName;
+            }
+        }
+
+        return project;
+    }
+
     private async Task EnsureFreshSessionAsync(CancellationToken cancellationToken)
     {
         if (Current is not null && Current.TokenExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(2))
@@ -714,10 +910,17 @@ internal sealed class StudioAccountService : IDisposable
         metadata ??= ReadMetadata();
         if (metadata is null)
             throw new StudioAccountException("Erk-S Studio бүртгэлээр нэвтэрнэ үү.");
-        credential ??= WindowsCredentialVault.Read<StudioActivationCredential>(CredentialTarget(metadata));
+        credential ??= credentialStore.Read<StudioActivationCredential>(CredentialTarget(metadata));
         if (credential is null)
             throw new StudioAccountException("Studio лицензийн төхөөрөмжийн activation олдсонгүй. Дахин нэвтэрнэ үү.");
         await RefreshInternalAsync(metadata, credential, cancellationToken).ConfigureAwait(true);
+    }
+
+    private CloudEraClientContext CurrentCloudEraContext()
+    {
+        StudioAccountSession session = Current
+            ?? throw new StudioAccountException("Studio account is required.");
+        return new CloudEraClientContext(session.ServerUrl, session.AccessToken);
     }
 
     private async Task RefreshInternalAsync(
@@ -740,6 +943,7 @@ internal sealed class StudioAccountService : IDisposable
             "/api/studio/session/refresh",
             request,
             cancellationToken).ConfigureAwait(true);
+        await NegotiateCapabilitiesAsync(savedMetadata.ServerUrl, cancellationToken).ConfigureAwait(true);
         if (!string.IsNullOrWhiteSpace(session.LicenseId) &&
             !string.IsNullOrWhiteSpace(session.ActivationId) &&
             (!savedCredential.LicenseId.Equals(session.LicenseId, StringComparison.Ordinal) ||
@@ -748,36 +952,139 @@ internal sealed class StudioAccountService : IDisposable
             savedCredential.LicenseId = session.LicenseId;
             savedCredential.ActivationId = session.ActivationId;
             credential = savedCredential;
-            WindowsCredentialVault.Write(CredentialTarget(savedMetadata), savedMetadata.Email, savedCredential);
+            credentialStore.Write(CredentialTarget(savedMetadata), savedMetadata.Email, savedCredential);
         }
         savedMetadata.LicenseType = session.LicenseType;
         savedMetadata.LicenseExpiresAtUtc = session.LicenseExpiresAtUtc;
-        savedMetadata.DisplayName = session.DisplayName;
-        savedMetadata.ProfileImageUrl = session.ProfileImageUrl;
-        WriteMetadata(savedMetadata);
         SetCurrent(savedMetadata, session);
+        WriteMetadata(savedMetadata);
+    }
+
+    private async Task NegotiateCapabilitiesAsync(string serverUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using CloudEraCapabilitiesClient client = new(new Uri(NormalizeServerUrl(serverUrl)));
+            CloudEraCapabilitiesSnapshot capabilities = await client.GetAsync(cancellationToken).ConfigureAwait(true);
+            CloudEraCapabilityPolicy.Require(capabilities, CloudEraFeatures.Projects);
+            CloudEraCapabilityPolicy.Require(capabilities, CloudEraFeatures.AlbumRevisions);
+            CloudEraCapabilityPolicy.Require(capabilities, CloudEraFeatures.OptimisticConcurrency);
+            CloudEraCapabilityPolicy.Require(capabilities, CloudEraFeatures.IdempotentSync);
+            CurrentCapabilities = capabilities;
+        }
+        catch (CloudEraContractMismatchException error) when (
+            CanUseLegacyLoopbackCapabilities(serverUrl, error, StudioReleaseInfo.IsDevelopmentBuild))
+        {
+            CurrentCapabilities = CreateLegacyLoopbackCapabilities();
+        }
+        catch (Exception error) when (error is CloudEraContractMismatchException or HttpRequestException or TaskCanceledException)
+        {
+            CurrentCapabilities = null;
+            throw new StudioAccountException("Cloud ERA API contract тохирохгүй байна. " + error.Message);
+        }
+    }
+
+    internal static bool CanUseLegacyLoopbackCapabilities(
+        string serverUrl,
+        CloudEraContractMismatchException error,
+        bool isDevelopmentBuild)
+    {
+        if (!isDevelopmentBuild || error.StatusCode != 404 ||
+            !Uri.TryCreate(serverUrl, UriKind.Absolute, out Uri? uri))
+        {
+            return false;
+        }
+
+        return uri.IsLoopback && uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static CloudEraCapabilitiesSnapshot CreateLegacyLoopbackCapabilities() => new(
+        CloudEraCapabilityPolicy.SupportedApiVersion,
+        "/api/cloud-era/v1",
+        "",
+        new Dictionary<string, bool>(StringComparer.Ordinal)
+        {
+            [CloudEraFeatures.Projects] = true,
+            [CloudEraFeatures.Organizations] = true,
+            [CloudEraFeatures.Collaboration] = true,
+            [CloudEraFeatures.ConceptArchitectAssignment] = true,
+            [CloudEraFeatures.ParticipantRoleManagement] = true,
+            [CloudEraFeatures.SourcePackagesV4] = true,
+            [CloudEraFeatures.AlbumRevisions] = true,
+            [CloudEraFeatures.OptimisticConcurrency] = false,
+            [CloudEraFeatures.IdempotentSync] = true,
+            [CloudEraFeatures.RelationshipBoundary] = true,
+            [CloudEraFeatures.NativeSourceRemainsLocal] = true,
+        });
+
+    internal static bool NeedsCapabilityRefresh(
+        CloudEraCapabilitiesSnapshot? capabilities,
+        string feature) =>
+        capabilities is null || !CloudEraCapabilityPolicy.Supports(capabilities, feature);
+
+    private async Task EnsureCapabilityAsync(string feature, CancellationToken cancellationToken)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        if (NeedsCapabilityRefresh(CurrentCapabilities, feature))
+        {
+            StudioAccountSession session = Current
+                ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+            await NegotiateCapabilitiesAsync(session.ServerUrl, cancellationToken).ConfigureAwait(true);
+        }
+        RequireCapability(feature);
+    }
+
+    private void RequireCapability(string feature)
+    {
+        CloudEraCapabilitiesSnapshot capabilities = CurrentCapabilities
+            ?? throw new StudioAccountException("Cloud ERA capabilities ачаалагдаагүй байна. Дахин нэвтэрнэ үү.");
+        try
+        {
+            CloudEraCapabilityPolicy.Require(capabilities, feature);
+        }
+        catch (CloudEraContractMismatchException error)
+        {
+            throw new StudioAccountException(error.Message);
+        }
     }
 
     private void SetCurrent(StudioAccountMetadata savedMetadata, StudioSessionResponse session)
     {
         if (string.IsNullOrWhiteSpace(session.AccessToken))
             throw new StudioAccountException("Cloud ERA session token хоосон байна.");
-        string displayName = session.DisplayName.Trim();
-        if (string.IsNullOrWhiteSpace(displayName) &&
-            !string.IsNullOrWhiteSpace(savedMetadata.DisplayName) &&
-            !savedMetadata.DisplayName.Equals(session.AccountEmail, StringComparison.OrdinalIgnoreCase))
-        {
-            displayName = savedMetadata.DisplayName.Trim();
-        }
+        bool sessionSuppliedCanonicalDisplay = !string.IsNullOrWhiteSpace(session.DisplayName);
+        string displayName = sessionSuppliedCanonicalDisplay
+            ? session.DisplayName
+            : savedMetadata.DisplayName;
+        string familyName = !string.IsNullOrWhiteSpace(session.FamilyName)
+            ? session.FamilyName
+            : savedMetadata.FamilyName;
+        string givenName = !string.IsNullOrWhiteSpace(session.GivenName)
+            ? session.GivenName
+            : savedMetadata.GivenName;
+        StudioRegisteredPersonName registeredName = StudioRegisteredPersonNameResolver.Resolve(
+            familyName,
+            givenName,
+            displayName,
+            sessionSuppliedCanonicalDisplay);
+        savedMetadata.DisplayName = registeredName.DisplayName;
+        savedMetadata.FamilyName = registeredName.FamilyName;
+        savedMetadata.GivenName = registeredName.GivenName;
+        if (!string.IsNullOrWhiteSpace(session.ProfileImageUrl))
+            savedMetadata.ProfileImageUrl = session.ProfileImageUrl;
         Current = new StudioAccountSession(
             savedMetadata.ServerUrl,
             session.AccountEmail,
-            displayName,
-            session.ProfileImageUrl,
+            registeredName.DisplayName,
+            registeredName.FamilyName,
+            registeredName.GivenName,
+            savedMetadata.ProfileImageUrl,
             session.LicenseType,
             session.LicenseExpiresAtUtc,
             session.ExpiresAtUtc,
             session.AccessToken);
+        if (!string.IsNullOrWhiteSpace(session.AccountEmail))
+            registeredPersonNames[session.AccountEmail] = registeredName;
         StateChanged?.Invoke();
     }
 
@@ -824,7 +1131,8 @@ internal sealed class StudioAccountService : IDisposable
         string path,
         TRequest value,
         CancellationToken cancellationToken,
-        bool relationshipBoundaryAcknowledged = false)
+        bool relationshipBoundaryAcknowledged = false,
+        string ifMatchToken = "")
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, path))
@@ -832,6 +1140,11 @@ internal sealed class StudioAccountService : IDisposable
             Content = JsonContent.Create(value, options: JsonOptions),
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        if (!string.IsNullOrWhiteSpace(ifMatchToken))
+        {
+            request.Headers.IfMatch.Add(new EntityTagHeaderValue(
+                '"' + ifMatchToken.Trim().Trim('"') + '"'));
+        }
         AddRelationshipBoundaryAcknowledgement(request, relationshipBoundaryAcknowledged);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
@@ -1011,6 +1324,8 @@ internal sealed class StudioAccountService : IDisposable
         public string ServerUrl { get; set; } = "";
         public string Email { get; set; } = "";
         public string DisplayName { get; set; } = "";
+        public string FamilyName { get; set; } = "";
+        public string GivenName { get; set; } = "";
         public string ProfileImageUrl { get; set; } = "";
         public string LicenseType { get; set; } = "";
         public DateTimeOffset LicenseExpiresAtUtc { get; set; }

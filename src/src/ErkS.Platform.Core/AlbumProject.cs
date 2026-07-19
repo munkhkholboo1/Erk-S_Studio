@@ -12,6 +12,12 @@ public sealed class AlbumProject
 
     public int FormatVersion { get; set; } = CurrentFormatVersion;
 
+    /// <summary>
+    /// Local workspace identity used to keep project-owned sources isolated.
+    /// Empty is retained only for legacy standalone .erksalbum documents.
+    /// </summary>
+    public string ProjectId { get; set; } = "";
+
     public string Name { get; set; } = "New project";
 
     /// <summary>Project code stamped on covers and used for publishing, e.g. "ERKS-2026-014".</summary>
@@ -41,6 +47,8 @@ public sealed class AlbumProject
 
     public PlanningTaskInformation PlanningTask { get; set; } = new();
 
+    public ProjectApprovalWorkflow ApprovalWorkflow { get; set; } = new();
+
     /// <summary>
     /// Company information used for covers and (later) corner tables. This is
     /// the single source of truth - the AutoCAD/Revit plugins will stop
@@ -65,10 +73,20 @@ public sealed class AlbumProject
     /// </summary>
     public List<ProjectDesignSource> DesignSources { get; set; } = [];
 
+    /// <summary>Project-owned images composed into the concept album's visualization pages.</summary>
+    public ProjectVisualizationSource Visualizations { get; set; } = new();
+
     public AlbumDefinition Album { get; set; } = new();
 
     /// <summary>Where composed album PDFs are written.</summary>
     public string OutputFolder { get; set; } = "";
+
+    /// <summary>
+    /// Runtime-only root used to resolve project-relative foundation assets.
+    /// It is deliberately excluded from .erksalbum serialization.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ProjectFolder { get; set; } = "";
 }
 
 public sealed class CompanyProfile
@@ -93,6 +111,8 @@ public sealed class CompanyProfile
     public string DirectorTitle { get; set; } = "";
     public string DirectorName { get; set; } = "";
     public string LogoPath { get; set; } = "";
+    /// <summary>User-facing source name; LogoPath may be content-addressed.</summary>
+    public string LogoOriginalFileName { get; set; } = "";
 
     /// <summary>Logo zoom relative to a centered contain fit.</summary>
     public double LogoScale { get; set; } = 1d;
@@ -103,6 +123,12 @@ public sealed class CompanyProfile
     /// <summary>Vertical logo offset normalized to the target frame (-1..1).</summary>
     public double LogoOffsetY { get; set; }
 
+    /// <summary>Organization registration certificate scans/PDFs.</summary>
+    public List<ProjectFileReference> RegistrationCertificateDocuments { get; set; } = [];
+
+    /// <summary>Design-service license scans/PDFs.</summary>
+    public List<ProjectFileReference> DesignLicenseDocuments { get; set; } = [];
+
     public DateTimeOffset? UpdatedAtUtc { get; set; }
     public List<CompanySigner> Signers { get; set; } = [];
 
@@ -110,6 +136,8 @@ public sealed class CompanyProfile
     {
         PhoneNumbers ??= [];
         Signers ??= [];
+        RegistrationCertificateDocuments ??= [];
+        DesignLicenseDocuments ??= [];
         PhoneNumbers = PhoneNumbers
             .Select(value => (value ?? "").Trim())
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -123,6 +151,7 @@ public sealed class CompanyProfile
         LogoScale = double.IsFinite(LogoScale) ? Math.Clamp(LogoScale, 0.25d, 4d) : 1d;
         LogoOffsetX = double.IsFinite(LogoOffsetX) ? Math.Clamp(LogoOffsetX, -1d, 1d) : 0d;
         LogoOffsetY = double.IsFinite(LogoOffsetY) ? Math.Clamp(LogoOffsetY, -1d, 1d) : 0d;
+        LogoOriginalFileName = LogoOriginalFileName?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(DisplayName))
         {
             DisplayName = string.IsNullOrWhiteSpace(ShortName) ? Name : ShortName;
@@ -153,9 +182,16 @@ public sealed class CompanyProfile
             DirectorTitle = DirectorTitle,
             DirectorName = DirectorName,
             LogoPath = LogoPath,
+            LogoOriginalFileName = LogoOriginalFileName,
             LogoScale = LogoScale,
             LogoOffsetX = LogoOffsetX,
             LogoOffsetY = LogoOffsetY,
+            RegistrationCertificateDocuments = RegistrationCertificateDocuments
+                .Select(document => document.Clone())
+                .ToList(),
+            DesignLicenseDocuments = DesignLicenseDocuments
+                .Select(document => document.Clone())
+                .ToList(),
             UpdatedAtUtc = UpdatedAtUtc,
             Signers = Signers.Select(item => new CompanySigner { Role = item.Role, FullName = item.FullName }).ToList(),
         };
@@ -171,6 +207,12 @@ public sealed class CompanySigner
 
 public sealed class ProjectParticipant
 {
+    /// <summary>Registered profile surname/ovog. Optional for legacy album files.</summary>
+    public string FamilyName { get; set; } = "";
+
+    /// <summary>Registered profile given name/ner. Optional for legacy album files.</summary>
+    public string GivenName { get; set; } = "";
+
     public string FullName { get; set; } = "";
     public string Role { get; set; } = "";
     public string Email { get; set; } = "";
@@ -207,6 +249,13 @@ public sealed class ProjectDocumentRecord
     public string LocalPath { get; set; } = "";
     public string ServerDocumentId { get; set; } = "";
     public int Version { get; set; } = 1;
+}
+
+public static class ProjectDocumentCategories
+{
+    public const string CompanyRegistrationCertificate = "CompanyRegistrationCertificate";
+    public const string CompanyDesignLicense = "CompanyDesignLicense";
+    public const string ApprovedPlanningTask = "ApprovedPlanningTask";
 }
 
 public sealed class AlbumDefinition
@@ -307,6 +356,12 @@ public sealed class AlbumPageDefinition
     public string NumberOverride { get; set; } = "";
 
     public string TitleOverride { get; set; } = "";
+
+    /// <summary>
+    /// Optional Studio-owned facade narrative. Null inherits the source
+    /// sheet's description; an explicit value remains project-local.
+    /// </summary>
+    public string? ElevationDescriptionOverride { get; set; }
 }
 
 public enum PagePlacementMode

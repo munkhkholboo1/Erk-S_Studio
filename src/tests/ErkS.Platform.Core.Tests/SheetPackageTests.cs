@@ -40,6 +40,7 @@ public sealed class SheetPackageTests : IDisposable
         Assert.True(result.IsLossless, string.Join("; ", result.Issues));
         Assert.NotNull(result.Manifest);
         Assert.Equal(2, result.Manifest!.Sheets.Count);
+        Assert.Equal("Description 1", result.Manifest.Sheets[0].SheetDescription);
         Assert.All(result.Manifest.Sheets, sheet => Assert.NotEmpty(sheet.Sha256));
     }
 
@@ -178,7 +179,10 @@ public sealed class SheetPackageTests : IDisposable
             CloudProjectCode = "ERKS-P-01",
             SyncStatus = ProjectSyncStatuses.Linked,
         };
-        project.Foundation.InitiationBasis.ClientName = "З.Бат";
+        project.Foundation.InitiationBasis.ClientType = ProjectClientTypes.Organization;
+        project.Foundation.InitiationBasis.ClientName = "Захиалагч ХХК";
+        project.Foundation.InitiationBasis.ClientOrganizationSnapshot.LogoPath =
+            "foundation/documents/client-logo/client.png";
         project.Foundation.PlanningTask.AtdNumber = "АТД-2026-01";
         project.Foundation.PlanningTask.IssuingAuthorityName = "Хот байгуулалтын газар";
         project.Foundation.DesignCompany.OrganizationSnapshot.Name = "Erk-S зураг төслийн компани";
@@ -197,7 +201,11 @@ public sealed class SheetPackageTests : IDisposable
         ProjectWorkspaceStore.Save(project, path);
         var loaded = ProjectWorkspaceStore.Load(path);
 
-        Assert.Equal("З.Бат", loaded.Foundation.InitiationBasis.ClientName);
+        Assert.Equal(ProjectClientTypes.Organization, loaded.Foundation.InitiationBasis.ClientType);
+        Assert.Equal("Захиалагч ХХК", loaded.Foundation.InitiationBasis.ClientName);
+        Assert.Equal(
+            "foundation/documents/client-logo/client.png",
+            loaded.Foundation.InitiationBasis.ClientOrganizationSnapshot.LogoPath);
         Assert.Equal("АТД-2026-01", loaded.Foundation.PlanningTask.AtdNumber);
         Assert.Equal("Хот байгуулалтын газар", loaded.Foundation.PlanningTask.IssuingAuthorityName);
         Assert.Equal("Erk-S зураг төслийн компани", loaded.DesignOrganizationName);
@@ -527,6 +535,95 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void Intake_ProjectScopedFolderRejectsManifestFromAnotherProject()
+    {
+        var root = Path.Combine(workDirectory, "project-scoped-inbox");
+        WriteSourcePackage(
+            root,
+            "source-a",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-other");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+
+        intake.WatchFolder(root, "source-a", "project-current");
+
+        Assert.Empty(library.Snapshot());
+        Assert.Contains(intake.RejectedPackages, rejected => rejected.Issues.Any(issue =>
+            issue.Contains("project-other", StringComparison.OrdinalIgnoreCase) &&
+            issue.Contains("project-current", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void Intake_ProjectScopedFolderRejectsManifestFromAnotherSource()
+    {
+        var root = Path.Combine(workDirectory, "source-scoped-inbox");
+        WriteSourcePackage(
+            root,
+            "source-other",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+
+        intake.WatchFolder(root, "source-current", "project-current");
+
+        Assert.Empty(library.Snapshot());
+        Assert.Contains(intake.RejectedPackages, rejected => rejected.Issues.Any(issue =>
+            issue.Contains("source-other", StringComparison.OrdinalIgnoreCase) &&
+            issue.Contains("source-current", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void Intake_ProjectScopedFolderAcceptsMatchingOwnership()
+    {
+        var root = Path.Combine(workDirectory, "matching-scoped-inbox");
+        WriteSourcePackage(
+            root,
+            "source-current",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+
+        intake.WatchFolder(root, "source-current", "project-current");
+
+        SheetRecord record = Assert.Single(library.Snapshot());
+        Assert.Equal("source-current", record.SourceId);
+        Assert.Empty(intake.RejectedPackages);
+    }
+
+    [Fact]
+    public async Task Intake_UnwatchCancelsQueuedManifestBeforeAbsorb()
+    {
+        var root = Path.Combine(workDirectory, "cancelled-watcher-inbox");
+        Directory.CreateDirectory(root);
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(root, "source-current", "project-current");
+
+        WriteSourcePackage(
+            root,
+            "source-current",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        await Task.Delay(100);
+        intake.UnwatchFolder(root);
+        library.Clear();
+        await Task.Delay(500);
+
+        Assert.Empty(library.Snapshot());
+    }
+
+    [Fact]
     public void AlbumCompose_ProducesCoverTocAndSheets()
     {
         var manifestPath = WriteSamplePackage(workDirectory, sheetCount: 3);
@@ -567,7 +664,7 @@ public sealed class SheetPackageTests : IDisposable
             {
                 "НҮҮР ХУУДАС",
                 "ЗУРАГ ТӨСӨЛ БОЛОВСРУУЛСАН БАЙГУУЛЛАГА",
-                "АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР",
+                BuildingArchitectureConceptGeneratedPagePlanner.ApprovedPlanningTaskTitle,
             },
             definition.Composition.Take(3).Select(item => item.Title));
         Assert.False(definition.IncludeCover);
@@ -582,6 +679,37 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal("Arial", BuildingArchitectureConceptPageLayout.FontFamilyName);
         Assert.Equal(2.5, BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm);
         Assert.Equal(4.0, BuildingArchitectureConceptPageLayout.CoverProjectNameTextHeightMm);
+        Assert.Equal(2.5, BuildingArchitectureConceptPageLayout.CornerTextHeightMm);
+        Assert.InRange(BuildingArchitectureConceptPageLayout.CornerMinimumTextHeightMm, 1.0, 2.0);
+        Assert.True(BuildingArchitectureConceptPageLayout.CornerLineHeightFactor > 1.0);
+        Assert.Equal(30.0,
+            BuildingArchitectureConceptPageLayout.CoverProcessedLogoRightMm -
+            BuildingArchitectureConceptPageLayout.CoverProcessedLeftMm,
+            3);
+        Assert.Equal(58.7,
+            BuildingArchitectureConceptPageLayout.CoverProcessedRoleRightMm -
+            BuildingArchitectureConceptPageLayout.CoverProcessedLogoRightMm,
+            3);
+        Assert.Equal(41.75,
+            BuildingArchitectureConceptPageLayout.CoverProcessedNameRightMm -
+            BuildingArchitectureConceptPageLayout.CoverProcessedRoleRightMm,
+            3);
+        Assert.Equal(25.0,
+            BuildingArchitectureConceptPageLayout.CoverTableRightMm -
+            BuildingArchitectureConceptPageLayout.CoverProcessedNameRightMm,
+            3);
+        Assert.False(ProjectClientTypes.UsesLogo(ProjectClientTypes.Citizen));
+        Assert.True(ProjectClientTypes.UsesLogo(ProjectClientTypes.Organization));
+        Assert.True(ProjectClientTypes.UsesLogo(ProjectClientTypes.GovernmentAuthority));
+        Assert.True(ProjectClientTypes.ShowsDirectClientName(ProjectClientTypes.Citizen));
+        Assert.False(ProjectClientTypes.ShowsDirectClientName(ProjectClientTypes.Organization));
+        Assert.False(ProjectClientTypes.ShowsDirectClientName(ProjectClientTypes.GovernmentAuthority));
+        Assert.Equal(
+            "Гүйцэтгэгч",
+            BuildingArchitectureConceptPageLayout.CoverProcessedTopSectionTitle);
+        Assert.Equal(
+            "Захиалагч",
+            BuildingArchitectureConceptPageLayout.CoverProcessedBottomSectionTitle);
         Assert.True(BuildingArchitectureConceptPageLayout.IsCanonical(format));
         Assert.Equal(420, format.WidthMm);
         Assert.Equal(297, format.HeightMm);
@@ -590,7 +718,7 @@ public sealed class SheetPackageTests : IDisposable
             (format.SheetTitleArea.X, format.SheetTitleArea.Y, format.SheetTitleArea.Width, format.SheetTitleArea.Height));
         Assert.Equal((15d, 14d, 400d, 250d),
             (format.DrawingArea.X, format.DrawingArea.Y, format.DrawingArea.Width, format.DrawingArea.Height));
-        Assert.Equal((231d, 264d, 184d, 28d),
+        Assert.Equal((225d, 264d, 190d, 28d),
             (format.TitleBlockArea.X, format.TitleBlockArea.Y, format.TitleBlockArea.Width, format.TitleBlockArea.Height));
 
         var approvalTable = BuildingArchitectureConceptPageLayout.FromBottomLeft(
@@ -602,6 +730,114 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal(127.14, approvalTable.Y, 3);
         Assert.Equal(283.45, approvalTable.Width, 3);
         Assert.Equal(76, approvalTable.Height, 3);
+    }
+
+    [Theory]
+    [InlineData(ProjectClientTypes.Citizen, "З.Бат", "Д.Төлөөлөгч", "З.Бат")]
+    [InlineData(ProjectClientTypes.Organization, "Хуучин захиалагч", "Д.Төлөөлөгч", "Д.Төлөөлөгч")]
+    [InlineData(ProjectClientTypes.GovernmentAuthority, "Хуучин захиалагч", "Д.Төлөөлөгч", "Д.Төлөөлөгч")]
+    [InlineData(ProjectClientTypes.Organization, "Хуучин захиалагч", "", "")]
+    public void ClientCoverPerson_UsesRepresentativeOnlyForNonCitizenClients(
+        string clientType,
+        string clientName,
+        string representativeName,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            ProjectClientTypes.ResolveCoverPersonName(
+                clientType,
+                clientName,
+                representativeName,
+                "Legacy citizen"));
+    }
+
+    [Theory]
+    [InlineData(ProjectClientTypes.Citizen, "З.Бат", "", "Иргэн")]
+    [InlineData(ProjectClientTypes.Organization, "Захиалагч ХХК", "Захирал", "Захиалагч ХХК Захирал")]
+    [InlineData(ProjectClientTypes.GovernmentAuthority, "Хот байгуулалтын газар", "Хэлтсийн дарга", "Хот байгуулалтын газар Хэлтсийн дарга")]
+    [InlineData(ProjectClientTypes.Organization, "Захиалагч ХХК", "", "Захиалагч ХХК")]
+    [InlineData(ProjectClientTypes.Organization, "", "Захирал", "Захирал")]
+    public void ClientCoverRole_UsesOrganizationNameInsteadOfClientType(
+        string clientType,
+        string clientName,
+        string representativePosition,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            ProjectClientTypes.ResolveCoverRole(
+                clientType,
+                clientName,
+                representativePosition));
+    }
+
+    [Theory]
+    [InlineData(ProjectClientTypes.Citizen, "Захиалагчийн нэр")]
+    [InlineData(ProjectClientTypes.Organization, "Захиалагч байгууллагын нэр")]
+    [InlineData(ProjectClientTypes.GovernmentAuthority, "Төрийн байгууллагын нэр")]
+    public void ClientNameFieldLabel_ExplainsWhichNameIsRequired(string clientType, string expected)
+    {
+        Assert.Equal(expected, ProjectClientTypes.ClientNameFieldLabel(clientType));
+    }
+
+    [Fact]
+    public void AssetDisplayName_HidesContentAddressedStorageName()
+    {
+        const string hash = "315283a9bc6a54bc0de1a5cbbea2ef83ebcb54caefbed8654c07e8bd80127f14";
+        var document = new ProjectFileReference
+        {
+            Title = "Батлагдсан архитектур төлөвлөлтийн даалгавар",
+            OriginalFileName = hash + ".pdf",
+            RelativePath = "foundation/documents/approved-atd/" + hash + ".pdf",
+        };
+
+        Assert.Equal(
+            "Батлагдсан архитектур төлөвлөлтийн даалгавар.pdf",
+            ProjectAssetDisplayName.ForDocument(document));
+        Assert.Equal(
+            "АТД.pdf",
+            ProjectAssetDisplayName.ForDocument(new ProjectFileReference
+            {
+                Title = document.Title,
+                OriginalFileName = "АТД.pdf",
+                RelativePath = document.RelativePath,
+            }));
+        Assert.Equal(
+            "Захиалагчийн лого.jpg",
+            ProjectAssetDisplayName.Resolve("", hash + ".jpg", "Захиалагчийн лого"));
+    }
+
+    [Fact]
+    public void ConceptElevationPage_ReservesFiftyFiveMillimeterInformationBand()
+    {
+        var page = new AlbumPageDefinition
+        {
+            PageFormatId = PageFormatCatalog.ConceptA3LandscapeId,
+            TemplateSlotId = "elevations",
+        };
+        var entry = new SheetPackageEntry
+        {
+            ContentKind = "Elevation",
+            Name = "North facade",
+        };
+
+        PageFormatDefinition format = PageFormatCatalog.ResolveForConceptPage(page, entry);
+
+        Assert.Equal(PageFormatCatalog.ConceptElevationA3LandscapeId, format.Id);
+        Assert.Equal((15d, 60d, 400d, 9d),
+            (format.SheetTitleArea.X, format.SheetTitleArea.Y, format.SheetTitleArea.Width, format.SheetTitleArea.Height));
+        Assert.Equal((15d, 69d, 400d, 195d),
+            (format.DrawingArea.X, format.DrawingArea.Y, format.DrawingArea.Width, format.DrawingArea.Height));
+        Assert.Equal(55d, BuildingArchitectureConceptPageLayout.ElevationInformationArea.Height);
+        Assert.Equal(125d, BuildingArchitectureConceptPageLayout.ElevationRoleColumnRightMm);
+        Assert.Equal(180d, BuildingArchitectureConceptPageLayout.ElevationApprovalPanelRightMm);
+        Assert.Equal(
+            new[] { 180d },
+            BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm);
+        Assert.DoesNotContain(
+            BuildingArchitectureConceptPageLayout.ElevationRoleColumnRightMm,
+            BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm);
     }
 
     [Theory]
@@ -677,11 +913,18 @@ public sealed class SheetPackageTests : IDisposable
             new() { Id = "office-source", Kind = DesignSourceKind.Revit, NativeDocumentTitle = "Office.rvt" },
             new() { Id = "storage-source", Kind = DesignSourceKind.Revit, NativeDocumentTitle = "Storage.rvt" },
         };
+        var project = new AlbumProject
+        {
+            Album = definition,
+            DesignSources = sources,
+        };
+        int generatedPageCount = BuildingArchitectureConceptGeneratedPagePlanner.Create(project).Count;
         var sequence = BuildingArchitectureConceptAlbumSequencer.Create(
             definition,
             definition.Pages,
             library,
-            sources);
+            sources,
+            generatedPageCount);
 
         Assert.Equal(
             new[]
@@ -692,18 +935,13 @@ public sealed class SheetPackageTests : IDisposable
             },
             sequence.Select(item => item.Sheet!.Entry.SheetId));
         Assert.Equal(
-            new[] { "09", "10", "11", "12", "13", "14", "15", "16", "17" },
+            new[] { "10", "11", "12", "13", "14", "15", "16", "17", "18" },
             sequence.Select(item => item.Number));
         Assert.Equal("21", sequence[0].Sheet!.Entry.Number);
         Assert.Equal("Office.rvt · А барилга", sequence[0].SourceGroupTitle);
         Assert.Equal("Office.rvt · Б барилга", sequence[3].SourceGroupTitle);
         Assert.Equal("Storage.rvt", sequence[6].SourceGroupTitle);
 
-        var project = new AlbumProject
-        {
-            Album = definition,
-            DesignSources = sources,
-        };
         var request = AlbumBuilder.CreateRequest(project, library);
         var builtPages = request.Sections.SelectMany(section => section.Pages).ToList();
         Assert.Equal(sequence.Select(item => item.Sheet!.Entry.SheetId), builtPages.Select(item => item.Sheet.Entry.SheetId));
@@ -719,7 +957,7 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
-    public void ConceptAlbumTemplate_GeneratesThreeA3PagesWithoutSources()
+    public void ConceptAlbumTemplate_GeneratesFourA3PagesWithoutDocumentsOrSources()
     {
         var project = new AlbumProject
         {
@@ -745,15 +983,159 @@ public sealed class SheetPackageTests : IDisposable
         var result = new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, new SheetLibrary(), outputPath);
 
         Assert.Equal(0, result.SheetCount);
-        Assert.Equal(3, result.PageCount);
+        Assert.Equal(4, result.PageCount);
         Assert.Empty(result.Warnings);
         using var document = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
-        Assert.Equal(3, document.PageCount);
+        Assert.Equal(4, document.PageCount);
         foreach (var page in document.Pages.Cast<PdfPage>())
         {
             Assert.InRange(page.Width.Millimeter, 419.5, 420.5);
             Assert.InRange(page.Height.Millimeter, 296.5, 297.5);
         }
+    }
+
+    [Fact]
+    public void ConceptAlbumTemplate_ExpandsMultiPageDocumentsWithoutMixingCategories()
+    {
+        string registrationPath = Path.Combine(workDirectory, "registration.pdf");
+        string licensePath = Path.Combine(workDirectory, "license.pdf");
+        string planningTaskPath = Path.Combine(workDirectory, "planning-task.pdf");
+        WriteMultiPagePdf(registrationPath, 5, "Registration");
+        WriteMultiPagePdf(licensePath, 2, "License");
+        WriteMultiPagePdf(planningTaskPath, 3, "Planning task");
+
+        var project = new AlbumProject
+        {
+            Name = "Баримттай төсөл",
+            ProjectFolder = workDirectory,
+            Company = new CompanyProfile
+            {
+                Name = "Erk-S зураг төслийн компани",
+                RegistrationCertificateDocuments =
+                [
+                    CreateDocumentReference(
+                        ProjectDocumentCategories.CompanyRegistrationCertificate,
+                        registrationPath,
+                        5),
+                ],
+                DesignLicenseDocuments =
+                [
+                    CreateDocumentReference(
+                        ProjectDocumentCategories.CompanyDesignLicense,
+                        licensePath,
+                        2),
+                ],
+            },
+            PlanningTask = new PlanningTaskInformation
+            {
+                Documents =
+                [
+                    CreateDocumentReference(
+                        ProjectDocumentCategories.ApprovedPlanningTask,
+                        planningTaskPath,
+                        3),
+                ],
+            },
+            Album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Загвар зургийн альбум"),
+        };
+
+        IReadOnlyList<ConceptGeneratedPagePlan> plans =
+            BuildingArchitectureConceptGeneratedPagePlanner.Create(project);
+
+        Assert.Equal(7, plans.Count);
+        Assert.Equal(new[] { "00", "01", "02", "03", "04", "05", "06" }, plans.Select(plan => plan.Number));
+        Assert.Equal(
+            new[]
+            {
+                ConceptGeneratedDocumentKind.None,
+                ConceptGeneratedDocumentKind.CompanyRegistrationCertificate,
+                ConceptGeneratedDocumentKind.CompanyRegistrationCertificate,
+                ConceptGeneratedDocumentKind.CompanyRegistrationCertificate,
+                ConceptGeneratedDocumentKind.CompanyDesignLicense,
+                ConceptGeneratedDocumentKind.ApprovedPlanningTask,
+                ConceptGeneratedDocumentKind.ApprovedPlanningTask,
+            },
+            plans.Select(plan => plan.DocumentKind));
+        Assert.Equal(new[] { 0, 2, 2, 1, 2, 2, 1 }, plans.Select(plan => plan.DocumentPages.Count));
+        Assert.All(
+            plans.Where(plan => plan.DocumentKind is
+                ConceptGeneratedDocumentKind.CompanyRegistrationCertificate or
+                ConceptGeneratedDocumentKind.CompanyDesignLicense),
+            plan => Assert.Equal(
+                BuildingArchitectureConceptGeneratedPagePlanner.DesignOrganizationTitle,
+                plan.Title));
+        Assert.Equal(
+            BuildingArchitectureConceptGeneratedPagePlanner.ApprovedPlanningTaskTitle,
+            plans[^1].Title);
+
+        string outputPath = Path.Combine(workDirectory, "concept-document-pages.pdf");
+        AlbumBuildResult result = new AlbumBuilder(new PdfSharpAlbumWriter())
+            .Build(project, new SheetLibrary(), outputPath);
+
+        Assert.Equal(0, result.SheetCount);
+        Assert.Equal(7, result.PageCount);
+        Assert.Empty(result.Warnings);
+        using var document = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
+        Assert.Equal(7, document.PageCount);
+        Assert.All(document.Pages.Cast<PdfPage>(), page =>
+        {
+            Assert.InRange(page.Width.Millimeter, 419.5, 420.5);
+            Assert.InRange(page.Height.Millimeter, 296.5, 297.5);
+        });
+    }
+
+    [Fact]
+    public void ProjectDocumentInspector_ReadsPdfPageCountAndAlbumStoreNormalizesLegacyNulls()
+    {
+        string sourcePath = Path.Combine(workDirectory, "approved-atd.pdf");
+        WriteMultiPagePdf(sourcePath, 2, "ATD");
+
+        ProjectDocumentAssetInspection inspection = ProjectDocumentAssetInspector.Inspect(sourcePath);
+
+        Assert.Equal("application/pdf", inspection.ContentType);
+        Assert.Equal(2, inspection.PageCount);
+        Assert.Equal(64, inspection.Sha256.Length);
+
+        var staleReference = new ProjectFileReference
+        {
+            PageCount = 1,
+            ContentType = "",
+            SizeBytes = 0,
+            Sha256 = "",
+        };
+        Assert.True(ProjectDocumentAssetInspector.RefreshMetadata(staleReference, sourcePath));
+        Assert.Equal("application/pdf", staleReference.ContentType);
+        Assert.Equal(2, staleReference.PageCount);
+        Assert.Equal(new FileInfo(sourcePath).Length, staleReference.SizeBytes);
+        Assert.Equal(inspection.Sha256, staleReference.Sha256);
+        Assert.False(ProjectDocumentAssetInspector.RefreshMetadata(staleReference, sourcePath));
+
+        string projectPath = Path.Combine(workDirectory, "legacy-null-lists.erksalbum");
+        File.WriteAllText(
+            projectPath,
+            """
+            {
+              "formatVersion": 2,
+              "name": "Legacy",
+              "initiationBasis": { "documents": null },
+              "planningTask": { "requirements": null, "documents": null, "authorityMembers": null },
+              "company": {
+                "registrationCertificateDocuments": null,
+                "designLicenseDocuments": null
+              }
+            }
+            """);
+
+        AlbumProject loaded = AlbumProjectStore.Load(projectPath);
+
+        Assert.Empty(loaded.InitiationBasis.Documents);
+        Assert.Empty(loaded.PlanningTask.Requirements);
+        Assert.Empty(loaded.PlanningTask.Documents);
+        Assert.Empty(loaded.PlanningTask.AuthorityMembers);
+        Assert.Empty(loaded.Company.RegistrationCertificateDocuments);
+        Assert.Empty(loaded.Company.DesignLicenseDocuments);
+        loaded.Album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Загвар зургийн альбум");
+        Assert.Equal(4, BuildingArchitectureConceptGeneratedPagePlanner.Create(loaded).Count);
     }
 
     [Fact]
@@ -873,6 +1255,7 @@ public sealed class SheetPackageTests : IDisposable
         WriteMinimalPdf(pdfPath, "Clean drawing", format.DrawingArea.Width, format.DrawingArea.Height);
         var manifest = new SheetPackageManifest
         {
+            SchemaVersion = 3,
             Source = new SheetPackageSource { Application = SheetSourceApplication.Revit },
             Sheets =
             [
@@ -980,7 +1363,7 @@ public sealed class SheetPackageTests : IDisposable
     {
         var format = CreateConceptFormat();
         var pdfPath = Path.Combine(workDirectory, "wrong-size.pdf");
-        WriteMinimalPdf(pdfPath, "Wrong size", format.DrawingArea.Width - 5, format.DrawingArea.Height);
+        WriteMinimalPdf(pdfPath, "Original size", format.DrawingArea.Width, format.DrawingArea.Height);
         var manifest = new SheetPackageManifest
         {
             Source = new SheetPackageSource { SourceId = "revit-source", Application = SheetSourceApplication.Revit },
@@ -1006,20 +1389,30 @@ public sealed class SheetPackageTests : IDisposable
         var library = new SheetLibrary();
         library.Absorb(SheetPackageReader.Load(manifestPath));
         var sheet = Assert.Single(library.Snapshot());
+
+        // Simulate a source PDF and manifest being altered after a valid intake.
+        // The album builder must independently enforce the 1:1 drawing space.
+        WriteMinimalPdf(pdfPath, "Wrong size", format.DrawingArea.Width - 5, format.DrawingArea.Height);
+        manifest.Sheets[0].Sha256 = SheetPackageReader.ComputeSha256(pdfPath);
+        File.WriteAllText(
+            manifestPath,
+            System.Text.Json.JsonSerializer.Serialize(manifest, SheetPackageJson.Options));
+
         var project = new AlbumProject { Name = "No resize" };
         project.Album.IncludeCover = false;
         project.Album.IncludeTableOfContents = false;
         var page = new AlbumPageDefinition { SheetKey = sheet.Key };
         PageFormatResolver.ApplySourceFormat(page, sheet.Entry);
         project.Album.Pages.Add(page);
+        var outputPath = Path.Combine(workDirectory, "wrong-size-album.pdf");
+        var previousOutput = new byte[] { 1, 2, 3, 4 };
+        File.WriteAllBytes(outputPath, previousOutput);
 
-        var result = new AlbumBuilder(new PdfSharpAlbumWriter()).Build(
-            project,
-            library,
-            Path.Combine(workDirectory, "wrong-size-album.pdf"));
+        var exception = Assert.Throws<AlbumBuildException>(() =>
+            new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, library, outputPath));
 
-        Assert.Equal(0, result.SheetCount);
-        Assert.Contains(result.Warnings, warning => warning.Contains("not resized", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("page size", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(previousOutput, File.ReadAllBytes(outputPath));
     }
 
     private static string WriteSamplePackage(string directory, int sheetCount)
@@ -1029,6 +1422,7 @@ public sealed class SheetPackageTests : IDisposable
         {
             Source = new SheetPackageSource
             {
+                SourceId = "sample-source",
                 Application = SheetSourceApplication.AutoCad,
                 DocumentPath = @"C:\sample\test.dwg",
                 DocumentTitle = "test",
@@ -1038,12 +1432,15 @@ public sealed class SheetPackageTests : IDisposable
         for (var index = 1; index <= sheetCount; index++)
         {
             var fileName = $"sheet-{index:00}.pdf";
-            WriteMinimalPdf(Path.Combine(directory, fileName), $"Sheet {index}");
+            WriteMinimalPdf(Path.Combine(directory, fileName), $"Sheet {index}", 210, 297);
             manifest.Sheets.Add(new SheetPackageEntry
             {
                 SheetId = $"L{index}",
                 Number = $"AR-{index:00}",
                 Name = $"Test sheet {index}",
+                SheetDescription = $"Description {index}",
+                WidthMm = 210,
+                HeightMm = 297,
                 PdfFileName = fileName,
             });
         }
@@ -1056,7 +1453,8 @@ public sealed class SheetPackageTests : IDisposable
         string sourceId,
         IReadOnlyList<string> sheetIds,
         SheetPackageScope packageScope,
-        DateTimeOffset exportedAtUtc)
+        DateTimeOffset exportedAtUtc,
+        string projectId = "")
     {
         Directory.CreateDirectory(directory);
         var manifest = new SheetPackageManifest
@@ -1068,18 +1466,21 @@ public sealed class SheetPackageTests : IDisposable
                 DocumentPath = $@"C:\sample\{sourceId}.rvt",
                 DocumentTitle = sourceId,
             },
+            ProjectId = projectId,
             PackageScope = packageScope,
             ExportedAtUtc = exportedAtUtc,
         };
         foreach (var sheetId in sheetIds)
         {
             var fileName = $"{sheetId}.pdf";
-            WriteMinimalPdf(Path.Combine(directory, fileName), sheetId);
+            WriteMinimalPdf(Path.Combine(directory, fileName), sheetId, 210, 297);
             manifest.Sheets.Add(new SheetPackageEntry
             {
                 SheetId = sheetId,
                 Number = sheetId,
                 Name = sheetId,
+                WidthMm = 210,
+                HeightMm = 297,
                 PdfFileName = fileName,
             });
         }
@@ -1109,7 +1510,7 @@ public sealed class SheetPackageTests : IDisposable
         foreach (var sheet in sheets)
         {
             var fileName = $"{sheet.SheetId}.pdf";
-            WriteMinimalPdf(Path.Combine(directory, fileName), sheet.Name);
+            WriteMinimalPdf(Path.Combine(directory, fileName), sheet.Name, format.WidthMm, format.HeightMm);
             manifest.Sheets.Add(new SheetPackageEntry
             {
                 SheetId = sheet.SheetId,
@@ -1172,4 +1573,36 @@ public sealed class SheetPackageTests : IDisposable
             new XRect(0, 0, page.Width.Point, page.Height.Point), XStringFormats.Center);
         document.Save(path);
     }
+
+    private static void WriteMultiPagePdf(string path, int pageCount, string label)
+    {
+        using var document = new PdfDocument();
+        for (int index = 0; index < pageCount; index++)
+        {
+            PdfPage page = document.AddPage();
+            using XGraphics gfx = XGraphics.FromPdfPage(page);
+            gfx.DrawString(
+                $"{label} {index + 1}",
+                new XFont("Arial", 20),
+                XBrushes.Black,
+                new XRect(0, 0, page.Width.Point, page.Height.Point),
+                XStringFormats.Center);
+        }
+
+        document.Save(path);
+    }
+
+    private static ProjectFileReference CreateDocumentReference(
+        string category,
+        string path,
+        int pageCount) => new()
+    {
+        Category = category,
+        Title = Path.GetFileNameWithoutExtension(path),
+        RelativePath = path,
+        OriginalFileName = Path.GetFileName(path),
+        ContentType = "application/pdf",
+        SizeBytes = new FileInfo(path).Length,
+        PageCount = pageCount,
+    };
 }

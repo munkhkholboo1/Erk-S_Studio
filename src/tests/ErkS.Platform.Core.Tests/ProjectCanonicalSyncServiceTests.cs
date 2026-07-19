@@ -92,6 +92,77 @@ public sealed class ProjectCanonicalSyncServiceTests
     }
 
     [Fact]
+    public void SharedSurfaceAndFoundationReplaceCanonicalMirrorFields()
+    {
+        ProjectWorkspace project = Project();
+        ProjectServerSnapshot snapshot = Snapshot();
+        snapshot.Surface = new ProjectServerSurface
+        {
+            SchemaVersion = "1.0",
+            ProductName = "Erk-S Studio",
+            Sections =
+            [
+                new ProjectServerSurfaceSection { Id = "archive", Label = "Архив", Order = 60 },
+                new ProjectServerSurfaceSection { Id = "overview", Label = "Ерөнхий", Order = 10 },
+            ],
+        };
+        snapshot.Foundation = new ProjectServerFoundation
+        {
+            IsAvailable = true,
+            Version = 7,
+            InitiationBasis = new ProjectServerInitiationBasis
+            {
+                SourceType = "ATDRequest",
+                RequestNumber = "REQ-42",
+                ClientName = "Canonical client",
+                ClientEmail = "client@example.test",
+                SiteAddress = "Canonical site",
+                LandReference = "parcel-42",
+                SourceOrganizationName = "Planning authority",
+                Summary = "Canonical basis",
+            },
+            PlanningTask = new ProjectServerPlanningTask
+            {
+                AtdNumber = "ATD-42",
+                IssuingAuthorityName = "Planning authority",
+                Status = "Issued",
+                Summary = "Canonical ATD",
+                Requirements = ["Requirement A"],
+            },
+        };
+
+        ProjectCanonicalSyncService.Apply(project, snapshot);
+
+        Assert.Equal("REQ-42", project.Foundation.InitiationBasis.RequestNumber);
+        Assert.Equal("client@example.test", project.Foundation.InitiationBasis.ClientEmail);
+        Assert.Equal("ATD-42", project.Foundation.PlanningTask.AtdNumber);
+        Assert.Equal(["Requirement A"], project.Foundation.PlanningTask.Requirements);
+        Assert.Equal(7, project.Foundation.Version);
+        Assert.Equal(["overview", "archive"], project.Cloud.ServerSnapshot.Surface.Sections.Select(item => item.Id));
+    }
+
+    [Fact]
+    public void LegacyPendingRecordDoesNotEraseNewFoundationDetails()
+    {
+        ProjectWorkspace project = Project();
+        project.Foundation.InitiationBasis.RequestNumber = "LOCAL-REQ";
+        project.Foundation.PlanningTask.AtdNumber = "LOCAL-ATD";
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
+        {
+            Name = "Pending name",
+            ClientName = "Pending client",
+            Location = "Pending location",
+            BuildingPurpose = "Pending purpose",
+            Foundation = new ProjectServerFoundationUpdate { IsAvailable = false },
+        };
+
+        ProjectCanonicalSyncService.Apply(project, Snapshot());
+
+        Assert.Equal("LOCAL-REQ", project.Foundation.InitiationBasis.RequestNumber);
+        Assert.Equal("LOCAL-ATD", project.Foundation.PlanningTask.AtdNumber);
+    }
+
+    [Fact]
     public void CanonicalSnapshotRoundTripsWithLocalMirror()
     {
         string root = Path.Combine(Path.GetTempPath(), "erks-canonical-sync-tests", Guid.NewGuid().ToString("N"));

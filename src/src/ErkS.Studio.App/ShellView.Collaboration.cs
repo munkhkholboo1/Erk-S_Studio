@@ -3,12 +3,31 @@ using System.Net;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using ErkS.CloudEra.Client;
 using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 
 internal sealed partial class ShellView
 {
+    private readonly ComboBox projectArchitectBox = new()
+    {
+        MinWidth = 360,
+        MaxWidth = 620,
+        HorizontalAlignment = HorizontalAlignment.Left,
+        DisplayMemberPath = nameof(ProjectArchitectOption.Label),
+    };
+    private readonly Button assignProjectArchitectButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE73E",
+        "Баталгаажуулах",
+        "Сонгосон бүртгэлтэй оролцогчийн архитекторын томилгоо ба profile нэрийг баталгаажуулах",
+        primary: true);
+    private readonly TextBlock projectArchitectSummaryText = new()
+    {
+        TextWrapping = TextWrapping.Wrap,
+        Foreground = StudioTheme.MutedTextBrush,
+    };
+    private bool assigningProjectArchitect;
     private readonly Button notificationsButton = StudioWidgets.CreateGlyphTextButton(
         "\uE7F4",
         "Мэдэгдэл",
@@ -18,6 +37,10 @@ internal sealed partial class ShellView
         "Гишүүн урих",
         "Бүртгэлтэй хэрэглэгчид багийн урилга илгээх",
         primary: true);
+    private readonly Button editTeamMemberRolesButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE70F",
+        "Үүрэг засах",
+        "Сонгосон багийн гишүүний төслийн role-уудыг өөрчлөх");
     private readonly Button removeTeamMemberButton = StudioWidgets.CreateButton("Багаас хасах");
     private readonly Button leaveProjectButton = StudioWidgets.CreateButton("Төслөөс гарах хүсэлт");
     private readonly Button projectLifecycleButton = StudioWidgets.CreateGlyphTextButton(
@@ -30,6 +53,7 @@ internal sealed partial class ShellView
     private StudioProjectCreationGrantListResponse notificationGrants = new();
     private bool refreshingNotifications;
     private bool refreshingCurrentProjectAccess;
+    private bool updatingTeamMemberRoles;
 
     private void UpdateSelectedProjectLifecycleAction()
     {
@@ -323,13 +347,36 @@ internal sealed partial class ShellView
     {
         var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
         inviteTeamMemberButton.Click += async (_, _) => await InviteTeamMemberAsync();
+        editTeamMemberRolesButton.Click += async (_, _) => await EditSelectedTeamMemberRolesAsync();
         removeTeamMemberButton.Click += async (_, _) => await RemoveSelectedTeamMemberAsync();
         leaveProjectButton.Click += async (_, _) => await RequestLeaveProjectAsync();
         participantsList.SelectionChanged += (_, _) => RefreshTeamActionUi();
+        participantsList.MouseDoubleClick += async (_, _) =>
+        {
+            if (editTeamMemberRolesButton.IsEnabled)
+                await EditSelectedTeamMemberRolesAsync();
+        };
         actions.Children.Add(inviteTeamMemberButton);
+        actions.Children.Add(editTeamMemberRolesButton);
         actions.Children.Add(removeTeamMemberButton);
         actions.Children.Add(leaveProjectButton);
         return actions;
+    }
+
+    private UIElement BuildProjectArchitectAssignment()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+        projectArchitectSummaryText.Margin = new Thickness(0, 0, 0, 8);
+        panel.Children.Add(projectArchitectSummaryText);
+
+        var actions = new WrapPanel();
+        projectArchitectBox.Margin = new Thickness(0, 0, 8, 0);
+        projectArchitectBox.SelectionChanged += (_, _) => RefreshProjectArchitectActionUi();
+        assignProjectArchitectButton.Click += async (_, _) => await AssignSelectedProjectArchitectAsync();
+        actions.Children.Add(projectArchitectBox);
+        actions.Children.Add(assignProjectArchitectButton);
+        panel.Children.Add(actions);
+        return panel;
     }
 
     private void RefreshTeamActionUi()
@@ -338,7 +385,14 @@ internal sealed partial class ShellView
         MemberRow? selected = participantsList.SelectedItem as MemberRow;
         bool selectedIsCurrentAccount = selected is not null &&
             selected.Email.Equals(account.Current?.Email ?? "", StringComparison.OrdinalIgnoreCase);
+        bool serverSupportsRoleManagement = account.CurrentCapabilities is { } capabilities &&
+            CloudEraCapabilityPolicy.Supports(
+                capabilities,
+                CloudEraFeatures.ParticipantRoleManagement);
+        bool workflowManaged = selected?.RoleCodes?.Any(IsWorkflowManagedRole) == true;
         inviteTeamMemberButton.IsEnabled = canManage;
+        editTeamMemberRolesButton.IsEnabled = canManage &&
+            !updatingTeamMemberRoles && selected is { IsInvitation: false } && !workflowManaged;
         removeTeamMemberButton.IsEnabled = canManage && selected is not null &&
             (selected.IsInvitation || !selectedIsCurrentAccount);
         bool pendingExit = state.HasOpenProject && notificationExitRequests.Requested.Any(item =>
@@ -357,10 +411,132 @@ internal sealed partial class ShellView
                 ? "Cloud ERA access эрхийг шинэчилж байна"
                 : "Төслийн баг удирдах role шаардлагатай";
         inviteTeamMemberButton.ToolTip = reason;
+        editTeamMemberRolesButton.ToolTip = !serverSupportsRoleManagement
+            ? "Засварлах үед Cloud ERA server-ийн role API боломжийг дахин шалгана"
+            : workflowManaged
+                ? "Захиалагч болон төрийн байгууллагын role workflow хэсгээс удирдагдана"
+                : selected is null
+                    ? "Эхлээд багийн гишүүн сонгоно уу"
+                    : selected.IsInvitation
+                        ? "Урилгыг хүлээн авсны дараа role засна"
+                        : "Сонгосон гишүүний нэг эсвэл олон role-г өөрчлөх";
         removeTeamMemberButton.ToolTip = reason;
         leaveProjectButton.ToolTip = pendingExit
             ? "Төсөл үүсгэгч байгууллагын шийдвэр хүлээгдэж байна"
             : "Төсөл үүсгэгч байгууллагад гарах хүсэлт илгээх";
+        RefreshProjectArchitectActionUi();
+    }
+
+    private void RefreshProjectArchitectUi()
+    {
+        if (!state.HasOpenProject)
+        {
+            projectArchitectBox.ItemsSource = Array.Empty<ProjectArchitectOption>();
+            projectArchitectSummaryText.Text = "Төсөл нээгээгүй байна.";
+            RefreshProjectArchitectActionUi();
+            return;
+        }
+
+        List<ProjectArchitectOption> options = state.Project.Foundation.DesignCompany.Members
+            .Where(member => !string.IsNullOrWhiteSpace(member.Id) && !string.IsNullOrWhiteSpace(member.Email))
+            .Select(member => new ProjectArchitectOption(
+                member.Id,
+                member.FamilyName,
+                member.GivenName,
+                member.FullName,
+                member.Email,
+                member.Roles.Any(ProjectRoleSemantics.IsAppointedArchitect)))
+            .OrderByDescending(option => option.IsCurrent)
+            .ThenBy(option => option.ProfileName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        projectArchitectBox.ItemsSource = options;
+        ProjectArchitectOption? current = options.FirstOrDefault(option => option.IsCurrent);
+        projectArchitectBox.SelectedItem = current ?? options.FirstOrDefault();
+        projectArchitectSummaryText.Text = current is null
+            ? "Үндсэн архитектор томилогдоогүй. Булангийн хүснэгтийн Архитектор мөр хоосон байна."
+            : $"Одоогийн архитектор: {current.DocumentName}";
+        RefreshProjectArchitectActionUi();
+    }
+
+    private void RefreshProjectArchitectActionUi()
+    {
+        ProjectArchitectOption? selected = projectArchitectBox.SelectedItem as ProjectArchitectOption;
+        bool canManage = CanManageProjectTeam();
+        bool serverSupportsAssignment = account.CurrentCapabilities is { } capabilities &&
+            CloudEraCapabilityPolicy.Supports(
+                capabilities,
+                CloudEraFeatures.ConceptArchitectAssignment);
+        assignProjectArchitectButton.IsEnabled =
+            !assigningProjectArchitect && canManage && selected is not null;
+        projectArchitectBox.IsEnabled = !assigningProjectArchitect && canManage &&
+            projectArchitectBox.Items.Count > 0;
+        assignProjectArchitectButton.ToolTip = !state.HasOpenProject
+            ? "Төсөл нээгээгүй байна"
+            : !account.IsSignedIn
+                ? "Studio бүртгэлээр нэвтэрнэ үү"
+                : !serverSupportsAssignment
+                    ? "Баталгаажуулах үед Cloud ERA server-ийн шинэ API боломжийг дахин шалгана"
+                : !canManage
+                    ? "Төслийн баг удирдах role шаардлагатай"
+                    : selected?.IsCurrent == true
+                        ? "Одоогийн томилгоог profile мэдээллээр дахин баталгаажуулж, булангийн хүснэгтийг шинэчлэх"
+                        : "Profile нэрийг булангийн хүснэгтийн Архитектор мөртэй холбоно";
+    }
+
+    private async Task AssignSelectedProjectArchitectAsync()
+    {
+        if (!CanManageProjectTeam() ||
+            projectArchitectBox.SelectedItem is not ProjectArchitectOption selected ||
+            assigningProjectArchitect)
+        {
+            return;
+        }
+        if (!StudioRelationshipBoundary.Confirm(
+                Window.GetWindow(Root),
+                StudioRelationshipAction.AssignProjectArchitect,
+                $"{selected.ProfileName} · {selected.Email}"))
+        {
+            return;
+        }
+
+        assigningProjectArchitect = true;
+        RefreshProjectArchitectActionUi();
+        try
+        {
+            string projectId = state.Project.Cloud.ServerProjectId;
+            StudioCloudProjectDetail latest = await account.AssignConceptArchitectAsync(
+                projectId,
+                selected.ParticipantId);
+            state.LinkCurrentProjectToCloud(
+                latest,
+                account.Current!.ServerUrl,
+                preserveCreation: true,
+                preserveSyncState: true);
+            await ApplyCloudProjectRenderProfileAsync(latest);
+            BindProjectToUi();
+            UpdateAlbum(
+                silent: true,
+                statusPrefix: "Төслийн архитекторын мэдээлэл шинэчлэгдлээ");
+            string appointedProfileName = state.Project.Foundation.DesignCompany.Members
+                .FirstOrDefault(member => member.Roles.Any(
+                    ProjectRoleSemantics.IsAppointedArchitect))?.FullName
+                ?? selected.ProfileName;
+            SetStatus(
+                $"{MongolianPersonNameFormatter.ForDocument(
+                    selected.FamilyName,
+                    selected.GivenName,
+                    appointedProfileName)} төслийн архитектороор томилогдлоо. " +
+                "Булангийн хүснэгт profile нэрээр шинэчлэгдсэн.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Төслийн архитектор томилогдсонгүй: " + exception.Message);
+        }
+        finally
+        {
+            assigningProjectArchitect = false;
+            RefreshProjectArchitectUi();
+        }
     }
 
     private bool CanManageProjectTeam() =>
@@ -443,6 +619,69 @@ internal sealed partial class ShellView
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
             SetStatus("Багийн урилга илгээж чадсангүй: " + exception.Message);
+        }
+    }
+
+    private async Task EditSelectedTeamMemberRolesAsync()
+    {
+        if (!CanManageProjectTeam() ||
+            updatingTeamMemberRoles ||
+            participantsList.SelectedItem is not MemberRow { IsInvitation: false } row ||
+            row.RoleCodes is null ||
+            row.RoleCodes.Any(IsWorkflowManagedRole))
+        {
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<StudioProjectRole> roles = await account.ListProjectRolesAsync();
+            var dialog = new ProjectMemberRoleDialog(
+                row.Name,
+                row.Email,
+                roles,
+                row.RoleCodes)
+            {
+                Owner = Window.GetWindow(Root),
+            };
+            if (dialog.ShowDialog() != true || dialog.Draft is null)
+                return;
+            if (!StudioRelationshipBoundary.Confirm(
+                    Window.GetWindow(Root),
+                    StudioRelationshipAction.UpdateProjectMemberRoles,
+                    $"{row.Name} · {row.Email}"))
+            {
+                return;
+            }
+
+            updatingTeamMemberRoles = true;
+            RefreshTeamActionUi();
+            StudioCloudProjectDetail latest = await account.UpdateParticipantRolesAsync(
+                state.Project.Cloud.ServerProjectId,
+                row.Identifier,
+                dialog.Draft.Roles);
+            state.LinkCurrentProjectToCloud(
+                latest,
+                account.Current!.ServerUrl,
+                preserveCreation: true,
+                preserveSyncState: true);
+            await ApplyCloudProjectRenderProfileAsync(latest);
+            BindProjectToUi();
+            UpdateAlbum(
+                silent: true,
+                statusPrefix: "Төслийн багийн role шинэчлэгдлээ");
+            SetStatus(
+                $"{row.Name} гишүүний role шинэчлэгдлээ: {string.Join(", ", dialog.Draft.Roles)}.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Гишүүний role шинэчлэгдсэнгүй: " + exception.Message);
+        }
+        finally
+        {
+            updatingTeamMemberRoles = false;
+            RefreshProjectArchitectUi();
+            RefreshTeamActionUi();
         }
     }
 
@@ -548,7 +787,8 @@ internal sealed partial class ShellView
                         item.TargetEmail,
                         item.InvitationId,
                         "Урилга хүлээгдэж байна",
-                        true)));
+                        true,
+                        item.Roles)));
             }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
@@ -560,8 +800,20 @@ internal sealed partial class ShellView
         {
             return;
         }
-        participantsList.ItemsSource = rows;
+        BindParticipantRows(rows);
+        RefreshProjectArchitectUi();
         RefreshTeamActionUi();
+    }
+
+    private void BindParticipantRows(IReadOnlyList<MemberRow> rows)
+    {
+        string selectedIdentifier = (participantsList.SelectedItem as MemberRow)?.Identifier ?? "";
+        participantsList.ItemsSource = rows;
+        if (!string.IsNullOrWhiteSpace(selectedIdentifier))
+        {
+            participantsList.SelectedItem = rows.FirstOrDefault(row =>
+                row.Identifier.Equals(selectedIdentifier, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private List<MemberRow> ActiveProjectMemberRows()
@@ -576,15 +828,39 @@ internal sealed partial class ShellView
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return state.Project.Foundation.DesignCompany.Members
             .Select(member => new MemberRow(
-                member.FullName,
+                MongolianPersonNameFormatter.ForDisplay(
+                    member.FamilyName,
+                    member.GivenName,
+                    member.FullName),
                 string.Join(", ", member.Roles),
                 member.Email,
                 member.Id,
                 pendingExitEmails.Contains(member.Email)
                     ? "Гарах хүсэлт хүлээгдэж байна"
                     : "Идэвхтэй",
-                false))
+                false,
+                member.Roles.ToArray()))
             .ToList();
+    }
+
+    private static bool IsWorkflowManagedRole(string role) => role is
+        "Client" or "Applicant" or "AuthoritySpecialist" or
+        "AuthorityDepartmentHead" or "ChiefArchitect";
+
+    private sealed record ProjectArchitectOption(
+        string ParticipantId,
+        string FamilyName,
+        string GivenName,
+        string ProfileName,
+        string Email,
+        bool IsCurrent)
+    {
+        public string DocumentName => MongolianPersonNameFormatter.ForDocument(
+            FamilyName,
+            GivenName,
+            ProfileName);
+
+        public string Label => $"{DocumentName} · {Email}";
     }
 
     private void RefreshCompanyGrantActionUi()

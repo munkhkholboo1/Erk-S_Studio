@@ -53,6 +53,7 @@ public static class PageFormatCatalog
     public const string SourceAsIsId = "source-as-is";
     public const string WorkingDrawingA3LandscapeId = "erks-working-a3-landscape";
     public const string ConceptA3LandscapeId = "erks-concept-a3-landscape";
+    public const string ConceptElevationA3LandscapeId = "erks-concept-elevation-a3-landscape";
     public const string DocumentA4PortraitId = "erks-document-a4-portrait";
 
     public static IReadOnlyList<PageFormatDefinition> All { get; } =
@@ -87,6 +88,22 @@ public static class PageFormatCatalog
             DrawingArea = BuildingArchitectureConceptPageLayout.DrawingArea,
             SheetTitleArea = BuildingArchitectureConceptPageLayout.SheetTitleArea,
             TitleBlockArea = BuildingArchitectureConceptPageLayout.TitleBlockArea,
+            Revision = 3,
+        },
+        new()
+        {
+            Id = ConceptElevationA3LandscapeId,
+            Name = "Загвар зураг - Нүүр тал, A3 хэвтээ",
+            Kind = PageFormatKind.Concept,
+            Code = "A3",
+            Orientation = "LANDSCAPE",
+            BindEdge = "LEFT",
+            WidthMm = BuildingArchitectureConceptPageLayout.PageWidthMm,
+            HeightMm = BuildingArchitectureConceptPageLayout.PageHeightMm,
+            DrawingArea = BuildingArchitectureConceptPageLayout.ElevationDrawingArea,
+            SheetTitleArea = BuildingArchitectureConceptPageLayout.ElevationSheetTitleArea,
+            TitleBlockArea = BuildingArchitectureConceptPageLayout.TitleBlockArea,
+            Revision = 4,
         },
         new()
         {
@@ -115,6 +132,19 @@ public static class PageFormatCatalog
           format.DrawingArea.Width > 0 && format.DrawingArea.Height > 0));
 
     public static PageFormatDefinition DefaultWorkingDrawing => Resolve(WorkingDrawingA3LandscapeId);
+
+    public static PageFormatDefinition ResolveForConceptPage(
+        AlbumPageDefinition page,
+        SheetPackageEntry entry)
+    {
+        PageFormatDefinition resolved = Resolve(page);
+        return BuildingArchitectureConceptPageLayout.IsElevationSheet(
+            entry.ContentKind,
+            entry.Name,
+            page.TemplateSlotId)
+            ? BuildingArchitectureConceptPageLayout.ApplyElevationGeometry(resolved)
+            : resolved;
+    }
 }
 
 public static class PageFormatResolver

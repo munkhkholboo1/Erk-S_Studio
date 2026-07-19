@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ErkS.Platform.Core;
+using ErkS.Platform.Pdf;
 using Microsoft.Win32;
 
 namespace ErkS.Studio;
@@ -190,6 +191,10 @@ internal sealed partial class ShellView
         form.Children.Add(StudioWidgets.CreateSectionHeader("Зураг төслийн эрх"));
         form.Children.Add(StudioWidgets.CreateFormRow("Лицензийн чиглэл", libraryCompanyLicenseScopeBox, 155));
         form.Children.Add(StudioWidgets.CreateFormRow("Лицензийн дугаар", libraryCompanyLicenseNumberBox, 155));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Байгууллагын гэрчилгээний хуулбар"));
+        form.Children.Add(BuildCompanyRegistrationDocumentEditor());
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Тусгай зөвшөөрлийн хуулбар"));
+        form.Children.Add(BuildCompanyLicenseDocumentEditor());
         form.Children.Add(StudioWidgets.CreateFormRow("Удирдлагын албан тушаал", libraryCompanyDirectorTitleBox, 155));
         form.Children.Add(StudioWidgets.CreateFormRow("Удирдлагын нэр", libraryCompanyDirectorNameBox, 155));
         form.Children.Add(StudioWidgets.CreateSectionHeader("Лого"));
@@ -309,6 +314,15 @@ internal sealed partial class ShellView
                         continue;
                     }
                     CompanyProfile profile = MapCloudCompany(cloud);
+                    if (old is not null)
+                    {
+                        profile.RegistrationCertificateDocuments = old.Profile.RegistrationCertificateDocuments
+                            .Select(document => document.Clone())
+                            .ToList();
+                        profile.DesignLicenseDocuments = old.Profile.DesignLicenseDocuments
+                            .Select(document => document.Clone())
+                            .ToList();
+                    }
                     if (!string.IsNullOrWhiteSpace(cloud.LogoUrl))
                     {
                         bool canReuse = !forceCloud && old?.Profile.UpdatedAtUtc == cloud.UpdatedAtUtc &&
@@ -330,6 +344,7 @@ internal sealed partial class ShellView
                         CanManage = cloud.CanManage,
                         CurrentUserRole = cloud.CurrentUserRole,
                         SyncStatus = CompanySyncStatuses.Cloud,
+                        DocumentsPendingCloudSync = old?.DocumentsPendingCloudSync == true,
                     });
                 }
                 merged.AddRange(cached.Where(item =>
@@ -619,6 +634,12 @@ internal sealed partial class ShellView
             }
             CompanyProfile synced = MapCloudCompany(cloud);
             synced.LogoPath = localLogoPath;
+            synced.RegistrationCertificateDocuments = profile.RegistrationCertificateDocuments
+                .Select(document => document.Clone())
+                .ToList();
+            synced.DesignLicenseDocuments = profile.DesignLicenseDocuments
+                .Select(document => document.Clone())
+                .ToList();
             selectedCompanyEntry.Profile = synced;
             selectedCompanyEntry.CanManage = cloud.CanManage;
             selectedCompanyEntry.CurrentUserRole = cloud.CurrentUserRole;
@@ -650,6 +671,7 @@ internal sealed partial class ShellView
     {
         pendingCompanyLogoPath = "";
         store.Save(companyEntries);
+        ApplyCompanyToOpenProject(profile, rebuildAlbum: true);
         RefreshCompanyList(profile.OrganizationId);
         companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · cloud sync хүлээгдэж байна";
         SetStatus("Компанийн мэдээлэл локал cache-д хадгалагдлаа. Cloud sync хүлээгдэж байна: " + reason);
@@ -679,6 +701,7 @@ internal sealed partial class ShellView
         companyLogoScaleSlider.Value = profile.LogoScale;
         companyLogoOffsetXSlider.Value = profile.LogoOffsetX;
         companyLogoOffsetYSlider.Value = profile.LogoOffsetY;
+        BindCompanyDocumentDrafts(profile);
         bindingCompanyEditor = false;
         SetCompanyEditorEnabled(entry.CanManage);
         libraryCompanyRegistrationBox.IsReadOnly = !entry.CanManage ||
@@ -690,6 +713,7 @@ internal sealed partial class ShellView
             profile.VerificationStatus,
             entry.CurrentUserRole,
             CompanySyncLabel(entry.SyncStatus),
+            entry.DocumentsPendingCloudSync ? "баримтын cloud sync хүлээгдэж байна" : "",
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
         OnCompanyLogoTransformChanged();
     }
@@ -718,6 +742,7 @@ internal sealed partial class ShellView
         profile.LogoScale = companyLogoScaleSlider.Value;
         profile.LogoOffsetX = companyLogoOffsetXSlider.Value;
         profile.LogoOffsetY = companyLogoOffsetYSlider.Value;
+        ApplyCompanyDocumentDrafts(profile);
         profile.UpdatedAtUtc = DateTimeOffset.UtcNow;
         profile.Signers = string.IsNullOrWhiteSpace(profile.DirectorName)
             ? []
@@ -737,6 +762,7 @@ internal sealed partial class ShellView
         companyLogoOffsetXSlider.IsEnabled = enabled;
         companyLogoOffsetYSlider.IsEnabled = enabled;
         companySaveButton.IsEnabled = enabled;
+        RefreshCompanyDocumentLists();
     }
 
     private IEnumerable<TextBox> CompanyEditorTextBoxes()
@@ -768,6 +794,8 @@ internal sealed partial class ShellView
         companyLogoOffsetXSlider.Value = 0;
         companyLogoOffsetYSlider.Value = 0;
         bindingCompanyEditor = false;
+        companyRegistrationDocumentDrafts = [];
+        companyLicenseDocumentDrafts = [];
         SetCompanyEditorEnabled(false);
         LoadCompanyLogoPreview("");
         OnCompanyLogoTransformChanged();
@@ -952,9 +980,55 @@ internal sealed partial class ShellView
                 StringComparison.OrdinalIgnoreCase));
         if (current is null || !ProjectCompanyAssignmentService.RefreshAssignedSnapshot(state.Project, current))
             return;
-        state.SaveProject();
+        state.MarkFoundationContentChanged();
         if (projectWorkspaceOpen)
             BindProjectToUi();
+    }
+
+    private ProjectAssetSourceReconciliationResult ReconcileCompanyAssetSources()
+    {
+        var total = new ProjectAssetSourceReconciliationResult();
+        if (!account.IsSignedIn)
+            return total;
+
+        CompanyLibraryStore store = EnsureCompanyLibraryStore();
+        List<CompanyCatalogEntry> cached = store.Load()
+            .Where(item => !item.SyncStatus.Equals(
+                CompanySyncStatuses.ProjectSnapshot,
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        bool changed = false;
+        foreach (CompanyCatalogEntry entry in cached)
+        {
+            ProjectAssetSourceReconciliationResult result =
+                ProjectAssetSourceReconciler.ReconcileCompanyProfile(entry.Profile, store);
+            total.Merge(result);
+            if (!result.Changed)
+                continue;
+            entry.DocumentsPendingCloudSync = true;
+            changed = true;
+        }
+
+        if (!changed)
+            return total;
+
+        store.Save(cached);
+        RefreshOpenProjectCompanyFromCatalog(cached);
+        if (companyEntries.Count > 0)
+        {
+            foreach (CompanyCatalogEntry current in companyEntries)
+            {
+                CompanyCatalogEntry? refreshed = cached.FirstOrDefault(item =>
+                    item.Profile.OrganizationId.Equals(
+                        current.Profile.OrganizationId,
+                        StringComparison.OrdinalIgnoreCase));
+                if (refreshed is null)
+                    continue;
+                current.Profile = refreshed.Profile;
+                current.DocumentsPendingCloudSync = refreshed.DocumentsPendingCloudSync;
+            }
+        }
+        return total;
     }
 
     private void ApplyCompanyToOpenProject(CompanyProfile profile, bool rebuildAlbum)
@@ -967,7 +1041,7 @@ internal sealed partial class ShellView
             return;
         if (changed)
         {
-            state.SaveProject();
+            state.MarkFoundationContentChanged();
             BindProjectToUi();
         }
         if (rebuildAlbum)

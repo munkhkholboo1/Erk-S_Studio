@@ -19,6 +19,7 @@ public sealed class CompanyCatalogEntry
     public string CurrentUserRole { get; set; } = "";
     public string SyncStatus { get; set; } = CompanySyncStatuses.Cloud;
     public bool LogoRemovalPending { get; set; }
+    public bool DocumentsPendingCloudSync { get; set; }
     public DateTimeOffset CachedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -131,6 +132,12 @@ public sealed class CompanyLibraryStore
         string targetPath = Path.Combine(assetFolder, SafeOrganizationId(organizationId) + extension);
         File.WriteAllBytes(targetPath, bytes);
         return targetPath;
+    }
+
+    public string StoreDocument(string organizationId, string category, string sourcePath)
+    {
+        string organizationFolder = Path.Combine(assetFolder, SafeOrganizationId(organizationId));
+        return ProjectDocumentFileStore.StoreInsideFolder(organizationFolder, category, sourcePath);
     }
 
     private static string NormalizeImageExtension(string extension)

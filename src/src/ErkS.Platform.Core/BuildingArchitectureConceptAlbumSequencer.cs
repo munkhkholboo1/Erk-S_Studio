@@ -40,7 +40,8 @@ public static class BuildingArchitectureConceptAlbumSequencer
         AlbumDefinition definition,
         IEnumerable<AlbumPageDefinition> pages,
         SheetLibrary library,
-        IReadOnlyList<ProjectDesignSource> sources)
+        IReadOnlyList<ProjectDesignSource> sources,
+        int generatedPageCount = -1)
     {
         var sourceOrder = sources
             .Select((source, index) => new { source.Id, Index = index })
@@ -85,14 +86,21 @@ public static class BuildingArchitectureConceptAlbumSequencer
             .Select(item => TryParseFixedNumber(item.Number, out var number) ? number : -1)
             .DefaultIfEmpty(-1)
             .Max();
-        var numberWidth = Math.Max(2, Math.Max(0, maximumReservedNumber).ToString(CultureInfo.InvariantCulture).Length);
-        var nextDrawingNumber = Math.Max(0, maximumReservedNumber + 1);
+        int generatedComponentCount = definition.Composition.Count(item =>
+            item.Kind == AlbumCompositionKind.Generated);
+        int generatedPageOffset = generatedPageCount < 0
+            ? 0
+            : Math.Max(0, generatedPageCount - generatedComponentCount);
+        int adjustedMaximumReservedNumber = maximumReservedNumber + generatedPageOffset;
+        var numberWidth = Math.Max(2, Math.Max(0, adjustedMaximumReservedNumber)
+            .ToString(CultureInfo.InvariantCulture).Length);
+        var nextDrawingNumber = Math.Max(0, adjustedMaximumReservedNumber + 1);
         var result = new List<ConceptAlbumSourcePage>(candidates.Count);
 
         foreach (var candidate in fixedPages)
         {
             var automaticNumber = TryParseFixedNumber(candidate.Slot?.Number, out var fixedNumber)
-                ? fixedNumber.ToString($"D{numberWidth}", CultureInfo.InvariantCulture)
+                ? (fixedNumber + generatedPageOffset).ToString($"D{numberWidth}", CultureInfo.InvariantCulture)
                 : (nextDrawingNumber++).ToString($"D{numberWidth}", CultureInfo.InvariantCulture);
             result.Add(candidate.ToSequenceItem(automaticNumber));
         }
@@ -115,6 +123,41 @@ public static class BuildingArchitectureConceptAlbumSequencer
             .Select(item => item.Page)
             .ToList();
 
+    public static int NextAutomaticNumber(
+        AlbumDefinition definition,
+        IEnumerable<ConceptAlbumSourcePage> sourcePages,
+        int generatedPageCount) => NextAutomaticNumber(
+            definition,
+            sourcePages.Select(page => page.AutomaticNumber),
+            generatedPageCount);
+
+    public static int NextAutomaticNumber(
+        AlbumDefinition definition,
+        IEnumerable<string> automaticNumbers,
+        int generatedPageCount)
+    {
+        int maximumReservedNumber = definition.Composition
+            .Select(item => TryParseFixedNumber(item.Number, out int number) ? number : -1)
+            .DefaultIfEmpty(-1)
+            .Max();
+        int generatedComponentCount = definition.Composition.Count(item =>
+            item.Kind == AlbumCompositionKind.Generated);
+        int generatedPageOffset = Math.Max(0, generatedPageCount - generatedComponentCount);
+        int maximumUsedNumber = maximumReservedNumber + generatedPageOffset;
+        foreach (string automaticNumber in automaticNumbers)
+        {
+            if (int.TryParse(
+                    automaticNumber,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out int number))
+            {
+                maximumUsedNumber = Math.Max(maximumUsedNumber, number);
+            }
+        }
+        return Math.Max(0, maximumUsedNumber + 1);
+    }
+
     private static Candidate CreateCandidate(
         AlbumDefinition definition,
         AlbumPageDefinition page,
@@ -123,7 +166,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
         IReadOnlyList<ProjectDesignSource> sources,
         IReadOnlyDictionary<string, int> sourceOrder)
     {
-        var sheet = library.Find(page.SheetKey);
+        var sheet = library.FindVerified(page.SheetKey);
         var slot = BuildingArchitectureConceptAlbumTemplate.FindSlot(definition, page.TemplateSlotId);
         var sourceId = sheet?.SourceId ?? ExtractSourceIdentity(page.SheetKey);
         var source = sources.FirstOrDefault(item =>

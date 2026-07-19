@@ -1,5 +1,4 @@
 using System.IO;
-using System.Security.Cryptography;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
@@ -16,6 +15,9 @@ public sealed class AppState : IDisposable
 {
     private ProjectWorkspace? project;
     private StudioAlbumDocument? albumDocument;
+    private readonly object assetWatcherGate = new();
+    private readonly List<FileSystemWatcher> assetWatchers = [];
+    private HashSet<string> watchedAssetPaths = new(StringComparer.OrdinalIgnoreCase);
 
     public bool HasOpenProject => project is not null;
 
@@ -40,6 +42,7 @@ public sealed class AppState : IDisposable
     public AlbumBuilder Builder { get; }
 
     public event Action? ProjectReplaced;
+    public event Action? AssetSourcesChanged;
 
     public AppState()
     {
@@ -68,6 +71,8 @@ public sealed class AppState : IDisposable
             throw new ArgumentException("Project name is required.", nameof(request));
         }
 
+        ClearAssetSourceWatchers();
+
         var projectFolder = Path.Combine(ProjectWorkspacePaths.DefaultRoot, SafePathSegment(request.Code));
         var projectPath = Path.Combine(projectFolder, ProjectWorkspace.DefaultFileName);
         if (File.Exists(projectPath))
@@ -94,6 +99,7 @@ public sealed class AppState : IDisposable
     public void OpenProject(string path)
     {
         path = Path.GetFullPath(path);
+        ClearAssetSourceWatchers();
         LastOpenMigratedLegacyProject = false;
         if (string.Equals(Path.GetExtension(path), ProjectWorkspace.FileExtension, StringComparison.OrdinalIgnoreCase))
         {
@@ -133,7 +139,11 @@ public sealed class AppState : IDisposable
             throw new InvalidDataException("Album document belongs to a different project workspace.");
         }
 
-        if (EnsureUniqueSourceInboxes())
+        bool removedUnownedSourcePages = RemoveSourcePagesFromSourceFreeProject() > 0;
+        ProjectAssetSourceReconciliationResult assetReconciliation =
+            ReconcileProjectAssetSourcesCore();
+        bool reconciledAssets = ApplyAssetReconciliation(assetReconciliation);
+        if (EnsureUniqueSourceInboxes() || reconciledAssets || removedUnownedSourcePages)
         {
             SaveProject();
         }
@@ -144,6 +154,7 @@ public sealed class AppState : IDisposable
     public void CloseProject()
     {
         ClearWatchers();
+        ClearAssetSourceWatchers();
         Library.Clear();
         project = null;
         albumDocument = null;
@@ -243,6 +254,8 @@ public sealed class AppState : IDisposable
         StudioCloudProjectSummary summary = cloudProject.Project;
         StudioCloudProjectInformation information = cloudProject.ProjectInformation ?? new();
         StudioCloudSiteAndLand siteAndLand = cloudProject.SiteAndLand ?? new();
+        StudioCloudProjectFoundation? foundation = cloudProject.Foundation;
+        StudioCloudProjectSurface? surface = cloudProject.Surface;
         return new ProjectServerSnapshot
         {
             ProjectId = summary.ProjectId,
@@ -255,6 +268,29 @@ public sealed class AppState : IDisposable
             DesignOrganizationName = summary.DesignOrganizationName,
             UpdatedAtUtc = summary.UpdatedAtUtc,
             ConcurrencyToken = summary.ConcurrencyToken,
+            Surface = new ProjectServerSurface
+            {
+                SchemaVersion = surface?.SchemaVersion ?? "",
+                ProductName = surface?.ProductName ?? "",
+                Sections = (surface?.Sections ?? [])
+                    .Select(item => new ProjectServerSurfaceSection
+                    {
+                        Id = item.Id,
+                        Label = item.Label,
+                        Icon = item.Icon,
+                        Order = item.Order,
+                    })
+                    .ToList(),
+                FoundationSections = (surface?.FoundationSections ?? [])
+                    .Select(item => new ProjectServerSurfaceSection
+                    {
+                        Id = item.Id,
+                        Label = item.Label,
+                        Icon = item.Icon,
+                        Order = item.Order,
+                    })
+                    .ToList(),
+            },
             Information = new ProjectServerInformation
             {
                 ProjectId = information.ProjectId,
@@ -269,6 +305,33 @@ public sealed class AppState : IDisposable
                 HeightMeters = information.HeightMeters,
                 FloorsAboveGround = information.FloorsAboveGround,
                 FloorsBelowGround = information.FloorsBelowGround,
+            },
+            Foundation = new ProjectServerFoundation
+            {
+                IsAvailable = foundation != null,
+                Version = Math.Max(1, foundation?.Version ?? 1),
+                InitiationBasis = new ProjectServerInitiationBasis
+                {
+                    SourceType = foundation?.InitiationBasis?.SourceType ?? "",
+                    RequestNumber = foundation?.InitiationBasis?.RequestNumber ?? "",
+                    RequestedAtUtc = foundation?.InitiationBasis?.RequestedAtUtc,
+                    ClientName = foundation?.InitiationBasis?.ClientName ?? "",
+                    ClientEmail = foundation?.InitiationBasis?.ClientEmail ?? "",
+                    SiteAddress = foundation?.InitiationBasis?.SiteAddress ?? "",
+                    LandReference = foundation?.InitiationBasis?.LandReference ?? "",
+                    SourceOrganizationName = foundation?.InitiationBasis?.SourceOrganizationName ?? "",
+                    ServerRecordId = foundation?.InitiationBasis?.ServerRecordId ?? "",
+                    Summary = foundation?.InitiationBasis?.Summary ?? "",
+                },
+                PlanningTask = new ProjectServerPlanningTask
+                {
+                    AtdNumber = foundation?.PlanningTask?.AtdNumber ?? "",
+                    IssuedAtUtc = foundation?.PlanningTask?.IssuedAtUtc,
+                    IssuingAuthorityName = foundation?.PlanningTask?.IssuingAuthorityName ?? "",
+                    Status = foundation?.PlanningTask?.Status ?? "",
+                    Summary = foundation?.PlanningTask?.Summary ?? "",
+                    Requirements = (foundation?.PlanningTask?.Requirements ?? []).ToList(),
+                },
             },
             SiteAndLand = new ProjectServerSiteAndLand
             {
@@ -310,7 +373,14 @@ public sealed class AppState : IDisposable
     private static ProjectMember ToProjectMember(StudioCloudParticipant participant) => new()
     {
         Id = participant.ParticipantId,
-        FullName = string.IsNullOrWhiteSpace(participant.DisplayName) ? participant.AccountEmail : participant.DisplayName,
+        FamilyName = participant.FamilyName,
+        GivenName = participant.GivenName,
+        FullName = MongolianPersonNameFormatter.ForDisplay(
+            participant.FamilyName,
+            participant.GivenName,
+            string.IsNullOrWhiteSpace(participant.DisplayName)
+                ? participant.AccountEmail
+                : participant.DisplayName),
         Email = participant.AccountEmail,
         Roles = participant.Roles.ToList(),
     };
@@ -334,6 +404,7 @@ public sealed class AppState : IDisposable
         AlbumDocument.FoundationVersion = Project.Foundation.Version;
         StudioAlbumDocumentStore.Save(AlbumDocument, AlbumPath);
         ProjectWorkspaceStore.Save(Project, ProjectPath);
+        RefreshAssetSourceWatchers();
     }
 
     public void AddDesignSource(ProjectDesignSource source)
@@ -393,116 +464,42 @@ public sealed class AppState : IDisposable
             source = existingSource;
         }
         SaveProject();
-        Intake.WatchFolder(source.InboxFolder, source.UseLegacySheetKeys ? null : source.Id);
+        Intake.WatchFolder(
+            source.InboxFolder,
+            source.UseLegacySheetKeys ? null : source.Id,
+            Project.ProjectId);
     }
 
-    public void RemoveDesignSource(ProjectDesignSource source)
+    public int RemoveDesignSource(ProjectDesignSource source)
     {
+        HashSet<string> knownSourceKeys = Library.Snapshot()
+            .Where(record => SourceRecordBelongsTo(record, source))
+            .Select(record => record.Key)
+            .ToHashSet(StringComparer.Ordinal);
         Project.Sources.RemoveAll(existing =>
             string.Equals(existing.Id, source.Id, StringComparison.OrdinalIgnoreCase));
         Intake.UnwatchFolder(source.InboxFolder);
+
+        int removedPageCount = Project.Sources.Count == 0
+            ? RemoveSourcePagesFromSourceFreeProject()
+            : RemoveAlbumPagesForSource(source, knownSourceKeys);
+        InvalidateBuiltAlbum();
         SaveProject();
+        ResetRuntimeServices();
+        return removedPageCount;
     }
 
     public PackageRecordResult? RecordPackageReceived(SheetPackageLoadResult result)
     {
-        if (!result.IsLossless || result.Manifest is null)
+        ProjectPackageReconciliationResult? reconciled =
+            ProjectPackageReconciliationService.Apply(Project, Album, Library, result);
+        if (reconciled is null)
         {
             return null;
-        }
-
-        var packageSource = result.Manifest.Source;
-        var source = Project.Sources.FirstOrDefault(existing =>
-            string.Equals(existing.Id, packageSource.SourceId, StringComparison.OrdinalIgnoreCase));
-        if (source is null)
-        {
-            return null;
-        }
-
-        source.Status = DesignSourceStatuses.Connected;
-        source.LastPackageAtUtc = result.Manifest.ExportedAtUtc;
-        source.ApplicationVersion = packageSource.ApplicationVersion;
-        if (string.IsNullOrWhiteSpace(source.NativeDocumentTitle))
-        {
-            source.NativeDocumentTitle = packageSource.DocumentTitle;
-        }
-        if (string.IsNullOrWhiteSpace(source.NativeDocumentPath))
-        {
-            source.NativeDocumentPath = packageSource.DocumentPath;
-        }
-        using (FileStream stream = File.OpenRead(result.ManifestPath))
-        {
-            string manifestSha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-            ProjectCloudSyncMetadata.RecordPackage(Project, source, result.Manifest, manifestSha256);
-        }
-
-        var usesConceptTemplate = string.Equals(
-            Album.TemplateId,
-            BuildingArchitectureConceptAlbumTemplate.TemplateId,
-            StringComparison.OrdinalIgnoreCase);
-        var removedAlbumPageCount = 0;
-        if (result.Manifest.PackageScope == SheetPackageScope.FullSnapshot &&
-            Library.IsCurrentAuthoritativeSnapshot(result.Manifest, source.Id))
-        {
-            var authoritativeKeys = result.Manifest.Sheets
-                .Select(entry => SheetRecord.MakeKey(packageSource, entry, source.Id))
-                .ToHashSet(StringComparer.Ordinal);
-            removedAlbumPageCount = Album.Pages.RemoveAll(page =>
-                SheetRecord.BelongsToSource(page.SheetKey, packageSource, source.Id) &&
-                !authoritativeKeys.Contains(page.SheetKey));
-            foreach (var section in Album.Sections)
-            {
-                section.SheetKeys.RemoveAll(key =>
-                    SheetRecord.BelongsToSource(key, packageSource, source.Id) &&
-                    !authoritativeKeys.Contains(key));
-            }
-        }
-        foreach (var entry in result.Manifest.Sheets)
-        {
-            var key = SheetRecord.MakeKey(packageSource, entry, source.Id);
-            var currentRecord = Library.Find(key);
-            if (currentRecord?.PackageId != result.Manifest.PackageId)
-            {
-                continue;
-            }
-
-            var pages = Album.Pages.Where(page =>
-                    string.Equals(page.SheetKey, key, StringComparison.Ordinal))
-                .ToList();
-            if (usesConceptTemplate && pages.Count == 0)
-            {
-                var newPage = new AlbumPageDefinition { SheetKey = key };
-                Album.Pages.Add(newPage);
-                pages.Add(newPage);
-            }
-
-            var slot = usesConceptTemplate
-                ? BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(Album, entry)
-                : null;
-            foreach (var page in pages)
-            {
-                if (usesConceptTemplate)
-                {
-                    page.TemplateSlotId = slot?.Id ?? "";
-                    page.SectionId = BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(Album, slot);
-                }
-                PageFormatResolver.ApplySourceFormat(page, entry);
-            }
-        }
-
-        if (usesConceptTemplate)
-        {
-            var orderedPages = BuildingArchitectureConceptAlbumSequencer.OrderPages(
-                Album,
-                Album.Pages,
-                Library,
-                Project.Sources);
-            Album.Pages.Clear();
-            Album.Pages.AddRange(orderedPages);
         }
 
         SaveProject();
-        return new PackageRecordResult(source.Id, removedAlbumPageCount);
+        return new PackageRecordResult(reconciled.SourceId, reconciled.RemovedAlbumPageCount);
     }
 
     public string ResolveOutputFolder()
@@ -526,9 +523,15 @@ public sealed class AppState : IDisposable
 
     public AlbumProject CreateAlbumBuildProject()
     {
+        ProjectAssetSourceReconciliationResult assetReconciliation =
+            ReconcileProjectAssetSourcesCore();
+        if (ApplyAssetReconciliation(assetReconciliation))
+            SaveProject();
+
         var company = Project.Foundation.DesignCompany.OrganizationSnapshot;
         return new AlbumProject
         {
+            ProjectId = Project.ProjectId,
             Name = Project.Name,
             Code = Project.Code,
             Description = Project.Identity.Description,
@@ -541,25 +544,78 @@ public sealed class AppState : IDisposable
             CloudStatus = Project.Cloud.SyncStatus,
             InitiationBasis = Project.Foundation.InitiationBasis,
             PlanningTask = Project.Foundation.PlanningTask,
+            ApprovalWorkflow = Project.Foundation.ApprovalWorkflow.Clone(),
             Company = company,
             Participants = Project.Foundation.DesignCompany.Members
                 .SelectMany(member => member.Roles.DefaultIfEmpty("").Select(role => new ProjectParticipant
                 {
+                    FamilyName = member.FamilyName,
+                    GivenName = member.GivenName,
                     FullName = member.FullName,
                     Email = member.Email,
                     Role = role,
                 }))
                 .ToList(),
             DesignSources = Project.Sources,
+            Visualizations = Project.Visualizations.CreateProjectSnapshot(Project.ProjectId),
             SourceFolders = Project.Sources.Select(source => source.InboxFolder).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Album = Album,
             OutputFolder = ResolveOutputFolder(),
+            ProjectFolder = ResolveProjectFolder(),
         };
     }
 
-    public void RecordBuiltAlbum(string outputPath, int pageCount, string pageSizeSummary)
+    public ProjectAssetSourceReconciliationResult ReconcileProjectAssetSources()
     {
-        ProjectCloudSyncMetadata.RecordBuiltAlbum(Project, ProjectPath!, outputPath, pageCount, pageSizeSummary);
+        ProjectAssetSourceReconciliationResult result = ReconcileProjectAssetSourcesCore();
+        if (ApplyAssetReconciliation(result))
+            SaveProject();
+        return result;
+    }
+
+    public void MarkFoundationContentChanged()
+    {
+        if (!HasOpenProject)
+            return;
+        Project.Foundation.Version = Math.Max(1, Project.Foundation.Version) + 1;
+        AlbumDocument.FoundationVersion = Project.Foundation.Version;
+        InvalidateBuiltAlbum();
+        SaveProject();
+    }
+
+    public bool RefreshProjectDocumentMetadata()
+    {
+        ProjectAssetSourceReconciliationResult result = ReconcileProjectAssetSourcesCore();
+        return ApplyAssetReconciliation(result);
+    }
+
+    private ProjectAssetSourceReconciliationResult ReconcileProjectAssetSourcesCore()
+    {
+        if (!HasOpenProject || string.IsNullOrWhiteSpace(ProjectPath))
+            return new ProjectAssetSourceReconciliationResult();
+        return ProjectAssetSourceReconciler.ReconcileProject(Project, ProjectPath);
+    }
+
+    private bool ApplyAssetReconciliation(ProjectAssetSourceReconciliationResult result)
+    {
+        if (!result.Changed)
+            return false;
+        Project.Foundation.Version = Math.Max(1, Project.Foundation.Version) + 1;
+        AlbumDocument.FoundationVersion = Project.Foundation.Version;
+        InvalidateBuiltAlbum();
+        return true;
+    }
+
+    public void RecordBuiltAlbum(string outputPath, int pageCount, string pageSizeSummary, string createdBy)
+    {
+        ProjectCloudSyncMetadata.RecordBuiltAlbum(
+            Project,
+            AlbumDocument,
+            ProjectPath!,
+            outputPath,
+            pageCount,
+            pageSizeSummary,
+            createdBy);
     }
 
     private static StudioAlbumDocument CreateDefaultAlbum(ProjectWorkspace workspace)
@@ -578,6 +634,7 @@ public sealed class AppState : IDisposable
     private void ResetRuntimeServices()
     {
         ClearWatchers();
+        RefreshAssetSourceWatchers();
         Library.Clear();
         foreach (var source in Project.Sources)
         {
@@ -586,13 +643,16 @@ public sealed class AppState : IDisposable
                 if (!string.IsNullOrWhiteSpace(source.InboxFolder))
                 {
                     Directory.CreateDirectory(source.InboxFolder);
-                    Intake.WatchFolder(source.InboxFolder, source.UseLegacySheetKeys ? null : source.Id);
+                    Intake.WatchFolder(
+                        source.InboxFolder,
+                        source.UseLegacySheetKeys ? null : source.Id,
+                        Project.ProjectId);
                 }
                 if (source.Metadata.TryGetValue("LegacyInboxFolder", out var legacyInbox) &&
                     !string.IsNullOrWhiteSpace(legacyInbox) &&
                     ProjectWorkspacePaths.IsInside(ResolveProjectFolder(), legacyInbox))
                 {
-                    Intake.WatchFolder(legacyInbox);
+                    Intake.WatchFolder(legacyInbox, projectId: Project.ProjectId);
                 }
             }
             catch
@@ -608,6 +668,192 @@ public sealed class AppState : IDisposable
         {
             Intake.UnwatchFolder(watched);
         }
+    }
+
+    public void RefreshAssetSourceWatchers()
+    {
+        if (!HasOpenProject)
+        {
+            ClearAssetSourceWatchers();
+            return;
+        }
+
+        HashSet<string> paths = EnumerateLinkedAssetPaths()
+            .Select(TryGetFullPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        lock (assetWatcherGate)
+        {
+            DisposeAssetWatchersUnsafe();
+            watchedAssetPaths = paths;
+            foreach (IGrouping<string, string> directoryGroup in paths
+                         .Where(path => !string.IsNullOrWhiteSpace(Path.GetDirectoryName(path)))
+                         .GroupBy(path => Path.GetDirectoryName(path)!, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(directoryGroup.Key))
+                    continue;
+                try
+                {
+                    var watcher = new FileSystemWatcher(directoryGroup.Key)
+                    {
+                        IncludeSubdirectories = false,
+                        NotifyFilter = NotifyFilters.FileName |
+                                       NotifyFilters.LastWrite |
+                                       NotifyFilters.Size |
+                                       NotifyFilters.CreationTime,
+                    };
+                    watcher.Changed += OnAssetSourceFileChanged;
+                    watcher.Created += OnAssetSourceFileChanged;
+                    watcher.Deleted += OnAssetSourceFileChanged;
+                    watcher.Renamed += OnAssetSourceFileRenamed;
+                    watcher.EnableRaisingEvents = true;
+                    assetWatchers.Add(watcher);
+                }
+                catch (Exception exception) when (
+                    exception is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    // Manual "check for updates" remains available for folders
+                    // that cannot be watched by the current Windows account.
+                }
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumerateLinkedAssetPaths()
+    {
+        IEnumerable<ProjectFileReference> documents =
+            Project.Foundation.InitiationBasis.Documents
+                .Concat(Project.Foundation.PlanningTask.Documents)
+                .Concat(Project.Foundation.DesignCompany.OrganizationSnapshot.RegistrationCertificateDocuments)
+                .Concat(Project.Foundation.DesignCompany.OrganizationSnapshot.DesignLicenseDocuments);
+        foreach (ProjectFileReference document in documents)
+        {
+            if (!string.IsNullOrWhiteSpace(document.LinkedSourcePath))
+                yield return document.LinkedSourcePath;
+        }
+        foreach (ProjectVisualizationImage image in Project.Visualizations.ImagesForProject(Project.ProjectId))
+        {
+            if (!string.IsNullOrWhiteSpace(image.LinkedSourcePath))
+                yield return image.LinkedSourcePath;
+        }
+    }
+
+    private void OnAssetSourceFileChanged(object sender, FileSystemEventArgs eventArgs) =>
+        RaiseAssetSourceChangedIfWatched(eventArgs.FullPath);
+
+    private void OnAssetSourceFileRenamed(object sender, RenamedEventArgs eventArgs)
+    {
+        RaiseAssetSourceChangedIfWatched(eventArgs.OldFullPath);
+        RaiseAssetSourceChangedIfWatched(eventArgs.FullPath);
+    }
+
+    private void RaiseAssetSourceChangedIfWatched(string path)
+    {
+        string fullPath = TryGetFullPath(path);
+        bool isWatched;
+        lock (assetWatcherGate)
+        {
+            isWatched = !string.IsNullOrWhiteSpace(fullPath) && watchedAssetPaths.Contains(fullPath);
+        }
+        if (isWatched)
+            AssetSourcesChanged?.Invoke();
+    }
+
+    private static string TryGetFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "";
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException)
+        {
+            return "";
+        }
+    }
+
+    private void ClearAssetSourceWatchers()
+    {
+        lock (assetWatcherGate)
+        {
+            DisposeAssetWatchersUnsafe();
+            watchedAssetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private void DisposeAssetWatchersUnsafe()
+    {
+        foreach (FileSystemWatcher watcher in assetWatchers)
+            watcher.Dispose();
+        assetWatchers.Clear();
+    }
+
+    private int RemoveSourcePagesFromSourceFreeProject()
+    {
+        if (Project.Sources.Count != 0)
+        {
+            return 0;
+        }
+
+        int removedReferenceCount = Album.Pages.RemoveAll(page =>
+            !string.IsNullOrWhiteSpace(page.SheetKey));
+        foreach (AlbumSection section in Album.Sections)
+        {
+            removedReferenceCount += section.SheetKeys.Count;
+            section.SheetKeys.Clear();
+        }
+
+        if (removedReferenceCount > 0)
+        {
+            InvalidateBuiltAlbum();
+        }
+        return removedReferenceCount;
+    }
+
+    private int RemoveAlbumPagesForSource(
+        ProjectDesignSource source,
+        IReadOnlySet<string> knownSourceKeys)
+    {
+        bool BelongsToRemovedSource(string key) =>
+            knownSourceKeys.Contains(key) ||
+            (!source.UseLegacySheetKeys &&
+             key.StartsWith(source.Id.Trim().ToLowerInvariant() + "|", StringComparison.Ordinal));
+
+        int removedPageCount = Album.Pages.RemoveAll(page =>
+            !string.IsNullOrWhiteSpace(page.SheetKey) && BelongsToRemovedSource(page.SheetKey));
+        foreach (AlbumSection section in Album.Sections)
+        {
+            section.SheetKeys.RemoveAll(key => BelongsToRemovedSource(key));
+        }
+        return removedPageCount;
+    }
+
+    private static bool SourceRecordBelongsTo(SheetRecord record, ProjectDesignSource source)
+    {
+        if (!source.UseLegacySheetKeys)
+        {
+            return string.Equals(record.SourceId, source.Id, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.SourceId))
+        {
+            return false;
+        }
+        return !string.IsNullOrWhiteSpace(source.InboxFolder) &&
+            ProjectWorkspacePaths.IsInside(source.InboxFolder, record.ManifestPath);
+    }
+
+    private void InvalidateBuiltAlbum()
+    {
+        ProjectAlbumRecord album = Project.PrimaryAlbum;
+        album.LastPdfPath = "";
+        album.LastPdfSha256 = "";
+        album.LastPageCount = 0;
+        album.LastPageSizeSummary = "";
     }
 
     private bool EnsureUniqueSourceInboxes()
@@ -693,6 +939,7 @@ public sealed class AppState : IDisposable
 
     public void Dispose()
     {
+        ClearAssetSourceWatchers();
         Intake.Dispose();
     }
 }

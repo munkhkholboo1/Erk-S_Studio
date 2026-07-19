@@ -125,7 +125,7 @@ public static class BuildingArchitectureConceptAlbumTemplate
     [
         Generated("cover", 0, "00", "НҮҮР ХУУДАС", "Нүүр хуудас", AlbumGeneratedPageKind.Cover),
         Generated("design-organization", 1, "01", "ЗУРАГ ТӨСӨЛ БОЛОВСРУУЛСАН БАЙГУУЛЛАГА", "Ерөнхий хэсэг", AlbumGeneratedPageKind.DesignOrganization),
-        Generated("planning-task", 2, "02", "АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР", "Ерөнхий хэсэг", AlbumGeneratedPageKind.PlanningTask),
+        Generated("planning-task", 2, "02", "БАТЛАГДСАН АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР", "Ерөнхий хэсэг", AlbumGeneratedPageKind.PlanningTask),
         Source("site-context", 3, "03", "ОРЧНЫ ТОЙМ", "Ерөнхий төлөвлөгөө", false, [], ["ОРЧНЫ ТОЙМ"]),
         Source("planning-proposal", 4, "04", "ТӨЛӨВЛӨЛТИЙН САНАА", "Ерөнхий төлөвлөгөө", false, [], ["ТӨЛӨВЛӨЛТИЙН САНАА"]),
         Source("traffic-scheme", 5, "05", "ХӨДӨЛГӨӨНИЙ СХЕМ", "Ерөнхий төлөвлөгөө", false, [], ["ХӨДӨЛГӨӨНИЙ СХЕМ"]),

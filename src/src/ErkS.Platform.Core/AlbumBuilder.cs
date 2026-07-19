@@ -1,4 +1,25 @@
+using ErkS.Platform.Contracts;
+
 namespace ErkS.Platform.Core;
+
+public sealed class AlbumBuildException : Exception
+{
+    public AlbumBuildException(IEnumerable<string> issues, Exception? innerException = null)
+        : base(CreateMessage(issues), innerException)
+    {
+        Issues = issues.Where(issue => !string.IsNullOrWhiteSpace(issue)).ToList();
+    }
+
+    public IReadOnlyList<string> Issues { get; }
+
+    private static string CreateMessage(IEnumerable<string> issues)
+    {
+        var materialized = issues.Where(issue => !string.IsNullOrWhiteSpace(issue)).ToList();
+        return materialized.Count == 0
+            ? "Album build failed its integrity check."
+            : "Album build rejected: " + string.Join(" | ", materialized);
+    }
+}
 
 /// <summary>Everything a PDF writer needs to compose one resolved album.</summary>
 public sealed class AlbumBuildRequest
@@ -57,7 +78,60 @@ public sealed class AlbumBuilder
 
     public AlbumBuildResult Build(AlbumProject project, SheetLibrary library, string outputPath)
     {
-        return writer.Compose(CreateRequest(project, library), outputPath);
+        var request = CreateRequest(project, library);
+        VerifySourcePackages(request);
+
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullOutputPath) ?? Directory.GetCurrentDirectory();
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(
+            directory,
+            $".{Path.GetFileNameWithoutExtension(fullOutputPath)}.{Guid.NewGuid():N}.tmp.pdf");
+
+        try
+        {
+            var temporaryResult = writer.Compose(request, temporaryPath);
+            if (!File.Exists(temporaryPath))
+            {
+                throw new AlbumBuildException(["PDF writer did not produce an output file."]);
+            }
+
+            File.Move(temporaryPath, fullOutputPath, overwrite: true);
+            var result = new AlbumBuildResult
+            {
+                OutputPath = outputPath,
+                SheetCount = temporaryResult.SheetCount,
+                PageCount = temporaryResult.PageCount,
+            };
+            result.Warnings.AddRange(temporaryResult.Warnings);
+            return result;
+        }
+        catch (AlbumBuildException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new AlbumBuildException([exception.Message], exception);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            catch (IOException)
+            {
+                // A failed build must not be masked by best-effort temp cleanup.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A failed build must not be masked by best-effort temp cleanup.
+            }
+        }
     }
 
     public static AlbumBuildRequest CreateRequest(AlbumProject project, SheetLibrary library)
@@ -69,6 +143,8 @@ public sealed class AlbumBuilder
 
     private static AlbumBuildRequest CreateConfiguredRequest(AlbumProject project, SheetLibrary library)
     {
+        RejectUnresolvedPages(project.Album.Pages, library);
+
         if (string.Equals(
                 project.Album.TemplateId,
                 BuildingArchitectureConceptAlbumTemplate.TemplateId,
@@ -116,11 +192,15 @@ public sealed class AlbumBuilder
         AlbumProject project,
         SheetLibrary library)
     {
+        int generatedPageCount = BuildingArchitectureConceptGeneratedPagePlanner
+            .Create(project)
+            .Count;
         var sequence = BuildingArchitectureConceptAlbumSequencer.Create(
             project.Album,
             project.Album.Pages,
             library,
-            project.DesignSources);
+            project.DesignSources,
+            generatedPageCount);
         var sectionRuns = new List<ConceptSectionRun>();
 
         foreach (var item in sequence)
@@ -154,7 +234,7 @@ public sealed class AlbumBuilder
     {
         var sheet = item.Sheet ?? throw new InvalidOperationException("Concept album source page is unresolved.");
         var definition = item.Page;
-        var configured = PageFormatCatalog.Resolve(definition);
+        var configured = PageFormatCatalog.ResolveForConceptPage(definition, sheet.Entry);
         if (configured.Kind == PageFormatKind.SourceAsIs &&
             PageFormatResolver.TryResolveSourceFormat(sheet.Entry, out var sourceFormat))
         {
@@ -172,8 +252,14 @@ public sealed class AlbumBuilder
                 PlacementMode = PagePlacementMode.FullPage,
                 NumberOverride = item.Page.NumberOverride,
                 TitleOverride = item.Page.TitleOverride,
+                ElevationDescriptionOverride = item.Page.ElevationDescriptionOverride,
             };
-            configured = sourceFormat;
+            configured = BuildingArchitectureConceptPageLayout.IsElevationSheet(
+                sheet.Entry.ContentKind,
+                sheet.Entry.Name,
+                item.Page.TemplateSlotId)
+                ? BuildingArchitectureConceptPageLayout.ApplyElevationGeometry(sourceFormat)
+                : sourceFormat;
         }
 
         return new AlbumBuildPage
@@ -192,7 +278,7 @@ public sealed class AlbumBuilder
         var result = new List<AlbumBuildPage>();
         foreach (var definition in definitions)
         {
-            var sheet = library.Find(definition.SheetKey);
+            var sheet = library.FindVerified(definition.SheetKey);
             if (sheet is null)
             {
                 continue;
@@ -202,7 +288,7 @@ public sealed class AlbumBuilder
             {
                 Sheet = sheet,
                 Definition = definition,
-                Format = PageFormatCatalog.Resolve(definition),
+                Format = PageFormatCatalog.ResolveForConceptPage(definition, sheet.Entry),
             });
         }
 
@@ -219,10 +305,10 @@ public sealed class AlbumBuilder
             var pages = new List<AlbumBuildPage>();
             foreach (var key in section.SheetKeys)
             {
-                var record = library.Find(key);
+                var record = library.FindVerified(key);
                 if (record is null)
                 {
-                    continue;
+                    throw new AlbumBuildException([$"Album sheet '{key}' is missing or unverified."]);
                 }
 
                 pages.Add(CreateLegacyPage(record, section.Id));
@@ -232,7 +318,7 @@ public sealed class AlbumBuilder
             sections.Add(new AlbumBuildSection { Title = section.Title, Pages = pages });
         }
 
-        var unassigned = library.Snapshot()
+        var unassigned = library.VerifiedSnapshot()
             .Where(record => !usedKeys.Contains(record.Key))
             .Select(record => CreateLegacyPage(record, null))
             .ToList();
@@ -263,6 +349,83 @@ public sealed class AlbumBuilder
             Definition = definition,
             Format = PageFormatCatalog.Resolve(definition.PageFormatId),
         };
+    }
+
+    private static void RejectUnresolvedPages(
+        IEnumerable<AlbumPageDefinition> pages,
+        SheetLibrary library)
+    {
+        var issues = pages
+            .Where(page => !string.IsNullOrWhiteSpace(page.SheetKey))
+            .Where(page => library.FindVerified(page.SheetKey) is null)
+            .Select(page => $"Album sheet '{page.SheetKey}' is missing or unverified.")
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (issues.Count > 0)
+        {
+            throw new AlbumBuildException(issues);
+        }
+    }
+
+    private static void VerifySourcePackages(AlbumBuildRequest request)
+    {
+        var records = request.Sections
+            .SelectMany(section => section.Pages)
+            .Select(page => page.Sheet)
+            .DistinctBy(record => record.Key)
+            .ToList();
+        var issues = new List<string>();
+
+        foreach (var record in records.Where(record => !record.IsVerified))
+        {
+            issues.Add($"Sheet '{record.DisplayLabel}' is not verified.");
+        }
+
+        foreach (var manifestGroup in records.GroupBy(
+                     record => record.ManifestPath,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            var verification = SheetPackageReader.Load(manifestGroup.Key);
+            if (!verification.IsLossless || verification.Manifest is null)
+            {
+                issues.AddRange(verification.Issues.Select(issue =>
+                    $"Package '{Path.GetFileName(manifestGroup.Key)}': {issue}"));
+                continue;
+            }
+
+            foreach (var record in manifestGroup)
+            {
+                if (verification.Manifest.PackageId != record.PackageId)
+                {
+                    issues.Add($"Sheet '{record.DisplayLabel}': package identity changed after intake.");
+                    continue;
+                }
+
+                var entry = verification.Manifest.Sheets.FirstOrDefault(candidate =>
+                    string.Equals(candidate.SheetId, record.Entry.SheetId, StringComparison.OrdinalIgnoreCase));
+                if (entry is null || !verification.TryGetVerifiedPdfPath(entry, out var verifiedPath))
+                {
+                    issues.Add($"Sheet '{record.DisplayLabel}': verified package entry is unavailable.");
+                    continue;
+                }
+                if (!string.Equals(
+                        Path.GetFullPath(verifiedPath),
+                        Path.GetFullPath(record.PdfPath),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    issues.Add($"Sheet '{record.DisplayLabel}': package PDF path changed after intake.");
+                }
+                if (!string.Equals(entry.Sha256, record.Entry.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    issues.Add($"Sheet '{record.DisplayLabel}': package hash changed after intake.");
+                }
+            }
+        }
+
+        if (issues.Count > 0)
+        {
+            throw new AlbumBuildException(issues);
+        }
     }
 
     private sealed class ConceptSectionRun(string key, string title)
