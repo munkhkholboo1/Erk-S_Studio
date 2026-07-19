@@ -28,10 +28,13 @@ internal static class CloudEraChunkedAlbumUploader
         string pdfPath,
         int pageCount,
         string pageSizeSummary,
+        string projectConcurrencyToken,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         FileInfo file = new(pdfPath);
+        if (string.IsNullOrWhiteSpace(projectConcurrencyToken))
+            throw new StudioAccountException("Canonical project version is missing. Start Sync again.");
         if (!file.Exists)
             throw new StudioAccountException("Синк хийх альбумын PDF олдсонгүй.");
 
@@ -57,6 +60,7 @@ internal static class CloudEraChunkedAlbumUploader
                 PageCount = pageCount,
                 PageSizeSummary = pageSizeSummary ?? "",
                 ChunkSizeBytes = PreferredChunkBytes,
+                ProjectConcurrencyToken = projectConcurrencyToken.Trim(),
             },
             cancellationToken).ConfigureAwait(true);
 

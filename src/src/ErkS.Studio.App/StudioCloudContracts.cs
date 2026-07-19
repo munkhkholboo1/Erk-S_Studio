@@ -466,6 +466,7 @@ internal sealed class StudioCloudAlbumUploadStartRequest
     public int PageCount { get; set; }
     public string PageSizeSummary { get; set; } = "";
     public int ChunkSizeBytes { get; set; }
+    public string ProjectConcurrencyToken { get; set; } = "";
 }
 
 internal sealed class StudioCloudAlbumUploadSession

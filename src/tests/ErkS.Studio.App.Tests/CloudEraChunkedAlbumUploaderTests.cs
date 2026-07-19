@@ -29,6 +29,7 @@ public sealed class CloudEraChunkedAlbumUploaderTests
                 path,
                 pageCount: 4,
                 pageSizeSummary: "A3",
+                projectConcurrencyToken: "project-token-1",
                 CancellationToken.None);
 
             Assert.Equal("revision1", revision.RevisionId);
@@ -67,6 +68,7 @@ public sealed class CloudEraChunkedAlbumUploaderTests
                 Assert.NotNull(start);
                 Assert.Equal(expectedFile.LongLength, start.SizeBytes);
                 Assert.Equal(4, start.PageCount);
+                Assert.Equal("project-token-1", start.ProjectConcurrencyToken);
                 return Json(new StudioCloudAlbumUploadSession
                 {
                     UploadId = "upload1",

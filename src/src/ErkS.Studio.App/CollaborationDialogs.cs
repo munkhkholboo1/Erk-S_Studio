@@ -284,20 +284,17 @@ internal sealed class StudioNotificationsDialog : Window
     private readonly Button declineButton = StudioWidgets.CreateButton("Татгалзах");
     private StudioProjectMembershipInvitationListResponse invitationData;
     private StudioProjectMembershipExitRequestListResponse exitRequestData;
-    private StudioProjectCreationGrantListResponse grantData;
 
     public bool ProjectsChanged { get; private set; }
 
     public StudioNotificationsDialog(
         StudioAccountService account,
         StudioProjectMembershipInvitationListResponse invitations,
-        StudioProjectMembershipExitRequestListResponse exitRequests,
-        StudioProjectCreationGrantListResponse grants)
+        StudioProjectMembershipExitRequestListResponse exitRequests)
     {
         this.account = account;
         invitationData = invitations;
         exitRequestData = exitRequests;
-        grantData = grants;
         Title = "Мэдэгдэл";
         Width = 820;
         Height = 540;
@@ -357,7 +354,6 @@ internal sealed class StudioNotificationsDialog : Window
                 string.Join(", ", item.Roles),
                 item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 item,
-                null,
                 null)));
         rows.AddRange(exitRequestData.AwaitingApproval
             .Where(item => item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
@@ -367,7 +363,6 @@ internal sealed class StudioNotificationsDialog : Window
                 $"{item.ParticipantDisplayName}  ·  {item.AffectedSourceKeys.Length} source",
                 item.RequestedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 null,
-                item,
                 null)));
         rows.AddRange(exitRequestData.Requested
             .Where(item => item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
@@ -379,18 +374,7 @@ internal sealed class StudioNotificationsDialog : Window
                     : $"{item.ApprovalOrganizationName} байгууллагын шийдвэр хүлээж байна",
                 item.RequestedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 null,
-                null,
                 null)));
-        rows.AddRange(grantData.Received
-            .Where(item => item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
-            .Select(item => new NotificationRow(
-                "Төсөл үүсгэх эрх",
-                item.OrganizationName,
-                "Нэг удаагийн эрх",
-                item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
-                null,
-                null,
-                item)));
         notifications.ItemsSource = rows;
         status.Text = rows.Count == 0
             ? "Шинэ мэдэгдэл алга."
@@ -404,8 +388,6 @@ internal sealed class StudioNotificationsDialog : Window
         bool decisionSelected = selected?.Invitation is not null || selected?.ExitRequest is not null;
         acceptButton.IsEnabled = decisionSelected;
         declineButton.IsEnabled = decisionSelected;
-        if ((notifications.SelectedItem as NotificationRow)?.Grant is not null)
-            status.Text = "Энэ эрхийг Төслүүд > Шинэ төсөл хэсгээс ашиглана.";
     }
 
     private async Task AcceptSelectedAsync()
@@ -519,8 +501,7 @@ internal sealed class StudioNotificationsDialog : Window
         string Detail,
         string Expires,
         StudioProjectMembershipInvitation? Invitation,
-        StudioProjectMembershipExitRequest? ExitRequest,
-        StudioProjectCreationGrant? Grant);
+        StudioProjectMembershipExitRequest? ExitRequest);
 }
 
 internal sealed class ProjectDeletionDialog : Window

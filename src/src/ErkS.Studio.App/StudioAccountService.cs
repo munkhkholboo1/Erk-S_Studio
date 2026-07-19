@@ -687,12 +687,16 @@ internal sealed class StudioAccountService :
         string pdfPath,
         int pageCount,
         string pageSizeSummary,
+        string projectConcurrencyToken,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(pdfPath))
             throw new StudioAccountException("Синк хийх альбумын PDF олдсонгүй.");
         if (pageCount < 1)
             throw new StudioAccountException("Альбумын хуудасны тоо буруу байна.");
+
+        if (string.IsNullOrWhiteSpace(projectConcurrencyToken))
+            throw new StudioAccountException("Canonical project version is missing. Start Sync again.");
 
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
@@ -710,6 +714,7 @@ internal sealed class StudioAccountService :
                 pdfPath,
                 pageCount,
                 pageSizeSummary,
+                projectConcurrencyToken,
                 cancellationToken).ConfigureAwait(true);
         }
         if (pdf.Length > 20L * 1024L * 1024L)
@@ -721,6 +726,7 @@ internal sealed class StudioAccountService :
         using var content = new MultipartFormDataContent();
         content.Add(new StringContent(pageCount.ToString(CultureInfo.InvariantCulture)), "pageCount");
         content.Add(new StringContent(pageSizeSummary ?? ""), "pageSizeSummary");
+        content.Add(new StringContent(projectConcurrencyToken.Trim()), "projectConcurrencyToken");
         await using FileStream stream = File.OpenRead(pdfPath);
         using var file = new StreamContent(stream);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");

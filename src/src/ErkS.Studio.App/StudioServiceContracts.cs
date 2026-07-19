@@ -197,6 +197,7 @@ internal interface IAlbumsClient
         string pdfPath,
         int pageCount,
         string pageSizeSummary,
+        string projectConcurrencyToken,
         CancellationToken cancellationToken = default);
 }
 

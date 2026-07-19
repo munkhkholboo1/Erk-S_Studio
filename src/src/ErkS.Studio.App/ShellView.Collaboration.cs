@@ -47,10 +47,8 @@ internal sealed partial class ShellView
         "\uE74D",
         "Төслийн үйлдэл",
         "Сонгосон төслийг устгах эсвэл гарах хүсэлт илгээх");
-    private readonly Button companyProjectGrantButton = StudioWidgets.CreateButton("Төсөл үүсгэх эрх");
     private StudioProjectMembershipInvitationListResponse notificationInvitations = new();
     private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
-    private StudioProjectCreationGrantListResponse notificationGrants = new();
     private bool refreshingNotifications;
     private bool refreshingCurrentProjectAccess;
     private bool updatingTeamMemberRoles;
@@ -237,7 +235,6 @@ internal sealed partial class ShellView
         {
             notificationInvitations = new StudioProjectMembershipInvitationListResponse();
             notificationExitRequests = new StudioProjectMembershipExitRequestListResponse();
-            notificationGrants = new StudioProjectCreationGrantListResponse();
             UpdateNotificationsButton();
             return;
         }
@@ -247,7 +244,6 @@ internal sealed partial class ShellView
         {
             notificationInvitations = await account.ListMembershipInvitationsAsync();
             notificationExitRequests = await account.ListMembershipExitRequestsAsync();
-            notificationGrants = await account.ListProjectCreationGrantsAsync();
             UpdateNotificationsButton();
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
@@ -268,10 +264,7 @@ internal sealed partial class ShellView
             notificationExitRequests.AwaitingApproval.Count(item =>
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationExitRequests.Requested.Count(item =>
-                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
-            notificationGrants.Received.Count(item =>
-                item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
-                item.ExpiresAtUtc > DateTimeOffset.UtcNow);
+                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase));
         notificationsButton.IsEnabled = account.IsSignedIn;
         notificationsRailButton.IsEnabled = account.IsSignedIn;
         notificationsRailBadgeText.Text = count > 99
@@ -312,8 +305,7 @@ internal sealed partial class ShellView
         var dialog = new StudioNotificationsDialog(
             account,
             notificationInvitations,
-            notificationExitRequests,
-            notificationGrants)
+            notificationExitRequests)
         {
             Owner = Window.GetWindow(Root),
         };
@@ -862,47 +854,6 @@ internal sealed partial class ShellView
 
         public string Label => $"{DocumentName} · {Email}";
     }
-
-    private void RefreshCompanyGrantActionUi()
-    {
-        CompanyCatalogEntry? selected = selectedCompanyEntry;
-        bool enabled = account.IsSignedIn &&
-            selected?.CanManage == true &&
-            selected.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase) &&
-            selected.Profile.OrganizationType.Equals("DesignCompany", StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(selected.Profile.OrganizationId);
-        companyProjectGrantButton.IsEnabled = enabled;
-        companyProjectGrantButton.ToolTip = enabled
-            ? "Бүртгэлтэй хэрэглэгчид энэ компанийн нэр дээр нэг төсөл үүсгэх эрх олгох"
-            : "Идэвхтэй зураг төслийн компанийн admin эрх шаардлагатай";
-    }
-
-    private async Task OpenProjectCreationGrantDialogAsync()
-    {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
-            return;
-        try
-        {
-            IReadOnlyList<StudioCloudOrganization> organizations = await account.ListOrganizationsAsync();
-            StudioCloudOrganization? organization = organizations.FirstOrDefault(item =>
-                item.OrganizationId.Equals(
-                    selectedCompanyEntry.Profile.OrganizationId,
-                    StringComparison.OrdinalIgnoreCase));
-            if (organization is null)
-                throw new StudioAccountException("Cloud ERA компанийн бүртгэл олдсонгүй.");
-            var dialog = new ProjectCreationGrantDialog(account, organization)
-            {
-                Owner = Window.GetWindow(Root),
-            };
-            dialog.ShowDialog();
-            await RefreshNotificationsAsync();
-        }
-        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
-        {
-            SetStatus("Төсөл үүсгэх эрхийн хэсэг нээгдсэнгүй: " + exception.Message);
-        }
-    }
-
     private async Task ApplyCloudProjectRenderProfileAsync(StudioCloudProjectDetail cloud)
     {
         StudioCloudOrganizationRenderProfile? profile = cloud.DesignOrganizationProfile;
