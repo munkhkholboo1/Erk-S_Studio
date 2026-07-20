@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.8] - 2026-07-21
+
+- Add the officially configured DAN organization-import boundary while keeping manual and partially completed organization profiles available.
+- Unify organization create, view, edit, save, and cancel behavior around the canonical Cloud ERA organization record.
+- Refresh project foundation, organization assignment, membership, source, document, album, and archive slices incrementally so shared Studio mirrors converge without downloading unchanged payloads.
+- Clean obsolete Cloud album cache files after revision changes while preserving native RVT and DWG source custody on the member's device.
+- Keep the company library in the Studio dark theme while editing, with selection locked and a restrained lighter surface instead of the Windows disabled-control background.
+
 ## [0.1.0-dev.7] - 2026-07-18
 
 - Normalize legacy PowerShell 5 update-history wrappers during Studio publication so prior release entries remain intact when a new version is added.
