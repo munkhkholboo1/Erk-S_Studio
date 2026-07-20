@@ -413,6 +413,7 @@ internal sealed partial class ShellView
 
         foreach (ProjectVisualizationImage image in selectedImages)
             image.IsIncludedInAlbum = false;
+        state.MarkAlbumComponentChanged(ProjectCloudSyncMetadata.VisualizationsComponentCode);
         state.MarkFoundationContentChanged();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(
@@ -434,6 +435,7 @@ internal sealed partial class ShellView
 
         foreach (ProjectVisualizationImage image in selectedImages)
             image.IsIncludedInAlbum = true;
+        state.MarkAlbumComponentChanged(ProjectCloudSyncMetadata.VisualizationsComponentCode);
         state.MarkFoundationContentChanged();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(
@@ -480,6 +482,7 @@ internal sealed partial class ShellView
         if (changed == 0)
             return;
 
+        state.MarkAlbumComponentChanged(ProjectCloudSyncMetadata.VisualizationsComponentCode);
         state.MarkFoundationContentChanged();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(

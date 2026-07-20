@@ -97,6 +97,9 @@ public sealed class SheetPackageEntry
 
     public string Revision { get; set; } = "";
 
+    /// <summary>Source sheet scale label, for example "1:100", "VARIES" or "NTS".</summary>
+    public string ScaleText { get; set; } = "";
+
     public double WidthMm { get; set; }
 
     public double HeightMm { get; set; }

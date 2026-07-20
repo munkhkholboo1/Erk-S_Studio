@@ -55,6 +55,7 @@ internal sealed class StudioAccountService :
     IOrganizationsClient,
     ICollaborationClient,
     ISourcePackagesClient,
+    IControlledDocumentsClient,
     IAlbumsClient,
     IProfileImageClient,
     IDisposable
@@ -771,6 +772,112 @@ internal sealed class StudioAccountService :
         return new StudioDownloadedImage(bytes, contentType);
     }
 
+    public async Task<IReadOnlyList<StudioCloudControlledDocument>> ListControlledDocumentsAsync(
+        string projectId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is not signed in.");
+        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/documents";
+        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<List<StudioCloudControlledDocument>>(
+            response,
+            cancellationToken).ConfigureAwait(true) ?? [];
+    }
+
+    public async Task<StudioCloudControlledDocument> ReplaceControlledDocumentFilesAsync(
+        string projectId,
+        string documentId,
+        int expectedDocumentVersion,
+        string projectConcurrencyToken,
+        IReadOnlyList<string> filePaths,
+        CancellationToken cancellationToken = default)
+    {
+        if (expectedDocumentVersion < 1)
+            throw new StudioAccountException("Cloud controlled document version is missing.");
+        if (string.IsNullOrWhiteSpace(projectConcurrencyToken))
+            throw new StudioAccountException("Canonical project version is missing. Refresh and try again.");
+
+        List<string> files = (filePaths ?? [])
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (files.Any(path => !File.Exists(path)))
+            throw new StudioAccountException("One or more controlled document files are unavailable.");
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is not signed in.");
+        using var content = new MultipartFormDataContent();
+        content.Add(
+            new StringContent(expectedDocumentVersion.ToString(CultureInfo.InvariantCulture)),
+            "expectedDocumentVersion");
+        content.Add(new StringContent(projectConcurrencyToken.Trim()), "projectConcurrencyToken");
+        content.Add(new StringContent((files.Count == 0).ToString().ToLowerInvariant()), "clearCurrent");
+        foreach (string path in files)
+        {
+            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var file = new StreamContent(stream);
+            file.Headers.ContentType = new MediaTypeHeaderValue(DocumentContentType(path));
+            content.Add(file, "files", Path.GetFileName(path));
+        }
+
+        string endpoint = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/documents/" + Uri.EscapeDataString(documentId) + "/current-files";
+        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, endpoint))
+        {
+            Content = content,
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<StudioCloudControlledDocument>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task DownloadControlledFileAsync(
+        StudioCloudFile file,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        if (string.IsNullOrWhiteSpace(file.FileId))
+            throw new StudioAccountException("Cloud controlled file ID is missing.");
+        if (file.SizeBytes > 25L * 1024L * 1024L)
+            throw new StudioAccountException("Cloud controlled document file is larger than 25 MB.");
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is not signed in.");
+        string path = "/api/cloud-era/v1/files/" + Uri.EscapeDataString(file.FileId);
+        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(true);
+        if (!response.IsSuccessStatusCode)
+        {
+            await ReadResponseAsync<object>(response, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+        await ReplaceDownloadedFileAsync(
+            source,
+            destinationPath,
+            cancellationToken,
+            file.Sha256).ConfigureAwait(true);
+    }
+
+    private static string DocumentContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".pdf" => "application/pdf",
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        _ => "application/octet-stream",
+    };
+
     public async Task<IReadOnlyList<StudioCloudAlbum>> ListAlbumsAsync(
         string projectId,
         CancellationToken cancellationToken = default)
@@ -873,6 +980,89 @@ internal sealed class StudioAccountService :
         string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
             "/albums/" + Uri.EscapeDataString(albumId) + "/revisions";
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(session.ServerUrl, path)) { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<StudioCloudAlbumRevision>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudAlbumRevision> SetAlbumComponentManifestAsync(
+        string projectId,
+        string albumId,
+        string revisionId,
+        IReadOnlyList<StudioCloudAlbumSection> components,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is not signed in.");
+        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/albums/" + Uri.EscapeDataString(albumId) +
+            "/revisions/" + Uri.EscapeDataString(revisionId) +
+            "/component-manifest";
+        var payload = new StudioCloudAlbumComponentManifestUpdateRequest
+        {
+            Components = (components ?? []).ToList(),
+        };
+        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, path))
+        {
+            Content = JsonContent.Create(payload, options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<StudioCloudAlbumRevision>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudAlbumRevision> MergeAlbumComponentsAsync(
+        string projectId,
+        string albumId,
+        string expectedRevisionId,
+        string projectConcurrencyToken,
+        IReadOnlyList<StudioAlbumComponentUpload> components,
+        CancellationToken cancellationToken = default)
+    {
+        RequireCapability(CloudEraFeatures.AlbumComponentMergeV1);
+        List<StudioAlbumComponentUpload> uploads = (components ?? [])
+            .Where(item => item is not null)
+            .ToList();
+        if (uploads.Count == 0)
+            throw new StudioAccountException("No album source component was selected for sync.");
+        if (uploads.Any(item => !item.Remove && !File.Exists(item.PdfPath)))
+            throw new StudioAccountException("One or more rendered album component PDFs are unavailable.");
+        if (string.IsNullOrWhiteSpace(expectedRevisionId) || string.IsNullOrWhiteSpace(projectConcurrencyToken))
+            throw new StudioAccountException("Canonical album revision/version is missing. Refresh and try again.");
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is not signed in.");
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(expectedRevisionId.Trim()), "expectedRevisionId");
+        content.Add(new StringContent(projectConcurrencyToken.Trim()), "projectConcurrencyToken");
+        var descriptors = new List<StudioCloudAlbumComponentUploadDescriptor>();
+        for (int index = 0; index < uploads.Count; index++)
+        {
+            StudioAlbumComponentUpload component = uploads[index];
+            string fieldName = "component" + index.ToString(CultureInfo.InvariantCulture);
+            descriptors.Add(new StudioCloudAlbumComponentUploadDescriptor
+            {
+                FieldName = fieldName,
+                Code = component.Code,
+                Label = component.Label,
+                Order = component.Order,
+                Remove = component.Remove,
+            });
+            if (component.Remove)
+                continue;
+            var stream = new FileStream(component.PdfPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var file = new StreamContent(stream);
+            file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            content.Add(file, fieldName, Path.GetFileName(component.PdfPath));
+        }
+        content.Add(new StringContent(JsonSerializer.Serialize(descriptors, JsonOptions)), "components");
+
+        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/albums/" + Uri.EscapeDataString(albumId) + "/components";
+        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, path))
+        {
+            Content = content,
+        };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         return await ReadResponseAsync<StudioCloudAlbumRevision>(response, cancellationToken).ConfigureAwait(true);
@@ -1255,6 +1445,7 @@ internal sealed class StudioAccountService :
             [CloudEraFeatures.ParticipantRoleManagement] = true,
             [CloudEraFeatures.SourcePackagesV4] = true,
             [CloudEraFeatures.AlbumRevisions] = true,
+            [CloudEraFeatures.AlbumComponentMergeV1] = false,
             [CloudEraFeatures.OptimisticConcurrency] = false,
             [CloudEraFeatures.IdempotentSync] = true,
             [CloudEraFeatures.RelationshipBoundary] = true,

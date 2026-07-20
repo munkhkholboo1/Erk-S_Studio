@@ -503,6 +503,37 @@ internal static class StudioCloudTemplateIds
     public const string BuildingArchitectureConcept = "MN-BLD-ARCH-CONCEPT";
 }
 
+internal sealed class StudioCloudControlledDocument
+{
+    public string DocumentId { get; set; } = "";
+    public string[] RequirementKeys { get; set; } = [];
+    public string Category { get; set; } = "";
+    public string DocumentType { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string DocumentNumber { get; set; } = "";
+    public int Version { get; set; }
+    public string Status { get; set; } = "";
+    public string Visibility { get; set; } = "";
+    public List<StudioCloudFile> FileRevisions { get; set; } = [];
+    public string[] CurrentFileRevisionIds { get; set; } = [];
+    public List<StudioCloudFile> CurrentFiles { get; set; } = [];
+    public string UpdatedBy { get; set; } = "";
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
+internal sealed class StudioCloudFile
+{
+    public string FileRevisionId { get; set; } = "";
+    public string FileId { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string Sha256 { get; set; } = "";
+    public string ScanStatus { get; set; } = "";
+    public string UploadedBy { get; set; } = "";
+    public DateTimeOffset UploadedAtUtc { get; set; }
+}
+
 internal sealed class StudioCloudAlbum
 {
     public string AlbumId { get; set; } = "";
@@ -523,7 +554,38 @@ internal sealed class StudioCloudAlbumRevision
     public string PageSizeSummary { get; set; } = "";
     public string Status { get; set; } = "";
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public List<StudioCloudAlbumSection> SectionManifest { get; set; } = [];
 }
+
+internal sealed class StudioCloudAlbumSection
+{
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public int Order { get; set; }
+    public int[] PageNumbers { get; set; } = [];
+    public string Status { get; set; } = "";
+}
+
+internal sealed class StudioCloudAlbumComponentManifestUpdateRequest
+{
+    public List<StudioCloudAlbumSection> Components { get; set; } = [];
+}
+
+internal sealed class StudioCloudAlbumComponentUploadDescriptor
+{
+    public string FieldName { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public int Order { get; set; }
+    public bool Remove { get; set; }
+}
+
+internal sealed record StudioAlbumComponentUpload(
+    string Code,
+    string Label,
+    int Order,
+    string PdfPath,
+    bool Remove = false);
 
 internal sealed class StudioCloudAlbumUploadStartRequest
 {

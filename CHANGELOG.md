@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.9] - 2026-07-21
+
+- Merge each collaborator's changed album components into the canonical Cloud PDF without replacing components owned by other devices.
+- Reconcile approved ATD documents by version and hash so a collaborator can enrich the shared album without deleting the existing drawing set.
+- Bootstrap complete component manifests for legacy Cloud albums and ignore shadowed pre-`SourceKey` snapshots while preserving distinct same-named source streams.
+- Track generated and source-backed album components independently, retain pending local work across Cloud refreshes, and clean temporary merge files after use.
+- Carry optional Revit sheet scale metadata into Studio and print it below `Загвар` while leaving scale-free generated pages blank.
+
 ## [0.1.0-dev.8] - 2026-07-21
 
 - Add the officially configured DAN organization-import boundary while keeping manual and partially completed organization profiles available.

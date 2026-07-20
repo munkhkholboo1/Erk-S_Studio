@@ -35,6 +35,25 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     }
 
     [Fact]
+    public void OpenProject_SourceFreeCloudMirrorPreservesCollaboratorPages()
+    {
+        var (projectPath, _) = WriteProject(
+            sources: [],
+            pageKeys: ["remote-source|sheet-01"],
+            lastPdfPath: "albums/cloud/current.pdf",
+            cloudMirror: true);
+        using var state = new AppState();
+
+        state.OpenProject(projectPath);
+
+        Assert.Empty(state.Project.Sources);
+        Assert.Equal("remote-source|sheet-01", Assert.Single(state.Album.Pages).SheetKey);
+        Assert.Equal("albums/cloud/current.pdf", state.Project.PrimaryAlbum.LastPdfPath);
+        StudioAlbumDocument persisted = StudioAlbumDocumentStore.Load(state.AlbumPath!);
+        Assert.Equal("remote-source|sheet-01", Assert.Single(persisted.Definition.Pages).SheetKey);
+    }
+
+    [Fact]
     public void RemoveDesignSource_RemovesOnlyThatSourcesAlbumPages()
     {
         var sourceA = CreateSource("source-a", "Same name.rvt");
@@ -137,11 +156,18 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     private (string ProjectPath, string AlbumPath) WriteProject(
         IReadOnlyList<ProjectDesignSource> sources,
         IReadOnlyList<string> pageKeys,
-        string lastPdfPath)
+        string lastPdfPath,
+        bool cloudMirror = false)
     {
         ProjectWorkspace project = ProjectWorkspaceStore.Create("TEST-001", "Source isolation test");
         project.Sources = sources.ToList();
         project.PrimaryAlbum.LastPdfPath = lastPdfPath;
+        if (cloudMirror)
+        {
+            project.Cloud.Origin = ProjectOrigins.Cloud;
+            project.Cloud.ServerProjectId = "cloud-project-1";
+            project.Cloud.ServerUrl = "https://erk-s.mn";
+        }
         string projectPath = Path.Combine(workDirectory, ProjectWorkspace.DefaultFileName);
         string albumPath = ProjectWorkspacePaths.ResolveInsideProject(
             projectPath,

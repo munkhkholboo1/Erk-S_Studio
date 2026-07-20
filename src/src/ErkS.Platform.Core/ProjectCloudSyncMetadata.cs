@@ -23,6 +23,15 @@ public sealed record ProjectSourceSyncCandidate(
 /// </summary>
 public static class ProjectCloudSyncMetadata
 {
+    public const string CoverComponentCode = "generated:cover:Cover";
+    public const string CompanyRegistrationComponentCode =
+        "generated:design-organization:CompanyRegistrationCertificate";
+    public const string CompanyLicenseComponentCode =
+        "generated:design-organization:CompanyDesignLicense";
+    public const string ApprovedAtdComponentCode =
+        "generated:planning-task:ApprovedPlanningTask";
+    public const string VisualizationsComponentCode = "generated:visualizations";
+
     private const string SourceKeyKey = "cloud.sourceKey";
     private const string SourceApplicationKey = "cloud.sourceApplication";
     private const string SourceDocumentReferenceKey = "cloud.sourceDocumentReference";
@@ -130,6 +139,50 @@ public static class ProjectCloudSyncMetadata
         candidate.Source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         candidate.Source.Metadata[SyncedManifestIdKey] = candidate.ManifestId;
         candidate.Source.Metadata[SyncedContentHashKey] = candidate.ContentHash;
+    }
+
+    public static IReadOnlyList<string> PendingAlbumComponents(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.PendingAlbumComponentCodes ??= [];
+        return project.Cloud.PendingAlbumComponentCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static void MarkAlbumComponentsPending(
+        ProjectWorkspace project,
+        IEnumerable<string> componentCodes)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.PendingAlbumComponentCodes ??= [];
+        foreach (string code in componentCodes ?? [])
+        {
+            string normalized = code?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                project.Cloud.PendingAlbumComponentCodes.Contains(
+                    normalized,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            project.Cloud.PendingAlbumComponentCodes.Add(normalized);
+        }
+        MarkPending(project);
+    }
+
+    public static void MarkAlbumComponentsSynced(
+        ProjectWorkspace project,
+        IEnumerable<string> componentCodes)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.PendingAlbumComponentCodes ??= [];
+        HashSet<string> completed = (componentCodes ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        project.Cloud.PendingAlbumComponentCodes.RemoveAll(completed.Contains);
     }
 
     public static void ValidateSourceAcknowledgement(

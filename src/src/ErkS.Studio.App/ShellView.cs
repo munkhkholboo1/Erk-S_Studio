@@ -2052,6 +2052,7 @@ internal sealed partial class ShellView : IDisposable
             ProjectClientTypes.UsesLogo(draft.ClientType) &&
             !string.IsNullOrWhiteSpace(draft.ClientLogoPath);
         bool shouldDeleteClientLogo = linked && clientLogoRemovalPending;
+        bool foundationContentChanged = FoundationDraftDiffersFromProject(draft);
         if (linked && !await EnsureSignedInAsync())
             return;
 
@@ -2209,12 +2210,24 @@ internal sealed partial class ShellView : IDisposable
                     state.Project.Foundation.Version++;
             }
 
+            if (foundationContentChanged)
+            {
+                ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+                    state.Project,
+                    [
+                        ProjectCloudSyncMetadata.CoverComponentCode,
+                        ProjectCloudSyncMetadata.CompanyRegistrationComponentCode,
+                        ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
+                        ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                    ]);
+            }
             state.SaveProject();
             foundationEditMode = false;
             pendingClientLogoPath = "";
             clientLogoRemovalPending = false;
             BindProjectToUi();
-            UpdateAlbum(silent: true, statusPrefix: "Төслийн суурь мэдээлэл шинэчлэгдлээ");
+            if (!linked || !HasCurrentCloudAlbumPreview())
+                UpdateAlbum(silent: true, statusPrefix: "Төслийн суурь мэдээлэл шинэчлэгдлээ");
             RefreshProjects();
             RebuildNavigation();
             SelectPage(StudioPage.Foundation);
@@ -2536,6 +2549,32 @@ internal sealed partial class ShellView : IDisposable
             cloud.SyncStatus = ProjectSyncStatuses.Syncing;
             state.SaveProject();
 
+            ControlledDocumentSyncResult documentSync =
+                await ReconcileAtdControlledDocumentAsync(
+                    projectId,
+                    canonical.Project.ConcurrencyToken,
+                    allowUpload: true);
+            if (documentSync.HasPendingOrConflict && !documentSync.Uploaded)
+            {
+                state.SaveProject();
+                BindProjectToUi();
+                SetStatus("Sync зогслоо: " + documentSync.Message + " Локал АТД устгагдаагүй.");
+                return;
+            }
+            if (documentSync.Uploaded)
+            {
+                canonical = await account.GetProjectAsync(projectId);
+                state.LinkCurrentProjectToCloud(
+                    canonical,
+                    account.Current!.ServerUrl,
+                    preserveCreation: true,
+                    preserveSyncState: true);
+                await ApplyCloudProjectRenderProfileAsync(canonical);
+                cloud = state.Project.Cloud;
+                cloud.SyncStatus = ProjectSyncStatuses.Syncing;
+                state.SaveProject();
+            }
+
             SetStatus("Cloud ERA төслийн бүтэц болон empty template album-ыг шалгаж байна...");
             StudioCloudAlbum ensuredAlbum = await account.EnsureConceptAlbumAsync(projectId);
             IReadOnlyList<ProjectSourceSyncCandidate> sourcePackages =
@@ -2561,7 +2600,6 @@ internal sealed partial class ShellView : IDisposable
                     source.ContentHash,
                     acknowledgement.ManifestId,
                     acknowledgement.ContentHash);
-                ProjectCloudSyncMetadata.MarkSourceSynced(source);
             }
 
             // Server-side source registration can advance the canonical
@@ -2581,16 +2619,16 @@ internal sealed partial class ShellView : IDisposable
                 ProjectCloudSyncMetadata.SourcePackages(state.Project);
             IReadOnlyList<StudioCloudDesignPackage> designPackages =
                 await account.ListDesignPackagesAsync(projectId);
-            List<StudioCloudSourcePackage> activeServerSources = designPackages
-                .Where(item => item.DesignPackageType.Equals(
-                    ProjectWorkspace.BuildingArchitectureConcept,
-                    StringComparison.OrdinalIgnoreCase))
-                .SelectMany(item => item.SourcePackages)
-                .Where(item => !item.Status.Equals("Superseded", StringComparison.OrdinalIgnoreCase))
+            List<StudioCloudSourcePackage> activeServerSources =
+                StudioCloudSourcePackageReconciliation.ActiveCanonical(
+                    designPackages
+                        .Where(item => item.DesignPackageType.Equals(
+                            ProjectWorkspace.BuildingArchitectureConcept,
+                            StringComparison.OrdinalIgnoreCase))
+                        .SelectMany(item => item.SourcePackages))
                 .ToList();
-            string currentAccount = account.Current?.Email ?? "";
             List<StudioCloudSourcePackage> missingRemoteSources = activeServerSources
-                .Where(server => !IsServerSourceAvailableLocally(server, localSources, currentAccount))
+                .Where(server => !IsServerSourceAvailableLocally(server, localSources))
                 .ToList();
 
             IReadOnlyList<StudioCloudAlbum> albums = await account.ListAlbumsAsync(projectId);
@@ -2604,9 +2642,75 @@ internal sealed partial class ShellView : IDisposable
             string syncedAlbumHash = currentRevision?.PdfSha256 ?? "";
             string syncedRevisionId = currentRevision?.RevisionId ?? "";
             string syncNote;
-            if (missingRemoteSources.Count > 0)
+            // Once a canonical revision has a component manifest, every later
+            // contribution is a component patch. A complete local mirror must
+            // not regain permission to replace the whole shared album because
+            // it may still lack generated content owned by another member.
+            bool canPatchCurrentRevision = currentRevision is not null &&
+                HasCompleteComponentManifest(currentRevision);
+            if (currentRevision is not null &&
+                (canPatchCurrentRevision || missingRemoteSources.Count > 0))
             {
-                syncNote = $"{missingRemoteSources.Count} remote source энэ төхөөрөмжид байхгүй тул хэсэгчилсэн PDF-ээр бүтэн album солигдоогүй.";
+                bool manifestBootstrapped = false;
+                if (currentRevision is not null && !HasCompleteComponentManifest(currentRevision))
+                {
+                    SetStatus("Хуучин Cloud album-д component manifest аюулгүй үүсгэх боломжийг шалгаж байна...");
+                    StudioCloudAlbumRevision? bootstrapped =
+                        await TryBootstrapAlbumComponentManifestAsync(
+                            projectId,
+                            serverAlbum,
+                            currentRevision,
+                            activeServerSources);
+                    if (bootstrapped is not null)
+                    {
+                        currentRevision = bootstrapped;
+                        canonical = await account.GetProjectAsync(projectId);
+                        state.LinkCurrentProjectToCloud(
+                            canonical,
+                            account.Current!.ServerUrl,
+                            preserveCreation: true,
+                            preserveSyncState: true);
+                        canonicalProjectToken = canonical.Project.ConcurrencyToken;
+                        manifestBootstrapped = true;
+                    }
+                }
+                int pendingComponentCount =
+                    ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count;
+                if (sourcePackages.Count == 0 && pendingComponentCount == 0)
+                {
+                    syncNote = manifestBootstrapped
+                        ? "Одоогийн Cloud album-ийн component manifest SHA-256 тулгалтаар баталгаажлаа. " +
+                          $"{missingRemoteSources.Count} remote source хэвээр хадгалагдсан."
+                        : $"{missingRemoteSources.Count} remote source энэ төхөөрөмжид байхгүй. " +
+                          "Локал contribution өөрчлөгдөөгүй тул canonical album дахин upload хийгдээгүй.";
+                }
+                else
+                {
+                    if (currentRevision is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Remote source-той төсөлд component merge хийх current Cloud album алга. " +
+                            "Бүх source-той төхөөрөмжөөс нэг удаа бүтэн Sync хийнэ үү.");
+                    }
+
+                    SetStatus(
+                        $"{missingRemoteSources.Count} remote source локалд байхгүй. " +
+                        "Зөвхөн энэ төхөөрөмжийн өөрчлөгдсөн бүрдлийг Cloud album-д merge хийж байна...");
+                    AlbumComponentMergeOutcome outcome = await MergePendingAlbumComponentsAsync(
+                        projectId,
+                        serverAlbum,
+                        currentRevision,
+                        canonicalProjectToken,
+                        sourcePackages,
+                        activeServerSources);
+                    currentRevision = outcome.Revision;
+                    syncedAlbumHash = outcome.Revision.PdfSha256.Trim().ToLowerInvariant();
+                    syncedRevisionId = outcome.Revision.RevisionId;
+                    syncNote = outcome.ComponentCount == 0
+                        ? $"{missingRemoteSources.Count} remote source хадгалагдсан; component өөрчлөлт байгаагүй."
+                        : $"{outcome.ComponentCount} component Cloud album R{outcome.Revision.RevisionNumber}-д merge хийгдлээ. " +
+                          $"Бусад {missingRemoteSources.Count} remote source хэвээр хадгалагдсан.";
+                }
             }
             else
             {
@@ -2626,6 +2730,8 @@ internal sealed partial class ShellView : IDisposable
                     state.SaveProject();
                     string localHash = state.Project.PrimaryAlbum.LastPdfSha256;
                     StudioCloudAlbumRevision syncedRevision;
+                    List<StudioCloudAlbumSection> componentManifest =
+                        CreateCanonicalComponentManifest(build, activeServerSources);
                     if (currentRevision != null && currentRevision.PdfSha256.Equals(localHash, StringComparison.OrdinalIgnoreCase))
                     {
                         syncedRevision = currentRevision;
@@ -2640,10 +2746,23 @@ internal sealed partial class ShellView : IDisposable
                             state.Project.PrimaryAlbum.LastPageSizeSummary,
                             canonicalProjectToken);
                     }
+                    if (!ComponentManifestsEqual(componentManifest, syncedRevision.SectionManifest))
+                    {
+                        syncedRevision = await account.SetAlbumComponentManifestAsync(
+                            projectId,
+                            serverAlbum.AlbumId,
+                            syncedRevision.RevisionId,
+                            componentManifest);
+                    }
                     ProjectCloudSyncMetadata.ValidateAlbumAcknowledgement(
                         localHash,
                         syncedRevision.PdfSha256,
                         syncedRevision.RevisionId);
+                    foreach (ProjectSourceSyncCandidate source in sourcePackages)
+                        ProjectCloudSyncMetadata.MarkSourceSynced(source);
+                    ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
+                        state.Project,
+                        ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project));
                     syncedAlbumHash = syncedRevision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = syncedRevision.RevisionId;
                     syncNote = localSources.Count == 0
@@ -2662,6 +2781,11 @@ internal sealed partial class ShellView : IDisposable
                 latest.Project.ConcurrencyToken,
                 DateTimeOffset.UtcNow,
                 syncNote);
+            if (ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0)
+            {
+                state.Project.Cloud.SyncStatus = ProjectSyncStatuses.Pending;
+            }
             ProjectCloudSyncMetadata.MarkCloudRefreshed(
                 state.Project,
                 latest.Project.ConcurrencyToken,
@@ -2675,6 +2799,7 @@ internal sealed partial class ShellView : IDisposable
                     projectInformationNotice);
             }
             state.SaveProject();
+            await TryCacheCurrentCloudAlbumPreviewAsync(projectId);
             BindProjectToUi();
             await RefreshProjectsAsync();
             if (!string.IsNullOrWhiteSpace(projectInformationNotice))
@@ -2734,8 +2859,7 @@ internal sealed partial class ShellView : IDisposable
 
     private static bool IsServerSourceAvailableLocally(
         StudioCloudSourcePackage server,
-        IReadOnlyList<ProjectSourceSyncCandidate> localSources,
-        string currentAccount)
+        IReadOnlyList<ProjectSourceSyncCandidate> localSources)
     {
         if (!string.IsNullOrWhiteSpace(server.SourceKey))
         {
@@ -2751,8 +2875,10 @@ internal sealed partial class ShellView : IDisposable
             return true;
         }
 
-        return !string.IsNullOrWhiteSpace(currentAccount) &&
-            server.RegisteredBy.Equals(currentAccount, StringComparison.OrdinalIgnoreCase);
+        // RegisteredBy is audit metadata, not evidence that this device still
+        // has the source package. Treat an unverified source as remote so a
+        // stale or newly-created mirror can never publish a partial full PDF.
+        return false;
     }
 
     private async Task<string> EnsureProjectConcurrencyTokenAsync(string projectId)
@@ -3102,7 +3228,8 @@ internal sealed partial class ShellView : IDisposable
                 cloud.ServerSnapshot.ConcurrencyToken,
                 cloud.LastServerConcurrencyToken);
             bool hasPendingLocalWork = cloud.PendingProjectInformation is not null ||
-                ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0;
+                ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0;
             if (!hasPendingLocalWork &&
                 !cloud.SyncStatus.Equals(ProjectSyncStatuses.Conflict, StringComparison.OrdinalIgnoreCase))
             {

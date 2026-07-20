@@ -555,8 +555,23 @@ public sealed class AppState : IDisposable
             return;
         Project.Foundation.Version = Math.Max(1, Project.Foundation.Version) + 1;
         AlbumDocument.FoundationVersion = Project.Foundation.Version;
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            Project,
+            [
+                ProjectCloudSyncMetadata.CoverComponentCode,
+                ProjectCloudSyncMetadata.CompanyRegistrationComponentCode,
+                ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
+                ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+            ]);
         InvalidateBuiltAlbum();
         SaveProject();
+    }
+
+    public void MarkAlbumComponentChanged(string componentCode)
+    {
+        if (!HasOpenProject || string.IsNullOrWhiteSpace(componentCode))
+            return;
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(Project, [componentCode]);
     }
 
     public bool RefreshProjectDocumentMetadata()
@@ -771,6 +786,14 @@ public sealed class AppState : IDisposable
     private int RemoveSourcePagesFromSourceFreeProject()
     {
         if (Project.Sources.Count != 0)
+        {
+            return 0;
+        }
+
+        // A Cloud mirror may intentionally have no native source files on this
+        // device. Persisted sheet/page references can belong to collaborators.
+        if (Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(Project.Cloud.ServerProjectId))
         {
             return 0;
         }

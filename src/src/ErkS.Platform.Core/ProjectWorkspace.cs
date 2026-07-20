@@ -115,6 +115,11 @@ public sealed class ProjectCloudLink
     public string LastServerConcurrencyToken { get; set; } = "";
     public string LastSyncError { get; set; } = "";
     public string LastSyncNote { get; set; } = "";
+    /// <summary>
+    /// Rendered album components that still need to be merged into the
+    /// canonical Cloud revision. A failed merge remains retryable.
+    /// </summary>
+    public List<string> PendingAlbumComponentCodes { get; set; } = [];
     public List<string> CurrentUserRoles { get; set; } = [];
     public List<string> CurrentUserScopes { get; set; } = [];
     public ProjectServerSnapshot ServerSnapshot { get; set; } = new();
@@ -447,6 +452,9 @@ public sealed class PlanningTaskInformation
     public string Summary { get; set; } = "";
     public List<string> Requirements { get; set; } = [];
     public List<ProjectFileReference> Documents { get; set; } = [];
+    public string ServerDocumentId { get; set; } = "";
+    public int ServerDocumentVersion { get; set; }
+    public string DocumentCloudSyncStatus { get; set; } = ProjectDocumentCloudSyncStatuses.Local;
     public List<ProjectMember> AuthorityMembers { get; set; } = [];
 }
 
@@ -511,6 +519,10 @@ public sealed class ProjectFileReference
     public long SizeBytes { get; set; }
     public int PageCount { get; set; } = 1;
     public string ServerDocumentId { get; set; } = "";
+    public string ServerFileId { get; set; } = "";
+    public string ServerFileRevisionId { get; set; } = "";
+    public int ServerDocumentVersion { get; set; }
+    public string CloudSyncStatus { get; set; } = ProjectDocumentCloudSyncStatuses.Local;
     public string Sha256 { get; set; } = "";
     public int Version { get; set; } = 1;
     public DateTimeOffset AddedAtUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -529,10 +541,22 @@ public sealed class ProjectFileReference
         SizeBytes = SizeBytes,
         PageCount = PageCount,
         ServerDocumentId = ServerDocumentId,
+        ServerFileId = ServerFileId,
+        ServerFileRevisionId = ServerFileRevisionId,
+        ServerDocumentVersion = ServerDocumentVersion,
+        CloudSyncStatus = CloudSyncStatus,
         Sha256 = Sha256,
         Version = Version,
         AddedAtUtc = AddedAtUtc,
     };
+}
+
+public static class ProjectDocumentCloudSyncStatuses
+{
+    public const string Local = "Local";
+    public const string PendingUpload = "PendingUpload";
+    public const string Synced = "Synced";
+    public const string Conflict = "Conflict";
 }
 
 public sealed class ProjectDeliverables

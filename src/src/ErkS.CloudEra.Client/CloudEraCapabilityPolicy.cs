@@ -57,6 +57,7 @@ public static class CloudEraFeatures
     public const string ParticipantRoleManagement = "participant-role-management";
     public const string SourcePackagesV4 = "source-packages-v4";
     public const string AlbumRevisions = "album-revisions";
+    public const string AlbumComponentMergeV1 = "album-component-merge-v1";
     public const string ChunkedAlbumUploadsV1 = "chunked-album-uploads-v1";
     public const string OptimisticConcurrency = "optimistic-concurrency";
     public const string IdempotentSync = "idempotent-sync";

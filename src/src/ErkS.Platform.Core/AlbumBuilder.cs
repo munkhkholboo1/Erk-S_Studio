@@ -59,6 +59,15 @@ public sealed class AlbumBuildResult
     public required int SheetCount { get; init; }
     public required int PageCount { get; init; }
     public List<string> Warnings { get; } = [];
+    public List<AlbumBuildComponent> Components { get; } = [];
+}
+
+public sealed class AlbumBuildComponent
+{
+    public required string Code { get; init; }
+    public required string Label { get; init; }
+    public required int Order { get; init; }
+    public List<int> PageNumbers { get; init; } = [];
 }
 
 public interface IAlbumPdfWriter
@@ -104,6 +113,13 @@ public sealed class AlbumBuilder
                 PageCount = temporaryResult.PageCount,
             };
             result.Warnings.AddRange(temporaryResult.Warnings);
+            result.Components.AddRange(temporaryResult.Components.Select(component => new AlbumBuildComponent
+            {
+                Code = component.Code,
+                Label = component.Label,
+                Order = component.Order,
+                PageNumbers = component.PageNumbers.ToList(),
+            }));
             return result;
         }
         catch (AlbumBuildException)

@@ -58,6 +58,42 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void PendingAlbumComponentsPersistUntilTheirMergeIsAcknowledged()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "erks-component-queue-tests", Guid.NewGuid().ToString("N"));
+        string projectPath = Path.Combine(root, ProjectWorkspace.DefaultFileName);
+        ProjectWorkspace project = Project();
+        try
+        {
+            ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+                project,
+                [
+                    ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                    ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                    ProjectCloudSyncMetadata.CoverComponentCode,
+                ]);
+            ProjectWorkspaceStore.Save(project, projectPath);
+
+            ProjectWorkspace loaded = ProjectWorkspaceStore.Load(projectPath);
+            Assert.Equal(2, ProjectCloudSyncMetadata.PendingAlbumComponents(loaded).Count);
+            Assert.Equal(ProjectSyncStatuses.Pending, loaded.Cloud.SyncStatus);
+
+            ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
+                loaded,
+                [ProjectCloudSyncMetadata.ApprovedAtdComponentCode]);
+
+            Assert.Equal(
+                [ProjectCloudSyncMetadata.CoverComponentCode],
+                ProjectCloudSyncMetadata.PendingAlbumComponents(loaded));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void LocalSourceCanRebindToCloudSourceWithoutPublishingNativePath()
     {
         ProjectWorkspace project = Project();

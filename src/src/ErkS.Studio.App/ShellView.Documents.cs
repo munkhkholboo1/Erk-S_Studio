@@ -298,11 +298,20 @@ internal sealed partial class ShellView
 
     private void ApplyAtdDocumentDrafts(IEnumerable<ProjectFileReference> drafts)
     {
+        List<ProjectFileReference> materialized = drafts.Select(document => document.Clone()).ToList();
         List<ProjectFileReference> documents = state.Project.Foundation.PlanningTask.Documents;
+        bool changed = !DocumentListsEqual(
+            ApprovedAtdDocuments(documents),
+            materialized);
         documents.RemoveAll(document => document.Category.Equals(
             ProjectDocumentCategories.ApprovedPlanningTask,
             StringComparison.OrdinalIgnoreCase));
-        documents.AddRange(drafts.Select(document => document.Clone()));
+        documents.AddRange(materialized);
+        if (changed)
+        {
+            state.Project.Foundation.PlanningTask.DocumentCloudSyncStatus =
+                ProjectDocumentCloudSyncStatuses.PendingUpload;
+        }
     }
 
     private bool AtdDocumentDraftsDifferFromProject() => !DocumentListsEqual(
@@ -524,6 +533,7 @@ internal sealed partial class ShellView
             SizeBytes = inspection.SizeBytes,
             PageCount = inspection.PageCount,
             Sha256 = inspection.Sha256,
+            CloudSyncStatus = ProjectDocumentCloudSyncStatuses.PendingUpload,
             AddedAtUtc = DateTimeOffset.UtcNow,
         };
 
@@ -573,6 +583,9 @@ internal sealed partial class ShellView
         target.SizeBytes = revision.SizeBytes;
         target.PageCount = revision.PageCount;
         target.Sha256 = revision.Sha256;
+        target.ServerFileId = "";
+        target.ServerFileRevisionId = "";
+        target.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.PendingUpload;
         target.Version = contentChanged ? Math.Max(1, target.Version) + 1 : Math.Max(1, target.Version);
     }
 
@@ -609,7 +622,8 @@ internal sealed partial class ShellView
 
     private static string DocumentIdentity(ProjectFileReference document) =>
         $"{document.Category}|{document.Sha256}|{document.PageCount}|{document.RelativePath}|" +
-        $"{document.LinkedSourcePath}|{document.IsAvailable}|{document.Version}";
+        $"{document.LinkedSourcePath}|{document.IsAvailable}|{document.Version}|" +
+        $"{document.ServerFileRevisionId}|{document.CloudSyncStatus}";
 
     private sealed record DocumentAssetRow(ProjectFileReference Document)
     {
@@ -618,7 +632,15 @@ internal sealed partial class ShellView
             ? "PDF"
             : "Зураг";
         public string Pages => Math.Max(1, Document.PageCount).ToString();
-        public string Status => Document.IsAvailable ? "Бэлэн" : "Эх файл олдсонгүй";
+        public string Status => !Document.IsAvailable
+            ? "Эх файл олдсонгүй"
+            : Document.CloudSyncStatus switch
+            {
+                ProjectDocumentCloudSyncStatuses.PendingUpload => "Cloud sync хүлээгдэж байна",
+                ProjectDocumentCloudSyncStatuses.Conflict => "Cloud зөрчил",
+                ProjectDocumentCloudSyncStatuses.Synced => "Cloud · шинэчлэгдсэн",
+                _ => "Бэлэн",
+            };
         public string Size => Document.SizeBytes <= 0
             ? "-"
             : Document.SizeBytes >= 1024 * 1024

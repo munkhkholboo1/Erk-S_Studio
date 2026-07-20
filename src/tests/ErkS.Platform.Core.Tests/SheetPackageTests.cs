@@ -41,6 +41,7 @@ public sealed class SheetPackageTests : IDisposable
         Assert.NotNull(result.Manifest);
         Assert.Equal(2, result.Manifest!.Sheets.Count);
         Assert.Equal("Description 1", result.Manifest.Sheets[0].SheetDescription);
+        Assert.Equal("1:100", result.Manifest.Sheets[0].ScaleText);
         Assert.All(result.Manifest.Sheets, sheet => Assert.NotEmpty(sheet.Sha256));
     }
 
@@ -1264,6 +1265,7 @@ public sealed class SheetPackageTests : IDisposable
         var entry = Assert.Single(result.Manifest!.Sheets);
         Assert.Null(entry.Format);
         Assert.False(entry.IsCleanDrawingSpace);
+        Assert.Equal("", entry.ScaleText);
     }
 
     [Fact]
@@ -1458,6 +1460,7 @@ public sealed class SheetPackageTests : IDisposable
                 Number = $"AR-{index:00}",
                 Name = $"Test sheet {index}",
                 SheetDescription = $"Description {index}",
+                ScaleText = index == 1 ? "1:100" : "",
                 WidthMm = 210,
                 HeightMm = 297,
                 PdfFileName = fileName,

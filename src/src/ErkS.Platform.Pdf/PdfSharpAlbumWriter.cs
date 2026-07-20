@@ -23,6 +23,30 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         using var document = new PdfDocument();
         document.Info.Title = request.Project.Album.Title;
         document.Info.Author = request.Project.Company.Name;
+        var components = new Dictionary<string, AlbumBuildComponent>(StringComparer.OrdinalIgnoreCase);
+        int componentOrder = 0;
+
+        void RecordComponent(string code, string label, int firstPageIndex)
+        {
+            int lastPageIndex = document.PageCount;
+            if (lastPageIndex <= firstPageIndex)
+                return;
+            if (!components.TryGetValue(code, out AlbumBuildComponent? component))
+            {
+                component = new AlbumBuildComponent
+                {
+                    Code = code,
+                    Label = label,
+                    Order = componentOrder++,
+                };
+                components.Add(code, component);
+            }
+            for (int page = firstPageIndex + 1; page <= lastPageIndex; page++)
+            {
+                if (!component.PageNumbers.Contains(page))
+                    component.PageNumbers.Add(page);
+            }
+        }
 
         var generatedPages = BuildingArchitectureConceptGeneratedPagePlanner
             .Create(request.Project)
@@ -31,17 +55,29 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         {
             foreach (var item in generatedPages)
             {
+                int firstPageIndex = document.PageCount;
                 DrawGeneratedPage(document, request, item);
+                string documentKind = item.DocumentKind == ConceptGeneratedDocumentKind.None
+                    ? item.Component.GeneratedPageKind.ToString()
+                    : item.DocumentKind.ToString();
+                RecordComponent(
+                    $"generated:{item.Component.Id}:{documentKind}",
+                    item.Title,
+                    firstPageIndex);
             }
         }
         else if (request.Project.Album.IncludeCover)
         {
+            int firstPageIndex = document.PageCount;
             DrawCoverPage(document, request);
+            RecordComponent("generated:cover", "Нүүр хуудас", firstPageIndex);
         }
 
         if (request.Project.Album.IncludeTableOfContents)
         {
+            int firstPageIndex = document.PageCount;
             DrawTableOfContents(document, request);
+            RecordComponent("generated:table-of-contents", "Зургийн жагсаалт", firstPageIndex);
         }
 
         var sheetCount = 0;
@@ -56,6 +92,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
                         $"Verified PDF disappeared before composition: {sheet.DisplayLabel} ({sheet.PdfPath})");
                 }
 
+                int firstPageIndex = document.PageCount;
                 if (buildPage.Format.Kind == PageFormatKind.SourceAsIs)
                 {
                     ImportSourceAsIs(document, sheet.PdfPath);
@@ -64,6 +101,14 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
                 {
                     ComposeFormattedPages(document, request.Project, buildPage);
                 }
+
+                string sourceIdentity = !string.IsNullOrWhiteSpace(sheet.SourceId)
+                    ? sheet.SourceId
+                    : sheet.SourceIdentity;
+                RecordComponent(
+                    "source:" + sourceIdentity,
+                    string.IsNullOrWhiteSpace(section.Title) ? sheet.DisplayLabel : section.Title,
+                    firstPageIndex);
 
                 sheetCount++;
             }
@@ -84,13 +129,17 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
                     firstVisualizationNumber);
         foreach (VisualizationAlbumPagePlan plan in visualizationPages)
         {
+            int firstPageIndex = document.PageCount;
             DrawVisualizationPage(document, request.Project, plan, warnings);
+            RecordComponent("generated:visualizations", "Харагдах байдал", firstPageIndex);
         }
 
         if (document.PageCount == 0)
         {
+            int firstPageIndex = document.PageCount;
             var page = document.AddPage();
             page.Size = PdfSharp.PageSize.A4;
+            RecordComponent("generated:empty", "Хоосон альбум", firstPageIndex);
         }
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
@@ -108,6 +157,8 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             PageCount = pageCount,
         };
         result.Warnings.AddRange(warnings);
+        result.Components.AddRange(components.Values
+            .OrderBy(item => item.Order));
         return result;
     }
 
@@ -300,7 +351,13 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             false,
             XStringFormats.CenterRight);
 
-        DrawConceptCornerTable(gfx, project, buildPage.Number, borderPen, finePen);
+        DrawConceptCornerTable(
+            gfx,
+            project,
+            buildPage.Number,
+            buildPage.Sheet.Entry.ScaleText,
+            borderPen,
+            finePen);
         DrawFittedText(
             gfx,
             "Sheet generated by Erk-S Platform",
@@ -345,7 +402,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             8.5,
             false,
             XStringFormats.CenterRight);
-        DrawConceptCornerTable(gfx, project, number, borderPen, finePen);
+        DrawConceptCornerTable(gfx, project, number, "", borderPen, finePen);
         DrawFittedText(
             gfx,
             "Sheet generated by Erk-S Platform",
@@ -539,6 +596,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         XGraphics gfx,
         AlbumProject project,
         string sheetNumber,
+        string scaleText,
         XPen borderPen,
         XPen finePen)
     {
@@ -591,6 +649,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         DrawCellText(gfx, companyRole, x1, y1, x2, y2, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, companyRepresentative.Name, x2, y1, x3, y2, false, XStringFormats.Center);
+        DrawCellText(gfx, scaleText, x4, y1, x5, y2, false, XStringFormats.Center);
 
         DrawCellText(gfx, "Архитектор", x1, y2, x2, y3, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, architect, x2, y2, x3, y3, false, XStringFormats.Center);

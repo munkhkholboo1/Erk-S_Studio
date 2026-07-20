@@ -203,6 +203,11 @@ internal sealed partial class ShellView
                 preserveCreation: true,
                 preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
+            ControlledDocumentSyncResult documentRefresh =
+                await ReconcileAtdControlledDocumentAsync(
+                    projectId,
+                    latest.Project.ConcurrencyToken,
+                    allowUpload: false);
             await DrainSuppressedAlbumRebuildEventsAsync();
             CloudAlbumCacheRefreshResult albumRefresh = await RefreshCloudAlbumPreviewAsync(
                 projectId,
@@ -224,9 +229,12 @@ internal sealed partial class ShellView
                 string pendingNotice = state.Project.Cloud.PendingProjectInformation is null
                     ? ""
                     : " Илгээгдээгүй локал төслийн засварыг дарж бичээгүй, pending хэвээр хадгаллаа.";
+                string documentNotice = documentRefresh.HasPendingOrConflict
+                    ? " " + documentRefresh.Message + " Локал АТД-г Cloud таталт устгаагүй."
+                    : " " + documentRefresh.Message;
                 SetStatus(
                     $"Cloud ERA canonical мэдээлэл шинэчлэгдлээ: төсөл, байгууллагын snapshot/logo, багийн эрх; {albumStatus}." +
-                    pendingNotice);
+                    pendingNotice + documentNotice);
             }
         }
         catch (Exception exception) when (

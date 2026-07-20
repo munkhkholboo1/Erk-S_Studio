@@ -146,6 +146,7 @@ public static class ProjectWorkspaceStore
         }
         project.Identity ??= new ProjectIdentity();
         project.Cloud ??= new ProjectCloudLink();
+        project.Cloud.PendingAlbumComponentCodes ??= [];
         project.Cloud.CurrentUserRoles ??= [];
         project.Cloud.CurrentUserScopes ??= [];
         project.Cloud.ServerSnapshot ??= new ProjectServerSnapshot();

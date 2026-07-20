@@ -207,6 +207,26 @@ internal interface ISourcePackagesClient
         CancellationToken cancellationToken = default);
 }
 
+internal interface IControlledDocumentsClient
+{
+    Task<IReadOnlyList<StudioCloudControlledDocument>> ListControlledDocumentsAsync(
+        string projectId,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioCloudControlledDocument> ReplaceControlledDocumentFilesAsync(
+        string projectId,
+        string documentId,
+        int expectedDocumentVersion,
+        string projectConcurrencyToken,
+        IReadOnlyList<string> filePaths,
+        CancellationToken cancellationToken = default);
+
+    Task DownloadControlledFileAsync(
+        StudioCloudFile file,
+        string destinationPath,
+        CancellationToken cancellationToken = default);
+}
+
 internal interface IAlbumsClient
 {
     Task<IReadOnlyList<StudioCloudAlbum>> ListAlbumsAsync(
@@ -228,6 +248,21 @@ internal interface IAlbumsClient
         int pageCount,
         string pageSizeSummary,
         string projectConcurrencyToken,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioCloudAlbumRevision> SetAlbumComponentManifestAsync(
+        string projectId,
+        string albumId,
+        string revisionId,
+        IReadOnlyList<StudioCloudAlbumSection> components,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioCloudAlbumRevision> MergeAlbumComponentsAsync(
+        string projectId,
+        string albumId,
+        string expectedRevisionId,
+        string projectConcurrencyToken,
+        IReadOnlyList<StudioAlbumComponentUpload> components,
         CancellationToken cancellationToken = default);
 
     Task DownloadAlbumRevisionPdfAsync(
