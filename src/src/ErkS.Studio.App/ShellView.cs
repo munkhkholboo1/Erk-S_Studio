@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -1349,6 +1350,7 @@ internal sealed partial class ShellView : IDisposable
             });
             state.LinkCurrentProjectToCloud(cloud, account.Current!.ServerUrl);
             await ApplyCloudProjectRenderProfileAsync(cloud);
+            await TryCacheCurrentCloudAlbumPreviewAsync(cloud.Project.ProjectId);
             EnterProjectWorkspace();
             SetStatus($"Cloud ERA төслийн локал mirror нээгдлээ: {state.ProjectPath}");
         }
@@ -1998,6 +2000,11 @@ internal sealed partial class ShellView : IDisposable
         }
         bool linked = state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId);
+        bool shouldUploadClientLogo = linked &&
+            !string.IsNullOrWhiteSpace(pendingClientLogoPath) &&
+            ProjectClientTypes.UsesLogo(draft.ClientType) &&
+            !string.IsNullOrWhiteSpace(draft.ClientLogoPath);
+        bool shouldDeleteClientLogo = linked && clientLogoRemovalPending;
         if (linked && !await EnsureSignedInAsync())
             return;
 
@@ -2027,6 +2034,29 @@ internal sealed partial class ShellView : IDisposable
                         account.Current!.ServerUrl,
                         preserveCreation: true,
                         preserveSyncState: true);
+                    if (reconciliation.AcceptedByServer && shouldUploadClientLogo)
+                    {
+                        updated = await account.UploadProjectClientLogoAsync(
+                            state.Project.Cloud.ServerProjectId,
+                            ResolveClientLogoPath(draft.ClientLogoPath),
+                            updated.Project.ConcurrencyToken);
+                        state.LinkCurrentProjectToCloud(
+                            updated,
+                            account.Current!.ServerUrl,
+                            preserveCreation: true,
+                            preserveSyncState: true);
+                    }
+                    else if (reconciliation.AcceptedByServer && shouldDeleteClientLogo)
+                    {
+                        updated = await account.DeleteProjectClientLogoAsync(
+                            state.Project.Cloud.ServerProjectId,
+                            updated.Project.ConcurrencyToken);
+                        state.LinkCurrentProjectToCloud(
+                            updated,
+                            account.Current!.ServerUrl,
+                            preserveCreation: true,
+                            preserveSyncState: true);
+                    }
                     if (!reconciliation.AcceptedByServer)
                     {
                         PendingProjectInformationUpdate pending = reconciliation.PendingUpdate!;
@@ -2860,6 +2890,129 @@ internal sealed partial class ShellView : IDisposable
             return null;
         }
     }
+
+    private async Task<bool> TryCacheCurrentCloudAlbumPreviewAsync(string projectId)
+    {
+        if (!state.HasOpenProject ||
+            string.IsNullOrWhiteSpace(state.ProjectPath) ||
+            string.IsNullOrWhiteSpace(projectId) ||
+            !account.IsSignedIn)
+        {
+            return false;
+        }
+
+        try
+        {
+            IReadOnlyList<StudioCloudAlbum> albums = await account.ListAlbumsAsync(projectId);
+            StudioCloudAlbum? album = albums.FirstOrDefault(item =>
+                    item.AlbumType.Equals(
+                        ProjectWorkspace.BuildingArchitectureConcept,
+                        StringComparison.OrdinalIgnoreCase))
+                ?? albums.FirstOrDefault();
+            StudioCloudAlbumRevision? revision = album is null
+                ? null
+                : CurrentCloudAlbumRevision(album);
+            if (album is null ||
+                revision is null ||
+                string.IsNullOrWhiteSpace(revision.PdfFileId) ||
+                revision.PageCount < 1)
+            {
+                return false;
+            }
+
+            string outputPath = CloudAlbumPreviewPath(album, revision);
+            string expectedSha256 = CleanSha256(revision.PdfSha256);
+            bool download = !File.Exists(outputPath) ||
+                (!string.IsNullOrWhiteSpace(expectedSha256) &&
+                    !ComputeFileSha256(outputPath).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase));
+            if (download)
+            {
+                SetStatus($"Cloud ERA album PDF татаж байна: R{revision.RevisionNumber}...");
+                await account.DownloadAlbumRevisionPdfAsync(revision, outputPath);
+            }
+
+            string actualSha256 = ComputeFileSha256(outputPath);
+            if (!string.IsNullOrWhiteSpace(expectedSha256) &&
+                !actualSha256.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Downloaded Cloud ERA album PDF hash did not match the server revision.");
+            }
+
+            string relativePath = ProjectWorkspacePaths.ToRelativePath(state.ProjectPath, outputPath);
+            ProjectAlbumRecord localAlbum = state.Project.PrimaryAlbum;
+            bool metadataChanged =
+                !string.Equals(localAlbum.LastPdfPath, relativePath, StringComparison.Ordinal) ||
+                !string.Equals(localAlbum.LastPdfSha256, actualSha256, StringComparison.OrdinalIgnoreCase) ||
+                localAlbum.LastPageCount != revision.PageCount ||
+                !string.Equals(localAlbum.LastPageSizeSummary, revision.PageSizeSummary, StringComparison.Ordinal);
+
+            localAlbum.LastPdfPath = relativePath;
+            localAlbum.LastPdfSha256 = actualSha256;
+            localAlbum.LastPageCount = revision.PageCount;
+            localAlbum.LastPageSizeSummary = revision.PageSizeSummary?.Trim() ?? "";
+            lastAlbumPath = outputPath;
+
+            ProjectCloudLink cloud = state.Project.Cloud;
+            cloud.LastSyncedAlbumSha256 = actualSha256;
+            cloud.LastSyncedRevisionId = revision.RevisionId?.Trim() ?? "";
+            cloud.LastServerConcurrencyToken = FirstNonEmpty(
+                cloud.ServerSnapshot.ConcurrencyToken,
+                cloud.LastServerConcurrencyToken);
+            bool hasPendingLocalWork = cloud.PendingProjectInformation is not null ||
+                ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0;
+            if (!hasPendingLocalWork &&
+                !cloud.SyncStatus.Equals(ProjectSyncStatuses.Conflict, StringComparison.OrdinalIgnoreCase))
+            {
+                cloud.SyncStatus = ProjectSyncStatuses.Synced;
+                cloud.LastSyncError = "";
+                if (string.IsNullOrWhiteSpace(cloud.LastSyncNote))
+                    cloud.LastSyncNote = $"Cloud ERA album R{revision.RevisionNumber} preview cached locally.";
+            }
+
+            if (metadataChanged || download)
+                state.SaveProject();
+            if (activePage == StudioPage.Albums)
+                RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
+            RefreshSyncUi();
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is StudioAccountException or
+                HttpRequestException or
+                IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                TaskCanceledException)
+        {
+            SetStatus("Cloud ERA album PDF cache алдаа: " + exception.Message);
+            return false;
+        }
+    }
+
+    private string CloudAlbumPreviewPath(StudioCloudAlbum album, StudioCloudAlbumRevision revision)
+    {
+        string revisionId = revision.RevisionId?.Trim() ?? "";
+        string revisionSegment = string.IsNullOrWhiteSpace(revisionId)
+            ? revision.RevisionNumber.ToString()
+            : revisionId[..Math.Min(8, revisionId.Length)];
+        return Path.Combine(
+            state.ResolveOutputFolder(),
+            "cloud",
+            $"{SafeFileName(album.Title)}-R{revision.RevisionNumber}-{SafeFileName(revisionSegment)}.pdf");
+    }
+
+    private static StudioCloudAlbumRevision? CurrentCloudAlbumRevision(StudioCloudAlbum album) =>
+        album.Revisions.FirstOrDefault(item =>
+                item.RevisionId.Equals(album.CurrentRevisionId, StringComparison.OrdinalIgnoreCase))
+            ?? album.Revisions.OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
+
+    private static string ComputeFileSha256(string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
+
+    private static string CleanSha256(string? value) => value?.Trim().ToLowerInvariant() ?? "";
 
     private void BindFoundationFieldsToUi()
     {

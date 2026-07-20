@@ -173,6 +173,7 @@ internal sealed partial class ShellView
                 preserveCreation: true,
                 preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
+            await TryCacheCurrentCloudAlbumPreviewAsync(projectId);
             BindProjectToUi();
             if (reportResult)
                 SetStatus("Cloud ERA access болон төслийн багийн мэдээлэл шинэчлэгдлээ.");
@@ -856,8 +857,12 @@ internal sealed partial class ShellView
     }
     private async Task ApplyCloudProjectRenderProfileAsync(StudioCloudProjectDetail cloud)
     {
+        if (!state.HasOpenProject)
+            return;
+        await ApplyCloudClientLogoAsync(cloud);
+
         StudioCloudOrganizationRenderProfile? profile = cloud.DesignOrganizationProfile;
-        if (profile is null || !state.HasOpenProject)
+        if (profile is null)
             return;
         string projectId = state.Project.ProjectId;
         string? projectPath = state.ProjectPath;
@@ -892,6 +897,45 @@ internal sealed partial class ShellView
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException)
         {
             SetStatus("Төслийн компанийн лого татагдсангүй: " + exception.Message);
+        }
+    }
+    private async Task ApplyCloudClientLogoAsync(StudioCloudProjectDetail cloud)
+    {
+        StudioCloudProjectInitiationBasis? basis = cloud.Foundation?.InitiationBasis;
+        if (basis is null ||
+            string.IsNullOrWhiteSpace(basis.ClientLogoUrl) ||
+            !state.HasOpenProject)
+        {
+            return;
+        }
+
+        string projectId = state.Project.ProjectId;
+        string? projectPath = state.ProjectPath;
+        try
+        {
+            StudioDownloadedImage? image = await account.GetOrganizationLogoAsync(basis.ClientLogoUrl);
+            if (image is null || projectPath is null ||
+                !state.HasOpenProject ||
+                !state.Project.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(state.ProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+                return;
+            string projectFolder = Path.GetDirectoryName(projectPath)
+                ?? throw new InvalidOperationException("Project folder is unavailable.");
+            string assetsFolder = Path.Combine(projectFolder, "assets");
+            Directory.CreateDirectory(assetsFolder);
+            string extension = image.ContentType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+                ? ".jpg"
+                : ".png";
+            string logoPath = Path.Combine(assetsFolder, "client-organization-logo" + extension);
+            await File.WriteAllBytesAsync(logoPath, image.Bytes);
+            CompanyProfile snapshot = state.Project.Foundation.InitiationBasis.ClientOrganizationSnapshot;
+            snapshot.LogoPath = ProjectWorkspacePaths.ToRelativePath(projectPath, logoPath);
+            snapshot.LogoOriginalFileName = Path.GetFileName(logoPath);
+            state.SaveProject();
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus("Ð—Ð°Ñ…Ð¸Ð°Ð»Ð°Ð³Ñ‡Ð¸Ð¹Ð½ Ð»Ð¾Ð³Ð¾ Ñ‚Ð°Ñ‚Ð°Ð³Ð´ÑÐ°Ð½Ð³Ò¯Ð¹: " + exception.Message);
         }
     }
 }

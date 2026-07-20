@@ -41,6 +41,17 @@ internal interface IProjectsClient
         string concurrencyToken,
         CancellationToken cancellationToken = default);
 
+    Task<StudioCloudProjectDetail> UploadProjectClientLogoAsync(
+        string projectId,
+        string logoPath,
+        string concurrencyToken,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioCloudProjectDetail> DeleteProjectClientLogoAsync(
+        string projectId,
+        string concurrencyToken,
+        CancellationToken cancellationToken = default);
+
     Task<StudioCloudProjectDetail> CreateProjectAsync(
         StudioCloudProjectCreateRequest request,
         CancellationToken cancellationToken = default);
@@ -198,6 +209,11 @@ internal interface IAlbumsClient
         int pageCount,
         string pageSizeSummary,
         string projectConcurrencyToken,
+        CancellationToken cancellationToken = default);
+
+    Task DownloadAlbumRevisionPdfAsync(
+        StudioCloudAlbumRevision revision,
+        string destinationPath,
         CancellationToken cancellationToken = default);
 }
 

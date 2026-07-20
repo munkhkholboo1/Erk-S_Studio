@@ -30,6 +30,7 @@ internal sealed class StudioRuntime
     private const string AppAssemblyFileName = "ErkS.Studio.App.dll";
     private const string ModuleTypeName = "ErkS.Studio.StudioAppModule";
     private const string StaticModeMarkerFileName = "ErkS.Studio.static";
+    private const int RequiredDotnetSdkMajor = 9;
     private static readonly string[] SharedAssemblyNames =
     [
         "ErkS.Studio.Contracts",
@@ -197,15 +198,15 @@ internal sealed class StudioRuntime
 
         var projectPath = Path.Combine(
             DevRoot, "src", "src", "ErkS.Studio.App", "ErkS.Studio.App.csproj");
-        var startInfo = new ProcessStartInfo
+        var dotnetPath = ResolveDotnetCli();
+        if (dotnetPath is null)
         {
-            FileName = "dotnet",
-            Arguments = $"build \"{projectPath}\" -c Debug --nologo -v m",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+            return (false, MissingDotnetSdkMessage());
+        }
+
+        var startInfo = CreateDotnetStartInfo(
+            dotnetPath,
+            $"build \"{projectPath}\" -c Debug --nologo -v m");
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("dotnet build could not be started.");
@@ -236,19 +237,18 @@ internal sealed class StudioRuntime
         Directory.CreateDirectory(outputDirectory);
         var projectPath = Path.Combine(
             DevRoot, "src", "src", "ErkS.Studio", "ErkS.Studio.csproj");
-        var startInfo = new ProcessStartInfo
+        var dotnetPath = ResolveDotnetCli();
+        if (dotnetPath is null)
         {
-            FileName = "dotnet",
-            Arguments =
-                $"publish \"{projectPath}\" -c Debug -r win-x64 --self-contained false " +
-                $"-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true " +
-                $"-p:StudioDevBundle=true " +
-                $"-o \"{outputDirectory}\" --nologo -v m",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+            return (false, MissingDotnetSdkMessage(), null);
+        }
+
+        var startInfo = CreateDotnetStartInfo(
+            dotnetPath,
+            $"publish \"{projectPath}\" -c Debug -r win-x64 --self-contained false " +
+            $"-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true " +
+            $"-p:StudioDevBundle=true " +
+            $"-o \"{outputDirectory}\" --nologo -v m");
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("dotnet publish could not be started.");
@@ -261,6 +261,175 @@ internal sealed class StudioRuntime
             ? (true, output, executablePath)
             : (false, output, null);
     }
+
+    private static ProcessStartInfo CreateDotnetStartInfo(string dotnetPath, string arguments)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = dotnetPath,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        ConfigureDotnetEnvironment(startInfo, dotnetPath);
+        return startInfo;
+    }
+
+    private static void ConfigureDotnetEnvironment(ProcessStartInfo startInfo, string dotnetPath)
+    {
+        if (!Path.IsPathFullyQualified(dotnetPath))
+        {
+            return;
+        }
+
+        var dotnetRoot = Path.GetDirectoryName(dotnetPath);
+        if (string.IsNullOrWhiteSpace(dotnetRoot))
+        {
+            return;
+        }
+
+        startInfo.Environment["DOTNET_ROOT"] = dotnetRoot;
+        var path = startInfo.Environment.TryGetValue("PATH", out var currentPath)
+            ? currentPath
+            : Environment.GetEnvironmentVariable("PATH") ?? "";
+        startInfo.Environment["PATH"] = string.IsNullOrWhiteSpace(path)
+            ? dotnetRoot
+            : dotnetRoot + Path.PathSeparator + path;
+    }
+
+    private static string? ResolveDotnetCli()
+    {
+        var candidates = GetDotnetCliCandidates()
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        foreach (var candidate in candidates)
+        {
+            if (HasRequiredSdk(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetDotnetCliCandidates()
+    {
+        var hostPath = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
+        if (!string.IsNullOrWhiteSpace(hostPath))
+        {
+            yield return hostPath;
+        }
+
+        foreach (var rootVariable in new[] { "DOTNET_ROOT", "DOTNET_ROOT(x86)" })
+        {
+            var root = Environment.GetEnvironmentVariable(rootVariable);
+            if (!string.IsNullOrWhiteSpace(root))
+            {
+                yield return Path.Combine(root, DotnetExecutableName());
+            }
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            yield return Path.Combine(userProfile, ".dotnet", DotnetExecutableName());
+        }
+
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrWhiteSpace(programFiles))
+        {
+            yield return Path.Combine(programFiles, "dotnet", DotnetExecutableName());
+        }
+
+        yield return "dotnet";
+    }
+
+    private static bool HasRequiredSdk(string dotnetPath)
+    {
+        return Path.IsPathFullyQualified(dotnetPath)
+            ? HasRequiredSdkInInstallDirectory(dotnetPath)
+            : HasRequiredSdkFromProcess(dotnetPath);
+    }
+
+    private static bool HasRequiredSdkInInstallDirectory(string dotnetPath)
+    {
+        if (!File.Exists(dotnetPath))
+        {
+            return false;
+        }
+
+        var installDirectory = Path.GetDirectoryName(dotnetPath);
+        if (string.IsNullOrWhiteSpace(installDirectory))
+        {
+            return false;
+        }
+
+        var sdkDirectory = Path.Combine(installDirectory, "sdk");
+        return Directory.Exists(sdkDirectory) &&
+            Directory.EnumerateDirectories(sdkDirectory)
+                .Select(path => Path.GetFileName(path))
+                .Any(IsRequiredSdkVersion);
+    }
+
+    private static bool HasRequiredSdkFromProcess(string dotnetPath)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = dotnetPath,
+                Arguments = "--list-sdks",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (process is null)
+            {
+                return false;
+            }
+
+            var output = process.StandardOutput.ReadToEnd();
+            if (!process.WaitForExit(3000))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                }
+
+                return false;
+            }
+
+            return process.ExitCode == 0 &&
+                output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Any(IsRequiredSdkVersion);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsRequiredSdkVersion(string value)
+    {
+        var versionText = value.Split(new[] { ' ', '[' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        return Version.TryParse(versionText, out var version) &&
+            version.Major >= RequiredDotnetSdkMajor;
+    }
+
+    private static string MissingDotnetSdkMessage() =>
+        $".NET SDK {RequiredDotnetSdkMajor}.x was not found. Install .NET {RequiredDotnetSdkMajor} SDK or set DOTNET_ROOT to an installation that contains it.";
+
+    private static string DotnetExecutableName() =>
+        OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
 
     private static void CopyDirectory(string source, string destination)
     {

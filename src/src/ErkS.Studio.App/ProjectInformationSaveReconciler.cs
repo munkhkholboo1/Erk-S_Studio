@@ -87,7 +87,18 @@ internal static class ProjectInformationSaveReconciler
             {
                 AddDifference(differences, "Foundation.SourceType", request.Foundation.SourceType, initiation.SourceType);
                 AddDifference(differences, "Foundation.RequestNumber", request.Foundation.RequestNumber, initiation.RequestNumber);
+                AddDifference(differences, "Foundation.ClientType", request.Foundation.ClientType, initiation.ClientType);
                 AddDifference(differences, "Foundation.ClientEmail", request.Foundation.ClientEmail, initiation.ClientEmail);
+                AddDifference(
+                    differences,
+                    "Foundation.ClientRepresentativePosition",
+                    request.Foundation.ClientRepresentativePosition,
+                    initiation.ClientRepresentativePosition);
+                AddDifference(
+                    differences,
+                    "Foundation.ClientRepresentativeName",
+                    request.Foundation.ClientRepresentativeName,
+                    initiation.ClientRepresentativeName);
                 AddDifference(differences, "Foundation.SiteAddress", request.Foundation.SiteAddress, initiation.SiteAddress);
                 AddDifference(differences, "Foundation.LandReference", request.Foundation.LandReference, initiation.LandReference);
                 AddDifference(
@@ -135,7 +146,10 @@ internal static class ProjectInformationSaveReconciler
             IsAvailable = true,
             SourceType = Clean(request.Foundation.SourceType),
             RequestNumber = Clean(request.Foundation.RequestNumber),
+            ClientType = ProjectClientTypes.Normalize(request.Foundation.ClientType),
             ClientEmail = Clean(request.Foundation.ClientEmail),
+            ClientRepresentativePosition = Clean(request.Foundation.ClientRepresentativePosition),
+            ClientRepresentativeName = Clean(request.Foundation.ClientRepresentativeName),
             SiteAddress = Clean(request.Foundation.SiteAddress),
             LandReference = Clean(request.Foundation.LandReference),
             SourceOrganizationName = Clean(request.Foundation.SourceOrganizationName),
@@ -162,7 +176,10 @@ internal static class ProjectInformationSaveReconciler
         {
             SourceType = pending.Foundation.SourceType,
             RequestNumber = pending.Foundation.RequestNumber,
+            ClientType = pending.Foundation.ClientType,
             ClientEmail = pending.Foundation.ClientEmail,
+            ClientRepresentativePosition = pending.Foundation.ClientRepresentativePosition,
+            ClientRepresentativeName = pending.Foundation.ClientRepresentativeName,
             SiteAddress = pending.Foundation.SiteAddress,
             LandReference = pending.Foundation.LandReference,
             SourceOrganizationName = pending.Foundation.SourceOrganizationName,
@@ -190,7 +207,10 @@ internal static class ProjectInformationSaveReconciler
     private static bool HasInitiationFoundationValues(StudioCloudProjectFoundationUpdate foundation) =>
         !string.IsNullOrWhiteSpace(foundation.SourceType) ||
         !string.IsNullOrWhiteSpace(foundation.RequestNumber) ||
+        !string.IsNullOrWhiteSpace(foundation.ClientType) ||
         !string.IsNullOrWhiteSpace(foundation.ClientEmail) ||
+        !string.IsNullOrWhiteSpace(foundation.ClientRepresentativePosition) ||
+        !string.IsNullOrWhiteSpace(foundation.ClientRepresentativeName) ||
         !string.IsNullOrWhiteSpace(foundation.SiteAddress) ||
         !string.IsNullOrWhiteSpace(foundation.LandReference) ||
         !string.IsNullOrWhiteSpace(foundation.SourceOrganizationName) ||
@@ -290,7 +310,10 @@ internal sealed class ProjectFoundationEditDraft
         {
             SourceType = BasisSourceType,
             RequestNumber = RequestNumber,
+            ClientType = ClientType,
             ClientEmail = ClientEmail,
+            ClientRepresentativePosition = ClientRepresentativePosition,
+            ClientRepresentativeName = ClientRepresentativeName,
             SiteAddress = SiteAddress,
             LandReference = LandReference,
             SourceOrganizationName = SourceOrganizationName,

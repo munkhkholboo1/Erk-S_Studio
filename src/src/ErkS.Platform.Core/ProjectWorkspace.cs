@@ -185,8 +185,12 @@ public sealed class ProjectServerInitiationBasis
     public string SourceType { get; set; } = "";
     public string RequestNumber { get; set; } = "";
     public DateTimeOffset? RequestedAtUtc { get; set; }
+    public string ClientType { get; set; } = "";
     public string ClientName { get; set; } = "";
     public string ClientEmail { get; set; } = "";
+    public string ClientRepresentativePosition { get; set; } = "";
+    public string ClientRepresentativeName { get; set; } = "";
+    public string ClientLogoUrl { get; set; } = "";
     public string SiteAddress { get; set; } = "";
     public string LandReference { get; set; } = "";
     public string SourceOrganizationName { get; set; } = "";
@@ -209,7 +213,10 @@ public sealed class ProjectServerFoundationUpdate
     public bool IsAvailable { get; set; }
     public string SourceType { get; set; } = "";
     public string RequestNumber { get; set; } = "";
+    public string ClientType { get; set; } = "";
     public string ClientEmail { get; set; } = "";
+    public string ClientRepresentativePosition { get; set; } = "";
+    public string ClientRepresentativeName { get; set; } = "";
     public string SiteAddress { get; set; } = "";
     public string LandReference { get; set; } = "";
     public string SourceOrganizationName { get; set; } = "";

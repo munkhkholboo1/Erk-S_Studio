@@ -11,6 +11,17 @@ $serverSpec = Join-Path $serverRoot "src\ErkS.LicenseServer\openapi\ErkS.License
 $snapshot = Join-Path $studioRoot "src\contracts\cloud-era-v1.openapi.json"
 $generated = Join-Path $studioRoot "src\src\ErkS.CloudEra.Client\Generated\CloudEraGeneratedClient.g.cs"
 
+function Remove-TrailingWhitespace {
+    param([string]$Path)
+
+    [string]$content = [System.IO.File]::ReadAllText($Path)
+    [string]$normalized = [System.Text.RegularExpressions.Regex]::Replace($content, "[ \t]+(?=\r?\n|\z)", "")
+    if (-not $content.Equals($normalized, [StringComparison]::Ordinal)) {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+        [System.IO.File]::WriteAllText($Path, $normalized, $utf8NoBom)
+    }
+}
+
 if (-not $SkipServerBuild) {
     & dotnet build $serverProject -c Release
     if ($LASTEXITCODE -ne 0) {
@@ -37,6 +48,8 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Cloud ERA Studio client generation failed."
     }
+
+    Remove-TrailingWhitespace -Path $generated
 }
 finally {
     Pop-Location

@@ -10,15 +10,20 @@ public sealed class ProjectCanonicalSyncServiceTests
         ProjectWorkspace project = Project();
         ProjectAlbumRecord album = project.PrimaryAlbum;
         ProjectDesignSource source = project.Sources.Single();
+        ProjectServerSnapshot snapshot = Snapshot();
+        snapshot.Foundation = SnapshotFoundation();
 
-        bool changed = ProjectCanonicalSyncService.Apply(project, Snapshot());
+        bool changed = ProjectCanonicalSyncService.Apply(project, snapshot);
 
         Assert.True(changed);
         Assert.Equal("project-1", project.ProjectId);
         Assert.Equal("ATD-2026-002", project.Identity.Code);
         Assert.Equal("Canonical website name", project.Identity.Name);
         Assert.Equal("Apartment and services", project.Identity.Description);
+        Assert.Equal(ProjectClientTypes.Organization, project.Foundation.InitiationBasis.ClientType);
         Assert.Equal("Canonical client", project.Foundation.InitiationBasis.ClientName);
+        Assert.Equal("Director", project.Foundation.InitiationBasis.ClientRepresentativePosition);
+        Assert.Equal("Client Representative", project.Foundation.InitiationBasis.ClientRepresentativeName);
         Assert.Equal("Ulaanbaatar, Khan-Uul", project.Foundation.InitiationBasis.SiteAddress);
         Assert.Equal("parcel-1, parcel-2", project.Foundation.InitiationBasis.LandReference);
         Assert.Equal("Apartment and services", project.Foundation.InitiationBasis.Summary);
@@ -114,8 +119,12 @@ public sealed class ProjectCanonicalSyncServiceTests
             {
                 SourceType = "ATDRequest",
                 RequestNumber = "REQ-42",
+                ClientType = ProjectClientTypes.GovernmentAuthority,
                 ClientName = "Canonical client",
                 ClientEmail = "client@example.test",
+                ClientRepresentativePosition = "Department head",
+                ClientRepresentativeName = "Authority Representative",
+                ClientLogoUrl = "/api/cloud-era/v1/projects/project-1/foundation/client-logo",
                 SiteAddress = "Canonical site",
                 LandReference = "parcel-42",
                 SourceOrganizationName = "Planning authority",
@@ -134,7 +143,10 @@ public sealed class ProjectCanonicalSyncServiceTests
         ProjectCanonicalSyncService.Apply(project, snapshot);
 
         Assert.Equal("REQ-42", project.Foundation.InitiationBasis.RequestNumber);
+        Assert.Equal(ProjectClientTypes.GovernmentAuthority, project.Foundation.InitiationBasis.ClientType);
         Assert.Equal("client@example.test", project.Foundation.InitiationBasis.ClientEmail);
+        Assert.Equal("Department head", project.Foundation.InitiationBasis.ClientRepresentativePosition);
+        Assert.Equal("Authority Representative", project.Foundation.InitiationBasis.ClientRepresentativeName);
         Assert.Equal("ATD-42", project.Foundation.PlanningTask.AtdNumber);
         Assert.Equal(["Requirement A"], project.Foundation.PlanningTask.Requirements);
         Assert.Equal(7, project.Foundation.Version);
@@ -168,7 +180,9 @@ public sealed class ProjectCanonicalSyncServiceTests
         string root = Path.Combine(Path.GetTempPath(), "erks-canonical-sync-tests", Guid.NewGuid().ToString("N"));
         string projectPath = Path.Combine(root, ProjectWorkspace.DefaultFileName);
         ProjectWorkspace project = Project();
-        ProjectCanonicalSyncService.Apply(project, Snapshot());
+        ProjectServerSnapshot snapshot = Snapshot();
+        snapshot.Foundation = SnapshotFoundation();
+        ProjectCanonicalSyncService.Apply(project, snapshot);
 
         try
         {
@@ -177,6 +191,8 @@ public sealed class ProjectCanonicalSyncServiceTests
 
             Assert.Equal("server-token-2", loaded.Cloud.ServerSnapshot.ConcurrencyToken);
             Assert.Equal("Apartment and services", loaded.Cloud.ServerSnapshot.Information.BuildingPurpose);
+            Assert.Equal("/api/cloud-era/v1/projects/project-1/foundation/client-logo",
+                loaded.Cloud.ServerSnapshot.Foundation.InitiationBasis.ClientLogoUrl);
             Assert.Equal(["parcel-1", "parcel-2"], loaded.Cloud.ServerSnapshot.SiteAndLand.ParcelNumbers);
             Assert.Equal("project-1", loaded.Cloud.ServerProjectId);
             Assert.Equal("project-1", loaded.ProjectId);
@@ -257,6 +273,31 @@ public sealed class ProjectCanonicalSyncServiceTests
             ParcelNumbers = ["parcel-1", "parcel-2"],
             Addresses = ["Ulaanbaatar, Khan-Uul"],
             RestrictionReferences = ["restriction-1"],
+        },
+    };
+
+    private static ProjectServerFoundation SnapshotFoundation() => new()
+    {
+        IsAvailable = true,
+        Version = 2,
+        InitiationBasis = new ProjectServerInitiationBasis
+        {
+            SourceType = "ATDRequest",
+            RequestNumber = "REQ-BASE",
+            ClientType = ProjectClientTypes.Organization,
+            ClientName = "Canonical client",
+            ClientEmail = "client@example.test",
+            ClientRepresentativePosition = "Director",
+            ClientRepresentativeName = "Client Representative",
+            ClientLogoUrl = "/api/cloud-era/v1/projects/project-1/foundation/client-logo",
+            SiteAddress = "Ulaanbaatar, Khan-Uul",
+            LandReference = "parcel-1, parcel-2",
+            SourceOrganizationName = "Planning authority",
+            Summary = "Apartment and services",
+        },
+        PlanningTask = new ProjectServerPlanningTask
+        {
+            IssuingAuthorityName = "Planning authority",
         },
     };
 }

@@ -273,6 +273,68 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/foundation/client-logo": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/project-membership-invitations": {
       "get": {
         "tags": [
@@ -1189,6 +1251,155 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/uploads": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "StartCloudEraAlbumUpload",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraAlbumUploadStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumUploadSessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/uploads/{uploadId}/chunks/{chunkIndex}": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "UploadCloudEraAlbumChunk",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chunkIndex",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumUploadSessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/uploads/{uploadId}/complete": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "CompleteCloudEraAlbumUpload",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumRevisionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/license/activate": {
       "post": {
         "tags": [
@@ -1305,6 +1516,65 @@
             }
           },
           "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraAlbumUploadSessionResponse": {
+        "type": "object",
+        "properties": {
+          "uploadId": {
+            "type": "string"
+          },
+          "chunkSizeBytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalChunks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "receivedChunks": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedRevisionId": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraAlbumUploadStartRequest": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSizeSummary": {
+            "type": "string"
+          },
+          "chunkSizeBytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "projectConcurrencyToken": {
             "type": "string"
           }
         }
@@ -1489,7 +1759,7 @@
           "files": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CloudEraFileDto"
+              "$ref": "#/components/schemas/CloudEraFileDto2"
             }
           }
         }
@@ -1580,6 +1850,38 @@
         }
       },
       "CloudEraFileDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "scanStatus": {
+            "type": "string"
+          },
+          "uploadedBy": {
+            "type": "string"
+          },
+          "uploadedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "nullable": true
+      },
+      "CloudEraFileDto2": {
         "type": "object",
         "properties": {
           "fileId": {
@@ -2017,7 +2319,16 @@
           "requestNumber": {
             "type": "string"
           },
+          "clientType": {
+            "type": "string"
+          },
           "clientEmail": {
+            "type": "string"
+          },
+          "clientRepresentativePosition": {
+            "type": "string"
+          },
+          "clientRepresentativeName": {
             "type": "string"
           },
           "siteAddress": {
@@ -2114,10 +2425,25 @@
             "format": "date-time",
             "nullable": true
           },
+          "clientType": {
+            "type": "string"
+          },
           "clientName": {
             "type": "string"
           },
           "clientEmail": {
+            "type": "string"
+          },
+          "clientRepresentativePosition": {
+            "type": "string"
+          },
+          "clientRepresentativeName": {
+            "type": "string"
+          },
+          "clientLogoFile": {
+            "$ref": "#/components/schemas/CloudEraFileDto"
+          },
+          "clientLogoUrl": {
             "type": "string"
           },
           "siteAddress": {

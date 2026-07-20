@@ -17,6 +17,7 @@ public sealed class StudioServiceBoundaryTests
         Assert.True(typeof(ICollaborationClient).IsAssignableFrom(facade));
         Assert.True(typeof(ISourcePackagesClient).IsAssignableFrom(facade));
         Assert.True(typeof(IAlbumsClient).IsAssignableFrom(facade));
+        Assert.NotNull(typeof(IAlbumsClient).GetMethod(nameof(IAlbumsClient.DownloadAlbumRevisionPdfAsync)));
         Assert.True(typeof(IProfileImageClient).IsAssignableFrom(facade));
     }
 

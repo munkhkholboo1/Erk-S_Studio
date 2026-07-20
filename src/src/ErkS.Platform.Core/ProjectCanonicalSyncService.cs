@@ -63,9 +63,18 @@ public static class ProjectCanonicalSyncService
         string requestNumber = pendingFoundation is null
             ? Clean(serverBasis.RequestNumber)
             : Clean(pendingFoundation.RequestNumber);
+        string clientType = pendingFoundation is null
+            ? ProjectClientTypes.Normalize(serverBasis.ClientType)
+            : ProjectClientTypes.Normalize(pendingFoundation.ClientType);
         string clientEmail = pendingFoundation is null
             ? Clean(serverBasis.ClientEmail)
             : Clean(pendingFoundation.ClientEmail);
+        string clientRepresentativePosition = pendingFoundation is null
+            ? Clean(serverBasis.ClientRepresentativePosition)
+            : Clean(pendingFoundation.ClientRepresentativePosition);
+        string clientRepresentativeName = pendingFoundation is null
+            ? Clean(serverBasis.ClientRepresentativeName)
+            : Clean(pendingFoundation.ClientRepresentativeName);
         string sourceOrganizationName = pendingFoundation is null
             ? Clean(serverBasis.SourceOrganizationName)
             : Clean(pendingFoundation.SourceOrganizationName);
@@ -96,7 +105,10 @@ public static class ProjectCanonicalSyncService
             (applyFoundationDetails &&
                 (!string.Equals(basis.SourceType, basisSourceType, StringComparison.Ordinal) ||
                  !string.Equals(basis.RequestNumber, requestNumber, StringComparison.Ordinal) ||
+                 !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), clientType, StringComparison.Ordinal) ||
                  !string.Equals(basis.ClientEmail, clientEmail, StringComparison.OrdinalIgnoreCase) ||
+                 !string.Equals(basis.ClientRepresentativePosition, clientRepresentativePosition, StringComparison.Ordinal) ||
+                 !string.Equals(basis.ClientRepresentativeName, clientRepresentativeName, StringComparison.Ordinal) ||
                  !string.Equals(basis.SourceOrganizationName, sourceOrganizationName, StringComparison.Ordinal) ||
                  !string.Equals(planningTask.AtdNumber, atdNumber, StringComparison.Ordinal) ||
                  !string.Equals(planningTask.Status, atdStatus, StringComparison.Ordinal) ||
@@ -125,7 +137,10 @@ public static class ProjectCanonicalSyncService
             basis.SourceType = basisSourceType;
             basis.RequestNumber = requestNumber;
             basis.RequestedAtUtc = serverBasis.RequestedAtUtc;
+            basis.ClientType = clientType;
             basis.ClientEmail = clientEmail;
+            basis.ClientRepresentativePosition = clientRepresentativePosition;
+            basis.ClientRepresentativeName = clientRepresentativeName;
             basis.SourceOrganizationName = sourceOrganizationName;
             planningTask.AtdNumber = atdNumber;
             planningTask.IssuedAtUtc = serverPlanningTask.IssuedAtUtc;
@@ -133,6 +148,14 @@ public static class ProjectCanonicalSyncService
             planningTask.Summary = atdSummary;
             planningTask.Requirements = CleanValues(serverPlanningTask.Requirements);
         }
+        basis.ClientOrganizationSnapshot.Name = clientName;
+        basis.ClientOrganizationSnapshot.DisplayName = clientName;
+        basis.ClientOrganizationSnapshot.OrganizationType = clientType switch
+        {
+            ProjectClientTypes.GovernmentAuthority => "GovernmentAuthority",
+            ProjectClientTypes.Organization => "ClientOrganization",
+            _ => "Citizen",
+        };
 
         if (serverFoundation.IsAvailable && pendingFoundation is null)
         {
@@ -196,8 +219,12 @@ public static class ProjectCanonicalSyncService
                     SourceType = Clean(serverBasis.SourceType),
                     RequestNumber = Clean(serverBasis.RequestNumber),
                     RequestedAtUtc = serverBasis.RequestedAtUtc,
+                    ClientType = ProjectClientTypes.Normalize(serverBasis.ClientType),
                     ClientName = Clean(serverBasis.ClientName),
                     ClientEmail = Clean(serverBasis.ClientEmail),
+                    ClientRepresentativePosition = Clean(serverBasis.ClientRepresentativePosition),
+                    ClientRepresentativeName = Clean(serverBasis.ClientRepresentativeName),
+                    ClientLogoUrl = Clean(serverBasis.ClientLogoUrl),
                     SiteAddress = Clean(serverBasis.SiteAddress),
                     LandReference = Clean(serverBasis.LandReference),
                     SourceOrganizationName = Clean(serverBasis.SourceOrganizationName),

@@ -255,6 +255,67 @@ internal sealed class StudioAccountService :
         return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task<StudioCloudProjectDetail> UploadProjectClientLogoAsync(
+        string projectId,
+        string logoPath,
+        string concurrencyToken,
+        CancellationToken cancellationToken = default)
+    {
+        RequireCapability(CloudEraFeatures.OptimisticConcurrency);
+        if (string.IsNullOrWhiteSpace(concurrencyToken))
+            throw new StudioAccountException("Cloud project concurrency token Ñ…Ð¾Ð¾ÑÐ¾Ð½ Ð±Ð°Ð¹Ð½Ð°. Ð¢Ó©ÑÐ»Ð¸Ð¹Ð³ Refresh Ñ…Ð¸Ð¹Ð½Ñ Ò¯Ò¯.");
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        if (!File.Exists(logoPath))
+            throw new StudioAccountException("Ð¡Ð¾Ð½Ð³Ð¾ÑÐ¾Ð½ Ð·Ð°Ñ…Ð¸Ð°Ð»Ð°Ð³Ñ‡Ð¸Ð¹Ð½ Ð»Ð¾Ð³Ð¾ Ñ„Ð°Ð¹Ð» Ð¾Ð»Ð´ÑÐ¾Ð½Ð³Ò¯Ð¹.");
+        FileInfo info = new(logoPath);
+        if (info.Length > 5L * 1024L * 1024L)
+            throw new StudioAccountException("Ð—Ð°Ñ…Ð¸Ð°Ð»Ð°Ð³Ñ‡Ð¸Ð¹Ð½ Ð»Ð¾Ð³Ð¾ 5 MB-Ð°Ð°Ñ Ð¸Ñ…Ð³Ò¯Ð¹ Ð±Ð°Ð¹Ð½Ð°.");
+        string contentType = Path.GetExtension(logoPath).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => throw new StudioAccountException("Ð—Ð°Ñ…Ð¸Ð°Ð»Ð°Ð³Ñ‡Ð¸Ð¹Ð½ Ð»Ð¾Ð³Ð¾ PNG ÑÑÐ²ÑÐ» JPEG Ð·ÑƒÑ€Ð°Ð³ Ð±Ð°Ð¹Ð½Ð°."),
+        };
+
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio Ð±Ò¯Ñ€Ñ‚Ð³ÑÐ»ÑÑÑ€ Ð½ÑÐ²Ñ‚ÑÑ€Ð½Ñ Ò¯Ò¯.");
+        using FileStream source = File.OpenRead(logoPath);
+        using var form = new MultipartFormDataContent();
+        using var content = new StreamContent(source);
+        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        form.Add(content, "file", Path.GetFileName(logoPath));
+        using HttpRequestMessage httpRequest = new(
+            HttpMethod.Post,
+            BuildUri(session.ServerUrl, "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/foundation/client-logo"))
+        {
+            Content = form,
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        httpRequest.Headers.IfMatch.Add(new EntityTagHeaderValue('"' + concurrencyToken.Trim().Trim('"') + '"'));
+        using HttpResponseMessage response = await httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(true);
+        StudioCloudProjectDetail project = await ReadResponseAsync<StudioCloudProjectDetail>(response, cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudProjectDetail> DeleteProjectClientLogoAsync(
+        string projectId,
+        string concurrencyToken,
+        CancellationToken cancellationToken = default)
+    {
+        RequireCapability(CloudEraFeatures.OptimisticConcurrency);
+        if (string.IsNullOrWhiteSpace(concurrencyToken))
+            throw new StudioAccountException("Cloud project concurrency token Ñ…Ð¾Ð¾ÑÐ¾Ð½ Ð±Ð°Ð¹Ð½Ð°. Ð¢Ó©ÑÐ»Ð¸Ð¹Ð³ Refresh Ñ…Ð¸Ð¹Ð½Ñ Ò¯Ò¯.");
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio Ð±Ò¯Ñ€Ñ‚Ð³ÑÐ»ÑÑÑ€ Ð½ÑÐ²Ñ‚ÑÑ€Ð½Ñ Ò¯Ò¯.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Delete,
+            BuildUri(session.ServerUrl, "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/foundation/client-logo"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue('"' + concurrencyToken.Trim().Trim('"') + '"'));
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        StudioCloudProjectDetail project = await ReadResponseAsync<StudioCloudProjectDetail>(response, cancellationToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task DeleteProjectAsync(
         string projectId,
         string confirmProjectCode,
@@ -738,6 +799,67 @@ internal sealed class StudioAccountService :
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
         return await ReadResponseAsync<StudioCloudAlbumRevision>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task DownloadAlbumRevisionPdfAsync(
+        StudioCloudAlbumRevision revision,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        if (string.IsNullOrWhiteSpace(revision.PdfFileId))
+            throw new StudioAccountException("Cloud ERA album revision PDF file ID is missing.");
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio Ð±Ò¯Ñ€Ñ‚Ð³ÑÐ»ÑÑÑ€ Ð½ÑÐ²Ñ‚ÑÑ€Ð½Ñ Ò¯Ò¯.");
+        string path = "/api/cloud-era/v1/files/" + Uri.EscapeDataString(revision.PdfFileId);
+        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(true);
+        if (!response.IsSuccessStatusCode)
+        {
+            await ReadResponseAsync<object>(response, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        string contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+        if (!contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+            throw new StudioAccountException("Cloud ERA album revision PDF биш content type буцаалаа.");
+        if (response.Content.Headers.ContentLength > 250L * 1024L * 1024L)
+            throw new StudioAccountException("Cloud ERA album revision PDF 250 MB-аас том байна.");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        string temporaryPath = destinationPath + ".download";
+        try
+        {
+            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            await using FileStream destination = new(
+                temporaryPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None);
+            await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(true);
+            File.Move(temporaryPath, destinationPath, true);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+            throw;
+        }
     }
 
     public async Task<byte[]?> GetProfileImageAsync(CancellationToken cancellationToken = default)

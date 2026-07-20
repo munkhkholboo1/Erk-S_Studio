@@ -146,6 +146,33 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoGETAsync(string projectId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ProjectMembershipInvitationsAsync();
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -425,6 +452,33 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ActivateAsync(OnlineLicenseActivateRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -488,7 +542,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/capabilities"
                     urlBuilder_.Append("api/cloud-era/v1/capabilities");
 
@@ -572,7 +626,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/studio/session"
                     urlBuilder_.Append("api/studio/session");
 
@@ -651,7 +705,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/studio/session/refresh"
                     urlBuilder_.Append("api/studio/session/refresh");
 
@@ -723,7 +777,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/studio/profile/photo"
                     urlBuilder_.Append("api/studio/profile/photo");
 
@@ -795,7 +849,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations"
                     urlBuilder_.Append("api/cloud-era/v1/organizations");
 
@@ -874,7 +928,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations"
                     urlBuilder_.Append("api/cloud-era/v1/organizations");
 
@@ -956,7 +1010,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations/{organizationId}"
                     urlBuilder_.Append("api/cloud-era/v1/organizations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1033,7 +1087,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/logo"
                     urlBuilder_.Append("api/cloud-era/v1/organizations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1110,7 +1164,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/logo"
                     urlBuilder_.Append("api/cloud-era/v1/organizations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1187,7 +1241,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/logo"
                     urlBuilder_.Append("api/cloud-era/v1/organizations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1264,7 +1318,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/accounts/lookup"
                     urlBuilder_.Append("api/cloud-era/v1/accounts/lookup");
                     urlBuilder_.Append('?');
@@ -1339,7 +1393,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-roles"
                     urlBuilder_.Append("api/cloud-era/v1/project-roles");
 
@@ -1421,11 +1475,243 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/information"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
                     urlBuilder_.Append("/information");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task ClientLogoGETAsync(string projectId)
+        {
+            return ClientLogoGETAsync(projectId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/foundation/client-logo"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/foundation/client-logo");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId)
+        {
+            return ClientLogoPOSTAsync(projectId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/foundation/client-logo"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/foundation/client-logo");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId)
+        {
+            return ClientLogoDELETEAsync(projectId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/foundation/client-logo"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/foundation/client-logo");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 
@@ -1495,7 +1781,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-membership-invitations"
                     urlBuilder_.Append("api/cloud-era/v1/project-membership-invitations");
 
@@ -1577,7 +1863,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/membership-invitations"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1655,7 +1941,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-membership-invitations/{invitationId}/accept"
                     urlBuilder_.Append("api/cloud-era/v1/project-membership-invitations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(invitationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1733,7 +2019,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-membership-invitations/{invitationId}/decline"
                     urlBuilder_.Append("api/cloud-era/v1/project-membership-invitations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(invitationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1813,7 +2099,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/membership-invitations/{invitationId}"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1894,7 +2180,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/participants/{participantId}"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -1983,7 +2269,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/participants/{participantId}/roles"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2075,7 +2361,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/concept-architect"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2157,7 +2443,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2234,7 +2520,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2312,7 +2598,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-membership-exit-requests"
                     urlBuilder_.Append("api/cloud-era/v1/project-membership-exit-requests");
 
@@ -2394,7 +2680,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/membership-exit-requests"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2475,7 +2761,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-membership-exit-requests/{requestId}/{decision}"
                     urlBuilder_.Append("api/cloud-era/v1/project-membership-exit-requests/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(requestId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2563,7 +2849,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/sources/{sourceKey}/custodian"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2639,7 +2925,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-creation-grants"
                     urlBuilder_.Append("api/cloud-era/v1/project-creation-grants");
 
@@ -2721,7 +3007,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/project-creation-grants"
                     urlBuilder_.Append("api/cloud-era/v1/organizations/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2798,7 +3084,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-creation-grants/{grantId}"
                     urlBuilder_.Append("api/cloud-era/v1/project-creation-grants/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(grantId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2881,7 +3167,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/project-creation-grants/{grantId}/projects"
                     urlBuilder_.Append("api/cloud-era/v1/project-creation-grants/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(grantId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -2958,7 +3244,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/design-organization/logo"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3033,7 +3319,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects"
                     urlBuilder_.Append("api/cloud-era/v1/projects");
 
@@ -3118,7 +3404,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects"
                     urlBuilder_.Append("api/cloud-era/v1/projects");
 
@@ -3206,7 +3492,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/design-organization"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3289,7 +3575,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/basis-sources"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3372,7 +3658,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/documents"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3455,7 +3741,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/design-packages"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3538,7 +3824,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3622,7 +3908,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/ensure"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3711,7 +3997,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/{revisionId}"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3796,7 +4082,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/files/{fileId}"
                     urlBuilder_.Append("api/cloud-era/v1/files/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(fileId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3880,7 +4166,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/source-packages"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
@@ -3967,13 +4253,300 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions"
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
                     urlBuilder_.Append("/albums/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(albumId, System.Globalization.CultureInfo.InvariantCulture)));
                     urlBuilder_.Append("/revisions");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAlbumRevisionDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body)
+        {
+            return StartCloudEraAlbumUploadAsync(projectId, albumId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (albumId == null)
+                throw new System.ArgumentNullException("albumId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/uploads"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/albums/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(albumId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/revisions/uploads");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAlbumUploadSessionResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex)
+        {
+            return UploadCloudEraAlbumChunkAsync(projectId, albumId, uploadId, chunkIndex, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (albumId == null)
+                throw new System.ArgumentNullException("albumId");
+
+            if (uploadId == null)
+                throw new System.ArgumentNullException("uploadId");
+
+            if (chunkIndex == null)
+                throw new System.ArgumentNullException("chunkIndex");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/uploads/{uploadId}/chunks/{chunkIndex}"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/albums/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(albumId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/revisions/uploads/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(uploadId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/chunks/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(chunkIndex, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAlbumUploadSessionResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId)
+        {
+            return CompleteCloudEraAlbumUploadAsync(projectId, albumId, uploadId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (albumId == null)
+                throw new System.ArgumentNullException("albumId");
+
+            if (uploadId == null)
+                throw new System.ArgumentNullException("uploadId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/uploads/{uploadId}/complete"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/albums/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(albumId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/revisions/uploads/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(uploadId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/complete");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 
@@ -4055,7 +4628,7 @@ namespace ErkS.CloudEra.Client.Generated
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
-                
+
                     // Operation Path: "api/license/activate"
                     urlBuilder_.Append("api/license/activate");
 
@@ -4195,7 +4768,7 @@ namespace ErkS.CloudEra.Client.Generated
                     var field_ = System.Reflection.IntrospectionExtensions.GetTypeInfo(value.GetType()).GetDeclaredField(name);
                     if (field_ != null)
                     {
-                        var attribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute(field_, typeof(System.Runtime.Serialization.EnumMemberAttribute)) 
+                        var attribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute(field_, typeof(System.Runtime.Serialization.EnumMemberAttribute))
                             as System.Runtime.Serialization.EnumMemberAttribute;
                         if (attribute != null)
                         {
@@ -4207,7 +4780,7 @@ namespace ErkS.CloudEra.Client.Generated
                     return converted == null ? string.Empty : converted;
                 }
             }
-            else if (value is bool) 
+            else if (value is bool)
             {
                 return System.Convert.ToString((bool)value, cultureInfo).ToLowerInvariant();
             }
@@ -4334,6 +4907,75 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
         public string Status { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAlbumUploadSessionResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("uploadId")]
+        public string UploadId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("chunkSizeBytes")]
+        public int ChunkSizeBytes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("totalChunks")]
+        public int TotalChunks { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("receivedChunks")]
+        public System.Collections.Generic.ICollection<int> ReceivedChunks { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("completedRevisionId")]
+        public string CompletedRevisionId { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAlbumUploadStartRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("fileName")]
+        public string FileName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sizeBytes")]
+        public long SizeBytes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sha256")]
+        public string Sha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageCount")]
+        public int PageCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageSizeSummary")]
+        public string PageSizeSummary { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("chunkSizeBytes")]
+        public int ChunkSizeBytes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectConcurrencyToken")]
+        public string ProjectConcurrencyToken { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -4558,7 +5200,7 @@ namespace ErkS.CloudEra.Client.Generated
         public string VerificationStatus { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("files")]
-        public System.Collections.Generic.ICollection<CloudEraFileDto> Files { get; set; }
+        public System.Collections.Generic.ICollection<CloudEraFileDto2> Files { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -4690,6 +5332,45 @@ namespace ErkS.CloudEra.Client.Generated
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraFileDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("fileId")]
+        public string FileId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("fileName")]
+        public string FileName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("contentType")]
+        public string ContentType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sizeBytes")]
+        public long SizeBytes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sha256")]
+        public string Sha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("scanStatus")]
+        public string ScanStatus { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("uploadedBy")]
+        public string UploadedBy { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("uploadedAtUtc")]
+        public System.DateTimeOffset UploadedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraFileDto2
     {
 
         [System.Text.Json.Serialization.JsonPropertyName("fileId")]
@@ -5190,8 +5871,17 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("requestNumber")]
         public string RequestNumber { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("clientType")]
+        public string ClientType { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("clientEmail")]
         public string ClientEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientRepresentativePosition")]
+        public string ClientRepresentativePosition { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientRepresentativeName")]
+        public string ClientRepresentativeName { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("siteAddress")]
         public string SiteAddress { get; set; }
@@ -5292,11 +5982,26 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("requestedAtUtc")]
         public System.DateTimeOffset? RequestedAtUtc { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("clientType")]
+        public string ClientType { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("clientName")]
         public string ClientName { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("clientEmail")]
         public string ClientEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientRepresentativePosition")]
+        public string ClientRepresentativePosition { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientRepresentativeName")]
+        public string ClientRepresentativeName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientLogoFile")]
+        public CloudEraFileDto ClientLogoFile { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientLogoUrl")]
+        public string ClientLogoUrl { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("siteAddress")]
         public string SiteAddress { get; set; }

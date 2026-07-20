@@ -4,6 +4,17 @@ $snapshot = Join-Path $studioRoot "src\contracts\cloud-era-v1.openapi.json"
 $committed = Join-Path $studioRoot "src\src\ErkS.CloudEra.Client\Generated\CloudEraGeneratedClient.g.cs"
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("erks-cloud-client-" + [Guid]::NewGuid().ToString("N") + ".cs")
 
+function Remove-TrailingWhitespace {
+    param([string]$Path)
+
+    [string]$content = [System.IO.File]::ReadAllText($Path)
+    [string]$normalized = [System.Text.RegularExpressions.Regex]::Replace($content, "[ \t]+(?=\r?\n|\z)", "")
+    if (-not $content.Equals($normalized, [StringComparison]::Ordinal)) {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+        [System.IO.File]::WriteAllText($Path, $normalized, $utf8NoBom)
+    }
+}
+
 if (-not (Test-Path -LiteralPath $snapshot -PathType Leaf)) {
     throw "Cloud ERA OpenAPI snapshot was not found: $snapshot"
 }
@@ -17,6 +28,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Local NSwag tool restore failed." }
     & dotnet tool run nswag -- openapi2csclient "/input:$snapshot" "/output:$temporary" "/classname:CloudEraGeneratedClient" "/namespace:ErkS.CloudEra.Client.Generated" "/GenerateClientInterfaces:true" "/InjectHttpClient:true" "/DisposeHttpClient:false" "/UseBaseUrl:false" "/JsonLibrary:SystemTextJson"
     if ($LASTEXITCODE -ne 0) { throw "Cloud ERA client regeneration failed." }
+    Remove-TrailingWhitespace -Path $temporary
 
     [string]$expected = [System.IO.File]::ReadAllText($committed).Replace("`r`n", "`n")
     [string]$actual = [System.IO.File]::ReadAllText($temporary).Replace("`r`n", "`n")

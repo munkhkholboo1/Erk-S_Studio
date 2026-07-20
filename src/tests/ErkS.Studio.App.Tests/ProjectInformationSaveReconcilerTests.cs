@@ -131,6 +131,9 @@ public sealed class ProjectInformationSaveReconcilerTests
         Assert.Equal("Edited authority", request.PlanningAuthorityName);
         Assert.Equal("Edited address", request.Location);
         Assert.Equal("Edited purpose", request.BuildingPurpose);
+        Assert.Equal(ProjectClientTypes.Organization, request.Foundation.ClientType);
+        Assert.Equal(draft.ClientRepresentativePosition, request.Foundation.ClientRepresentativePosition);
+        Assert.Equal(draft.ClientRepresentativeName, request.Foundation.ClientRepresentativeName);
         Assert.Equal("REQ-42", request.Foundation.RequestNumber);
         Assert.Equal("parcel-1", request.Foundation.LandReference);
         Assert.Equal("ATD-42", request.Foundation.AtdNumber);
@@ -166,7 +169,10 @@ public sealed class ProjectInformationSaveReconcilerTests
         {
             SourceType = "ATDRequest",
             RequestNumber = "REQ-42",
+            ClientType = ProjectClientTypes.Organization,
             ClientEmail = "client@example.test",
+            ClientRepresentativePosition = "Director",
+            ClientRepresentativeName = "Client Representative",
             SiteAddress = "Edited location",
             LandReference = "parcel-1",
             SourceOrganizationName = "Edited authority",
@@ -200,7 +206,10 @@ public sealed class ProjectInformationSaveReconcilerTests
             {
                 SourceType = "ATDRequest",
                 RequestNumber = "REQ-42",
+                ClientType = ProjectClientTypes.Organization,
                 ClientEmail = "client@example.test",
+                ClientRepresentativePosition = "Director",
+                ClientRepresentativeName = "Client Representative",
                 SiteAddress = "Edited location",
                 LandReference = "parcel-1",
                 SourceOrganizationName = "Edited authority",
