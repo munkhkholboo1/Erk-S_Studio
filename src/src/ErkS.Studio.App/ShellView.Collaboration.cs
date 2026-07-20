@@ -156,6 +156,9 @@ internal sealed partial class ShellView
 
         string projectId = state.Project.Cloud.ServerProjectId;
         refreshingCurrentProjectAccess = true;
+        bool previousAlbumRebuildSuppression = suppressAutomaticAlbumRebuild;
+        suppressAutomaticAlbumRebuild = true;
+        autoRebuildTimer.Stop();
         RefreshTeamActionUi();
         RefreshSyncUi();
         try
@@ -173,7 +176,9 @@ internal sealed partial class ShellView
                 preserveCreation: true,
                 preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
+            await DrainSuppressedAlbumRebuildEventsAsync();
             await TryCacheCurrentCloudAlbumPreviewAsync(projectId);
+            await DrainSuppressedAlbumRebuildEventsAsync();
             BindProjectToUi();
             if (reportResult)
                 SetStatus("Cloud ERA access болон төслийн багийн мэдээлэл шинэчлэгдлээ.");
@@ -193,6 +198,8 @@ internal sealed partial class ShellView
         }
         finally
         {
+            autoRebuildTimer.Stop();
+            suppressAutomaticAlbumRebuild = previousAlbumRebuildSuppression;
             refreshingCurrentProjectAccess = false;
             RefreshTeamActionUi();
             RefreshFoundationEditUi();

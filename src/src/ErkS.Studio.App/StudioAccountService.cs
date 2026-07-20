@@ -832,17 +832,34 @@ internal sealed class StudioAccountService :
         if (response.Content.Headers.ContentLength > 250L * 1024L * 1024L)
             throw new StudioAccountException("Cloud ERA album revision PDF 250 MB-аас том байна.");
 
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+        await ReplaceDownloadedFileAsync(source, destinationPath, cancellationToken).ConfigureAwait(true);
+    }
+
+    internal static async Task ReplaceDownloadedFileAsync(
+        Stream source,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        string? destinationFolder = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrWhiteSpace(destinationFolder))
+            Directory.CreateDirectory(destinationFolder);
+
         string temporaryPath = destinationPath + ".download";
         try
         {
-            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
-            await using FileStream destination = new(
-                temporaryPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None);
-            await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(true);
+            await using (FileStream destination = new(
+                             temporaryPath,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None))
+            {
+                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             File.Move(temporaryPath, destinationPath, true);
         }
         catch

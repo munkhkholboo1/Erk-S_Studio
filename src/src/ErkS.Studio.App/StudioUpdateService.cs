@@ -32,6 +32,10 @@ internal static class StudioReleaseInfo
     public const string DefaultServerUrl = "https://erk-s.mn";
     public const string ProductionUpdatePublisher = "Erk-S LLC";
     public const string DevelopmentUpdatePublisher = "Erk-S CityGen DevMod Local";
+    private static readonly IReadOnlyList<string> ProductionPinnedCertificateSha256 =
+    [
+        "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A",
+    ];
 
     public static string DisplayVersion => typeof(StudioReleaseInfo).Assembly
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
@@ -44,6 +48,10 @@ internal static class StudioReleaseInfo
         ? Environment.GetEnvironmentVariable("ERKS_STUDIO_DEV_UPDATE_PUBLISHER")?.Trim()
             ?? DevelopmentUpdatePublisher
         : ProductionUpdatePublisher;
+
+    public static IReadOnlyList<string> PinnedUntrustedRootCertificateSha256 => IsDevelopmentBuild
+        ? Array.Empty<string>()
+        : ProductionPinnedCertificateSha256;
 
     public static string ApiVersion
     {
@@ -171,6 +179,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
                 update.Sha256,
                 StudioReleaseInfo.ExpectedUpdatePublisher,
                 authenticodeVerifier,
+                StudioReleaseInfo.PinnedUntrustedRootCertificateSha256,
                 cancellationToken).ConfigureAwait(true);
             File.Move(partial, destination, true);
             progress?.Report(new StudioUpdateProgress(100, "Шинэчлэлт суулгахад бэлэн боллоо."));
@@ -194,6 +203,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
             update.Sha256,
             StudioReleaseInfo.ExpectedUpdatePublisher,
             authenticodeVerifier,
+            StudioReleaseInfo.PinnedUntrustedRootCertificateSha256,
             cancellationToken).ConfigureAwait(true);
 
         _ = Process.Start(new ProcessStartInfo

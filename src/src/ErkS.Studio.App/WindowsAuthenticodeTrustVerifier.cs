@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using ErkS.Platform.Core;
 
@@ -23,6 +24,7 @@ internal sealed class WindowsAuthenticodeTrustVerifier : IAuthenticodeTrustVerif
 
         try
         {
+            SignerIdentity signer = ReadSigner(path);
             int status = WinVerifyTrust(IntPtr.Zero, ref policy, trustData);
             if (status != 0)
             {
@@ -31,12 +33,13 @@ internal sealed class WindowsAuthenticodeTrustVerifier : IAuthenticodeTrustVerif
                     ?? new Win32Exception(status).Message;
                 return new AuthenticodeTrustResult(
                     false,
-                    "",
-                    $"Authenticode verification failed ({code}): {detail}");
+                    signer.Publisher,
+                    $"Authenticode verification failed ({code}): {detail}",
+                    signer.CertificateSha256,
+                    unchecked((uint)status));
             }
 
-            string publisher = ReadPublisher(path);
-            if (string.IsNullOrWhiteSpace(publisher))
+            if (string.IsNullOrWhiteSpace(signer.Publisher))
             {
                 return new AuthenticodeTrustResult(
                     false,
@@ -44,7 +47,11 @@ internal sealed class WindowsAuthenticodeTrustVerifier : IAuthenticodeTrustVerif
                     "The trusted Authenticode signature does not contain a publisher name.");
             }
 
-            return new AuthenticodeTrustResult(true, publisher, "");
+            return new AuthenticodeTrustResult(
+                true,
+                signer.Publisher,
+                "",
+                signer.CertificateSha256);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -62,17 +69,27 @@ internal sealed class WindowsAuthenticodeTrustVerifier : IAuthenticodeTrustVerif
         }
     }
 
-    private static string ReadPublisher(string path)
+    private static SignerIdentity ReadSigner(string path)
     {
+        try
+        {
 #pragma warning disable SYSLIB0057
-        using X509Certificate certificate = X509Certificate.CreateFromSignedFile(path);
+            using X509Certificate certificate = X509Certificate.CreateFromSignedFile(path);
 #pragma warning restore SYSLIB0057
-        using X509Certificate2 signer = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
-        string publisher = signer.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
-        return string.IsNullOrWhiteSpace(publisher)
-            ? signer.SubjectName.Name ?? ""
-            : publisher;
+            using X509Certificate2 signer = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
+            string publisher = signer.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
+            if (string.IsNullOrWhiteSpace(publisher))
+                publisher = signer.SubjectName.Name ?? "";
+            string certificateSha256 = Convert.ToHexString(SHA256.HashData(signer.RawData));
+            return new SignerIdentity(publisher, certificateSha256);
+        }
+        catch (CryptographicException)
+        {
+            return new SignerIdentity("", "");
+        }
     }
+
+    private sealed record SignerIdentity(string Publisher, string CertificateSha256);
 
     [DllImport("wintrust.dll", ExactSpelling = true, SetLastError = false)]
     private static extern int WinVerifyTrust(

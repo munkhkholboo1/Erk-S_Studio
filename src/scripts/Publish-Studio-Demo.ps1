@@ -1,11 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.6",
-    [string]$AssemblyVersion = "0.0.1.6",
+    [string]$ReleaseVersion = "V0.001.7",
+    [string]$AssemblyVersion = "0.0.1.7",
     [string]$OutputDirectory = "",
     [string]$CodeSigningThumbprint = $env:ERKS_CODE_SIGN_CERT_THUMBPRINT,
     [string]$ExpectedPublisher = "Erk-S LLC",
-    [string]$TimestampUrl = "http://timestamp.digicert.com"
+    [string]$TimestampUrl = "http://timestamp.digicert.com",
+    [switch]$AllowPrivateTrustDemoCertificate,
+    [string]$PrivateTrustCertificateSha256 = "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A"
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,6 +62,18 @@ function Get-CodeSigningContext {
     if ($Publisher -ne $ExpectedPublisher) {
         throw "Code-signing publisher '$Publisher' does not match required publisher '$ExpectedPublisher'."
     }
+    if ($Certificate.PublicKey.Oid.Value -ne "1.2.840.113549.1.1.1") {
+        throw "The Studio release certificate must use an RSA public key for Smart App Control compatibility."
+    }
+
+    $Sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $CertificateSha256 = ([BitConverter]::ToString($Sha256.ComputeHash($Certificate.RawData))).Replace('-', '')
+    }
+    finally {
+        $Sha256.Dispose()
+    }
+    $SelfSigned = $Certificate.Subject -eq $Certificate.Issuer
 
     $WindowsKitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
     $SignTool = Get-ChildItem -LiteralPath $WindowsKitsRoot -Filter "signtool.exe" -File -Recurse -ErrorAction SilentlyContinue |
@@ -68,6 +82,8 @@ function Get-CodeSigningContext {
         Select-Object -First 1
     return [pscustomobject]@{
         Certificate = $Certificate
+        CertificateSha256 = $CertificateSha256
+        SelfSigned = $SelfSigned
         SignTool = if ($SignTool) { $SignTool.FullName } else { $null }
         UseMachineStore = $Certificate.PSParentPath -like "*LocalMachine*"
     }
@@ -128,6 +144,17 @@ if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
 }
 
 $SigningContext = Get-CodeSigningContext -Thumbprint $CodeSigningThumbprint
+if ($SigningContext.SelfSigned) {
+    if (-not $AllowPrivateTrustDemoCertificate) {
+        throw "Public Studio releases cannot use a self-signed certificate. Obtain a CA-trusted code-signing certificate or explicitly use -AllowPrivateTrustDemoCertificate for the transitional demo channel."
+    }
+    if (-not $SigningContext.CertificateSha256.Equals(
+            ($PrivateTrustCertificateSha256 -replace '[^0-9A-Fa-f]', '').ToUpperInvariant(),
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "The self-signed demo certificate does not match the Studio updater certificate pin."
+    }
+    Write-Warning "Building a private-trust transitional demo. Chrome and Smart App Control require a CA-trusted certificate or Microsoft Store distribution."
+}
 
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
@@ -463,6 +490,9 @@ $ReleaseMetadata = [ordered]@{
     authenticodeSigned = $true
     publisher = $ExpectedPublisher
     signingCertificateThumbprint = $SigningContext.Certificate.Thumbprint
+    signingCertificateSha256 = $SigningContext.CertificateSha256
+    signingTrust = if ($SigningContext.SelfSigned) { "private-pinned-demo" } else { "public-ca" }
+    publicDistributionReady = -not $SigningContext.SelfSigned
     timestampUrl = $TimestampUrl
     productDataIncluded = $false
     devUpdateIncluded = $false

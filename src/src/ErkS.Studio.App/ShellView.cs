@@ -196,6 +196,7 @@ internal sealed partial class ShellView : IDisposable
     private readonly TextBlock albumInfoText = new();
     private readonly DispatcherTimer autoRebuildTimer;
     private readonly DispatcherTimer notificationRefreshTimer;
+    private bool suppressAutomaticAlbumRebuild;
     private string? lastAlbumPath;
 
     public UIElement Root { get; }
@@ -206,7 +207,10 @@ internal sealed partial class ShellView : IDisposable
         autoRebuildTimer.Tick += (_, _) =>
         {
             autoRebuildTimer.Stop();
-            if (autoRebuildCheck.IsChecked == true && state.HasOpenProject)
+            if (autoRebuildCheck.IsChecked == true &&
+                state.HasOpenProject &&
+                !suppressAutomaticAlbumRebuild &&
+                !syncInProgress)
             {
                 UpdateAlbum(silent: true);
                 if (activePage == StudioPage.Sources)
@@ -568,7 +572,7 @@ internal sealed partial class ShellView : IDisposable
         if (page == StudioPage.Albums)
         {
             RefreshAlbumPagePreview();
-            if (previousPage != StudioPage.Albums)
+            if (previousPage != StudioPage.Albums && !HasCurrentCloudAlbumPreview())
             {
                 dispatcher.BeginInvoke(
                     new Action(() => UpdateAlbum(silent: true)),
@@ -1317,6 +1321,7 @@ internal sealed partial class ShellView : IDisposable
     {
         try
         {
+            suppressAutomaticAlbumRebuild = true;
             SetStatus($"{row.Code} локал mirror үүсгэж байна...");
             StudioCloudProjectDetail cloud = await account.GetProjectAsync(row.ServerProjectId);
             string folderCode = cloud.Project.ProjectCode;
@@ -1350,14 +1355,30 @@ internal sealed partial class ShellView : IDisposable
             });
             state.LinkCurrentProjectToCloud(cloud, account.Current!.ServerUrl);
             await ApplyCloudProjectRenderProfileAsync(cloud);
-            await TryCacheCurrentCloudAlbumPreviewAsync(cloud.Project.ProjectId);
             EnterProjectWorkspace();
-            SetStatus($"Cloud ERA төслийн локал mirror нээгдлээ: {state.ProjectPath}");
+            await DrainSuppressedAlbumRebuildEventsAsync();
+            bool albumCached = await TryCacheCurrentCloudAlbumPreviewAsync(cloud.Project.ProjectId);
+            await DrainSuppressedAlbumRebuildEventsAsync();
+            BindProjectToUi();
+            SetStatus(albumCached
+                ? $"Cloud ERA төслийн локал mirror болон current album PDF нээгдлээ: {state.ProjectPath}"
+                : $"Cloud ERA төслийн локал mirror нээгдлээ; current album PDF одоогоор алга: {state.ProjectPath}");
         }
         catch (Exception exception)
         {
             SetStatus("Cloud ERA төсөл нээхэд алдаа: " + exception.Message);
         }
+        finally
+        {
+            autoRebuildTimer.Stop();
+            suppressAutomaticAlbumRebuild = false;
+        }
+    }
+
+    private async Task DrainSuppressedAlbumRebuildEventsAsync()
+    {
+        await dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+        autoRebuildTimer.Stop();
     }
 
     private async Task<bool> EnsureSignedInAsync()
@@ -1585,6 +1606,11 @@ internal sealed partial class ShellView : IDisposable
             state.OpenProject(path);
             EnterProjectWorkspace();
             lastAlbumPath = ResolveCurrentProjectAlbumPath();
+            if (state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
+            {
+                autoRebuildTimer.Stop();
+            }
             SetStatus(state.LastOpenMigratedLegacyProject
                 ? $"Legacy project шинэ workspace болсон. Эх файл хэвээр: {path}"
                 : $"Төсөл нээгдлээ: {state.ProjectPath}");
@@ -2891,6 +2917,23 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
+    private bool HasCurrentCloudAlbumPreview()
+    {
+        if (!state.HasOpenProject ||
+            !state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(state.Project.Cloud.LastSyncedRevisionId))
+        {
+            return false;
+        }
+
+        string? albumPath = ResolveCurrentProjectAlbumPath();
+        if (string.IsNullOrWhiteSpace(albumPath) || !File.Exists(albumPath))
+            return false;
+
+        string cloudCacheFolder = Path.Combine(state.ResolveOutputFolder(), "cloud");
+        return ProjectWorkspacePaths.IsInside(cloudCacheFolder, albumPath);
+    }
+
     private async Task<bool> TryCacheCurrentCloudAlbumPreviewAsync(string projectId)
     {
         if (!state.HasOpenProject ||
@@ -3240,6 +3283,8 @@ internal sealed partial class ShellView : IDisposable
     {
         if (!state.HasOpenProject)
             return;
+        if (suppressAutomaticAlbumRebuild || syncInProgress)
+            return;
         if (autoRebuildCheck.IsChecked == true)
         {
             SetStatus("Холбосон PDF/зураг өөрчлөгдлөө. Альбумыг шинэчилж байна...");
@@ -3260,6 +3305,8 @@ internal sealed partial class ShellView : IDisposable
         }
         RefreshSourceWorkspace();
         RefreshAlbumWorkspace();
+        if (suppressAutomaticAlbumRebuild || syncInProgress)
+            return;
         if (autoRebuildCheck.IsChecked == true)
         {
             autoRebuildTimer.Stop();

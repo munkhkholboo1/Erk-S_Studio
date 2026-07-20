@@ -47,6 +47,70 @@ public sealed class UpdatePackageSecurityTests : IDisposable
     }
 
     [Fact]
+    public async Task PinnedSignerWithOnlyUntrustedRoot_IsAccepted()
+    {
+        const string certificateSha256 = "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A";
+        string path = WritePortableExecutable("pinned-private-root.exe");
+        var verifier = new StubVerifier(new AuthenticodeTrustResult(
+            false,
+            "Erk-S LLC",
+            "certificate chain terminated in an untrusted root",
+            certificateSha256,
+            0x800B0109u));
+
+        AuthenticodeTrustResult result = await UpdatePackageSecurityPolicy.VerifyInstallerAsync(
+            path,
+            Sha256(path),
+            "Erk-S LLC",
+            verifier,
+            [certificateSha256]);
+
+        Assert.True(result.IsTrusted);
+        Assert.Equal(certificateSha256, result.SignerCertificateSha256);
+    }
+
+    [Fact]
+    public async Task UntrustedRootWithUnknownSignerPin_IsRejected()
+    {
+        string path = WritePortableExecutable("unknown-private-root.exe");
+        var verifier = new StubVerifier(new AuthenticodeTrustResult(
+            false,
+            "Erk-S LLC",
+            "certificate chain terminated in an untrusted root",
+            new string('A', 64),
+            0x800B0109u));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            UpdatePackageSecurityPolicy.VerifyInstallerAsync(
+                path,
+                Sha256(path),
+                "Erk-S LLC",
+                verifier,
+                [new string('B', 64)]));
+    }
+
+    [Fact]
+    public async Task PinnedSignerDoesNotOverrideBadDigestTrustFailure()
+    {
+        const string certificateSha256 = "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A";
+        string path = WritePortableExecutable("bad-authenticode-digest.exe");
+        var verifier = new StubVerifier(new AuthenticodeTrustResult(
+            false,
+            "Erk-S LLC",
+            "The digital signature of the object did not verify.",
+            certificateSha256,
+            0x80096010u));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            UpdatePackageSecurityPolicy.VerifyInstallerAsync(
+                path,
+                Sha256(path),
+                "Erk-S LLC",
+                verifier,
+                [certificateSha256]));
+    }
+
+    [Fact]
     public async Task WrongPublisher_IsRejected()
     {
         string path = WritePortableExecutable("wrong-publisher.exe");

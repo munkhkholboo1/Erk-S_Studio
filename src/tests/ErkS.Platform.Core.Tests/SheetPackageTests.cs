@@ -168,6 +168,25 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void LocalProjectCatalog_IgnoresRenamedOldMirror()
+    {
+        string root = Path.Combine(workDirectory, "Studio Projects");
+        string backupFolder = Path.Combine(root, "ATD-SIM-2026-002.old");
+        string backupPath = Path.Combine(backupFolder, ProjectWorkspace.DefaultFileName);
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "ATD-SIM-2026-002",
+            "Cloud ERA backup mirror");
+        project.Cloud.ServerProjectId = "6f51ce0b80a145f899b791158fe2a1de";
+        project.Cloud.Origin = ProjectOrigins.Cloud;
+        ProjectWorkspaceStore.Save(project, backupPath);
+
+        var catalog = new LocalProjectCatalog(root);
+
+        Assert.Empty(catalog.ListProjects());
+        Assert.True(File.Exists(backupPath));
+    }
+
+    [Fact]
     public void ProjectWorkspaceStore_RoundTripsFoundationAndDeliverableIndex()
     {
         var project = ProjectWorkspaceStore.Create("ERKS-P-01", "Барилга архитектурын төсөл");

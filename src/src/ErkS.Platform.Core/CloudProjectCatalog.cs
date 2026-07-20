@@ -54,7 +54,8 @@ public sealed class LocalProjectCatalog : IProjectCatalog
         foreach (var path in Directory.EnumerateFiles(
                      rootDirectory,
                      "*" + ProjectWorkspace.FileExtension,
-                     SearchOption.AllDirectories))
+                     SearchOption.AllDirectories)
+                 .Where(path => !IsBackupMirrorPath(path)))
         {
             try
             {
@@ -71,7 +72,8 @@ public sealed class LocalProjectCatalog : IProjectCatalog
         foreach (var path in Directory.EnumerateFiles(
                      rootDirectory,
                      "*" + AlbumProject.FileExtension,
-                     SearchOption.AllDirectories))
+                     SearchOption.AllDirectories)
+                 .Where(path => !IsBackupMirrorPath(path)))
         {
             try
             {
@@ -159,6 +161,18 @@ public sealed class LocalProjectCatalog : IProjectCatalog
     private static bool IsAlbumDocument(string path)
     {
         return StudioAlbumDocumentStore.IsAlbumDocument(path);
+    }
+
+    private bool IsBackupMirrorPath(string path)
+    {
+        string relativePath = Path.GetRelativePath(rootDirectory, path);
+        string? folder = Path.GetDirectoryName(relativePath);
+        if (string.IsNullOrWhiteSpace(folder))
+            return false;
+
+        return folder
+            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(segment => segment.EndsWith(".old", StringComparison.OrdinalIgnoreCase));
     }
 }
 

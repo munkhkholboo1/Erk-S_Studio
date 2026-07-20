@@ -5,7 +5,9 @@ namespace ErkS.Platform.Core;
 public sealed record AuthenticodeTrustResult(
     bool IsTrusted,
     string Publisher,
-    string Error);
+    string Error,
+    string SignerCertificateSha256 = "",
+    uint ErrorCode = 0);
 
 public interface IAuthenticodeTrustVerifier
 {
@@ -40,6 +42,7 @@ public static class UpdatePackageSecurityPolicy
         string expectedSha256,
         string expectedPublisher,
         IAuthenticodeTrustVerifier verifier,
+        IReadOnlyCollection<string>? pinnedUntrustedRootCertificateSha256 = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -84,7 +87,11 @@ public static class UpdatePackageSecurityPolicy
                 exception);
         }
 
-        if (!trust.IsTrusted)
+        if (!trust.IsTrusted &&
+            !IsPinnedUntrustedRootSigner(
+                trust,
+                expectedPublisher,
+                pinnedUntrustedRootCertificateSha256))
         {
             string reason = string.IsNullOrWhiteSpace(trust.Error)
                 ? "The installer is unsigned or its Authenticode signature is invalid."
@@ -98,7 +105,13 @@ public static class UpdatePackageSecurityPolicy
                 $"The update publisher is not trusted. Expected '{expectedPublisher}', received '{trust.Publisher}'.");
         }
 
-        return trust;
+        return trust.IsTrusted
+            ? trust
+            : trust with
+            {
+                IsTrusted = true,
+                Error = "",
+            };
     }
 
     public static void EnsurePortableExecutable(string path)
@@ -133,4 +146,31 @@ public static class UpdatePackageSecurityPolicy
         .Trim()
         .Replace(" ", "", StringComparison.Ordinal)
         .Replace("-", "", StringComparison.Ordinal);
+
+    private static bool IsPinnedUntrustedRootSigner(
+        AuthenticodeTrustResult trust,
+        string expectedPublisher,
+        IReadOnlyCollection<string>? pinnedCertificateSha256)
+    {
+        const uint CertEUntrustedRoot = 0x800B0109;
+        if (trust.ErrorCode != CertEUntrustedRoot ||
+            pinnedCertificateSha256 is null ||
+            pinnedCertificateSha256.Count == 0 ||
+            !trust.Publisher.Trim().Equals(expectedPublisher.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string signerCertificateSha256 = NormalizeSha256(trust.SignerCertificateSha256);
+        if (signerCertificateSha256.Length != 64 ||
+            signerCertificateSha256.Any(character => !Uri.IsHexDigit(character)))
+        {
+            return false;
+        }
+
+        return pinnedCertificateSha256
+            .Select(NormalizeSha256)
+            .Any(pin => pin.Length == 64 &&
+                pin.Equals(signerCertificateSha256, StringComparison.OrdinalIgnoreCase));
+    }
 }

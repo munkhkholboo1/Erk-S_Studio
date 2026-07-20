@@ -61,4 +61,30 @@ public sealed class StudioServiceBoundaryTests
         Assert.NotNull(typeof(ICloudEraContractClient).GetMethod(
             nameof(ICloudEraContractClient.AssignConceptArchitectAsync)));
     }
+
+    [Fact]
+    public async Task DownloadedFile_IsClosedBeforeAtomicReplacement()
+    {
+        string folder = Path.Combine(
+            Path.GetTempPath(),
+            "erk-s-studio-download-" + Guid.NewGuid().ToString("N"));
+        string destination = Path.Combine(folder, "album.pdf");
+        byte[] expected = [1, 2, 3, 4, 5];
+        Directory.CreateDirectory(folder);
+        await File.WriteAllBytesAsync(destination, [9, 9]);
+
+        try
+        {
+            await using var source = new MemoryStream(expected, writable: false);
+
+            await StudioAccountService.ReplaceDownloadedFileAsync(source, destination);
+
+            Assert.Equal(expected, await File.ReadAllBytesAsync(destination));
+            Assert.False(File.Exists(destination + ".download"));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }
