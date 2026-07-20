@@ -35,7 +35,7 @@ internal sealed partial class ShellView
     private readonly TextBox libraryCompanyDirectorTitleBox = new();
     private readonly TextBox libraryCompanyDirectorNameBox = new();
     private readonly TextBlock libraryCompanyRegistrySourceText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button libraryCompanyOpenRegistryButton = StudioWidgets.CreateButton("Улсын бүртгэлийн сан нээх");
+    private readonly Button libraryCompanyOpenRegistryButton = StudioWidgets.CreateButton("ДАН-аар мэдээлэл татах");
     private readonly TextBlock companyLogoFileText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Image companyLogoPreviewImage = new() { Stretch = Stretch.Fill, SnapsToDevicePixels = true };
     private readonly Canvas companyLogoPreviewCanvas = new() { ClipToBounds = true };
@@ -93,6 +93,7 @@ internal sealed partial class ShellView
     private bool bindingCompanyEditor;
     private bool refreshingCompanies;
     private bool companyCatalogCloudVerified;
+    private bool companyRegistryImportInProgress;
 
     private UIElement BuildCompaniesPage()
     {
@@ -197,7 +198,7 @@ internal sealed partial class ShellView
         form.Children.Add(StudioWidgets.CreateFormRow("Хот / дүүрэг", libraryCompanyCityBox, 180));
         form.Children.Add(StudioWidgets.CreateFormRow("Бүртгэлтэй хаяг", libraryCompanyAddressBox, 180));
         libraryCompanyRegistrySourceText.Foreground = StudioTheme.MutedTextBrush;
-        libraryCompanyOpenRegistryButton.Click += (_, _) => OpenOrganizationRegistrySource();
+        libraryCompanyOpenRegistryButton.Click += async (_, _) => await ImportOrganizationRegistryAsync();
         var registrySourcePanel = new StackPanel();
         registrySourcePanel.Children.Add(libraryCompanyRegistrySourceText);
         registrySourcePanel.Children.Add(libraryCompanyOpenRegistryButton);
@@ -758,7 +759,7 @@ internal sealed partial class ShellView
         libraryCompanyDirectorTitleBox.Text = profile.DesignRepresentativeTitle;
         libraryCompanyDirectorNameBox.Text = profile.DesignRepresentativeName;
         libraryCompanyRegistrySourceText.Text = RegistrySourceLabel(profile);
-        libraryCompanyOpenRegistryButton.IsEnabled = !string.IsNullOrWhiteSpace(profile.RegistrySourceUrl);
+        RefreshCompanyRegistryImportButton(entry);
         companyLogoScaleSlider.Value = profile.LogoScale;
         companyLogoOffsetXSlider.Value = profile.LogoOffsetX;
         companyLogoOffsetYSlider.Value = profile.LogoOffsetY;
@@ -842,6 +843,8 @@ internal sealed partial class ShellView
         companyDeleteButton.ToolTip = companyDeleteButton.IsEnabled
             ? "Туршилтын эсвэл буруу байгууллагыг устгах"
             : "Cloud ERA байгууллагыг зөвхөн owner устгана.";
+        if (selectedCompanyEntry is not null)
+            RefreshCompanyRegistryImportButton(selectedCompanyEntry);
         RefreshCompanyDocumentLists();
     }
 
@@ -1273,19 +1276,103 @@ internal sealed partial class ShellView
         LogoOffsetY = profile.LogoOffsetY,
     };
 
-    private void OpenOrganizationRegistrySource()
+    private async Task ImportOrganizationRegistryAsync()
     {
-        string url = selectedCompanyEntry?.Profile.RegistrySourceUrl ?? "";
-        if (string.IsNullOrWhiteSpace(url))
-            url = "https://opendata.burtgel.gov.mn/les";
+        CompanyCatalogEntry? entry = selectedCompanyEntry;
+        if (entry is null || !entry.CanManage)
+            return;
+        CompanyProfile profile = entry.Profile;
+        if (profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) ||
+            !entry.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase))
+        {
+            SetStatus("ДАН-аас мэдээлэл татахын өмнө байгууллагаа Cloud ERA-д хадгална уу.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(profile.RegistrationNumber))
+        {
+            SetStatus("ДАН-аас мэдээлэл татахын өмнө байгууллагын тоон регистрийн дугаарыг оруулж хадгална уу.");
+            return;
+        }
+
+        string organizationId = profile.OrganizationId;
+        companyRegistryImportInProgress = true;
+        libraryCompanyOpenRegistryButton.IsEnabled = false;
+        libraryCompanyOpenRegistryButton.Content = "ДАН зөвшөөрөл хүлээж байна";
         try
         {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            StudioOrganizationRegistryImportResponse started = await account.BeginOrganizationRegistryImportAsync(
+                organizationId,
+                profile.RegistrationNumber);
+            if (string.IsNullOrWhiteSpace(started.AuthorizationUrl))
+                throw new StudioAccountException("ДАН зөвшөөрлийн холбоос ирсэнгүй.");
+            Process.Start(new ProcessStartInfo(started.AuthorizationUrl) { UseShellExecute = true });
+            SetStatus("Браузерт нээгдсэн ДАН цонхонд мэдээлэл өгөх зөвшөөрлөө баталгаажуулна уу.");
+
+            DateTimeOffset deadline = started.ExpiresAtUtc > DateTimeOffset.UtcNow
+                ? started.ExpiresAtUtc
+                : DateTimeOffset.UtcNow.AddMinutes(10);
+            while (DateTimeOffset.UtcNow < deadline &&
+                   Application.Current?.Dispatcher.HasShutdownStarted != true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                StudioOrganizationRegistryImportResponse current =
+                    await account.GetOrganizationRegistryImportAsync(organizationId, started.ImportId);
+                if (current.Status.Equals(StudioOrganizationRegistryImportStatuses.Completed, StringComparison.Ordinal))
+                {
+                    requestedCompanySelectionId = organizationId;
+                    await RefreshCompaniesAsync(forceCloud: true);
+                    CompanyProfile? refreshed = companyEntries.FirstOrDefault(item =>
+                        item.Profile.OrganizationId.Equals(organizationId, StringComparison.OrdinalIgnoreCase))?.Profile;
+                    if (refreshed is not null)
+                    {
+                        ApplyCompanyToOpenProject(refreshed, rebuildAlbum: true);
+                        RefreshLocalProjectCompanySnapshotsFromCache();
+                    }
+                    SetStatus("ДАН-аас байгууллагын албан ёсны мэдээлэл шинэчлэгдлээ.");
+                    return;
+                }
+                if (current.Status.Equals(StudioOrganizationRegistryImportStatuses.Failed, StringComparison.Ordinal))
+                {
+                    throw new StudioAccountException(string.IsNullOrWhiteSpace(current.Message)
+                        ? "ДАН-аас байгууллагын мэдээлэл татаж чадсангүй."
+                        : current.Message);
+                }
+                libraryCompanyOpenRegistryButton.Content = current.Status.Equals(
+                    StudioOrganizationRegistryImportStatuses.Processing,
+                    StringComparison.Ordinal)
+                    ? "Албан ёсны мэдээлэл татаж байна"
+                    : "ДАН зөвшөөрөл хүлээж байна";
+            }
+            SetStatus("ДАН зөвшөөрлийн хугацаа дууслаа. Дахин оролдоно уу.");
         }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is StudioAccountException or HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
-            SetStatus("Улсын бүртгэлийн санг нээж чадсангүй: " + exception.Message);
+            SetStatus("ДАН-аас мэдээлэл татсангүй: " + exception.Message);
         }
+        finally
+        {
+            companyRegistryImportInProgress = false;
+            libraryCompanyOpenRegistryButton.Content = "ДАН-аар мэдээлэл татах";
+            if (selectedCompanyEntry is not null)
+                RefreshCompanyRegistryImportButton(selectedCompanyEntry);
+        }
+    }
+
+    private void RefreshCompanyRegistryImportButton(CompanyCatalogEntry entry)
+    {
+        bool cloudOrganization = !entry.Profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) &&
+            entry.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase);
+        bool hasRegistration = !string.IsNullOrWhiteSpace(entry.Profile.RegistrationNumber);
+        libraryCompanyOpenRegistryButton.IsEnabled = !companyRegistryImportInProgress &&
+            entry.CanManage && cloudOrganization && hasRegistration;
+        libraryCompanyOpenRegistryButton.ToolTip = !entry.CanManage
+            ? "Энэ байгууллагын мэдээллийг удирдах эрх шаардлагатай."
+            : !cloudOrganization
+                ? "Эхлээд байгууллагаа Cloud ERA-д хадгална уу."
+                : !hasRegistration
+                    ? "Тоон регистрийн дугаараа оруулж хадгална уу."
+                    : "Браузераар ДАН зөвшөөрөл өгч ХУР-ийн албан ёсны мэдээллийг шинэчлэх";
     }
 
     private static string RegistrySourceLabel(CompanyProfile profile)

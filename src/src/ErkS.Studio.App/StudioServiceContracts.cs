@@ -82,6 +82,16 @@ internal interface IOrganizationsClient
         StudioCloudOrganizationUpsertRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<StudioOrganizationRegistryImportResponse> BeginOrganizationRegistryImportAsync(
+        string organizationId,
+        string registrationNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioOrganizationRegistryImportResponse> GetOrganizationRegistryImportAsync(
+        string organizationId,
+        string importId,
+        CancellationToken cancellationToken = default);
+
     Task DeleteOrganizationAsync(
         string organizationId,
         CancellationToken cancellationToken = default);

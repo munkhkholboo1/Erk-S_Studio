@@ -105,6 +105,30 @@ internal sealed class StudioCloudOrganizationUpsertRequest
     public double LogoOffsetY { get; set; }
 }
 
+internal static class StudioOrganizationRegistryImportStatuses
+{
+    public const string PendingAuthorization = "PendingAuthorization";
+    public const string Processing = "Processing";
+    public const string Completed = "Completed";
+    public const string Failed = "Failed";
+}
+
+internal sealed class StudioOrganizationRegistryImportRequest
+{
+    public string RegistrationNumber { get; set; } = "";
+}
+
+internal sealed class StudioOrganizationRegistryImportResponse
+{
+    public string ImportId { get; set; } = "";
+    public string Status { get; set; } = StudioOrganizationRegistryImportStatuses.PendingAuthorization;
+    public string AuthorizationUrl { get; set; } = "";
+    public string Message { get; set; } = "";
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public bool ProviderConfigured { get; set; }
+    public StudioCloudOrganization? Organization { get; set; }
+}
+
 internal sealed record StudioDownloadedImage(byte[] Bytes, string ContentType);
 
 internal sealed class StudioCloudProjectSummary

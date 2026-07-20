@@ -616,6 +616,30 @@ internal sealed class StudioAccountService :
             cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task<StudioOrganizationRegistryImportResponse> BeginOrganizationRegistryImportAsync(
+        string organizationId,
+        string registrationNumber,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioOrganizationRegistryImportRequest, StudioOrganizationRegistryImportResponse>(
+            "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId) + "/registry-imports",
+            new StudioOrganizationRegistryImportRequest { RegistrationNumber = registrationNumber },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioOrganizationRegistryImportResponse> GetOrganizationRegistryImportAsync(
+        string organizationId,
+        string importId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioOrganizationRegistryImportResponse>(
+            "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId) +
+            "/registry-imports/" + Uri.EscapeDataString(importId),
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task DeleteOrganizationAsync(
         string organizationId,
         CancellationToken cancellationToken = default)
