@@ -73,6 +73,7 @@ internal sealed partial class ShellView
     private readonly Button companySaveButton = StudioWidgets.CreatePrimaryButton("Хадгалах");
     private readonly Button companyNewButton = StudioWidgets.CreateButton("Шинэ компани");
     private readonly Button companyUseInProjectButton = StudioWidgets.CreateButton("Төсөлд ашиглах");
+    private readonly Button companyDeleteButton = StudioWidgets.CreateButton("Устгах");
 
     private List<CompanyCatalogEntry> companyEntries = [];
     private CompanyCatalogEntry? selectedCompanyEntry;
@@ -100,10 +101,12 @@ internal sealed partial class ShellView
         companyNewButton.Click += async (_, _) => await CreateCompanyDraftAsync();
         companySaveButton.Click += async (_, _) => await SaveSelectedCompanyAsync();
         companyUseInProjectButton.Click += async (_, _) => await UseSelectedCompanyInOpenProjectAsync();
+        companyDeleteButton.Click += async (_, _) => await DeleteSelectedCompanyAsync();
         actions.Children.Add(refreshButton);
         actions.Children.Add(companyNewButton);
         actions.Children.Add(companySaveButton);
         actions.Children.Add(companyUseInProjectButton);
+        actions.Children.Add(companyDeleteButton);
         DockPanel.SetDock(actions, Dock.Right);
         header.Children.Add(actions);
         header.Children.Add(StudioWidgets.CreateTitle("Компани"));
@@ -565,7 +568,7 @@ internal sealed partial class ShellView
                 DirectorTitle = "Захирал",
             },
             CanManage = true,
-            CurrentUserRole = "Organization Admin",
+            CurrentUserRole = "Organization Owner",
             SyncStatus = CompanySyncStatuses.PendingCreate,
         };
         companyEntries.Add(entry);
@@ -580,18 +583,6 @@ internal sealed partial class ShellView
         if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
             return;
         CompanyProfile profile = CollectCompanyEditor();
-        if (string.IsNullOrWhiteSpace(profile.Name))
-        {
-            SetStatus("Компанийн хуулийн нэрийг оруулна уу.");
-            libraryCompanyNameBox.Focus();
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(profile.RegistrationNumber))
-        {
-            SetStatus("Компанийн регистрийн дугаарыг оруулна уу.");
-            libraryCompanyRegistrationBox.Focus();
-            return;
-        }
 
         CompanyLibraryStore store = EnsureCompanyLibraryStore();
         string previousSyncStatus = selectedCompanyEntry.SyncStatus;
@@ -664,6 +655,50 @@ internal sealed partial class ShellView
         }
     }
 
+    private async Task DeleteSelectedCompanyAsync()
+    {
+        CompanyCatalogEntry? entry = selectedCompanyEntry;
+        if (entry is null || !entry.CanManage)
+            return;
+
+        bool localDraft = entry.Profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) &&
+            entry.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase);
+        bool owner = entry.CurrentUserRole.Equals("Organization Owner", StringComparison.OrdinalIgnoreCase);
+        if (!localDraft && !owner)
+        {
+            SetStatus("Cloud ERA байгууллагыг зөвхөн owner устгах эрхтэй.");
+            return;
+        }
+
+        MessageBoxResult confirmation = StudioMessageDialog.Show(
+            Window.GetWindow(Root),
+            "Энэ байгууллагыг устгах уу? Төслийн түүхэн snapshot болон өмнө үүссэн альбум хадгалагдана. Энэ үйлдлийг буцаахгүй.",
+            "Байгууллага устгах",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            if (!localDraft)
+                await account.DeleteOrganizationAsync(entry.Profile.OrganizationId);
+
+            companyEntries.Remove(entry);
+            selectedCompanyEntry = null;
+            pendingCompanyLogoPath = "";
+            removeCompanyLogoRequested = false;
+            EnsureCompanyLibraryStore().Save(companyEntries);
+            RefreshCompanyList("");
+            companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · Cloud ERA";
+            SetStatus("Байгууллага устгагдлаа. Төслийн түүхэн мэдээлэл хэвээр хадгалагдана.");
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            SetStatus("Байгууллага устгагдсангүй: " + exception.Message);
+        }
+    }
+
     private void SaveCompanyAsPending(CompanyProfile profile, CompanyLibraryStore store, string reason)
     {
         pendingCompanyLogoPath = "";
@@ -702,7 +737,8 @@ internal sealed partial class ShellView
         bindingCompanyEditor = false;
         SetCompanyEditorEnabled(entry.CanManage);
         libraryCompanyRegistrationBox.IsReadOnly = !entry.CanManage ||
-            !entry.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase);
+            (!entry.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase) &&
+             !string.IsNullOrWhiteSpace(profile.RegistrationNumber));
         LoadCompanyLogoPreview(profile.LogoPath);
         companyLibraryStatus.Text = string.Join(" · ", new[]
         {
@@ -759,6 +795,14 @@ internal sealed partial class ShellView
         companyLogoOffsetXSlider.IsEnabled = enabled;
         companyLogoOffsetYSlider.IsEnabled = enabled;
         companySaveButton.IsEnabled = enabled;
+        bool localDraft = selectedCompanyEntry?.Profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) == true &&
+            selectedCompanyEntry?.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase) == true;
+        bool owner = selectedCompanyEntry?.CurrentUserRole.Equals("Organization Owner", StringComparison.OrdinalIgnoreCase) == true;
+        bool protectedAuthority = selectedCompanyEntry?.Profile.OrganizationType.Equals("PlanningAuthority", StringComparison.OrdinalIgnoreCase) == true;
+        companyDeleteButton.IsEnabled = enabled && !protectedAuthority && (localDraft || owner);
+        companyDeleteButton.ToolTip = companyDeleteButton.IsEnabled
+            ? "Туршилтын эсвэл буруу байгууллагыг устгах"
+            : "Cloud ERA байгууллагыг зөвхөн owner устгана.";
         RefreshCompanyDocumentLists();
     }
 

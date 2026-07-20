@@ -82,6 +82,10 @@ internal interface IOrganizationsClient
         StudioCloudOrganizationUpsertRequest request,
         CancellationToken cancellationToken = default);
 
+    Task DeleteOrganizationAsync(
+        string organizationId,
+        CancellationToken cancellationToken = default);
+
     Task<StudioCloudOrganization> UploadOrganizationLogoAsync(
         string organizationId,
         string logoPath,

@@ -33,8 +33,8 @@ Use the product script; do not package a development output folder manually.
 ```powershell
 $env:ERKS_CODE_SIGN_CERT_THUMBPRINT = '<production certificate thumbprint>'
 src\scripts\Publish-Studio-Demo.ps1 `
-  -ReleaseVersion V0.001.7 `
-  -AssemblyVersion 0.0.1.7
+  -ReleaseVersion V0.001.8 `
+  -AssemblyVersion 0.0.1.8
 ```
 
 The script:

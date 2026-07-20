@@ -616,6 +616,17 @@ internal sealed class StudioAccountService :
             cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task DeleteOrganizationAsync(
+        string organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        await SendAuthorizedNoContentAsync(
+            HttpMethod.Delete,
+            "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId),
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudOrganization> UploadOrganizationLogoAsync(
         string organizationId,
         string logoPath,

@@ -14,6 +14,7 @@ public sealed class StudioServiceBoundaryTests
         Assert.True(typeof(ILicenseClient).IsAssignableFrom(facade));
         Assert.True(typeof(IProjectsClient).IsAssignableFrom(facade));
         Assert.True(typeof(IOrganizationsClient).IsAssignableFrom(facade));
+        Assert.NotNull(typeof(IOrganizationsClient).GetMethod(nameof(IOrganizationsClient.DeleteOrganizationAsync)));
         Assert.True(typeof(ICollaborationClient).IsAssignableFrom(facade));
         Assert.True(typeof(ISourcePackagesClient).IsAssignableFrom(facade));
         Assert.True(typeof(IAlbumsClient).IsAssignableFrom(facade));
