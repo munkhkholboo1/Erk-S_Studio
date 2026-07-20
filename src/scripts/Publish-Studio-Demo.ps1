@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.3",
-    [string]$AssemblyVersion = "0.0.1.3",
+    [string]$ReleaseVersion = "V0.001.4",
+    [string]$AssemblyVersion = "0.0.1.4",
     [string]$OutputDirectory = "",
     [string]$CodeSigningThumbprint = $env:ERKS_CODE_SIGN_CERT_THUMBPRINT,
     [string]$ExpectedPublisher = "Erk-S LLC",
@@ -66,13 +66,9 @@ function Get-CodeSigningContext {
         Where-Object { $_.DirectoryName -like "*\x64" } |
         Sort-Object FullName -Descending |
         Select-Object -First 1
-    if (-not $SignTool) {
-        throw "Windows SDK signtool.exe was not found."
-    }
-
     return [pscustomobject]@{
         Certificate = $Certificate
-        SignTool = $SignTool.FullName
+        SignTool = if ($SignTool) { $SignTool.FullName } else { $null }
         UseMachineStore = $Certificate.PSParentPath -like "*LocalMachine*"
     }
 }
@@ -83,26 +79,38 @@ function Invoke-ErkSCodeSign {
         [Parameter(Mandatory = $true)]$SigningContext
     )
 
-    $SignArguments = @("sign")
-    if ($SigningContext.UseMachineStore) {
-        $SignArguments += "/sm"
-    }
-    $SignArguments += @(
-        "/sha1", $SigningContext.Certificate.Thumbprint,
-        "/fd", "SHA256",
-        "/tr", $TimestampUrl,
-        "/td", "SHA256",
-        "/v",
-        $Path
-    )
-    & $SigningContext.SignTool @SignArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Authenticode signing failed for '$Path'. Exit code: $LASTEXITCODE"
-    }
+    if ($SigningContext.SignTool) {
+        $SignArguments = @("sign")
+        if ($SigningContext.UseMachineStore) {
+            $SignArguments += "/sm"
+        }
+        $SignArguments += @(
+            "/sha1", $SigningContext.Certificate.Thumbprint,
+            "/fd", "SHA256",
+            "/tr", $TimestampUrl,
+            "/td", "SHA256",
+            "/v",
+            $Path
+        )
+        & $SigningContext.SignTool @SignArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Authenticode signing failed for '$Path'. Exit code: $LASTEXITCODE"
+        }
 
-    & $SigningContext.SignTool verify /pa /all /v $Path
-    if ($LASTEXITCODE -ne 0) {
-        throw "Authenticode verification failed for '$Path'. Exit code: $LASTEXITCODE"
+        & $SigningContext.SignTool verify /pa /all /v $Path
+        if ($LASTEXITCODE -ne 0) {
+            throw "Authenticode verification failed for '$Path'. Exit code: $LASTEXITCODE"
+        }
+    }
+    else {
+        $SignResult = Set-AuthenticodeSignature `
+            -LiteralPath $Path `
+            -Certificate $SigningContext.Certificate `
+            -HashAlgorithm SHA256 `
+            -TimestampServer $TimestampUrl
+        if ($SignResult.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+            throw "PowerShell Authenticode signing failed for '$Path': $($SignResult.StatusMessage)"
+        }
     }
 
     $Signature = Get-AuthenticodeSignature -LiteralPath $Path
