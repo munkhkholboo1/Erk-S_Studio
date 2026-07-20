@@ -60,11 +60,7 @@ internal sealed class NewProjectDialog : Window
     public NewProjectDialog(IReadOnlyList<StudioCloudOrganization> organizations)
     {
         this.organizations = organizations
-            .Where(item =>
-                !string.IsNullOrWhiteSpace(item.OrganizationId) &&
-                item.OrganizationType.Equals("DesignCompany", StringComparison.OrdinalIgnoreCase) &&
-                (item.CurrentUserRole.Equals("Organization Owner", StringComparison.OrdinalIgnoreCase) ||
-                 item.CurrentUserRole.Equals("Organization Admin", StringComparison.OrdinalIgnoreCase)))
+            .Where(StudioOrganizationAccessPolicy.CanCreateDesignProject)
             .GroupBy(item => item.OrganizationId, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderBy(OrganizationDisplayName, StringComparer.CurrentCultureIgnoreCase)

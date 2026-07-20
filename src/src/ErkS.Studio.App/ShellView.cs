@@ -1220,10 +1220,8 @@ internal sealed partial class ShellView : IDisposable
             return;
         }
 
-        bool hasManagedDesignOrganization = organizations.Any(item =>
-            item.OrganizationType.Equals("DesignCompany", StringComparison.OrdinalIgnoreCase) &&
-            (item.CurrentUserRole.Equals("Organization Owner", StringComparison.OrdinalIgnoreCase) ||
-             item.CurrentUserRole.Equals("Organization Admin", StringComparison.OrdinalIgnoreCase)));
+        bool hasManagedDesignOrganization = organizations.Any(
+            StudioOrganizationAccessPolicy.CanCreateDesignProject);
         if (!hasManagedDesignOrganization)
         {
             SelectPage(StudioPage.Companies);
