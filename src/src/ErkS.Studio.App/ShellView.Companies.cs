@@ -937,7 +937,14 @@ internal sealed partial class ShellView
         companyLogoScaleSlider.IsEnabled = inputsEnabled;
         companyLogoOffsetXSlider.IsEnabled = inputsEnabled;
         companyLogoOffsetYSlider.IsEnabled = inputsEnabled;
-        companyLibraryList.IsEnabled = companyEditorMode == CompanyEditorMode.View && !companySaveInProgress;
+        bool libraryInteractive = companyEditorMode == CompanyEditorMode.View && !companySaveInProgress;
+        companyLibraryList.IsEnabled = true;
+        companyLibraryList.IsHitTestVisible = libraryInteractive;
+        companyLibraryList.Focusable = libraryInteractive;
+        companyLibraryList.IsTabStop = libraryInteractive;
+        companyLibraryList.Background = libraryInteractive
+            ? StudioTheme.InputBrush
+            : StudioTheme.PanelAltBrush;
         companyRefreshButton.IsEnabled = companyEditorMode == CompanyEditorMode.View && !refreshingCompanies;
         companyNewButton.IsEnabled = companyEditorMode == CompanyEditorMode.View && account.IsSignedIn;
         companyEditButton.Visibility = companyEditorMode == CompanyEditorMode.View && hasSelection
