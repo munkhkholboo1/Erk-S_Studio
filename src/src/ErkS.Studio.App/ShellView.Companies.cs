@@ -16,6 +16,7 @@ internal sealed partial class ShellView
 {
     private readonly ListView companyLibraryList = new() { MinWidth = 270 };
     private readonly TextBlock companyLibraryStatus = new() { TextWrapping = TextWrapping.Wrap };
+    private FrameworkElement? companyEditorHost;
     private readonly TextBox libraryCompanyNameBox = new();
     private readonly TextBox libraryCompanyDisplayNameBox = new();
     private readonly TextBox libraryCompanyShortNameBox = new();
@@ -78,7 +79,10 @@ internal sealed partial class ShellView
     private readonly Button companyChooseLogoButton = StudioWidgets.CreateButton("Лого сонгох");
     private readonly Button companyRemoveLogoButton = StudioWidgets.CreateButton("Лого арилгах");
     private readonly Button companyResetLogoButton = StudioWidgets.CreateButton("Төвд тааруулах");
+    private readonly Button companyRefreshButton = StudioWidgets.CreateButton("Шинэчлэх");
+    private readonly Button companyEditButton = StudioWidgets.CreateButton("Засварлах");
     private readonly Button companySaveButton = StudioWidgets.CreatePrimaryButton("Хадгалах");
+    private readonly Button companyCancelButton = StudioWidgets.CreateButton("Болих");
     private readonly Button companyNewButton = StudioWidgets.CreateButton("Шинэ компани");
     private readonly Button companyUseInProjectButton = StudioWidgets.CreateButton("Төсөлд ашиглах");
     private readonly Button companyDeleteButton = StudioWidgets.CreateButton("Устгах");
@@ -90,10 +94,13 @@ internal sealed partial class ShellView
     private string pendingCompanyLogoPath = "";
     private string requestedCompanySelectionId = "";
     private bool removeCompanyLogoRequested;
-    private bool bindingCompanyEditor;
     private bool refreshingCompanies;
     private bool companyCatalogCloudVerified;
     private bool companyRegistryImportInProgress;
+    private bool companySaveInProgress;
+    private bool companyDocumentsChanged;
+    private string companySelectionBeforeCreate = "";
+    private CompanyEditorMode companyEditorMode = CompanyEditorMode.View;
 
     private UIElement BuildCompaniesPage()
     {
@@ -105,15 +112,18 @@ internal sealed partial class ShellView
 
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        var refreshButton = StudioWidgets.CreateButton("Шинэчлэх");
-        refreshButton.Click += async (_, _) => await RefreshCompaniesAsync(forceCloud: true);
+        companyRefreshButton.Click += async (_, _) => await RefreshCompaniesAsync(forceCloud: true);
         companyNewButton.Click += async (_, _) => await CreateCompanyDraftAsync();
+        companyEditButton.Click += (_, _) => BeginCompanyEdit();
         companySaveButton.Click += async (_, _) => await SaveSelectedCompanyAsync();
+        companyCancelButton.Click += (_, _) => CancelCompanyEdit();
         companyUseInProjectButton.Click += async (_, _) => await UseSelectedCompanyInOpenProjectAsync();
         companyDeleteButton.Click += async (_, _) => await DeleteSelectedCompanyAsync();
-        actions.Children.Add(refreshButton);
+        actions.Children.Add(companyRefreshButton);
         actions.Children.Add(companyNewButton);
+        actions.Children.Add(companyEditButton);
         actions.Children.Add(companySaveButton);
+        actions.Children.Add(companyCancelButton);
         actions.Children.Add(companyUseInProjectButton);
         actions.Children.Add(companyDeleteButton);
         DockPanel.SetDock(actions, Dock.Right);
@@ -146,10 +156,11 @@ internal sealed partial class ShellView
         Grid.SetColumn(splitter, 1);
         body.Children.Add(splitter);
 
-        UIElement editor = BuildCompanyEditor();
-        Grid.SetColumn(editor, 2);
-        body.Children.Add(editor);
+        companyEditorHost = (FrameworkElement)BuildCompanyEditor();
+        Grid.SetColumn(companyEditorHost, 2);
+        body.Children.Add(companyEditorHost);
         root.Children.Add(body);
+        ApplyCompanyEditorModeUi();
         return root;
     }
 
@@ -198,6 +209,7 @@ internal sealed partial class ShellView
         form.Children.Add(StudioWidgets.CreateFormRow("Хот / дүүрэг", libraryCompanyCityBox, 180));
         form.Children.Add(StudioWidgets.CreateFormRow("Бүртгэлтэй хаяг", libraryCompanyAddressBox, 180));
         libraryCompanyRegistrySourceText.Foreground = StudioTheme.MutedTextBrush;
+        ToolTipService.SetShowOnDisabled(libraryCompanyOpenRegistryButton, true);
         libraryCompanyOpenRegistryButton.Click += async (_, _) => await ImportOrganizationRegistryAsync();
         var registrySourcePanel = new StackPanel();
         registrySourcePanel.Children.Add(libraryCompanyRegistrySourceText);
@@ -292,7 +304,7 @@ internal sealed partial class ShellView
 
     private async Task RefreshCompaniesAsync(bool forceCloud = false)
     {
-        if (refreshingCompanies)
+        if (refreshingCompanies || companyEditorMode != CompanyEditorMode.View)
             return;
         if (!account.IsSignedIn)
         {
@@ -305,14 +317,20 @@ internal sealed partial class ShellView
         }
 
         refreshingCompanies = true;
+        ApplyCompanyEditorModeUi();
         try
         {
             CompanyLibraryStore store = EnsureCompanyLibraryStore();
-            List<CompanyCatalogEntry> cached = store.Load()
+            List<CompanyCatalogEntry> loaded = store.Load()
                 .Where(item => !item.SyncStatus.Equals(
                     CompanySyncStatuses.ProjectSnapshot,
                     StringComparison.OrdinalIgnoreCase))
                 .ToList();
+            List<CompanyCatalogEntry> cached = loaded
+                .Where(item => !CompanyEditorWorkflowPolicy.IsEmptyLegacyDraft(item))
+                .ToList();
+            if (cached.Count != loaded.Count)
+                store.Save(cached);
             string previousId = string.IsNullOrWhiteSpace(requestedCompanySelectionId)
                 ? selectedCompanyEntry?.Profile.OrganizationId ?? ""
                 : requestedCompanySelectionId;
@@ -392,6 +410,7 @@ internal sealed partial class ShellView
         finally
         {
             refreshingCompanies = false;
+            ApplyCompanyEditorModeUi();
         }
     }
 
@@ -581,6 +600,9 @@ internal sealed partial class ShellView
     {
         if (!await EnsureSignedInAsync())
             return;
+        if (companyEditorMode != CompanyEditorMode.View)
+            return;
+        companySelectionBeforeCreate = selectedCompanyEntry?.Profile.OrganizationId ?? "";
         CompanyCatalogEntry entry = new()
         {
             Profile = new CompanyProfile
@@ -594,21 +616,67 @@ internal sealed partial class ShellView
             CurrentUserRole = "Organization Owner",
             SyncStatus = CompanySyncStatuses.PendingCreate,
         };
-        companyEntries.Add(entry);
-        EnsureCompanyLibraryStore().Save(companyEntries);
-        RefreshCompanyList(entry.Profile.OrganizationId);
+        companyLibraryList.SelectedItem = null;
+        BindCompanyEditor(entry);
+        SetCompanyEditorMode(CompanyEditorMode.Create);
         libraryCompanyNameBox.Focus();
-        SetStatus("Шинэ компанийн profile үүслээ. Мэдээллээ оруулаад хадгална уу.");
+        SetStatus("Шинэ компанийн мэдээллээ оруулна уу. Хадгалах хүртэл байгууллага үүсэхгүй.");
+    }
+
+    private void BeginCompanyEdit()
+    {
+        if (companyEditorMode != CompanyEditorMode.View ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
+            return;
+        }
+
+        SetCompanyEditorMode(CompanyEditorMode.Edit);
+        libraryCompanyDisplayNameBox.Focus();
+        SetStatus("Компанийн мэдээллийг засварлаж байна. Дуусгаад Хадгалах эсвэл Болих дарна уу.");
+    }
+
+    private void CancelCompanyEdit()
+    {
+        if (companyEditorMode == CompanyEditorMode.View)
+            return;
+
+        if (companyEditorMode == CompanyEditorMode.Create)
+        {
+            string restoreSelection = companySelectionBeforeCreate;
+            companySelectionBeforeCreate = "";
+            SetCompanyEditorMode(CompanyEditorMode.View);
+            RefreshCompanyList(restoreSelection);
+        }
+        else if (selectedCompanyEntry is not null)
+        {
+            CompanyCatalogEntry entry = selectedCompanyEntry;
+            BindCompanyEditor(entry);
+            RefreshCompanyList(entry.Profile.OrganizationId);
+        }
+        else
+        {
+            ClearCompanyEditor();
+        }
+
+        SetStatus("Компанийн мэдээллийн өөрчлөлтийг хадгалсангүй.");
     }
 
     private async Task SaveSelectedCompanyAsync()
     {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
+        if (companyEditorMode == CompanyEditorMode.View ||
+            companySaveInProgress ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
             return;
-        CompanyProfile profile = CollectCompanyEditor();
+        }
 
+        CompanyCatalogEntry entry = selectedCompanyEntry;
+        CompanyProfile profile = CollectCompanyEditor();
         CompanyLibraryStore store = EnsureCompanyLibraryStore();
-        string previousSyncStatus = selectedCompanyEntry.SyncStatus;
+        string previousSyncStatus = entry.SyncStatus;
         string logoUploadPath = pendingCompanyLogoPath;
         if (!string.IsNullOrWhiteSpace(pendingCompanyLogoPath))
         {
@@ -621,13 +689,10 @@ internal sealed partial class ShellView
         {
             logoUploadPath = profile.LogoPath;
         }
-        selectedCompanyEntry.Profile = profile;
-        selectedCompanyEntry.LogoRemovalPending = removeCompanyLogoRequested;
-        selectedCompanyEntry.SyncStatus = profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase)
-            ? CompanySyncStatuses.PendingCreate
-            : CompanySyncStatuses.PendingUpdate;
-        store.Save(companyEntries);
 
+        companySaveInProgress = true;
+        ApplyCompanyEditorModeUi();
+        SetStatus("Компанийн мэдээллийг Cloud ERA-д хадгалж байна...");
         try
         {
             StudioCloudOrganization cloud = profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase)
@@ -651,30 +716,41 @@ internal sealed partial class ShellView
             synced.DesignLicenseDocuments = profile.DesignLicenseDocuments
                 .Select(document => document.Clone())
                 .ToList();
-            selectedCompanyEntry.Profile = synced;
-            selectedCompanyEntry.CanManage = cloud.CanManage;
-            selectedCompanyEntry.CurrentUserRole = cloud.CurrentUserRole;
-            selectedCompanyEntry.SyncStatus = CompanySyncStatuses.Cloud;
-            selectedCompanyEntry.LogoRemovalPending = false;
+            entry.Profile = synced;
+            entry.CanManage = cloud.CanManage;
+            entry.CurrentUserRole = cloud.CurrentUserRole;
+            entry.SyncStatus = CompanySyncStatuses.Cloud;
+            entry.LogoRemovalPending = false;
+            entry.DocumentsPendingCloudSync |= companyDocumentsChanged;
+            if (!companyEntries.Contains(entry))
+                companyEntries.Add(entry);
             pendingCompanyLogoPath = "";
             removeCompanyLogoRequested = false;
+            companyDocumentsChanged = false;
+            companySelectionBeforeCreate = "";
             store.Save(companyEntries);
             ApplyCompanyToOpenProject(synced, rebuildAlbum: true);
+            SetCompanyEditorMode(CompanyEditorMode.View);
             RefreshCompanyList(synced.OrganizationId);
             companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · Cloud ERA";
             SetStatus("Компанийн мэдээлэл Cloud ERA-д хадгалагдлаа.");
         }
         catch (StudioAccountException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
         {
-            SaveCompanyAsPending(profile, store, exception.Message);
+            SaveCompanyAsPending(entry, profile, store, exception.Message);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
-            SaveCompanyAsPending(profile, store, exception.Message);
+            SaveCompanyAsPending(entry, profile, store, exception.Message);
         }
         catch (StudioAccountException exception)
         {
             SetStatus("Компанийн мэдээлэл хадгалагдсангүй: " + exception.Message);
+        }
+        finally
+        {
+            companySaveInProgress = false;
+            ApplyCompanyEditorModeUi();
         }
     }
 
@@ -722,11 +798,27 @@ internal sealed partial class ShellView
         }
     }
 
-    private void SaveCompanyAsPending(CompanyProfile profile, CompanyLibraryStore store, string reason)
+    private void SaveCompanyAsPending(
+        CompanyCatalogEntry entry,
+        CompanyProfile profile,
+        CompanyLibraryStore store,
+        string reason)
     {
+        entry.Profile = profile;
+        entry.LogoRemovalPending = removeCompanyLogoRequested;
+        entry.DocumentsPendingCloudSync |= companyDocumentsChanged;
+        entry.SyncStatus = profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase)
+            ? CompanySyncStatuses.PendingCreate
+            : CompanySyncStatuses.PendingUpdate;
+        if (!companyEntries.Contains(entry))
+            companyEntries.Add(entry);
         pendingCompanyLogoPath = "";
+        removeCompanyLogoRequested = false;
+        companyDocumentsChanged = false;
+        companySelectionBeforeCreate = "";
         store.Save(companyEntries);
         ApplyCompanyToOpenProject(profile, rebuildAlbum: true);
+        SetCompanyEditorMode(CompanyEditorMode.View);
         RefreshCompanyList(profile.OrganizationId);
         companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · cloud sync хүлээгдэж байна";
         SetStatus("Компанийн мэдээлэл локал cache-д хадгалагдлаа. Cloud sync хүлээгдэж байна: " + reason);
@@ -737,9 +829,9 @@ internal sealed partial class ShellView
         selectedCompanyEntry = entry;
         pendingCompanyLogoPath = "";
         removeCompanyLogoRequested = entry.LogoRemovalPending;
+        companyDocumentsChanged = false;
         CompanyProfile profile = entry.Profile;
         profile.Normalize();
-        bindingCompanyEditor = true;
         libraryCompanyNameBox.Text = profile.Name;
         libraryCompanyDisplayNameBox.Text = profile.DisplayName;
         libraryCompanyShortNameBox.Text = profile.ShortName;
@@ -764,11 +856,7 @@ internal sealed partial class ShellView
         companyLogoOffsetXSlider.Value = profile.LogoOffsetX;
         companyLogoOffsetYSlider.Value = profile.LogoOffsetY;
         BindCompanyDocumentDrafts(profile);
-        bindingCompanyEditor = false;
-        SetCompanyEditorEnabled(entry.CanManage);
-        libraryCompanyRegistrationBox.IsReadOnly = !entry.CanManage ||
-            (!entry.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase) &&
-             !string.IsNullOrWhiteSpace(profile.RegistrationNumber));
+        SetCompanyEditorMode(CompanyEditorMode.View);
         LoadCompanyLogoPreview(profile.LogoPath);
         companyLibraryStatus.Text = string.Join(" · ", new[]
         {
@@ -824,22 +912,51 @@ internal sealed partial class ShellView
         return profile;
     }
 
-    private void SetCompanyEditorEnabled(bool enabled)
+    private void SetCompanyEditorMode(CompanyEditorMode mode)
     {
+        companyEditorMode = mode;
+        ApplyCompanyEditorModeUi();
+    }
+
+    private void ApplyCompanyEditorModeUi()
+    {
+        bool hasSelection = selectedCompanyEntry is not null;
+        bool canManage = selectedCompanyEntry?.CanManage == true;
+        bool editing = companyEditorMode != CompanyEditorMode.View && canManage;
+        bool inputsEnabled = editing && !companySaveInProgress;
+        if (companyEditorHost is not null)
+            companyEditorHost.Visibility = hasSelection ? Visibility.Visible : Visibility.Collapsed;
         foreach (TextBox box in CompanyEditorTextBoxes())
-            box.IsReadOnly = !enabled;
-        companyChooseLogoButton.IsEnabled = enabled;
-        companyRemoveLogoButton.IsEnabled = enabled;
-        companyResetLogoButton.IsEnabled = enabled;
-        companyLogoScaleSlider.IsEnabled = enabled;
-        companyLogoOffsetXSlider.IsEnabled = enabled;
-        companyLogoOffsetYSlider.IsEnabled = enabled;
-        companySaveButton.IsEnabled = enabled;
+            box.IsReadOnly = !inputsEnabled;
+        bool lockedExistingRegistration = companyEditorMode == CompanyEditorMode.Edit &&
+            !string.IsNullOrWhiteSpace(selectedCompanyEntry?.Profile.RegistrationNumber);
+        libraryCompanyRegistrationBox.IsReadOnly = !inputsEnabled || lockedExistingRegistration;
+        companyChooseLogoButton.IsEnabled = inputsEnabled;
+        companyRemoveLogoButton.IsEnabled = inputsEnabled;
+        companyResetLogoButton.IsEnabled = inputsEnabled;
+        companyLogoScaleSlider.IsEnabled = inputsEnabled;
+        companyLogoOffsetXSlider.IsEnabled = inputsEnabled;
+        companyLogoOffsetYSlider.IsEnabled = inputsEnabled;
+        companyLibraryList.IsEnabled = companyEditorMode == CompanyEditorMode.View && !companySaveInProgress;
+        companyRefreshButton.IsEnabled = companyEditorMode == CompanyEditorMode.View && !refreshingCompanies;
+        companyNewButton.IsEnabled = companyEditorMode == CompanyEditorMode.View && account.IsSignedIn;
+        companyEditButton.Visibility = companyEditorMode == CompanyEditorMode.View && hasSelection
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        companyEditButton.IsEnabled = canManage && !companySaveInProgress;
+        companySaveButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+        companySaveButton.IsEnabled = inputsEnabled;
+        companyCancelButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+        companyCancelButton.IsEnabled = editing && !companySaveInProgress;
+        RefreshCompanyProjectActionUi();
+        if (editing)
+            companyUseInProjectButton.IsEnabled = false;
         bool localDraft = selectedCompanyEntry?.Profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) == true &&
             selectedCompanyEntry?.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase) == true;
         bool owner = selectedCompanyEntry?.CurrentUserRole.Equals("Organization Owner", StringComparison.OrdinalIgnoreCase) == true;
         bool protectedAuthority = selectedCompanyEntry?.Profile.OrganizationType.Equals("PlanningAuthority", StringComparison.OrdinalIgnoreCase) == true;
-        companyDeleteButton.IsEnabled = enabled && !protectedAuthority && (localDraft || owner);
+        companyDeleteButton.IsEnabled = companyEditorMode == CompanyEditorMode.View &&
+            canManage && !protectedAuthority && (localDraft || owner);
         companyDeleteButton.ToolTip = companyDeleteButton.IsEnabled
             ? "Туршилтын эсвэл буруу байгууллагыг устгах"
             : "Cloud ERA байгууллагыг зөвхөн owner устгана.";
@@ -879,22 +996,25 @@ internal sealed partial class ShellView
             box.Clear();
         libraryCompanyRegistrySourceText.Text = "";
         libraryCompanyOpenRegistryButton.IsEnabled = false;
-        bindingCompanyEditor = true;
         companyLogoScaleSlider.Value = 1;
         companyLogoOffsetXSlider.Value = 0;
         companyLogoOffsetYSlider.Value = 0;
-        bindingCompanyEditor = false;
         companyRegistrationDocumentDrafts = [];
         companyLicenseDocumentDrafts = [];
-        SetCompanyEditorEnabled(false);
+        companyDocumentsChanged = false;
+        SetCompanyEditorMode(CompanyEditorMode.View);
         LoadCompanyLogoPreview("");
         OnCompanyLogoTransformChanged();
     }
 
     private void ChooseCompanyLogo()
     {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
+        if (companyEditorMode == CompanyEditorMode.View ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
             return;
+        }
         var dialog = new OpenFileDialog
         {
             Title = "Компанийн лого сонгох",
@@ -912,7 +1032,6 @@ internal sealed partial class ShellView
             LoadCompanyLogoPreview(dialog.FileName);
             pendingCompanyLogoPath = dialog.FileName;
             removeCompanyLogoRequested = false;
-            selectedCompanyEntry.LogoRemovalPending = false;
             companyLogoFileText.Text = Path.GetFileName(dialog.FileName);
             ResetCompanyLogoPlacement();
         }
@@ -925,22 +1044,22 @@ internal sealed partial class ShellView
 
     private void RemoveCompanyLogo()
     {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
+        if (companyEditorMode == CompanyEditorMode.View ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
             return;
+        }
         pendingCompanyLogoPath = "";
         removeCompanyLogoRequested = true;
-        selectedCompanyEntry.LogoRemovalPending = true;
-        selectedCompanyEntry.Profile.LogoPath = "";
         LoadCompanyLogoPreview("");
     }
 
     private void ResetCompanyLogoPlacement()
     {
-        bindingCompanyEditor = true;
         companyLogoScaleSlider.Value = 1;
         companyLogoOffsetXSlider.Value = 0;
         companyLogoOffsetYSlider.Value = 0;
-        bindingCompanyEditor = false;
         OnCompanyLogoTransformChanged();
     }
 
@@ -973,12 +1092,6 @@ internal sealed partial class ShellView
         companyLogoOffsetXValue.Text = $"{companyLogoOffsetXSlider.Value:+0.00;-0.00;0.00}";
         companyLogoOffsetYValue.Text = $"{companyLogoOffsetYSlider.Value:+0.00;-0.00;0.00}";
         UpdateCompanyLogoPreviewLayout();
-        if (!bindingCompanyEditor && selectedCompanyEntry is not null)
-        {
-            selectedCompanyEntry.Profile.LogoScale = companyLogoScaleSlider.Value;
-            selectedCompanyEntry.Profile.LogoOffsetX = companyLogoOffsetXSlider.Value;
-            selectedCompanyEntry.Profile.LogoOffsetY = companyLogoOffsetYSlider.Value;
-        }
     }
 
     private void UpdateCompanyLogoPreviewLayout()
@@ -1204,83 +1317,22 @@ internal sealed partial class ShellView
         _ => string.IsNullOrWhiteSpace(source) ? "эх үүсвэр тодорхойгүй" : source,
     };
 
-    private static CompanyProfile MapCloudCompany(StudioCloudOrganization cloud)
-    {
-        var profile = new CompanyProfile
-        {
-            OrganizationId = cloud.OrganizationId,
-            Name = cloud.LegalName,
-            DisplayName = cloud.DisplayName,
-            ShortName = cloud.ShortName,
-            RegistrationNumber = cloud.RegistrationNumber,
-            LegalEntityType = cloud.LegalEntityType,
-            LegalForm = cloud.LegalForm,
-            ActivityDirections = [.. (cloud.ActivityDirections ?? [])],
-            RegisteredAtUtc = cloud.RegisteredAtUtc,
-            OfficialRepresentativeName = cloud.OfficialRepresentativeName,
-            RegistrySource = cloud.RegistrySource,
-            RegistrySourceUrl = cloud.RegistrySourceUrl,
-            RegistryCheckedAtUtc = cloud.RegistryCheckedAtUtc,
-            OrganizationType = cloud.OrganizationType,
-            Status = cloud.Status,
-            VerificationStatus = cloud.VerificationStatus,
-            RegisteredCity = cloud.RegisteredCity,
-            Address = cloud.Address,
-            PhoneNumbers = [.. cloud.PhoneNumbers],
-            Phone = cloud.PhoneNumbers.FirstOrDefault() ?? "",
-            Email = cloud.Email,
-            WebSite = cloud.Website,
-            LicenseScope = cloud.LicenseScope,
-            LicenseNumber = cloud.LicenseNumber,
-            DesignRepresentativeTitle = FirstCompanyValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
-            DesignRepresentativeName = FirstCompanyValue(cloud.DesignRepresentativeName, cloud.DirectorName),
-            DirectorTitle = FirstCompanyValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
-            DirectorName = FirstCompanyValue(cloud.DesignRepresentativeName, cloud.DirectorName),
-            LogoScale = cloud.LogoScale,
-            LogoOffsetX = cloud.LogoOffsetX,
-            LogoOffsetY = cloud.LogoOffsetY,
-            UpdatedAtUtc = cloud.UpdatedAtUtc,
-        };
-        if (!string.IsNullOrWhiteSpace(profile.DesignRepresentativeName))
-            profile.Signers.Add(new CompanySigner { Role = profile.DesignRepresentativeTitle, FullName = profile.DesignRepresentativeName });
-        profile.Normalize();
-        return profile;
-    }
+    private static CompanyProfile MapCloudCompany(StudioCloudOrganization cloud) =>
+        StudioCompanyProfileMapper.FromOrganization(cloud);
 
-    private static StudioCloudOrganizationUpsertRequest ToCloudCompanyRequest(CompanyProfile profile) => new()
-    {
-        RegistryFieldsIncluded = true,
-        LegalName = profile.Name,
-        DisplayName = profile.DisplayName,
-        ShortName = profile.ShortName,
-        RegistrationNumber = profile.RegistrationNumber,
-        LegalEntityType = profile.LegalEntityType,
-        LegalForm = profile.LegalForm,
-        ActivityDirections = [.. profile.ActivityDirections],
-        RegisteredAtUtc = profile.RegisteredAtUtc,
-        OfficialRepresentativeName = profile.OfficialRepresentativeName,
-        OrganizationType = string.IsNullOrWhiteSpace(profile.OrganizationType) ? "DesignCompany" : profile.OrganizationType,
-        RegisteredCity = profile.RegisteredCity,
-        Address = profile.Address,
-        PhoneNumbers = [.. profile.PhoneNumbers],
-        Email = profile.Email,
-        Website = profile.WebSite,
-        LicenseScope = profile.LicenseScope,
-        LicenseNumber = profile.LicenseNumber,
-        DesignRepresentativeTitle = profile.DesignRepresentativeTitle,
-        DesignRepresentativeName = profile.DesignRepresentativeName,
-        DirectorTitle = profile.DesignRepresentativeTitle,
-        DirectorName = profile.DesignRepresentativeName,
-        LogoScale = profile.LogoScale,
-        LogoOffsetX = profile.LogoOffsetX,
-        LogoOffsetY = profile.LogoOffsetY,
-    };
+    private static StudioCloudOrganizationUpsertRequest ToCloudCompanyRequest(CompanyProfile profile) =>
+        StudioCompanyProfileMapper.ToUpsertRequest(profile);
 
     private async Task ImportOrganizationRegistryAsync()
     {
         CompanyCatalogEntry? entry = selectedCompanyEntry;
         if (entry is null || !entry.CanManage)
             return;
+        if (!account.OrganizationRegistryImportConfigured)
+        {
+            SetStatus(account.OrganizationRegistryImportMessage);
+            return;
+        }
         CompanyProfile profile = entry.Profile;
         if (profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) ||
             !entry.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase))
@@ -1361,12 +1413,29 @@ internal sealed partial class ShellView
 
     private void RefreshCompanyRegistryImportButton(CompanyCatalogEntry entry)
     {
+        bool providerConfigured = account.OrganizationRegistryImportConfigured;
         bool cloudOrganization = !entry.Profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase) &&
             entry.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase);
         bool hasRegistration = !string.IsNullOrWhiteSpace(entry.Profile.RegistrationNumber);
+        libraryCompanyOpenRegistryButton.Content = providerConfigured
+            ? "ДАН-аар мэдээлэл татах"
+            : "ДАН холболт идэвхгүй";
+        libraryCompanyRegistrySourceText.Text = providerConfigured
+            ? RegistrySourceLabel(entry.Profile)
+            : string.Join(Environment.NewLine, new[]
+            {
+                RegistrySourceLabel(entry.Profile),
+                account.OrganizationRegistryImportMessage,
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
         libraryCompanyOpenRegistryButton.IsEnabled = !companyRegistryImportInProgress &&
-            entry.CanManage && cloudOrganization && hasRegistration;
-        libraryCompanyOpenRegistryButton.ToolTip = !entry.CanManage
+            companyEditorMode == CompanyEditorMode.View &&
+            providerConfigured &&
+            entry.CanManage &&
+            cloudOrganization &&
+            hasRegistration;
+        libraryCompanyOpenRegistryButton.ToolTip = !providerConfigured
+            ? account.OrganizationRegistryImportMessage
+            : !entry.CanManage
             ? "Энэ байгууллагын мэдээллийг удирдах эрх шаардлагатай."
             : !cloudOrganization
                 ? "Эхлээд байгууллагаа Cloud ERA-д хадгална уу."
@@ -1394,9 +1463,6 @@ internal sealed partial class ShellView
             : fallback;
     }
 
-    private static string FirstCompanyValue(params string?[] values) =>
-        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
-
     private static string CompanySyncLabel(string status) => status switch
     {
         CompanySyncStatuses.Cloud => "Cloud",
@@ -1413,4 +1479,5 @@ internal sealed partial class ShellView
         public string Name => CompanyDisplayName(Entry.Profile);
         public string Access => Entry.CanManage ? "Удирдах" : "Харах";
     }
+
 }

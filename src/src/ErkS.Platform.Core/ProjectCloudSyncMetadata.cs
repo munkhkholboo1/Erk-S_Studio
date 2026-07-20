@@ -238,6 +238,43 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.LastSyncNote = note?.Trim() ?? "";
     }
 
+    public static void MarkCloudChecked(ProjectWorkspace project, DateTimeOffset checkedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.LastCloudCheckedAtUtc = checkedAtUtc;
+    }
+
+    public static void MarkCloudRefreshed(
+        ProjectWorkspace project,
+        string concurrencyToken,
+        DateTimeOffset refreshedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.LastCloudCheckedAtUtc = refreshedAtUtc;
+        project.Cloud.LastCloudRefreshedAtUtc = refreshedAtUtc;
+        project.Cloud.LastServerConcurrencyToken = concurrencyToken?.Trim() ?? "";
+    }
+
+    public static void RecordReceivedAlbum(
+        ProjectWorkspace project,
+        string revisionId,
+        int revisionNumber,
+        string sha256)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.LastReceivedAlbumRevisionId = revisionId?.Trim() ?? "";
+        project.Cloud.LastReceivedAlbumRevisionNumber = Math.Max(0, revisionNumber);
+        project.Cloud.LastReceivedAlbumSha256 = sha256?.Trim().ToLowerInvariant() ?? "";
+    }
+
+    public static void ClearReceivedAlbum(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.LastReceivedAlbumRevisionId = "";
+        project.Cloud.LastReceivedAlbumRevisionNumber = 0;
+        project.Cloud.LastReceivedAlbumSha256 = "";
+    }
+
     public static void MarkError(ProjectWorkspace project, string message)
     {
         ArgumentNullException.ThrowIfNull(project);

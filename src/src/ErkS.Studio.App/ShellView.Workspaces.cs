@@ -153,8 +153,10 @@ internal sealed partial class ShellView
             "Харагдах байдал",
             "Одоогийн төсөлд зурагт харагдах байдлын эх үүсвэр үүсгэх");
         addVisualizationSource.Click += (_, _) => ConfigureVisualizationSourceForCurrentProject();
-        var rescan = StudioWidgets.CreateButton("Шинэчлэлт шалгах");
-        rescan.ToolTip = "Revit/AutoCAD package, АТД, гэрчилгээ, тусгай зөвшөөрөл болон харагдах байдлын зургийг шалгаж альбумыг шинэчилнэ.";
+        var rescan = StudioWidgets.CreateButton("Эх үүсвэр шалгах");
+        rescan.ToolTip =
+            "Зөвхөн энэ төхөөрөмжийн Revit/AutoCAD package, АТД, гэрчилгээ, тусгай зөвшөөрөл " +
+            "болон харагдах байдлын файлын өөрчлөлтийг шалгаж локал album-ыг шинэчилнэ. Cloud төслийг татахгүй.";
         rescan.Click += (_, _) => CheckForSourceUpdates();
         sourceGroup.Children.Add(addSource);
         sourceGroup.Children.Add(addVisualizationSource);
@@ -176,7 +178,7 @@ internal sealed partial class ShellView
         var assetScan = new ProjectAssetSourceReconciliationResult();
         try
         {
-            SetStatus("Шинэчлэлт шалгаж байна...");
+            SetStatus("Локал эх үүсвэрийн өөрчлөлт шалгаж байна...");
             assetScan.Merge(ReconcileCompanyAssetSources());
             assetScan.Merge(state.ReconcileProjectAssetSources());
             scan = state.Intake.Rescan();
@@ -184,7 +186,7 @@ internal sealed partial class ShellView
         catch (Exception exception)
         {
             sourceRefreshInProgress = false;
-            SetStatus($"Шинэчлэлт шалгахад алдаа: {exception.Message}");
+            SetStatus($"Локал эх үүсвэр шалгахад алдаа: {exception.Message}");
             return;
         }
 
@@ -993,8 +995,10 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(albumTitleBox);
         var save = StudioWidgets.CreateIconTextButton("icon-project.svg", "Хадгалах");
         save.Click += (_, _) => SaveProject();
-        var updateAlbum = StudioWidgets.CreateIconTextButton("icon-album.svg", "Альбум шинэчлэх");
-        updateAlbum.ToolTip = "Бүх linked source-ийг шалгаж, өөрчлөгдсөн мэдээллээр альбумыг дахин бүрдүүлнэ. Устсан source-ийн агуулга хуудсанд үлдэхгүй.";
+        var updateAlbum = StudioWidgets.CreateIconTextButton("icon-album.svg", "Эх үүсвэрээс шинэчлэх");
+        updateAlbum.ToolTip =
+            "Бүх локал linked source-ийг шалгаж, өөрчлөгдсөн мэдээллээр album-ыг дахин бүрдүүлнэ. " +
+            "Устсан source-ийн агуулга хуудсанд үлдэхгүй. Cloud мэдээлэл татахгүй.";
         updateAlbum.Background = StudioTheme.AccentBrush;
         updateAlbum.BorderBrush = StudioTheme.AccentBrush;
         updateAlbum.Click += (_, _) => CheckForSourceUpdates();

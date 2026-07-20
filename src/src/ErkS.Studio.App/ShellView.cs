@@ -181,7 +181,11 @@ internal sealed partial class ShellView : IDisposable
     // Overview / deliverables
     private readonly TextBlock projectOverviewText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock syncSummaryText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button syncButton = StudioWidgets.CreatePrimaryButton("Sync");
+    private readonly Button cloudRefreshButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE72C",
+        "Cloud-оос шинэчлэх",
+        "Canonical төслийн мэдээлэл, байгууллагын snapshot/logo, багийн эрх болон current album PDF-ийн өөрчлөлтийг шалгах");
+    private readonly Button syncButton = StudioWidgets.CreatePrimaryButton("Cloud руу Sync");
     private bool syncInProgress;
     private readonly ListView reportsList = new() { MinHeight = 240 };
     private readonly ListView archiveList = new() { MinHeight = 240 };
@@ -1357,8 +1361,16 @@ internal sealed partial class ShellView : IDisposable
             await ApplyCloudProjectRenderProfileAsync(cloud);
             EnterProjectWorkspace();
             await DrainSuppressedAlbumRebuildEventsAsync();
-            bool albumCached = await TryCacheCurrentCloudAlbumPreviewAsync(cloud.Project.ProjectId);
+            CloudAlbumCacheRefreshResult albumRefresh = await RefreshCloudAlbumPreviewAsync(
+                cloud.Project.ProjectId,
+                cloud.Albums);
+            bool albumCached = albumRefresh.HasCurrentAlbum;
             await DrainSuppressedAlbumRebuildEventsAsync();
+            ProjectCloudSyncMetadata.MarkCloudRefreshed(
+                state.Project,
+                cloud.Project.ConcurrencyToken,
+                DateTimeOffset.UtcNow);
+            state.SaveProject();
             BindProjectToUi();
             SetStatus(albumCached
                 ? $"Cloud ERA төслийн локал mirror болон current album PDF нээгдлээ: {state.ProjectPath}"
@@ -1635,10 +1647,19 @@ internal sealed partial class ShellView : IDisposable
     {
         var panel = new StackPanel { Margin = new Thickness(18), MaxWidth = 980, HorizontalAlignment = HorizontalAlignment.Left };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        cloudRefreshButton.Click += async (_, _) => await RefreshCurrentProjectCloudAccessAsync(reportResult: true);
         syncButton.Click += async (_, _) => await SyncCurrentProjectAsync();
-        syncButton.ToolTip = "AutoCAD/Revit package болон Studio альбумын одоогийн snapshot-ийг Cloud ERA руу илгээх";
-        DockPanel.SetDock(syncButton, Dock.Right);
-        header.Children.Add(syncButton);
+        syncButton.ToolTip = "Локал төслийн өөрчлөлт, source package болон Studio album revision-ийг Cloud ERA руу илгээх";
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        cloudRefreshButton.Margin = new Thickness(0, 0, 8, 0);
+        actions.Children.Add(cloudRefreshButton);
+        actions.Children.Add(syncButton);
+        DockPanel.SetDock(actions, Dock.Right);
+        header.Children.Add(actions);
         header.Children.Add(StudioWidgets.CreateTitle("Төслийн ерөнхий мэдээлэл"));
         panel.Children.Add(header);
         projectOverviewText.Foreground = StudioTheme.TextBrush;
@@ -2641,6 +2662,10 @@ internal sealed partial class ShellView : IDisposable
                 latest.Project.ConcurrencyToken,
                 DateTimeOffset.UtcNow,
                 syncNote);
+            ProjectCloudSyncMetadata.MarkCloudRefreshed(
+                state.Project,
+                latest.Project.ConcurrencyToken,
+                DateTimeOffset.UtcNow);
             if (informationReconciliation is { AcceptedByServer: false, PendingUpdate: not null })
             {
                 ProjectCloudSyncMetadata.MarkConflict(
@@ -2767,8 +2792,9 @@ internal sealed partial class ShellView : IDisposable
     {
         if (!state.HasOpenProject)
         {
+            cloudRefreshButton.IsEnabled = false;
             syncButton.IsEnabled = false;
-            syncButton.Content = "Sync";
+            syncButton.Content = "Cloud руу Sync";
             syncSummaryText.Text = "";
             return;
         }
@@ -2776,17 +2802,26 @@ internal sealed partial class ShellView : IDisposable
         ProjectCloudLink cloud = state.Project.Cloud;
         bool linked = cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(cloud.ServerProjectId);
+        cloudRefreshButton.IsEnabled = linked &&
+            account.IsSignedIn &&
+            !refreshingCurrentProjectAccess &&
+            !syncInProgress;
         syncButton.IsEnabled = linked && account.IsSignedIn && !syncInProgress && CanEditProjectContent();
-        syncButton.Content = syncInProgress ? "Syncing..." : "Sync";
-        syncButton.ToolTip = refreshingCurrentProjectAccess
-            ? "Cloud ERA access эрхийг шинэчилж байна"
+        syncButton.Content = syncInProgress ? "Илгээж байна..." : "Cloud руу Sync";
+        cloudRefreshButton.ToolTip = refreshingCurrentProjectAccess
+            ? "Cloud ERA өөрчлөлтийн manifest шалгаж байна"
             : !linked
-                ? "Энэ төслийг Cloud ERA project-той холбоход Sync идэвхжинэ"
+                ? "Энэ төслийг Cloud ERA project-той холбоход шинэчлэлт хүлээн авна"
                 : !account.IsSignedIn
-                    ? "Sync хийхийн тулд бүртгэлээрээ нэвтэрнэ үү"
-                    : !CanEditProjectContent()
-                        ? "Таны project role Sync хийх эрхгүй байна"
-                        : "Эх үүсвэр, album snapshot-ийг Cloud ERA руу sync хийх";
+                    ? "Cloud-оос шинэчлэхийн тулд бүртгэлээрээ нэвтэрнэ үү"
+                    : "Эхлээд ETag dirty detector шалгана. Өөрчлөгдсөн үед л canonical мэдээлэл болон шинэ album PDF-ийг татна";
+        syncButton.ToolTip = !linked
+            ? "Энэ төслийг Cloud ERA project-той холбоход Sync идэвхжинэ"
+            : !account.IsSignedIn
+                ? "Sync хийхийн тулд бүртгэлээрээ нэвтэрнэ үү"
+                : !CanEditProjectContent()
+                    ? "Таны project role Sync хийх эрхгүй байна"
+                    : "Локал төслийн өөрчлөлт, source package болон album revision-ийг Cloud ERA руу илгээх";
         if (!linked)
         {
             syncSummaryText.Foreground = StudioTheme.MutedTextBrush;
@@ -2798,6 +2833,15 @@ internal sealed partial class ShellView : IDisposable
         string lastSync = cloud.LastSyncedAtUtc.HasValue
             ? cloud.LastSyncedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
             : "хийгдээгүй";
+        string lastCheck = cloud.LastCloudCheckedAtUtc.HasValue
+            ? cloud.LastCloudCheckedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : "шалгаагүй";
+        string lastRefresh = cloud.LastCloudRefreshedAtUtc.HasValue
+            ? cloud.LastCloudRefreshedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : "татаж аваагүй";
+        string receivedAlbum = cloud.LastReceivedAlbumRevisionNumber > 0
+            ? $"R{cloud.LastReceivedAlbumRevisionNumber}"
+            : "одоогоор алга";
         syncSummaryText.Foreground = cloud.SyncStatus switch
         {
             ProjectSyncStatuses.Error => StudioTheme.DangerBrush,
@@ -2808,7 +2852,10 @@ internal sealed partial class ShellView : IDisposable
         };
         syncSummaryText.Text =
             $"Cloud ERA: {cloud.SyncStatus}\n" +
-            $"Сүүлийн sync: {lastSync}\n" +
+            $"Сүүлд Cloud шалгасан: {lastCheck}\n" +
+            $"Сүүлд Cloud-оос өөрчлөлт татсан: {lastRefresh}\n" +
+            $"Хүлээн авсан current album: {receivedAlbum}\n" +
+            $"Сүүлд Cloud руу илгээсэн: {lastSync}\n" +
             $"Хүлээгдэж буй source package: {pendingSources}" +
             (cloud.PendingProjectInformation is null
                 ? ""
@@ -2921,32 +2968,76 @@ internal sealed partial class ShellView : IDisposable
     {
         if (!state.HasOpenProject ||
             !state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) ||
-            string.IsNullOrWhiteSpace(state.Project.Cloud.LastSyncedRevisionId))
+            string.IsNullOrWhiteSpace(state.Project.Cloud.LastReceivedAlbumRevisionId))
         {
             return false;
         }
 
         string? albumPath = ResolveCurrentProjectAlbumPath();
-        if (string.IsNullOrWhiteSpace(albumPath) || !File.Exists(albumPath))
-            return false;
-
         string cloudCacheFolder = Path.Combine(state.ResolveOutputFolder(), "cloud");
-        return ProjectWorkspacePaths.IsInside(cloudCacheFolder, albumPath);
+        return CloudAlbumCacheMaintenance.IsHealthy(
+            cloudCacheFolder,
+            albumPath,
+            state.Project.Cloud.LastReceivedAlbumSha256);
     }
 
-    private async Task<bool> TryCacheCurrentCloudAlbumPreviewAsync(string projectId)
+    private bool CloudMirrorNeedsFullRefresh()
+    {
+        if (!state.HasOpenProject || state.Project.Cloud.LastCloudRefreshedAtUtc is null)
+            return true;
+
+        ProjectCloudLink cloud = state.Project.Cloud;
+        string? albumPath = ResolveCurrentProjectAlbumPath();
+        string cloudCacheFolder = Path.Combine(state.ResolveOutputFolder(), "cloud");
+        bool legacyCloudAlbumPointer =
+            string.IsNullOrWhiteSpace(cloud.LastReceivedAlbumRevisionId) &&
+            !string.IsNullOrWhiteSpace(albumPath) &&
+            ProjectWorkspacePaths.IsInside(cloudCacheFolder, albumPath);
+        if (legacyCloudAlbumPointer ||
+            (!string.IsNullOrWhiteSpace(cloud.LastReceivedAlbumRevisionId) &&
+             !HasCurrentCloudAlbumPreview()))
+        {
+            return true;
+        }
+
+        CompanyProfile client = state.Project.Foundation.InitiationBasis.ClientOrganizationSnapshot;
+        if (!string.IsNullOrWhiteSpace(cloud.LastReceivedClientLogoKey) &&
+            !CachedProjectLogoIsCurrent(
+                client.LogoPath,
+                cloud.LastReceivedClientLogoKey,
+                cloud.LastReceivedClientLogoKey))
+        {
+            return true;
+        }
+
+        CompanyProfile design = state.Project.Foundation.DesignCompany.OrganizationSnapshot;
+        return !string.IsNullOrWhiteSpace(cloud.LastReceivedDesignOrganizationLogoKey) &&
+            !CachedProjectLogoIsCurrent(
+                design.LogoPath,
+                cloud.LastReceivedDesignOrganizationLogoKey,
+                cloud.LastReceivedDesignOrganizationLogoKey);
+    }
+
+    private async Task<bool> TryCacheCurrentCloudAlbumPreviewAsync(
+        string projectId,
+        IReadOnlyList<StudioCloudAlbum>? knownAlbums = null) =>
+        (await RefreshCloudAlbumPreviewAsync(projectId, knownAlbums)).HasCurrentAlbum;
+
+    private async Task<CloudAlbumCacheRefreshResult> RefreshCloudAlbumPreviewAsync(
+        string projectId,
+        IReadOnlyList<StudioCloudAlbum>? knownAlbums = null)
     {
         if (!state.HasOpenProject ||
             string.IsNullOrWhiteSpace(state.ProjectPath) ||
             string.IsNullOrWhiteSpace(projectId) ||
             !account.IsSignedIn)
         {
-            return false;
+            return CloudAlbumCacheRefreshResult.None;
         }
 
         try
         {
-            IReadOnlyList<StudioCloudAlbum> albums = await account.ListAlbumsAsync(projectId);
+            IReadOnlyList<StudioCloudAlbum> albums = knownAlbums ?? await account.ListAlbumsAsync(projectId);
             StudioCloudAlbum? album = albums.FirstOrDefault(item =>
                     item.AlbumType.Equals(
                         ProjectWorkspace.BuildingArchitectureConcept,
@@ -2960,7 +3051,8 @@ internal sealed partial class ShellView : IDisposable
                 string.IsNullOrWhiteSpace(revision.PdfFileId) ||
                 revision.PageCount < 1)
             {
-                return false;
+                ClearCloudAlbumPreviewCache();
+                return CloudAlbumCacheRefreshResult.None;
             }
 
             string outputPath = CloudAlbumPreviewPath(album, revision);
@@ -2983,11 +3075,15 @@ internal sealed partial class ShellView : IDisposable
 
             string relativePath = ProjectWorkspacePaths.ToRelativePath(state.ProjectPath, outputPath);
             ProjectAlbumRecord localAlbum = state.Project.PrimaryAlbum;
+            ProjectCloudLink cloud = state.Project.Cloud;
             bool metadataChanged =
                 !string.Equals(localAlbum.LastPdfPath, relativePath, StringComparison.Ordinal) ||
                 !string.Equals(localAlbum.LastPdfSha256, actualSha256, StringComparison.OrdinalIgnoreCase) ||
                 localAlbum.LastPageCount != revision.PageCount ||
-                !string.Equals(localAlbum.LastPageSizeSummary, revision.PageSizeSummary, StringComparison.Ordinal);
+                !string.Equals(localAlbum.LastPageSizeSummary, revision.PageSizeSummary, StringComparison.Ordinal) ||
+                !string.Equals(cloud.LastReceivedAlbumRevisionId, revision.RevisionId, StringComparison.OrdinalIgnoreCase) ||
+                cloud.LastReceivedAlbumRevisionNumber != revision.RevisionNumber ||
+                !string.Equals(cloud.LastReceivedAlbumSha256, actualSha256, StringComparison.OrdinalIgnoreCase);
 
             localAlbum.LastPdfPath = relativePath;
             localAlbum.LastPdfSha256 = actualSha256;
@@ -2995,7 +3091,11 @@ internal sealed partial class ShellView : IDisposable
             localAlbum.LastPageSizeSummary = revision.PageSizeSummary?.Trim() ?? "";
             lastAlbumPath = outputPath;
 
-            ProjectCloudLink cloud = state.Project.Cloud;
+            ProjectCloudSyncMetadata.RecordReceivedAlbum(
+                state.Project,
+                revision.RevisionId,
+                revision.RevisionNumber,
+                actualSha256);
             cloud.LastSyncedAlbumSha256 = actualSha256;
             cloud.LastSyncedRevisionId = revision.RevisionId?.Trim() ?? "";
             cloud.LastServerConcurrencyToken = FirstNonEmpty(
@@ -3012,12 +3112,20 @@ internal sealed partial class ShellView : IDisposable
                     cloud.LastSyncNote = $"Cloud ERA album R{revision.RevisionNumber} preview cached locally.";
             }
 
-            if (metadataChanged || download)
+            int cleanedFiles = CloudAlbumCacheMaintenance.Cleanup(
+                Path.Combine(state.ResolveOutputFolder(), "cloud"),
+                outputPath);
+            if (metadataChanged || download || cleanedFiles > 0)
                 state.SaveProject();
             if (activePage == StudioPage.Albums)
                 RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
             RefreshSyncUi();
-            return true;
+            return new CloudAlbumCacheRefreshResult(
+                true,
+                download,
+                revision.RevisionId?.Trim() ?? "",
+                revision.RevisionNumber,
+                actualSha256);
         }
         catch (Exception exception) when (
             exception is StudioAccountException or
@@ -3028,8 +3136,63 @@ internal sealed partial class ShellView : IDisposable
                 TaskCanceledException)
         {
             SetStatus("Cloud ERA album PDF cache алдаа: " + exception.Message);
-            return false;
+            return CloudAlbumCacheRefreshResult.None;
         }
+    }
+
+    private void ClearCloudAlbumPreviewCache()
+    {
+        if (!state.HasOpenProject || string.IsNullOrWhiteSpace(state.ProjectPath))
+            return;
+
+        string cacheFolder = Path.Combine(state.ResolveOutputFolder(), "cloud");
+        string? currentPath = ResolveCurrentProjectAlbumPath();
+        bool currentAlbumUsesCloudCache = !string.IsNullOrWhiteSpace(currentPath) &&
+            ProjectWorkspacePaths.IsInside(cacheFolder, currentPath);
+        bool metadataChanged = currentAlbumUsesCloudCache ||
+            !string.IsNullOrWhiteSpace(state.Project.Cloud.LastReceivedAlbumRevisionId) ||
+            state.Project.Cloud.LastReceivedAlbumRevisionNumber > 0 ||
+            !string.IsNullOrWhiteSpace(state.Project.Cloud.LastReceivedAlbumSha256);
+        if (currentAlbumUsesCloudCache)
+        {
+            ProjectAlbumRecord album = state.Project.PrimaryAlbum;
+            album.LastPdfPath = "";
+            album.LastPdfSha256 = "";
+            album.LastPageCount = 0;
+            album.LastPageSizeSummary = "";
+            lastAlbumPath = null;
+        }
+
+        ProjectCloudSyncMetadata.ClearReceivedAlbum(state.Project);
+        int cleanedFiles = CloudAlbumCacheMaintenance.Cleanup(cacheFolder, keepPdfPath: null);
+        if (metadataChanged || cleanedFiles > 0)
+            state.SaveProject();
+        if (activePage == StudioPage.Albums)
+            RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
+    }
+
+    private void CleanupCurrentCloudAlbumCache()
+    {
+        if (!state.HasOpenProject)
+            return;
+        string cacheFolder = Path.Combine(state.ResolveOutputFolder(), "cloud");
+        string? candidate = ResolveCurrentProjectAlbumPath();
+        string? keepPath = !string.IsNullOrWhiteSpace(candidate) &&
+            File.Exists(candidate) &&
+            ProjectWorkspacePaths.IsInside(cacheFolder, candidate)
+                ? candidate
+                : null;
+        CloudAlbumCacheMaintenance.Cleanup(cacheFolder, keepPath);
+    }
+
+    private sealed record CloudAlbumCacheRefreshResult(
+        bool HasCurrentAlbum,
+        bool Downloaded,
+        string RevisionId,
+        int RevisionNumber,
+        string Sha256)
+    {
+        public static CloudAlbumCacheRefreshResult None { get; } = new(false, false, "", 0, "");
     }
 
     private string CloudAlbumPreviewPath(StudioCloudAlbum album, StudioCloudAlbumRevision revision)
@@ -3293,7 +3456,7 @@ internal sealed partial class ShellView : IDisposable
         }
         else
         {
-            SetStatus("Холбосон PDF/зураг өөрчлөгдсөн байна. Альбумын 'Шинэчлэлт шалгах' үйлдлийг ажиллуулна уу.");
+            SetStatus("Холбосон PDF/зураг өөрчлөгдсөн байна. Альбумын 'Эх үүсвэрээс шинэчлэх' үйлдлийг ажиллуулна уу.");
         }
     }
 

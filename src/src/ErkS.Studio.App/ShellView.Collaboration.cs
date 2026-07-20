@@ -163,12 +163,39 @@ internal sealed partial class ShellView
         RefreshSyncUi();
         try
         {
-            StudioCloudProjectDetail latest = await account.GetProjectAsync(projectId);
+            CleanupCurrentCloudAlbumCache();
+            ProjectCloudLink cloud = state.Project.Cloud;
+            string knownToken = !string.IsNullOrWhiteSpace(cloud.LastServerConcurrencyToken)
+                ? cloud.LastServerConcurrencyToken
+                : cloud.ServerSnapshot.ConcurrencyToken;
+            bool forceFullRefresh = CloudMirrorNeedsFullRefresh();
+            StudioCloudProjectRefreshResult refresh = forceFullRefresh
+                ? new StudioCloudProjectRefreshResult(true, await account.GetProjectAsync(projectId))
+                : await account.GetProjectChangesAsync(projectId, knownToken);
             if (!state.HasOpenProject ||
                 !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
+
+            DateTimeOffset checkedAtUtc = DateTimeOffset.UtcNow;
+            ProjectCloudSyncMetadata.MarkCloudChecked(state.Project, checkedAtUtc);
+            if (!refresh.IsModified)
+            {
+                CleanupCurrentCloudAlbumCache();
+                state.SaveProject();
+                RefreshSyncUi();
+                if (reportResult)
+                {
+                    SetStatus(
+                        "Cloud ERA өөрчлөлт алга. ETag dirty detector төслийн мэдээлэл, " +
+                        "байгууллага, багийн эрх болон album revision өөрчлөгдөөгүйг баталгаажууллаа; файл дахин татаагүй.");
+                }
+                return;
+            }
+
+            StudioCloudProjectDetail latest = refresh.Project
+                ?? throw new InvalidDataException("Cloud ERA changed response did not include the canonical project.");
 
             state.LinkCurrentProjectToCloud(
                 latest,
@@ -177,13 +204,37 @@ internal sealed partial class ShellView
                 preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
             await DrainSuppressedAlbumRebuildEventsAsync();
-            await TryCacheCurrentCloudAlbumPreviewAsync(projectId);
+            CloudAlbumCacheRefreshResult albumRefresh = await RefreshCloudAlbumPreviewAsync(
+                projectId,
+                latest.Albums);
             await DrainSuppressedAlbumRebuildEventsAsync();
+            ProjectCloudSyncMetadata.MarkCloudRefreshed(
+                state.Project,
+                latest.Project.ConcurrencyToken,
+                checkedAtUtc);
+            state.SaveProject();
             BindProjectToUi();
             if (reportResult)
-                SetStatus("Cloud ERA access болон төслийн багийн мэдээлэл шинэчлэгдлээ.");
+            {
+                string albumStatus = albumRefresh.HasCurrentAlbum
+                    ? albumRefresh.Downloaded
+                        ? $"current album R{albumRefresh.RevisionNumber} татагдлаа"
+                        : $"current album R{albumRefresh.RevisionNumber} cache-д өөрчлөлтгүй байна"
+                    : "current album одоогоор алга";
+                string pendingNotice = state.Project.Cloud.PendingProjectInformation is null
+                    ? ""
+                    : " Илгээгдээгүй локал төслийн засварыг дарж бичээгүй, pending хэвээр хадгаллаа.";
+                SetStatus(
+                    $"Cloud ERA canonical мэдээлэл шинэчлэгдлээ: төсөл, байгууллагын snapshot/logo, багийн эрх; {albumStatus}." +
+                    pendingNotice);
+            }
         }
-        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        catch (Exception exception) when (
+            exception is StudioAccountException or
+                HttpRequestException or
+                IOException or
+                InvalidDataException or
+                TaskCanceledException)
         {
             if (exception is StudioAccountException accountException &&
                 accountException.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
@@ -194,7 +245,7 @@ internal sealed partial class ShellView
                 return;
             }
             if (reportResult || state.Project.Cloud.CurrentUserScopes.Count == 0)
-                SetStatus("Cloud ERA access эрхийг шинэчилж чадсангүй: " + exception.Message);
+                SetStatus("Cloud ERA өөрчлөлт шалгаж чадсангүй: " + exception.Message);
         }
         finally
         {
@@ -876,8 +927,23 @@ internal sealed partial class ShellView
         CompanyProfile snapshot = state.Project.Foundation.DesignCompany.OrganizationSnapshot;
         if (string.IsNullOrWhiteSpace(profile.LogoUrl))
         {
+            bool changed = !string.IsNullOrWhiteSpace(snapshot.LogoPath) ||
+                !string.IsNullOrWhiteSpace(state.Project.Cloud.LastReceivedDesignOrganizationLogoKey);
             snapshot.LogoPath = "";
-            state.SaveProject();
+            snapshot.LogoOriginalFileName = "";
+            state.Project.Cloud.LastReceivedDesignOrganizationLogoKey = "";
+            int deleted = CleanupCachedProjectLogoFiles("design-organization-logo", keepPath: null);
+            if (changed || deleted > 0)
+                state.SaveProject();
+            return;
+        }
+
+        string logoKey = profile.LogoUrl.Trim();
+        if (CachedProjectLogoIsCurrent(
+                snapshot.LogoPath,
+                state.Project.Cloud.LastReceivedDesignOrganizationLogoKey,
+                logoKey))
+        {
             return;
         }
 
@@ -897,8 +963,12 @@ internal sealed partial class ShellView
                 ? ".jpg"
                 : ".png";
             string logoPath = Path.Combine(assetsFolder, "design-organization-logo" + extension);
-            await File.WriteAllBytesAsync(logoPath, image.Bytes);
+            await using var logoBytes = new MemoryStream(image.Bytes, writable: false);
+            await StudioAccountService.ReplaceDownloadedFileAsync(logoBytes, logoPath);
             snapshot.LogoPath = logoPath;
+            snapshot.LogoOriginalFileName = Path.GetFileName(logoPath);
+            state.Project.Cloud.LastReceivedDesignOrganizationLogoKey = logoKey;
+            CleanupCachedProjectLogoFiles("design-organization-logo", logoPath);
             state.SaveProject();
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException)
@@ -909,15 +979,34 @@ internal sealed partial class ShellView
     private async Task ApplyCloudClientLogoAsync(StudioCloudProjectDetail cloud)
     {
         StudioCloudProjectInitiationBasis? basis = cloud.Foundation?.InitiationBasis;
-        if (basis is null ||
-            string.IsNullOrWhiteSpace(basis.ClientLogoUrl) ||
-            !state.HasOpenProject)
+        if (basis is null || !state.HasOpenProject)
+            return;
+
+        CompanyProfile clientSnapshot = state.Project.Foundation.InitiationBasis.ClientOrganizationSnapshot;
+        if (string.IsNullOrWhiteSpace(basis.ClientLogoUrl))
         {
+            bool changed = !string.IsNullOrWhiteSpace(clientSnapshot.LogoPath) ||
+                !string.IsNullOrWhiteSpace(state.Project.Cloud.LastReceivedClientLogoKey);
+            clientSnapshot.LogoPath = "";
+            clientSnapshot.LogoOriginalFileName = "";
+            state.Project.Cloud.LastReceivedClientLogoKey = "";
+            int deleted = CleanupCachedProjectLogoFiles("client-organization-logo", keepPath: null);
+            if (changed || deleted > 0)
+                state.SaveProject();
             return;
         }
 
         string projectId = state.Project.ProjectId;
         string? projectPath = state.ProjectPath;
+        string logoKey = basis.ClientLogoUrl.Trim();
+        if (CachedProjectLogoIsCurrent(
+                clientSnapshot.LogoPath,
+                state.Project.Cloud.LastReceivedClientLogoKey,
+                logoKey))
+        {
+            return;
+        }
+
         try
         {
             StudioDownloadedImage? image = await account.GetOrganizationLogoAsync(basis.ClientLogoUrl);
@@ -934,15 +1023,77 @@ internal sealed partial class ShellView
                 ? ".jpg"
                 : ".png";
             string logoPath = Path.Combine(assetsFolder, "client-organization-logo" + extension);
-            await File.WriteAllBytesAsync(logoPath, image.Bytes);
+            await using var logoBytes = new MemoryStream(image.Bytes, writable: false);
+            await StudioAccountService.ReplaceDownloadedFileAsync(logoBytes, logoPath);
             CompanyProfile snapshot = state.Project.Foundation.InitiationBasis.ClientOrganizationSnapshot;
             snapshot.LogoPath = ProjectWorkspacePaths.ToRelativePath(projectPath, logoPath);
             snapshot.LogoOriginalFileName = Path.GetFileName(logoPath);
+            state.Project.Cloud.LastReceivedClientLogoKey = logoKey;
+            CleanupCachedProjectLogoFiles("client-organization-logo", logoPath);
             state.SaveProject();
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            SetStatus("Ð—Ð°Ñ…Ð¸Ð°Ð»Ð°Ð³Ñ‡Ð¸Ð¹Ð½ Ð»Ð¾Ð³Ð¾ Ñ‚Ð°Ñ‚Ð°Ð³Ð´ÑÐ°Ð½Ð³Ò¯Ð¹: " + exception.Message);
+            SetStatus("Захиалагчийн лого татагдсангүй: " + exception.Message);
         }
+    }
+
+    private bool CachedProjectLogoIsCurrent(string logoPath, string receivedKey, string expectedKey)
+    {
+        if (string.IsNullOrWhiteSpace(state.ProjectPath) ||
+            string.IsNullOrWhiteSpace(logoPath) ||
+            string.IsNullOrWhiteSpace(expectedKey) ||
+            !expectedKey.Equals(receivedKey, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            string resolved = ProjectWorkspacePaths.ResolveInsideProject(state.ProjectPath, logoPath);
+            string assetsFolder = Path.Combine(ProjectWorkspacePaths.GetProjectFolder(state.ProjectPath), "assets");
+            return ProjectWorkspacePaths.IsInside(assetsFolder, resolved) && File.Exists(resolved);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private int CleanupCachedProjectLogoFiles(string fileNamePrefix, string? keepPath)
+    {
+        if (string.IsNullOrWhiteSpace(state.ProjectPath))
+            return 0;
+
+        string assetsFolder = Path.Combine(ProjectWorkspacePaths.GetProjectFolder(state.ProjectPath), "assets");
+        if (!Directory.Exists(assetsFolder))
+            return 0;
+
+        string keep = string.IsNullOrWhiteSpace(keepPath) ? "" : Path.GetFullPath(keepPath);
+        int deleted = 0;
+        foreach (string extension in new[] { ".png", ".jpg", ".jpeg" })
+        {
+            string candidate = Path.Combine(assetsFolder, fileNamePrefix + extension);
+            if (!File.Exists(candidate) ||
+                (!string.IsNullOrWhiteSpace(keep) &&
+                 Path.GetFullPath(candidate).Equals(keep, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(candidate);
+                deleted++;
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return deleted;
     }
 }

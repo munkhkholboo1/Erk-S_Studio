@@ -240,6 +240,41 @@ public sealed class ProjectCloudSyncMetadataTests
         }
     }
 
+    [Fact]
+    public void CloudCheckAndRefreshAreTrackedSeparatelyFromPushSync()
+    {
+        ProjectWorkspace project = Project();
+        DateTimeOffset checkedAt = new(2026, 7, 20, 4, 0, 0, TimeSpan.Zero);
+        DateTimeOffset refreshedAt = checkedAt.AddMinutes(2);
+
+        ProjectCloudSyncMetadata.MarkCloudChecked(project, checkedAt);
+
+        Assert.Equal(checkedAt, project.Cloud.LastCloudCheckedAtUtc);
+        Assert.Null(project.Cloud.LastCloudRefreshedAtUtc);
+        Assert.Null(project.Cloud.LastSyncedAtUtc);
+
+        ProjectCloudSyncMetadata.MarkCloudRefreshed(project, "server-token-2", refreshedAt);
+        ProjectCloudSyncMetadata.RecordReceivedAlbum(project, "revision-7", 7, "ABC123");
+        project.Cloud.LastReceivedClientLogoKey = "/client-logo?v=client-7";
+        project.Cloud.LastReceivedDesignOrganizationLogoKey = "/design-logo?v=design-4";
+
+        Assert.Equal(refreshedAt, project.Cloud.LastCloudCheckedAtUtc);
+        Assert.Equal(refreshedAt, project.Cloud.LastCloudRefreshedAtUtc);
+        Assert.Equal("server-token-2", project.Cloud.LastServerConcurrencyToken);
+        Assert.Equal("revision-7", project.Cloud.LastReceivedAlbumRevisionId);
+        Assert.Equal(7, project.Cloud.LastReceivedAlbumRevisionNumber);
+        Assert.Equal("abc123", project.Cloud.LastReceivedAlbumSha256);
+        Assert.Equal("/client-logo?v=client-7", project.Cloud.LastReceivedClientLogoKey);
+        Assert.Equal("/design-logo?v=design-4", project.Cloud.LastReceivedDesignOrganizationLogoKey);
+        Assert.Null(project.Cloud.LastSyncedAtUtc);
+
+        ProjectCloudSyncMetadata.ClearReceivedAlbum(project);
+
+        Assert.Equal("", project.Cloud.LastReceivedAlbumRevisionId);
+        Assert.Equal(0, project.Cloud.LastReceivedAlbumRevisionNumber);
+        Assert.Equal("", project.Cloud.LastReceivedAlbumSha256);
+    }
+
     private static ProjectWorkspace Project() => new()
     {
         Cloud = new ProjectCloudLink

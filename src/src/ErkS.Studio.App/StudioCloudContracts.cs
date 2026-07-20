@@ -35,6 +35,8 @@ internal sealed class StudioCloudProjectListResponse
 
 internal sealed class StudioCloudOrganizationListResponse
 {
+    public bool OrganizationRegistryImportConfigured { get; set; }
+    public string OrganizationRegistryImportMessage { get; set; } = "";
     public List<StudioCloudOrganization> Organizations { get; set; } = [];
 }
 
@@ -166,7 +168,12 @@ internal sealed class StudioCloudProjectDetail
     public StudioCloudOrganizationAssignment? ConceptAssignment { get; set; }
     public StudioCloudOrganizationRenderProfile? DesignOrganizationProfile { get; set; }
     public List<StudioCloudParticipant> Participants { get; set; } = [];
+    public List<StudioCloudAlbum> Albums { get; set; } = [];
 }
+
+internal sealed record StudioCloudProjectRefreshResult(
+    bool IsModified,
+    StudioCloudProjectDetail? Project);
 
 internal sealed class StudioCloudProjectSurface
 {
@@ -256,6 +263,7 @@ internal sealed class StudioCloudOrganizationRenderProfile
     public string RegistrySource { get; set; } = "SelfDeclared";
     public string RegistrySourceUrl { get; set; } = "https://opendata.burtgel.gov.mn/les";
     public DateTimeOffset? RegistryCheckedAtUtc { get; set; }
+    public string RegisteredCity { get; set; } = "";
     public string Address { get; set; } = "";
     public string Phone { get; set; } = "";
     public string Email { get; set; } = "";

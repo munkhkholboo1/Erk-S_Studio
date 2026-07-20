@@ -143,6 +143,174 @@
             "description": "OK"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/registry-imports": {
+      "post": {
+        "tags": [
+          "Cloud ERA"
+        ],
+        "operationId": "StartCloudEraOrganizationRegistryImport",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraOrganizationRegistryImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraOrganizationRegistryImportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/registry-imports/{importId}": {
+      "get": {
+        "tags": [
+          "Cloud ERA"
+        ],
+        "operationId": "GetCloudEraOrganizationRegistryImport",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraOrganizationRegistryImportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/cloud-era/v1/organizations/{organizationId}/logo": {
@@ -617,6 +785,9 @@
                 }
               }
             }
+          },
+          "304": {
+            "description": "Not Modified"
           }
         }
       }
@@ -1603,6 +1774,30 @@
           }
         }
       },
+      "CloudEraApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "fieldErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          }
+        }
+      },
       "CloudEraApprovalDecisionDto": {
         "type": "object",
         "properties": {
@@ -1933,6 +2128,163 @@
         },
         "nullable": true
       },
+      "CloudEraOrganizationDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "legalEntityType": {
+            "type": "string"
+          },
+          "legalForm": {
+            "type": "string"
+          },
+          "activityDirections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "registeredAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "officialRepresentativeName": {
+            "type": "string"
+          },
+          "registrySource": {
+            "type": "string"
+          },
+          "registrySourceUrl": {
+            "type": "string"
+          },
+          "registryCheckedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "organizationType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "verificationStatus": {
+            "type": "string"
+          },
+          "registeredCity": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phoneNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "email": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "licenseScope": {
+            "type": "string"
+          },
+          "licenseNumber": {
+            "type": "string"
+          },
+          "directorTitle": {
+            "type": "string"
+          },
+          "directorName": {
+            "type": "string"
+          },
+          "designRepresentativeTitle": {
+            "type": "string"
+          },
+          "designRepresentativeName": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": "string"
+          },
+          "logoScale": {
+            "type": "number",
+            "format": "double"
+          },
+          "logoOffsetX": {
+            "type": "number",
+            "format": "double"
+          },
+          "logoOffsetY": {
+            "type": "number",
+            "format": "double"
+          },
+          "canManage": {
+            "type": "boolean"
+          },
+          "currentUserRole": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "nullable": true
+      },
+      "CloudEraOrganizationRegistryImportRequest": {
+        "type": "object",
+        "properties": {
+          "registrationNumber": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraOrganizationRegistryImportResponse": {
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "authorizationUrl": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "providerConfigured": {
+            "type": "boolean"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/CloudEraOrganizationDto"
+          }
+        }
+      },
       "CloudEraOrganizationRenderProfileDto": {
         "type": "object",
         "properties": {
@@ -1949,6 +2301,40 @@
             "type": "string"
           },
           "registrationNumber": {
+            "type": "string"
+          },
+          "legalEntityType": {
+            "type": "string"
+          },
+          "legalForm": {
+            "type": "string"
+          },
+          "activityDirections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "registeredAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "officialRepresentativeName": {
+            "type": "string"
+          },
+          "registrySource": {
+            "type": "string"
+          },
+          "registrySourceUrl": {
+            "type": "string"
+          },
+          "registryCheckedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "registeredCity": {
             "type": "string"
           },
           "address": {
@@ -1975,6 +2361,12 @@
           "directorName": {
             "type": "string"
           },
+          "designRepresentativeTitle": {
+            "type": "string"
+          },
+          "designRepresentativeName": {
+            "type": "string"
+          },
           "logoUrl": {
             "type": "string"
           },
@@ -1999,6 +2391,9 @@
       "CloudEraOrganizationUpsertRequest": {
         "type": "object",
         "properties": {
+          "registryFieldsIncluded": {
+            "type": "boolean"
+          },
           "legalName": {
             "type": "string"
           },
@@ -2009,6 +2404,26 @@
             "type": "string"
           },
           "registrationNumber": {
+            "type": "string"
+          },
+          "legalEntityType": {
+            "type": "string"
+          },
+          "legalForm": {
+            "type": "string"
+          },
+          "activityDirections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "registeredAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "officialRepresentativeName": {
             "type": "string"
           },
           "organizationType": {
@@ -2042,6 +2457,12 @@
             "type": "string"
           },
           "directorName": {
+            "type": "string"
+          },
+          "designRepresentativeTitle": {
+            "type": "string"
+          },
+          "designRepresentativeName": {
             "type": "string"
           },
           "logoScale": {

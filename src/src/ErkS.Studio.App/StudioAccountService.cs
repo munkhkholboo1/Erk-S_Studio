@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -76,6 +77,8 @@ internal sealed class StudioAccountService :
 
     public StudioAccountSession? Current { get; private set; }
     public CloudEraCapabilitiesSnapshot? CurrentCapabilities { get; private set; }
+    public bool OrganizationRegistryImportConfigured { get; private set; }
+    public string OrganizationRegistryImportMessage { get; private set; } = "ДАН холболтын төлөв тодорхойгүй байна.";
 
     private static string ResolveAccountDataRoot()
     {
@@ -235,6 +238,39 @@ internal sealed class StudioAccountService :
             projectId,
             cancellationToken).ConfigureAwait(true);
         return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudProjectRefreshResult> GetProjectChangesAsync(
+        string projectId,
+        string knownConcurrencyToken,
+        CancellationToken cancellationToken = default)
+    {
+        string token = (knownConcurrencyToken ?? "").Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return new StudioCloudProjectRefreshResult(
+                true,
+                await GetProjectAsync(projectId, cancellationToken).ConfigureAwait(true));
+        }
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId);
+        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue('"' + token + '"'));
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(true);
+        if (response.StatusCode == HttpStatusCode.NotModified)
+            return new StudioCloudProjectRefreshResult(false, null);
+
+        StudioCloudProjectDetail project = await ReadResponseAsync<StudioCloudProjectDetail>(
+            response,
+            cancellationToken).ConfigureAwait(true);
+        project = await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
+        return new StudioCloudProjectRefreshResult(true, project);
     }
 
     public async Task<StudioCloudProjectDetail> UpdateProjectInformationAsync(
@@ -590,6 +626,12 @@ internal sealed class StudioAccountService :
         StudioCloudOrganizationListResponse response = await GetAuthorizedAsync<StudioCloudOrganizationListResponse>(
             "/api/cloud-era/v1/organizations",
             cancellationToken).ConfigureAwait(true);
+        OrganizationRegistryImportConfigured = response.OrganizationRegistryImportConfigured;
+        OrganizationRegistryImportMessage = string.IsNullOrWhiteSpace(response.OrganizationRegistryImportMessage)
+            ? response.OrganizationRegistryImportConfigured
+                ? "ДАН байгууллагын мэдээлэл татах холбоос бэлэн байна."
+                : "ДАН холболт Server дээр тохируулагдаагүй байна."
+            : response.OrganizationRegistryImportMessage.Trim();
         return response.Organizations;
     }
 
@@ -868,13 +910,18 @@ internal sealed class StudioAccountService :
             throw new StudioAccountException("Cloud ERA album revision PDF 250 MB-аас том байна.");
 
         await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
-        await ReplaceDownloadedFileAsync(source, destinationPath, cancellationToken).ConfigureAwait(true);
+        await ReplaceDownloadedFileAsync(
+            source,
+            destinationPath,
+            cancellationToken,
+            revision.PdfSha256).ConfigureAwait(true);
     }
 
     internal static async Task ReplaceDownloadedFileAsync(
         Stream source,
         string destinationPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string expectedSha256 = "")
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
@@ -893,6 +940,21 @@ internal sealed class StudioAccountService :
             {
                 await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
                 await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            string expected = (expectedSha256 ?? "").Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(expected))
+            {
+                await using FileStream downloaded = File.OpenRead(temporaryPath);
+                string actual = Convert.ToHexString(await SHA256.HashDataAsync(
+                        downloaded,
+                        cancellationToken).ConfigureAwait(false))
+                    .ToLowerInvariant();
+                if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Downloaded Cloud ERA album PDF hash did not match the server revision.");
+                }
             }
 
             File.Move(temporaryPath, destinationPath, true);
@@ -987,6 +1049,8 @@ internal sealed class StudioAccountService :
         }
         Current = null;
         CurrentCapabilities = null;
+        OrganizationRegistryImportConfigured = false;
+        OrganizationRegistryImportMessage = "ДАН холболтын төлөв тодорхойгүй байна.";
         registeredPersonNames.Clear();
         metadata = null;
         credential = null;

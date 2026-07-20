@@ -103,8 +103,15 @@ public sealed class ProjectCloudLink
     public string CloudProjectCode { get; set; } = "";
     public string SyncStatus { get; set; } = ProjectSyncStatuses.Local;
     public DateTimeOffset? LastSyncedAtUtc { get; set; }
+    public DateTimeOffset? LastCloudCheckedAtUtc { get; set; }
+    public DateTimeOffset? LastCloudRefreshedAtUtc { get; set; }
     public string LastSyncedAlbumSha256 { get; set; } = "";
     public string LastSyncedRevisionId { get; set; } = "";
+    public string LastReceivedAlbumSha256 { get; set; } = "";
+    public string LastReceivedAlbumRevisionId { get; set; } = "";
+    public int LastReceivedAlbumRevisionNumber { get; set; }
+    public string LastReceivedClientLogoKey { get; set; } = "";
+    public string LastReceivedDesignOrganizationLogoKey { get; set; } = "";
     public string LastServerConcurrencyToken { get; set; } = "";
     public string LastSyncError { get; set; } = "";
     public string LastSyncNote { get; set; } = "";

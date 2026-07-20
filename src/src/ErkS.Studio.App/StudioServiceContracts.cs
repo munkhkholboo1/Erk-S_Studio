@@ -35,6 +35,11 @@ internal interface IProjectsClient
         string projectId,
         CancellationToken cancellationToken = default);
 
+    Task<StudioCloudProjectRefreshResult> GetProjectChangesAsync(
+        string projectId,
+        string knownConcurrencyToken,
+        CancellationToken cancellationToken = default);
+
     Task<StudioCloudProjectDetail> UpdateProjectInformationAsync(
         string projectId,
         StudioCloudProjectInformationUpdateRequest request,

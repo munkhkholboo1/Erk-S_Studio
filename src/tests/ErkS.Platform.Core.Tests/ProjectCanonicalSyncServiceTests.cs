@@ -175,6 +175,37 @@ public sealed class ProjectCanonicalSyncServiceTests
     }
 
     [Fact]
+    public void CanonicalEmptyFoundationValuesClearStaleLocalMirrorValues()
+    {
+        ProjectWorkspace project = Project();
+        project.Foundation.InitiationBasis.RequestNumber = "STALE-REQ";
+        project.Foundation.InitiationBasis.ClientRepresentativePosition = "Stale position";
+        project.Foundation.InitiationBasis.ClientRepresentativeName = "Stale representative";
+        project.Foundation.PlanningTask.AtdNumber = "STALE-ATD";
+        project.Foundation.PlanningTask.Summary = "Stale ATD summary";
+        project.Foundation.PlanningTask.Requirements = ["Stale requirement"];
+        ProjectServerSnapshot snapshot = Snapshot();
+        snapshot.Foundation = SnapshotFoundation();
+        snapshot.Foundation.InitiationBasis.RequestNumber = string.Empty;
+        snapshot.Foundation.InitiationBasis.ClientRepresentativePosition = string.Empty;
+        snapshot.Foundation.InitiationBasis.ClientRepresentativeName = string.Empty;
+        snapshot.Foundation.InitiationBasis.ClientLogoUrl = string.Empty;
+        snapshot.Foundation.PlanningTask.AtdNumber = string.Empty;
+        snapshot.Foundation.PlanningTask.Summary = string.Empty;
+        snapshot.Foundation.PlanningTask.Requirements = [];
+
+        bool changed = ProjectCanonicalSyncService.Apply(project, snapshot);
+
+        Assert.True(changed);
+        Assert.Empty(project.Foundation.InitiationBasis.RequestNumber);
+        Assert.Empty(project.Foundation.InitiationBasis.ClientRepresentativePosition);
+        Assert.Empty(project.Foundation.InitiationBasis.ClientRepresentativeName);
+        Assert.Empty(project.Foundation.PlanningTask.AtdNumber);
+        Assert.Empty(project.Foundation.PlanningTask.Summary);
+        Assert.Empty(project.Foundation.PlanningTask.Requirements);
+    }
+
+    [Fact]
     public void CanonicalSnapshotRoundTripsWithLocalMirror()
     {
         string root = Path.Combine(Path.GetTempPath(), "erks-canonical-sync-tests", Guid.NewGuid().ToString("N"));

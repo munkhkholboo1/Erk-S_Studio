@@ -82,9 +82,13 @@ internal sealed partial class ShellView
         companyRegistrationDocumentsList.SelectionChanged += (_, _) =>
         {
             companyRelinkRegistrationDocumentButton.IsEnabled =
+                companyEditorMode != CompanyEditorMode.View &&
+                !companySaveInProgress &&
                 selectedCompanyEntry?.CanManage == true &&
                 companyRegistrationDocumentsList.SelectedItem is not null;
             companyRemoveRegistrationDocumentButton.IsEnabled =
+                companyEditorMode != CompanyEditorMode.View &&
+                !companySaveInProgress &&
                 selectedCompanyEntry?.CanManage == true &&
                 companyRegistrationDocumentsList.SelectedItem is not null;
         };
@@ -108,9 +112,13 @@ internal sealed partial class ShellView
         companyLicenseDocumentsList.SelectionChanged += (_, _) =>
         {
             companyRelinkLicenseDocumentButton.IsEnabled =
+                companyEditorMode != CompanyEditorMode.View &&
+                !companySaveInProgress &&
                 selectedCompanyEntry?.CanManage == true &&
                 companyLicenseDocumentsList.SelectedItem is not null;
             companyRemoveLicenseDocumentButton.IsEnabled =
+                companyEditorMode != CompanyEditorMode.View &&
+                !companySaveInProgress &&
                 selectedCompanyEntry?.CanManage == true &&
                 companyLicenseDocumentsList.SelectedItem is not null;
         };
@@ -329,8 +337,13 @@ internal sealed partial class ShellView
 
     private void AddCompanyDocuments(string category)
     {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
+        if (companyEditorMode == CompanyEditorMode.View ||
+            companySaveInProgress ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
             return;
+        }
         List<ProjectFileReference> target = category == ProjectDocumentCategories.CompanyRegistrationCertificate
             ? companyRegistrationDocumentDrafts
             : companyLicenseDocumentDrafts;
@@ -354,7 +367,7 @@ internal sealed partial class ShellView
                     category,
                     title,
                     inspection));
-                selectedCompanyEntry.DocumentsPendingCloudSync = true;
+                companyDocumentsChanged = true;
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
             {
@@ -368,8 +381,13 @@ internal sealed partial class ShellView
 
     private void RemoveCompanyDocument(string category)
     {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
+        if (companyEditorMode == CompanyEditorMode.View ||
+            companySaveInProgress ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
             return;
+        }
         ListView list = category == ProjectDocumentCategories.CompanyRegistrationCertificate
             ? companyRegistrationDocumentsList
             : companyLicenseDocumentsList;
@@ -379,15 +397,20 @@ internal sealed partial class ShellView
         if (list.SelectedItem is not DocumentAssetRow selected)
             return;
         target.RemoveAll(document => document.Id.Equals(selected.Document.Id, StringComparison.OrdinalIgnoreCase));
-        selectedCompanyEntry.DocumentsPendingCloudSync = true;
+        companyDocumentsChanged = true;
         RefreshCompanyDocumentLists();
         SetStatus($"{(category == ProjectDocumentCategories.CompanyRegistrationCertificate ? "Гэрчилгээ" : "Тусгай зөвшөөрөл")}-ний хуулбарыг жагсаалтаас хаслаа. Хадгалах дарна уу.");
     }
 
     private void RelinkCompanyDocument(string category)
     {
-        if (selectedCompanyEntry is null || !selectedCompanyEntry.CanManage)
+        if (companyEditorMode == CompanyEditorMode.View ||
+            companySaveInProgress ||
+            selectedCompanyEntry is null ||
+            !selectedCompanyEntry.CanManage)
+        {
             return;
+        }
         ListView list = category == ProjectDocumentCategories.CompanyRegistrationCertificate
             ? companyRegistrationDocumentsList
             : companyLicenseDocumentsList;
@@ -413,7 +436,7 @@ internal sealed partial class ShellView
                 category,
                 selected.Document.Title,
                 inspection));
-            selectedCompanyEntry.DocumentsPendingCloudSync = true;
+            companyDocumentsChanged = true;
             RefreshCompanyDocumentLists();
             SetStatus($"{title}-ийн эх файл дахин холбогдлоо. Компанийн мэдээллийг Хадгалах дарна уу.");
         }
@@ -442,7 +465,9 @@ internal sealed partial class ShellView
         companyLicenseDocumentsList.ItemsSource = companyLicenseDocumentDrafts
             .Select(document => new DocumentAssetRow(document))
             .ToList();
-        bool enabled = selectedCompanyEntry?.CanManage == true;
+        bool enabled = companyEditorMode != CompanyEditorMode.View &&
+            !companySaveInProgress &&
+            selectedCompanyEntry?.CanManage == true;
         companyAddRegistrationDocumentButton.IsEnabled = enabled;
         companyAddLicenseDocumentButton.IsEnabled = enabled;
         companyRelinkRegistrationDocumentButton.IsEnabled = enabled &&

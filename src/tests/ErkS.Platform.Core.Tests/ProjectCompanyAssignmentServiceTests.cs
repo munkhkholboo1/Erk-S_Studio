@@ -61,6 +61,8 @@ public sealed class ProjectCompanyAssignmentServiceTests
             OfficialRepresentativeName = "Б.Бат",
             RegistrySource = "OfficialRegistry",
             RegistryCheckedAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            RegisteredCity = "Улаанбаатар",
+            Address = "Сүхбаатар дүүрэг, 1-р хороо",
             DesignRepresentativeTitle = "Зураг төсөл хариуцсан захирал",
             DesignRepresentativeName = "Э.Мөнххолбоо",
         };
@@ -73,6 +75,8 @@ public sealed class ProjectCompanyAssignmentServiceTests
         Assert.Equal(["Архитектур", "Зураг төсөл"], snapshot.ActivityDirections);
         Assert.Equal("Б.Бат", snapshot.OfficialRepresentativeName);
         Assert.Equal("OfficialRegistry", snapshot.RegistrySource);
+        Assert.Equal("Улаанбаатар", snapshot.RegisteredCity);
+        Assert.Equal("Сүхбаатар дүүрэг, 1-р хороо", snapshot.Address);
         Assert.Equal("Зураг төсөл хариуцсан захирал", snapshot.DesignRepresentativeTitle);
         Assert.Equal("Э.Мөнххолбоо", snapshot.DesignRepresentativeName);
     }

@@ -92,6 +92,33 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> StartCloudEraOrganizationRegistryImportAsync(string organizationId, CloudEraOrganizationRegistryImportRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> StartCloudEraOrganizationRegistryImportAsync(string organizationId, CloudEraOrganizationRegistryImportRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> GetCloudEraOrganizationRegistryImportAsync(string organizationId, string importId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> GetCloudEraOrganizationRegistryImportAsync(string organizationId, string importId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task LogoPOSTAsync(string organizationId);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -1041,6 +1068,329 @@ namespace ErkS.CloudEra.Client.Generated
                         if (status_ == 200)
                         {
                             return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId)
+        {
+            return OrganizationsDELETEAsync(organizationId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> StartCloudEraOrganizationRegistryImportAsync(string organizationId, CloudEraOrganizationRegistryImportRequest body)
+        {
+            return StartCloudEraOrganizationRegistryImportAsync(organizationId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> StartCloudEraOrganizationRegistryImportAsync(string organizationId, CloudEraOrganizationRegistryImportRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/registry-imports"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/registry-imports");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraOrganizationRegistryImportResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 404)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Not Found", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 503)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Service Unavailable", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> GetCloudEraOrganizationRegistryImportAsync(string organizationId, string importId)
+        {
+            return GetCloudEraOrganizationRegistryImportAsync(organizationId, importId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraOrganizationRegistryImportResponse> GetCloudEraOrganizationRegistryImportAsync(string organizationId, string importId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            if (importId == null)
+                throw new System.ArgumentNullException("importId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/registry-imports/{importId}"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/registry-imports/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(importId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraOrganizationRegistryImportResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 404)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Not Found", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -2556,6 +2906,12 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 304)
+                        {
+                            string responseText_ = ( response_.Content == null ) ? string.Empty : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("Not Modified", status_, responseText_, headers_, null);
                         }
                         else
                         {
@@ -5019,6 +5375,33 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraApiError
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("code")]
+        public string Code { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("traceId")]
+        public string TraceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("fieldErrors")]
+        public System.Collections.Generic.IDictionary<string, System.Collections.Generic.ICollection<string>> FieldErrors { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraApprovalDecisionDto
     {
 
@@ -5439,6 +5822,177 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOrganizationDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalName")]
+        public string LegalName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("shortName")]
+        public string ShortName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrationNumber")]
+        public string RegistrationNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalEntityType")]
+        public string LegalEntityType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalForm")]
+        public string LegalForm { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activityDirections")]
+        public System.Collections.Generic.ICollection<string> ActivityDirections { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredAtUtc")]
+        public System.DateTimeOffset? RegisteredAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("officialRepresentativeName")]
+        public string OfficialRepresentativeName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrySource")]
+        public string RegistrySource { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrySourceUrl")]
+        public string RegistrySourceUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registryCheckedAtUtc")]
+        public System.DateTimeOffset? RegistryCheckedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationType")]
+        public string OrganizationType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("verificationStatus")]
+        public string VerificationStatus { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredCity")]
+        public string RegisteredCity { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("address")]
+        public string Address { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("phoneNumbers")]
+        public System.Collections.Generic.ICollection<string> PhoneNumbers { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("email")]
+        public string Email { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("website")]
+        public string Website { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseScope")]
+        public string LicenseScope { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseNumber")]
+        public string LicenseNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("directorTitle")]
+        public string DirectorTitle { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("directorName")]
+        public string DirectorName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeTitle")]
+        public string DesignRepresentativeTitle { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeName")]
+        public string DesignRepresentativeName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoUrl")]
+        public string LogoUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoScale")]
+        public double LogoScale { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoOffsetX")]
+        public double LogoOffsetX { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoOffsetY")]
+        public double LogoOffsetY { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("canManage")]
+        public bool CanManage { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentUserRole")]
+        public string CurrentUserRole { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("updatedAtUtc")]
+        public System.DateTimeOffset UpdatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOrganizationRegistryImportRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrationNumber")]
+        public string RegistrationNumber { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOrganizationRegistryImportResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("importId")]
+        public string ImportId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorizationUrl")]
+        public string AuthorizationUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("providerConfigured")]
+        public bool ProviderConfigured { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organization")]
+        public CloudEraOrganizationDto Organization { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraOrganizationRenderProfileDto
     {
 
@@ -5456,6 +6010,33 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("registrationNumber")]
         public string RegistrationNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalEntityType")]
+        public string LegalEntityType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalForm")]
+        public string LegalForm { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activityDirections")]
+        public System.Collections.Generic.ICollection<string> ActivityDirections { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredAtUtc")]
+        public System.DateTimeOffset? RegisteredAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("officialRepresentativeName")]
+        public string OfficialRepresentativeName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrySource")]
+        public string RegistrySource { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrySourceUrl")]
+        public string RegistrySourceUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registryCheckedAtUtc")]
+        public System.DateTimeOffset? RegistryCheckedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredCity")]
+        public string RegisteredCity { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("address")]
         public string Address { get; set; }
@@ -5480,6 +6061,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("directorName")]
         public string DirectorName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeTitle")]
+        public string DesignRepresentativeTitle { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeName")]
+        public string DesignRepresentativeName { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("logoUrl")]
         public string LogoUrl { get; set; }
@@ -5511,6 +6098,9 @@ namespace ErkS.CloudEra.Client.Generated
     public partial class CloudEraOrganizationUpsertRequest
     {
 
+        [System.Text.Json.Serialization.JsonPropertyName("registryFieldsIncluded")]
+        public bool RegistryFieldsIncluded { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("legalName")]
         public string LegalName { get; set; }
 
@@ -5522,6 +6112,21 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("registrationNumber")]
         public string RegistrationNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalEntityType")]
+        public string LegalEntityType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalForm")]
+        public string LegalForm { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activityDirections")]
+        public System.Collections.Generic.ICollection<string> ActivityDirections { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredAtUtc")]
+        public System.DateTimeOffset? RegisteredAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("officialRepresentativeName")]
+        public string OfficialRepresentativeName { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("organizationType")]
         public string OrganizationType { get; set; }
@@ -5552,6 +6157,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("directorName")]
         public string DirectorName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeTitle")]
+        public string DesignRepresentativeTitle { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeName")]
+        public string DesignRepresentativeName { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("logoScale")]
         public double LogoScale { get; set; }

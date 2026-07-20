@@ -69,6 +69,22 @@ MUST send the last canonical token using `If-Match`.
 - Studio keeps the local pending edit until the user refreshes or resolves the conflict.
 - A conflict MUST NOT be marked `Synced`.
 
+## Incremental project refresh and local cache
+
+`Cloud-оос шинэчлэх` is a conditional refresh, not a project re-download. Studio sends the last
+canonical project token in `If-None-Match`. The server returns `304 Not Modified` without a response
+body when project metadata has not changed. Studio records the check time but does not rewrite the
+canonical mirror or download an album, logo, document, or native source.
+
+When the token changed, Studio downloads canonical project metadata and reconciles fields by stable
+identity. Binary assets are fetched only when their version key changed, the local file is missing,
+or its SHA-256 does not match. Album PDFs use revision identity plus SHA-256 as the dirty key.
+
+Studio owns only the top-level cache under `<project>\outputs\cloud`. After a successful refresh it
+keeps the current PDF and removes older PDFs plus interrupted `.download`/`.tmp*` files. If the
+server has no current album revision, all owned album-cache artifacts are removed. Project sources,
+native RVT/DWG files, and unrelated files are never part of this cleanup.
+
 ## Idempotent synchronization
 
 Source-package registration is identified by the stable manifest/package ID. Album-revision upload

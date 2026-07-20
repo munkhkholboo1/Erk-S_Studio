@@ -13,6 +13,7 @@ public sealed class StudioServiceBoundaryTests
         Assert.True(typeof(IStudioSessionClient).IsAssignableFrom(facade));
         Assert.True(typeof(ILicenseClient).IsAssignableFrom(facade));
         Assert.True(typeof(IProjectsClient).IsAssignableFrom(facade));
+        Assert.NotNull(typeof(IProjectsClient).GetMethod(nameof(IProjectsClient.GetProjectChangesAsync)));
         Assert.True(typeof(IOrganizationsClient).IsAssignableFrom(facade));
         Assert.NotNull(typeof(IOrganizationsClient).GetMethod(nameof(IOrganizationsClient.DeleteOrganizationAsync)));
         Assert.NotNull(typeof(IOrganizationsClient).GetMethod(nameof(IOrganizationsClient.BeginOrganizationRegistryImportAsync)));
@@ -83,6 +84,36 @@ public sealed class StudioServiceBoundaryTests
             await StudioAccountService.ReplaceDownloadedFileAsync(source, destination);
 
             Assert.Equal(expected, await File.ReadAllBytesAsync(destination));
+            Assert.False(File.Exists(destination + ".download"));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InvalidDownloadedHash_PreservesCurrentPdfAndRemovesTemporaryFile()
+    {
+        string folder = Path.Combine(
+            Path.GetTempPath(),
+            "erk-s-studio-download-" + Guid.NewGuid().ToString("N"));
+        string destination = Path.Combine(folder, "album.pdf");
+        byte[] existing = [9, 9, 9];
+        Directory.CreateDirectory(folder);
+        await File.WriteAllBytesAsync(destination, existing);
+
+        try
+        {
+            await using var source = new MemoryStream([1, 2, 3], writable: false);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                StudioAccountService.ReplaceDownloadedFileAsync(
+                    source,
+                    destination,
+                    expectedSha256: new string('f', 64)));
+
+            Assert.Equal(existing, await File.ReadAllBytesAsync(destination));
             Assert.False(File.Exists(destination + ".download"));
         }
         finally
