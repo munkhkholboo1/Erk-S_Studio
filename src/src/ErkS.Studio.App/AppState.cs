@@ -353,6 +353,14 @@ public sealed class AppState : IDisposable
         DisplayName = profile.DisplayName,
         ShortName = profile.ShortName,
         RegistrationNumber = profile.RegistrationNumber,
+        LegalEntityType = profile.LegalEntityType,
+        LegalForm = profile.LegalForm,
+        ActivityDirections = [.. (profile.ActivityDirections ?? [])],
+        RegisteredAtUtc = profile.RegisteredAtUtc,
+        OfficialRepresentativeName = profile.OfficialRepresentativeName,
+        RegistrySource = profile.RegistrySource,
+        RegistrySourceUrl = profile.RegistrySourceUrl,
+        RegistryCheckedAtUtc = profile.RegistryCheckedAtUtc,
         Address = profile.Address,
         Phone = profile.Phone,
         PhoneNumbers = string.IsNullOrWhiteSpace(profile.Phone) ? [] : [profile.Phone],
@@ -360,19 +368,24 @@ public sealed class AppState : IDisposable
         WebSite = profile.Website,
         LicenseScope = profile.LicenseScope,
         LicenseNumber = profile.LicenseNumber,
-        DirectorTitle = profile.DirectorTitle,
-        DirectorName = profile.DirectorName,
+        DesignRepresentativeTitle = FirstOrganizationValue(profile.DesignRepresentativeTitle, profile.DirectorTitle),
+        DesignRepresentativeName = FirstOrganizationValue(profile.DesignRepresentativeName, profile.DirectorName),
+        DirectorTitle = FirstOrganizationValue(profile.DesignRepresentativeTitle, profile.DirectorTitle),
+        DirectorName = FirstOrganizationValue(profile.DesignRepresentativeName, profile.DirectorName),
         LogoScale = profile.LogoScale,
         LogoOffsetX = profile.LogoOffsetX,
         LogoOffsetY = profile.LogoOffsetY,
-        Signers = string.IsNullOrWhiteSpace(profile.DirectorName)
+        Signers = string.IsNullOrWhiteSpace(FirstOrganizationValue(profile.DesignRepresentativeName, profile.DirectorName))
             ? []
             : [new CompanySigner
             {
-                Role = profile.DirectorTitle,
-                FullName = profile.DirectorName,
+                Role = FirstOrganizationValue(profile.DesignRepresentativeTitle, profile.DirectorTitle),
+                FullName = FirstOrganizationValue(profile.DesignRepresentativeName, profile.DirectorName),
             }],
     };
+
+    private static string FirstOrganizationValue(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
 
     private static ProjectMember ToProjectMember(StudioCloudParticipant participant) => new()
     {

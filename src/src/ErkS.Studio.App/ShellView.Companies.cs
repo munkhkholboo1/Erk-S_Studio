@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -19,6 +20,11 @@ internal sealed partial class ShellView
     private readonly TextBox libraryCompanyDisplayNameBox = new();
     private readonly TextBox libraryCompanyShortNameBox = new();
     private readonly TextBox libraryCompanyRegistrationBox = new();
+    private readonly TextBox libraryCompanyLegalEntityTypeBox = new();
+    private readonly TextBox libraryCompanyLegalFormBox = new();
+    private readonly TextBox libraryCompanyRegisteredDateBox = new();
+    private readonly TextBox libraryCompanyActivityDirectionsBox = new() { AcceptsReturn = true, MinHeight = 72, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBox libraryCompanyOfficialRepresentativeBox = new();
     private readonly TextBox libraryCompanyCityBox = new();
     private readonly TextBox libraryCompanyAddressBox = new() { AcceptsReturn = true, MinHeight = 56, TextWrapping = TextWrapping.Wrap };
     private readonly TextBox libraryCompanyPhonesBox = new() { AcceptsReturn = true, MinHeight = 52, TextWrapping = TextWrapping.Wrap };
@@ -28,6 +34,8 @@ internal sealed partial class ShellView
     private readonly TextBox libraryCompanyLicenseNumberBox = new();
     private readonly TextBox libraryCompanyDirectorTitleBox = new();
     private readonly TextBox libraryCompanyDirectorNameBox = new();
+    private readonly TextBlock libraryCompanyRegistrySourceText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Button libraryCompanyOpenRegistryButton = StudioWidgets.CreateButton("Улсын бүртгэлийн сан нээх");
     private readonly TextBlock companyLogoFileText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Image companyLogoPreviewImage = new() { Stretch = Stretch.Fill, SnapsToDevicePixels = true };
     private readonly Canvas companyLogoPreviewCanvas = new() { ClipToBounds = true };
@@ -178,13 +186,25 @@ internal sealed partial class ShellView
             MaxWidth = 940,
             HorizontalAlignment = HorizontalAlignment.Left,
         };
-        form.Children.Add(StudioWidgets.CreateSectionHeader("Байгууллагын мэдээлэл"));
-        form.Children.Add(StudioWidgets.CreateFormRow("Хуулийн нэр", libraryCompanyNameBox, 155));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Улсын бүртгэлийн мэдээлэл"));
+        form.Children.Add(StudioWidgets.CreateFormRow("Албан ёсны нэр", libraryCompanyNameBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Регистрийн дугаар", libraryCompanyRegistrationBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Хуулийн этгээдийн төрөл", libraryCompanyLegalEntityTypeBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Хуулийн хэлбэр", libraryCompanyLegalFormBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Бүртгэсэн огноо", libraryCompanyRegisteredDateBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Үйл ажиллагааны чиглэл", libraryCompanyActivityDirectionsBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Албан ёсны төлөөлөгч", libraryCompanyOfficialRepresentativeBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Хот / дүүрэг", libraryCompanyCityBox, 180));
+        form.Children.Add(StudioWidgets.CreateFormRow("Бүртгэлтэй хаяг", libraryCompanyAddressBox, 180));
+        libraryCompanyRegistrySourceText.Foreground = StudioTheme.MutedTextBrush;
+        libraryCompanyOpenRegistryButton.Click += (_, _) => OpenOrganizationRegistrySource();
+        var registrySourcePanel = new StackPanel();
+        registrySourcePanel.Children.Add(libraryCompanyRegistrySourceText);
+        registrySourcePanel.Children.Add(libraryCompanyOpenRegistryButton);
+        form.Children.Add(StudioWidgets.CreateFormRow("Эх сурвалж", registrySourcePanel, 180));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Байгууллагаас нөхөх мэдээлэл"));
         form.Children.Add(StudioWidgets.CreateFormRow("Харагдах нэр", libraryCompanyDisplayNameBox, 155));
         form.Children.Add(StudioWidgets.CreateFormRow("Товчилсон нэр", libraryCompanyShortNameBox, 155));
-        form.Children.Add(StudioWidgets.CreateFormRow("Регистрийн дугаар", libraryCompanyRegistrationBox, 155));
-        form.Children.Add(StudioWidgets.CreateFormRow("Хот / дүүрэг", libraryCompanyCityBox, 155));
-        form.Children.Add(StudioWidgets.CreateFormRow("Хаяг", libraryCompanyAddressBox, 155));
         form.Children.Add(StudioWidgets.CreateSectionHeader("Холбоо барих"));
         form.Children.Add(StudioWidgets.CreateFormRow("Утаснууд", libraryCompanyPhonesBox, 155));
         form.Children.Add(StudioWidgets.CreateFormRow("И-мэйл", libraryCompanyEmailBox, 155));
@@ -196,8 +216,9 @@ internal sealed partial class ShellView
         form.Children.Add(BuildCompanyRegistrationDocumentEditor());
         form.Children.Add(StudioWidgets.CreateSectionHeader("Тусгай зөвшөөрлийн хуулбар"));
         form.Children.Add(BuildCompanyLicenseDocumentEditor());
-        form.Children.Add(StudioWidgets.CreateFormRow("Удирдлагын албан тушаал", libraryCompanyDirectorTitleBox, 155));
-        form.Children.Add(StudioWidgets.CreateFormRow("Удирдлагын нэр", libraryCompanyDirectorNameBox, 155));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Зураг төсөлд төлөөлөх хүн"));
+        form.Children.Add(StudioWidgets.CreateFormRow("Албан тушаал", libraryCompanyDirectorTitleBox, 155));
+        form.Children.Add(StudioWidgets.CreateFormRow("Нэр", libraryCompanyDirectorNameBox, 155));
         form.Children.Add(StudioWidgets.CreateSectionHeader("Лого"));
         form.Children.Add(BuildCompanyLogoEditor());
         return StudioWidgets.CreateScrollHost(form);
@@ -565,6 +586,7 @@ internal sealed partial class ShellView
             {
                 OrganizationId = "local-" + Guid.NewGuid().ToString("N"),
                 OrganizationType = "DesignCompany",
+                DesignRepresentativeTitle = "Захирал",
                 DirectorTitle = "Захирал",
             },
             CanManage = true,
@@ -721,6 +743,11 @@ internal sealed partial class ShellView
         libraryCompanyDisplayNameBox.Text = profile.DisplayName;
         libraryCompanyShortNameBox.Text = profile.ShortName;
         libraryCompanyRegistrationBox.Text = profile.RegistrationNumber;
+        libraryCompanyLegalEntityTypeBox.Text = profile.LegalEntityType;
+        libraryCompanyLegalFormBox.Text = profile.LegalForm;
+        libraryCompanyRegisteredDateBox.Text = profile.RegisteredAtUtc?.ToString("yyyy-MM-dd") ?? "";
+        libraryCompanyActivityDirectionsBox.Text = string.Join(Environment.NewLine, profile.ActivityDirections);
+        libraryCompanyOfficialRepresentativeBox.Text = profile.OfficialRepresentativeName;
         libraryCompanyCityBox.Text = profile.RegisteredCity;
         libraryCompanyAddressBox.Text = profile.Address;
         libraryCompanyPhonesBox.Text = string.Join(Environment.NewLine, profile.PhoneNumbers);
@@ -728,8 +755,10 @@ internal sealed partial class ShellView
         libraryCompanyWebsiteBox.Text = profile.WebSite;
         libraryCompanyLicenseScopeBox.Text = profile.LicenseScope;
         libraryCompanyLicenseNumberBox.Text = profile.LicenseNumber;
-        libraryCompanyDirectorTitleBox.Text = profile.DirectorTitle;
-        libraryCompanyDirectorNameBox.Text = profile.DirectorName;
+        libraryCompanyDirectorTitleBox.Text = profile.DesignRepresentativeTitle;
+        libraryCompanyDirectorNameBox.Text = profile.DesignRepresentativeName;
+        libraryCompanyRegistrySourceText.Text = RegistrySourceLabel(profile);
+        libraryCompanyOpenRegistryButton.IsEnabled = !string.IsNullOrWhiteSpace(profile.RegistrySourceUrl);
         companyLogoScaleSlider.Value = profile.LogoScale;
         companyLogoOffsetXSlider.Value = profile.LogoOffsetX;
         companyLogoOffsetYSlider.Value = profile.LogoOffsetY;
@@ -759,6 +788,14 @@ internal sealed partial class ShellView
         profile.DisplayName = libraryCompanyDisplayNameBox.Text.Trim();
         profile.ShortName = libraryCompanyShortNameBox.Text.Trim();
         profile.RegistrationNumber = libraryCompanyRegistrationBox.Text.Trim();
+        profile.LegalEntityType = libraryCompanyLegalEntityTypeBox.Text.Trim();
+        profile.LegalForm = libraryCompanyLegalFormBox.Text.Trim();
+        profile.RegisteredAtUtc = ParseCompanyRegisteredDate(libraryCompanyRegisteredDateBox.Text, original.RegisteredAtUtc);
+        profile.ActivityDirections = libraryCompanyActivityDirectionsBox.Text
+            .Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        profile.OfficialRepresentativeName = libraryCompanyOfficialRepresentativeBox.Text.Trim();
         profile.RegisteredCity = libraryCompanyCityBox.Text.Trim();
         profile.Address = libraryCompanyAddressBox.Text.Trim();
         profile.PhoneNumbers = libraryCompanyPhonesBox.Text
@@ -770,16 +807,18 @@ internal sealed partial class ShellView
         profile.WebSite = libraryCompanyWebsiteBox.Text.Trim();
         profile.LicenseScope = libraryCompanyLicenseScopeBox.Text.Trim();
         profile.LicenseNumber = libraryCompanyLicenseNumberBox.Text.Trim();
-        profile.DirectorTitle = libraryCompanyDirectorTitleBox.Text.Trim();
-        profile.DirectorName = libraryCompanyDirectorNameBox.Text.Trim();
+        profile.DesignRepresentativeTitle = libraryCompanyDirectorTitleBox.Text.Trim();
+        profile.DesignRepresentativeName = libraryCompanyDirectorNameBox.Text.Trim();
+        profile.DirectorTitle = profile.DesignRepresentativeTitle;
+        profile.DirectorName = profile.DesignRepresentativeName;
         profile.LogoScale = companyLogoScaleSlider.Value;
         profile.LogoOffsetX = companyLogoOffsetXSlider.Value;
         profile.LogoOffsetY = companyLogoOffsetYSlider.Value;
         ApplyCompanyDocumentDrafts(profile);
         profile.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        profile.Signers = string.IsNullOrWhiteSpace(profile.DirectorName)
+        profile.Signers = string.IsNullOrWhiteSpace(profile.DesignRepresentativeName)
             ? []
-            : [new CompanySigner { Role = profile.DirectorTitle, FullName = profile.DirectorName }];
+            : [new CompanySigner { Role = profile.DesignRepresentativeTitle, FullName = profile.DesignRepresentativeName }];
         profile.Normalize();
         return profile;
     }
@@ -812,6 +851,11 @@ internal sealed partial class ShellView
         yield return libraryCompanyDisplayNameBox;
         yield return libraryCompanyShortNameBox;
         yield return libraryCompanyRegistrationBox;
+        yield return libraryCompanyLegalEntityTypeBox;
+        yield return libraryCompanyLegalFormBox;
+        yield return libraryCompanyRegisteredDateBox;
+        yield return libraryCompanyActivityDirectionsBox;
+        yield return libraryCompanyOfficialRepresentativeBox;
         yield return libraryCompanyCityBox;
         yield return libraryCompanyAddressBox;
         yield return libraryCompanyPhonesBox;
@@ -830,6 +874,8 @@ internal sealed partial class ShellView
         removeCompanyLogoRequested = false;
         foreach (TextBox box in CompanyEditorTextBoxes())
             box.Clear();
+        libraryCompanyRegistrySourceText.Text = "";
+        libraryCompanyOpenRegistryButton.IsEnabled = false;
         bindingCompanyEditor = true;
         companyLogoScaleSlider.Value = 1;
         companyLogoOffsetXSlider.Value = 0;
@@ -1164,6 +1210,14 @@ internal sealed partial class ShellView
             DisplayName = cloud.DisplayName,
             ShortName = cloud.ShortName,
             RegistrationNumber = cloud.RegistrationNumber,
+            LegalEntityType = cloud.LegalEntityType,
+            LegalForm = cloud.LegalForm,
+            ActivityDirections = [.. (cloud.ActivityDirections ?? [])],
+            RegisteredAtUtc = cloud.RegisteredAtUtc,
+            OfficialRepresentativeName = cloud.OfficialRepresentativeName,
+            RegistrySource = cloud.RegistrySource,
+            RegistrySourceUrl = cloud.RegistrySourceUrl,
+            RegistryCheckedAtUtc = cloud.RegistryCheckedAtUtc,
             OrganizationType = cloud.OrganizationType,
             Status = cloud.Status,
             VerificationStatus = cloud.VerificationStatus,
@@ -1175,25 +1229,33 @@ internal sealed partial class ShellView
             WebSite = cloud.Website,
             LicenseScope = cloud.LicenseScope,
             LicenseNumber = cloud.LicenseNumber,
-            DirectorTitle = cloud.DirectorTitle,
-            DirectorName = cloud.DirectorName,
+            DesignRepresentativeTitle = FirstCompanyValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
+            DesignRepresentativeName = FirstCompanyValue(cloud.DesignRepresentativeName, cloud.DirectorName),
+            DirectorTitle = FirstCompanyValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
+            DirectorName = FirstCompanyValue(cloud.DesignRepresentativeName, cloud.DirectorName),
             LogoScale = cloud.LogoScale,
             LogoOffsetX = cloud.LogoOffsetX,
             LogoOffsetY = cloud.LogoOffsetY,
             UpdatedAtUtc = cloud.UpdatedAtUtc,
         };
-        if (!string.IsNullOrWhiteSpace(profile.DirectorName))
-            profile.Signers.Add(new CompanySigner { Role = profile.DirectorTitle, FullName = profile.DirectorName });
+        if (!string.IsNullOrWhiteSpace(profile.DesignRepresentativeName))
+            profile.Signers.Add(new CompanySigner { Role = profile.DesignRepresentativeTitle, FullName = profile.DesignRepresentativeName });
         profile.Normalize();
         return profile;
     }
 
     private static StudioCloudOrganizationUpsertRequest ToCloudCompanyRequest(CompanyProfile profile) => new()
     {
+        RegistryFieldsIncluded = true,
         LegalName = profile.Name,
         DisplayName = profile.DisplayName,
         ShortName = profile.ShortName,
         RegistrationNumber = profile.RegistrationNumber,
+        LegalEntityType = profile.LegalEntityType,
+        LegalForm = profile.LegalForm,
+        ActivityDirections = [.. profile.ActivityDirections],
+        RegisteredAtUtc = profile.RegisteredAtUtc,
+        OfficialRepresentativeName = profile.OfficialRepresentativeName,
         OrganizationType = string.IsNullOrWhiteSpace(profile.OrganizationType) ? "DesignCompany" : profile.OrganizationType,
         RegisteredCity = profile.RegisteredCity,
         Address = profile.Address,
@@ -1202,12 +1264,51 @@ internal sealed partial class ShellView
         Website = profile.WebSite,
         LicenseScope = profile.LicenseScope,
         LicenseNumber = profile.LicenseNumber,
-        DirectorTitle = profile.DirectorTitle,
-        DirectorName = profile.DirectorName,
+        DesignRepresentativeTitle = profile.DesignRepresentativeTitle,
+        DesignRepresentativeName = profile.DesignRepresentativeName,
+        DirectorTitle = profile.DesignRepresentativeTitle,
+        DirectorName = profile.DesignRepresentativeName,
         LogoScale = profile.LogoScale,
         LogoOffsetX = profile.LogoOffsetX,
         LogoOffsetY = profile.LogoOffsetY,
     };
+
+    private void OpenOrganizationRegistrySource()
+    {
+        string url = selectedCompanyEntry?.Profile.RegistrySourceUrl ?? "";
+        if (string.IsNullOrWhiteSpace(url))
+            url = "https://opendata.burtgel.gov.mn/les";
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            SetStatus("Улсын бүртгэлийн санг нээж чадсангүй: " + exception.Message);
+        }
+    }
+
+    private static string RegistrySourceLabel(CompanyProfile profile)
+    {
+        string source = profile.RegistrySource.Equals("OfficialRegistry", StringComparison.OrdinalIgnoreCase)
+            ? "Улсын бүртгэлийн албан ёсны эх сурвалж"
+            : "Хэрэглэгчийн оруулсан мэдээлэл";
+        return profile.RegistryCheckedAtUtc is null
+            ? source
+            : $"{source} · {profile.RegistryCheckedAtUtc:yyyy-MM-dd HH:mm}";
+    }
+
+    private static DateTimeOffset? ParseCompanyRegisteredDate(string text, DateTimeOffset? fallback)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        return DateTimeOffset.TryParse(text.Trim(), out DateTimeOffset parsed)
+            ? new DateTimeOffset(parsed.Year, parsed.Month, parsed.Day, 0, 0, 0, TimeSpan.Zero)
+            : fallback;
+    }
+
+    private static string FirstCompanyValue(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
 
     private static string CompanySyncLabel(string status) => status switch
     {

@@ -39,6 +39,45 @@ public sealed class ProjectCompanyAssignmentServiceTests
     }
 
     [Fact]
+    public void RefreshAssignedSnapshotPropagatesRegistryAndDesignRepresentativeFields()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("ORG-REGISTRY-001", "Organization registry sync");
+        project.Foundation.DesignCompany.OrganizationId = "org-design-registry";
+        project.Foundation.DesignCompany.OrganizationName = "Design company";
+        project.Foundation.DesignCompany.OrganizationSnapshot = new CompanyProfile
+        {
+            OrganizationId = "org-design-registry",
+            Name = "Design company",
+        };
+        var current = new CompanyProfile
+        {
+            OrganizationId = "org-design-registry",
+            Name = "Official Design LLC",
+            RegistrationNumber = "1234567",
+            LegalEntityType = "Хуулийн этгээд",
+            LegalForm = "ХХК",
+            ActivityDirections = ["Архитектур", "Зураг төсөл"],
+            RegisteredAtUtc = new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero),
+            OfficialRepresentativeName = "Б.Бат",
+            RegistrySource = "OfficialRegistry",
+            RegistryCheckedAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            DesignRepresentativeTitle = "Зураг төсөл хариуцсан захирал",
+            DesignRepresentativeName = "Э.Мөнххолбоо",
+        };
+
+        bool changed = ProjectCompanyAssignmentService.RefreshAssignedSnapshot(project, current);
+
+        Assert.True(changed);
+        CompanyProfile snapshot = project.Foundation.DesignCompany.OrganizationSnapshot;
+        Assert.Equal("Хуулийн этгээд", snapshot.LegalEntityType);
+        Assert.Equal(["Архитектур", "Зураг төсөл"], snapshot.ActivityDirections);
+        Assert.Equal("Б.Бат", snapshot.OfficialRepresentativeName);
+        Assert.Equal("OfficialRegistry", snapshot.RegistrySource);
+        Assert.Equal("Зураг төсөл хариуцсан захирал", snapshot.DesignRepresentativeTitle);
+        Assert.Equal("Э.Мөнххолбоо", snapshot.DesignRepresentativeName);
+    }
+
+    [Fact]
     public void RefreshAssignedSnapshotRejectsDifferentOrganizationId()
     {
         ProjectWorkspace project = ProjectWorkspaceStore.Create(new ProjectCreationRequest

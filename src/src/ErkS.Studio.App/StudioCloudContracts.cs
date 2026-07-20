@@ -45,6 +45,14 @@ internal sealed class StudioCloudOrganization
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
     public string RegistrationNumber { get; set; } = "";
+    public string LegalEntityType { get; set; } = "";
+    public string LegalForm { get; set; } = "";
+    public string[] ActivityDirections { get; set; } = [];
+    public DateTimeOffset? RegisteredAtUtc { get; set; }
+    public string OfficialRepresentativeName { get; set; } = "";
+    public string RegistrySource { get; set; } = "SelfDeclared";
+    public string RegistrySourceUrl { get; set; } = "https://opendata.burtgel.gov.mn/les";
+    public DateTimeOffset? RegistryCheckedAtUtc { get; set; }
     public string OrganizationType { get; set; } = "";
     public string Status { get; set; } = "";
     public string VerificationStatus { get; set; } = "";
@@ -57,6 +65,8 @@ internal sealed class StudioCloudOrganization
     public string LicenseNumber { get; set; } = "";
     public string DirectorTitle { get; set; } = "";
     public string DirectorName { get; set; } = "";
+    public string DesignRepresentativeTitle { get; set; } = "";
+    public string DesignRepresentativeName { get; set; } = "";
     public string LogoUrl { get; set; } = "";
     public double LogoScale { get; set; } = 1d;
     public double LogoOffsetX { get; set; }
@@ -68,10 +78,16 @@ internal sealed class StudioCloudOrganization
 
 internal sealed class StudioCloudOrganizationUpsertRequest
 {
+    public bool RegistryFieldsIncluded { get; set; }
     public string LegalName { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
     public string RegistrationNumber { get; set; } = "";
+    public string LegalEntityType { get; set; } = "";
+    public string LegalForm { get; set; } = "";
+    public string[] ActivityDirections { get; set; } = [];
+    public DateTimeOffset? RegisteredAtUtc { get; set; }
+    public string OfficialRepresentativeName { get; set; } = "";
     public string OrganizationType { get; set; } = "DesignCompany";
     public string RegisteredCity { get; set; } = "";
     public string Address { get; set; } = "";
@@ -82,6 +98,8 @@ internal sealed class StudioCloudOrganizationUpsertRequest
     public string LicenseNumber { get; set; } = "";
     public string DirectorTitle { get; set; } = "";
     public string DirectorName { get; set; } = "";
+    public string DesignRepresentativeTitle { get; set; } = "";
+    public string DesignRepresentativeName { get; set; } = "";
     public double LogoScale { get; set; } = 1d;
     public double LogoOffsetX { get; set; }
     public double LogoOffsetY { get; set; }
@@ -206,6 +224,14 @@ internal sealed class StudioCloudOrganizationRenderProfile
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
     public string RegistrationNumber { get; set; } = "";
+    public string LegalEntityType { get; set; } = "";
+    public string LegalForm { get; set; } = "";
+    public string[] ActivityDirections { get; set; } = [];
+    public DateTimeOffset? RegisteredAtUtc { get; set; }
+    public string OfficialRepresentativeName { get; set; } = "";
+    public string RegistrySource { get; set; } = "SelfDeclared";
+    public string RegistrySourceUrl { get; set; } = "https://opendata.burtgel.gov.mn/les";
+    public DateTimeOffset? RegistryCheckedAtUtc { get; set; }
     public string Address { get; set; } = "";
     public string Phone { get; set; } = "";
     public string Email { get; set; } = "";
@@ -214,6 +240,8 @@ internal sealed class StudioCloudOrganizationRenderProfile
     public string LicenseNumber { get; set; } = "";
     public string DirectorTitle { get; set; } = "";
     public string DirectorName { get; set; } = "";
+    public string DesignRepresentativeTitle { get; set; } = "";
+    public string DesignRepresentativeName { get; set; } = "";
     public string LogoUrl { get; set; } = "";
     public double LogoScale { get; set; } = 1d;
     public double LogoOffsetX { get; set; }

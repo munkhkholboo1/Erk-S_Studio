@@ -231,6 +231,14 @@ public static class ProjectCompanyAssignmentService
             left.DisplayName.Equals(right.DisplayName, StringComparison.Ordinal) &&
             left.ShortName.Equals(right.ShortName, StringComparison.Ordinal) &&
             left.RegistrationNumber.Equals(right.RegistrationNumber, StringComparison.Ordinal) &&
+            left.LegalEntityType.Equals(right.LegalEntityType, StringComparison.Ordinal) &&
+            left.LegalForm.Equals(right.LegalForm, StringComparison.Ordinal) &&
+            left.ActivityDirections.SequenceEqual(right.ActivityDirections, StringComparer.Ordinal) &&
+            Nullable.Equals(left.RegisteredAtUtc, right.RegisteredAtUtc) &&
+            left.OfficialRepresentativeName.Equals(right.OfficialRepresentativeName, StringComparison.Ordinal) &&
+            left.RegistrySource.Equals(right.RegistrySource, StringComparison.Ordinal) &&
+            left.RegistrySourceUrl.Equals(right.RegistrySourceUrl, StringComparison.Ordinal) &&
+            Nullable.Equals(left.RegistryCheckedAtUtc, right.RegistryCheckedAtUtc) &&
             left.RegisteredCity.Equals(right.RegisteredCity, StringComparison.Ordinal) &&
             left.Address.Equals(right.Address, StringComparison.Ordinal) &&
             left.PhoneNumbers.SequenceEqual(right.PhoneNumbers, StringComparer.Ordinal) &&
@@ -240,6 +248,8 @@ public static class ProjectCompanyAssignmentService
             left.LicenseNumber.Equals(right.LicenseNumber, StringComparison.Ordinal) &&
             left.DirectorTitle.Equals(right.DirectorTitle, StringComparison.Ordinal) &&
             left.DirectorName.Equals(right.DirectorName, StringComparison.Ordinal) &&
+            left.DesignRepresentativeTitle.Equals(right.DesignRepresentativeTitle, StringComparison.Ordinal) &&
+            left.DesignRepresentativeName.Equals(right.DesignRepresentativeName, StringComparison.Ordinal) &&
             left.LogoPath.Equals(right.LogoPath, StringComparison.OrdinalIgnoreCase) &&
             left.LogoScale.Equals(right.LogoScale) &&
             left.LogoOffsetX.Equals(right.LogoOffsetX) &&

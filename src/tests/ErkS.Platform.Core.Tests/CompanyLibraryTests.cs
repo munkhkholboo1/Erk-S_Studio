@@ -52,6 +52,23 @@ public sealed class CompanyLibraryTests : IDisposable
     }
 
     [Fact]
+    public void LegacyDirectorFieldsBecomeDesignRepresentativeWithoutLosingCompatibility()
+    {
+        var profile = new CompanyProfile
+        {
+            DirectorTitle = "Зураг төсөл хариуцсан захирал",
+            DirectorName = "Э.Мөнххолбоо",
+        };
+
+        profile.Normalize();
+
+        Assert.Equal("Зураг төсөл хариуцсан захирал", profile.DesignRepresentativeTitle);
+        Assert.Equal("Э.Мөнххолбоо", profile.DesignRepresentativeName);
+        Assert.Equal(profile.DesignRepresentativeTitle, profile.DirectorTitle);
+        Assert.Equal(profile.DesignRepresentativeName, profile.DirectorName);
+    }
+
+    [Fact]
     public void AccountCachePreservesCompanyAndLogoPlacement()
     {
         var store = new CompanyLibraryStore(

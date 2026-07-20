@@ -97,6 +97,14 @@ public sealed class CompanyProfile
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
     public string RegistrationNumber { get; set; } = "";
+    public string LegalEntityType { get; set; } = "";
+    public string LegalForm { get; set; } = "";
+    public List<string> ActivityDirections { get; set; } = [];
+    public DateTimeOffset? RegisteredAtUtc { get; set; }
+    public string OfficialRepresentativeName { get; set; } = "";
+    public string RegistrySource { get; set; } = "SelfDeclared";
+    public string RegistrySourceUrl { get; set; } = "https://opendata.burtgel.gov.mn/les";
+    public DateTimeOffset? RegistryCheckedAtUtc { get; set; }
     public string OrganizationType { get; set; } = "DesignCompany";
     public string Status { get; set; } = "";
     public string VerificationStatus { get; set; } = "";
@@ -110,6 +118,8 @@ public sealed class CompanyProfile
     public string LicenseNumber { get; set; } = "";
     public string DirectorTitle { get; set; } = "";
     public string DirectorName { get; set; } = "";
+    public string DesignRepresentativeTitle { get; set; } = "";
+    public string DesignRepresentativeName { get; set; } = "";
     public string LogoPath { get; set; } = "";
     /// <summary>User-facing source name; LogoPath may be content-addressed.</summary>
     public string LogoOriginalFileName { get; set; } = "";
@@ -135,6 +145,7 @@ public sealed class CompanyProfile
     public void Normalize()
     {
         PhoneNumbers ??= [];
+        ActivityDirections ??= [];
         Signers ??= [];
         RegistrationCertificateDocuments ??= [];
         DesignLicenseDocuments ??= [];
@@ -148,6 +159,21 @@ public sealed class CompanyProfile
             PhoneNumbers.Add(Phone.Trim());
         }
         Phone = PhoneNumbers.FirstOrDefault() ?? Phone.Trim();
+        ActivityDirections = ActivityDirections
+            .Select(value => (value ?? "").Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (string.IsNullOrWhiteSpace(DesignRepresentativeTitle))
+            DesignRepresentativeTitle = DirectorTitle;
+        if (string.IsNullOrWhiteSpace(DesignRepresentativeName))
+            DesignRepresentativeName = DirectorName;
+        DirectorTitle = DesignRepresentativeTitle;
+        DirectorName = DesignRepresentativeName;
+        RegistrySource = string.IsNullOrWhiteSpace(RegistrySource) ? "SelfDeclared" : RegistrySource.Trim();
+        RegistrySourceUrl = string.IsNullOrWhiteSpace(RegistrySourceUrl)
+            ? "https://opendata.burtgel.gov.mn/les"
+            : RegistrySourceUrl.Trim();
         LogoScale = double.IsFinite(LogoScale) ? Math.Clamp(LogoScale, 0.25d, 4d) : 1d;
         LogoOffsetX = double.IsFinite(LogoOffsetX) ? Math.Clamp(LogoOffsetX, -1d, 1d) : 0d;
         LogoOffsetY = double.IsFinite(LogoOffsetY) ? Math.Clamp(LogoOffsetY, -1d, 1d) : 0d;
@@ -168,6 +194,14 @@ public sealed class CompanyProfile
             DisplayName = DisplayName,
             ShortName = ShortName,
             RegistrationNumber = RegistrationNumber,
+            LegalEntityType = LegalEntityType,
+            LegalForm = LegalForm,
+            ActivityDirections = [.. (ActivityDirections ?? [])],
+            RegisteredAtUtc = RegisteredAtUtc,
+            OfficialRepresentativeName = OfficialRepresentativeName,
+            RegistrySource = RegistrySource,
+            RegistrySourceUrl = RegistrySourceUrl,
+            RegistryCheckedAtUtc = RegistryCheckedAtUtc,
             OrganizationType = OrganizationType,
             Status = Status,
             VerificationStatus = VerificationStatus,
@@ -181,6 +215,8 @@ public sealed class CompanyProfile
             LicenseNumber = LicenseNumber,
             DirectorTitle = DirectorTitle,
             DirectorName = DirectorName,
+            DesignRepresentativeTitle = DesignRepresentativeTitle,
+            DesignRepresentativeName = DesignRepresentativeName,
             LogoPath = LogoPath,
             LogoOriginalFileName = LogoOriginalFileName,
             LogoScale = LogoScale,

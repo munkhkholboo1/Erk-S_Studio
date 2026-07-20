@@ -679,6 +679,15 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static (string Role, string Name) ResolveCompanyRepresentative(AlbumProject project)
     {
+        if (!string.IsNullOrWhiteSpace(project.Company.DesignRepresentativeName))
+        {
+            return (
+                string.IsNullOrWhiteSpace(project.Company.DesignRepresentativeTitle)
+                    ? "Захирал"
+                    : project.Company.DesignRepresentativeTitle,
+                project.Company.DesignRepresentativeName);
+        }
+
         var signer = project.Company.Signers.FirstOrDefault(candidate =>
                          candidate.Role.Contains("захирал", StringComparison.OrdinalIgnoreCase))
                      ?? project.Company.Signers.FirstOrDefault();
