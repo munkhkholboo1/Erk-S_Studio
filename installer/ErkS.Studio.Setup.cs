@@ -463,6 +463,7 @@ namespace ErkS.Studio.Setup
         private static void WaitForInstalledApplication(string installRoot, TimeSpan timeout)
         {
             DateTime deadline = DateTime.UtcNow.Add(timeout);
+            DateTime forceCloseAfter = DateTime.UtcNow.AddSeconds(8);
             while (DateTime.UtcNow < deadline)
             {
                 Process[] running = FindInstalledProcesses(installRoot).ToArray();
@@ -470,14 +471,26 @@ namespace ErkS.Studio.Setup
                     return;
                 foreach (Process process in running)
                 {
-                    try { process.WaitForExit(800); } catch { }
+                    try
+                    {
+                        if (!process.HasExited)
+                            process.CloseMainWindow();
+                        if (!process.WaitForExit(800) && DateTime.UtcNow >= forceCloseAfter)
+                        {
+                            process.Kill();
+                            process.WaitForExit(5000);
+                        }
+                    }
+                    catch
+                    {
+                    }
                     process.Dispose();
                 }
                 Thread.Sleep(200);
             }
 
             if (FindInstalledProcesses(installRoot).Any())
-                throw new InvalidOperationException("Close Erk-S Studio and run setup again.");
+                throw new InvalidOperationException("Erk-S Studio could not be closed automatically. Restart Windows and try the update again.");
         }
 
         private static void WaitForHandoffProcess(int processId, TimeSpan timeout)
