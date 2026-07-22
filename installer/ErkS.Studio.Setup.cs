@@ -113,6 +113,8 @@ namespace ErkS.Studio.Setup
             }
 
             options.InstallRoot = Path.GetFullPath(options.InstallRoot);
+            if (!options.Quiet && File.Exists(Path.Combine(options.InstallRoot, "ErkS.Studio.exe")))
+                options.UpdateHandoff = true;
             return options;
         }
 
