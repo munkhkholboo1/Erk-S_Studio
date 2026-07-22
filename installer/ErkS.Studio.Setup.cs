@@ -72,6 +72,8 @@ namespace ErkS.Studio.Setup
         public bool NoLaunch { get; set; }
         public bool SkipShortcuts { get; private set; }
         public bool SkipRegistration { get; private set; }
+        public bool UpdateHandoff { get; private set; }
+        public int WaitForProcessId { get; private set; }
 
         public static InstallerOptions Parse(IEnumerable<string> args)
         {
@@ -92,6 +94,8 @@ namespace ErkS.Studio.Setup
                 string argument = (rawArgument ?? string.Empty).Trim();
                 if (EqualsOption(argument, "/quiet", "--quiet", "/q"))
                     options.Quiet = true;
+                else if (EqualsOption(argument, "/update", "--update"))
+                    options.UpdateHandoff = true;
                 else if (EqualsOption(argument, "/nolaunch", "--no-launch"))
                     options.NoLaunch = true;
                 else if (EqualsOption(argument, "/skipshortcuts", "--skip-shortcuts"))
@@ -102,6 +106,10 @@ namespace ErkS.Studio.Setup
                     options.InstallRoot = argument.Substring("/installroot=".Length).Trim('"');
                 else if (argument.StartsWith("--install-root=", StringComparison.OrdinalIgnoreCase))
                     options.InstallRoot = argument.Substring("--install-root=".Length).Trim('"');
+                else if (argument.StartsWith("/waitforpid=", StringComparison.OrdinalIgnoreCase))
+                    options.WaitForProcessId = ParseProcessId(argument.Substring("/waitforpid=".Length));
+                else if (argument.StartsWith("--wait-for-pid=", StringComparison.OrdinalIgnoreCase))
+                    options.WaitForProcessId = ParseProcessId(argument.Substring("--wait-for-pid=".Length));
             }
 
             options.InstallRoot = Path.GetFullPath(options.InstallRoot);
@@ -122,6 +130,14 @@ namespace ErkS.Studio.Setup
         private static bool EqualsOption(string value, params string[] options)
         {
             return options.Any(option => string.Equals(value, option, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static int ParseProcessId(string value)
+        {
+            int processId;
+            if (!int.TryParse((value ?? string.Empty).Trim().Trim('"'), out processId) || processId <= 0)
+                throw new ArgumentException("Update handoff process id is invalid.");
+            return processId;
         }
     }
 
@@ -280,6 +296,16 @@ namespace ErkS.Studio.Setup
 
             AcceptButton = installButton;
             CancelButton = cancelButton;
+
+            if (options.UpdateHandoff)
+            {
+                Text = "Erk-S Studio Update";
+                installButton.Text = "Updating...";
+                Shown += delegate
+                {
+                    BeginInvoke((MethodInvoker)delegate { InstallButtonOnClick(this, EventArgs.Empty); });
+                };
+            }
         }
 
         public int ExitCode { get; private set; }
@@ -303,6 +329,11 @@ namespace ErkS.Studio.Setup
                 progressBar.Value = 100;
                 statusLabel.ForeColor = Color.FromArgb(94, 211, 145);
                 statusLabel.Text = "Erk-S Studio is ready.";
+                if (options.UpdateHandoff)
+                {
+                    Close();
+                    return;
+                }
                 installButton.Text = "Close";
                 installButton.Enabled = true;
                 installButton.Click -= InstallButtonOnClick;
@@ -342,6 +373,7 @@ namespace ErkS.Studio.Setup
                 ValidatePayload(payloadRoot);
 
                 Report(report, "Waiting for Erk-S Studio to close...");
+                WaitForHandoffProcess(options.WaitForProcessId, TimeSpan.FromMinutes(2));
                 WaitForInstalledApplication(options.InstallRoot, TimeSpan.FromSeconds(60));
 
                 Report(report, "Installing Erk-S Studio...");
@@ -446,6 +478,30 @@ namespace ErkS.Studio.Setup
 
             if (FindInstalledProcesses(installRoot).Any())
                 throw new InvalidOperationException("Close Erk-S Studio and run setup again.");
+        }
+
+        private static void WaitForHandoffProcess(int processId, TimeSpan timeout)
+        {
+            if (processId <= 0)
+                return;
+
+            Process process;
+            try
+            {
+                process = Process.GetProcessById(processId);
+            }
+            catch (ArgumentException)
+            {
+                return;
+            }
+
+            using (process)
+            {
+                if (process.HasExited)
+                    return;
+                if (!process.WaitForExit((int)timeout.TotalMilliseconds))
+                    throw new InvalidOperationException("Erk-S Studio did not close automatically. Restart Windows and try the update again.");
+            }
         }
 
         private static IEnumerable<Process> FindInstalledProcesses(string installRoot)

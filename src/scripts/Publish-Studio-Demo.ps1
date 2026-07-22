@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.14",
-    [string]$AssemblyVersion = "0.0.1.14",
+    [string]$ReleaseVersion = "V0.001.15",
+    [string]$AssemblyVersion = "0.0.1.15",
     [string]$OutputDirectory = "",
     [string]$CodeSigningThumbprint = $env:ERKS_CODE_SIGN_CERT_THUMBPRINT,
     [string]$ExpectedPublisher = "Erk-S LLC",

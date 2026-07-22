@@ -59,4 +59,18 @@ public sealed class StudioUpdateCatalogTests
 
         Assert.Throws<InvalidDataException>(() => StudioUpdateService.ValidateCatalogEntry(update));
     }
+
+    [Fact]
+    public void InstallerHandoff_UsesUpdateModeAndProcessId()
+    {
+        string arguments = StudioUpdateService.CreateInstallerArguments(4242);
+
+        Assert.Equal("/update /waitforpid=4242", arguments);
+    }
+
+    [Fact]
+    public void InstallerHandoff_RejectsInvalidProcessId()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => StudioUpdateService.CreateInstallerArguments(0));
+    }
 }

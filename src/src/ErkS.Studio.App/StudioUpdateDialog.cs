@@ -132,7 +132,7 @@ internal sealed class StudioUpdateDialog : Window
             await updateService.VerifyAndLaunchInstallerAsync(installerPath, update, cancellation.Token);
             allowClose = true;
             DialogResult = true;
-            Application.Current.Shutdown();
+            ExitStudioForUpdate();
         }
         catch (OperationCanceledException)
         {
@@ -151,6 +151,21 @@ internal sealed class StudioUpdateDialog : Window
             cancelButton.Content = "Хаах";
             progressBar.IsIndeterminate = false;
         }
+    }
+
+    private static void ExitStudioForUpdate()
+    {
+        var failSafeExit = new Thread(() =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(3));
+            Environment.Exit(0);
+        })
+        {
+            IsBackground = false,
+            Name = "Erk-S Studio update handoff",
+        };
+        failSafeExit.Start();
+        Application.Current.Shutdown();
     }
 
     private void OnClosing(object? sender, CancelEventArgs args)

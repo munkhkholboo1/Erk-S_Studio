@@ -217,8 +217,17 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
         {
             FileName = installerPath,
             WorkingDirectory = Path.GetDirectoryName(installerPath) ?? AppContext.BaseDirectory,
+            Arguments = CreateInstallerArguments(Environment.ProcessId),
             UseShellExecute = true,
         }) ?? throw new InvalidOperationException("Шинэчлэлтийн installer эхэлсэнгүй.");
+    }
+
+    internal static string CreateInstallerArguments(int studioProcessId)
+    {
+        if (studioProcessId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(studioProcessId));
+
+        return $"/update /waitforpid={studioProcessId}";
     }
 
     public void Dispose() => httpClient.Dispose();
