@@ -29,9 +29,12 @@ public static class ProjectPackageReconciliationService
             return null;
         }
 
-        // Close the time-of-check/time-of-use gap between intake and project
-        // mutation. Re-read the package before touching album/cloud metadata.
-        SheetPackageLoadResult currentResult = SheetPackageReader.Load(result.ManifestPath);
+        // Keep the time-of-check/time-of-use boundary without hashing and
+        // parsing every PDF twice. A changed file invalidates the cheap intake
+        // snapshot and falls back to full verification before any mutation.
+        SheetPackageLoadResult currentResult = result.IsVerificationCurrent()
+            ? result
+            : SheetPackageReader.Load(result.ManifestPath);
         if (!currentResult.IsLossless || currentResult.Manifest is null ||
             currentResult.Manifest.PackageId != result.Manifest.PackageId)
         {
@@ -84,11 +87,13 @@ public static class ProjectPackageReconciliationService
             source.NativeDocumentPath = packageSource.DocumentPath;
         }
 
-        using (FileStream stream = File.OpenRead(currentResult.ManifestPath))
+        string manifestSha256 = currentResult.ManifestSha256;
+        if (string.IsNullOrWhiteSpace(manifestSha256))
         {
-            string manifestSha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-            ProjectCloudSyncMetadata.RecordPackage(project, source, manifest, manifestSha256);
+            using FileStream stream = File.OpenRead(currentResult.ManifestPath);
+            manifestSha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         }
+        ProjectCloudSyncMetadata.RecordPackage(project, source, manifest, manifestSha256);
 
         bool usesConceptTemplate = string.Equals(
             album.TemplateId,

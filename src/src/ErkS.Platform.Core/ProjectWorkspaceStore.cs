@@ -146,9 +146,50 @@ public static class ProjectWorkspaceStore
         }
         project.Identity ??= new ProjectIdentity();
         project.Cloud ??= new ProjectCloudLink();
-        project.Cloud.PendingAlbumComponentCodes ??= [];
-        project.Cloud.CurrentUserRoles ??= [];
-        project.Cloud.CurrentUserScopes ??= [];
+        project.Cloud.PendingAlbumComponentCodes = (project.Cloud.PendingAlbumComponentCodes ?? [])
+            .OfType<string>()
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        project.Cloud.LastReceivedAlbumPdfPath =
+            project.Cloud.LastReceivedAlbumPdfPath?.Trim() ?? "";
+        project.Cloud.SharedSources = (project.Cloud.SharedSources ?? [])
+            .OfType<ProjectCloudSourceReference>()
+            .ToList();
+        foreach (ProjectCloudSourceReference source in project.Cloud.SharedSources)
+        {
+            source.SourceId ??= "";
+            source.SourceKey ??= "";
+            source.SourceApplication ??= "";
+            source.SourceDocumentReference ??= "";
+            source.ManifestId ??= "";
+            source.ContentHash ??= "";
+            source.Status ??= "";
+            source.OwnerEmail ??= "";
+        }
+        project.Cloud.SharedAlbumComponents = (project.Cloud.SharedAlbumComponents ?? [])
+            .OfType<ProjectCloudAlbumComponentReference>()
+            .ToList();
+        foreach (ProjectCloudAlbumComponentReference component in project.Cloud.SharedAlbumComponents)
+        {
+            component.Code ??= "";
+            component.Label ??= "";
+            component.PageNumbers ??= [];
+            component.Status ??= "";
+            component.OwnerEmail ??= "";
+            component.SourceKey ??= "";
+            component.ComponentKind ??= "";
+        }
+        project.Cloud.CurrentUserRoles = (project.Cloud.CurrentUserRoles ?? [])
+            .OfType<string>()
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        project.Cloud.CurrentUserScopes = (project.Cloud.CurrentUserScopes ?? [])
+            .OfType<string>()
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         project.Cloud.ServerSnapshot ??= new ProjectServerSnapshot();
         project.Cloud.ServerSnapshot.Surface ??= new ProjectServerSurface();
         project.Cloud.ServerSnapshot.Surface.Sections ??= [];
@@ -234,6 +275,8 @@ public static class ProjectWorkspaceStore
 
         project.Visualizations ??= new ProjectVisualizationSource();
         project.Visualizations.Normalize(project.ProjectId);
+        project.SiteContext ??= new ProjectSiteContextMap();
+        project.SiteContext.Normalize(project.ProjectId);
 
         project.Deliverables ??= new ProjectDeliverables();
         project.Deliverables.Albums ??= [];

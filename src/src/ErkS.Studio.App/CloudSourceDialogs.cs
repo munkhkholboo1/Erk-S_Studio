@@ -96,7 +96,7 @@ internal sealed class CloudSourceBindingDialog : Window
     }
 }
 
-internal sealed record CloudSourceCustodyDraft(string SourceKey, string ParticipantId, string DisplayLabel);
+internal sealed record CloudSourceCustodyDraft(string SourceId, string ParticipantId, string DisplayLabel);
 
 internal sealed class CloudSourceCustodyDialog : Window
 {
@@ -194,7 +194,7 @@ internal sealed class CloudSourceCustodyDialog : Window
             return;
         }
         Draft = new CloudSourceCustodyDraft(
-            source.Source.SourceKey,
+            source.Source.SourceId,
             participant.Participant.ParticipantId,
             source.Label + " -> " + participant.Label);
         DialogResult = true;

@@ -6,25 +6,39 @@ namespace ErkS.Studio;
 
 internal static class CloudAlbumCacheMaintenance
 {
-    public static bool IsHealthy(string cacheRoot, string? currentPdfPath, string expectedSha256)
+    public static bool IsPresent(string cacheRoot, string? currentPdfPath)
     {
-        if (string.IsNullOrWhiteSpace(cacheRoot) ||
-            string.IsNullOrWhiteSpace(currentPdfPath) ||
-            !File.Exists(currentPdfPath))
+        try
+        {
+            if (string.IsNullOrWhiteSpace(cacheRoot) ||
+                string.IsNullOrWhiteSpace(currentPdfPath) ||
+                !File.Exists(currentPdfPath))
+            {
+                return false;
+            }
+
+            string root = Path.GetFullPath(cacheRoot);
+            string candidate = Path.GetFullPath(currentPdfPath);
+            return ErkS.Platform.Core.ProjectWorkspacePaths.IsInside(root, candidate);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException)
         {
             return false;
         }
+    }
 
-        string root = Path.GetFullPath(cacheRoot);
-        string candidate = Path.GetFullPath(currentPdfPath);
-        if (!ErkS.Platform.Core.ProjectWorkspacePaths.IsInside(root, candidate))
+    public static bool IsHealthy(string cacheRoot, string? currentPdfPath, string expectedSha256)
+    {
+        if (!IsPresent(cacheRoot, currentPdfPath))
             return false;
 
         string expected = (expectedSha256 ?? "").Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(expected))
             return true;
 
-        using FileStream stream = File.OpenRead(candidate);
+        using FileStream stream = File.OpenRead(Path.GetFullPath(currentPdfPath!));
         string actual = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         return actual.Equals(expected, StringComparison.OrdinalIgnoreCase);
     }

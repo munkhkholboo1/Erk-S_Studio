@@ -61,6 +61,37 @@ public static class BuildingArchitectureConceptAlbumTemplate
             changed = true;
         }
 
+        AlbumCompositionItem? siteContext = definition.Composition.FirstOrDefault(item =>
+            item.Id.Equals("site-context", StringComparison.OrdinalIgnoreCase));
+        if (siteContext is null)
+        {
+            definition.Composition.Add(Generated(
+                "site-context",
+                3,
+                "03",
+                "БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ",
+                "Ерөнхий төлөвлөгөө",
+                AlbumGeneratedPageKind.SiteContext));
+            definition.Composition = definition.Composition
+                .OrderBy(item => item.Order)
+                .ToList();
+            changed = true;
+        }
+        else if (
+            (siteContext.Kind != AlbumCompositionKind.Generated ||
+             siteContext.GeneratedPageKind != AlbumGeneratedPageKind.SiteContext ||
+             !siteContext.Title.Equals("БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ", StringComparison.Ordinal)))
+        {
+            siteContext.Kind = AlbumCompositionKind.Generated;
+            siteContext.GeneratedPageKind = AlbumGeneratedPageKind.SiteContext;
+            siteContext.Title = "БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ";
+            siteContext.Required = true;
+            siteContext.AllowMultiple = false;
+            siteContext.MatchContentKinds = [];
+            siteContext.MatchNameTerms = [];
+            changed = true;
+        }
+
         changed |= EnsureSections(definition);
         return changed;
     }
@@ -126,7 +157,7 @@ public static class BuildingArchitectureConceptAlbumTemplate
         Generated("cover", 0, "00", "НҮҮР ХУУДАС", "Нүүр хуудас", AlbumGeneratedPageKind.Cover),
         Generated("design-organization", 1, "01", "ЗУРАГ ТӨСӨЛ БОЛОВСРУУЛСАН БАЙГУУЛЛАГА", "Ерөнхий хэсэг", AlbumGeneratedPageKind.DesignOrganization),
         Generated("planning-task", 2, "02", "БАТЛАГДСАН АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР", "Ерөнхий хэсэг", AlbumGeneratedPageKind.PlanningTask),
-        Source("site-context", 3, "03", "ОРЧНЫ ТОЙМ", "Ерөнхий төлөвлөгөө", false, [], ["ОРЧНЫ ТОЙМ"]),
+        Generated("site-context", 3, "03", "БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ", "Ерөнхий төлөвлөгөө", AlbumGeneratedPageKind.SiteContext),
         Source("planning-proposal", 4, "04", "ТӨЛӨВЛӨЛТИЙН САНАА", "Ерөнхий төлөвлөгөө", false, [], ["ТӨЛӨВЛӨЛТИЙН САНАА"]),
         Source("traffic-scheme", 5, "05", "ХӨДӨЛГӨӨНИЙ СХЕМ", "Ерөнхий төлөвлөгөө", false, [], ["ХӨДӨЛГӨӨНИЙ СХЕМ"]),
         Source("landscaping", 6, "06", "НОГООН БАЙГУУЛАМЖ", "Ерөнхий төлөвлөгөө", false, [], ["НОГООН БАЙГУУЛАМЖ"]),

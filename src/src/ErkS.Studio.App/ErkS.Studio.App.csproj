@@ -32,6 +32,8 @@
 
   <ItemGroup>
     <Content Include="Assets\*.svg" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\*.html" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Assets\site-context-map.html" />
     <Content Include="..\ErkS.Studio\Assets\logo-erks.ico"
              Link="Assets\logo-erks.ico"
              CopyToOutputDirectory="PreserveNewest" />

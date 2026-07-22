@@ -168,6 +168,7 @@ internal sealed class StudioCloudProjectDetail
     public StudioCloudOrganizationAssignment? ConceptAssignment { get; set; }
     public StudioCloudOrganizationRenderProfile? DesignOrganizationProfile { get; set; }
     public List<StudioCloudParticipant> Participants { get; set; } = [];
+    public List<StudioCloudDesignPackage> DesignPackages { get; set; } = [];
     public List<StudioCloudAlbum> Albums { get; set; } = [];
 }
 
@@ -564,6 +565,9 @@ internal sealed class StudioCloudAlbumSection
     public int Order { get; set; }
     public int[] PageNumbers { get; set; } = [];
     public string Status { get; set; } = "";
+    public string OwnerEmail { get; set; } = "";
+    public string SourceKey { get; set; } = "";
+    public string ComponentKind { get; set; } = "";
 }
 
 internal sealed class StudioCloudAlbumComponentManifestUpdateRequest
@@ -578,6 +582,8 @@ internal sealed class StudioCloudAlbumComponentUploadDescriptor
     public string Label { get; set; } = "";
     public int Order { get; set; }
     public bool Remove { get; set; }
+    public string SourceKey { get; set; } = "";
+    public string ComponentKind { get; set; } = "";
 }
 
 internal sealed record StudioAlbumComponentUpload(
@@ -585,7 +591,9 @@ internal sealed record StudioAlbumComponentUpload(
     string Label,
     int Order,
     string PdfPath,
-    bool Remove = false);
+    bool Remove = false,
+    string SourceKey = "",
+    string ComponentKind = "");
 
 internal sealed class StudioCloudAlbumUploadStartRequest
 {

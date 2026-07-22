@@ -213,6 +213,7 @@ static string CreatePackage(string root, IReadOnlyList<PdfTemplate> templates, i
             WidthMm = template.WidthMm,
             HeightMm = template.HeightMm,
             PdfFileName = fileName,
+            PdfPageNumber = 1,
             PageCount = 1,
             ContentKind = (index % 4) switch
             {

@@ -270,7 +270,7 @@ public sealed class AlbumBuilder
                 TitleOverride = item.Page.TitleOverride,
                 ElevationDescriptionOverride = item.Page.ElevationDescriptionOverride,
             };
-            configured = BuildingArchitectureConceptPageLayout.IsElevationSheet(
+            configured = BuildingArchitectureConceptPageLayout.UsesInformationHeader(
                 sheet.Entry.ContentKind,
                 sheet.Entry.Name,
                 item.Page.TemplateSlotId)

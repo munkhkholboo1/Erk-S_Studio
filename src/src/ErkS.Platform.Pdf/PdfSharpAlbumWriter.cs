@@ -95,7 +95,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
                 int firstPageIndex = document.PageCount;
                 if (buildPage.Format.Kind == PageFormatKind.SourceAsIs)
                 {
-                    ImportSourceAsIs(document, sheet.PdfPath);
+                    ImportSourceAsIs(document, sheet);
                 }
                 else
                 {
@@ -162,9 +162,21 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         return result;
     }
 
-    private static void ImportSourceAsIs(PdfDocument document, string pdfPath)
+    private static void ImportSourceAsIs(PdfDocument document, SheetRecord sheet)
     {
-        using var source = PdfReader.Open(pdfPath, PdfDocumentOpenMode.Import);
+        using var source = PdfReader.Open(sheet.PdfPath, PdfDocumentOpenMode.Import);
+        if (sheet.Entry.PdfPageNumber > 0)
+        {
+            int pageIndex = sheet.Entry.PdfPageNumber - 1;
+            if (pageIndex >= source.PageCount)
+            {
+                throw new InvalidDataException(
+                    $"Referenced PDF page {sheet.Entry.PdfPageNumber} is unavailable for {sheet.DisplayLabel}.");
+            }
+            document.AddPage(source.Pages[pageIndex]);
+            return;
+        }
+
         foreach (var page in source.Pages)
         {
             document.AddPage(page);
@@ -182,9 +194,17 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             sourcePageCount = source.PageCount;
         }
 
+        IEnumerable<int> sourcePageNumbers = buildPage.Sheet.Entry.PdfPageNumber > 0
+            ? [buildPage.Sheet.Entry.PdfPageNumber]
+            : Enumerable.Range(1, sourcePageCount);
         using var form = XPdfForm.FromFile(buildPage.Sheet.PdfPath);
-        for (var sourcePageNumber = 1; sourcePageNumber <= sourcePageCount; sourcePageNumber++)
+        foreach (int sourcePageNumber in sourcePageNumbers)
         {
+            if (sourcePageNumber > sourcePageCount)
+            {
+                throw new InvalidDataException(
+                    $"Referenced PDF page {sourcePageNumber} is unavailable for {buildPage.Sheet.DisplayLabel}.");
+            }
             form.PageNumber = sourcePageNumber;
             var page = document.AddPage();
             page.Width = XUnit.FromMillimeter(buildPage.Format.WidthMm);
@@ -298,14 +318,14 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumProject project,
         AlbumBuildPage buildPage)
     {
-        bool isElevation = BuildingArchitectureConceptPageLayout.IsElevationSheet(
+        bool hasInformationHeader = BuildingArchitectureConceptPageLayout.UsesInformationHeader(
             buildPage.Sheet.Entry.ContentKind,
             buildPage.Sheet.Entry.Name,
             buildPage.Definition.TemplateSlotId);
         var borderPen = new XPen(XColors.Black, Mm(0.35));
         var finePen = new XPen(XColors.Black, Mm(0.10));
         var frame = ToPoints(BuildingArchitectureConceptPageLayout.Frame);
-        var header = ToPoints(isElevation
+        var header = ToPoints(hasInformationHeader
             ? BuildingArchitectureConceptPageLayout.ElevationSheetTitleArea
             : BuildingArchitectureConceptPageLayout.SheetTitleArea);
         var corner = ToPoints(BuildingArchitectureConceptPageLayout.TitleBlockArea);
@@ -317,7 +337,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         // form restores its graphics state; otherwise some renderers reuse black.
         gfx.DrawRectangle(paperBrush, header);
         gfx.DrawRectangle(paperBrush, corner);
-        if (isElevation)
+        if (hasInformationHeader)
         {
             gfx.DrawRectangle(
                 paperBrush,
@@ -327,15 +347,15 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         gfx.DrawLine(
             borderPen,
             Mm(BuildingArchitectureConceptPageLayout.FrameLeftMm),
-            Mm(isElevation
+            Mm(hasInformationHeader
                 ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
                 : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm),
             Mm(BuildingArchitectureConceptPageLayout.FrameRightMm),
-            Mm(isElevation
+            Mm(hasInformationHeader
                 ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
                 : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm));
 
-        if (isElevation)
+        if (hasInformationHeader)
         {
             DrawConceptElevationHeader(gfx, project, buildPage, borderPen);
         }
@@ -1048,6 +1068,9 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             case AlbumGeneratedPageKind.PlanningTask:
                 DrawPlanningTaskPage(document, request, plan);
                 break;
+            case AlbumGeneratedPageKind.SiteContext:
+                DrawSiteContextPage(document, request, plan);
+                break;
         }
     }
 
@@ -1687,6 +1710,121 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             new XRect(Mm(27), Mm(196), Mm(376), Mm(49)),
             Mm(5));
     }
+
+    private static void DrawSiteContextPage(
+        PdfDocument document,
+        AlbumBuildRequest request,
+        ConceptGeneratedPagePlan plan)
+    {
+        PdfPage page = AddA3LandscapePage(document);
+        using XGraphics gfx = XGraphics.FromPdfPage(page);
+        DrawGeneratedPageChrome(gfx, page, request.Project, plan.Title, plan.Number);
+
+        DrawSiteContextMapPanel(
+            gfx,
+            request.Project,
+            request.Project.SiteContext.LocationScheme,
+            BuildingArchitectureConceptPageLayout.SiteContextLocationPanel,
+            BuildingArchitectureConceptPageLayout.SiteContextLocationMapArea,
+            "БАЙРШЛЫН СХЕМ");
+        DrawSiteContextMapPanel(
+            gfx,
+            request.Project,
+            request.Project.SiteContext.SurroundingsOverview,
+            BuildingArchitectureConceptPageLayout.SiteContextOverviewPanel,
+            BuildingArchitectureConceptPageLayout.SiteContextOverviewMapArea,
+            "ОРЧНЫ ТОЙМ");
+    }
+
+    private static void DrawSiteContextMapPanel(
+        XGraphics gfx,
+        AlbumProject project,
+        ProjectMapViewport viewport,
+        PageRectMm panelMm,
+        PageRectMm mapAreaMm,
+        string title)
+    {
+        XRect panel = ToPoints(panelMm);
+        XRect mapArea = ToPoints(mapAreaMm);
+        var border = new XPen(XColors.Black, Mm(0.15));
+        var muted = new XSolidBrush(XColor.FromArgb(92, 101, 112));
+        gfx.DrawRectangle(XBrushes.White, panel);
+        gfx.DrawRectangle(border, panel);
+        gfx.DrawLine(border, panel.Left, mapArea.Top, panel.Right, mapArea.Top);
+        DrawFittedText(
+            gfx,
+            title,
+            panel.Left + Mm(4),
+            panel.Top,
+            panel.Width - Mm(8),
+            mapArea.Top - panel.Top,
+            10,
+            true,
+            XStringFormats.Center);
+
+        string? snapshotPath = ResolveDocumentPath(project, viewport.SnapshotRelativePath);
+        if (snapshotPath is not null)
+        {
+            try
+            {
+                using XImage image = XImage.FromFile(snapshotPath);
+                DrawContainedImage(gfx, image, mapArea);
+            }
+            catch (Exception exception) when (
+                exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+            {
+                DrawSiteContextPlaceholder(gfx, viewport, mapArea, muted, "Газрын зургийг уншиж чадсангүй");
+            }
+        }
+        else
+        {
+            DrawSiteContextPlaceholder(gfx, viewport, mapArea, muted, "Газрын зураг тохируулаагүй");
+        }
+
+        string attribution = string.IsNullOrWhiteSpace(viewport.Attribution)
+            ? SiteContextProviderLabel(viewport.ProviderId)
+            : viewport.Attribution;
+        DrawFittedText(
+            gfx,
+            attribution,
+            mapArea.Left + Mm(2),
+            mapArea.Bottom - Mm(5),
+            mapArea.Width - Mm(4),
+            Mm(4),
+            5.5,
+            false,
+            XStringFormats.CenterRight);
+    }
+
+    private static void DrawSiteContextPlaceholder(
+        XGraphics gfx,
+        ProjectMapViewport viewport,
+        XRect mapArea,
+        XBrush muted,
+        string message)
+    {
+        gfx.DrawString(
+            message,
+            new XFont(FontName, 10),
+            muted,
+            new XRect(mapArea.X + Mm(8), mapArea.Y, mapArea.Width - Mm(16), mapArea.Height),
+            XStringFormats.Center);
+        gfx.DrawString(
+            $"{viewport.CenterLatitude:0.000000}, {viewport.CenterLongitude:0.000000} · z{viewport.Zoom:0.#}",
+            new XFont(FontName, 6.5),
+            muted,
+            new XRect(mapArea.X + Mm(8), mapArea.Bottom - Mm(12), mapArea.Width - Mm(16), Mm(5)),
+            XStringFormats.Center);
+    }
+
+    private static string SiteContextProviderLabel(string providerId) => providerId switch
+    {
+        ProjectMapProviderIds.OpenStreetMap => "© OpenStreetMap contributors",
+        ProjectMapProviderIds.OpenTopoMap => "© OpenStreetMap contributors · OpenTopoMap",
+        ProjectMapProviderIds.GoogleRoad or ProjectMapProviderIds.GoogleSatellite => "Google Maps",
+        ProjectMapProviderIds.AzureRoad or ProjectMapProviderIds.AzureAerial => "Microsoft Azure Maps",
+        _ => providerId,
+    };
 
     private static void DrawGeneratedPageChrome(
         XGraphics gfx,

@@ -141,7 +141,7 @@ internal sealed partial class ShellView
         }
     }
 
-    private async Task RefreshCurrentProjectCloudAccessAsync(bool reportResult = false)
+    private async Task<bool> RefreshCurrentProjectCloudAccessAsync(bool reportResult = false)
     {
         if (refreshingCurrentProjectAccess ||
             !state.HasOpenProject ||
@@ -151,7 +151,7 @@ internal sealed partial class ShellView
         {
             RefreshTeamActionUi();
             RefreshSyncUi();
-            return;
+            return false;
         }
 
         string projectId = state.Project.Cloud.ServerProjectId;
@@ -161,9 +161,9 @@ internal sealed partial class ShellView
         autoRebuildTimer.Stop();
         RefreshTeamActionUi();
         RefreshSyncUi();
+        await Task.Yield();
         try
         {
-            CleanupCurrentCloudAlbumCache();
             ProjectCloudLink cloud = state.Project.Cloud;
             string knownToken = !string.IsNullOrWhiteSpace(cloud.LastServerConcurrencyToken)
                 ? cloud.LastServerConcurrencyToken
@@ -175,7 +175,7 @@ internal sealed partial class ShellView
             if (!state.HasOpenProject ||
                 !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
             {
-                return;
+                return false;
             }
 
             DateTimeOffset checkedAtUtc = DateTimeOffset.UtcNow;
@@ -191,17 +191,18 @@ internal sealed partial class ShellView
                         "Cloud ERA өөрчлөлт алга. ETag dirty detector төслийн мэдээлэл, " +
                         "байгууллага, багийн эрх болон album revision өөрчлөгдөөгүйг баталгаажууллаа; файл дахин татаагүй.");
                 }
-                return;
+                return true;
             }
 
             StudioCloudProjectDetail latest = refresh.Project
                 ?? throw new InvalidDataException("Cloud ERA changed response did not include the canonical project.");
 
-            state.LinkCurrentProjectToCloud(
-                latest,
-                account.Current!.ServerUrl,
-                preserveCreation: true,
-                preserveSyncState: true);
+            SuppressProjectReplacedUiBind(() =>
+                state.LinkCurrentProjectToCloud(
+                    latest,
+                    account.Current!.ServerUrl,
+                    preserveCreation: true,
+                    preserveSyncState: true));
             await ApplyCloudProjectRenderProfileAsync(latest);
             ControlledDocumentSyncResult documentRefresh =
                 await ReconcileAtdControlledDocumentAsync(
@@ -236,6 +237,7 @@ internal sealed partial class ShellView
                     $"Cloud ERA canonical мэдээлэл шинэчлэгдлээ: төсөл, байгууллагын snapshot/logo, багийн эрх; {albumStatus}." +
                     pendingNotice + documentNotice);
             }
+            return true;
         }
         catch (Exception exception) when (
             exception is StudioAccountException or
@@ -250,10 +252,12 @@ internal sealed partial class ShellView
                 CloseCurrentCloudProjectAfterAccessEnded(
                     "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
                 _ = RefreshProjectsAsync();
-                return;
+                return false;
             }
-            if (reportResult || state.Project.Cloud.CurrentUserScopes.Count == 0)
+            if (reportResult ||
+                (state.HasOpenProject && state.Project.Cloud.CurrentUserScopes.Count == 0))
                 SetStatus("Cloud ERA өөрчлөлт шалгаж чадсангүй: " + exception.Message);
+            return false;
         }
         finally
         {

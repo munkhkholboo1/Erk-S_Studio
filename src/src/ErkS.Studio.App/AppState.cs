@@ -147,7 +147,7 @@ public sealed class AppState : IDisposable
         {
             SaveProject();
         }
-        ResetRuntimeServices();
+        ResetRuntimeServices(scanExistingPackages: false);
         ProjectReplaced?.Invoke();
     }
 
@@ -190,6 +190,50 @@ public sealed class AppState : IDisposable
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        Project.Cloud.SharedSources = StudioCloudSourcePackageReconciliation.ActiveCanonical(
+                (cloudProject.DesignPackages ?? [])
+                    .OfType<StudioCloudDesignPackage>()
+                    .SelectMany(package => (package.SourcePackages ?? [])
+                        .OfType<StudioCloudSourcePackage>()))
+            .Select(source => new ProjectCloudSourceReference
+            {
+                SourceId = source.SourceId ?? "",
+                SourceKey = source.SourceKey ?? "",
+                SourceApplication = source.SourceApplication ?? "",
+                SourceDocumentReference = source.SourceDocumentReference ?? "",
+                ManifestId = source.ManifestId ?? "",
+                ContentHash = source.ContentHash ?? "",
+                SheetCount = source.SheetCount,
+                Status = source.Status ?? "",
+                OwnerEmail = (source.RegisteredBy ?? "").Trim().ToLowerInvariant(),
+                RegisteredAtUtc = source.RegisteredAtUtc,
+            })
+            .ToList();
+        StudioCloudAlbumRevision? currentAlbumRevision = (cloudProject.Albums ?? [])
+            .OfType<StudioCloudAlbum>()
+            .Select(album => (album.Revisions ?? [])
+                .OfType<StudioCloudAlbumRevision>()
+                .FirstOrDefault(revision => string.Equals(
+                    revision.RevisionId,
+                    album.CurrentRevisionId,
+                    StringComparison.OrdinalIgnoreCase)))
+            .FirstOrDefault(revision => revision is not null);
+        Project.Cloud.SharedAlbumComponents = (currentAlbumRevision?.SectionManifest ?? [])
+            .OfType<StudioCloudAlbumSection>()
+            .OrderBy(component => component.Order)
+            .ThenBy(component => (component.PageNumbers ?? []).FirstOrDefault())
+            .Select(component => new ProjectCloudAlbumComponentReference
+            {
+                Code = component.Code ?? "",
+                Label = component.Label ?? "",
+                Order = component.Order,
+                PageNumbers = (component.PageNumbers ?? []).ToList(),
+                Status = component.Status ?? "",
+                OwnerEmail = (component.OwnerEmail ?? "").Trim().ToLowerInvariant(),
+                SourceKey = component.SourceKey ?? "",
+                ComponentKind = component.ComponentKind ?? "",
+            })
+            .ToList();
 
         StudioCloudOrganizationRenderProfile? renderProfile = cloudProject.DesignOrganizationProfile;
         string cloudOrganizationId = cloudProject.ConceptAssignment?.OrganizationId ?? "";
@@ -204,18 +248,21 @@ public sealed class AppState : IDisposable
             summary.DesignOrganizationName,
             cloudCompany);
 
-        List<StudioCloudParticipant> activeParticipants = cloudProject.Participants
-            .Where(item => item.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        List<StudioCloudParticipant> activeParticipants = (cloudProject.Participants ?? [])
+            .OfType<StudioCloudParticipant>()
+            .Where(item => string.Equals(item.Status, "Active", StringComparison.OrdinalIgnoreCase))
             .ToList();
         Project.Foundation.PlanningTask.AuthorityMembers = activeParticipants
-            .Where(item => item.Roles.Any(IsAuthorityRole))
+            .Where(item => (item.Roles ?? []).Any(IsAuthorityRole))
             .Select(ToProjectMember)
             .ToList();
         Project.Foundation.DesignCompany.Members = activeParticipants
-            .Where(item => !item.Roles.Any(IsAuthorityRole) && !item.Roles.Any(IsClientRole))
+            .Where(item => !(item.Roles ?? []).Any(IsAuthorityRole) &&
+                           !(item.Roles ?? []).Any(IsClientRole))
             .Select(ToProjectMember)
             .ToList();
-        StudioCloudParticipant? client = activeParticipants.FirstOrDefault(item => item.Roles.Any(IsClientRole));
+        StudioCloudParticipant? client = activeParticipants.FirstOrDefault(item =>
+            (item.Roles ?? []).Any(IsClientRole));
         if (client is not null)
         {
             Project.Foundation.InitiationBasis.ClientEmail = client.AccountEmail;
@@ -478,6 +525,26 @@ public sealed class AppState : IDisposable
         return new PackageRecordResult(reconciled.SourceId, reconciled.RemovedAlbumPageCount);
     }
 
+    public IReadOnlyList<SheetPackageCheckpoint> CurrentSourcePackageCheckpoints()
+    {
+        if (!HasOpenProject)
+        {
+            return [];
+        }
+
+        return ProjectCloudSyncMetadata.SourcePackages(Project)
+            .Select(candidate => Guid.TryParse(candidate.ManifestId, out Guid packageId)
+                ? new SheetPackageCheckpoint(
+                    Project.ProjectId,
+                    candidate.Source.Id,
+                    packageId,
+                    candidate.ExportedAtUtc,
+                    candidate.ContentHash)
+                : null)
+            .OfType<SheetPackageCheckpoint>()
+            .ToList();
+    }
+
     public string ResolveOutputFolder()
     {
         return ProjectWorkspacePaths.ResolveInsideProject(ProjectPath!, Project.PrimaryAlbum.OutputFolder);
@@ -534,6 +601,7 @@ public sealed class AppState : IDisposable
                 .ToList(),
             DesignSources = Project.Sources,
             Visualizations = Project.Visualizations.CreateProjectSnapshot(Project.ProjectId),
+            SiteContext = Project.SiteContext.CreateProjectSnapshot(Project.ProjectId),
             SourceFolders = Project.Sources.Select(source => source.InboxFolder).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Album = Album,
             OutputFolder = ResolveOutputFolder(),
@@ -572,6 +640,17 @@ public sealed class AppState : IDisposable
         if (!HasOpenProject || string.IsNullOrWhiteSpace(componentCode))
             return;
         ProjectCloudSyncMetadata.MarkAlbumComponentsPending(Project, [componentCode]);
+    }
+
+    public void MarkSiteContextChanged()
+    {
+        if (!HasOpenProject)
+            return;
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            Project,
+            [ProjectCloudSyncMetadata.SiteContextComponentCode]);
+        InvalidateBuiltAlbum();
+        SaveProject();
     }
 
     public bool RefreshProjectDocumentMetadata()
@@ -622,7 +701,7 @@ public sealed class AppState : IDisposable
         };
     }
 
-    private void ResetRuntimeServices()
+    private void ResetRuntimeServices(bool scanExistingPackages = true)
     {
         ClearWatchers();
         RefreshAssetSourceWatchers();
@@ -637,13 +716,17 @@ public sealed class AppState : IDisposable
                     Intake.WatchFolder(
                         source.InboxFolder,
                         source.UseLegacySheetKeys ? null : source.Id,
-                        Project.ProjectId);
+                        Project.ProjectId,
+                        scanExisting: scanExistingPackages);
                 }
                 if (source.Metadata.TryGetValue("LegacyInboxFolder", out var legacyInbox) &&
                     !string.IsNullOrWhiteSpace(legacyInbox) &&
                     ProjectWorkspacePaths.IsInside(ResolveProjectFolder(), legacyInbox))
                 {
-                    Intake.WatchFolder(legacyInbox, projectId: Project.ProjectId);
+                    Intake.WatchFolder(
+                        legacyInbox,
+                        projectId: Project.ProjectId,
+                        scanExisting: scanExistingPackages);
                 }
             }
             catch

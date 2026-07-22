@@ -51,6 +51,7 @@ public static class SheetPackageAcceptanceValidator
             return report;
 
         RejectNativeSourcePayloads(fullManifestPath, report.Issues);
+        var profileCache = new Dictionary<string, PdfVectorDocumentProfile>(StringComparer.OrdinalIgnoreCase);
         foreach (SheetPackageEntry sheet in package.Manifest.Sheets)
         {
             if (!package.TryGetVerifiedPdfPath(sheet, out string pdfPath))
@@ -61,9 +62,23 @@ public static class SheetPackageAcceptanceValidator
 
             try
             {
-                PdfVectorDocumentProfile profile = PdfVectorQualityInspector.Inspect(pdfPath);
-                for (int index = 0; index < profile.Pages.Count; index++)
+                if (!profileCache.TryGetValue(pdfPath, out PdfVectorDocumentProfile? profile))
                 {
+                    profile = PdfVectorQualityInspector.Inspect(pdfPath);
+                    profileCache[pdfPath] = profile;
+                }
+
+                IEnumerable<int> pageIndexes = sheet.PdfPageNumber > 0
+                    ? [sheet.PdfPageNumber - 1]
+                    : Enumerable.Range(0, profile.Pages.Count);
+                foreach (int index in pageIndexes)
+                {
+                    if (index < 0 || index >= profile.Pages.Count)
+                    {
+                        report.Issues.Add(
+                            $"Sheet '{sheet.Number}': referenced PDF page {sheet.PdfPageNumber} is unavailable.");
+                        continue;
+                    }
                     PdfVectorPageProfile page = profile.Pages[index];
                     bool hasVectorContent = page.HasPathPaintingOperators ||
                         page.HasTextOperators ||

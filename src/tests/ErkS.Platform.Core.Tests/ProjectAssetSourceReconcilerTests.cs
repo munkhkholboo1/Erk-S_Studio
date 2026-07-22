@@ -86,6 +86,29 @@ public sealed class ProjectAssetSourceReconcilerTests : IDisposable
     }
 
     [Fact]
+    public void UnchangedAtdSource_UsesMetadataDirtyDetectorWithoutReopeningFile()
+    {
+        string projectPath = ProjectPath();
+        string sourcePath = Path.Combine(workDirectory, "unchanged-approved-atd.pdf");
+        WritePdf(sourcePath, pageCount: 2);
+        ProjectWorkspace project = CreateProjectWithAtd(projectPath, sourcePath);
+        ProjectFileReference document = Assert.Single(project.Foundation.PlanningTask.Documents);
+
+        using FileStream exclusiveSourceLock = File.Open(
+            sourcePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.None);
+        ProjectAssetSourceReconciliationResult result =
+            ProjectAssetSourceReconciler.ReconcileProject(project, projectPath);
+
+        Assert.False(result.Changed);
+        Assert.Equal(0, result.ErrorCount);
+        Assert.True(document.IsAvailable);
+        Assert.Equal(1, document.Version);
+    }
+
+    [Fact]
     public void MissingVisualizationSource_IsExcludedWithoutDeletingOwnedCopy()
     {
         string projectPath = ProjectPath();

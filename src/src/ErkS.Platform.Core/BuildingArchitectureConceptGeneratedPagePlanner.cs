@@ -85,6 +85,9 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                         planningDocuments,
                         createPlaceholder: true);
                     break;
+                case AlbumGeneratedPageKind.SiteContext:
+                    drafts.Add(PageDraft.Empty(component, component.Title));
+                    break;
                 default:
                     drafts.Add(PageDraft.Empty(component, component.Title));
                     break;

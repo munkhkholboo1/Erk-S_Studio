@@ -129,6 +129,20 @@ public static class ProjectAssetSourceReconciler
                 continue;
             }
 
+            if (CanUseCachedDocumentInspection(
+                    document,
+                    inspectionPath,
+                    storedPath,
+                    hasLinkedSource))
+            {
+                if (!document.IsAvailable)
+                {
+                    document.IsAvailable = true;
+                    result.RestoredDocumentCount++;
+                }
+                continue;
+            }
+
             try
             {
                 ProjectDocumentAssetInspection inspection = ProjectDocumentAssetInspector.Inspect(inspectionPath);
@@ -214,6 +228,21 @@ public static class ProjectAssetSourceReconciler
                 continue;
             }
 
+
+            if (CanUseCachedVisualizationInspection(
+                    image,
+                    inspectionPath,
+                    storedPath,
+                    hasLinkedSource))
+            {
+                if (!image.IsAvailable)
+                {
+                    image.IsAvailable = true;
+                    result.RestoredVisualizationCount++;
+                }
+                continue;
+            }
+
             try
             {
                 ProjectDocumentAssetInspection inspection = ProjectDocumentAssetInspector.Inspect(inspectionPath);
@@ -281,6 +310,85 @@ public static class ProjectAssetSourceReconciler
                     result.MissingVisualizationCount++;
                 }
             }
+        }
+    }
+
+    private static bool CanUseCachedDocumentInspection(
+        ProjectFileReference document,
+        string inspectionPath,
+        string storedPath,
+        bool hasLinkedSource)
+    {
+        if (document.SizeBytes <= 0 ||
+            document.PageCount <= 0 ||
+            string.IsNullOrWhiteSpace(document.ContentType) ||
+            string.IsNullOrWhiteSpace(document.Sha256))
+        {
+            return false;
+        }
+
+        return CanUseCachedFileInspection(
+            inspectionPath,
+            storedPath,
+            hasLinkedSource,
+            document.SizeBytes,
+            document.LinkedSourceLastWriteTimeUtc);
+    }
+
+    private static bool CanUseCachedVisualizationInspection(
+        ProjectVisualizationImage image,
+        string inspectionPath,
+        string storedPath,
+        bool hasLinkedSource)
+    {
+        if (image.SizeBytes <= 0 ||
+            image.PixelWidth <= 0 ||
+            image.PixelHeight <= 0 ||
+            string.IsNullOrWhiteSpace(image.ContentType) ||
+            string.IsNullOrWhiteSpace(image.Sha256))
+        {
+            return false;
+        }
+
+        return CanUseCachedFileInspection(
+            inspectionPath,
+            storedPath,
+            hasLinkedSource,
+            image.SizeBytes,
+            image.LinkedSourceLastWriteTimeUtc);
+    }
+
+    private static bool CanUseCachedFileInspection(
+        string inspectionPath,
+        string storedPath,
+        bool hasLinkedSource,
+        long knownSize,
+        DateTimeOffset? knownLinkedWriteTimeUtc)
+    {
+        try
+        {
+            var file = new FileInfo(inspectionPath);
+            if (!file.Exists || file.Length != knownSize)
+                return false;
+
+            if (!hasLinkedSource)
+                return true;
+
+            if (string.IsNullOrWhiteSpace(storedPath) ||
+                !File.Exists(storedPath) ||
+                knownLinkedWriteTimeUtc is null)
+            {
+                return false;
+            }
+
+            var currentWriteTimeUtc = new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero);
+            return currentWriteTimeUtc == knownLinkedWriteTimeUtc.Value;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException)
+        {
+            return false;
         }
     }
 

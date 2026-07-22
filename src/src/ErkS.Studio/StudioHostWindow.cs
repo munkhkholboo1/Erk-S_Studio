@@ -295,31 +295,36 @@ internal sealed class StudioHostWindow : Window
         {
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
+            Height = 30,
             Margin = new Thickness(0, 0, 8, 0),
         };
         panel.Children.Add(new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(35, 67, 101)),
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(6, 2, 6, 2),
-            Margin = new Thickness(0, 0, 6, 0),
+            Width = 34,
+            Height = 24,
+            Margin = new Thickness(0, 3, 4, 3),
             Child = new TextBlock
             {
                 Text = "DEV",
                 FontSize = 9,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(173, 211, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
             },
         });
 
-        var updateButton = CreateChromeButton("\uE72C", "DevUpdate (Ctrl+U)", ChromeHover, 34, 30);
+        var updateButton = CreateChromeButton("\uE72C", "Development build-ийг дахин ачаалах (Ctrl+U)", ChromeHover, 30, 30);
         updateButton.Click += (_, _) => _ = DevUpdateAsync();
         panel.Children.Add(updateButton);
 
         autoReloadCheck.Content = "Auto";
         autoReloadCheck.FontSize = 11;
         autoReloadCheck.VerticalAlignment = VerticalAlignment.Center;
-        autoReloadCheck.Margin = new Thickness(6, 0, 8, 0);
+        autoReloadCheck.VerticalContentAlignment = VerticalAlignment.Center;
+        autoReloadCheck.Margin = new Thickness(6, 0, 10, 0);
         autoReloadCheck.IsEnabled = !runtime.PreferStaticModule;
         if (runtime.PreferStaticModule)
             autoReloadCheck.ToolTip = "Application Control policy mode-д Auto reload ашиглахгүй.";
@@ -329,7 +334,8 @@ internal sealed class StudioHostWindow : Window
         devStatusText.Foreground = BarText;
         devStatusText.FontSize = 11;
         devStatusText.VerticalAlignment = VerticalAlignment.Center;
-        devStatusText.Width = 240;
+        devStatusText.Width = 112;
+        devStatusText.TextWrapping = TextWrapping.NoWrap;
         devStatusText.TextTrimming = TextTrimming.CharacterEllipsis;
         panel.Children.Add(devStatusText);
         return panel;
@@ -425,8 +431,12 @@ internal sealed class StudioHostWindow : Window
                 StudioRuntime.Retire(previous);
             }
 
-            var mode = fresh.IsStaticFallback ? " · policy fallback" : "";
-            SetDevStatus($"App v{fresh.Module.Version} · ачаалсан {fresh.LoadedAt:HH:mm:ss}{mode}");
+            string fullVersion = fresh.Module.Version?.ToString() ?? "dev";
+            string compactVersion = CompactVersion(fullVersion);
+            string mode = fresh.IsStaticFallback ? " · policy fallback" : "";
+            SetDevStatus(
+                $"v{compactVersion}",
+                $"App v{fullVersion} · ачаалсан {fresh.LoadedAt:HH:mm:ss}{mode}");
         }
         catch (Exception exception)
         {
@@ -486,6 +496,12 @@ internal sealed class StudioHostWindow : Window
             .Split('\n')
             .FirstOrDefault(line => line.Contains("error", StringComparison.OrdinalIgnoreCase))?
             .Trim() ?? "build failed";
+    }
+
+    private static string CompactVersion(string version)
+    {
+        int buildMetadata = version.IndexOf('+');
+        return buildMetadata > 0 ? version[..buildMetadata] : version;
     }
 
     private static bool IsApplicationControlBlock(Exception exception)
@@ -578,8 +594,9 @@ internal sealed class StudioHostWindow : Window
         SetDevStatus("Ачаалал амжилтгүй.");
     }
 
-    private void SetDevStatus(string message)
+    private void SetDevStatus(string message, string? tooltip = null)
     {
         devStatusText.Text = message;
+        devStatusText.ToolTip = tooltip ?? message;
     }
 }

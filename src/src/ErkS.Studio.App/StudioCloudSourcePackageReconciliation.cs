@@ -6,13 +6,14 @@ internal static class StudioCloudSourcePackageReconciliation
         IEnumerable<StudioCloudSourcePackage> sourcePackages)
     {
         List<StudioCloudSourcePackage> active = sourcePackages
-            .Where(source => !source.Status.Equals(
-                "Superseded",
-                StringComparison.OrdinalIgnoreCase))
+            .Where(source => string.IsNullOrWhiteSpace(source.Status) ||
+                source.Status.Equals("Registered", StringComparison.OrdinalIgnoreCase))
             .ToList();
         List<StudioCloudSourcePackage> keyed = active
             .Where(source => !string.IsNullOrWhiteSpace(source.SourceKey))
-            .GroupBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(
+                source => $"{(source.RegisteredBy ?? "").Trim()}\n{source.SourceKey.Trim()}",
+                StringComparer.OrdinalIgnoreCase)
             .Select(group => group
                 .OrderBy(EffectiveTimestamp)
                 .ThenBy(source => source.SourceId, StringComparer.OrdinalIgnoreCase)

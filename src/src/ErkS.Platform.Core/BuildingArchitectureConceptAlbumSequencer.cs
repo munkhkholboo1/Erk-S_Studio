@@ -50,6 +50,9 @@ public static class BuildingArchitectureConceptAlbumSequencer
             .ToDictionary(group => group.Key, group => group.First().Index, StringComparer.OrdinalIgnoreCase);
 
         var candidates = pages
+            .Where(page => BuildingArchitectureConceptAlbumTemplate.FindSlot(
+                definition,
+                page.TemplateSlotId)?.Kind != AlbumCompositionKind.Generated)
             .Select((page, index) => CreateCandidate(
                 definition,
                 page,

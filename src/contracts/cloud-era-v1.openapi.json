@@ -1180,6 +1180,44 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/documents/{documentId}/current-files": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ReplaceCloudEraControlledDocumentFiles",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraControlledDocumentDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/projects/{projectId}/design-packages": {
       "get": {
         "tags": [
@@ -1322,6 +1360,100 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/revisions/{revisionId}/component-manifest": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "SetCloudEraAlbumComponentManifest",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraAlbumComponentManifestUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumRevisionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/{albumId}/components": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "MergeCloudEraAlbumComponents",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "albumId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumRevisionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/files/{fileId}": {
       "get": {
         "tags": [
@@ -1370,6 +1502,44 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSourcePackageDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/source-packages/{sourceId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "RetireCloudEraSourcePackage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1596,6 +1766,17 @@
   },
   "components": {
     "schemas": {
+      "CloudEraAlbumComponentManifestUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAlbumSectionDto"
+            }
+          }
+        }
+      },
       "CloudEraAlbumDto": {
         "type": "object",
         "properties": {
@@ -1687,6 +1868,15 @@
             }
           },
           "status": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": "string"
+          },
+          "sourceKey": {
+            "type": "string"
+          },
+          "componentKind": {
             "type": "string"
           }
         }
@@ -2004,6 +2194,23 @@
           "fileRevisions": {
             "type": "array",
             "items": { }
+          },
+          "currentFileRevisionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentFiles": {
+            "type": "array",
+            "items": { }
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -2047,6 +2254,9 @@
       "CloudEraFileDto": {
         "type": "object",
         "properties": {
+          "fileRevisionId": {
+            "type": "string"
+          },
           "fileId": {
             "type": "string"
           },
@@ -2079,6 +2289,9 @@
       "CloudEraFileDto2": {
         "type": "object",
         "properties": {
+          "fileRevisionId": {
+            "type": "string"
+          },
           "fileId": {
             "type": "string"
           },

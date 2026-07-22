@@ -290,7 +290,12 @@ public sealed class ProjectCloudSyncMetadataTests
         Assert.Null(project.Cloud.LastSyncedAtUtc);
 
         ProjectCloudSyncMetadata.MarkCloudRefreshed(project, "server-token-2", refreshedAt);
-        ProjectCloudSyncMetadata.RecordReceivedAlbum(project, "revision-7", 7, "ABC123");
+        ProjectCloudSyncMetadata.RecordReceivedAlbum(
+            project,
+            "revision-7",
+            7,
+            "ABC123",
+            "albums/cloud/album-r7.pdf");
         project.Cloud.LastReceivedClientLogoKey = "/client-logo?v=client-7";
         project.Cloud.LastReceivedDesignOrganizationLogoKey = "/design-logo?v=design-4";
 
@@ -300,6 +305,7 @@ public sealed class ProjectCloudSyncMetadataTests
         Assert.Equal("revision-7", project.Cloud.LastReceivedAlbumRevisionId);
         Assert.Equal(7, project.Cloud.LastReceivedAlbumRevisionNumber);
         Assert.Equal("abc123", project.Cloud.LastReceivedAlbumSha256);
+        Assert.Equal("albums/cloud/album-r7.pdf", project.Cloud.LastReceivedAlbumPdfPath);
         Assert.Equal("/client-logo?v=client-7", project.Cloud.LastReceivedClientLogoKey);
         Assert.Equal("/design-logo?v=design-4", project.Cloud.LastReceivedDesignOrganizationLogoKey);
         Assert.Null(project.Cloud.LastSyncedAtUtc);
@@ -309,6 +315,7 @@ public sealed class ProjectCloudSyncMetadataTests
         Assert.Equal("", project.Cloud.LastReceivedAlbumRevisionId);
         Assert.Equal(0, project.Cloud.LastReceivedAlbumRevisionNumber);
         Assert.Equal("", project.Cloud.LastReceivedAlbumSha256);
+        Assert.Equal("", project.Cloud.LastReceivedAlbumPdfPath);
     }
 
     private static ProjectWorkspace Project() => new()

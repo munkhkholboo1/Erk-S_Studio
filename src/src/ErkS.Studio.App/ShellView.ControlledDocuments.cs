@@ -111,69 +111,54 @@ internal sealed partial class ShellView
         string projectConcurrencyToken,
         bool allowUpload)
     {
+        _ = projectConcurrencyToken;
+        _ = allowUpload;
         IReadOnlyList<StudioCloudControlledDocument> documents =
             await account.ListControlledDocumentsAsync(projectId);
         StudioCloudControlledDocument? cloudDocument = documents.FirstOrDefault(item =>
             item.RequirementKeys.Contains(
                 IssuedAtdRequirementKey,
                 StringComparer.OrdinalIgnoreCase));
-        if (cloudDocument is null)
-        {
-            return new ControlledDocumentSyncResult(
-                false,
-                false,
-                "Cloud ERA төсөлд АТД controlled document бүрдээгүй байна.");
-        }
-
         PlanningTaskInformation planningTask = state.Project.Foundation.PlanningTask;
-        ControlledDocumentMergeDecision decision = ControlledDocumentMergePolicy.Decide(
-            planningTask,
-            cloudDocument);
-        switch (decision.Action)
+        string ownerEmail = CurrentCloudOwnerEmail();
+        foreach (ProjectFileReference local in ApprovedAtdDocuments(planningTask.Documents))
         {
-            case ControlledDocumentMergeAction.None:
-                MarkAtdDocumentsSynced(planningTask, cloudDocument);
-                return new ControlledDocumentSyncResult(false, false, decision.Message);
+            if (string.IsNullOrWhiteSpace(local.CloudOwnerEmail))
+            {
+                local.CloudOwnerEmail = ownerEmail;
+                if (string.IsNullOrWhiteSpace(local.CloudContributionId))
+                    local.CloudContributionId = Guid.NewGuid().ToString("N");
+                local.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.PendingUpload;
+            }
 
-            case ControlledDocumentMergeAction.UploadLocal when !allowUpload:
-                planningTask.ServerDocumentId = cloudDocument.DocumentId;
-                if (planningTask.ServerDocumentVersion == 0)
-                    planningTask.ServerDocumentVersion = cloudDocument.Version;
-                planningTask.DocumentCloudSyncStatus = ProjectDocumentCloudSyncStatuses.PendingUpload;
-                return new ControlledDocumentSyncResult(false, true, decision.Message);
-
-            case ControlledDocumentMergeAction.UploadLocal:
-                List<ProjectFileReference> localFiles = ApprovedAtdDocuments(planningTask.Documents)
-                    .Where(item => item.IsAvailable)
-                    .ToList();
-                List<string> paths = localFiles
-                    .Select(item => ProjectWorkspacePaths.ResolveInsideProject(
-                        state.ProjectPath!,
-                        item.RelativePath))
-                    .ToList();
-                StudioCloudControlledDocument uploaded = await account.ReplaceControlledDocumentFilesAsync(
-                    projectId,
-                    cloudDocument.DocumentId,
-                    cloudDocument.Version,
-                    projectConcurrencyToken,
-                    paths);
-                MarkAtdDocumentsSynced(planningTask, uploaded);
-                ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
-                    state.Project,
-                    [ProjectCloudSyncMetadata.ApprovedAtdComponentCode]);
-                return new ControlledDocumentSyncResult(true, false, "АТД-ийн current file set Cloud ERA-д шинэчлэгдлээ.");
-
-            case ControlledDocumentMergeAction.DownloadCloud:
-                await DownloadAtdCurrentSetAsync(planningTask, cloudDocument);
-                return new ControlledDocumentSyncResult(false, false, "Cloud ERA-аас АТД-ийн шинэ current file set татагдлаа.");
-
-            case ControlledDocumentMergeAction.Conflict:
-                MarkAtdDocumentConflict(planningTask, cloudDocument);
-                return new ControlledDocumentSyncResult(false, true, decision.Message);
-
-            default:
-                throw new InvalidOperationException("Unsupported controlled document merge action.");
+            StudioCloudFile? legacyCloudFile = cloudDocument?.CurrentFiles.FirstOrDefault(file =>
+                !string.IsNullOrWhiteSpace(local.Sha256) &&
+                file.Sha256.Equals(local.Sha256, StringComparison.OrdinalIgnoreCase) &&
+                (file.UploadedBy ?? "").Equals(local.CloudOwnerEmail, StringComparison.OrdinalIgnoreCase));
+            if (legacyCloudFile is not null)
+            {
+                local.ServerDocumentId = cloudDocument!.DocumentId;
+                local.ServerFileId = legacyCloudFile.FileId;
+                local.ServerFileRevisionId = legacyCloudFile.FileRevisionId;
+                local.ServerDocumentVersion = cloudDocument.Version;
+                local.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Synced;
+            }
         }
+
+        if (cloudDocument is not null)
+        {
+            planningTask.ServerDocumentId = cloudDocument.DocumentId;
+            planningTask.ServerDocumentVersion = cloudDocument.Version;
+        }
+        planningTask.DocumentCloudSyncStatus = ApprovedAtdDocuments(planningTask.Documents).Any(document =>
+            IsDocumentOwnedBy(document, ownerEmail) &&
+            document.CloudSyncStatus.Equals(ProjectDocumentCloudSyncStatuses.PendingUpload, StringComparison.OrdinalIgnoreCase))
+                ? ProjectDocumentCloudSyncStatuses.PendingUpload
+                : ProjectDocumentCloudSyncStatuses.Synced;
+        return new ControlledDocumentSyncResult(
+            false,
+            false,
+            "АТД эх файлыг Cloud ERA-аар солихгүй. Энэ хэрэглэгчийн АТД зөвхөн өөрийн album component хэлбэрээр merge хийгдэнэ.");
     }
 
     private async Task DownloadAtdCurrentSetAsync(

@@ -31,6 +31,7 @@ public static class ProjectCloudSyncMetadata
     public const string ApprovedAtdComponentCode =
         "generated:planning-task:ApprovedPlanningTask";
     public const string VisualizationsComponentCode = "generated:visualizations";
+    public const string SiteContextComponentCode = "generated:site-context:SiteContext";
 
     private const string SourceKeyKey = "cloud.sourceKey";
     private const string SourceApplicationKey = "cloud.sourceApplication";
@@ -43,6 +44,7 @@ public static class ProjectCloudSyncMetadata
     private const string ContentHashKey = "cloud.contentHash";
     private const string SyncedManifestIdKey = "cloud.syncedManifestId";
     private const string SyncedContentHashKey = "cloud.syncedContentHash";
+    private const string OwnerEmailKey = "cloud.ownerEmail";
 
     public static void RecordPackage(
         ProjectWorkspace project,
@@ -91,6 +93,23 @@ public static class ProjectCloudSyncMetadata
         source.Metadata.Remove(SyncedManifestIdKey);
         source.Metadata.Remove(SyncedContentHashKey);
         MarkPending(project);
+    }
+
+    public static string CloudOwnerEmail(ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return Value(source.Metadata, OwnerEmailKey).ToLowerInvariant();
+    }
+
+    public static void BindCloudOwner(ProjectDesignSource source, string ownerEmail)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        string normalized = (ownerEmail ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+            throw new ArgumentException("Cloud source owner email is required.", nameof(ownerEmail));
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        source.Metadata[OwnerEmailKey] = normalized;
     }
 
     public static IReadOnlyList<ProjectSourceSyncCandidate> SourcePackages(ProjectWorkspace project)
@@ -312,12 +331,14 @@ public static class ProjectCloudSyncMetadata
         ProjectWorkspace project,
         string revisionId,
         int revisionNumber,
-        string sha256)
+        string sha256,
+        string pdfPath = "")
     {
         ArgumentNullException.ThrowIfNull(project);
         project.Cloud.LastReceivedAlbumRevisionId = revisionId?.Trim() ?? "";
         project.Cloud.LastReceivedAlbumRevisionNumber = Math.Max(0, revisionNumber);
         project.Cloud.LastReceivedAlbumSha256 = sha256?.Trim().ToLowerInvariant() ?? "";
+        project.Cloud.LastReceivedAlbumPdfPath = pdfPath?.Trim() ?? "";
     }
 
     public static void ClearReceivedAlbum(ProjectWorkspace project)
@@ -326,6 +347,7 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.LastReceivedAlbumRevisionId = "";
         project.Cloud.LastReceivedAlbumRevisionNumber = 0;
         project.Cloud.LastReceivedAlbumSha256 = "";
+        project.Cloud.LastReceivedAlbumPdfPath = "";
     }
 
     public static void MarkError(ProjectWorkspace project, string message)

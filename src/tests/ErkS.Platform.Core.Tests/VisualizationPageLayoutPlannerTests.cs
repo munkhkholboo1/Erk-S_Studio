@@ -273,9 +273,9 @@ public sealed class VisualizationPageLayoutPlannerTests : IDisposable
         AlbumBuildResult result = new AlbumBuilder(new PdfSharpAlbumWriter())
             .Build(project, new SheetLibrary(), outputPath);
 
-        Assert.Equal(6, result.PageCount);
+        Assert.Equal(7, result.PageCount);
         using PdfDocument document = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
-        Assert.Equal(6, document.PageCount);
+        Assert.Equal(7, document.PageCount);
         PdfVectorDocumentProfile profile = PdfVectorQualityInspector.Inspect(outputPath);
         Assert.True(profile.Pages[^2].ImageXObjectCount > 0);
         Assert.True(profile.Pages[^1].ImageXObjectCount > 0);

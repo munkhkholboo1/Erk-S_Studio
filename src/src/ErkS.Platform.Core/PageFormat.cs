@@ -138,7 +138,7 @@ public static class PageFormatCatalog
         SheetPackageEntry entry)
     {
         PageFormatDefinition resolved = Resolve(page);
-        return BuildingArchitectureConceptPageLayout.IsElevationSheet(
+        return BuildingArchitectureConceptPageLayout.UsesInformationHeader(
             entry.ContentKind,
             entry.Name,
             page.TemplateSlotId)

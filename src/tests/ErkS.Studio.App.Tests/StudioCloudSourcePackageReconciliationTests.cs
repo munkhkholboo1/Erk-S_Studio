@@ -61,6 +61,22 @@ public sealed class StudioCloudSourcePackageReconciliationTests
         Assert.Equal("current", result.SourceId);
     }
 
+    [Fact]
+    public void ActiveCanonicalKeepsTheSameKeyFromDifferentContributors()
+    {
+        DateTimeOffset at = new(2026, 7, 21, 4, 0, 0, TimeSpan.Zero);
+        StudioCloudSourcePackage first = Source("first", "same-key", "ATD.pdf", at);
+        StudioCloudSourcePackage second = Source("second", "same-key", "ATD.pdf", at.AddMinutes(1));
+        second.RegisteredBy = "architect-b@erks.local";
+
+        IReadOnlyList<StudioCloudSourcePackage> result =
+            StudioCloudSourcePackageReconciliation.ActiveCanonical([first, second]);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, source => source.RegisteredBy == "architect@erks.local");
+        Assert.Contains(result, source => source.RegisteredBy == "architect-b@erks.local");
+    }
+
     private static StudioCloudSourcePackage Source(
         string sourceId,
         string sourceKey,

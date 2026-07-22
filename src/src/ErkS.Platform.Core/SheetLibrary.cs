@@ -112,7 +112,10 @@ public sealed class SheetLibrary
         }
     }
 
-    public SheetLibraryChange Absorb(SheetPackageLoadResult loadResult, string? sourceIdOverride = null)
+    public SheetLibraryChange Absorb(
+        SheetPackageLoadResult loadResult,
+        string? sourceIdOverride = null,
+        bool notifyChanged = true)
     {
         if (!loadResult.IsLossless || loadResult.Manifest is null)
         {
@@ -232,7 +235,7 @@ public sealed class SheetLibrary
             FullSnapshotApplied = fullSnapshotApplied,
             StaleSnapshotIgnored = staleSnapshotIgnored,
         };
-        if (change.HasChanges)
+        if (change.HasChanges && notifyChanged)
         {
             Changed?.Invoke();
         }

@@ -14,6 +14,9 @@ public sealed class RejectedSheetPackage
 public sealed class SheetIntakeScanResult
 {
     public int ManifestCount { get; internal set; }
+    public int SkippedHistoricalManifestCount { get; internal set; }
+    public int SkippedForeignManifestCount { get; internal set; }
+    public int SilentlyHydratedManifestCount { get; internal set; }
     public int ChangedPackageCount { get; internal set; }
     public int UpdatedSheetCount { get; internal set; }
     public int RemovedSheetCount { get; internal set; }
@@ -23,6 +26,9 @@ public sealed class SheetIntakeScanResult
     internal void Add(SheetIntakeScanResult other)
     {
         ManifestCount += other.ManifestCount;
+        SkippedHistoricalManifestCount += other.SkippedHistoricalManifestCount;
+        SkippedForeignManifestCount += other.SkippedForeignManifestCount;
+        SilentlyHydratedManifestCount += other.SilentlyHydratedManifestCount;
         ChangedPackageCount += other.ChangedPackageCount;
         UpdatedSheetCount += other.UpdatedSheetCount;
         RemovedSheetCount += other.RemovedSheetCount;
@@ -30,6 +36,18 @@ public sealed class SheetIntakeScanResult
         ErrorCount += other.ErrorCount;
     }
 }
+
+/// <summary>
+/// Last package already reconciled into the persisted project. Intake can use
+/// it to rebuild its in-memory library without treating the same package as a
+/// new source update on every project open.
+/// </summary>
+public sealed record SheetPackageCheckpoint(
+    string ProjectId,
+    string SourceId,
+    Guid PackageId,
+    DateTimeOffset ExportedAtUtc,
+    string ManifestSha256);
 
 /// <summary>
 /// Watches source folders for sheet packages in real time. A package arrives
@@ -82,10 +100,14 @@ public sealed class SheetIntakeService : IDisposable
     }
 
     /// <summary>
-    /// Starts watching a folder (recursive) and immediately scans packages
-    /// already present so restarts never miss sheets.
+    /// Starts watching a folder recursively. Existing packages are scanned
+    /// immediately unless the caller defers that work until after the UI opens.
     /// </summary>
-    public void WatchFolder(string folder, string? sourceId = null, string? projectId = null)
+    public void WatchFolder(
+        string folder,
+        string? sourceId = null,
+        string? projectId = null,
+        bool scanExisting = true)
     {
         if (string.IsNullOrWhiteSpace(folder))
         {
@@ -121,7 +143,8 @@ public sealed class SheetIntakeService : IDisposable
             watcher.EnableRaisingEvents = true;
         }
 
-        ScanFolder(registration);
+        if (scanExisting)
+            ScanFolder(registration);
     }
 
     public void UnwatchFolder(string folder)
@@ -139,6 +162,29 @@ public sealed class SheetIntakeService : IDisposable
     /// <summary>Re-scans every watched folder (manual refresh).</summary>
     public SheetIntakeScanResult Rescan()
     {
+        return Rescan(currentSnapshotsOnly: false, []);
+    }
+
+    /// <summary>
+    /// Rehydrates the current library state without re-verifying superseded
+    /// historical exports. For each source this processes the newest full
+    /// snapshot plus any newer delta packages.
+    /// </summary>
+    public SheetIntakeScanResult RescanCurrentSnapshots()
+    {
+        return Rescan(currentSnapshotsOnly: true, []);
+    }
+
+    public SheetIntakeScanResult RescanCurrentSnapshots(
+        IReadOnlyCollection<SheetPackageCheckpoint> checkpoints)
+    {
+        return Rescan(currentSnapshotsOnly: true, checkpoints ?? []);
+    }
+
+    private SheetIntakeScanResult Rescan(
+        bool currentSnapshotsOnly,
+        IReadOnlyCollection<SheetPackageCheckpoint> checkpoints)
+    {
         List<WatcherRegistration> registrations;
         lock (sync)
         {
@@ -148,12 +194,15 @@ public sealed class SheetIntakeService : IDisposable
         var result = new SheetIntakeScanResult();
         foreach (var registration in registrations)
         {
-            result.Add(ScanFolder(registration));
+            result.Add(ScanFolder(registration, currentSnapshotsOnly, checkpoints));
         }
         return result;
     }
 
-    private SheetIntakeScanResult ScanFolder(WatcherRegistration registration)
+    private SheetIntakeScanResult ScanFolder(
+        WatcherRegistration registration,
+        bool currentSnapshotsOnly = false,
+        IReadOnlyCollection<SheetPackageCheckpoint>? checkpoints = null)
     {
         var scan = new SheetIntakeScanResult();
         try
@@ -163,10 +212,20 @@ public sealed class SheetIntakeService : IDisposable
                 return scan;
             }
 
-            foreach (var manifest in Directory.EnumerateFiles(
-                registration.Folder,
-                "*" + SheetPackageManifest.ManifestSuffix,
-                SearchOption.AllDirectories))
+            List<string> discovered = Directory.EnumerateFiles(
+                    registration.Folder,
+                    "*" + SheetPackageManifest.ManifestSuffix,
+                    SearchOption.AllDirectories)
+                .ToList();
+            int skippedForeign = 0;
+            IReadOnlyList<string> manifests = currentSnapshotsOnly
+                ? SelectCurrentPackageManifests(discovered, registration, out skippedForeign)
+                : discovered;
+            scan.SkippedForeignManifestCount = skippedForeign;
+            scan.SkippedHistoricalManifestCount =
+                discovered.Count - manifests.Count - skippedForeign;
+
+            foreach (string manifest in manifests)
             {
                 if (registration.IsStopped)
                 {
@@ -174,7 +233,26 @@ public sealed class SheetIntakeService : IDisposable
                 }
 
                 scan.ManifestCount++;
-                var change = ProcessManifest(manifest, registration);
+                bool silentlyHydrated = false;
+                SheetPackageCheckpoint? hydrationCheckpoint = FindCheckpoint(
+                    registration,
+                    checkpoints ?? []);
+                var change = ProcessManifest(
+                    manifest,
+                    registration,
+                    hydrationCheckpoint,
+                    currentSnapshotsOnly && checkpoints is { Count: > 0 }
+                        ? result =>
+                        {
+                            bool publish = ShouldPublishPackage(result, registration, checkpoints);
+                            silentlyHydrated = !publish;
+                            return publish;
+                        }
+                        : null);
+                if (silentlyHydrated)
+                {
+                    scan.SilentlyHydratedManifestCount++;
+                }
                 if (change?.HasChanges == true)
                 {
                     scan.ChangedPackageCount++;
@@ -194,6 +272,103 @@ public sealed class SheetIntakeService : IDisposable
             IntakeError?.Invoke($"Scan failed for {registration.Folder}: {exception.Message}");
         }
         return scan;
+    }
+
+    private static IReadOnlyList<string> SelectCurrentPackageManifests(
+        IReadOnlyList<string> manifestPaths,
+        WatcherRegistration registration,
+        out int skippedForeign)
+    {
+        skippedForeign = 0;
+        var unreadable = new List<string>();
+        var candidates = new List<ManifestScanCandidate>();
+        foreach (string path in manifestPaths)
+        {
+            try
+            {
+                SheetPackageManifest? manifest = JsonSerializer.Deserialize<SheetPackageManifest>(
+                    File.ReadAllText(path),
+                    SheetPackageJson.Options);
+                if (manifest is null)
+                {
+                    unreadable.Add(path);
+                    continue;
+                }
+
+                manifest.Source ??= new SheetPackageSource();
+                string? effectiveSourceId = string.IsNullOrWhiteSpace(manifest.Source.SourceId)
+                    ? registration.SourceId
+                    : manifest.Source.SourceId.Trim();
+                string sourceIdentity = SheetRecord.MakeSourceIdentity(
+                    manifest.Source,
+                    effectiveSourceId);
+                string projectIdentity = string.IsNullOrWhiteSpace(manifest.ProjectId)
+                    ? registration.ProjectId ?? ""
+                    : manifest.ProjectId.Trim();
+                if ((!string.IsNullOrWhiteSpace(registration.SourceId) &&
+                     !string.IsNullOrWhiteSpace(effectiveSourceId) &&
+                     !effectiveSourceId.Equals(
+                         registration.SourceId,
+                         StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(registration.ProjectId) &&
+                     !string.IsNullOrWhiteSpace(projectIdentity) &&
+                     !projectIdentity.Equals(
+                         registration.ProjectId,
+                         StringComparison.OrdinalIgnoreCase)))
+                {
+                    // A source-specific inbox can contain historical packages
+                    // left by an older link. Watcher events and a manual full
+                    // rescan still reject new foreign input; startup hydration
+                    // ignores it so it cannot stall every project open.
+                    skippedForeign++;
+                    continue;
+                }
+                candidates.Add(new ManifestScanCandidate(
+                    path,
+                    projectIdentity,
+                    sourceIdentity,
+                    manifest.PackageId,
+                    manifest.PackageScope,
+                    manifest.ExportedAtUtc));
+            }
+            catch (Exception exception) when (
+                exception is JsonException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                // Keep malformed/unreadable input in the selected set so the
+                // normal verifier and quarantine audit still see it.
+                unreadable.Add(path);
+            }
+        }
+
+        var selected = new List<ManifestScanCandidate>();
+        foreach (IGrouping<string, ManifestScanCandidate> group in candidates.GroupBy(
+                     candidate => candidate.ProjectIdentity + "|" + candidate.SourceIdentity,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            ManifestScanCandidate? latestFullSnapshot = group
+                .Where(candidate => candidate.Scope == SheetPackageScope.FullSnapshot)
+                .OrderByDescending(candidate => candidate.ExportedAtUtc)
+                .ThenByDescending(candidate => candidate.PackageId.ToString("N"), StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (latestFullSnapshot is null)
+            {
+                selected.AddRange(group);
+                continue;
+            }
+
+            selected.Add(latestFullSnapshot);
+            selected.AddRange(group.Where(candidate =>
+                candidate.Scope != SheetPackageScope.FullSnapshot &&
+                candidate.ExportedAtUtc >= latestFullSnapshot.ExportedAtUtc));
+        }
+
+        return unreadable
+            .Concat(selected
+                .OrderBy(candidate => candidate.ExportedAtUtc)
+                .ThenBy(candidate => candidate.PackageId.ToString("N"), StringComparer.Ordinal)
+                .Select(candidate => candidate.Path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void ProcessManifestSoon(string manifestPath, WatcherRegistration registration)
@@ -267,16 +442,24 @@ public sealed class SheetIntakeService : IDisposable
 
     private SheetLibraryChange? ProcessManifest(
         string manifestPath,
-        WatcherRegistration registration)
+        WatcherRegistration registration,
+        SheetPackageCheckpoint? hydrationCheckpoint = null,
+        Func<SheetPackageLoadResult, bool>? shouldPublish = null)
     {
         try
         {
-            var result = SheetPackageReader.Load(manifestPath);
+            var result = hydrationCheckpoint is null
+                ? SheetPackageReader.Load(manifestPath)
+                : SheetPackageReader.LoadForHydration(
+                    manifestPath,
+                    hydrationCheckpoint.PackageId,
+                    hydrationCheckpoint.ManifestSha256);
             AddOwnershipIssues(result, registration);
             var manifestSourceId = result.Manifest?.Source.SourceId;
             var effectiveSourceId = string.IsNullOrWhiteSpace(manifestSourceId)
                 ? registration.SourceId
                 : manifestSourceId;
+            bool publish = shouldPublish?.Invoke(result) ?? true;
 
             SheetLibraryChange change;
             lock (registration.ProcessingGate)
@@ -286,13 +469,13 @@ public sealed class SheetIntakeService : IDisposable
                     return null;
                 }
 
-                change = library.Absorb(result, effectiveSourceId);
+                change = library.Absorb(result, effectiveSourceId, notifyChanged: publish);
             }
             if (change.Rejected)
             {
                 RecordRejectedPackage(result, registration.Folder);
             }
-            if (change.HasChanges || !result.IsLossless)
+            if (publish && (change.HasChanges || !result.IsLossless))
             {
                 PackageProcessed?.Invoke(result);
             }
@@ -303,6 +486,84 @@ public sealed class SheetIntakeService : IDisposable
             IntakeError?.Invoke($"Package failed: {manifestPath}: {exception.Message}");
             return null;
         }
+    }
+
+    private static bool ShouldPublishPackage(
+        SheetPackageLoadResult result,
+        WatcherRegistration registration,
+        IReadOnlyCollection<SheetPackageCheckpoint> checkpoints)
+    {
+        if (!result.IsLossless || result.Manifest is null)
+        {
+            return true;
+        }
+
+        SheetPackageManifest manifest = result.Manifest;
+        string projectId = string.IsNullOrWhiteSpace(manifest.ProjectId)
+            ? registration.ProjectId ?? ""
+            : manifest.ProjectId.Trim();
+        string sourceId = string.IsNullOrWhiteSpace(manifest.Source.SourceId)
+            ? registration.SourceId ?? ""
+            : manifest.Source.SourceId.Trim();
+        if (string.IsNullOrWhiteSpace(projectId) || string.IsNullOrWhiteSpace(sourceId))
+        {
+            return true;
+        }
+
+        SheetPackageCheckpoint? checkpoint = checkpoints
+            .Where(item =>
+                item.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase) &&
+                item.SourceId.Equals(sourceId, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.ExportedAtUtc)
+            .ThenByDescending(item => item.PackageId.ToString("N"), StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (checkpoint is null)
+        {
+            return true;
+        }
+
+        if (manifest.PackageId == checkpoint.PackageId)
+        {
+            return !result.ManifestSha256.Equals(
+                checkpoint.ManifestSha256,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        int timeComparison = manifest.ExportedAtUtc.CompareTo(checkpoint.ExportedAtUtc);
+        if (timeComparison < 0)
+        {
+            return false;
+        }
+        if (timeComparison == 0 && string.CompareOrdinal(
+                manifest.PackageId.ToString("N"),
+                checkpoint.PackageId.ToString("N")) < 0)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static SheetPackageCheckpoint? FindCheckpoint(
+        WatcherRegistration registration,
+        IReadOnlyCollection<SheetPackageCheckpoint> checkpoints)
+    {
+        if (string.IsNullOrWhiteSpace(registration.ProjectId) ||
+            string.IsNullOrWhiteSpace(registration.SourceId))
+        {
+            return null;
+        }
+
+        return checkpoints
+            .Where(item =>
+                item.ProjectId.Equals(
+                    registration.ProjectId,
+                    StringComparison.OrdinalIgnoreCase) &&
+                item.SourceId.Equals(
+                    registration.SourceId,
+                    StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.ExportedAtUtc)
+            .ThenByDescending(item => item.PackageId.ToString("N"), StringComparer.Ordinal)
+            .FirstOrDefault();
     }
 
     private static void AddOwnershipIssues(
@@ -443,4 +704,12 @@ public sealed class SheetIntakeService : IDisposable
             }
         }
     }
+
+    private sealed record ManifestScanCandidate(
+        string Path,
+        string ProjectIdentity,
+        string SourceIdentity,
+        Guid PackageId,
+        SheetPackageScope Scope,
+        DateTimeOffset ExportedAtUtc);
 }

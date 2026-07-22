@@ -235,6 +235,47 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void ProjectWorkspaceStore_NormalizesLegacyNullCloudSourceEntries()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("LEGACY-CLOUD-NULL", "Legacy cloud mirror");
+        string path = Path.Combine(workDirectory, "legacy-cloud-null", ProjectWorkspace.DefaultFileName);
+        ProjectWorkspaceStore.Save(project, path);
+
+        JsonObject json = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        JsonObject cloud = json["cloud"]!.AsObject();
+        cloud["sharedSources"] = new JsonArray
+        {
+            null,
+            new JsonObject
+            {
+                ["sourceId"] = "source-1",
+                ["sourceKey"] = null,
+                ["ownerEmail"] = null,
+            },
+        };
+        cloud["sharedAlbumComponents"] = new JsonArray
+        {
+            null,
+            new JsonObject
+            {
+                ["code"] = "source:legacy",
+                ["componentKind"] = null,
+                ["pageNumbers"] = null,
+            },
+        };
+        File.WriteAllText(path, json.ToJsonString());
+
+        ProjectWorkspace loaded = ProjectWorkspaceStore.Load(path);
+
+        ProjectCloudSourceReference source = Assert.Single(loaded.Cloud.SharedSources);
+        Assert.Equal("", source.SourceKey);
+        Assert.Equal("", source.OwnerEmail);
+        ProjectCloudAlbumComponentReference component = Assert.Single(loaded.Cloud.SharedAlbumComponents);
+        Assert.Equal("", component.ComponentKind);
+        Assert.Empty(component.PageNumbers);
+    }
+
+    [Fact]
     public void ProjectWorkspaceStore_CreatesDesignOrganizationProjectWithStageAssignment()
     {
         var request = new ProjectCreationRequest
@@ -555,6 +596,277 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void Intake_DeferredInitialScan_LoadsPackagesOnlyWhenRescanRuns()
+    {
+        var root = Path.Combine(workDirectory, "deferred-inbox");
+        WriteSourcePackage(
+            root,
+            "source-current",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+
+        intake.WatchFolder(
+            root,
+            "source-current",
+            "project-current",
+            scanExisting: false);
+
+        Assert.Empty(library.Snapshot());
+        SheetIntakeScanResult scan = intake.Rescan();
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Single(library.Snapshot());
+    }
+
+    [Fact]
+    public void Intake_CurrentSnapshotScan_SkipsSupersededFullSnapshotFiles()
+    {
+        var root = Path.Combine(workDirectory, "current-snapshot-inbox");
+        string oldManifestPath = WriteSourcePackage(
+            Path.Combine(root, "old"),
+            "source-current",
+            ["A1", "A2"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            projectId: "project-current");
+        string currentManifestPath = WriteSourcePackage(
+            Path.Combine(root, "current"),
+            "source-current",
+            ["A2"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        SheetPackageManifest oldManifest = SheetPackageReader.Load(oldManifestPath).Manifest!;
+        string oldPdfPath = Path.Combine(
+            Path.GetDirectoryName(oldManifestPath)!,
+            oldManifest.Sheets[0].PdfFileName);
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(
+            root,
+            "source-current",
+            "project-current",
+            scanExisting: false);
+        using FileStream oldPdfLock = File.Open(
+            oldPdfPath,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots();
+
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Equal(1, scan.SkippedHistoricalManifestCount);
+        Assert.Empty(intake.RejectedPackages);
+        SheetRecord current = Assert.Single(library.Snapshot());
+        Assert.Equal("A2", current.Entry.SheetId);
+        Assert.Equal(
+            SheetPackageReader.Load(currentManifestPath).Manifest!.PackageId,
+            current.PackageId);
+    }
+
+    [Fact]
+    public void Intake_CurrentSnapshotScan_AppliesNewerDeltasAfterLatestFullSnapshot()
+    {
+        var root = Path.Combine(workDirectory, "current-snapshot-with-delta");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        WriteSourcePackage(
+            Path.Combine(root, "old-full"),
+            "source-current",
+            ["A0"],
+            SheetPackageScope.FullSnapshot,
+            now.AddMinutes(-2));
+        WriteSourcePackage(
+            Path.Combine(root, "current-full"),
+            "source-current",
+            ["A1", "A2"],
+            SheetPackageScope.FullSnapshot,
+            now.AddMinutes(-1));
+        WriteSourcePackage(
+            Path.Combine(root, "new-delta"),
+            "source-current",
+            ["A2"],
+            SheetPackageScope.Delta,
+            now);
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(root, "source-current", scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots();
+
+        Assert.Equal(2, scan.ManifestCount);
+        Assert.Equal(1, scan.SkippedHistoricalManifestCount);
+        Assert.Equal(["A1", "A2"], library.Snapshot()
+            .Select(record => record.Entry.SheetId)
+            .OrderBy(value => value)
+            .ToArray());
+    }
+
+    [Fact]
+    public void Intake_CurrentSnapshotScan_SilentlyHydratesAlreadyRecordedPackage()
+    {
+        var root = Path.Combine(workDirectory, "current-snapshot-checkpoint");
+        string manifestPath = WriteSourcePackage(
+            root,
+            "source-current",
+            ["A1", "A2"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        SheetPackageLoadResult verified = SheetPackageReader.Load(manifestPath);
+        var checkpoint = new SheetPackageCheckpoint(
+            "project-current",
+            "source-current",
+            verified.Manifest!.PackageId,
+            verified.Manifest.ExportedAtUtc,
+            verified.ManifestSha256);
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        int libraryChanged = 0;
+        int packagesPublished = 0;
+        library.Changed += () => libraryChanged++;
+        intake.PackageProcessed += _ => packagesPublished++;
+        intake.WatchFolder(
+            root,
+            "source-current",
+            "project-current",
+            scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots([checkpoint]);
+
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Equal(1, scan.SilentlyHydratedManifestCount);
+        Assert.Equal(2, library.Snapshot().Count);
+        Assert.Equal(0, libraryChanged);
+        Assert.Equal(0, packagesPublished);
+    }
+
+    [Fact]
+    public void Intake_CurrentSnapshotScan_RejectsChangedPdfBehindRecordedCheckpoint()
+    {
+        var root = Path.Combine(workDirectory, "current-snapshot-changed-pdf");
+        string manifestPath = WriteSourcePackage(
+            root,
+            "source-current",
+            ["A1"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        SheetPackageLoadResult verified = SheetPackageReader.Load(manifestPath);
+        SheetPackageEntry entry = Assert.Single(verified.Manifest!.Sheets);
+        string pdfPath = Path.Combine(Path.GetDirectoryName(manifestPath)!, entry.PdfFileName);
+        File.AppendAllText(pdfPath, "changed after verification");
+        var checkpoint = new SheetPackageCheckpoint(
+            "project-current",
+            "source-current",
+            verified.Manifest.PackageId,
+            verified.Manifest.ExportedAtUtc,
+            verified.ManifestSha256);
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(
+            root,
+            "source-current",
+            "project-current",
+            scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots([checkpoint]);
+
+        Assert.Equal(1, scan.RejectedPackageCount);
+        Assert.Equal(0, scan.SilentlyHydratedManifestCount);
+        Assert.Empty(library.Snapshot());
+        Assert.Contains(intake.RejectedPackages, rejected => rejected.Issues.Any(issue =>
+            issue.Contains("hash mismatch", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void Intake_CurrentSnapshotScan_PublishesPackageNewerThanCheckpoint()
+    {
+        var root = Path.Combine(workDirectory, "current-snapshot-newer-than-checkpoint");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        string oldManifestPath = WriteSourcePackage(
+            Path.Combine(root, "old"),
+            "source-current",
+            ["A1"],
+            SheetPackageScope.FullSnapshot,
+            now.AddMinutes(-1),
+            projectId: "project-current");
+        WriteSourcePackage(
+            Path.Combine(root, "current"),
+            "source-current",
+            ["A1", "A2"],
+            SheetPackageScope.FullSnapshot,
+            now,
+            projectId: "project-current");
+        SheetPackageLoadResult old = SheetPackageReader.Load(oldManifestPath);
+        var checkpoint = new SheetPackageCheckpoint(
+            "project-current",
+            "source-current",
+            old.Manifest!.PackageId,
+            old.Manifest.ExportedAtUtc,
+            old.ManifestSha256);
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        int packagesPublished = 0;
+        intake.PackageProcessed += _ => packagesPublished++;
+        intake.WatchFolder(
+            root,
+            "source-current",
+            "project-current",
+            scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots([checkpoint]);
+
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Equal(1, scan.SkippedHistoricalManifestCount);
+        Assert.Equal(0, scan.SilentlyHydratedManifestCount);
+        Assert.Equal(1, packagesPublished);
+        Assert.Equal(["A1", "A2"], library.Snapshot()
+            .Select(record => record.Entry.SheetId)
+            .OrderBy(value => value)
+            .ToArray());
+    }
+
+    [Fact]
+    public void Intake_CurrentSnapshotScan_SkipsHistoricalForeignSourceInOwnedInbox()
+    {
+        var root = Path.Combine(workDirectory, "current-snapshot-foreign-source");
+        WriteSourcePackage(
+            Path.Combine(root, "owned"),
+            "source-owned",
+            ["A1"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        WriteSourcePackage(
+            Path.Combine(root, "foreign"),
+            "source-foreign",
+            ["B1"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(
+            root,
+            "source-owned",
+            "project-current",
+            scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots();
+
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Equal(1, scan.SkippedForeignManifestCount);
+        Assert.Equal(0, scan.SkippedHistoricalManifestCount);
+        SheetRecord record = Assert.Single(library.Snapshot());
+        Assert.Equal("source-owned", record.SourceId);
+        Assert.Empty(intake.RejectedPackages);
+    }
+
+    [Fact]
     public void Intake_ProjectScopedFolderRejectsManifestFromAnotherProject()
     {
         var root = Path.Combine(workDirectory, "project-scoped-inbox");
@@ -668,14 +980,94 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void AlbumCompose_SharedMultiPagePdfImportsOnlyEachReferencedPage()
+    {
+        string directory = Path.Combine(workDirectory, "shared-multi-page-album");
+        Directory.CreateDirectory(directory);
+        string pdfPath = Path.Combine(directory, "autocad-layouts.pdf");
+        using (var source = new PdfDocument())
+        {
+            AddVectorPage(source, 210, 297, "Page 1");
+            AddVectorPage(source, 420, 297, "Page 2");
+            source.Save(pdfPath);
+        }
+        var manifest = new SheetPackageManifest
+        {
+            SchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
+            Source = new SheetPackageSource
+            {
+                SourceId = "autocad-shared-pdf",
+                Application = SheetSourceApplication.AutoCad,
+                DocumentPath = @"C:\sample\shared.dwg",
+                DocumentTitle = "shared.dwg",
+            },
+            PackageScope = SheetPackageScope.FullSnapshot,
+            Sheets =
+            [
+                new SheetPackageEntry
+                {
+                    SheetId = "layout-1",
+                    Number = "01",
+                    Name = "Portrait layout",
+                    WidthMm = 210,
+                    HeightMm = 297,
+                    ContentWidthMm = 210,
+                    ContentHeightMm = 297,
+                    PdfFileName = "autocad-layouts.pdf",
+                    PdfPageNumber = 1,
+                },
+                new SheetPackageEntry
+                {
+                    SheetId = "layout-2",
+                    Number = "02",
+                    Name = "Landscape layout",
+                    WidthMm = 420,
+                    HeightMm = 297,
+                    ContentWidthMm = 420,
+                    ContentHeightMm = 297,
+                    PdfFileName = "autocad-layouts.pdf",
+                    PdfPageNumber = 2,
+                },
+            ],
+        };
+        string manifestPath = SheetPackageWriter.Write(manifest, directory, "autocad-shared");
+        var library = new SheetLibrary();
+        SheetLibraryChange change = library.Absorb(SheetPackageReader.Load(manifestPath));
+        Assert.False(change.Rejected, string.Join(" | ", change.Issues));
+
+        var project = new AlbumProject { Name = "Shared PDF page mapping" };
+        project.Album.IncludeCover = false;
+        project.Album.IncludeTableOfContents = false;
+        foreach (SheetRecord sheet in library.Snapshot().OrderBy(item => item.Entry.Number))
+        {
+            project.Album.Pages.Add(new AlbumPageDefinition
+            {
+                SheetKey = sheet.Key,
+                PageFormatId = PageFormatCatalog.SourceAsIsId,
+                PlacementMode = PagePlacementMode.FullPage,
+            });
+        }
+        string outputPath = Path.Combine(directory, "album.pdf");
+
+        AlbumBuildResult result = new AlbumBuilder(new PdfSharpAlbumWriter())
+            .Build(project, library, outputPath);
+
+        Assert.Equal(2, result.SheetCount);
+        Assert.Equal(2, result.PageCount);
+        using var composed = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
+        Assert.InRange(composed.Pages[0].Width.Millimeter, 209.5, 210.5);
+        Assert.InRange(composed.Pages[1].Width.Millimeter, 419.5, 420.5);
+    }
+
+    [Fact]
     public void ConceptAlbumTemplate_CreatesStudioFrontMatterAndSourceSlots()
     {
         var definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Загвар зургийн альбум");
 
         Assert.Equal(BuildingArchitectureConceptAlbumTemplate.TemplateId, definition.TemplateId);
         Assert.Equal(13, definition.Composition.Count);
-        Assert.Equal(3, definition.Composition.Count(item => item.Kind == AlbumCompositionKind.Generated));
-        Assert.Equal(10, definition.Composition.Count(item => item.Kind == AlbumCompositionKind.SourceSlot));
+        Assert.Equal(4, definition.Composition.Count(item => item.Kind == AlbumCompositionKind.Generated));
+        Assert.Equal(9, definition.Composition.Count(item => item.Kind == AlbumCompositionKind.SourceSlot));
         Assert.Equal(
             new[] { "00", "01", "02" },
             definition.Composition.Take(3).Select(item => item.Number));
@@ -860,6 +1252,63 @@ public sealed class SheetPackageTests : IDisposable
             BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm);
     }
 
+    [Fact]
+    public void ConceptGeneralPlanPage_UsesInformationBandAndSeparateTitleRow()
+    {
+        var page = new AlbumPageDefinition
+        {
+            PageFormatId = PageFormatCatalog.ConceptA3LandscapeId,
+            TemplateSlotId = "master-plan",
+        };
+        var entry = new SheetPackageEntry
+        {
+            ContentKind = "Ерөнхий төлөвлөгөө",
+            Name = "ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ",
+        };
+
+        PageFormatDefinition format = PageFormatCatalog.ResolveForConceptPage(page, entry);
+
+        Assert.True(BuildingArchitectureConceptPageLayout.UsesInformationHeader(
+            entry.ContentKind,
+            entry.Name,
+            page.TemplateSlotId));
+        Assert.Equal((15d, 60d, 400d, 9d),
+            (format.SheetTitleArea.X, format.SheetTitleArea.Y, format.SheetTitleArea.Width, format.SheetTitleArea.Height));
+        Assert.Equal((15d, 69d, 400d, 195d),
+            (format.DrawingArea.X, format.DrawingArea.Y, format.DrawingArea.Width, format.DrawingArea.Height));
+    }
+
+    [Theory]
+    [InlineData("НАРНЫ ЭЭВЭРЛЭЛТ", "solar-study")]
+    [InlineData("ХӨДӨЛГӨӨНИЙ СХЕМ", "traffic-scheme")]
+    [InlineData("НОГООН БАЙГУУЛАМЖ", "landscaping")]
+    public void OtherGeneralPlanSheets_KeepStandardTitleRow(
+        string sheetName,
+        string templateSlotId)
+    {
+        var page = new AlbumPageDefinition
+        {
+            PageFormatId = PageFormatCatalog.ConceptA3LandscapeId,
+            TemplateSlotId = templateSlotId,
+        };
+        var entry = new SheetPackageEntry
+        {
+            ContentKind = "Ерөнхий төлөвлөгөө",
+            Name = sheetName,
+        };
+
+        PageFormatDefinition format = PageFormatCatalog.ResolveForConceptPage(page, entry);
+
+        Assert.False(BuildingArchitectureConceptPageLayout.UsesInformationHeader(
+            entry.ContentKind,
+            entry.Name,
+            page.TemplateSlotId));
+        Assert.Equal((15d, 5d, 400d, 9d),
+            (format.SheetTitleArea.X, format.SheetTitleArea.Y, format.SheetTitleArea.Width, format.SheetTitleArea.Height));
+        Assert.Equal((15d, 14d, 400d, 250d),
+            (format.DrawingArea.X, format.DrawingArea.Y, format.DrawingArea.Width, format.DrawingArea.Height));
+    }
+
     [Theory]
     [InlineData("Давхрын байгуулалт", "1-Р ДАВХРЫН БАЙГУУЛАЛТ", "floor-plans")]
     [InlineData("Огтлол", "ОГТЛОЛ 1-1", "sections")]
@@ -1003,10 +1452,10 @@ public sealed class SheetPackageTests : IDisposable
         var result = new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, new SheetLibrary(), outputPath);
 
         Assert.Equal(0, result.SheetCount);
-        Assert.Equal(4, result.PageCount);
+        Assert.Equal(5, result.PageCount);
         Assert.Empty(result.Warnings);
         using var document = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
-        Assert.Equal(4, document.PageCount);
+        Assert.Equal(5, document.PageCount);
         foreach (var page in document.Pages.Cast<PdfPage>())
         {
             Assert.InRange(page.Width.Millimeter, 419.5, 420.5);
@@ -1062,8 +1511,8 @@ public sealed class SheetPackageTests : IDisposable
         IReadOnlyList<ConceptGeneratedPagePlan> plans =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(project);
 
-        Assert.Equal(7, plans.Count);
-        Assert.Equal(new[] { "00", "01", "02", "03", "04", "05", "06" }, plans.Select(plan => plan.Number));
+        Assert.Equal(8, plans.Count);
+        Assert.Equal(new[] { "00", "01", "02", "03", "04", "05", "06", "07" }, plans.Select(plan => plan.Number));
         Assert.Equal(
             new[]
             {
@@ -1074,9 +1523,10 @@ public sealed class SheetPackageTests : IDisposable
                 ConceptGeneratedDocumentKind.CompanyDesignLicense,
                 ConceptGeneratedDocumentKind.ApprovedPlanningTask,
                 ConceptGeneratedDocumentKind.ApprovedPlanningTask,
+                ConceptGeneratedDocumentKind.None,
             },
             plans.Select(plan => plan.DocumentKind));
-        Assert.Equal(new[] { 0, 2, 2, 1, 2, 2, 1 }, plans.Select(plan => plan.DocumentPages.Count));
+        Assert.Equal(new[] { 0, 2, 2, 1, 2, 2, 1, 0 }, plans.Select(plan => plan.DocumentPages.Count));
         Assert.All(
             plans.Where(plan => plan.DocumentKind is
                 ConceptGeneratedDocumentKind.CompanyRegistrationCertificate or
@@ -1086,17 +1536,18 @@ public sealed class SheetPackageTests : IDisposable
                 plan.Title));
         Assert.Equal(
             BuildingArchitectureConceptGeneratedPagePlanner.ApprovedPlanningTaskTitle,
-            plans[^1].Title);
+            plans[^2].Title);
+        Assert.Equal(AlbumGeneratedPageKind.SiteContext, plans[^1].Component.GeneratedPageKind);
 
         string outputPath = Path.Combine(workDirectory, "concept-document-pages.pdf");
         AlbumBuildResult result = new AlbumBuilder(new PdfSharpAlbumWriter())
             .Build(project, new SheetLibrary(), outputPath);
 
         Assert.Equal(0, result.SheetCount);
-        Assert.Equal(7, result.PageCount);
+        Assert.Equal(8, result.PageCount);
         Assert.Empty(result.Warnings);
         using var document = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
-        Assert.Equal(7, document.PageCount);
+        Assert.Equal(8, document.PageCount);
         Assert.All(document.Pages.Cast<PdfPage>(), page =>
         {
             Assert.InRange(page.Width.Millimeter, 419.5, 420.5);
@@ -1155,7 +1606,7 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Empty(loaded.Company.RegistrationCertificateDocuments);
         Assert.Empty(loaded.Company.DesignLicenseDocuments);
         loaded.Album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Загвар зургийн альбум");
-        Assert.Equal(4, BuildingArchitectureConceptGeneratedPagePlanner.Create(loaded).Count);
+        Assert.Equal(5, BuildingArchitectureConceptGeneratedPagePlanner.Create(loaded).Count);
     }
 
     [Fact]
@@ -1468,6 +1919,25 @@ public sealed class SheetPackageTests : IDisposable
         }
 
         return SheetPackageWriter.Write(manifest, directory, "test");
+    }
+
+    private static void AddVectorPage(
+        PdfDocument document,
+        double widthMm,
+        double heightMm,
+        string label)
+    {
+        PdfPage page = document.AddPage();
+        page.Width = XUnit.FromMillimeter(widthMm);
+        page.Height = XUnit.FromMillimeter(heightMm);
+        using XGraphics graphics = XGraphics.FromPdfPage(page);
+        graphics.DrawRectangle(new XPen(XColors.Black, 0.5), 20, 20, page.Width.Point - 40, page.Height.Point - 40);
+        graphics.DrawString(
+            label,
+            new XFont("Arial", 12),
+            XBrushes.Black,
+            new XRect(0, 0, page.Width.Point, page.Height.Point),
+            XStringFormats.Center);
     }
 
     private static string WriteSourcePackage(

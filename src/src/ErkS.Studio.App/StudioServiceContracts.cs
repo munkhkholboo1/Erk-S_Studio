@@ -202,7 +202,7 @@ internal interface ISourcePackagesClient
 
     Task<StudioCloudSourcePackage> AssignSourceCustodianAsync(
         string projectId,
-        string sourceKey,
+        string sourceId,
         string participantId,
         CancellationToken cancellationToken = default);
 }

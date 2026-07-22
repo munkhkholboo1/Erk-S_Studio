@@ -1,4 +1,5 @@
 using System.IO;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -46,6 +47,7 @@ internal sealed partial class ShellView
         "Хуудсанд оруулах",
         "Сонгосон идэвхгүй зургуудыг альбумын хуудаслалтад буцаан оруулна");
     private bool bindingVisualizationSource;
+    private CancellationTokenSource? visualizationThumbnailLoadCancellation;
 
     private ProjectVisualizationSource CurrentProjectVisualizationSource()
     {
@@ -207,12 +209,57 @@ internal sealed partial class ShellView
 
     private void RefreshVisualizationImagesList()
     {
-        visualizationImagesWorkspaceList.ItemsSource = CurrentProjectVisualizationImages()
+        CancelVisualizationThumbnailLoading();
+        List<VisualizationImageWorkspaceItem> items = CurrentProjectVisualizationImages()
             .Select(image => new VisualizationImageWorkspaceItem(
                 image,
-                TryLoadVisualizationThumbnail(image)))
+                null))
             .ToList();
+        visualizationImagesWorkspaceList.ItemsSource = items;
+        if (items.Count > 0)
+        {
+            var cancellation = new CancellationTokenSource();
+            visualizationThumbnailLoadCancellation = cancellation;
+            _ = LoadVisualizationThumbnailsAsync(
+                items,
+                state.Project.ProjectId,
+                cancellation.Token);
+        }
         UpdateVisualizationActionState();
+    }
+
+    private async Task LoadVisualizationThumbnailsAsync(
+        IReadOnlyList<VisualizationImageWorkspaceItem> items,
+        string projectId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (VisualizationImageWorkspaceItem item in items)
+            {
+                ImageSource? thumbnail = await Task.Run(
+                    () => TryLoadVisualizationThumbnail(item.Image),
+                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!state.HasOpenProject ||
+                    !state.Project.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                item.SetThumbnail(thumbnail);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void CancelVisualizationThumbnailLoading()
+    {
+        visualizationThumbnailLoadCancellation?.Cancel();
+        visualizationThumbnailLoadCancellation?.Dispose();
+        visualizationThumbnailLoadCancellation = null;
     }
 
     private void AddVisualizationImages()
@@ -644,10 +691,32 @@ internal sealed partial class ShellView
         AddConceptSheetPreviewChrome(canvas, plan.Title, plan.Number);
     }
 
-    private sealed record VisualizationImageWorkspaceItem(
-        ProjectVisualizationImage Image,
-        ImageSource? Thumbnail)
+    private sealed class VisualizationImageWorkspaceItem : INotifyPropertyChanged
     {
+        private ImageSource? thumbnail;
+
+        public VisualizationImageWorkspaceItem(
+            ProjectVisualizationImage image,
+            ImageSource? thumbnail)
+        {
+            Image = image;
+            this.thumbnail = thumbnail;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public ProjectVisualizationImage Image { get; }
+
+        public ImageSource? Thumbnail => thumbnail;
+
+        public void SetThumbnail(ImageSource? value)
+        {
+            if (ReferenceEquals(thumbnail, value))
+                return;
+            thumbnail = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Thumbnail)));
+        }
+
         public string FileName => Image.OriginalFileName;
         public string Orientation => Image.PixelWidth > Image.PixelHeight
             ? "Хөндлөн"

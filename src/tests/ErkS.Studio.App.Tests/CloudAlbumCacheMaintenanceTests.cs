@@ -46,9 +46,11 @@ public sealed class CloudAlbumCacheMaintenanceTests
 
         try
         {
+            Assert.True(CloudAlbumCacheMaintenance.IsPresent(root, current));
             Assert.True(CloudAlbumCacheMaintenance.IsHealthy(root, current, sha256));
             Assert.False(CloudAlbumCacheMaintenance.IsHealthy(root, current, new string('f', 64)));
             File.Delete(current);
+            Assert.False(CloudAlbumCacheMaintenance.IsPresent(root, current));
             Assert.False(CloudAlbumCacheMaintenance.IsHealthy(root, current, sha256));
         }
         finally

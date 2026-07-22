@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body, #map { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: #15181d; font-family: Arial, sans-serif; }
+    #map.locked { pointer-events: none; }
+    #message {
+      position: absolute; inset: 0; z-index: 10000; display: none;
+      align-items: center; justify-content: center; padding: 28px;
+      color: #a4abb6; background: #15181d; text-align: center;
+    }
+    #message.visible { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="map" class="locked"></div>
+  <div id="message">Газрын зураг ачаалж байна...</div>
+  <script>
+    (() => {
+      const host = document.getElementById('map');
+      const message = document.getElementById('message');
+      const state = {
+        providerId: 'OpenStreetMap', centerLatitude: 47.9184,
+        centerLongitude: 106.9177, zoom: 15, bearing: 0,
+        attribution: '© OpenStreetMap contributors'
+      };
+      let options = {};
+      let engine = '';
+      let map = null;
+      let tileLayer = null;
+      let editing = false;
+      let ready = false;
+
+      const scripts = new Map();
+      const styles = new Set();
+
+      function showMessage(text) {
+        message.textContent = text;
+        message.classList.toggle('visible', Boolean(text));
+      }
+
+      function loadStyle(url) {
+        if (styles.has(url)) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = url;
+        document.head.appendChild(link);
+        styles.add(url);
+      }
+
+      function loadScript(url, id) {
+        if (scripts.has(id)) return scripts.get(id);
+        const task = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.id = id;
+          script.src = url;
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Map SDK could not be loaded.'));
+          document.head.appendChild(script);
+        });
+        scripts.set(id, task);
+        return task;
+      }
+
+      function providerAttribution(providerId) {
+        switch (providerId) {
+          case 'OpenTopoMap': return '© OpenStreetMap contributors · OpenTopoMap';
+          case 'GoogleRoad':
+          case 'GoogleSatellite': return 'Google Maps';
+          case 'AzureRoad':
+          case 'AzureAerial': return 'Microsoft Azure Maps';
+          default: return '© OpenStreetMap contributors';
+        }
+      }
+
+      function pullState() {
+        if (!map) return;
+        if (engine === 'leaflet') {
+          const center = map.getCenter();
+          state.centerLatitude = center.lat;
+          state.centerLongitude = center.lng;
+          state.zoom = map.getZoom();
+        } else if (engine === 'google') {
+          const center = map.getCenter();
+          if (center) {
+            state.centerLatitude = center.lat();
+            state.centerLongitude = center.lng();
+          }
+          state.zoom = map.getZoom() || state.zoom;
+          state.bearing = map.getHeading() || 0;
+        } else if (engine === 'azure') {
+          const camera = map.getCamera();
+          state.centerLongitude = camera.center[0];
+          state.centerLatitude = camera.center[1];
+          state.zoom = camera.zoom;
+          state.bearing = camera.bearing || 0;
+        }
+      }
+
+      function destroyMap() {
+        pullState();
+        try {
+          if (engine === 'leaflet' && map) map.remove();
+          if (engine === 'azure' && map) map.dispose();
+        } catch (_) { }
+        map = null;
+        tileLayer = null;
+        engine = '';
+        ready = false;
+        host.replaceChildren();
+      }
+
+      function applyInteraction() {
+        host.classList.toggle('locked', !editing);
+        if (!map) return;
+        if (engine === 'leaflet') {
+          const method = editing ? 'enable' : 'disable';
+          ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard']
+            .forEach(name => map[name] && map[name][method]());
+        } else if (engine === 'google') {
+          map.setOptions({
+            draggable: editing,
+            scrollwheel: editing,
+            disableDoubleClickZoom: !editing,
+            gestureHandling: editing ? 'greedy' : 'none'
+          });
+        }
+      }
+
+      async function createLeaflet(providerId) {
+        loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+        await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet-sdk');
+        engine = 'leaflet';
+        map = L.map(host, { attributionControl: true, zoomControl: false })
+          .setView([state.centerLatitude, state.centerLongitude], state.zoom);
+        const topo = providerId === 'OpenTopoMap';
+        tileLayer = L.tileLayer(
+          topo
+            ? 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'
+            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          {
+            maxZoom: topo ? 17 : 19,
+            attribution: topo
+              ? '&copy; OpenStreetMap contributors, SRTM | OpenTopoMap'
+              : '&copy; OpenStreetMap contributors'
+          }).addTo(map);
+        map.on('moveend zoomend', pullState);
+        map.whenReady(() => { ready = true; showMessage(''); applyInteraction(); });
+      }
+
+      async function createGoogle(providerId) {
+        if (!options.googleApiKey) throw new Error('Google Maps API key тохируулаагүй байна.');
+        const key = encodeURIComponent(options.googleApiKey);
+        await loadScript(`https://maps.googleapis.com/maps/api/js?key=${key}&loading=async`, 'google-maps-sdk');
+        engine = 'google';
+        map = new google.maps.Map(host, {
+          center: { lat: state.centerLatitude, lng: state.centerLongitude },
+          zoom: Math.round(state.zoom),
+          heading: state.bearing,
+          mapTypeId: providerId === 'GoogleSatellite' ? 'satellite' : 'roadmap',
+          disableDefaultUI: true,
+          clickableIcons: false,
+          keyboardShortcuts: false
+        });
+        map.addListener('idle', () => { ready = true; pullState(); showMessage(''); });
+        map.addListener('center_changed', pullState);
+        map.addListener('zoom_changed', pullState);
+        applyInteraction();
+      }
+
+      async function createAzure(providerId) {
+        if (!options.azureMapsKey) throw new Error('Azure Maps key тохируулаагүй байна.');
+        loadStyle('https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css');
+        await loadScript('https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js', 'azure-maps-sdk');
+        engine = 'azure';
+        map = new atlas.Map(host, {
+          center: [state.centerLongitude, state.centerLatitude],
+          zoom: state.zoom,
+          bearing: state.bearing,
+          style: providerId === 'AzureAerial' ? 'satellite' : 'road',
+          showLogo: true,
+          showFeedbackLink: false,
+          authOptions: { authType: 'subscriptionKey', subscriptionKey: options.azureMapsKey }
+        });
+        map.events.add('ready', () => { ready = true; showMessage(''); applyInteraction(); });
+        map.events.add('moveend', pullState);
+      }
+
+      async function setProvider(providerId) {
+        destroyMap();
+        state.providerId = providerId || 'OpenStreetMap';
+        state.attribution = providerAttribution(state.providerId);
+        showMessage('Газрын зураг ачаалж байна...');
+        try {
+          if (state.providerId === 'OpenStreetMap' || state.providerId === 'OpenTopoMap') {
+            await createLeaflet(state.providerId);
+          } else if (state.providerId === 'GoogleRoad' || state.providerId === 'GoogleSatellite') {
+            await createGoogle(state.providerId);
+          } else {
+            await createAzure(state.providerId);
+          }
+        } catch (error) {
+          ready = false;
+          showMessage(error && error.message ? error.message : 'Газрын зураг ачаалсангүй.');
+          throw error;
+        }
+      }
+
+      async function init(value) {
+        options = value || {};
+        Object.assign(state, options.viewport || {});
+        editing = Boolean(options.editing);
+        await setProvider(state.providerId);
+        applyInteraction();
+        return getState();
+      }
+
+      function setEditing(value) {
+        editing = Boolean(value);
+        applyInteraction();
+      }
+
+      function zoomBy(delta) {
+        if (!map || !editing) return;
+        if (engine === 'leaflet') map.setZoom(map.getZoom() + delta);
+        else if (engine === 'google') map.setZoom((map.getZoom() || state.zoom) + delta);
+        else if (engine === 'azure') map.setCamera({ zoom: map.getCamera().zoom + delta, duration: 180 });
+        pullState();
+      }
+
+      function setState(value) {
+        Object.assign(state, value || {});
+        if (!map) return;
+        if (engine === 'leaflet') map.setView([state.centerLatitude, state.centerLongitude], state.zoom);
+        else if (engine === 'google') {
+          map.setCenter({ lat: state.centerLatitude, lng: state.centerLongitude });
+          map.setZoom(Math.round(state.zoom));
+          map.setHeading(state.bearing || 0);
+        } else if (engine === 'azure') {
+          map.setCamera({ center: [state.centerLongitude, state.centerLatitude], zoom: state.zoom, bearing: state.bearing || 0 });
+        }
+      }
+
+      function resize() {
+        if (!map) return;
+        if (engine === 'leaflet') map.invalidateSize(false);
+        else if (engine === 'google') google.maps.event.trigger(map, 'resize');
+        else if (engine === 'azure') map.resize();
+      }
+
+      function getState() {
+        pullState();
+        return {
+          providerId: state.providerId,
+          centerLatitude: state.centerLatitude,
+          centerLongitude: state.centerLongitude,
+          zoom: state.zoom,
+          bearing: state.bearing || 0,
+          attribution: state.attribution,
+          ready
+        };
+      }
+
+      window.erks = { init, setProvider, setEditing, zoomBy, setState, resize, getState };
+    })();
+  </script>
+</body>
+</html>

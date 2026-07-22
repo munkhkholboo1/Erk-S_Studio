@@ -58,12 +58,14 @@ internal sealed partial class ShellView
         ConfigureDocumentList(atdDocumentsList);
         atdDocumentsList.SelectionChanged += (_, _) =>
         {
+            bool canEditSelected = atdDocumentsList.SelectedItem is DocumentAssetRow selected &&
+                CanEditAtdDocument(selected.Document);
             atdRelinkDocumentButton.IsEnabled = foundationEditMode &&
                 !foundationSaveInProgress &&
-                atdDocumentsList.SelectedItem is not null;
+                canEditSelected;
             atdRemoveDocumentButton.IsEnabled = foundationEditMode &&
                 !foundationSaveInProgress &&
-                atdDocumentsList.SelectedItem is not null;
+                canEditSelected;
         };
         atdAddDocumentsButton.Click += (_, _) => AddAtdDocuments();
         atdRelinkDocumentButton.Click += (_, _) => RelinkAtdDocument();
@@ -231,12 +233,15 @@ internal sealed partial class ShellView
                     state.ProjectPath,
                     ProjectDocumentCategories.ApprovedPlanningTask,
                     sourcePath);
-                AddDocumentIfMissing(atdDocumentDrafts, CreateDocumentReference(
+                ProjectFileReference document = CreateDocumentReference(
                     sourcePath,
                     relativePath,
                     ProjectDocumentCategories.ApprovedPlanningTask,
                     "Батлагдсан архитектур төлөвлөлтийн даалгавар",
-                    inspection));
+                    inspection);
+                document.CloudOwnerEmail = CurrentCloudOwnerEmail();
+                document.CloudContributionId = Guid.NewGuid().ToString("N");
+                AddDocumentIfMissing(atdDocumentDrafts, document);
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
             {
@@ -252,7 +257,8 @@ internal sealed partial class ShellView
     private void RemoveAtdDocument()
     {
         if (!foundationEditMode || foundationSaveInProgress ||
-            atdDocumentsList.SelectedItem is not DocumentAssetRow selected)
+            atdDocumentsList.SelectedItem is not DocumentAssetRow selected ||
+            !CanEditAtdDocument(selected.Document))
             return;
         atdDocumentDrafts.RemoveAll(document => document.Id.Equals(selected.Document.Id, StringComparison.OrdinalIgnoreCase));
         RefreshAtdDocumentList();
@@ -262,7 +268,8 @@ internal sealed partial class ShellView
     private void RelinkAtdDocument()
     {
         if (!foundationEditMode || foundationSaveInProgress || state.ProjectPath is null ||
-            atdDocumentsList.SelectedItem is not DocumentAssetRow selected)
+            atdDocumentsList.SelectedItem is not DocumentAssetRow selected ||
+            !CanEditAtdDocument(selected.Document))
         {
             return;
         }
@@ -325,12 +332,14 @@ internal sealed partial class ShellView
     private void RefreshAtdDocumentList()
     {
         atdDocumentsList.ItemsSource = atdDocumentDrafts.Select(document => new DocumentAssetRow(document)).ToList();
+        bool canEditSelected = atdDocumentsList.SelectedItem is DocumentAssetRow selected &&
+            CanEditAtdDocument(selected.Document);
         atdRelinkDocumentButton.IsEnabled = foundationEditMode &&
             !foundationSaveInProgress &&
-            atdDocumentsList.SelectedItem is not null;
+            canEditSelected;
         atdRemoveDocumentButton.IsEnabled = foundationEditMode &&
             !foundationSaveInProgress &&
-            atdDocumentsList.SelectedItem is not null;
+            canEditSelected;
     }
 
     private void BindCompanyDocumentDrafts(CompanyProfile profile)
@@ -542,6 +551,7 @@ internal sealed partial class ShellView
         ProjectFileReference candidate)
     {
         ProjectFileReference? linked = documents.FirstOrDefault(document =>
+            SameDocumentOwner(document, candidate) &&
             PathsEqual(document.LinkedSourcePath, candidate.LinkedSourcePath));
         if (linked is not null)
         {
@@ -549,6 +559,7 @@ internal sealed partial class ShellView
             return;
         }
         ProjectFileReference? sameContent = documents.FirstOrDefault(document =>
+            SameDocumentOwner(document, candidate) &&
             document.Sha256.Equals(candidate.Sha256, StringComparison.OrdinalIgnoreCase));
         if (sameContent is not null)
         {
@@ -623,7 +634,22 @@ internal sealed partial class ShellView
     private static string DocumentIdentity(ProjectFileReference document) =>
         $"{document.Category}|{document.Sha256}|{document.PageCount}|{document.RelativePath}|" +
         $"{document.LinkedSourcePath}|{document.IsAvailable}|{document.Version}|" +
-        $"{document.ServerFileRevisionId}|{document.CloudSyncStatus}";
+        $"{document.ServerFileRevisionId}|{document.CloudSyncStatus}|{document.CloudOwnerEmail}|" +
+        $"{document.CloudContributionId}|{document.IsCloudPlaceholder}";
+
+    private bool CanEditAtdDocument(ProjectFileReference document)
+    {
+        if (document.IsCloudPlaceholder)
+            return false;
+        string owner = (document.CloudOwnerEmail ?? "").Trim();
+        return string.IsNullOrWhiteSpace(owner) ||
+            owner.Equals(CurrentCloudOwnerEmail(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameDocumentOwner(ProjectFileReference left, ProjectFileReference right) =>
+        (left.CloudOwnerEmail ?? "").Trim().Equals(
+            (right.CloudOwnerEmail ?? "").Trim(),
+            StringComparison.OrdinalIgnoreCase);
 
     private sealed record DocumentAssetRow(ProjectFileReference Document)
     {
@@ -634,6 +660,12 @@ internal sealed partial class ShellView
         public string Pages => Math.Max(1, Document.PageCount).ToString();
         public string Status => !Document.IsAvailable
             ? "Эх файл олдсонгүй"
+            : Document.IsCloudPlaceholder || !string.IsNullOrWhiteSpace(Document.CloudOwnerEmail)
+                ? Document.CloudSyncStatus.Equals(ProjectDocumentCloudSyncStatuses.PendingUpload, StringComparison.OrdinalIgnoreCase)
+                    ? "Cloud sync хүлээгдэж байна"
+                    : "Cloud · " + (string.IsNullOrWhiteSpace(Document.CloudOwnerEmail)
+                        ? "эх үүсвэр"
+                        : Document.CloudOwnerEmail)
             : Document.CloudSyncStatus switch
             {
                 ProjectDocumentCloudSyncStatuses.PendingUpload => "Cloud sync хүлээгдэж байна",

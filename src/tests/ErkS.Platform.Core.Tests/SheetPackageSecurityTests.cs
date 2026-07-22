@@ -199,6 +199,7 @@ public sealed class SheetPackageSecurityTests : IDisposable
             CreateEntry("A1", "shared.pdf", 420, 297),
             CreateEntry("A1", "shared.pdf", 420, 297),
         ]);
+        manifest.SchemaVersion = 4;
         string hash = SheetPackageReader.ComputeSha256(Path.Combine(packageFolder, "shared.pdf"));
         foreach (SheetPackageEntry entry in manifest.Sheets)
         {
@@ -212,6 +213,52 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.False(result.IsLossless);
         Assert.Contains(result.Issues, issue => issue.Contains("duplicate sheet id", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Issues, issue => issue.Contains("duplicate PDF filename", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void SchemaFive_AllowsDistinctPagesOfOneSharedPdf()
+    {
+        string packageFolder = Path.Combine(workDirectory, "shared-pages");
+        Directory.CreateDirectory(packageFolder);
+        string pdfPath = Path.Combine(packageFolder, "layouts.pdf");
+        WriteMultiPageVectorPdf(pdfPath, 2, 420, 297);
+        var first = CreateEntry("A1", "layouts.pdf", 420, 297);
+        first.PdfPageNumber = 1;
+        var second = CreateEntry("A2", "layouts.pdf", 420, 297);
+        second.PdfPageNumber = 2;
+        SheetPackageManifest manifest = CreateManifest([first, second]);
+        manifest.SchemaVersion = SheetPackageManifest.CurrentSchemaVersion;
+
+        string manifestPath = SheetPackageWriter.Write(manifest, packageFolder, "shared-pages");
+        SheetPackageLoadResult result = SheetPackageReader.Load(manifestPath);
+
+        Assert.True(result.IsLossless, string.Join(" | ", result.Issues));
+        Assert.Equal([1, 2], result.Manifest!.Sheets.Select(sheet => sheet.PdfPageNumber));
+        Assert.All(result.Manifest.Sheets, sheet => Assert.Equal("layouts.pdf", sheet.PdfFileName));
+    }
+
+    [Fact]
+    public void SchemaFive_RejectsPageReferenceOutsideSharedPdf()
+    {
+        string packageFolder = Path.Combine(workDirectory, "shared-page-range");
+        Directory.CreateDirectory(packageFolder);
+        string pdfPath = Path.Combine(packageFolder, "layouts.pdf");
+        WriteMultiPageVectorPdf(pdfPath, 2, 420, 297);
+        SheetPackageEntry entry = CreateEntry("A3", "layouts.pdf", 420, 297);
+        entry.PdfPageNumber = 3;
+        SheetPackageManifest manifest = CreateManifest([entry]);
+        manifest.SchemaVersion = SheetPackageManifest.CurrentSchemaVersion;
+        entry.Sha256 = SheetPackageReader.ComputeSha256(pdfPath);
+        string manifestPath = Path.Combine(
+            packageFolder,
+            "shared-page-range" + SheetPackageManifest.ManifestSuffix);
+        SaveManifest(manifestPath, manifest);
+
+        SheetPackageLoadResult result = SheetPackageReader.Load(manifestPath);
+
+        Assert.False(result.IsLossless);
+        Assert.Contains(result.Issues, issue =>
+            issue.Contains("outside", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -685,6 +732,37 @@ public sealed class SheetPackageSecurityTests : IDisposable
     }
 
     [Fact]
+    public void UnchangedPackage_ReusesVerifiedFilesDuringProjectReconciliation()
+    {
+        PackageFiles package = WritePackage(
+            "reconciliation-dirty-check",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow);
+        SheetPackageLoadResult verified = SheetPackageReader.Load(package.ManifestPath);
+        var library = new SheetLibrary();
+        library.Absorb(verified);
+        var source = new ProjectDesignSource { Id = "security-source" };
+        var project = new ProjectWorkspace { Sources = [source] };
+        var album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        using FileStream pdfLock = File.Open(
+            package.PdfPaths[0],
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+
+        ProjectPackageReconciliationResult? result = ProjectPackageReconciliationService.Apply(
+            project,
+            album,
+            library,
+            verified);
+
+        Assert.NotNull(result);
+        Assert.Equal("security-source|a1", Assert.Single(album.Pages).SheetKey);
+        Assert.Single(ProjectCloudSyncMetadata.SourcePackages(project));
+    }
+
+    [Fact]
     public void ValidFullSnapshot_ReconciliationRemovesOnlyDeletedSourcePages()
     {
         DateTimeOffset start = DateTimeOffset.UtcNow.AddMinutes(-1);
@@ -1051,6 +1129,24 @@ public sealed class SheetPackageSecurityTests : IDisposable
             XBrushes.Black,
             new XRect(0, 0, page.Width.Point, page.Height.Point),
             XStringFormats.Center);
+        document.Save(path);
+    }
+
+    private static void WriteMultiPageVectorPdf(
+        string path,
+        int pageCount,
+        double widthMm,
+        double heightMm)
+    {
+        using var document = new PdfDocument();
+        for (int index = 1; index <= pageCount; index++)
+        {
+            PdfPage page = document.AddPage();
+            page.Width = XUnit.FromMillimeter(widthMm);
+            page.Height = XUnit.FromMillimeter(heightMm);
+            using XGraphics gfx = XGraphics.FromPdfPage(page);
+            gfx.DrawLine(new XPen(XColors.Black, 0.5), 20, 20 + index, page.Width.Point - 20, page.Height.Point - 20);
+        }
         document.Save(path);
     }
 

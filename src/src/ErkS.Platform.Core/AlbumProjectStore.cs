@@ -88,6 +88,10 @@ public static class AlbumProjectStore
         project.Visualizations.Normalize(string.IsNullOrWhiteSpace(project.ProjectId)
             ? null
             : project.ProjectId);
+        project.SiteContext ??= new ProjectSiteContextMap();
+        project.SiteContext.Normalize(string.IsNullOrWhiteSpace(project.ProjectId)
+            ? null
+            : project.ProjectId);
         project.Album ??= new AlbumDefinition();
         project.Album.Sections ??= [];
         project.Album.Pages ??= [];

@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.10] - 2026-07-22
+
+- Merge independently authored Cloud ERA source manifests and album components without deleting another member's contribution.
+- Preserve source ownership and project identity while reconciling same-named sources from different projects and devices.
+- Compose shared component PDFs into one canonical album and remove obsolete temporary merge artifacts.
+- Add the location scheme and surrounding-context map editor foundation with project-scoped assets.
+- Improve source refresh, Cloud dirty detection, project opening, and current-album cache handling.
+
 ## [0.1.0-dev.9] - 2026-07-21
 
 - Merge each collaborator's changed album components into the canonical Cloud PDF without replacing components owned by other devices.

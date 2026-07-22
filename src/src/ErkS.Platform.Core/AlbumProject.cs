@@ -76,6 +76,9 @@ public sealed class AlbumProject
     /// <summary>Project-owned images composed into the concept album's visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 
+    /// <summary>Studio-owned map extents and compact snapshots for the site context page.</summary>
+    public ProjectSiteContextMap SiteContext { get; set; } = new();
+
     public AlbumDefinition Album { get; set; } = new();
 
     /// <summary>Where composed album PDFs are written.</summary>
@@ -346,6 +349,7 @@ public enum AlbumGeneratedPageKind
     Cover,
     DesignOrganization,
     PlanningTask,
+    SiteContext,
 }
 
 public sealed class AlbumSection

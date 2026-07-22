@@ -8,19 +8,25 @@ namespace ErkS.Platform.Contracts;
 /// The lossless hand-off format between design applications (AutoCAD layouts,
 /// Revit sheets) and the Erk-S Platform album pipeline.
 ///
-/// A "sheet package" is a folder containing one vector PDF per sheet plus a
-/// manifest file (<c>*.erks-sheets.json</c>). Every PDF carries a SHA-256 hash
-/// in the manifest so the receiving side can prove nothing was corrupted or
-/// lost in transit.
+/// A "sheet package" is a folder containing one or more vector PDFs plus a
+/// manifest file (<c>*.erks-sheets.json</c>). Schema 5 allows several logical
+/// sheets to reference distinct pages of one multi-page PDF. Every PDF carries
+/// a SHA-256 hash in the manifest so the receiving side can prove nothing was
+/// corrupted or lost in transit.
 /// </summary>
 public sealed class SheetPackageManifest
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     /// <summary>File suffix that marks a manifest: "MyExport.erks-sheets.json".</summary>
     public const string ManifestSuffix = ".erks-sheets.json";
 
-    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+    /// <summary>
+    /// Existing producers remain on schema 4 until they explicitly emit page
+    /// references. This prevents a legacy multi-page PDF from being mistaken
+    /// for a schema-5 single-page sheet entry.
+    /// </summary>
+    public int SchemaVersion { get; set; } = 4;
 
     /// <summary>Stable id of this export run; re-exports produce a new id.</summary>
     public Guid PackageId { get; set; } = Guid.NewGuid();
@@ -156,6 +162,17 @@ public sealed class SheetPackageEntry
     /// <summary>SHA-256 of the PDF file, lower-case hex.</summary>
     public string Sha256 { get; set; } = "";
 
+    /// <summary>
+    /// One-based page in <see cref="PdfFileName"/> represented by this logical
+    /// sheet. Schema 5 producers must set this value. Schema 1-4 readers ignore
+    /// it and retain their legacy whole-PDF behavior.
+    /// </summary>
+    public int PdfPageNumber { get; set; }
+
+    /// <summary>
+    /// Logical page count represented by this entry. Schema 5 sheet entries
+    /// reference one page even when their shared PDF contains many pages.
+    /// </summary>
     public int PageCount { get; set; } = 1;
 }
 

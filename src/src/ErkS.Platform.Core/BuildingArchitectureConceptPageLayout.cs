@@ -46,6 +46,11 @@ public static class BuildingArchitectureConceptPageLayout
     public const double SheetHeaderBottomMm = 14.0;
     public const double ContentBottomMm = 264.0;
 
+    public const double SiteContextPanelGapMm = 2.0;
+    public const double SiteContextPanelTitleHeightMm = 10.0;
+    public const double SiteContextPanelWidthMm =
+        (FrameRightMm - FrameLeftMm - SiteContextPanelGapMm) * 0.5;
+
     // Facade sheets reserve a project-information band before the ordinary
     // sheet-name band. These measurements are shared with the Revit guide.
     public const double ElevationInformationHeightMm = 55.0;
@@ -93,6 +98,30 @@ public static class BuildingArchitectureConceptPageLayout
         SheetHeaderBottomMm,
         FrameRightMm - FrameLeftMm,
         ContentBottomMm - SheetHeaderBottomMm);
+
+    public static PageRectMm SiteContextLocationPanel => Rect(
+        FrameLeftMm,
+        SheetHeaderBottomMm,
+        SiteContextPanelWidthMm,
+        ContentBottomMm - SheetHeaderBottomMm);
+
+    public static PageRectMm SiteContextOverviewPanel => Rect(
+        FrameLeftMm + SiteContextPanelWidthMm + SiteContextPanelGapMm,
+        SheetHeaderBottomMm,
+        SiteContextPanelWidthMm,
+        ContentBottomMm - SheetHeaderBottomMm);
+
+    public static PageRectMm SiteContextLocationMapArea => Rect(
+        SiteContextLocationPanel.X,
+        SiteContextLocationPanel.Y + SiteContextPanelTitleHeightMm,
+        SiteContextLocationPanel.Width,
+        SiteContextLocationPanel.Height - SiteContextPanelTitleHeightMm);
+
+    public static PageRectMm SiteContextOverviewMapArea => Rect(
+        SiteContextOverviewPanel.X,
+        SiteContextOverviewPanel.Y + SiteContextPanelTitleHeightMm,
+        SiteContextOverviewPanel.Width,
+        SiteContextOverviewPanel.Height - SiteContextPanelTitleHeightMm);
 
     public static PageRectMm ElevationInformationArea => Rect(
         FrameLeftMm,
@@ -177,6 +206,17 @@ public static class BuildingArchitectureConceptPageLayout
 
         return IsElevationText(contentKind) || IsElevationText(sheetName);
     }
+
+    public static bool UsesInformationHeader(
+        string? contentKind,
+        string? sheetName = null,
+        string? templateSlotId = null) =>
+        IsElevationSheet(contentKind, sheetName, templateSlotId) ||
+        string.Equals(templateSlotId, "master-plan", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(
+            sheetName?.Trim(),
+            "ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ",
+            StringComparison.OrdinalIgnoreCase);
 
     public static PageFormatDefinition ApplyElevationGeometry(PageFormatDefinition source)
     {

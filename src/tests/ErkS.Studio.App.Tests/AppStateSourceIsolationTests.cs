@@ -93,6 +93,87 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     }
 
     [Fact]
+    public void LinkCloudProject_PersistsEveryContributorsMetadataOnlySourceSlot()
+    {
+        var (projectPath, _) = WriteProject(sources: [], pageKeys: [], lastPdfPath: "");
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+        const string ownerA = "architect-a@erks.local";
+        const string ownerB = "architect-b@erks.local";
+        const string sourceKey = "shared-building";
+        string codeA = StudioAlbumComponentIdentity.SourceCode(ownerA, sourceKey);
+        string codeB = StudioAlbumComponentIdentity.SourceCode(ownerB, sourceKey);
+        var cloud = new StudioCloudProjectDetail
+        {
+            Project = new StudioCloudProjectSummary
+            {
+                ProjectId = "cloud-project-1",
+                ProjectCode = "CLOUD-001",
+                Name = "Shared source project",
+                CurrentStage = "ConceptDesign",
+                ConcurrencyToken = "token-1",
+            },
+            DesignPackages =
+            [
+                new StudioCloudDesignPackage
+                {
+                    SourcePackages =
+                    [
+                        CloudSource("source-a", sourceKey, ownerA),
+                        CloudSource("source-b", sourceKey, ownerB),
+                    ],
+                },
+            ],
+            Albums =
+            [
+                new StudioCloudAlbum
+                {
+                    AlbumId = "album-1",
+                    CurrentRevisionId = "revision-1",
+                    Revisions =
+                    [
+                        new StudioCloudAlbumRevision
+                        {
+                            RevisionId = "revision-1",
+                            PageCount = 3,
+                            SectionManifest =
+                            [
+                                new StudioCloudAlbumSection
+                                {
+                                    Code = "generated:cover:Cover",
+                                    Label = "Нүүр хуудас",
+                                    Order = 0,
+                                    PageNumbers = [1],
+                                    ComponentKind = StudioAlbumComponentIdentity.GeneratedComponentKind,
+                                },
+                                CloudSourceSection(codeA, ownerA, sourceKey, 100, 2),
+                                CloudSourceSection(codeB, ownerB, sourceKey, 110, 3),
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        state.LinkCurrentProjectToCloud(cloud, "https://erk-s.mn");
+
+        Assert.Empty(state.Project.Sources);
+        Assert.Equal(2, state.Project.Cloud.SharedSources.Count);
+        Assert.Equal([ownerA, ownerB], state.Project.Cloud.SharedSources
+            .Select(source => source.OwnerEmail)
+            .Order()
+            .ToArray());
+        Assert.Equal(2, state.Project.Cloud.SharedAlbumComponents.Count(component =>
+            component.ComponentKind.Equals(
+                StudioAlbumComponentIdentity.SourceComponentKind,
+                StringComparison.OrdinalIgnoreCase)));
+        ProjectWorkspace persisted = ProjectWorkspaceStore.Load(projectPath);
+        Assert.Equal(2, persisted.Cloud.SharedSources.Count);
+        Assert.Contains(persisted.Cloud.SharedAlbumComponents, component => component.Code == codeA);
+        Assert.Contains(persisted.Cloud.SharedAlbumComponents, component => component.Code == codeB);
+    }
+
+    [Fact]
     public void ReconcileProjectAssetSources_MissingAtdInvalidatesBuiltAlbum()
     {
         string sourcePath = Path.Combine(workDirectory, "approved-atd.png");
@@ -201,4 +282,37 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             InboxFolder = sourceFolder,
         };
     }
+
+    private static StudioCloudSourcePackage CloudSource(
+        string sourceId,
+        string sourceKey,
+        string ownerEmail) => new()
+        {
+            SourceId = sourceId,
+            SourceKey = sourceKey,
+            SourceApplication = "Revit",
+            SourceDocumentReference = "Shared building.rvt",
+            ManifestId = "manifest-" + sourceId,
+            ContentHash = "hash-" + sourceId,
+            Status = "Registered",
+            RegisteredBy = ownerEmail,
+            RegisteredAtUtc = DateTimeOffset.UtcNow,
+        };
+
+    private static StudioCloudAlbumSection CloudSourceSection(
+        string code,
+        string ownerEmail,
+        string sourceKey,
+        int order,
+        int page) => new()
+        {
+            Code = code,
+            Label = "Shared building",
+            Order = order,
+            PageNumbers = [page],
+            Status = "Available",
+            OwnerEmail = ownerEmail,
+            SourceKey = sourceKey,
+            ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
+        };
 }

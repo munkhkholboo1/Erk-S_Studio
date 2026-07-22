@@ -560,14 +560,14 @@ internal sealed class StudioAccountService :
 
     public async Task<StudioCloudSourcePackage> AssignSourceCustodianAsync(
         string projectId,
-        string sourceKey,
+        string sourceId,
         string participantId,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PutAuthorizedAsync<StudioCloudSourceCustodianAssignRequest, StudioCloudSourcePackage>(
             "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
-            "/sources/" + Uri.EscapeDataString(sourceKey) + "/custodian",
+            "/sources/" + Uri.EscapeDataString(sourceId) + "/custodian",
             new StudioCloudSourceCustodianAssignRequest { ParticipantId = participantId },
             cancellationToken,
             relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
@@ -926,6 +926,27 @@ internal sealed class StudioAccountService :
             cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task<StudioCloudSourcePackage> RetireSourcePackageAsync(
+        string projectId,
+        string sourceId,
+        CancellationToken cancellationToken = default)
+    {
+        RequireCapability(CloudEraFeatures.SourcePackagesV4);
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ??
+            throw new StudioAccountException("Studio account is not signed in.");
+        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/source-packages/" + Uri.EscapeDataString(sourceId);
+        using HttpRequestMessage request = new(HttpMethod.Delete, BuildUri(session.ServerUrl, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<StudioCloudSourcePackage>(
+            response,
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudAlbumRevision> UploadAlbumRevisionAsync(
         string projectId,
         string albumId,
@@ -1020,6 +1041,7 @@ internal sealed class StudioAccountService :
         CancellationToken cancellationToken = default)
     {
         RequireCapability(CloudEraFeatures.AlbumComponentMergeV1);
+        RequireCapability(CloudEraFeatures.ContributorOwnedComponentsV1);
         List<StudioAlbumComponentUpload> uploads = (components ?? [])
             .Where(item => item is not null)
             .ToList();
@@ -1047,6 +1069,8 @@ internal sealed class StudioAccountService :
                 Label = component.Label,
                 Order = component.Order,
                 Remove = component.Remove,
+                SourceKey = component.SourceKey,
+                ComponentKind = component.ComponentKind,
             });
             if (component.Remove)
                 continue;
@@ -1446,6 +1470,7 @@ internal sealed class StudioAccountService :
             [CloudEraFeatures.SourcePackagesV4] = true,
             [CloudEraFeatures.AlbumRevisions] = true,
             [CloudEraFeatures.AlbumComponentMergeV1] = false,
+            [CloudEraFeatures.ContributorOwnedComponentsV1] = false,
             [CloudEraFeatures.OptimisticConcurrency] = false,
             [CloudEraFeatures.IdempotentSync] = true,
             [CloudEraFeatures.RelationshipBoundary] = true,

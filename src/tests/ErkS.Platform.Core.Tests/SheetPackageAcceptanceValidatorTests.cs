@@ -55,6 +55,41 @@ public sealed class SheetPackageAcceptanceValidatorTests : IDisposable
     }
 
     [Fact]
+    public void MultiSheetPdf_InspectsEachReferencedPageOnce()
+    {
+        string directory = Path.Combine(workDirectory, "multi-sheet");
+        Directory.CreateDirectory(directory);
+        string pdfPath = Path.Combine(directory, "layouts.pdf");
+        WriteMultiPageVectorPdf(pdfPath, 2);
+        var manifest = new SheetPackageManifest
+        {
+            SchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
+            Source = new SheetPackageSource
+            {
+                SourceId = "autocad-multi-sheet",
+                Application = SheetSourceApplication.AutoCad,
+                ApplicationVersion = "AutoCAD 2026",
+                DocumentPath = @"C:\reference\drawing.dwg",
+                DocumentTitle = "drawing.dwg",
+            },
+            PackageScope = SheetPackageScope.FullSnapshot,
+            Sheets =
+            [
+                CreateSharedPageEntry("layout-1", "01", 1),
+                CreateSharedPageEntry("layout-2", "02", 2),
+            ],
+        };
+        string manifestPath = SheetPackageWriter.Write(manifest, directory, "multi-sheet");
+
+        SheetPackageAcceptanceReport report = SheetPackageAcceptanceValidator.Validate(manifestPath);
+
+        Assert.True(report.IsAccepted, string.Join(" | ", report.Issues));
+        Assert.Equal(2, report.Pages.Count);
+        Assert.Equal([1, 2], report.Pages.Select(page => page.PdfPageNumber));
+        Assert.Equal(["layout-1", "layout-2"], report.Pages.Select(page => page.SheetId));
+    }
+
+    [Fact]
     public void TamperedPackage_IsRejectedBeforeVectorInspection()
     {
         string manifestPath = WritePackage("tampered", WriteVectorPdf);
@@ -140,6 +175,37 @@ public sealed class SheetPackageAcceptanceValidatorTests : IDisposable
         using XGraphics graphics = XGraphics.FromPdfPage(page);
         graphics.DrawRectangle(new XPen(XColors.Black, 0.5), 20, 20, 300, 160);
         graphics.DrawLine(new XPen(XColors.DarkBlue, 1), 20, 60, 300, 60);
+        document.Save(path);
+    }
+
+    private static SheetPackageEntry CreateSharedPageEntry(
+        string sheetId,
+        string number,
+        int pdfPageNumber) => new()
+        {
+            SheetId = sheetId,
+            Number = number,
+            Name = "Layout " + number,
+            WidthMm = 420,
+            HeightMm = 297,
+            ContentWidthMm = 420,
+            ContentHeightMm = 297,
+            PdfFileName = "layouts.pdf",
+            PdfPageNumber = pdfPageNumber,
+            PageCount = 1,
+        };
+
+    private static void WriteMultiPageVectorPdf(string path, int pageCount)
+    {
+        using var document = new PdfDocument();
+        for (int index = 1; index <= pageCount; index++)
+        {
+            PdfPage page = document.AddPage();
+            page.Width = XUnit.FromMillimeter(420);
+            page.Height = XUnit.FromMillimeter(297);
+            using XGraphics graphics = XGraphics.FromPdfPage(page);
+            graphics.DrawRectangle(new XPen(XColors.Black, 0.5), 20 + index, 20, 300, 160);
+        }
         document.Save(path);
     }
 

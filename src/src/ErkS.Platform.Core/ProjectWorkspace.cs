@@ -41,6 +41,9 @@ public sealed class ProjectWorkspace
     /// <summary>Studio-owned raster source for automatically composed visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 
+    /// <summary>Studio-owned location scheme and surroundings overview map source.</summary>
+    public ProjectSiteContextMap SiteContext { get; set; } = new();
+
     public ProjectDeliverables Deliverables { get; set; } = new();
 
     public ProjectArchive Archive { get; set; } = new();
@@ -110,6 +113,12 @@ public sealed class ProjectCloudLink
     public string LastReceivedAlbumSha256 { get; set; } = "";
     public string LastReceivedAlbumRevisionId { get; set; } = "";
     public int LastReceivedAlbumRevisionNumber { get; set; }
+    /// <summary>
+    /// Project-relative path to the immutable canonical PDF downloaded for
+    /// LastReceivedAlbumRevisionId. The current local preview may point to a
+    /// merged working copy, so the canonical cache needs its own pointer.
+    /// </summary>
+    public string LastReceivedAlbumPdfPath { get; set; } = "";
     public string LastReceivedClientLogoKey { get; set; } = "";
     public string LastReceivedDesignOrganizationLogoKey { get; set; } = "";
     public string LastServerConcurrencyToken { get; set; } = "";
@@ -120,6 +129,16 @@ public sealed class ProjectCloudLink
     /// canonical Cloud revision. A failed merge remains retryable.
     /// </summary>
     public List<string> PendingAlbumComponentCodes { get; set; } = [];
+    /// <summary>
+    /// Metadata-only source registry received from Cloud ERA. Native authoring
+    /// files are never downloaded through this list.
+    /// </summary>
+    public List<ProjectCloudSourceReference> SharedSources { get; set; } = [];
+    /// <summary>
+    /// Canonical album slots. Foreign slots are visible but remain read-only on
+    /// this device unless their owner links a local source.
+    /// </summary>
+    public List<ProjectCloudAlbumComponentReference> SharedAlbumComponents { get; set; } = [];
     public List<string> CurrentUserRoles { get; set; } = [];
     public List<string> CurrentUserScopes { get; set; } = [];
     public ProjectServerSnapshot ServerSnapshot { get; set; } = new();
@@ -458,6 +477,32 @@ public sealed class PlanningTaskInformation
     public List<ProjectMember> AuthorityMembers { get; set; } = [];
 }
 
+public sealed class ProjectCloudSourceReference
+{
+    public string SourceId { get; set; } = "";
+    public string SourceKey { get; set; } = "";
+    public string SourceApplication { get; set; } = "";
+    public string SourceDocumentReference { get; set; } = "";
+    public string ManifestId { get; set; } = "";
+    public string ContentHash { get; set; } = "";
+    public int SheetCount { get; set; }
+    public string Status { get; set; } = "";
+    public string OwnerEmail { get; set; } = "";
+    public DateTimeOffset RegisteredAtUtc { get; set; }
+}
+
+public sealed class ProjectCloudAlbumComponentReference
+{
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public int Order { get; set; }
+    public List<int> PageNumbers { get; set; } = [];
+    public string Status { get; set; } = "";
+    public string OwnerEmail { get; set; } = "";
+    public string SourceKey { get; set; } = "";
+    public string ComponentKind { get; set; } = "";
+}
+
 /// <summary>
 /// The design-company assignment is stage-scoped. Reassignments retain their
 /// previous snapshots so project documents remain auditable.
@@ -523,6 +568,12 @@ public sealed class ProjectFileReference
     public string ServerFileRevisionId { get; set; } = "";
     public int ServerDocumentVersion { get; set; }
     public string CloudSyncStatus { get; set; } = ProjectDocumentCloudSyncStatuses.Local;
+    /// <summary>Cloud contributor that owns this document source. Empty is a legacy local document.</summary>
+    public string CloudOwnerEmail { get; set; } = "";
+    /// <summary>Stable metadata-only contribution identity; the native source is never transferred.</summary>
+    public string CloudContributionId { get; set; } = "";
+    /// <summary>True when only the shared source slot is present on this device.</summary>
+    public bool IsCloudPlaceholder { get; set; }
     public string Sha256 { get; set; } = "";
     public int Version { get; set; } = 1;
     public DateTimeOffset AddedAtUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -545,6 +596,9 @@ public sealed class ProjectFileReference
         ServerFileRevisionId = ServerFileRevisionId,
         ServerDocumentVersion = ServerDocumentVersion,
         CloudSyncStatus = CloudSyncStatus,
+        CloudOwnerEmail = CloudOwnerEmail,
+        CloudContributionId = CloudContributionId,
+        IsCloudPlaceholder = IsCloudPlaceholder,
         Sha256 = Sha256,
         Version = Version,
         AddedAtUtc = AddedAtUtc,
