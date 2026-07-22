@@ -1184,6 +1184,23 @@ public sealed class SheetPackageTests : IDisposable
                 representativePosition));
     }
 
+    [Fact]
+    public void StoredClientType_InfersLegacyOrganizationWithoutOverridingExplicitCitizen()
+    {
+        var organization = new CompanyProfile { OrganizationType = "ClientOrganization" };
+        var authority = new CompanyProfile { OrganizationType = "GovernmentAuthority" };
+
+        Assert.Equal(
+            ProjectClientTypes.Organization,
+            ProjectClientTypes.ResolveStoredType(null, organization));
+        Assert.Equal(
+            ProjectClientTypes.GovernmentAuthority,
+            ProjectClientTypes.ResolveStoredType("", authority));
+        Assert.Equal(
+            ProjectClientTypes.Citizen,
+            ProjectClientTypes.ResolveStoredType(ProjectClientTypes.Citizen, organization));
+    }
+
     [Theory]
     [InlineData(ProjectClientTypes.Citizen, "Захиалагчийн нэр")]
     [InlineData(ProjectClientTypes.Organization, "Захиалагч байгууллагын нэр")]
@@ -1250,6 +1267,44 @@ public sealed class SheetPackageTests : IDisposable
         Assert.DoesNotContain(
             BuildingArchitectureConceptPageLayout.ElevationRoleColumnRightMm,
             BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm);
+    }
+
+    [Fact]
+    public void ConceptA3PortraitPage_UsesTopBindingAndPortraitTitleBlock()
+    {
+        PageFormatDefinition standard = PageFormatCatalog.Resolve(
+            PageFormatCatalog.ConceptA3PortraitTopId);
+        var page = new AlbumPageDefinition
+        {
+            PageFormatId = PageFormatCatalog.ConceptA3PortraitTopId,
+            TemplateSlotId = "elevations",
+        };
+        var entry = new SheetPackageEntry
+        {
+            ContentKind = "Elevation",
+            Name = "Portrait facade",
+        };
+
+        PageFormatDefinition elevation = PageFormatCatalog.ResolveForConceptPage(page, entry);
+
+        Assert.Equal((297d, 420d, "PORTRAIT", "TOP"),
+            (standard.WidthMm, standard.HeightMm, standard.Orientation, standard.BindEdge));
+        Assert.Equal((5d, 15d, 287d, 9d),
+            (standard.SheetTitleArea.X, standard.SheetTitleArea.Y,
+                standard.SheetTitleArea.Width, standard.SheetTitleArea.Height));
+        Assert.Equal((5d, 24d, 287d, 363d),
+            (standard.DrawingArea.X, standard.DrawingArea.Y,
+                standard.DrawingArea.Width, standard.DrawingArea.Height));
+        Assert.Equal((102d, 387d, 190d, 28d),
+            (standard.TitleBlockArea.X, standard.TitleBlockArea.Y,
+                standard.TitleBlockArea.Width, standard.TitleBlockArea.Height));
+        Assert.Equal(PageFormatCatalog.ConceptElevationA3PortraitTopId, elevation.Id);
+        Assert.Equal((5d, 70d, 287d, 9d),
+            (elevation.SheetTitleArea.X, elevation.SheetTitleArea.Y,
+                elevation.SheetTitleArea.Width, elevation.SheetTitleArea.Height));
+        Assert.Equal((5d, 79d, 287d, 308d),
+            (elevation.DrawingArea.X, elevation.DrawingArea.Y,
+                elevation.DrawingArea.Width, elevation.DrawingArea.Height));
     }
 
     [Fact]

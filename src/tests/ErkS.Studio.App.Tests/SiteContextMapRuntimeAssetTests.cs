@@ -17,7 +17,14 @@ public sealed class SiteContextMapRuntimeAssetTests
 
             Assert.Equal(SiteContextMapRuntimeAsset.FileName, Path.GetFileName(path));
             Assert.True(File.Exists(path));
-            Assert.Contains("window.erks", File.ReadAllText(path));
+            string runtime = File.ReadAllText(path);
+            Assert.Contains("window.erks", runtime);
+            Assert.Contains("fitBounds", runtime);
+            Assert.Contains("currentBounds", runtime);
+            Assert.Contains("setPlanFeatures", runtime);
+            Assert.Contains("renderPlanFeatures", runtime);
+            Assert.Contains("roadPaths", runtime);
+            Assert.Contains("buildingRings", runtime);
         }
         finally
         {

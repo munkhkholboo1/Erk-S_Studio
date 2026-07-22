@@ -1862,11 +1862,6 @@ internal sealed partial class ShellView : IDisposable
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн нэр", projectNameBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Үндэслэлийн төрөл", basisSourceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Хүсэлтийн дугаар", requestNumberBox));
-        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн төрөл", BuildClientTypeEditor()));
-        clientNameRow = StudioWidgets.CreateFormRow("Захиалагчийн нэр", clientNameBox);
-        clientNameLabel = (clientNameRow as Grid)?.Children.OfType<TextBlock>().FirstOrDefault();
-        form.Children.Add(clientNameRow);
-        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн лого", BuildClientLogoEditor()));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Газрын холбоос", landReferenceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Эх байгууллага", basisSourceOrganizationBox));
@@ -1914,8 +1909,21 @@ internal sealed partial class ShellView : IDisposable
         return panel;
     }
 
-    private string SelectedClientType =>
-        (clientTypeBox.SelectedItem as ClientTypeOption)?.Value ?? ProjectClientTypes.Citizen;
+    private string SelectedClientType
+    {
+        get
+        {
+            if (clientTypeBox.SelectedItem is ClientTypeOption option)
+                return option.Value;
+            if (!state.HasOpenProject)
+                return ProjectClientTypes.Citizen;
+
+            ProjectInitiationBasis basis = state.Project.Foundation.InitiationBasis;
+            return ProjectClientTypes.ResolveStoredType(
+                basis.ClientType,
+                basis.ClientOrganizationSnapshot);
+        }
+    }
 
     private void SelectClientType(string? value)
     {
@@ -2120,6 +2128,10 @@ internal sealed partial class ShellView : IDisposable
         clientParticipantsSummaryText.Foreground = StudioTheme.MutedTextBrush;
         clientParticipantsSummaryText.Margin = new Thickness(0, 0, 0, 12);
         form.Children.Add(clientParticipantsSummaryText);
+        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн төрөл", BuildClientTypeEditor()));
+        clientNameRow = StudioWidgets.CreateFormRow("Захиалагчийн нэр", clientNameBox);
+        clientNameLabel = (clientNameRow as Grid)?.Children.OfType<TextBlock>().FirstOrDefault();
+        form.Children.Add(clientNameRow);
         form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн и-мэйл", clientEmailBox));
         clientRepresentativePositionRow = StudioWidgets.CreateFormRow(
             "Төлөөлөгчийн албан тушаал",
@@ -2129,8 +2141,9 @@ internal sealed partial class ShellView : IDisposable
             clientRepresentativeNameBox);
         form.Children.Add(clientRepresentativePositionRow);
         form.Children.Add(clientRepresentativeNameRow);
+        form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн лого", BuildClientLogoEditor()));
         form.Children.Add(StudioWidgets.CreateHint(
-            "Захиалагчийн төрөл, байгууллагын нэр болон лого нь Төслийн мэдээлэл хэсэгт хадгалагдана."));
+            "Энд хадгалсан захиалагчийн мэдээлэл нүүр хуудас, альбум болон Cloud ERA төслийн мэдээлэлд нэг эх сурвалжаас хэрэглэгдэнэ."));
         return StudioWidgets.CreateScrollHost(form);
     }
 
@@ -2201,6 +2214,7 @@ internal sealed partial class ShellView : IDisposable
 
         pendingClientLogoPath = "";
         clientLogoRemovalPending = false;
+        BindFoundationFieldsToUi();
         foundationEditMode = true;
         StartAtdDocumentEdit();
         RefreshFoundationEditUi();
@@ -3663,7 +3677,9 @@ internal sealed partial class ShellView : IDisposable
         projectCodeBox.Text = project.Code;
         basisSourceBox.Text = basis.SourceType;
         requestNumberBox.Text = basis.RequestNumber;
-        SelectClientType(basis.ClientType);
+        SelectClientType(ProjectClientTypes.ResolveStoredType(
+            basis.ClientType,
+            basis.ClientOrganizationSnapshot));
         clientNameBox.Text = basis.ClientName;
         clientEmailBox.Text = basis.ClientEmail;
         clientRepresentativePositionBox.Text = basis.ClientRepresentativePosition;
@@ -3864,6 +3880,18 @@ internal sealed partial class ShellView : IDisposable
             return;
         if (suppressAutomaticAlbumRebuild || syncInProgress)
             return;
+        try
+        {
+            CityGenProjectSiteReconciliationResult siteResult =
+                state.ReconcileCityGenProjectSite();
+            if (siteResult.Changed)
+                SetStatus(siteResult.Message);
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"CityGen төслийн талбай шинэчлэхэд алдаа: {exception.Message}");
+            return;
+        }
         if (autoRebuildCheck.IsChecked == true)
         {
             SetStatus("Холбосон PDF/зураг өөрчлөгдлөө. Альбумыг шинэчилж байна...");

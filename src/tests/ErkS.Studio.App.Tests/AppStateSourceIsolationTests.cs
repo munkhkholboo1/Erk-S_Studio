@@ -54,6 +54,41 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     }
 
     [Fact]
+    public void OpenProject_RecoversSiteContextSnapshotsAndQueuesCloudComponent()
+    {
+        var (projectPath, _) = WriteProject(
+            sources: [],
+            pageKeys: [],
+            lastPdfPath: "albums/stale.pdf");
+        string assetFolder = Path.Combine(
+            ProjectWorkspacePaths.GetProjectFolder(projectPath),
+            "assets",
+            "site-context");
+        Directory.CreateDirectory(assetFolder);
+        byte[] onePixelPng = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        File.WriteAllBytes(Path.Combine(assetFolder, "location-scheme.png"), onePixelPng);
+        File.WriteAllBytes(Path.Combine(assetFolder, "surroundings-overview.png"), onePixelPng);
+        using var state = new AppState();
+
+        state.OpenProject(projectPath);
+
+        Assert.True(state.Project.SiteContext.LocationScheme.HasSnapshot);
+        Assert.True(state.Project.SiteContext.SurroundingsOverview.HasSnapshot);
+        Assert.Empty(state.Project.PrimaryAlbum.LastPdfPath);
+        Assert.Contains(
+            ProjectCloudSyncMetadata.SiteContextComponentCode,
+            ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project));
+        ProjectWorkspace persisted = ProjectWorkspaceStore.Load(projectPath);
+        Assert.Equal(
+            "assets/site-context/location-scheme.png",
+            persisted.SiteContext.LocationScheme.SnapshotRelativePath);
+        Assert.Contains(
+            ProjectCloudSyncMetadata.SiteContextComponentCode,
+            ProjectCloudSyncMetadata.PendingAlbumComponents(persisted));
+    }
+
+    [Fact]
     public void RemoveDesignSource_RemovesOnlyThatSourcesAlbumPages()
     {
         var sourceA = CreateSource("source-a", "Same name.rvt");

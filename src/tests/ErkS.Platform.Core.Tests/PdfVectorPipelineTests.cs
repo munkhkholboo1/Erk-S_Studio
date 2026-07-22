@@ -202,6 +202,43 @@ public sealed class PdfVectorPipelineTests : IDisposable
     }
 
     [Fact]
+    public void ConceptPortraitElevationOverlay_UsesPortraitPageWithoutRasterFallback()
+    {
+        PageFormatDefinition format = PageFormatCatalog.Resolve(
+            PageFormatCatalog.ConceptElevationA3PortraitTopId);
+        PageRectMm drawing = format.DrawingArea;
+        string sourcePath = Path.Combine(workDirectory, "portrait-elevation-clean-vector.pdf");
+        WriteVectorPdf(sourcePath, [(drawing.Width, drawing.Height, "Portrait facade")]);
+        SheetRecord sheet = Intake(
+            sourcePath,
+            297,
+            420,
+            pageCount: 1,
+            cleanDrawing: true,
+            contentWidthMm: drawing.Width,
+            contentHeightMm: drawing.Height,
+            contentKind: "Elevation",
+            sheetDescription: "Portrait facade",
+            portrait: true);
+
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            PageFormatCatalog.ConceptElevationA3PortraitTopId,
+            PagePlacementMode.PreserveDrawingSpace);
+
+        PdfVectorPageProfile page = Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
+        Assert.InRange(page.WidthMm, 296.99, 297.01);
+        Assert.InRange(page.HeightMm, 419.99, 420.01);
+        Assert.True(page.HasTextOperators);
+        Assert.True(page.HasPathPaintingOperators);
+        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Contains(page.XObjects, item =>
+            item.Kind == PdfVectorXObjectKind.Form &&
+            Math.Abs(item.WidthMm - drawing.Width) < 0.01 &&
+            Math.Abs(item.HeightMm - drawing.Height) < 0.01);
+    }
+
+    [Fact]
     public async Task LockedPreviewFile_DoesNotBlockCanonicalAlbumBuild()
     {
         string sourcePath = Path.Combine(workDirectory, "locked-preview-source.pdf");
@@ -366,14 +403,15 @@ public sealed class PdfVectorPipelineTests : IDisposable
         double contentWidthMm = 0,
         double contentHeightMm = 0,
         string contentKind = "",
-        string sheetDescription = "")
+        string sheetDescription = "",
+        bool portrait = false)
     {
         PageFormatSpec? format = null;
         if (cleanDrawing)
         {
-            format = CreateConceptFormat(contentKind.Equals(
-                "Elevation",
-                StringComparison.OrdinalIgnoreCase));
+            format = CreateConceptFormat(
+                contentKind.Equals("Elevation", StringComparison.OrdinalIgnoreCase),
+                portrait);
         }
 
         var manifest = new SheetPackageManifest
@@ -451,27 +489,29 @@ public sealed class PdfVectorPipelineTests : IDisposable
         left.Y < right.Y + right.Height &&
         left.Y + left.Height > right.Y;
 
-    private static PageFormatSpec CreateConceptFormat(bool elevation = false)
+    private static PageFormatSpec CreateConceptFormat(bool elevation = false, bool portrait = false)
     {
-        PageRectMm drawing = elevation
-            ? BuildingArchitectureConceptPageLayout.ElevationDrawingArea
-            : BuildingArchitectureConceptPageLayout.DrawingArea;
-        PageRectMm title = elevation
-            ? BuildingArchitectureConceptPageLayout.ElevationSheetTitleArea
-            : BuildingArchitectureConceptPageLayout.SheetTitleArea;
-        PageRectMm corner = BuildingArchitectureConceptPageLayout.TitleBlockArea;
+        string formatId = (portrait, elevation) switch
+        {
+            (true, true) => PageFormatCatalog.ConceptElevationA3PortraitTopId,
+            (true, false) => PageFormatCatalog.ConceptA3PortraitTopId,
+            (false, true) => PageFormatCatalog.ConceptElevationA3LandscapeId,
+            _ => PageFormatCatalog.ConceptA3LandscapeId,
+        };
+        PageFormatDefinition resolved = PageFormatCatalog.Resolve(formatId);
+        PageRectMm drawing = resolved.DrawingArea;
+        PageRectMm title = resolved.SheetTitleArea;
+        PageRectMm corner = resolved.TitleBlockArea;
         var format = new PageFormatSpec
         {
-            Id = elevation
-                ? PageFormatCatalog.ConceptElevationA3LandscapeId
-                : PageFormatCatalog.ConceptA3LandscapeId,
-            Name = elevation ? "Concept elevation A3 landscape" : "Concept A3 landscape",
+            Id = formatId,
+            Name = resolved.Name,
             Mode = "Concept",
             Code = "A3",
-            Orientation = "LANDSCAPE",
-            BindEdge = "LEFT",
-            WidthMm = 420,
-            HeightMm = 297,
+            Orientation = resolved.Orientation,
+            BindEdge = resolved.BindEdge,
+            WidthMm = resolved.WidthMm,
+            HeightMm = resolved.HeightMm,
             DrawingArea = ToSpec(drawing),
             SheetTitleArea = ToSpec(title),
             TitleBlockArea = ToSpec(corner),

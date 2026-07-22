@@ -33,6 +33,22 @@
       let tileLayer = null;
       let editing = false;
       let ready = false;
+      let boundaryRing = [];
+      let leafletBoundaryCasing = null;
+      let leafletBoundaryMain = null;
+      let googleBoundaryCasing = null;
+      let googleBoundaryMain = null;
+      let azureBoundarySource = null;
+      let azureBoundaryFill = null;
+      let azureBoundaryCasing = null;
+      let azureBoundaryMain = null;
+      let roadPaths = [];
+      let buildingRings = [];
+      let leafletPlanLayers = [];
+      let googlePlanLayers = [];
+      let azureRoadSource = null;
+      let azureBuildingSource = null;
+      let azurePlanLayers = [];
 
       const scripts = new Map();
       const styles = new Set();
@@ -77,6 +93,329 @@
         }
       }
 
+      function setBoundary(value) {
+        const points = value && Array.isArray(value.ring) ? value.ring : [];
+        boundaryRing = points
+          .map(point => [Number(point.longitude), Number(point.latitude)])
+          .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]) &&
+            point[0] >= -180 && point[0] <= 180 && point[1] >= -85 && point[1] <= 85);
+        if (boundaryRing.length < 4) boundaryRing = [];
+      }
+
+      function validCoordinate(point) {
+        return Array.isArray(point) && point.length >= 2 &&
+          Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])) &&
+          Number(point[0]) >= -180 && Number(point[0]) <= 180 &&
+          Number(point[1]) >= -85 && Number(point[1]) <= 85;
+      }
+
+      function setPlanFeatures(value) {
+        const roads = value && Array.isArray(value.roads) ? value.roads : [];
+        const buildings = value && Array.isArray(value.buildings) ? value.buildings : [];
+        roadPaths = roads.map(road => ({
+          id: String(road.id || ''),
+          name: String(road.name || ''),
+          points: Array.isArray(road.path)
+            ? road.path.map(point => [Number(point.longitude), Number(point.latitude)])
+              .filter(validCoordinate)
+            : []
+        })).filter(road => road.points.length >= 2);
+        buildingRings = buildings.map(building => ({
+          id: String(building.id || ''),
+          number: String(building.number || ''),
+          name: String(building.name || ''),
+          points: Array.isArray(building.ring)
+            ? building.ring.map(point => [Number(point.longitude), Number(point.latitude)])
+              .filter(validCoordinate)
+            : []
+        })).filter(building => building.points.length >= 4);
+      }
+
+      function mapZoom() {
+        try {
+          if (engine === 'leaflet' && map) return Number(map.getZoom());
+          if (engine === 'google' && map) return Number(map.getZoom());
+          if (engine === 'azure' && map) return Number(map.getCamera().zoom);
+        } catch (_) { }
+        return Number(state.zoom) || 15;
+      }
+
+      function boundaryAppearance() {
+        const zoom = mapZoom();
+        const ratio = Math.max(0, Math.min(1, (zoom - 10) / 9));
+        const width = 1.7 + ratio * 1.7;
+        return {
+          color: '#e5484d',
+          casingColor: '#ffffff',
+          width,
+          casingWidth: width + 2.2,
+          fillOpacity: 0.055 + ratio * 0.095
+        };
+      }
+
+      function planAppearance() {
+        const zoom = mapZoom();
+        const ratio = Math.max(0, Math.min(1, (zoom - 10) / 9));
+        return {
+          roadColor: '#087f8c',
+          roadCasingColor: '#ffffff',
+          roadWidth: 1.35 + ratio * 2.65,
+          roadCasingWidth: 3.0 + ratio * 3.2,
+          buildingColor: '#f0a51a',
+          buildingOutline: '#6b4300',
+          buildingWidth: 0.9 + ratio * 1.4,
+          buildingOpacity: 0.18 + ratio * 0.18
+        };
+      }
+
+      function clearPlanFeatureLayers() {
+        try {
+          if (engine === 'leaflet' && map) {
+            leafletPlanLayers.forEach(layer => map.removeLayer(layer));
+          } else if (engine === 'google') {
+            googlePlanLayers.forEach(layer => layer.setMap(null));
+          } else if (engine === 'azure' && map) {
+            azurePlanLayers.forEach(layer => map.layers.remove(layer));
+            if (azureRoadSource) map.sources.remove(azureRoadSource);
+            if (azureBuildingSource) map.sources.remove(azureBuildingSource);
+          }
+        } catch (_) { }
+        leafletPlanLayers = [];
+        googlePlanLayers = [];
+        azureRoadSource = null;
+        azureBuildingSource = null;
+        azurePlanLayers = [];
+      }
+
+      function renderPlanFeatures() {
+        if (!map) return;
+        clearPlanFeatureLayers();
+        const style = planAppearance();
+        if (engine === 'leaflet') {
+          buildingRings.forEach(building => {
+            const points = building.points.map(point => [point[1], point[0]]);
+            const layer = L.polygon(points, {
+              color: style.buildingOutline,
+              weight: style.buildingWidth,
+              opacity: 0.95,
+              fillColor: style.buildingColor,
+              fillOpacity: style.buildingOpacity,
+              interactive: false,
+              lineJoin: 'round'
+            }).addTo(map);
+            layer._erksKind = 'building';
+            leafletPlanLayers.push(layer);
+          });
+          roadPaths.forEach(road => {
+            const points = road.points.map(point => [point[1], point[0]]);
+            const casing = L.polyline(points, {
+              color: style.roadCasingColor,
+              weight: style.roadCasingWidth,
+              opacity: 0.9,
+              interactive: false,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(map);
+            casing._erksKind = 'road-casing';
+            const line = L.polyline(points, {
+              color: style.roadColor,
+              weight: style.roadWidth,
+              opacity: 1,
+              interactive: false,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(map);
+            line._erksKind = 'road';
+            leafletPlanLayers.push(casing, line);
+          });
+        } else if (engine === 'google') {
+          buildingRings.forEach(building => {
+            const layer = new google.maps.Polygon({
+              paths: building.points.map(point => ({ lng: point[0], lat: point[1] })),
+              map, clickable: false, zIndex: 8,
+              strokeColor: style.buildingOutline, strokeOpacity: 0.95,
+              strokeWeight: style.buildingWidth,
+              fillColor: style.buildingColor, fillOpacity: style.buildingOpacity
+            });
+            layer._erksKind = 'building';
+            googlePlanLayers.push(layer);
+          });
+          roadPaths.forEach(road => {
+            const path = road.points.map(point => ({ lng: point[0], lat: point[1] }));
+            const casing = new google.maps.Polyline({
+              path, map, clickable: false, zIndex: 10,
+              strokeColor: style.roadCasingColor, strokeOpacity: 0.9,
+              strokeWeight: style.roadCasingWidth
+            });
+            casing._erksKind = 'road-casing';
+            const line = new google.maps.Polyline({
+              path, map, clickable: false, zIndex: 11,
+              strokeColor: style.roadColor, strokeOpacity: 1,
+              strokeWeight: style.roadWidth
+            });
+            line._erksKind = 'road';
+            googlePlanLayers.push(casing, line);
+          });
+        } else if (engine === 'azure') {
+          azureBuildingSource = new atlas.source.DataSource();
+          azureRoadSource = new atlas.source.DataSource();
+          map.sources.add(azureBuildingSource);
+          map.sources.add(azureRoadSource);
+          buildingRings.forEach(building => azureBuildingSource.add(
+            new atlas.data.Feature(new atlas.data.Polygon([building.points]))));
+          roadPaths.forEach(road => azureRoadSource.add(
+            new atlas.data.Feature(new atlas.data.LineString(road.points))));
+          const buildingFill = new atlas.layer.PolygonLayer(azureBuildingSource, null, {
+            fillColor: style.buildingColor, fillOpacity: style.buildingOpacity
+          });
+          buildingFill._erksKind = 'building-fill';
+          const buildingLine = new atlas.layer.LineLayer(azureBuildingSource, null, {
+            strokeColor: style.buildingOutline, strokeOpacity: 0.95,
+            strokeWidth: style.buildingWidth
+          });
+          buildingLine._erksKind = 'building';
+          const roadCasing = new atlas.layer.LineLayer(azureRoadSource, null, {
+            strokeColor: style.roadCasingColor, strokeOpacity: 0.9,
+            strokeWidth: style.roadCasingWidth, strokeLineCap: 'round', strokeLineJoin: 'round'
+          });
+          roadCasing._erksKind = 'road-casing';
+          const roadLine = new atlas.layer.LineLayer(azureRoadSource, null, {
+            strokeColor: style.roadColor, strokeOpacity: 1,
+            strokeWidth: style.roadWidth, strokeLineCap: 'round', strokeLineJoin: 'round'
+          });
+          roadLine._erksKind = 'road';
+          azurePlanLayers = [buildingFill, buildingLine, roadCasing, roadLine];
+          map.layers.add(azurePlanLayers);
+        }
+      }
+
+      function updatePlanFeatureStyle() {
+        const style = planAppearance();
+        try {
+          if (engine === 'leaflet') {
+            leafletPlanLayers.forEach(layer => {
+              if (layer._erksKind === 'building') {
+                layer.setStyle({ weight: style.buildingWidth, fillOpacity: style.buildingOpacity });
+              } else if (layer._erksKind === 'road-casing') {
+                layer.setStyle({ weight: style.roadCasingWidth });
+              } else if (layer._erksKind === 'road') {
+                layer.setStyle({ weight: style.roadWidth });
+              }
+            });
+          } else if (engine === 'google') {
+            googlePlanLayers.forEach(layer => {
+              if (layer._erksKind === 'building') {
+                layer.setOptions({ strokeWeight: style.buildingWidth, fillOpacity: style.buildingOpacity });
+              } else if (layer._erksKind === 'road-casing') {
+                layer.setOptions({ strokeWeight: style.roadCasingWidth });
+              } else if (layer._erksKind === 'road') {
+                layer.setOptions({ strokeWeight: style.roadWidth });
+              }
+            });
+          } else if (engine === 'azure') {
+            azurePlanLayers.forEach(layer => {
+              if (layer._erksKind === 'building-fill') layer.setOptions({ fillOpacity: style.buildingOpacity });
+              else if (layer._erksKind === 'building') layer.setOptions({ strokeWidth: style.buildingWidth });
+              else if (layer._erksKind === 'road-casing') layer.setOptions({ strokeWidth: style.roadCasingWidth });
+              else if (layer._erksKind === 'road') layer.setOptions({ strokeWidth: style.roadWidth });
+            });
+          }
+        } catch (_) { }
+      }
+
+      function clearBoundaryLayers() {
+        try {
+          if (engine === 'leaflet' && map) {
+            if (leafletBoundaryCasing) map.removeLayer(leafletBoundaryCasing);
+            if (leafletBoundaryMain) map.removeLayer(leafletBoundaryMain);
+          } else if (engine === 'google') {
+            if (googleBoundaryCasing) googleBoundaryCasing.setMap(null);
+            if (googleBoundaryMain) googleBoundaryMain.setMap(null);
+          } else if (engine === 'azure' && map) {
+            [azureBoundaryFill, azureBoundaryCasing, azureBoundaryMain]
+              .filter(Boolean)
+              .forEach(layer => map.layers.remove(layer));
+            if (azureBoundarySource) map.sources.remove(azureBoundarySource);
+          }
+        } catch (_) { }
+        leafletBoundaryCasing = null;
+        leafletBoundaryMain = null;
+        googleBoundaryCasing = null;
+        googleBoundaryMain = null;
+        azureBoundarySource = null;
+        azureBoundaryFill = null;
+        azureBoundaryCasing = null;
+        azureBoundaryMain = null;
+      }
+
+      function renderBoundary() {
+        if (!map || boundaryRing.length < 4) return;
+        clearBoundaryLayers();
+        const style = boundaryAppearance();
+        if (engine === 'leaflet') {
+          const points = boundaryRing.map(point => [point[1], point[0]]);
+          leafletBoundaryCasing = L.polyline(points, {
+            color: style.casingColor, weight: style.casingWidth,
+            opacity: 0.88, interactive: false, lineJoin: 'round'
+          }).addTo(map);
+          leafletBoundaryMain = L.polygon(points, {
+            color: style.color, weight: style.width, opacity: 1,
+            fillColor: style.color, fillOpacity: style.fillOpacity,
+            interactive: false, lineJoin: 'round'
+          }).addTo(map);
+        } else if (engine === 'google') {
+          const points = boundaryRing.map(point => ({ lng: point[0], lat: point[1] }));
+          googleBoundaryCasing = new google.maps.Polygon({
+            paths: points, map, clickable: false, zIndex: 20,
+            strokeColor: style.casingColor, strokeOpacity: 0.88,
+            strokeWeight: style.casingWidth, fillOpacity: 0
+          });
+          googleBoundaryMain = new google.maps.Polygon({
+            paths: points, map, clickable: false, zIndex: 21,
+            strokeColor: style.color, strokeOpacity: 1,
+            strokeWeight: style.width, fillColor: style.color,
+            fillOpacity: style.fillOpacity
+          });
+        } else if (engine === 'azure') {
+          azureBoundarySource = new atlas.source.DataSource();
+          map.sources.add(azureBoundarySource);
+          azureBoundarySource.add(new atlas.data.Feature(
+            new atlas.data.Polygon([boundaryRing])));
+          azureBoundaryFill = new atlas.layer.PolygonLayer(
+            azureBoundarySource, null,
+            { fillColor: style.color, fillOpacity: style.fillOpacity });
+          azureBoundaryCasing = new atlas.layer.LineLayer(
+            azureBoundarySource, null,
+            { strokeColor: style.casingColor, strokeOpacity: 0.88, strokeWidth: style.casingWidth });
+          azureBoundaryMain = new atlas.layer.LineLayer(
+            azureBoundarySource, null,
+            { strokeColor: style.color, strokeOpacity: 1, strokeWidth: style.width });
+          map.layers.add([azureBoundaryFill, azureBoundaryCasing, azureBoundaryMain]);
+        }
+      }
+
+      function updateBoundaryStyle() {
+        if (boundaryRing.length < 4) return;
+        const style = boundaryAppearance();
+        try {
+          if (engine === 'leaflet') {
+            if (leafletBoundaryCasing) leafletBoundaryCasing.setStyle({ weight: style.casingWidth });
+            if (leafletBoundaryMain) leafletBoundaryMain.setStyle({
+              weight: style.width, fillOpacity: style.fillOpacity
+            });
+          } else if (engine === 'google') {
+            if (googleBoundaryCasing) googleBoundaryCasing.setOptions({ strokeWeight: style.casingWidth });
+            if (googleBoundaryMain) googleBoundaryMain.setOptions({
+              strokeWeight: style.width, fillOpacity: style.fillOpacity
+            });
+          } else if (engine === 'azure') {
+            if (azureBoundaryFill) azureBoundaryFill.setOptions({ fillOpacity: style.fillOpacity });
+            if (azureBoundaryCasing) azureBoundaryCasing.setOptions({ strokeWidth: style.casingWidth });
+            if (azureBoundaryMain) azureBoundaryMain.setOptions({ strokeWidth: style.width });
+          }
+        } catch (_) { }
+      }
+
       function pullState() {
         if (!map) return;
         if (engine === 'leaflet') {
@@ -101,8 +440,57 @@
         }
       }
 
+      function currentBounds() {
+        if (!map) return null;
+        try {
+          if (engine === 'leaflet') {
+            const bounds = map.getBounds();
+            return {
+              west: bounds.getWest(), south: bounds.getSouth(),
+              east: bounds.getEast(), north: bounds.getNorth()
+            };
+          }
+          if (engine === 'google') {
+            const bounds = map.getBounds();
+            if (!bounds) return null;
+            const southWest = bounds.getSouthWest();
+            const northEast = bounds.getNorthEast();
+            return {
+              west: southWest.lng(), south: southWest.lat(),
+              east: northEast.lng(), north: northEast.lat()
+            };
+          }
+          if (engine === 'azure') {
+            const bounds = map.getCamera().bounds;
+            if (bounds && bounds.length >= 4) {
+              return { west: bounds[0], south: bounds[1], east: bounds[2], north: bounds[3] };
+            }
+          }
+        } catch (_) { }
+        return null;
+      }
+
+      function fitBounds(bounds) {
+        if (!map || !bounds) return;
+        const west = Number(bounds.west);
+        const south = Number(bounds.south);
+        const east = Number(bounds.east);
+        const north = Number(bounds.north);
+        if (![west, south, east, north].every(Number.isFinite)) return;
+        if (engine === 'leaflet') {
+          map.fitBounds([[south, west], [north, east]], { animate: false, padding: [0, 0] });
+        } else if (engine === 'google') {
+          map.fitBounds({ west, south, east, north }, 0);
+        } else if (engine === 'azure') {
+          map.setCamera({ bounds: [west, south, east, north], padding: 0, duration: 0 });
+        }
+        pullState();
+      }
+
       function destroyMap() {
         pullState();
+        clearPlanFeatureLayers();
+        clearBoundaryLayers();
         try {
           if (engine === 'leaflet' && map) map.remove();
           if (engine === 'azure' && map) map.dispose();
@@ -148,8 +536,19 @@
               ? '&copy; OpenStreetMap contributors, SRTM | OpenTopoMap'
               : '&copy; OpenStreetMap contributors'
           }).addTo(map);
-        map.on('moveend zoomend', pullState);
-        map.whenReady(() => { ready = true; showMessage(''); applyInteraction(); });
+        map.on('moveend', pullState);
+        map.on('zoomend', () => {
+          pullState();
+          updatePlanFeatureStyle();
+          updateBoundaryStyle();
+        });
+        map.whenReady(() => {
+          ready = true;
+          renderPlanFeatures();
+          renderBoundary();
+          showMessage('');
+          applyInteraction();
+        });
       }
 
       async function createGoogle(providerId) {
@@ -166,9 +565,19 @@
           clickableIcons: false,
           keyboardShortcuts: false
         });
-        map.addListener('idle', () => { ready = true; pullState(); showMessage(''); });
+        map.addListener('idle', () => {
+          if (!ready) {
+            renderPlanFeatures();
+            renderBoundary();
+          }
+          ready = true; pullState(); showMessage('');
+        });
         map.addListener('center_changed', pullState);
-        map.addListener('zoom_changed', pullState);
+        map.addListener('zoom_changed', () => {
+          pullState();
+          updatePlanFeatureStyle();
+          updateBoundaryStyle();
+        });
         applyInteraction();
       }
 
@@ -186,8 +595,18 @@
           showFeedbackLink: false,
           authOptions: { authType: 'subscriptionKey', subscriptionKey: options.azureMapsKey }
         });
-        map.events.add('ready', () => { ready = true; showMessage(''); applyInteraction(); });
-        map.events.add('moveend', pullState);
+        map.events.add('ready', () => {
+          ready = true;
+          renderPlanFeatures();
+          renderBoundary();
+          showMessage('');
+          applyInteraction();
+        });
+        map.events.add('moveend', () => {
+          pullState();
+          updatePlanFeatureStyle();
+          updateBoundaryStyle();
+        });
       }
 
       async function setProvider(providerId) {
@@ -213,6 +632,8 @@
       async function init(value) {
         options = value || {};
         Object.assign(state, options.viewport || {});
+        setBoundary(options.boundary);
+        setPlanFeatures(options.planFeatures);
         editing = Boolean(options.editing);
         await setProvider(state.providerId);
         applyInteraction();
@@ -243,6 +664,8 @@
         } else if (engine === 'azure') {
           map.setCamera({ center: [state.centerLongitude, state.centerLatitude], zoom: state.zoom, bearing: state.bearing || 0 });
         }
+        updatePlanFeatureStyle();
+        updateBoundaryStyle();
       }
 
       function resize() {
@@ -261,11 +684,15 @@
           zoom: state.zoom,
           bearing: state.bearing || 0,
           attribution: state.attribution,
+          bounds: currentBounds(),
           ready
         };
       }
 
-      window.erks = { init, setProvider, setEditing, zoomBy, setState, resize, getState };
+      window.erks = {
+        init, setProvider, setEditing, setBoundary, setPlanFeatures, zoomBy,
+        setState, fitBounds, resize, getState
+      };
     })();
   </script>
 </body>

@@ -345,6 +345,32 @@ public static class ProjectClientTypes
         return Citizen;
     }
 
+    /// <summary>
+    /// Resolves persisted client types without silently treating legacy
+    /// organization snapshots as citizens when the type field is missing.
+    /// An explicit client type always wins.
+    /// </summary>
+    public static string ResolveStoredType(string? value, CompanyProfile? organizationSnapshot)
+    {
+        if (string.Equals(value, Citizen, StringComparison.OrdinalIgnoreCase))
+            return Citizen;
+        if (string.Equals(value, Organization, StringComparison.OrdinalIgnoreCase))
+            return Organization;
+        if (string.Equals(value, GovernmentAuthority, StringComparison.OrdinalIgnoreCase))
+            return GovernmentAuthority;
+
+        string snapshotType = organizationSnapshot?.OrganizationType?.Trim() ?? "";
+        if (snapshotType.Equals("GovernmentAuthority", StringComparison.OrdinalIgnoreCase))
+            return GovernmentAuthority;
+        if (snapshotType.Equals("ClientOrganization", StringComparison.OrdinalIgnoreCase) ||
+            snapshotType.Equals("Organization", StringComparison.OrdinalIgnoreCase))
+        {
+            return Organization;
+        }
+
+        return Citizen;
+    }
+
     public static string DisplayName(string? value) => Normalize(value) switch
     {
         Organization => "Байгууллага",

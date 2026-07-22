@@ -101,9 +101,11 @@ public sealed class AppState : IDisposable
         path = Path.GetFullPath(path);
         ClearAssetSourceWatchers();
         LastOpenMigratedLegacyProject = false;
+        bool recoveredSiteContextSnapshots = false;
         if (string.Equals(Path.GetExtension(path), ProjectWorkspace.FileExtension, StringComparison.OrdinalIgnoreCase))
         {
             project = ProjectWorkspaceStore.Load(path);
+            recoveredSiteContextSnapshots = ProjectWorkspaceStore.RecoverSiteContextSnapshots(project, path);
             ProjectPath = path;
             AlbumPath = ProjectWorkspacePaths.ResolveInsideProject(path, project.PrimaryAlbum.DocumentPath);
             if (File.Exists(AlbumPath))
@@ -143,7 +145,21 @@ public sealed class AppState : IDisposable
         ProjectAssetSourceReconciliationResult assetReconciliation =
             ReconcileProjectAssetSourcesCore();
         bool reconciledAssets = ApplyAssetReconciliation(assetReconciliation);
-        if (EnsureUniqueSourceInboxes() || reconciledAssets || removedUnownedSourcePages)
+        CityGenProjectSiteReconciliationResult siteReconciliation =
+            ReconcileCityGenProjectSiteCore();
+        bool reconciledSite = ApplyCityGenProjectSiteReconciliation(siteReconciliation);
+        if (recoveredSiteContextSnapshots)
+        {
+            ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+                Project,
+                [ProjectCloudSyncMetadata.SiteContextComponentCode]);
+            InvalidateBuiltAlbum();
+        }
+        if (EnsureUniqueSourceInboxes() ||
+            reconciledAssets ||
+            reconciledSite ||
+            removedUnownedSourcePages ||
+            recoveredSiteContextSnapshots)
         {
             SaveProject();
         }
@@ -568,7 +584,10 @@ public sealed class AppState : IDisposable
     {
         ProjectAssetSourceReconciliationResult assetReconciliation =
             ReconcileProjectAssetSourcesCore();
-        if (ApplyAssetReconciliation(assetReconciliation))
+        CityGenProjectSiteReconciliationResult siteReconciliation =
+            ReconcileCityGenProjectSiteCore();
+        if (ApplyAssetReconciliation(assetReconciliation) |
+            ApplyCityGenProjectSiteReconciliation(siteReconciliation))
             SaveProject();
 
         var company = Project.Foundation.DesignCompany.OrganizationSnapshot;
@@ -617,6 +636,14 @@ public sealed class AppState : IDisposable
         return result;
     }
 
+    public CityGenProjectSiteReconciliationResult ReconcileCityGenProjectSite()
+    {
+        CityGenProjectSiteReconciliationResult result = ReconcileCityGenProjectSiteCore();
+        if (ApplyCityGenProjectSiteReconciliation(result))
+            SaveProject();
+        return result;
+    }
+
     public void MarkFoundationContentChanged()
     {
         if (!HasOpenProject)
@@ -656,7 +683,9 @@ public sealed class AppState : IDisposable
     public bool RefreshProjectDocumentMetadata()
     {
         ProjectAssetSourceReconciliationResult result = ReconcileProjectAssetSourcesCore();
-        return ApplyAssetReconciliation(result);
+        CityGenProjectSiteReconciliationResult siteResult = ReconcileCityGenProjectSiteCore();
+        return ApplyAssetReconciliation(result) |
+               ApplyCityGenProjectSiteReconciliation(siteResult);
     }
 
     private ProjectAssetSourceReconciliationResult ReconcileProjectAssetSourcesCore()
@@ -666,12 +695,31 @@ public sealed class AppState : IDisposable
         return ProjectAssetSourceReconciler.ReconcileProject(Project, ProjectPath);
     }
 
+    private CityGenProjectSiteReconciliationResult ReconcileCityGenProjectSiteCore()
+    {
+        if (!HasOpenProject)
+            return new CityGenProjectSiteReconciliationResult();
+        return CityGenProjectSiteReconciler.Reconcile(Project);
+    }
+
     private bool ApplyAssetReconciliation(ProjectAssetSourceReconciliationResult result)
     {
         if (!result.Changed)
             return false;
         Project.Foundation.Version = Math.Max(1, Project.Foundation.Version) + 1;
         AlbumDocument.FoundationVersion = Project.Foundation.Version;
+        InvalidateBuiltAlbum();
+        return true;
+    }
+
+    private bool ApplyCityGenProjectSiteReconciliation(
+        CityGenProjectSiteReconciliationResult result)
+    {
+        if (!result.Changed)
+            return false;
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            Project,
+            [ProjectCloudSyncMetadata.SiteContextComponentCode]);
         InvalidateBuiltAlbum();
         return true;
     }
@@ -811,6 +859,8 @@ public sealed class AppState : IDisposable
             if (!string.IsNullOrWhiteSpace(image.LinkedSourcePath))
                 yield return image.LinkedSourcePath;
         }
+        foreach (string sidecarPath in CityGenProjectSiteReconciler.EnumerateSidecarPaths(Project.Sources))
+            yield return sidecarPath;
     }
 
     private void OnAssetSourceFileChanged(object sender, FileSystemEventArgs eventArgs) =>

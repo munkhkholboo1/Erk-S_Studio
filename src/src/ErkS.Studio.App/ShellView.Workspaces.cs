@@ -176,11 +176,13 @@ internal sealed partial class ShellView
         var selectedSourceId = (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
         SheetIntakeScanResult scan;
         var assetScan = new ProjectAssetSourceReconciliationResult();
+        CityGenProjectSiteReconciliationResult siteScan;
         try
         {
             SetStatus("Локал эх үүсвэрийн өөрчлөлт шалгаж байна...");
             assetScan.Merge(ReconcileCompanyAssetSources());
             assetScan.Merge(state.ReconcileProjectAssetSources());
+            siteScan = state.ReconcileCityGenProjectSite();
             scan = state.Intake.Rescan();
         }
         catch (Exception exception)
@@ -199,7 +201,9 @@ internal sealed partial class ShellView
                 autoRebuildTimer.Stop();
                 RefreshSourceWorkspace(selectedSourceId);
                 RefreshAlbumWorkspace();
-                UpdateAlbum(silent: false, statusPrefix: BuildSourceRefreshSummary(scan, assetScan));
+                UpdateAlbum(
+                    silent: false,
+                    statusPrefix: BuildSourceRefreshSummary(scan, assetScan, siteScan));
             }
             finally
             {
@@ -210,7 +214,8 @@ internal sealed partial class ShellView
 
     private static string BuildSourceRefreshSummary(
         SheetIntakeScanResult scan,
-        ProjectAssetSourceReconciliationResult assets)
+        ProjectAssetSourceReconciliationResult assets,
+        CityGenProjectSiteReconciliationResult site)
     {
         var summary = scan.ChangedPackageCount == 0
             ? $"{scan.ManifestCount} package шалгав, шинэ source өөрчлөлтгүй"
@@ -227,7 +232,11 @@ internal sealed partial class ShellView
             summary += $", альбумаас хасагдсан source: {missingAssets}";
         if (restoredAssets > 0)
             summary += $", сэргэсэн source: {restoredAssets}";
-        int otherErrors = Math.Max(0, scan.ErrorCount - scan.RejectedPackageCount) + assets.ErrorCount;
+        if (site.Changed)
+            summary += $", төслийн талбай шинэчлэгдсэн: {site.SourceDocumentName}";
+        int otherErrors = Math.Max(0, scan.ErrorCount - scan.RejectedPackageCount) +
+                          assets.ErrorCount +
+                          site.ErrorCount;
         return otherErrors == 0 ? summary : $"{summary}, {otherErrors} алдаа";
     }
 
@@ -1228,12 +1237,22 @@ internal sealed partial class ShellView
         {
             Owner = Window.GetWindow(Root),
         };
+        bool persistedDuringDialog = false;
+        dialog.SiteContextSaved += snapshot =>
+        {
+            state.Project.SiteContext = snapshot;
+            state.MarkSiteContextChanged();
+            persistedDuringDialog = true;
+        };
         _ = dialog.ShowDialog();
         if (!dialog.HasSavedChanges)
             return;
 
-        state.Project.SiteContext = dialog.Result;
-        state.MarkSiteContextChanged();
+        if (!persistedDuringDialog)
+        {
+            state.Project.SiteContext = dialog.Result;
+            state.MarkSiteContextChanged();
+        }
         RefreshAlbumWorkspace(selectItemKey: "component:site-context:None:1");
         UpdateAlbum(
             silent: false,
@@ -1999,7 +2018,7 @@ internal sealed partial class ShellView
             AddPreviewText(canvas, "Эх PDF", 0, height * 0.42, width, 22, 14, FontWeights.SemiBold, Brushes.Black);
             AddPreviewText(canvas, sheet?.DisplayLabel ?? selected.Title, width * 0.1, height * 0.52, width * 0.8, 24, 10, FontWeights.Normal, Brushes.DimGray);
         }
-        else if (BuildingArchitectureConceptPageLayout.IsCanonical(format))
+        else if (BuildingArchitectureConceptPageLayout.SupportsStudioChrome(format))
         {
             var drawing = AddPreviewRectangle(canvas, format.DrawingArea, Brushes.WhiteSmoke, Brushes.LightGray);
             drawing.StrokeDashArray = new DoubleCollection { 2, 1 };
@@ -2015,7 +2034,13 @@ internal sealed partial class ShellView
                 ? sheet?.Entry.Name ?? selected.Title
                 : sourcePage.TitleOverride;
             var pageNumber = selected.Number;
-            AddConceptSheetPreviewChrome(canvas, pageTitle, pageNumber, sourcePage, sheet?.Entry);
+            AddConceptSheetPreviewChrome(
+                canvas,
+                format,
+                pageTitle,
+                pageNumber,
+                sourcePage,
+                sheet?.Entry);
         }
         else
         {
@@ -2273,10 +2298,12 @@ internal sealed partial class ShellView
 
     private void ShowCompositionPreview(AlbumPageWorkspaceItem selected)
     {
+        PageFormatDefinition format = PageFormatCatalog.Resolve(
+            PageFormatCatalog.ConceptA3LandscapeId);
         var canvas = new Canvas
         {
-            Width = BuildingArchitectureConceptPageLayout.PageWidthMm,
-            Height = BuildingArchitectureConceptPageLayout.PageHeightMm,
+            Width = format.WidthMm,
+            Height = format.HeightMm,
             Background = Brushes.White,
         };
         var component = selected.Component;
@@ -2295,6 +2322,7 @@ internal sealed partial class ShellView
 
         AddConceptSheetPreviewChrome(
             canvas,
+            format,
             selected.Title,
             selected.Number);
 
@@ -2338,6 +2366,7 @@ internal sealed partial class ShellView
 
     private void AddConceptSheetPreviewChrome(
         Canvas canvas,
+        PageFormatDefinition format,
         string title,
         string number,
         AlbumPageDefinition? page = null,
@@ -2347,23 +2376,21 @@ internal sealed partial class ShellView
             entry.ContentKind,
             entry.Name,
             page?.TemplateSlotId);
-        var frame = AddPreviewRectangle(canvas, BuildingArchitectureConceptPageLayout.Frame, Brushes.Transparent, Brushes.Black);
+        BuildingArchitectureConceptPageRegions regions =
+            BuildingArchitectureConceptPageLayout.ResolveRegions(
+                format,
+                hasInformationHeader);
+        var frame = AddPreviewRectangle(canvas, regions.Frame, Brushes.Transparent, Brushes.Black);
         frame.StrokeThickness = 0.9;
         AddPreviewLine(
             canvas,
-            BuildingArchitectureConceptPageLayout.FrameLeftMm,
-            hasInformationHeader
-                ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
-                : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm,
-            BuildingArchitectureConceptPageLayout.FrameRightMm,
-            hasInformationHeader
-                ? BuildingArchitectureConceptPageLayout.ElevationSheetHeaderBottomMm
-                : BuildingArchitectureConceptPageLayout.SheetHeaderBottomMm);
+            regions.SheetTitleArea.X,
+            regions.SheetTitleArea.Y + regions.SheetTitleArea.Height,
+            regions.SheetTitleArea.X + regions.SheetTitleArea.Width,
+            regions.SheetTitleArea.Y + regions.SheetTitleArea.Height);
         if (hasInformationHeader)
-            AddConceptElevationHeaderPreview(canvas, page, entry!);
-        PageRectMm titleArea = hasInformationHeader
-            ? BuildingArchitectureConceptPageLayout.ElevationSheetTitleArea
-            : BuildingArchitectureConceptPageLayout.SheetTitleArea;
+            AddConceptElevationHeaderPreview(canvas, page, entry!, regions);
+        PageRectMm titleArea = regions.SheetTitleArea;
         AddPreviewText(
             canvas,
             title,
@@ -2378,22 +2405,24 @@ internal sealed partial class ShellView
 
         var corner = AddPreviewRectangle(
             canvas,
-            BuildingArchitectureConceptPageLayout.TitleBlockArea,
+            regions.TitleBlockArea,
             Brushes.White,
             Brushes.Black);
         corner.StrokeThickness = 0.8;
 
-        var x0 = BuildingArchitectureConceptPageLayout.CornerX0Mm;
-        var x1 = BuildingArchitectureConceptPageLayout.CornerX1Mm;
-        var x2 = BuildingArchitectureConceptPageLayout.CornerX2Mm;
-        var x3 = BuildingArchitectureConceptPageLayout.CornerX3Mm;
-        var x4 = BuildingArchitectureConceptPageLayout.CornerX4Mm;
-        var x5 = BuildingArchitectureConceptPageLayout.CornerX5Mm;
-        var y0 = BuildingArchitectureConceptPageLayout.CornerY0Mm;
-        var y1 = BuildingArchitectureConceptPageLayout.CornerY1Mm;
-        var y2 = BuildingArchitectureConceptPageLayout.CornerY2Mm;
-        var y3 = BuildingArchitectureConceptPageLayout.CornerY3Mm;
-        var y4 = BuildingArchitectureConceptPageLayout.CornerY4Mm;
+        BuildingArchitectureConceptCornerGrid grid =
+            BuildingArchitectureConceptPageLayout.ResolveCornerGrid(regions.TitleBlockArea);
+        var x0 = grid.X0;
+        var x1 = grid.X1;
+        var x2 = grid.X2;
+        var x3 = grid.X3;
+        var x4 = grid.X4;
+        var x5 = grid.X5;
+        var y0 = grid.Y0;
+        var y1 = grid.Y1;
+        var y2 = grid.Y2;
+        var y3 = grid.Y3;
+        var y4 = grid.Y4;
         foreach (var x in new[] { x1, x2, x3, x4 })
         {
             AddPreviewLine(canvas, x, y0, x, y4);
@@ -2431,6 +2460,7 @@ internal sealed partial class ShellView
         AddPreviewCornerCell(canvas, "Загвар", x4, y0, x5, y1);
         AddPreviewCornerCell(canvas, companyRole, x1, y1, x2, y2, TextAlignment.Left);
         AddPreviewCornerCell(canvas, representative?.FullName ?? "", x2, y1, x3, y2);
+        AddPreviewCornerCell(canvas, entry?.ScaleText ?? "", x4, y1, x5, y2);
         AddPreviewCornerCell(canvas, "Архитектор", x1, y2, x2, y3, TextAlignment.Left);
         AddPreviewCornerCell(canvas, architect, x2, y2, x3, y3);
         AddPreviewCornerCell(canvas, $"Хуудас-{ValueOrDash(number)}", x4, y2, x5, y3);
@@ -2452,17 +2482,17 @@ internal sealed partial class ShellView
     private void AddConceptElevationHeaderPreview(
         Canvas canvas,
         AlbumPageDefinition? page,
-        SheetPackageEntry entry)
+        SheetPackageEntry entry,
+        BuildingArchitectureConceptPageRegions regions)
     {
-        double x0 = BuildingArchitectureConceptPageLayout.FrameLeftMm;
-        double xRole = BuildingArchitectureConceptPageLayout.ElevationRoleColumnRightMm;
-        double xApproval = BuildingArchitectureConceptPageLayout.ElevationApprovalPanelRightMm;
-        double x1 = BuildingArchitectureConceptPageLayout.FrameRightMm;
-        double y0 = BuildingArchitectureConceptPageLayout.FrameTopMm;
-        double y1 = BuildingArchitectureConceptPageLayout.ElevationInformationBottomMm;
+        double x0 = regions.InformationArea.X;
+        double xRole = regions.ApprovalRoleArea.X + regions.ApprovalRoleArea.Width;
+        double xApproval = regions.ApprovalNameArea.X + regions.ApprovalNameArea.Width;
+        double x1 = regions.InformationArea.X + regions.InformationArea.Width;
+        double y0 = regions.InformationArea.Y;
+        double y1 = regions.InformationArea.Y + regions.InformationArea.Height;
         AddPreviewLine(canvas, x0, y1, x1, y1);
-        foreach (double dividerX in BuildingArchitectureConceptPageLayout.ElevationInformationDividerXMm)
-            AddPreviewLine(canvas, dividerX, y0, dividerX, y1);
+        AddPreviewLine(canvas, xApproval, y0, xApproval, y1);
 
         ConceptElevationHeaderSnapshot roster = ConceptElevationHeaderResolver.Resolve(
             state.Project.Foundation.ApprovalWorkflow,

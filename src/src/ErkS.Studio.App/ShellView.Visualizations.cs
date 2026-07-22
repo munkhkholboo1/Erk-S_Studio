@@ -688,7 +688,11 @@ internal sealed partial class ShellView
             var border = AddPreviewRectangle(canvas, frame, Brushes.Transparent, Brushes.LightGray);
             border.StrokeThickness = 0.35;
         }
-        AddConceptSheetPreviewChrome(canvas, plan.Title, plan.Number);
+        AddConceptSheetPreviewChrome(
+            canvas,
+            PageFormatCatalog.Resolve(PageFormatCatalog.ConceptA3LandscapeId),
+            plan.Title,
+            plan.Number);
     }
 
     private sealed class VisualizationImageWorkspaceItem : INotifyPropertyChanged

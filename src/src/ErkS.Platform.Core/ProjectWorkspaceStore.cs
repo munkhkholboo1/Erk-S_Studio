@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
 using ErkS.Platform.Contracts;
@@ -27,6 +28,95 @@ public static class ProjectWorkspaceStore
         project.FormatVersion = ProjectWorkspace.CurrentFormatVersion;
         project.UpdatedAtUtc = DateTimeOffset.UtcNow;
         AtomicJsonFile.Write(path, project);
+    }
+
+    public static bool RecoverSiteContextSnapshots(ProjectWorkspace project, string projectPath)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+
+        project.SiteContext ??= new ProjectSiteContextMap();
+        project.SiteContext.Normalize(project.ProjectId);
+        if (!string.IsNullOrWhiteSpace(project.SiteContext.OwnerProjectId) &&
+            !project.SiteContext.OwnerProjectId.Equals(
+                project.ProjectId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        bool recoveredLocation = RecoverSiteContextSnapshot(
+            projectPath,
+            project.SiteContext.LocationScheme,
+            "assets/site-context/location-scheme.png");
+        bool recoveredOverview = RecoverSiteContextSnapshot(
+            projectPath,
+            project.SiteContext.SurroundingsOverview,
+            "assets/site-context/surroundings-overview.png");
+        if (!recoveredLocation && !recoveredOverview)
+            return false;
+
+        project.SiteContext.UpdatedAtUtc = new[]
+            {
+                project.SiteContext.LocationScheme.UpdatedAtUtc,
+                project.SiteContext.SurroundingsOverview.UpdatedAtUtc,
+            }
+            .Where(value => value.HasValue)
+            .Max();
+        return true;
+    }
+
+    private static bool RecoverSiteContextSnapshot(
+        string projectPath,
+        ProjectMapViewport viewport,
+        string expectedRelativePath)
+    {
+        if (viewport.HasSnapshot)
+        {
+            try
+            {
+                string currentPath = ProjectWorkspacePaths.ResolveInsideProject(
+                    projectPath,
+                    viewport.SnapshotRelativePath);
+                if (File.Exists(currentPath))
+                    return false;
+            }
+            catch (InvalidDataException)
+            {
+            }
+        }
+
+        string expectedPath = ProjectWorkspacePaths.ResolveInsideProject(
+            projectPath,
+            expectedRelativePath);
+        if (!File.Exists(expectedPath))
+            return false;
+
+        (int width, int height) = ReadPngDimensions(expectedPath);
+        viewport.SnapshotRelativePath = ProjectWorkspacePaths.ToRelativePath(
+            projectPath,
+            expectedPath);
+        viewport.SnapshotSha256 = ProjectDocumentFileStore.ComputeSha256(expectedPath);
+        viewport.SnapshotPixelWidth = width;
+        viewport.SnapshotPixelHeight = height;
+        viewport.UpdatedAtUtc = File.GetLastWriteTimeUtc(expectedPath);
+        return true;
+    }
+
+    private static (int Width, int Height) ReadPngDimensions(string path)
+    {
+        Span<byte> header = stackalloc byte[24];
+        using FileStream stream = File.OpenRead(path);
+        if (stream.Read(header) != header.Length ||
+            !header[..8].SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }))
+        {
+            return (0, 0);
+        }
+
+        int width = BinaryPrimitives.ReadInt32BigEndian(header[16..20]);
+        int height = BinaryPrimitives.ReadInt32BigEndian(header[20..24]);
+        return (Math.Max(0, width), Math.Max(0, height));
     }
 
     public static ProjectWorkspace Create(string code, string name)
@@ -209,10 +299,11 @@ public static class ProjectWorkspaceStore
         project.Foundation ??= new ProjectFoundation();
         project.Foundation.InitiationBasis ??= new ProjectInitiationBasis();
         project.Foundation.InitiationBasis.Documents ??= [];
-        project.Foundation.InitiationBasis.ClientType = ProjectClientTypes.Normalize(
-            project.Foundation.InitiationBasis.ClientType);
         project.Foundation.InitiationBasis.ClientOrganizationSnapshot ??= new CompanyProfile();
         project.Foundation.InitiationBasis.ClientOrganizationSnapshot.Normalize();
+        project.Foundation.InitiationBasis.ClientType = ProjectClientTypes.ResolveStoredType(
+            project.Foundation.InitiationBasis.ClientType,
+            project.Foundation.InitiationBasis.ClientOrganizationSnapshot);
         if (ProjectClientTypes.UsesLogo(project.Foundation.InitiationBasis.ClientType) &&
             string.IsNullOrWhiteSpace(project.Foundation.InitiationBasis.ClientOrganizationSnapshot.Name))
         {

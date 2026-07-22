@@ -34,6 +34,7 @@ internal sealed class SiteContextMapEditorDialog : Window
     private readonly Grid mapsGrid = new();
     private readonly StackPanel editingTools = new() { Orientation = Orientation.Horizontal };
     private readonly ComboBox providerBox = new() { Width = 210, Margin = new Thickness(8, 0, 8, 0) };
+    private readonly ComboBox resolutionBox = new() { Width = 160, Margin = new Thickness(8, 0, 8, 0) };
     private readonly Button editButton = StudioWidgets.CreateIconTextButton("icon-project.svg", "Засварлах");
     private readonly Button saveEditButton = StudioWidgets.CreateIconTextButton("icon-project.svg", "Хадгалах");
     private readonly Button cancelEditButton = StudioWidgets.CreateButton("Болих");
@@ -109,6 +110,8 @@ internal sealed class SiteContextMapEditorDialog : Window
 
     public ProjectSiteContextMap Result => workingCopy.CreateProjectSnapshot(projectId);
 
+    public event Action<ProjectSiteContextMap>? SiteContextSaved;
+
     private UIElement BuildContent()
     {
         var root = new Grid { Margin = new Thickness(20) };
@@ -154,6 +157,14 @@ internal sealed class SiteContextMapEditorDialog : Window
         editingTools.Children.Add(providerBox);
         editingTools.Children.Add(zoomOut);
         editingTools.Children.Add(zoomIn);
+        editingTools.Children.Add(new TextBlock
+        {
+            Text = "Нарийвчлал",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = StudioTheme.MutedTextBrush,
+            Margin = new Thickness(10, 0, 0, 0),
+        });
+        editingTools.Children.Add(resolutionBox);
         editingTools.Children.Add(saveEditButton);
         editingTools.Children.Add(cancelEditButton);
         commandBar.Children.Add(editingTools);
@@ -323,6 +334,8 @@ internal sealed class SiteContextMapEditorDialog : Window
         var initialization = new MapInitialization
         {
             Viewport = MapState.FromViewport(pane.Viewport),
+            Boundary = workingCopy.Boundary.Clone(),
+            PlanFeatures = workingCopy.PlanFeatures.Clone(),
             Editing = false,
             GoogleApiKey = googleMapsApiKey,
             AzureMapsKey = azureMapsKey,
@@ -374,6 +387,7 @@ internal sealed class SiteContextMapEditorDialog : Window
         editBaseline = editingPane.Viewport.Clone();
         selectedTitle.Text = editingPane.Title;
         BindProvider(editingPane.Viewport.ProviderId);
+        BindResolution(editingPane.Viewport);
         editButton.Visibility = Visibility.Collapsed;
         editingTools.Visibility = Visibility.Visible;
         doneButton.IsEnabled = false;
@@ -405,6 +419,11 @@ internal sealed class SiteContextMapEditorDialog : Window
                 $"window.erks.setProvider({provider});");
             await WaitForReadyAsync(editingPane);
             editingPane.Viewport.ProviderId = choice.Id;
+            MapState? state = await GetMapStateAsync(editingPane);
+            BindResolution(
+                state?.Zoom ?? editingPane.Viewport.Zoom,
+                choice.Id,
+                SelectedResolutionOffset());
             statusText.Text = "";
         }
         catch (Exception exception)
@@ -422,7 +441,17 @@ internal sealed class SiteContextMapEditorDialog : Window
     {
         if (editingPane is null)
             return;
+        int selectedOffset = SelectedResolutionOffset();
         await editingPane.WebView.CoreWebView2.ExecuteScriptAsync($"window.erks.zoomBy({delta});");
+        await Task.Delay(80);
+        MapState? state = await GetMapStateAsync(editingPane);
+        if (state is not null)
+        {
+            BindResolution(
+                state.Zoom,
+                state.ProviderId,
+                selectedOffset);
+        }
     }
 
     private async Task SaveSelectedMapAsync()
@@ -440,12 +469,20 @@ internal sealed class SiteContextMapEditorDialog : Window
                 throw new InvalidOperationException("Газрын зураг бүрэн ачаалагдаагүй байна.");
 
             ApplyMapState(editingPane.Viewport, mapState);
-            await CaptureSnapshotAsync(editingPane);
+            int resolutionOffset = SelectedResolutionOffset();
+            editingPane.Viewport.DetailZoom = Math.Min(
+                MaxZoomForProvider(editingPane.Viewport.ProviderId),
+                editingPane.Viewport.Zoom + resolutionOffset);
+            editingPane.Viewport.Normalize(editingPane.Kind);
+            await CaptureSnapshotAsync(editingPane, mapState);
             DateTimeOffset now = DateTimeOffset.UtcNow;
             editingPane.Viewport.UpdatedAtUtc = now;
             workingCopy.UpdatedAtUtc = now;
             HasSavedChanges = true;
-            statusText.Text = $"{editingPane.Title} хадгалагдлаа.";
+            SiteContextSaved?.Invoke(Result);
+            statusText.Text =
+                $"{editingPane.Title} хадгалагдлаа · хамрах хүрээ Z{editingPane.Viewport.Zoom:0.#} · " +
+                $"нарийвчлал Z{editingPane.Viewport.DetailZoom:0.#}.";
             await EndEditAsync();
         }
         catch (Exception exception)
@@ -502,7 +539,7 @@ internal sealed class SiteContextMapEditorDialog : Window
         doneButton.IsEnabled = true;
     }
 
-    private async Task CaptureSnapshotAsync(MapPane pane)
+    private async Task CaptureSnapshotAsync(MapPane pane, MapState selectedState)
     {
         string directory = Path.Combine(projectFolder, "assets", "site-context");
         Directory.CreateDirectory(directory);
@@ -519,16 +556,31 @@ internal sealed class SiteContextMapEditorDialog : Window
         {
             try
             {
+                double detailDelta = Math.Clamp(
+                    pane.Viewport.DetailZoom - selectedState.Zoom,
+                    0,
+                    2);
+                double detailScale = Math.Pow(2, detailDelta);
                 string metrics = JsonSerializer.Serialize(new
                 {
-                    width = CaptureCssWidth,
-                    height = CaptureCssHeight,
+                    width = (int)Math.Round(CaptureCssWidth * detailScale),
+                    height = (int)Math.Round(CaptureCssHeight * detailScale),
                     deviceScaleFactor = CaptureDeviceScale,
                     mobile = false,
                 });
                 await core.CallDevToolsProtocolMethodAsync("Emulation.setDeviceMetricsOverride", metrics);
                 await core.ExecuteScriptAsync("window.erks.resize();");
-                await Task.Delay(850);
+                if (selectedState.Bounds is not null)
+                {
+                    string bounds = JsonSerializer.Serialize(selectedState.Bounds, JsonOptions);
+                    await core.ExecuteScriptAsync($"window.erks.fitBounds({bounds});");
+                }
+                else
+                {
+                    string selectedMapState = JsonSerializer.Serialize(selectedState, JsonOptions);
+                    await core.ExecuteScriptAsync($"window.erks.setState({selectedMapState});");
+                }
+                await Task.Delay(1200);
                 string response = await core.CallDevToolsProtocolMethodAsync(
                     "Page.captureScreenshot",
                     "{\"format\":\"png\",\"fromSurface\":true,\"captureBeyondViewport\":false}");
@@ -548,6 +600,8 @@ internal sealed class SiteContextMapEditorDialog : Window
                 {
                     await core.CallDevToolsProtocolMethodAsync("Emulation.clearDeviceMetricsOverride", "{}");
                     await core.ExecuteScriptAsync("window.erks.resize();");
+                    string selectedMapState = JsonSerializer.Serialize(selectedState, JsonOptions);
+                    await core.ExecuteScriptAsync($"window.erks.setState({selectedMapState});");
                 }
                 catch
                 {
@@ -612,6 +666,48 @@ internal sealed class SiteContextMapEditorDialog : Window
         bindingProvider = false;
     }
 
+    private void BindResolution(ProjectMapViewport viewport)
+    {
+        int offset = (int)Math.Clamp(
+            Math.Round(viewport.DetailZoom - viewport.Zoom),
+            0,
+            2);
+        BindResolution(viewport.Zoom, viewport.ProviderId, offset);
+    }
+
+    private void BindResolution(double coverageZoom, string providerId, int preferredOffset)
+    {
+        int maximumOffset = (int)Math.Clamp(
+            Math.Floor(MaxZoomForProvider(providerId) - coverageZoom),
+            0,
+            2);
+        int selectedOffset = Math.Clamp(preferredOffset, 0, maximumOffset);
+        resolutionBox.ItemsSource = Enumerable.Range(0, maximumOffset + 1)
+            .Select(offset => new MapResolutionChoice(
+                offset,
+                offset switch
+                {
+                    0 => $"Z{coverageZoom:0.#} · Стандарт",
+                    1 => $"Z{coverageZoom + 1:0.#} · 2× нарийвчлал",
+                    _ => $"Z{coverageZoom + 2:0.#} · 4× нарийвчлал",
+                }))
+            .ToList();
+        resolutionBox.SelectedItem = resolutionBox.Items
+            .OfType<MapResolutionChoice>()
+            .First(choice => choice.ZoomOffset == selectedOffset);
+    }
+
+    private int SelectedResolutionOffset() =>
+        (resolutionBox.SelectedItem as MapResolutionChoice)?.ZoomOffset ?? 0;
+
+    private static double MaxZoomForProvider(string providerId) =>
+        ProjectMapProviderIds.Normalize(providerId) switch
+        {
+            ProjectMapProviderIds.OpenTopoMap => 17,
+            ProjectMapProviderIds.OpenStreetMap => 19,
+            _ => 22,
+        };
+
     private static void ApplyMapState(ProjectMapViewport viewport, MapState state)
     {
         viewport.ProviderId = state.ProviderId;
@@ -630,6 +726,7 @@ internal sealed class SiteContextMapEditorDialog : Window
         target.CenterLatitude = source.CenterLatitude;
         target.CenterLongitude = source.CenterLongitude;
         target.Zoom = source.Zoom;
+        target.DetailZoom = source.DetailZoom;
         target.Bearing = source.Bearing;
         target.SnapshotRelativePath = source.SnapshotRelativePath;
         target.SnapshotSha256 = source.SnapshotSha256;
@@ -654,6 +751,11 @@ internal sealed class SiteContextMapEditorDialog : Window
         public override string ToString() => IsAvailable ? DisplayName : $"{DisplayName} · эрх шаардлагатай";
     }
 
+    private sealed record MapResolutionChoice(int ZoomOffset, string DisplayName)
+    {
+        public override string ToString() => DisplayName;
+    }
+
     private sealed class MapPane(
         string kind,
         string title,
@@ -676,6 +778,8 @@ internal sealed class SiteContextMapEditorDialog : Window
     private sealed class MapInitialization
     {
         public required MapState Viewport { get; init; }
+        public required ProjectSiteBoundary Boundary { get; init; }
+        public required ProjectSitePlanFeatures PlanFeatures { get; init; }
         public bool Editing { get; init; }
         public string GoogleApiKey { get; init; } = "";
         public string AzureMapsKey { get; init; } = "";
@@ -689,6 +793,7 @@ internal sealed class SiteContextMapEditorDialog : Window
         public double Zoom { get; set; }
         public double Bearing { get; set; }
         public string Attribution { get; set; } = "";
+        public MapBounds? Bounds { get; set; }
         public bool Ready { get; set; }
 
         public static MapState FromViewport(ProjectMapViewport viewport) => new()
@@ -700,5 +805,13 @@ internal sealed class SiteContextMapEditorDialog : Window
             Bearing = viewport.Bearing,
             Attribution = viewport.Attribution,
         };
+    }
+
+    private sealed class MapBounds
+    {
+        public double West { get; set; }
+        public double South { get; set; }
+        public double East { get; set; }
+        public double North { get; set; }
     }
 }

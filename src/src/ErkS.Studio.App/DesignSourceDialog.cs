@@ -117,7 +117,7 @@ internal sealed class DesignSourceDialog : Window
         {
             DesignSourceKind.Revit => "RVT файл сонгох...",
             DesignSourceKind.AutoCad => "DWG файл сонгох...",
-            DesignSourceKind.CityGen => "CityGen файл сонгох...",
+            DesignSourceKind.CityGen => "CityGen DWG/өгөгдөл сонгох...",
             DesignSourceKind.Pdf => "PDF файл сонгох...",
             _ => "Хавтас сонгох...",
         };
@@ -154,7 +154,10 @@ internal sealed class DesignSourceDialog : Window
         {
             DesignSourceKind.Revit => ("Revit төслийн файл сонгох", "Revit project (*.rvt)|*.rvt|Бүх файл (*.*)|*.*", ".rvt"),
             DesignSourceKind.AutoCad => ("AutoCAD зургийн файл сонгох", "AutoCAD drawing (*.dwg)|*.dwg|Бүх файл (*.*)|*.*", ".dwg"),
-            DesignSourceKind.CityGen => ("CityGen эх файл сонгох", "CityGen data (*.json;*.geojson;*.zip)|*.json;*.geojson;*.zip|Бүх файл (*.*)|*.*", ""),
+            DesignSourceKind.CityGen => (
+                "CityGen DWG эсвэл өгөгдлийн файл сонгох",
+                "CityGen drawing/data (*.dwg;*.json;*.geojson;*.zip)|*.dwg;*.json;*.geojson;*.zip|Бүх файл (*.*)|*.*",
+                ".dwg"),
             DesignSourceKind.Pdf => ("PDF файл сонгох", "PDF document (*.pdf)|*.pdf|Бүх файл (*.*)|*.*", ".pdf"),
             _ => ("Эх файл сонгох", "Бүх файл (*.*)|*.*", ""),
         };

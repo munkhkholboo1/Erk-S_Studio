@@ -1,5 +1,28 @@
 namespace ErkS.Platform.Core;
 
+public readonly record struct BuildingArchitectureConceptPageRegions(
+    PageRectMm Frame,
+    PageRectMm InformationArea,
+    PageRectMm ApprovalRoleArea,
+    PageRectMm ApprovalNameArea,
+    PageRectMm DescriptionArea,
+    PageRectMm SheetTitleArea,
+    PageRectMm DrawingArea,
+    PageRectMm TitleBlockArea);
+
+public readonly record struct BuildingArchitectureConceptCornerGrid(
+    double X0,
+    double X1,
+    double X2,
+    double X3,
+    double X4,
+    double X5,
+    double Y0,
+    double Y1,
+    double Y2,
+    double Y3,
+    double Y4);
+
 /// <summary>
 /// Canonical A3 landscape geometry used by Erk-S for Revit sketch sheets.
 /// Studio owns the visible frame, sheet header and corner table; authoring
@@ -15,6 +38,16 @@ public static class BuildingArchitectureConceptPageLayout
     public const double CornerLineHeightFactor = 1.15;
     public const double ArialCapHeightRatio = 0.72;
     public const double CoverLineHeightFactor = 1.35;
+
+    // Revit exports only the clean drawing-space geometry. These measurements
+    // define Studio's visible page chrome for every orientation and bind edge.
+    public const double NormalMarginMm = 5.0;
+    public const double BindMarginMm = 15.0;
+    public const double SheetTitleHeightMm = 9.0;
+    public const double TitleBlockWidthMm = 190.0;
+    public const double TitleBlockHeightMm = 28.0;
+    public const double ElevationRoleColumnOffsetMm = 110.0;
+    public const double ElevationApprovalPanelOffsetMm = 165.0;
 
     // Canonical cover approval table. PDF export and the live Studio preview
     // must use these same boundaries so the cover never changes between views.
@@ -196,6 +229,114 @@ public static class BuildingArchitectureConceptPageLayout
         (string.IsNullOrWhiteSpace(format.BindEdge) ||
           string.Equals(format.BindEdge, "LEFT", StringComparison.OrdinalIgnoreCase));
 
+    public static bool SupportsStudioChrome(PageFormatDefinition format) =>
+        format.Kind == PageFormatKind.Concept &&
+        format.WidthMm > 0 &&
+        format.HeightMm > 0 &&
+        format.DrawingArea.Width > 0 &&
+        format.DrawingArea.Height > 0 &&
+        format.SheetTitleArea.Width > 0 &&
+        format.SheetTitleArea.Height > 0 &&
+        format.TitleBlockArea.Width > 0 &&
+        format.TitleBlockArea.Height > 0;
+
+    public static BuildingArchitectureConceptPageRegions Calculate(
+        double pageWidthMm,
+        double pageHeightMm,
+        string? bindEdge,
+        bool includeInformationHeader = false)
+    {
+        string edge = (bindEdge ?? "LEFT").Trim().ToUpperInvariant();
+        double left = edge == "LEFT" ? BindMarginMm : NormalMarginMm;
+        double top = edge == "TOP" ? BindMarginMm : NormalMarginMm;
+        double right = edge == "RIGHT" ? BindMarginMm : NormalMarginMm;
+        double bottom = edge == "BOTTOM" ? BindMarginMm : NormalMarginMm;
+
+        double frameWidth = Math.Max(0.0, pageWidthMm - left - right);
+        double frameHeight = Math.Max(0.0, pageHeightMm - top - bottom);
+        double informationHeight = includeInformationHeader
+            ? Math.Min(ElevationInformationHeightMm, frameHeight)
+            : 0.0;
+        double titleHeight = Math.Min(
+            SheetTitleHeightMm,
+            Math.Max(0.0, frameHeight - informationHeight));
+        double cornerHeight = Math.Min(
+            TitleBlockHeightMm,
+            Math.Max(0.0, frameHeight - titleHeight));
+        double cornerWidth = Math.Min(TitleBlockWidthMm, frameWidth);
+        double drawingHeight = Math.Max(
+            0.0,
+            frameHeight - informationHeight - titleHeight - cornerHeight);
+        double roleWidth = includeInformationHeader
+            ? Math.Min(ElevationRoleColumnOffsetMm, frameWidth)
+            : 0.0;
+        double approvalWidth = includeInformationHeader
+            ? Math.Min(
+                Math.Max(0.0, ElevationApprovalPanelOffsetMm - ElevationRoleColumnOffsetMm),
+                Math.Max(0.0, frameWidth - roleWidth))
+            : 0.0;
+        double descriptionWidth = Math.Max(0.0, frameWidth - roleWidth - approvalWidth);
+
+        return new BuildingArchitectureConceptPageRegions(
+            Rect(left, top, frameWidth, frameHeight),
+            Rect(left, top, frameWidth, informationHeight),
+            Rect(left, top, roleWidth, informationHeight),
+            Rect(left + roleWidth, top, approvalWidth, informationHeight),
+            Rect(left + roleWidth + approvalWidth, top, descriptionWidth, informationHeight),
+            Rect(left, top + informationHeight, frameWidth, titleHeight),
+            Rect(left, top + informationHeight + titleHeight, frameWidth, drawingHeight),
+            Rect(
+                left + frameWidth - cornerWidth,
+                top + frameHeight - cornerHeight,
+                cornerWidth,
+                cornerHeight));
+    }
+
+    public static BuildingArchitectureConceptPageRegions ResolveRegions(
+        PageFormatDefinition format,
+        bool includeInformationHeader)
+    {
+        BuildingArchitectureConceptPageRegions calculated = Calculate(
+            format.WidthMm,
+            format.HeightMm,
+            format.BindEdge,
+            includeInformationHeader);
+
+        return calculated with
+        {
+            SheetTitleArea = IsPositive(format.SheetTitleArea)
+                ? format.SheetTitleArea
+                : calculated.SheetTitleArea,
+            DrawingArea = IsPositive(format.DrawingArea)
+                ? format.DrawingArea
+                : calculated.DrawingArea,
+            TitleBlockArea = IsPositive(format.TitleBlockArea)
+                ? format.TitleBlockArea
+                : calculated.TitleBlockArea,
+        };
+    }
+
+    public static BuildingArchitectureConceptCornerGrid ResolveCornerGrid(PageRectMm area)
+    {
+        double widthScale = area.Width / TitleBlockWidthMm;
+        double heightScale = area.Height / TitleBlockHeightMm;
+        double X(double offset) => area.X + offset * widthScale;
+        double Y(double offset) => area.Y + offset * heightScale;
+
+        return new BuildingArchitectureConceptCornerGrid(
+            X(0),
+            X(32),
+            X(106),
+            X(140),
+            X(170),
+            X(190),
+            Y(0),
+            Y(7),
+            Y(14),
+            Y(21),
+            Y(28));
+    }
+
     public static bool IsElevationSheet(
         string? contentKind,
         string? sheetName = null,
@@ -220,15 +361,42 @@ public static class BuildingArchitectureConceptPageLayout
 
     public static PageFormatDefinition ApplyElevationGeometry(PageFormatDefinition source)
     {
-        if (!IsCanonical(source))
+        if (!SupportsStudioChrome(source))
             return source;
+
+        BuildingArchitectureConceptPageRegions regions = Calculate(
+            source.WidthMm,
+            source.HeightMm,
+            source.BindEdge,
+            includeInformationHeader: true);
+        bool isLandscapeElevation = string.Equals(
+            source.Id,
+            PageFormatCatalog.ConceptElevationA3LandscapeId,
+            StringComparison.OrdinalIgnoreCase);
+        bool isPortraitElevation = string.Equals(
+            source.Id,
+            PageFormatCatalog.ConceptElevationA3PortraitTopId,
+            StringComparison.OrdinalIgnoreCase);
+        string id = source.Id;
+        if (string.Equals(
+                source.Id,
+                PageFormatCatalog.ConceptA3LandscapeId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            id = PageFormatCatalog.ConceptElevationA3LandscapeId;
+        }
+        else if (string.Equals(
+                     source.Id,
+                     PageFormatCatalog.ConceptA3PortraitTopId,
+                     StringComparison.OrdinalIgnoreCase))
+        {
+            id = PageFormatCatalog.ConceptElevationA3PortraitTopId;
+        }
 
         return new PageFormatDefinition
         {
             SpecVersion = source.SpecVersion,
-            Id = string.Equals(source.Id, PageFormatCatalog.ConceptA3LandscapeId, StringComparison.OrdinalIgnoreCase)
-                ? PageFormatCatalog.ConceptElevationA3LandscapeId
-                : source.Id,
+            Id = id,
             Name = source.Name,
             Kind = source.Kind,
             Code = source.Code,
@@ -236,9 +404,9 @@ public static class BuildingArchitectureConceptPageLayout
             BindEdge = source.BindEdge,
             WidthMm = source.WidthMm,
             HeightMm = source.HeightMm,
-            DrawingArea = ElevationDrawingArea,
-            SheetTitleArea = ElevationSheetTitleArea,
-            TitleBlockArea = BuildingArchitectureConceptPageLayout.TitleBlockArea,
+            DrawingArea = regions.DrawingArea,
+            SheetTitleArea = regions.SheetTitleArea,
+            TitleBlockArea = regions.TitleBlockArea,
             ShowBorder = source.ShowBorder,
             ShowGrid = source.ShowGrid,
             Revision = Math.Max(source.Revision, 4),
@@ -248,10 +416,7 @@ public static class BuildingArchitectureConceptPageLayout
             // Geometry changed from the source snapshot, so its hash no longer
             // describes this page. A producer-supplied elevation snapshot keeps
             // its own hash because it already resolves to this geometry.
-            GeometryHash = string.Equals(
-                source.Id,
-                PageFormatCatalog.ConceptElevationA3LandscapeId,
-                StringComparison.OrdinalIgnoreCase)
+            GeometryHash = isLandscapeElevation || isPortraitElevation
                 ? source.GeometryHash
                 : "",
         };
@@ -267,6 +432,9 @@ public static class BuildingArchitectureConceptPageLayout
             text.Contains("elevation", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("facade", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsPositive(PageRectMm area) =>
+        area.Width > 0 && area.Height > 0;
 
     private static PageRectMm Rect(double x, double y, double width, double height) => new()
     {

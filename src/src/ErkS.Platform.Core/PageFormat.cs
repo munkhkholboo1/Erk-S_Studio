@@ -54,6 +54,8 @@ public static class PageFormatCatalog
     public const string WorkingDrawingA3LandscapeId = "erks-working-a3-landscape";
     public const string ConceptA3LandscapeId = "erks-concept-a3-landscape";
     public const string ConceptElevationA3LandscapeId = "erks-concept-elevation-a3-landscape";
+    public const string ConceptA3PortraitTopId = "erks-concept-a3-portrait-top";
+    public const string ConceptElevationA3PortraitTopId = "erks-concept-elevation-a3-portrait-top";
     public const string DocumentA4PortraitId = "erks-document-a4-portrait";
 
     public static IReadOnlyList<PageFormatDefinition> All { get; } =
@@ -105,6 +107,8 @@ public static class PageFormatCatalog
             TitleBlockArea = BuildingArchitectureConceptPageLayout.TitleBlockArea,
             Revision = 4,
         },
+        CreateConceptA3Portrait(includeInformationHeader: false),
+        CreateConceptA3Portrait(includeInformationHeader: true),
         new()
         {
             Id = DocumentA4PortraitId,
@@ -132,6 +136,35 @@ public static class PageFormatCatalog
           format.DrawingArea.Width > 0 && format.DrawingArea.Height > 0));
 
     public static PageFormatDefinition DefaultWorkingDrawing => Resolve(WorkingDrawingA3LandscapeId);
+
+    private static PageFormatDefinition CreateConceptA3Portrait(bool includeInformationHeader)
+    {
+        BuildingArchitectureConceptPageRegions regions =
+            BuildingArchitectureConceptPageLayout.Calculate(
+                297,
+                420,
+                "TOP",
+                includeInformationHeader);
+        return new PageFormatDefinition
+        {
+            Id = includeInformationHeader
+                ? ConceptElevationA3PortraitTopId
+                : ConceptA3PortraitTopId,
+            Name = includeInformationHeader
+                ? "Загвар зураг - Нүүр тал, A3 босоо"
+                : "Загвар зураг - A3 босоо, дээд нуруулдах",
+            Kind = PageFormatKind.Concept,
+            Code = "A3",
+            Orientation = "PORTRAIT",
+            BindEdge = "TOP",
+            WidthMm = 297,
+            HeightMm = 420,
+            DrawingArea = regions.DrawingArea,
+            SheetTitleArea = regions.SheetTitleArea,
+            TitleBlockArea = regions.TitleBlockArea,
+            Revision = includeInformationHeader ? 4 : 3,
+        };
+    }
 
     public static PageFormatDefinition ResolveForConceptPage(
         AlbumPageDefinition page,
