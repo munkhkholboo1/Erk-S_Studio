@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.11] - 2026-07-22
+
+- Reject update catalog entries and downloaded installers that belong to another Erk-S product.
+- Verify the Studio product identity and exact release version after Authenticode and SHA-256 validation.
+- Keep the website, installer, updater, and update-history version metadata on one Studio release stream.
+- Prevent browsers and intermediate proxies from retaining stale product and release-history HTML.
+
 ## [0.1.0-dev.10] - 2026-07-22
 
 - Merge independently authored Cloud ERA source manifests and album components without deleting another member's contribution.

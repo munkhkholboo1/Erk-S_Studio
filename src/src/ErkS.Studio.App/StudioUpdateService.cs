@@ -9,6 +9,8 @@ namespace ErkS.Studio;
 
 internal sealed class StudioUpdateLatestResponse
 {
+    public string ProductCode { get; set; } = "";
+
     public bool IsUpdateAvailable { get; set; }
 
     public string Version { get; set; } = "";
@@ -102,6 +104,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
             JsonOptions,
             cancellationToken).ConfigureAwait(true) ?? new StudioUpdateLatestResponse();
         result.ServerUrl = server.GetLeftPart(UriPartial.Authority);
+        ValidateCatalogEntry(result);
         return result;
     }
 
@@ -114,6 +117,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
         if (!update.IsUpdateAvailable)
             throw new InvalidOperationException("Суулгах шинэ хувилбар алга.");
 
+        ValidateCatalogEntry(update);
         ValidateSha256(update.Sha256);
         Uri downloadUri = ResolveDownloadUri(update);
         string safeVersion = SanitizeFileName(string.IsNullOrWhiteSpace(update.Version) ? "latest" : update.Version);
@@ -181,6 +185,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
                 authenticodeVerifier,
                 StudioReleaseInfo.PinnedUntrustedRootCertificateSha256,
                 cancellationToken).ConfigureAwait(true);
+            ValidateInstallerIdentity(partial, update.Version);
             File.Move(partial, destination, true);
             progress?.Report(new StudioUpdateProgress(100, "Шинэчлэлт суулгахад бэлэн боллоо."));
             return destination;
@@ -198,6 +203,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(update);
+        ValidateCatalogEntry(update);
         await UpdatePackageSecurityPolicy.VerifyInstallerAsync(
             installerPath,
             update.Sha256,
@@ -205,6 +211,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
             authenticodeVerifier,
             StudioReleaseInfo.PinnedUntrustedRootCertificateSha256,
             cancellationToken).ConfigureAwait(true);
+        ValidateInstallerIdentity(installerPath, update.Version);
 
         _ = Process.Start(new ProcessStartInfo
         {
@@ -239,6 +246,65 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
             : new Uri(server, (update.DownloadUrl ?? "").TrimStart('/'));
         UpdatePackageSecurityPolicy.ValidateTransport(result, StudioReleaseInfo.IsDevelopmentBuild);
         return result;
+    }
+
+    internal static void ValidateCatalogEntry(StudioUpdateLatestResponse update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        if (!string.IsNullOrWhiteSpace(update.ProductCode) &&
+            !update.ProductCode.Trim().Equals(StudioReleaseInfo.ProductCode, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"Шинэчлэлтийн багц '{update.ProductCode}' бүтээгдэхүүнийх байна. Erk-S Studio update биш тул татахгүй.");
+        }
+
+        if (string.IsNullOrWhiteSpace(update.DownloadUrl))
+        {
+            if (update.IsUpdateAvailable)
+                throw new InvalidDataException("Studio update download URL дутуу байна.");
+            return;
+        }
+
+        string path = Uri.TryCreate(update.DownloadUrl, UriKind.Absolute, out Uri? absolute)
+            ? absolute.AbsolutePath
+            : update.DownloadUrl.Split('?', '#')[0];
+        path = Uri.UnescapeDataString(path).Replace('\\', '/');
+        string fileName = Path.GetFileName(path);
+        bool isStudioFolder = path.Contains("/ErkS.Studio/", StringComparison.OrdinalIgnoreCase);
+        bool isStudioInstaller = fileName.StartsWith("ErkS_Studio_", StringComparison.OrdinalIgnoreCase) &&
+            fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        if (!isStudioFolder || !isStudioInstaller)
+        {
+            throw new InvalidDataException(
+                "Server өөр бүтээгдэхүүний багц заасан тул Studio update-ийг татсангүй.");
+        }
+    }
+
+    internal static void ValidateInstallerIdentity(string installerPath, string expectedVersion)
+    {
+        FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(installerPath);
+        if (!string.Equals(versionInfo.ProductName?.Trim(), "Erk-S Studio", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Downloaded package is not an Erk-S Studio installer.");
+
+        string actual = NormalizeProductVersion(versionInfo.ProductVersion);
+        string expected = NormalizeProductVersion(expectedVersion);
+        if (!string.IsNullOrWhiteSpace(expected) &&
+            !string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"Studio installer version mismatch. Expected '{expectedVersion}', received '{versionInfo.ProductVersion}'.");
+        }
+    }
+
+    private static string NormalizeProductVersion(string? value)
+    {
+        string result = (value ?? "").Trim();
+        int metadataStart = result.IndexOf('+', StringComparison.Ordinal);
+        if (metadataStart >= 0)
+            result = result[..metadataStart].Trim();
+        if (result.StartsWith("Demo ", StringComparison.OrdinalIgnoreCase))
+            result = result[5..].Trim();
+        return result.TrimStart('v', 'V');
     }
 
     private static void ValidateSha256(string value)

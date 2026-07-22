@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.12",
+    [string]$ReleaseVersion = "V0.001.13",
 
     [Parameter(Mandatory = $true)]
     [string]$ReleaseNotes,
@@ -140,6 +140,7 @@ if (-not $downloadHash.Equals(([string]$releaseManifest.sha256).ToLowerInvariant
 }
 
 $installerMetadata = [ordered]@{
+    ProductCode = $productCode
     IsUpdateAvailable = $false
     Version = $versions.Metadata
     DownloadUrl = "/downloads/$productCode/$downloadName"
@@ -150,6 +151,7 @@ $installerMetadata = [ordered]@{
     AutoCADVersion = ""
 }
 $updateMetadata = [ordered]@{
+    ProductCode = $productCode
     IsUpdateAvailable = $false
     Version = $versions.Metadata
     DownloadUrl = "/updates/$productCode/$updateName"
