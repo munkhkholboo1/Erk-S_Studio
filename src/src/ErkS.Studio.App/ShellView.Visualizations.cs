@@ -548,7 +548,9 @@ internal sealed partial class ShellView
                 state.Album.Pages,
                 state.Library,
                 state.Project.Sources,
-                generatedPlans.Count);
+                generatedPlans.Count,
+                state.Project.BuildingGroups,
+                state.Project.SheetBuildingAssignments);
         return BuildingArchitectureConceptAlbumSequencer.NextAutomaticNumber(
             state.Album,
             sequence,

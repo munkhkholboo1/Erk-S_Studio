@@ -64,6 +64,13 @@ public sealed class SiteContextMapRuntimeAssetTests
             Assert.Contains("annotationToolName", runtime);
             Assert.Contains("toolOptions.name = '';", runtime);
             Assert.Contains("Нэр: ${landmark.name || 'Нэргүй'}", runtime);
+            Assert.Contains("id=\"interaction-lock\"", runtime);
+            Assert.Contains("type: 'lockedClick'", runtime);
+            Assert.Contains("interactionLock.classList.toggle('editing', editing)", runtime);
+            Assert.Contains("scrollZoomInteraction: editing", runtime);
+            Assert.Contains("function cancelActiveTool()", runtime);
+            Assert.Contains("event.key !== 'Escape'", runtime);
+            Assert.Contains("finishDrawing, cancelActiveTool", runtime);
         }
         finally
         {
@@ -110,5 +117,17 @@ public sealed class SiteContextMapRuntimeAssetTests
         Assert.Equal(expectedWidth, width);
         Assert.Equal(expectedHeight, height);
         Assert.Equal(1d, deviceScaleFactor);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 1)]
+    [InlineData(0.1, 0.6)]
+    [InlineData(0.64, 0.6)]
+    [InlineData(1.04, 1)]
+    [InlineData(1.06, 1.1)]
+    [InlineData(2.7, 2)]
+    public void PageViewZoom_IsFiniteSteppedAndClamped(double value, double expected)
+    {
+        Assert.Equal(expected, SiteContextMapEditorControl.NormalizePageViewZoom(value), 6);
     }
 }

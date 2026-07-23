@@ -105,17 +105,17 @@ public static class BuildingArchitectureConceptAlbumTemplate
             .OrderBy(item => item.Order)
             .ToList();
 
-        var byName = sourceSlots.FirstOrDefault(item =>
-            item.MatchNameTerms.Any(term => Contains(entry.Name, term)));
-        if (byName is not null)
-        {
-            return byName;
-        }
-
         var contentHints = new[] { entry.ContentKind, entry.Discipline }
             .Where(value => !string.IsNullOrWhiteSpace(value));
-        return sourceSlots.FirstOrDefault(item => item.MatchContentKinds.Any(expected =>
+        var bySourceMetadata = sourceSlots.FirstOrDefault(item => item.MatchContentKinds.Any(expected =>
             contentHints.Any(actual => EqualsNormalized(actual, expected))));
+        if (bySourceMetadata is not null)
+        {
+            return bySourceMetadata;
+        }
+
+        return sourceSlots.FirstOrDefault(item =>
+            item.MatchNameTerms.Any(term => Contains(entry.Name, term)));
     }
 
     public static AlbumCompositionItem? FindSlot(AlbumDefinition definition, string? slotId) =>
@@ -163,7 +163,7 @@ public static class BuildingArchitectureConceptAlbumTemplate
         Source("landscaping", 6, "06", "НОГООН БАЙГУУЛАМЖ", "Ерөнхий төлөвлөгөө", false, [], ["НОГООН БАЙГУУЛАМЖ"]),
         Source("solar-study", 7, "07", "НАРНЫ ЭЭВЭРЛЭЛТ", "Ерөнхий төлөвлөгөө", false, [], ["НАРНЫ ЭЭВЭРЛЭЛТ", "НАРНЫ ТУСГАЛ"]),
         Source("master-plan", 8, "08", "ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ", "Ерөнхий төлөвлөгөө", false, [], ["ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ"]),
-        Source("floor-plans", 9, "09+", "ДАВХРЫН БАЙГУУЛАЛТ", "Давхрын байгуулалт", true, ["Давхрын байгуулалт"], ["ДАВХРЫН БАЙГУУЛАЛТ"]),
+        Source("floor-plans", 9, "09+", "ДАВХРЫН БАЙГУУЛАЛТ", "Давхрын байгуулалт", true, ["Давхрын байгуулалт", "Байгуулалт"], ["ДАВХРЫН БАЙГУУЛАЛТ"]),
         Source("sections", 10, "10+", "ОГТЛОЛ", "Огтлол", true, ["Огтлол"], ["ОГТЛОЛ"]),
         Source("elevations", 11, "11+", "НҮҮР ТАЛ", "Нүүр тал", true, ["Нүүр тал"], ["НҮҮР ТАЛ"]),
         Source("visualizations", 12, "12+", "ХАРАГДАХ БАЙДАЛ", "Харагдах байдал", true, ["Харагдах байдал"], ["ХАРАГДАХ БАЙДАЛ"]),

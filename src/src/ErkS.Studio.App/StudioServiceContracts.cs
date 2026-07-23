@@ -46,6 +46,12 @@ internal interface IProjectsClient
         string concurrencyToken,
         CancellationToken cancellationToken = default);
 
+    Task<StudioCloudProjectDetail> UpdateBuildingCompositionAsync(
+        string projectId,
+        StudioCloudBuildingCompositionUpdateRequest request,
+        string concurrencyToken,
+        CancellationToken cancellationToken = default);
+
     Task<StudioCloudProjectDetail> UploadProjectClientLogoAsync(
         string projectId,
         string logoPath,

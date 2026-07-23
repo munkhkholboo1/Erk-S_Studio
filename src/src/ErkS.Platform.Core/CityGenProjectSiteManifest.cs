@@ -84,6 +84,26 @@ public static class CityGenProjectSiteReconciler
             }
         }
 
+        ProjectSiteContextSourceLock? sourceLock =
+            ProjectSiteContextEditingPolicy.ResolveCanonicalSourceLock(project);
+        if (sourceLock is not null)
+        {
+            candidates = candidates
+                .Where(candidate =>
+                    ProjectSiteContextEditingPolicy.MatchesCanonicalSource(
+                        project,
+                        candidate.Source))
+                .ToList();
+            if (candidates.Count == 0)
+            {
+                result.Message =
+                    "Байршлын схем нь Cloud ERA-д бүртгэлтэй ерөнхий төлөвлөгөөний " +
+                    "эх үүсвэрийн хариуцагчид түгжигдсэн байна. Энэ төхөөрөмжийн өөр " +
+                    "эх үүсвэрээр төслийн хил болон газрын зургийг солихгүй.";
+                return result;
+            }
+        }
+
         if (candidates.Count == 0)
         {
             if (string.IsNullOrWhiteSpace(result.Message))

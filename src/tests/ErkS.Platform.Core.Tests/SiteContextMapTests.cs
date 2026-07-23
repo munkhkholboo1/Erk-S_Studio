@@ -423,6 +423,193 @@ public sealed class SiteContextMapTests : IDisposable
     }
 
     [Fact]
+    public void SiteContextEditingPolicy_AllowsOnlyCanonicalGeneralPlanCustodian()
+    {
+        ProjectWorkspace project = CloudProjectWithSiteBoundary(
+            "site-source",
+            "general-plan",
+            "architect-a@erks.local");
+        project.Cloud.SharedSources.Add(new ProjectCloudSourceReference
+        {
+            SourceId = "cloud-source-a",
+            SourceKey = "general-plan",
+            RegisteredBy = "architect-a@erks.local",
+            CustodianEmail = "architect-a@erks.local",
+            OwnerEmail = "architect-a@erks.local",
+            Status = "Registered",
+        });
+        project.Cloud.SharedAlbumComponents.Add(new ProjectCloudAlbumComponentReference
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            SourceKey = "general-plan",
+            OwnerEmail = "architect-a@erks.local",
+            ComponentKind = ProjectSiteContextEditingPolicy.SiteContextComponentKind,
+        });
+
+        ProjectSiteContextEditAuthority owner =
+            ProjectSiteContextEditingPolicy.Resolve(project, "architect-a@erks.local");
+        ProjectSiteContextEditAuthority collaborator =
+            ProjectSiteContextEditingPolicy.Resolve(project, "architect-b@erks.local");
+
+        Assert.True(owner.CanEdit);
+        Assert.Equal("architect-a@erks.local", owner.SourceOwnerEmail);
+        Assert.False(collaborator.CanEdit);
+        Assert.True(ProjectSiteContextEditingPolicy.MatchesCanonicalSource(
+            project,
+            project.Sources[0]));
+    }
+
+    [Fact]
+    public void SiteContextEditingPolicy_FollowsApprovedSourceCustodyTransfer()
+    {
+        ProjectWorkspace project = CloudProjectWithSiteBoundary(
+            "site-source",
+            "general-plan",
+            "architect-a@erks.local");
+        project.Cloud.SharedSources.Add(new ProjectCloudSourceReference
+        {
+            SourceId = "cloud-source-a",
+            SourceKey = "general-plan",
+            RegisteredBy = "architect-a@erks.local",
+            CustodianEmail = "architect-b@erks.local",
+            OwnerEmail = "architect-b@erks.local",
+            Status = "Registered",
+        });
+        project.Cloud.SharedAlbumComponents.Add(new ProjectCloudAlbumComponentReference
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            SourceKey = "general-plan",
+            OwnerEmail = "architect-a@erks.local",
+            ComponentKind = ProjectSiteContextEditingPolicy.SiteContextComponentKind,
+        });
+
+        ProjectSiteContextSourceLock sourceLock =
+            Assert.IsType<ProjectSiteContextSourceLock>(
+                ProjectSiteContextEditingPolicy.ResolveCanonicalSourceLock(project));
+        ProjectSiteContextEditAuthority previousCustodian =
+            ProjectSiteContextEditingPolicy.Resolve(project, "architect-a@erks.local");
+        ProjectSiteContextEditAuthority currentCustodian =
+            ProjectSiteContextEditingPolicy.Resolve(project, "architect-b@erks.local");
+
+        Assert.Equal("architect-a@erks.local", sourceLock.SourceOwnerEmail);
+        Assert.Equal("architect-b@erks.local", sourceLock.OwnerEmail);
+        Assert.False(previousCustodian.CanEdit);
+        Assert.True(currentCustodian.CanEdit);
+        Assert.Equal("architect-a@erks.local", currentCustodian.SourceOwnerEmail);
+        Assert.True(ProjectSiteContextEditingPolicy.MatchesCanonicalSource(
+            project,
+            project.Sources[0]));
+    }
+
+    [Fact]
+    public void CityGenProjectSiteReconciler_PrefersCanonicalContributorWhenSourceKeysMatch()
+    {
+        string firstDrawingPath = Path.Combine(workDirectory, "first-general-plan.dwg");
+        string secondDrawingPath = Path.Combine(workDirectory, "second-general-plan.dwg");
+        File.WriteAllText(firstDrawingPath, "first drawing placeholder");
+        File.WriteAllText(secondDrawingPath, "second drawing placeholder");
+        WriteCityGenSidecar(
+            Path.ChangeExtension(firstDrawingPath, ".erks-citygen-site.json"),
+            areaSquareMeters: 10_000,
+            eastLongitude: 106.90);
+        WriteCityGenSidecar(
+            Path.ChangeExtension(secondDrawingPath, ".erks-citygen-site.json"),
+            areaSquareMeters: 20_000,
+            eastLongitude: 107.20);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "MAP-CANONICAL",
+            "Canonical CityGen source");
+        ProjectDesignSource first = AddCloudSource(
+            project,
+            "first-source",
+            firstDrawingPath,
+            "shared-general-plan",
+            "architect-a@erks.local");
+        _ = AddCloudSource(
+            project,
+            "second-source",
+            secondDrawingPath,
+            "shared-general-plan",
+            "architect-b@erks.local");
+        project.Cloud.SharedSources =
+        [
+            new ProjectCloudSourceReference
+            {
+                SourceKey = "shared-general-plan",
+                RegisteredBy = "architect-a@erks.local",
+                OwnerEmail = "architect-a@erks.local",
+                Status = "Registered",
+            },
+            new ProjectCloudSourceReference
+            {
+                SourceKey = "shared-general-plan",
+                RegisteredBy = "architect-b@erks.local",
+                OwnerEmail = "architect-b@erks.local",
+                Status = "Registered",
+            },
+        ];
+        project.Cloud.SharedAlbumComponents.Add(new ProjectCloudAlbumComponentReference
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            SourceKey = "shared-general-plan",
+            OwnerEmail = "architect-a@erks.local",
+            ComponentKind = ProjectSiteContextEditingPolicy.SiteContextComponentKind,
+        });
+
+        CityGenProjectSiteReconciliationResult result =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.True(result.Changed);
+        Assert.Equal(first.Id, result.SourceId);
+        Assert.Equal(first.Id, project.SiteContext.Boundary.SourceId);
+        Assert.Equal(10_000, project.SiteContext.Boundary.AreaSquareMeters);
+    }
+
+    [Fact]
+    public void CityGenProjectSiteReconciler_DoesNotReplaceLockedMapWithoutCanonicalLocalSource()
+    {
+        string drawingPath = Path.Combine(workDirectory, "foreign-general-plan.dwg");
+        File.WriteAllText(drawingPath, "foreign drawing placeholder");
+        WriteCityGenSidecar(
+            Path.ChangeExtension(drawingPath, ".erks-citygen-site.json"),
+            areaSquareMeters: 20_000,
+            eastLongitude: 107.20);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "MAP-LOCKED",
+            "Locked CityGen source");
+        _ = AddCloudSource(
+            project,
+            "foreign-source",
+            drawingPath,
+            "shared-general-plan",
+            "architect-b@erks.local");
+        project.SiteContext.Boundary = SiteBoundary("canonical-source", 12_500);
+        project.Cloud.SharedSources.Add(new ProjectCloudSourceReference
+        {
+            SourceKey = "shared-general-plan",
+            RegisteredBy = "architect-a@erks.local",
+            OwnerEmail = "architect-a@erks.local",
+            Status = "Registered",
+        });
+        project.Cloud.SharedAlbumComponents.Add(new ProjectCloudAlbumComponentReference
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            SourceKey = "shared-general-plan",
+            OwnerEmail = "architect-a@erks.local",
+            ComponentKind = ProjectSiteContextEditingPolicy.SiteContextComponentKind,
+        });
+
+        CityGenProjectSiteReconciliationResult result =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.False(result.Changed);
+        Assert.Equal("canonical-source", project.SiteContext.Boundary.SourceId);
+        Assert.Equal(12_500, project.SiteContext.Boundary.AreaSquareMeters);
+    }
+
+    [Fact]
     public void CityGenProjectSiteReconciler_ImportsAndReplacesLinkedPlanFeatures()
     {
         string drawingPath = Path.Combine(workDirectory, "planned-site.dwg");
@@ -685,6 +872,61 @@ public sealed class SiteContextMapTests : IDisposable
         """;
         File.WriteAllText(path, json);
     }
+
+    private static ProjectWorkspace CloudProjectWithSiteBoundary(
+        string sourceId,
+        string sourceKey,
+        string sourceOwnerEmail)
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "MAP-CLOUD",
+            "Cloud site context");
+        project.Cloud.Origin = ProjectOrigins.Cloud;
+        project.Cloud.ServerProjectId = "cloud-project";
+        ProjectDesignSource source = new()
+        {
+            Id = sourceId,
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = "general-plan.dwg",
+        };
+        project.Sources.Add(source);
+        ProjectCloudSyncMetadata.BindToCloudSource(project, source, sourceKey);
+        ProjectCloudSyncMetadata.BindCloudOwner(source, sourceOwnerEmail);
+        project.SiteContext.Boundary = SiteBoundary(sourceId, 10_000);
+        return project;
+    }
+
+    private static ProjectDesignSource AddCloudSource(
+        ProjectWorkspace project,
+        string sourceId,
+        string drawingPath,
+        string sourceKey,
+        string sourceOwnerEmail)
+    {
+        var source = new ProjectDesignSource
+        {
+            Id = sourceId,
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = drawingPath,
+        };
+        project.Sources.Add(source);
+        ProjectCloudSyncMetadata.BindToCloudSource(project, source, sourceKey);
+        ProjectCloudSyncMetadata.BindCloudOwner(source, sourceOwnerEmail);
+        return source;
+    }
+
+    private static ProjectSiteBoundary SiteBoundary(string sourceId, double areaSquareMeters) => new()
+    {
+        SourceId = sourceId,
+        AreaSquareMeters = areaSquareMeters,
+        Ring =
+        [
+            new ProjectGeoCoordinate { Longitude = 106.90, Latitude = 47.90 },
+            new ProjectGeoCoordinate { Longitude = 106.91, Latitude = 47.90 },
+            new ProjectGeoCoordinate { Longitude = 106.91, Latitude = 47.91 },
+            new ProjectGeoCoordinate { Longitude = 106.90, Latitude = 47.90 },
+        ],
+    };
 
     private static void AssertViewportCompositionEqual(
         ProjectMapViewport expected,

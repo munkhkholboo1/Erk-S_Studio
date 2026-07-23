@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.14] - 2026-07-24
+
+- Combine Revit and AutoCAD sheets from multiple sources into ordered building groups without uploading native RVT or DWG files.
+- Keep shared building composition and component ownership canonical across Cloud ERA collaborators.
+- Restrict location-scheme editing to the current general-plan source custodian while keeping the result visible to every project member.
+- Preserve project-scoped map, source, generated-document, and album state during refresh and Cloud synchronization.
+
 ## [0.1.0-dev.13] - 2026-07-24
 
 - Keep project chat available beside every project workspace, including Album and inline map editing.

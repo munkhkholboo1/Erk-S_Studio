@@ -115,6 +115,15 @@ public static class ProjectPackageReconciliationService
                     SheetRecord.BelongsToSource(key, packageSource, source.Id) &&
                     !authoritativeKeys.Contains(key));
             }
+            List<string> staleBuildingAssignments = project.SheetBuildingAssignments.Keys
+                .Where(key =>
+                    SheetRecord.BelongsToSource(key, packageSource, source.Id) &&
+                    !authoritativeKeys.Contains(key))
+                .ToList();
+            foreach (string key in staleBuildingAssignments)
+                project.SheetBuildingAssignments.Remove(key);
+            if (staleBuildingAssignments.Count > 0)
+                ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
         }
 
         foreach (SheetPackageEntry entry in manifest.Sheets)
@@ -157,7 +166,9 @@ public static class ProjectPackageReconciliationService
                     album,
                     album.Pages,
                     library,
-                    project.Sources);
+                    project.Sources,
+                    project.BuildingGroups,
+                    project.SheetBuildingAssignments);
             album.Pages.Clear();
             album.Pages.AddRange(orderedPages);
         }

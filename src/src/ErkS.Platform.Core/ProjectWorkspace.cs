@@ -38,6 +38,19 @@ public sealed class ProjectWorkspace
     /// </summary>
     public List<ProjectDesignSource> Sources { get; set; } = [];
 
+    /// <summary>
+    /// Studio-owned building sets. Several Revit/AutoCAD sources can contribute
+    /// sheets to the same building without changing either native file.
+    /// </summary>
+    public List<ProjectBuildingGroup> BuildingGroups { get; set; } = [];
+
+    /// <summary>
+    /// Sheet key to building-group id. Package BuildingId/BuildingName remains
+    /// an automatic fallback; an explicit Studio assignment is authoritative.
+    /// </summary>
+    public Dictionary<string, string> SheetBuildingAssignments { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Studio-owned raster source for automatically composed visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 
@@ -134,6 +147,19 @@ public sealed class ProjectCloudLink
     /// files are never downloaded through this list.
     /// </summary>
     public List<ProjectCloudSourceReference> SharedSources { get; set; } = [];
+    /// <summary>
+    /// Canonical Studio building composition received from Cloud ERA. The
+    /// version distinguishes an old mirror that has never received the
+    /// contract from an intentionally empty canonical composition.
+    /// </summary>
+    public int SharedBuildingCompositionVersion { get; set; }
+    /// <summary>
+    /// True while local building groups or sheet assignments have not yet been
+    /// accepted by Cloud ERA.
+    /// </summary>
+    public bool BuildingCompositionPending { get; set; }
+    public List<ProjectCloudBuildingGroupReference> SharedBuildingGroups { get; set; } = [];
+    public List<ProjectCloudBuildingSheetAssignmentReference> SharedBuildingSheetAssignments { get; set; } = [];
     /// <summary>
     /// Canonical album slots. Foreign slots are visible but remain read-only on
     /// this device unless their owner links a local source.
@@ -513,8 +539,27 @@ public sealed class ProjectCloudSourceReference
     public string ContentHash { get; set; } = "";
     public int SheetCount { get; set; }
     public string Status { get; set; } = "";
+    /// <summary>Stable contributor identity that originally registered this source stream.</summary>
+    public string RegisteredBy { get; set; } = "";
+    /// <summary>Current participant allowed to operate the source after an approved transfer.</summary>
+    public string CustodianEmail { get; set; } = "";
+    /// <summary>Effective controller retained for backward-compatible project mirrors.</summary>
     public string OwnerEmail { get; set; } = "";
     public DateTimeOffset RegisteredAtUtc { get; set; }
+}
+
+public sealed class ProjectCloudBuildingGroupReference
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Order { get; set; }
+}
+
+public sealed class ProjectCloudBuildingSheetAssignmentReference
+{
+    public string SourceKey { get; set; } = "";
+    public string SheetId { get; set; } = "";
+    public string BuildingGroupId { get; set; } = "";
 }
 
 public sealed class ProjectCloudAlbumComponentReference

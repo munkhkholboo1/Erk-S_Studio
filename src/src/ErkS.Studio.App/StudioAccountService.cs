@@ -293,6 +293,31 @@ internal sealed class StudioAccountService :
         return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task<StudioCloudProjectDetail> UpdateBuildingCompositionAsync(
+        string projectId,
+        StudioCloudBuildingCompositionUpdateRequest request,
+        string concurrencyToken,
+        CancellationToken cancellationToken = default)
+    {
+        RequireCapability(CloudEraFeatures.OptimisticConcurrency);
+        if (string.IsNullOrWhiteSpace(concurrencyToken))
+        {
+            throw new StudioAccountException(
+                "Cloud project concurrency token хоосон байна. Төслийг Cloud-оос шинэчилнэ үү.");
+        }
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioCloudProjectDetail project =
+            await PutAuthorizedAsync<StudioCloudBuildingCompositionUpdateRequest, StudioCloudProjectDetail>(
+                "/api/cloud-era/v1/projects/" +
+                Uri.EscapeDataString(projectId) +
+                "/building-composition",
+                request,
+                cancellationToken,
+                ifMatchToken: concurrencyToken).ConfigureAwait(true);
+        return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudProjectDetail> UploadProjectClientLogoAsync(
         string projectId,
         string logoPath,

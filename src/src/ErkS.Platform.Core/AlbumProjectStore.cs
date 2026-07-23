@@ -84,6 +84,11 @@ public static class AlbumProjectStore
         project.Documents ??= [];
         project.SourceFolders ??= [];
         project.DesignSources ??= [];
+        project.BuildingGroups = ProjectBuildingComposition.NormalizeGroups(
+            project.BuildingGroups);
+        project.SheetBuildingAssignments = ProjectBuildingComposition.NormalizeAssignments(
+            project.SheetBuildingAssignments,
+            project.BuildingGroups);
         project.Visualizations ??= new ProjectVisualizationSource();
         project.Visualizations.Normalize(string.IsNullOrWhiteSpace(project.ProjectId)
             ? null

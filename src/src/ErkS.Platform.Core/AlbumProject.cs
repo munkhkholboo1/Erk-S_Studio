@@ -73,6 +73,15 @@ public sealed class AlbumProject
     /// </summary>
     public List<ProjectDesignSource> DesignSources { get; set; } = [];
 
+    /// <summary>
+    /// Building composition copied from the parent Studio project for album
+    /// sequencing. Optional so legacy standalone albums keep loading.
+    /// </summary>
+    public List<ProjectBuildingGroup> BuildingGroups { get; set; } = [];
+
+    public Dictionary<string, string> SheetBuildingAssignments { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Project-owned images composed into the concept album's visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 

@@ -2879,7 +2879,9 @@ internal sealed partial class ShellView : IDisposable
                     acknowledgement.ContentHash);
                 ProjectCloudSyncMetadata.BindCloudOwner(
                     source.Source,
-                    acknowledgement.RegisteredBy);
+                    string.IsNullOrWhiteSpace(acknowledgement.CustodianEmail)
+                        ? acknowledgement.RegisteredBy
+                        : acknowledgement.CustodianEmail);
             }
 
             // Server-side source registration can advance the canonical
@@ -2894,6 +2896,30 @@ internal sealed partial class ShellView : IDisposable
             await ApplyCloudProjectRenderProfileAsync(canonical);
             BindFoundationFieldsToUi();
             string canonicalProjectToken = canonical.Project.ConcurrencyToken;
+            if (state.Project.Cloud.BuildingCompositionPending)
+            {
+                SetStatus("Барилгын бүлэг болон хуудасны харьяаллыг Cloud ERA-д нэгтгэж байна...");
+                StudioCloudBuildingCompositionUpdateRequest compositionRequest =
+                    StudioBuildingCompositionSync.CreateUpdate(
+                        state.Project,
+                        state.Library);
+                canonical = await account.UpdateBuildingCompositionAsync(
+                    projectId,
+                    compositionRequest,
+                    canonicalProjectToken);
+                ProjectCloudSyncMetadata.MarkBuildingCompositionSynced(state.Project);
+                state.LinkCurrentProjectToCloud(
+                    canonical,
+                    account.Current!.ServerUrl,
+                    preserveCreation: true,
+                    preserveSyncState: true);
+                await ApplyCloudProjectRenderProfileAsync(canonical);
+                cloud = state.Project.Cloud;
+                cloud.SyncStatus = ProjectSyncStatuses.Syncing;
+                state.SaveProject();
+                BindFoundationFieldsToUi();
+                canonicalProjectToken = canonical.Project.ConcurrencyToken;
+            }
 
             IReadOnlyList<ProjectSourceSyncCandidate> localSources =
                 ProjectCloudSyncMetadata.SourcePackages(state.Project);
@@ -3069,7 +3095,8 @@ internal sealed partial class ShellView : IDisposable
                 DateTimeOffset.UtcNow,
                 syncNote);
             if (ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
-                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0)
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
+                state.Project.Cloud.BuildingCompositionPending)
             {
                 state.Project.Cloud.SyncStatus = ProjectSyncStatuses.Pending;
             }
@@ -3516,10 +3543,12 @@ internal sealed partial class ShellView : IDisposable
                 cloud.LastServerConcurrencyToken);
             bool hasPendingLocalWork = cloud.PendingProjectInformation is not null ||
                 ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
-                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0;
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
+                cloud.BuildingCompositionPending;
             bool hasPendingAlbumWork =
                 ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
-                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0;
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
+                cloud.BuildingCompositionPending;
             bool usingUnionPreview = hasPendingAlbumWork &&
                 TryBuildCloudUnionAlbumPreview(outputPath, revision, out _);
             if (!usingUnionPreview)

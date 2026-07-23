@@ -257,6 +257,47 @@ public static class ProjectWorkspaceStore
             source.Status ??= "";
             source.OwnerEmail ??= "";
         }
+        project.Cloud.SharedBuildingCompositionVersion =
+            Math.Max(0, project.Cloud.SharedBuildingCompositionVersion);
+        List<ProjectBuildingGroup> sharedBuildingGroups =
+            ProjectBuildingComposition.NormalizeGroups(
+                (project.Cloud.SharedBuildingGroups ?? [])
+                    .OfType<ProjectCloudBuildingGroupReference>()
+                    .Select(group => new ProjectBuildingGroup
+                    {
+                        Id = group.Id,
+                        Name = group.Name,
+                        Order = group.Order,
+                    }));
+        project.Cloud.SharedBuildingGroups = sharedBuildingGroups
+            .Select(group => new ProjectCloudBuildingGroupReference
+            {
+                Id = group.Id,
+                Name = group.Name,
+                Order = group.Order,
+            })
+            .ToList();
+        HashSet<string> sharedBuildingGroupIds = sharedBuildingGroups
+            .Select(group => group.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        project.Cloud.SharedBuildingSheetAssignments =
+            (project.Cloud.SharedBuildingSheetAssignments ?? [])
+                .OfType<ProjectCloudBuildingSheetAssignmentReference>()
+                .Select(assignment => new ProjectCloudBuildingSheetAssignmentReference
+                {
+                    SourceKey = assignment.SourceKey?.Trim() ?? "",
+                    SheetId = assignment.SheetId?.Trim() ?? "",
+                    BuildingGroupId = assignment.BuildingGroupId?.Trim() ?? "",
+                })
+                .Where(assignment =>
+                    !string.IsNullOrWhiteSpace(assignment.SourceKey) &&
+                    !string.IsNullOrWhiteSpace(assignment.SheetId) &&
+                    sharedBuildingGroupIds.Contains(assignment.BuildingGroupId))
+                .GroupBy(
+                    assignment => $"{assignment.SourceKey}\u001f{assignment.SheetId}",
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.Last())
+                .ToList();
         project.Cloud.SharedAlbumComponents = (project.Cloud.SharedAlbumComponents ?? [])
             .OfType<ProjectCloudAlbumComponentReference>()
             .ToList();
@@ -362,6 +403,21 @@ public static class ProjectWorkspaceStore
                 source.Id = Guid.NewGuid().ToString("N");
             }
             source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        project.BuildingGroups = ProjectBuildingComposition.NormalizeGroups(
+            project.BuildingGroups);
+        project.SheetBuildingAssignments = ProjectBuildingComposition.NormalizeAssignments(
+            project.SheetBuildingAssignments,
+            project.BuildingGroups);
+        if (project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
+            project.Cloud.SharedBuildingCompositionVersion == 0 &&
+            project.BuildingGroups.Count > 0)
+        {
+            // Legacy mirrors predate the canonical Cloud ERA composition
+            // contract. Their existing local grouping is an unsynced edit, not
+            // evidence that the server intentionally cleared the composition.
+            project.Cloud.BuildingCompositionPending = true;
         }
 
         project.Visualizations ??= new ProjectVisualizationSource();

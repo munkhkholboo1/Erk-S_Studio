@@ -204,6 +204,19 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.PendingAlbumComponentCodes.RemoveAll(completed.Contains);
     }
 
+    public static void MarkBuildingCompositionPending(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.BuildingCompositionPending = true;
+        MarkPending(project);
+    }
+
+    public static void MarkBuildingCompositionSynced(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.BuildingCompositionPending = false;
+    }
+
     public static void ValidateSourceAcknowledgement(
         string expectedManifestId,
         string expectedContentHash,

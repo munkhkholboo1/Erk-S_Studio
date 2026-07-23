@@ -194,6 +194,7 @@ public sealed class AppState : IDisposable
             throw new InvalidDataException("Cloud project ID is empty.");
         }
 
+        bool preserveBuildingComposition = Project.Cloud.BuildingCompositionPending;
         ProjectCanonicalSyncService.Apply(Project, ToServerSnapshot(cloudProject));
         Project.Cloud.ServerUrl = serverUrl.TrimEnd('/');
         if (!preserveSyncState)
@@ -221,10 +222,32 @@ public sealed class AppState : IDisposable
                 ContentHash = source.ContentHash ?? "",
                 SheetCount = source.SheetCount,
                 Status = source.Status ?? "",
-                OwnerEmail = (source.RegisteredBy ?? "").Trim().ToLowerInvariant(),
+                RegisteredBy = (source.RegisteredBy ?? "").Trim().ToLowerInvariant(),
+                CustodianEmail = (source.CustodianEmail ?? "").Trim().ToLowerInvariant(),
+                OwnerEmail = (string.IsNullOrWhiteSpace(source.CustodianEmail)
+                    ? source.RegisteredBy ?? ""
+                    : source.CustodianEmail).Trim().ToLowerInvariant(),
                 RegisteredAtUtc = source.RegisteredAtUtc,
             })
             .ToList();
+        bool buildingCompositionChanged = StudioBuildingCompositionSync.ApplyCanonical(
+            Project,
+            Library,
+            cloudProject.BuildingComposition,
+            preserveBuildingComposition);
+        if (buildingCompositionChanged && !preserveBuildingComposition)
+        {
+            IReadOnlyList<AlbumPageDefinition> orderedPages =
+                BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                    Album,
+                    Album.Pages,
+                    Library,
+                    Project.Sources,
+                    Project.BuildingGroups,
+                    Project.SheetBuildingAssignments);
+            Album.Pages.Clear();
+            Album.Pages.AddRange(orderedPages);
+        }
         StudioCloudAlbumRevision? currentAlbumRevision = (cloudProject.Albums ?? [])
             .OfType<StudioCloudAlbum>()
             .Select(album => (album.Revisions ?? [])
@@ -515,6 +538,14 @@ public sealed class AppState : IDisposable
             .Where(record => SourceRecordBelongsTo(record, source))
             .Select(record => record.Key)
             .ToHashSet(StringComparer.Ordinal);
+        string localSourcePrefix = source.Id.Trim().ToLowerInvariant() + "|";
+        knownSourceKeys.UnionWith(Project.SheetBuildingAssignments.Keys.Where(key =>
+            key.StartsWith(localSourcePrefix, StringComparison.OrdinalIgnoreCase)));
+        bool removedBuildingAssignments =
+            StudioBuildingCompositionSync.RemoveSourceAssignments(
+                Project,
+                source,
+                knownSourceKeys);
         Project.Sources.RemoveAll(existing =>
             string.Equals(existing.Id, source.Id, StringComparison.OrdinalIgnoreCase));
         Intake.UnwatchFolder(source.InboxFolder);
@@ -522,10 +553,28 @@ public sealed class AppState : IDisposable
         int removedPageCount = Project.Sources.Count == 0
             ? RemoveSourcePagesFromSourceFreeProject()
             : RemoveAlbumPagesForSource(source, knownSourceKeys);
+        if (removedBuildingAssignments)
+            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
         InvalidateBuiltAlbum();
         SaveProject();
         ResetRuntimeServices();
         return removedPageCount;
+    }
+
+    public void UpdateBuildingComposition(
+        IEnumerable<ProjectBuildingGroup> groups,
+        IReadOnlyDictionary<string, string> assignments)
+    {
+        List<ProjectBuildingGroup> normalizedGroups =
+            ProjectBuildingComposition.NormalizeGroups(groups);
+        Project.BuildingGroups = normalizedGroups;
+        Project.SheetBuildingAssignments =
+            ProjectBuildingComposition.NormalizeAssignments(
+                assignments,
+                normalizedGroups);
+        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
+        InvalidateBuiltAlbum();
+        SaveProject();
     }
 
     public PackageRecordResult? RecordPackageReceived(SheetPackageLoadResult result)
@@ -537,6 +586,21 @@ public sealed class AppState : IDisposable
             return null;
         }
 
+        if (StudioBuildingCompositionSync.MaterializeSharedAssignments(
+                Project,
+                Library))
+        {
+            IReadOnlyList<AlbumPageDefinition> orderedPages =
+                BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                    Album,
+                    Album.Pages,
+                    Library,
+                    Project.Sources,
+                    Project.BuildingGroups,
+                    Project.SheetBuildingAssignments);
+            Album.Pages.Clear();
+            Album.Pages.AddRange(orderedPages);
+        }
         SaveProject();
         return new PackageRecordResult(reconciled.SourceId, reconciled.RemovedAlbumPageCount);
     }
@@ -619,6 +683,12 @@ public sealed class AppState : IDisposable
                 }))
                 .ToList(),
             DesignSources = Project.Sources,
+            BuildingGroups = Project.BuildingGroups
+                .Select(group => group.Clone())
+                .ToList(),
+            SheetBuildingAssignments = new Dictionary<string, string>(
+                Project.SheetBuildingAssignments,
+                StringComparer.OrdinalIgnoreCase),
             Visualizations = Project.Visualizations.CreateProjectSnapshot(Project.ProjectId),
             SiteContext = Project.SiteContext.CreateProjectSnapshot(Project.ProjectId),
             SourceFolders = Project.Sources.Select(source => source.InboxFolder).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),

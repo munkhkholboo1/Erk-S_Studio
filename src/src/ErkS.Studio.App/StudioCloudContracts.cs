@@ -245,6 +245,7 @@ internal sealed class StudioCloudProjectDetail
     public StudioCloudProjectInformation ProjectInformation { get; set; } = new();
     public StudioCloudProjectFoundation? Foundation { get; set; }
     public StudioCloudSiteAndLand SiteAndLand { get; set; } = new();
+    public StudioCloudBuildingComposition? BuildingComposition { get; set; }
     public StudioCloudOrganizationAssignment? ConceptAssignment { get; set; }
     public StudioCloudOrganizationRenderProfile? DesignOrganizationProfile { get; set; }
     public List<StudioCloudParticipant> Participants { get; set; } = [];
@@ -388,6 +389,33 @@ internal sealed class StudioCloudProjectInformationUpdateRequest
     public string BuildingPurpose { get; set; } = "";
     public string CapacityUnit { get; set; } = "";
     public StudioCloudProjectFoundationUpdate Foundation { get; set; } = new();
+}
+
+internal sealed class StudioCloudBuildingComposition
+{
+    public int Version { get; set; } = 1;
+    public List<StudioCloudBuildingGroup> Groups { get; set; } = [];
+    public List<StudioCloudBuildingSheetAssignment> SheetAssignments { get; set; } = [];
+}
+
+internal sealed class StudioCloudBuildingCompositionUpdateRequest
+{
+    public List<StudioCloudBuildingGroup> Groups { get; set; } = [];
+    public List<StudioCloudBuildingSheetAssignment> SheetAssignments { get; set; } = [];
+}
+
+internal sealed class StudioCloudBuildingGroup
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Order { get; set; }
+}
+
+internal sealed class StudioCloudBuildingSheetAssignment
+{
+    public string SourceKey { get; set; } = "";
+    public string SheetId { get; set; } = "";
+    public string BuildingGroupId { get; set; } = "";
 }
 
 internal sealed class StudioCloudProjectFoundationUpdate

@@ -155,6 +155,11 @@ internal sealed partial class ShellView
             "Харагдах байдал",
             "Одоогийн төсөлд зурагт харагдах байдлын эх үүсвэр үүсгэх");
         addVisualizationSource.Click += (_, _) => ConfigureVisualizationSourceForCurrentProject();
+        var configureBuildings = StudioWidgets.CreateGlyphTextButton(
+            "\uE8A9",
+            "Барилгын бүлэг",
+            "Олон Revit/AutoCAD эх үүсвэрийн хуудсыг нэг барилгын иж бүрдэлд оноох");
+        configureBuildings.Click += (_, _) => ConfigureProjectBuildingGroups();
         var rescan = StudioWidgets.CreateButton("Эх үүсвэр шалгах");
         rescan.ToolTip =
             "Зөвхөн энэ төхөөрөмжийн Revit/AutoCAD package, АТД, гэрчилгээ, тусгай зөвшөөрөл " +
@@ -162,9 +167,37 @@ internal sealed partial class ShellView
         rescan.Click += (_, _) => CheckForSourceUpdates();
         sourceGroup.Children.Add(addSource);
         sourceGroup.Children.Add(addVisualizationSource);
+        sourceGroup.Children.Add(configureBuildings);
         sourceGroup.Children.Add(rescan);
         ribbon.Children.Add(sourceGroup);
         return ribbon;
+    }
+
+    private void ConfigureProjectBuildingGroups()
+    {
+        if (!state.HasOpenProject || !EnsureProjectContentPermission())
+        {
+            return;
+        }
+
+        var dialog = new ProjectBuildingGroupsDialog(
+            state.Project,
+            state.Album,
+            state.Library.VerifiedSnapshot())
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        state.UpdateBuildingComposition(dialog.ResultGroups, dialog.ResultAssignments);
+        RefreshReceivedSheetWorkspace();
+        RefreshAlbumWorkspace();
+        UpdateAlbum(
+            silent: false,
+            statusPrefix: "Барилгын иж бүрдэл болон хуудасны дараалал шинэчлэгдлээ");
     }
 
     private void CheckForSourceUpdates()
@@ -264,6 +297,7 @@ internal sealed partial class ShellView
         view.ColumnHeaderContainerStyle = headerStyle;
         view.Columns.Add(new GridViewColumn { Header = "Дугаар", Width = 90, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Number)) });
         view.Columns.Add(new GridViewColumn { Header = "Нэр", Width = 200, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Name)) });
+        view.Columns.Add(new GridViewColumn { Header = "Барилга", Width = 150, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Building)) });
         view.Columns.Add(new GridViewColumn { Header = "Эх файл", Width = 150, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Application)) });
         view.Columns.Add(new GridViewColumn { Header = "Format", Width = 90, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Size)) });
         view.Columns.Add(new GridViewColumn { Header = "Төлөв", Width = 70, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Status)) });
@@ -725,10 +759,32 @@ internal sealed partial class ShellView
                 record,
                 record.Entry.Number,
                 record.Entry.Name,
+                ResolveSheetBuildingLabel(record),
                 ResolveSheetSourceLabel(record),
                 FormatSize(record.Entry.WidthMm, record.Entry.HeightMm),
                 record.IsVerified ? "OK" : "Алдаа"))
             .ToList();
+    }
+
+    private string ResolveSheetBuildingLabel(SheetRecord record)
+    {
+        string assignedName = ProjectBuildingComposition.ResolveAssignedGroupName(
+            record.Key,
+            state.Project.BuildingGroups,
+            state.Project.SheetBuildingAssignments);
+        if (!string.IsNullOrWhiteSpace(assignedName))
+        {
+            return assignedName;
+        }
+        if (!string.IsNullOrWhiteSpace(record.Entry.BuildingName))
+        {
+            return record.Entry.BuildingName.Trim();
+        }
+        if (!string.IsNullOrWhiteSpace(record.Entry.BuildingId))
+        {
+            return record.Entry.BuildingId.Trim();
+        }
+        return "Оноогоогүй";
     }
 
     private void RefreshSourceDetails()
@@ -1196,6 +1252,14 @@ internal sealed partial class ShellView
             "icon-project.svg",
             "Байршлын зураг",
             "Байршлын схем болон орчны тоймын хамрах хүрээг тохируулна");
+        ProjectSiteContextEditAuthority siteContextAuthority =
+            ResolveSiteContextEditAuthority();
+        editSiteContext.IsEnabled =
+            CanEditProjectContent() && siteContextAuthority.CanEdit;
+        editSiteContext.ToolTip = siteContextAuthority.CanEdit
+            ? "Ерөнхий төлөвлөгөөний эх үүсвэрээр байршлын схем болон орчны тоймыг тохируулна."
+            : siteContextAuthority.Message;
+        ToolTipService.SetShowOnDisabled(editSiteContext, true);
         editSiteContext.Click += (_, _) => EditSiteContextMaps();
         var elevationInformation = StudioWidgets.CreateIconTextButton(
             "icon-project.svg",
@@ -1231,6 +1295,8 @@ internal sealed partial class ShellView
     private async void EditSiteContextMaps()
     {
         if (!EnsureProjectContentPermission())
+            return;
+        if (!EnsureSiteContextEditPermission())
             return;
         if (inlineSiteContextEditor is not null)
             return;
@@ -1291,6 +1357,8 @@ internal sealed partial class ShellView
         inlineSiteContextPersisted = false;
         editor.SiteContextSaved += snapshot =>
         {
+            if (!EnsureSiteContextEditPermission())
+                return;
             state.Project.SiteContext = snapshot;
             state.MarkSiteContextChanged();
             inlineSiteContextPersisted = true;
@@ -1311,6 +1379,8 @@ internal sealed partial class ShellView
         if (!ReferenceEquals(inlineSiteContextEditor, editor))
             return;
 
+        if (saved && !EnsureSiteContextEditPermission())
+            saved = false;
         if (saved && !inlineSiteContextPersisted)
         {
             state.Project.SiteContext = editor.Result;
@@ -1336,6 +1406,27 @@ internal sealed partial class ShellView
         UpdateAlbum(
             silent: false,
             statusPrefix: "Байршлын схем болон орчны тойм шинэчлэгдлээ");
+    }
+
+    private ProjectSiteContextEditAuthority ResolveSiteContextEditAuthority() =>
+        state.HasOpenProject
+            ? ProjectSiteContextEditingPolicy.Resolve(
+                state.Project,
+                account.Current?.Email)
+            : new ProjectSiteContextEditAuthority(
+                false,
+                "",
+                "",
+                "",
+                "Төсөл нээгээгүй байна.");
+
+    private bool EnsureSiteContextEditPermission()
+    {
+        ProjectSiteContextEditAuthority authority = ResolveSiteContextEditAuthority();
+        if (authority.CanEdit)
+            return true;
+        SetStatus(authority.Message);
+        return false;
     }
 
     private void EditSelectedElevationSheetInformation()
@@ -1582,7 +1673,9 @@ internal sealed partial class ShellView
             state.Album.Pages,
             state.Library,
             state.Project.Sources,
-            generatedPlans.Count);
+            generatedPlans.Count,
+            state.Project.BuildingGroups,
+            state.Project.SheetBuildingAssignments);
         int firstVisualizationNumber = BuildingArchitectureConceptAlbumSequencer.NextAutomaticNumber(
             state.Album,
             sequence,
@@ -1648,23 +1741,23 @@ internal sealed partial class ShellView
         root.Children.Add(generalPlanPages);
 
         var drawingPages = sequence.Where(item => !item.IsFixedTemplatePage).ToList();
-        foreach (var sourceGroup in drawingPages.GroupBy(
-                     ResolveAlbumWorkspaceSourceKey,
+        foreach (var buildingGroup in drawingPages.GroupBy(
+                     item => item.SourceGroupKey,
                      StringComparer.OrdinalIgnoreCase))
         {
-            var firstSourcePage = sourceGroup.First();
-            var sourceNode = CreateAlbumWorkspaceGroup(
-                $"{albumNodeKey}:source:{sourceGroup.Key}",
+            var firstBuildingPage = buildingGroup.First();
+            var buildingNode = CreateAlbumWorkspaceGroup(
+                $"{albumNodeKey}:building:{buildingGroup.Key}",
                 AlbumWorkspaceNodeKind.Source,
-                $"Эх үүсвэр · {ResolveAlbumWorkspaceSourceTitle(firstSourcePage)}");
+                $"Барилга · {firstBuildingPage.SourceGroupTitle}");
 
-            foreach (var drawingTypeGroup in sourceGroup.GroupBy(
+            foreach (var drawingTypeGroup in buildingGroup.GroupBy(
                          ResolveAlbumWorkspaceDrawingTypeKey,
                          StringComparer.OrdinalIgnoreCase))
             {
                 var firstDrawingPage = drawingTypeGroup.First();
                 var drawingTypeNode = CreateAlbumWorkspaceGroup(
-                    $"{sourceNode.Key}:type:{drawingTypeGroup.Key}",
+                    $"{buildingNode.Key}:type:{drawingTypeGroup.Key}",
                     AlbumWorkspaceNodeKind.DrawingType,
                     ResolveAlbumWorkspaceDrawingTypeTitle(firstDrawingPage));
                 foreach (var linkedPage in drawingTypeGroup)
@@ -1672,9 +1765,9 @@ internal sealed partial class ShellView
                     drawingTypeNode.Children.Add(CreateAlbumWorkspacePage(
                         CreateSourcePageWorkspaceItem(linkedPage)));
                 }
-                sourceNode.Children.Add(drawingTypeNode);
+                buildingNode.Children.Add(drawingTypeNode);
             }
-            root.Children.Add(sourceNode);
+            root.Children.Add(buildingNode);
         }
 
         if (visualizationPlans.Count > 0)
@@ -3336,6 +3429,7 @@ internal sealed partial class ShellView
         SheetRecord Record,
         string Number,
         string Name,
+        string Building,
         string Application,
         string Size,
         string Status);

@@ -41,8 +41,20 @@ public static class BuildingArchitectureConceptAlbumSequencer
         IEnumerable<AlbumPageDefinition> pages,
         SheetLibrary library,
         IReadOnlyList<ProjectDesignSource> sources,
-        int generatedPageCount = -1)
+        int generatedPageCount = -1,
+        IReadOnlyList<ProjectBuildingGroup>? buildingGroups = null,
+        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null)
     {
+        List<ProjectBuildingGroup> normalizedBuildingGroups =
+            ProjectBuildingComposition.NormalizeGroups(buildingGroups);
+        Dictionary<string, ProjectBuildingGroup> buildingGroupsById =
+            normalizedBuildingGroups.ToDictionary(
+                group => group.Id,
+                StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> normalizedAssignments =
+            ProjectBuildingComposition.NormalizeAssignments(
+                sheetBuildingAssignments,
+                normalizedBuildingGroups);
         var sourceOrder = sources
             .Select((source, index) => new { source.Id, Index = index })
             .Where(item => !string.IsNullOrWhiteSpace(item.Id))
@@ -59,8 +71,28 @@ public static class BuildingArchitectureConceptAlbumSequencer
                 index,
                 library,
                 sources,
-                sourceOrder))
+                sourceOrder,
+                buildingGroupsById,
+                normalizedAssignments))
             .ToList();
+
+        var automaticBuildingSourceCounts = candidates
+            .Where(candidate => candidate.IsPackageBuilding)
+            .GroupBy(candidate => candidate.SourceGroupKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(candidate => candidate.SourceId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count(),
+                StringComparer.OrdinalIgnoreCase);
+        foreach (Candidate candidate in candidates.Where(candidate => candidate.IsPackageBuilding))
+        {
+            candidate.SourceGroupTitle =
+                automaticBuildingSourceCounts[candidate.SourceGroupKey] > 1
+                    ? candidate.BuildingTitle
+                    : $"{candidate.SourceSortName} · {candidate.BuildingTitle}";
+        }
 
         var firstBuildingPositions = candidates
             .GroupBy(candidate => candidate.SourceGroupKey, StringComparer.OrdinalIgnoreCase)
@@ -78,10 +110,11 @@ public static class BuildingArchitectureConceptAlbumSequencer
 
         var drawingPages = candidates
             .Where(candidate => !candidate.IsFixedTemplatePage)
-            .OrderBy(candidate => candidate.SourceOrder)
-            .ThenBy(candidate => candidate.SourceSortName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(candidate => candidate.BuildingOrder)
             .ThenBy(candidate => firstBuildingPositions[candidate.SourceGroupKey])
             .ThenBy(candidate => candidate.SlotOrder)
+            .ThenBy(candidate => candidate.SourceOrder)
+            .ThenBy(candidate => candidate.SourceSortName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(candidate => candidate.OriginalIndex)
             .ToList();
 
@@ -121,8 +154,16 @@ public static class BuildingArchitectureConceptAlbumSequencer
         AlbumDefinition definition,
         IEnumerable<AlbumPageDefinition> pages,
         SheetLibrary library,
-        IReadOnlyList<ProjectDesignSource> sources) =>
-        Create(definition, pages, library, sources)
+        IReadOnlyList<ProjectDesignSource> sources,
+        IReadOnlyList<ProjectBuildingGroup>? buildingGroups = null,
+        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null) =>
+        Create(
+                definition,
+                pages,
+                library,
+                sources,
+                buildingGroups: buildingGroups,
+                sheetBuildingAssignments: sheetBuildingAssignments)
             .Select(item => item.Page)
             .ToList();
 
@@ -167,7 +208,9 @@ public static class BuildingArchitectureConceptAlbumSequencer
         int originalIndex,
         SheetLibrary library,
         IReadOnlyList<ProjectDesignSource> sources,
-        IReadOnlyDictionary<string, int> sourceOrder)
+        IReadOnlyDictionary<string, int> sourceOrder,
+        IReadOnlyDictionary<string, ProjectBuildingGroup> buildingGroupsById,
+        IReadOnlyDictionary<string, string> sheetBuildingAssignments)
     {
         var sheet = library.FindVerified(page.SheetKey);
         var slot = BuildingArchitectureConceptAlbumTemplate.FindSlot(definition, page.TemplateSlotId);
@@ -176,10 +219,21 @@ public static class BuildingArchitectureConceptAlbumSequencer
             string.Equals(item.Id, sourceId, StringComparison.OrdinalIgnoreCase));
         var sourceTitle = ResolveSourceTitle(source, sheet);
         var buildingIdentity = ResolveBuildingIdentity(sheet);
-        var groupKey = $"{sourceId}|{buildingIdentity.Key}";
-        var groupTitle = string.IsNullOrWhiteSpace(buildingIdentity.Title)
-            ? sourceTitle
-            : $"{sourceTitle} · {buildingIdentity.Title}";
+        ProjectBuildingGroup? assignedGroup = null;
+        var hasExplicitAssignment =
+            sheetBuildingAssignments.TryGetValue(page.SheetKey, out var assignedGroupId) &&
+            buildingGroupsById.TryGetValue(assignedGroupId, out assignedGroup);
+        var hasPackageBuilding = !string.IsNullOrWhiteSpace(buildingIdentity.Title);
+        var groupKey = hasExplicitAssignment
+            ? $"studio-building:{assignedGroup!.Id}"
+            : hasPackageBuilding
+                ? $"package-building:{buildingIdentity.Key}"
+                : $"source-building:{sourceId}";
+        var groupTitle = hasExplicitAssignment
+            ? assignedGroup!.Name
+            : hasPackageBuilding
+                ? buildingIdentity.Title
+                : sourceTitle;
 
         return new Candidate
         {
@@ -189,9 +243,17 @@ public static class BuildingArchitectureConceptAlbumSequencer
             Source = source,
             OriginalIndex = originalIndex,
             SourceOrder = sourceOrder.TryGetValue(sourceId, out var index) ? index : int.MaxValue,
+            SourceId = sourceId,
             SourceSortName = sourceTitle,
             SourceGroupKey = groupKey,
             SourceGroupTitle = groupTitle,
+            BuildingTitle = hasPackageBuilding ? buildingIdentity.Title : "",
+            BuildingOrder = hasExplicitAssignment
+                ? assignedGroup!.Order
+                : hasPackageBuilding
+                    ? int.MaxValue - 1
+                    : int.MaxValue,
+            IsPackageBuilding = !hasExplicitAssignment && hasPackageBuilding,
             SlotOrder = slot?.Order ?? int.MaxValue,
             IsFixedTemplatePage = slot is
             {
@@ -269,9 +331,13 @@ public static class BuildingArchitectureConceptAlbumSequencer
         public required ProjectDesignSource? Source { get; init; }
         public required int OriginalIndex { get; init; }
         public required int SourceOrder { get; init; }
+        public required string SourceId { get; init; }
         public required string SourceSortName { get; init; }
         public required string SourceGroupKey { get; init; }
-        public required string SourceGroupTitle { get; init; }
+        public required string SourceGroupTitle { get; set; }
+        public required string BuildingTitle { get; init; }
+        public required int BuildingOrder { get; init; }
+        public required bool IsPackageBuilding { get; init; }
         public required int SlotOrder { get; init; }
         public required bool IsFixedTemplatePage { get; init; }
 

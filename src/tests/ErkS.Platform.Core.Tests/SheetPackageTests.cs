@@ -1366,6 +1366,7 @@ public sealed class SheetPackageTests : IDisposable
 
     [Theory]
     [InlineData("Давхрын байгуулалт", "1-Р ДАВХРЫН БАЙГУУЛАЛТ", "floor-plans")]
+    [InlineData("Байгуулалт", "1-Р ДАВХАР", "floor-plans")]
     [InlineData("Огтлол", "ОГТЛОЛ 1-1", "sections")]
     [InlineData("Нүүр тал", "НҮҮР ТАЛ X1-X3", "elevations")]
     [InlineData("Харагдах байдал", "ХАРАГДАХ БАЙДАЛ", "visualizations")]
@@ -1382,6 +1383,23 @@ public sealed class SheetPackageTests : IDisposable
 
         Assert.NotNull(slot);
         Assert.Equal(expectedSlotId, slot.Id);
+    }
+
+    [Fact]
+    public void ConceptAlbumTemplate_SourceGroupMetadataWinsOverConflictingSheetName()
+    {
+        var definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        var entry = new SheetPackageEntry
+        {
+            ContentKind = "Огтлол",
+            Name = "НҮҮР ТАЛ ГЭЖ БУРУУ НЭРЛЭСЭН ХУУДАС",
+        };
+
+        AlbumCompositionItem? slot =
+            BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(definition, entry);
+
+        Assert.NotNull(slot);
+        Assert.Equal("sections", slot.Id);
     }
 
     [Fact]
@@ -1478,6 +1496,101 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal(
             new[] { "Office.rvt · А барилга", "Office.rvt · Б барилга", "Storage.rvt" },
             request.Sections.Select(section => section.Title));
+    }
+
+    [Fact]
+    public void ConceptAlbumSequence_ComposesOneBuildingFromRevitAndAutoCadSources()
+    {
+        var autoCadManifestPath = WriteConceptSourcePackage(
+            Path.Combine(workDirectory, "mixed-autocad"),
+            "autocad-source",
+            "MixedBuilding.dwg",
+            [
+                ("main-plan", "A-11", "Үндсэн барилгын байгуулалт", "Давхрын байгуулалт", "", ""),
+                ("annex-plan", "A-21", "Туслах барилгын байгуулалт", "Давхрын байгуулалт", "", ""),
+            ],
+            SheetSourceApplication.AutoCad);
+        var revitManifestPath = WriteConceptSourcePackage(
+            Path.Combine(workDirectory, "mixed-revit"),
+            "revit-source",
+            "MixedBuilding.rvt",
+            [
+                ("main-section", "R-12", "Үндсэн барилгын огтлол", "Огтлол", "", ""),
+                ("annex-section", "R-22", "Туслах барилгын огтлол", "Огтлол", "", ""),
+                ("main-elevation", "R-13", "Үндсэн барилгын нүүр тал", "Нүүр тал", "", ""),
+                ("annex-elevation", "R-23", "Туслах барилгын нүүр тал", "Нүүр тал", "", ""),
+            ]);
+        var library = new SheetLibrary();
+        library.Absorb(SheetPackageReader.Load(autoCadManifestPath), "autocad-source");
+        library.Absorb(SheetPackageReader.Load(revitManifestPath), "revit-source");
+
+        var definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        Dictionary<string, SheetRecord> records = library.Snapshot()
+            .ToDictionary(record => record.Entry.SheetId, StringComparer.Ordinal);
+        foreach (string sheetId in new[]
+                 {
+                     "main-plan", "annex-plan", "main-section",
+                     "annex-section", "main-elevation", "annex-elevation",
+                 })
+        {
+            SheetRecord record = records[sheetId];
+            AlbumCompositionItem? slot =
+                BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(definition, record.Entry);
+            definition.Pages.Add(new AlbumPageDefinition
+            {
+                SheetKey = record.Key,
+                TemplateSlotId = slot?.Id ?? "",
+                SectionId = BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(definition, slot),
+            });
+        }
+
+        var buildingGroups = new List<ProjectBuildingGroup>
+        {
+            new() { Id = "annex", Name = "Туслах барилга", Order = 1 },
+            new() { Id = "main", Name = "Үндсэн барилга", Order = 2 },
+        };
+        var assignments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [records["main-plan"].Key] = "main",
+            [records["main-section"].Key] = "main",
+            [records["main-elevation"].Key] = "main",
+            [records["annex-plan"].Key] = "annex",
+            [records["annex-section"].Key] = "annex",
+            [records["annex-elevation"].Key] = "annex",
+        };
+        var sources = new List<ProjectDesignSource>
+        {
+            new() { Id = "revit-source", Kind = DesignSourceKind.Revit, NativeDocumentTitle = "MixedBuilding.rvt" },
+            new() { Id = "autocad-source", Kind = DesignSourceKind.AutoCad, NativeDocumentTitle = "MixedBuilding.dwg" },
+        };
+
+        IReadOnlyList<ConceptAlbumSourcePage> sequence =
+            BuildingArchitectureConceptAlbumSequencer.Create(
+                definition,
+                definition.Pages,
+                library,
+                sources,
+                generatedPageCount: 0,
+                buildingGroups,
+                assignments);
+
+        Assert.Equal(
+            new[]
+            {
+                "annex-plan", "annex-section", "annex-elevation",
+                "main-plan", "main-section", "main-elevation",
+            },
+            sequence.Select(item => item.Sheet!.Entry.SheetId));
+        Assert.Equal(
+            new[]
+            {
+                "Туслах барилга", "Туслах барилга", "Туслах барилга",
+                "Үндсэн барилга", "Үндсэн барилга", "Үндсэн барилга",
+            },
+            sequence.Select(item => item.SourceGroupTitle));
+        Assert.Equal(
+            new[] { "autocad-source", "revit-source", "revit-source" },
+            sequence.Take(3).Select(item => item.Sheet!.SourceId));
     }
 
     [Fact]
@@ -2051,7 +2164,8 @@ public sealed class SheetPackageTests : IDisposable
         string directory,
         string sourceId,
         string documentTitle,
-        IReadOnlyList<(string SheetId, string Number, string Name, string ContentKind, string BuildingId, string BuildingName)> sheets)
+        IReadOnlyList<(string SheetId, string Number, string Name, string ContentKind, string BuildingId, string BuildingName)> sheets,
+        SheetSourceApplication application = SheetSourceApplication.Revit)
     {
         Directory.CreateDirectory(directory);
         var manifest = new SheetPackageManifest
@@ -2059,7 +2173,7 @@ public sealed class SheetPackageTests : IDisposable
             Source = new SheetPackageSource
             {
                 SourceId = sourceId,
-                Application = SheetSourceApplication.Revit,
+                Application = application,
                 DocumentPath = $@"C:\sample\{documentTitle}",
                 DocumentTitle = documentTitle,
             },

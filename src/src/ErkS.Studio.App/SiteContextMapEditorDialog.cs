@@ -66,6 +66,9 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
     private const int CaptureBasePixelWidth = 1500;
     private const double CaptureDeviceScale = 1d;
     private const int MaximumRasterDetailOffset = 1;
+    private const double MinimumPageViewZoom = 0.6d;
+    private const double MaximumPageViewZoom = 2.0d;
+    private const double PageViewZoomStep = 0.1d;
     private static readonly int CaptureBasePixelHeight = (int)Math.Round(
         CaptureBasePixelWidth *
         BuildingArchitectureConceptPageLayout.SiteContextLocationMapArea.Height /
@@ -84,6 +87,15 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         Environment.GetEnvironmentVariable("ERKS_AZURE_MAPS_SUBSCRIPTION_KEY")?.Trim() ?? "";
     private readonly ProjectSiteContextMap workingCopy;
     private readonly Grid mapsGrid = new();
+    private readonly ScrollViewer pageScrollViewer = new()
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+        CanContentScroll = false,
+        PanningMode = PanningMode.Both,
+    };
     private readonly Border pageBorder = new();
     private readonly Canvas pageCanvas = new();
     private readonly Image pageBackground = new();
@@ -99,6 +111,9 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
     private readonly Button saveEditButton = StudioWidgets.CreateIconTextButton("icon-project.svg", "Хадгалах");
     private readonly Button cancelEditButton = StudioWidgets.CreateButton("Болих");
     private readonly Button doneButton = StudioWidgets.CreateButton("Дуусгах");
+    private readonly Button pageZoomOutButton = StudioWidgets.CreateButton("−");
+    private readonly Button pageZoomResetButton = StudioWidgets.CreateButton("100%");
+    private readonly Button pageZoomInButton = StudioWidgets.CreateButton("+");
     private readonly Button panToolButton = StudioWidgets.CreateIconButton(
         "icon-pan.svg",
         "Газрын зургийг хөдөлгөх",
@@ -209,6 +224,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
     private bool bindingProvider;
     private bool bindingAnnotations;
     private string activeToolMode = "pan";
+    private double pageViewZoom = 1d;
     private bool mapsInitialized;
     private bool initializationStarted;
     private bool disposed;
@@ -251,6 +267,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         Content = BuildContent();
         SelectPane(locationPane);
         Loaded += HandleLoaded;
+        PreviewKeyDown += HandlePreviewKeyDown;
     }
 
     public bool HasSavedChanges { get; private set; }
@@ -293,6 +310,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         saveEditButton.BorderBrush = StudioTheme.AccentBrush;
         saveEditButton.Click += async (_, _) => await SaveSelectedMapAsync();
         cancelEditButton.Click += async (_, _) => await CancelEditAsync();
+        ConfigurePageZoomControls();
         editingTools.Children.Add(selectedTitle);
         editingTools.Children.Add(providerBox);
         editingTools.Children.Add(zoomOut);
@@ -307,6 +325,16 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         editingTools.Children.Add(resolutionBox);
         editingTools.Children.Add(saveEditButton);
         editingTools.Children.Add(cancelEditButton);
+        editingTools.Children.Add(new TextBlock
+        {
+            Text = "Хуудас",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = StudioTheme.MutedTextBrush,
+            Margin = new Thickness(12, 0, 4, 0),
+        });
+        editingTools.Children.Add(pageZoomOutButton);
+        editingTools.Children.Add(pageZoomResetButton);
+        editingTools.Children.Add(pageZoomInButton);
         commandBar.Children.Add(editingTools);
         root.Children.Add(commandBar);
 
@@ -330,6 +358,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         pageBorder.BorderThickness = new Thickness(1);
         pageBorder.HorizontalAlignment = HorizontalAlignment.Center;
         pageBorder.VerticalAlignment = VerticalAlignment.Center;
+        pageBorder.Margin = new Thickness(12);
         pageBorder.Child = pageCanvas;
         pageBorder.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
@@ -337,7 +366,8 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
             ShadowDepth = 3,
             Opacity = 0.35,
         };
-        mapsGrid.Children.Add(pageBorder);
+        pageScrollViewer.Content = pageBorder;
+        mapsGrid.Children.Add(pageScrollViewer);
         Grid.SetRow(mapsGrid, 2);
         root.Children.Add(mapsGrid);
 
@@ -354,6 +384,54 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         Grid.SetRow(footer, 3);
         root.Children.Add(footer);
         return root;
+    }
+
+    private void ConfigurePageZoomControls()
+    {
+        pageZoomOutButton.Width = 38;
+        pageZoomOutButton.Height = 32;
+        pageZoomOutButton.Margin = new Thickness(0, 0, 4, 0);
+        pageZoomOutButton.ToolTip = "Хуудасны харагдацыг жижигрүүлэх";
+        pageZoomOutButton.Click += (_, _) => AdjustPageViewZoom(-PageViewZoomStep);
+
+        pageZoomResetButton.Width = 58;
+        pageZoomResetButton.Height = 32;
+        pageZoomResetButton.Margin = new Thickness(0, 0, 4, 0);
+        pageZoomResetButton.ToolTip = "Хуудсыг цонхонд тааруулах";
+        pageZoomResetButton.Click += (_, _) => SetPageViewZoom(1d);
+
+        pageZoomInButton.Width = 38;
+        pageZoomInButton.Height = 32;
+        pageZoomInButton.ToolTip = "Хуудасны харагдацыг томруулах";
+        pageZoomInButton.Click += (_, _) => AdjustPageViewZoom(PageViewZoomStep);
+        UpdatePageZoomControls();
+    }
+
+    private void AdjustPageViewZoom(double delta) =>
+        SetPageViewZoom(pageViewZoom + delta);
+
+    private void SetPageViewZoom(double value)
+    {
+        pageViewZoom = NormalizePageViewZoom(value);
+        UpdatePageZoomControls();
+        LayoutPageSurface();
+    }
+
+    private void UpdatePageZoomControls()
+    {
+        pageZoomResetButton.Content = $"{Math.Round(pageViewZoom * 100):0}%";
+        pageZoomOutButton.IsEnabled = pageViewZoom > MinimumPageViewZoom + 0.001d;
+        pageZoomInButton.IsEnabled = pageViewZoom < MaximumPageViewZoom - 0.001d;
+    }
+
+    internal static double NormalizePageViewZoom(double value)
+    {
+        if (!double.IsFinite(value))
+            return 1d;
+        return Math.Clamp(
+            Math.Round(value / PageViewZoomStep) * PageViewZoomStep,
+            MinimumPageViewZoom,
+            MaximumPageViewZoom);
     }
 
     private void ConfigureAnnotationTools()
@@ -457,11 +535,12 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         const double outerPadding = 24.0;
         double availableWidth = Math.Max(1, mapsGrid.ActualWidth - outerPadding);
         double availableHeight = Math.Max(1, mapsGrid.ActualHeight - outerPadding);
-        double scale = Math.Min(
+        double fitScale = Math.Min(
             availableWidth / BuildingArchitectureConceptPageLayout.PageWidthMm,
             availableHeight / BuildingArchitectureConceptPageLayout.PageHeightMm);
-        if (!double.IsFinite(scale) || scale <= 0)
+        if (!double.IsFinite(fitScale) || fitScale <= 0)
             return;
+        double scale = fitScale * pageViewZoom;
 
         double pageWidth = BuildingArchitectureConceptPageLayout.PageWidthMm * scale;
         double pageHeight = BuildingArchitectureConceptPageLayout.PageHeightMm * scale;
@@ -475,15 +554,23 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         LayoutMapPane(
             locationPane,
             BuildingArchitectureConceptPageLayout.SiteContextLocationPanel,
-            scale);
+            scale,
+            pageViewZoom);
         LayoutMapPane(
             overviewPane,
             BuildingArchitectureConceptPageLayout.SiteContextOverviewPanel,
-            scale);
+            scale,
+            pageViewZoom);
     }
 
-    private static void LayoutMapPane(MapPane pane, PageRectMm panel, double scale)
+    private static void LayoutMapPane(
+        MapPane pane,
+        PageRectMm panel,
+        double scale,
+        double browserZoomFactor)
     {
+        if (pane.WebView.CoreWebView2 is not null)
+            pane.WebView.ZoomFactor = browserZoomFactor;
         pane.Container.Width = panel.Width * scale;
         pane.Container.Height = panel.Height * scale;
         Canvas.SetLeft(pane.Container, panel.X * scale);
@@ -597,12 +684,22 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         await InitializeMapsAsync();
     }
 
+    private async void HandlePreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || editingPane is null)
+            return;
+
+        e.Handled = true;
+        await CancelActiveToolAsync();
+    }
+
     public void Dispose()
     {
         if (disposed)
             return;
         disposed = true;
         Loaded -= HandleLoaded;
+        PreviewKeyDown -= HandlePreviewKeyDown;
         foreach (MapPane pane in AllPanes())
         {
             pane.WebView.Dispose();
@@ -639,6 +736,8 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
+        core.Settings.IsZoomControlEnabled = false;
+        core.Settings.AreBrowserAcceleratorKeysEnabled = false;
         core.Settings.UserAgent = $"{core.Settings.UserAgent} Erk-S-Studio/0.1";
         core.WebMessageReceived += HandleMapWebMessage;
 
@@ -674,6 +773,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         await core.ExecuteScriptAsync($"window.erks.init({payload});");
         await WaitForReadyAsync(pane);
         pane.IsInitialized = true;
+        pane.WebView.ZoomFactor = pageViewZoom;
         await SetMapEditingAsync(pane, false);
     }
 
@@ -832,6 +932,21 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         await SetAnnotationToolAsync(activeToolMode);
     }
 
+    private async Task CancelActiveToolAsync()
+    {
+        if (editingPane is null)
+            return;
+
+        string result = await editingPane.WebView.CoreWebView2.ExecuteScriptAsync(
+            "window.erks.cancelActiveTool();");
+        if (!bool.TryParse(result.Trim('"'), out bool canceled) || !canceled)
+            return;
+
+        activeToolMode = "pan";
+        UpdateAnnotationToolUi();
+        ShowAnnotationFeedback("Идэвхтэй багаж цуцлагдлаа · Зөөх горимд шилжлээ.", confirmed: true);
+    }
+
     private async Task SelectAnnotationAsync()
     {
         if (bindingAnnotations || editingPane is null)
@@ -985,15 +1100,28 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         object? sender,
         CoreWebView2WebMessageReceivedEventArgs args)
     {
-        if (editingPane is null ||
-            sender is not CoreWebView2 core ||
-            !ReferenceEquals(editingPane.WebView.CoreWebView2, core))
-        {
+        if (sender is not CoreWebView2 core)
             return;
-        }
+
+        MapPane? sourcePane = AllPanes().FirstOrDefault(
+            pane => ReferenceEquals(pane.WebView.CoreWebView2, core));
+        if (sourcePane is null)
+            return;
 
         try
         {
+            using JsonDocument document = JsonDocument.Parse(args.WebMessageAsJson);
+            if (document.RootElement.TryGetProperty("type", out JsonElement type) &&
+                type.GetString() == "lockedClick")
+            {
+                if (editingPane is null)
+                    Dispatcher.Invoke(() => SelectPane(sourcePane));
+                return;
+            }
+
+            if (editingPane is null || !ReferenceEquals(editingPane, sourcePane))
+                return;
+
             MapState? state = JsonSerializer.Deserialize<MapState>(
                 args.WebMessageAsJson,
                 JsonOptions);
@@ -1008,6 +1136,9 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
 
     private void RefreshAnnotationControls(MapState state)
     {
+        if (state.ToolMode is "pan" or "landmark" or "distance" or "radius")
+            activeToolMode = state.ToolMode;
+
         bindingAnnotations = true;
         try
         {
@@ -1279,6 +1410,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         string targetPath = Path.Combine(directory, fileName);
         string tempPath = targetPath + ".tmp";
         CoreWebView2 core = pane.WebView.CoreWebView2;
+        double previousBrowserZoomFactor = pane.WebView.ZoomFactor;
         double detailDelta = Math.Clamp(
             pane.Viewport.DetailZoom - selectedState.Zoom,
             0,
@@ -1288,6 +1420,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         {
             try
             {
+                pane.WebView.ZoomFactor = 1d;
                 (int captureCssWidth, int captureCssHeight, double deviceScaleFactor) =
                     CalculateCaptureMetrics(detailDelta);
                 string metrics = JsonSerializer.Serialize(new
@@ -1322,12 +1455,14 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
                 try
                 {
                     await core.CallDevToolsProtocolMethodAsync("Emulation.clearDeviceMetricsOverride", "{}");
+                    pane.WebView.ZoomFactor = previousBrowserZoomFactor;
                     await core.ExecuteScriptAsync("window.erks.resize();");
                     string selectedMapState = JsonSerializer.Serialize(selectedState, JsonOptions);
                     await core.ExecuteScriptAsync($"window.erks.setState({selectedMapState});");
                 }
                 catch
                 {
+                    pane.WebView.ZoomFactor = previousBrowserZoomFactor;
                 }
             }
 
@@ -1604,6 +1739,7 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         public string SelectedAnnotationId { get; set; } = "";
         public int SelectedDistanceVertexIndex { get; set; } = -1;
         public int SelectedRadiusIndex { get; set; }
+        public string ToolMode { get; set; } = "pan";
         public string AnnotationStatusMessage { get; set; } = "";
         public string AnnotationToolName { get; set; } = "";
         public List<ProjectMapLandmark> Landmarks { get; set; } = [];

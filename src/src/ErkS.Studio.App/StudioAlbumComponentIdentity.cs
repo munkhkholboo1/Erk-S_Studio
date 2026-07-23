@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.IO;
+using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 
@@ -8,6 +9,8 @@ internal static class StudioAlbumComponentIdentity
 {
     public const string SourceComponentKind = "Source";
     public const string GeneratedComponentKind = "Generated";
+    public const string SiteContextComponentKind =
+        ProjectSiteContextEditingPolicy.SiteContextComponentKind;
     public const string AtdSourceKey = "foundation-atd";
     public const string VisualizationSourceKey = "visualizations";
 

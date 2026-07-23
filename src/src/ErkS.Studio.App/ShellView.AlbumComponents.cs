@@ -153,6 +153,32 @@ internal sealed partial class ShellView
         {
             return AlbumComponentIdentity.Source(ownerEmail, StudioAlbumComponentIdentity.VisualizationSourceKey);
         }
+        if (normalized.Equals(
+                ProjectCloudSyncMetadata.SiteContextComponentCode,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            ProjectSiteContextEditAuthority authority =
+                ProjectSiteContextEditingPolicy.Resolve(state.Project, ownerEmail);
+            if (authority.CanEdit &&
+                !string.IsNullOrWhiteSpace(authority.SourceKey))
+            {
+                return AlbumComponentIdentity.SiteContext(
+                    string.IsNullOrWhiteSpace(authority.SourceOwnerEmail)
+                        ? ownerEmail
+                        : authority.SourceOwnerEmail,
+                    authority.SourceKey);
+            }
+            if (existingByCode.TryGetValue(
+                    ProjectCloudSyncMetadata.SiteContextComponentCode,
+                    out StudioCloudAlbumSection? existingSiteContext) &&
+                !string.IsNullOrWhiteSpace(existingSiteContext.SourceKey))
+            {
+                return AlbumComponentIdentity.SiteContext(
+                    existingSiteContext.OwnerEmail,
+                    existingSiteContext.SourceKey);
+            }
+            return AlbumComponentIdentity.Generated(normalized);
+        }
         if (!normalized.StartsWith(sourcePrefix, StringComparison.OrdinalIgnoreCase))
             return AlbumComponentIdentity.Generated(normalized);
         if (StudioAlbumComponentIdentity.IsOwnedSourceCode(normalized) &&
@@ -246,7 +272,7 @@ internal sealed partial class ShellView
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources =
             ProjectCloudSyncMetadata.PendingSourcePackages(state.Project);
         IReadOnlyList<string> rawPendingComponents =
-            ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project);
+            EditablePendingAlbumComponents();
         string ownerEmail = CurrentCloudOwnerEmail();
         Dictionary<string, string> sourceCodes = pendingSources
             .GroupBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
@@ -445,6 +471,14 @@ internal sealed partial class ShellView
                 ownerEmail,
                 HasOwnedAtdDocuments(ownerEmail),
                 hasVisualizations);
+        if (!ProjectSiteContextEditingPolicy.Resolve(state.Project, ownerEmail).CanEdit)
+        {
+            rawCodes = rawCodes
+                .Where(code => !code.Equals(
+                    ProjectCloudSyncMetadata.SiteContextComponentCode,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
         if (rawCodes.Count == 0)
         {
             MarkAlbumRendererCurrent();
@@ -597,7 +631,7 @@ internal sealed partial class ShellView
 
         string ownerEmail = CurrentCloudOwnerEmail();
         IReadOnlyList<string> rawPendingComponents =
-            ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project);
+            EditablePendingAlbumComponents();
         Dictionary<string, string> sourceCodes = pendingSources
             .GroupBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
@@ -841,6 +875,34 @@ internal sealed partial class ShellView
         return normalized;
     }
 
+    private IReadOnlyList<string> EditablePendingAlbumComponents()
+    {
+        IReadOnlyList<string> pending =
+            ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project);
+        if (!pending.Contains(
+                ProjectCloudSyncMetadata.SiteContextComponentCode,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            return pending;
+        }
+
+        ProjectSiteContextEditAuthority authority =
+            ProjectSiteContextEditingPolicy.Resolve(
+                state.Project,
+                account.Current?.Email);
+        if (authority.CanEdit)
+            return pending;
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
+            state.Project,
+            [ProjectCloudSyncMetadata.SiteContextComponentCode]);
+        return pending
+            .Where(code => !code.Equals(
+                ProjectCloudSyncMetadata.SiteContextComponentCode,
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
     private static void AddLegacyComponentMigrationRemovals(
         ICollection<StudioAlbumComponentUpload> uploads,
         IReadOnlyList<StudioCloudAlbumSection> selected,
@@ -925,6 +987,14 @@ internal sealed partial class ShellView
             ownerEmail.Trim().ToLowerInvariant(),
             sourceKey.Trim(),
             StudioAlbumComponentIdentity.SourceComponentKind);
+
+        public static AlbumComponentIdentity SiteContext(
+            string ownerEmail,
+            string sourceKey) => new(
+            ProjectCloudSyncMetadata.SiteContextComponentCode,
+            ownerEmail.Trim().ToLowerInvariant(),
+            sourceKey.Trim(),
+            StudioAlbumComponentIdentity.SiteContextComponentKind);
     }
 
     private sealed record AlbumComponentMergeOutcome(

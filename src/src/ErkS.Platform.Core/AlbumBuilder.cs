@@ -216,7 +216,9 @@ public sealed class AlbumBuilder
             project.Album.Pages,
             library,
             project.DesignSources,
-            generatedPageCount);
+            generatedPageCount,
+            project.BuildingGroups,
+            project.SheetBuildingAssignments);
         var sectionRuns = new List<ConceptSectionRun>();
 
         foreach (var item in sequence)

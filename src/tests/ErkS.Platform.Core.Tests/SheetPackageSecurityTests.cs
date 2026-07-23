@@ -786,6 +786,22 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.Equal(2, album.Pages.Count);
         AlbumSection section = album.Sections.First();
         section.SheetKeys.AddRange(["security-source|a1", "security-source|a2", "other-source|x1"]);
+        project.BuildingGroups =
+        [
+            new ProjectBuildingGroup
+            {
+                Id = "building-1",
+                Name = "Барилга 1",
+                Order = 1,
+            },
+        ];
+        project.SheetBuildingAssignments = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["security-source|a1"] = "building-1",
+            ["security-source|a2"] = "building-1",
+            ["other-source|x1"] = "building-1",
+        };
 
         PackageFiles current = WritePackage(
             "reconcile-full-current",
@@ -807,6 +823,10 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.Contains("security-source|a1", section.SheetKeys);
         Assert.DoesNotContain("security-source|a2", section.SheetKeys);
         Assert.Contains("other-source|x1", section.SheetKeys);
+        Assert.True(project.SheetBuildingAssignments.ContainsKey("security-source|a1"));
+        Assert.False(project.SheetBuildingAssignments.ContainsKey("security-source|a2"));
+        Assert.True(project.SheetBuildingAssignments.ContainsKey("other-source|x1"));
+        Assert.True(project.Cloud.BuildingCompositionPending);
         Assert.Equal("Keep title.rvt", source.NativeDocumentTitle);
         Assert.Equal(@"D:\keep\title.rvt", source.NativeDocumentPath);
     }

@@ -7,6 +7,12 @@
     html, body, #map { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body { background: #15181d; font-family: Arial, sans-serif; }
     #map.locked { pointer-events: none; }
+    #interaction-lock {
+      position: absolute; inset: 0; z-index: 9000;
+      display: block; cursor: default; touch-action: none;
+      background: transparent; pointer-events: auto;
+    }
+    #interaction-lock.editing { display: none; pointer-events: none; }
     #annotation-overlay {
       position: absolute; inset: 0; z-index: 720; width: 100%; height: 100%;
       overflow: hidden; pointer-events: none;
@@ -57,12 +63,14 @@
 </head>
 <body>
   <div id="map" class="locked"></div>
+  <div id="interaction-lock" aria-hidden="true"></div>
   <svg id="annotation-overlay" aria-hidden="true"></svg>
   <div id="map-legend" class="hidden"></div>
   <div id="message">Газрын зураг ачаалж байна...</div>
   <script>
     (() => {
       const host = document.getElementById('map');
+      const interactionLock = document.getElementById('interaction-lock');
       const message = document.getElementById('message');
       const annotationOverlay = document.getElementById('annotation-overlay');
       const mapLegend = document.getElementById('map-legend');
@@ -121,6 +129,22 @@
         'M647.1,323.5c0,278.5-220.4,489.3-297.4,554.5-15.1,12.8-37.2,12.8-52.3,0C220.4,812.9,0,602,0,323.5S144.9,0,323.5,0s323.5,144.9,323.5,323.5Z';
       const locationIconShadowPath =
         'M532.7,895.6c0,40.8-93.6,73.8-209.2,73.8s-209.2-33.1-209.2-73.8,41.4-50.8,103-63.6c26.4,26.9,49.8,47.8,66.5,61.9,11.1,9.4,25.1,14.5,39.6,14.5s28.6-5.2,39.6-14.5c16.7-14.2,40.1-35.1,66.5-61.9,61.7,12.8,103,36.5,103,63.6Z';
+
+      function notifyLockedClick() {
+        try {
+          if (globalThis.chrome && chrome.webview) {
+            chrome.webview.postMessage({ type: 'lockedClick' });
+          }
+        } catch (_) { }
+      }
+
+      ['wheel', 'dblclick', 'pointerdown', 'touchstart', 'touchmove']
+        .forEach(eventName => interactionLock.addEventListener(eventName, event => {
+          if (eventName === 'pointerdown') notifyLockedClick();
+          event.preventDefault();
+          event.stopPropagation();
+        }, { passive: false }));
+      interactionLock.addEventListener('contextmenu', event => event.preventDefault());
 
       function showMessage(text) {
         message.textContent = text;
@@ -456,6 +480,7 @@
           selectedAnnotationId,
           selectedDistanceVertexIndex,
           selectedRadiusIndex,
+          toolMode,
           annotationStatusMessage,
           annotationToolName: String(toolOptions.name || ''),
           ...cloneAnnotations()
@@ -1280,7 +1305,7 @@
         return toolMode;
       }
 
-      function finishDrawing() {
+      function finishDrawing(notify = true) {
         if (activeDistanceId) {
           const index = state.distanceMeasures.findIndex(item => item.id === activeDistanceId);
           if (index >= 0 && state.distanceMeasures[index].path.length < 2) {
@@ -1293,8 +1318,30 @@
         selectedDistanceVertexIndex = -1;
         annotationStatusMessage = 'Зайн шугам дууслаа';
         renderAnnotations();
-        notifyAnnotationChanged();
+        if (notify) notifyAnnotationChanged();
       }
+
+      function cancelActiveTool() {
+        if (!editing || (toolMode === 'pan' && !dragState)) return false;
+        if (toolMode === 'distance') finishDrawing(false);
+        if (dragState) {
+          try { annotationOverlay.releasePointerCapture(dragState.pointerId); } catch (_) { }
+          dragState = null;
+        }
+        toolMode = 'pan';
+        activeDistanceId = '';
+        selectedDistanceVertexIndex = -1;
+        annotationStatusMessage = 'Идэвхтэй багаж цуцлагдлаа · Зөөх горимд шилжлээ';
+        renderAnnotations();
+        notifyAnnotationChanged();
+        return true;
+      }
+
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !cancelActiveTool()) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
 
       function updateSelectedAnnotation(value) {
         const item = selectedAnnotation();
@@ -1864,6 +1911,7 @@
 
       function applyInteraction() {
         host.classList.toggle('locked', !editing);
+        interactionLock.classList.toggle('editing', editing);
         if (!map) return;
         if (engine === 'leaflet') {
           const method = editing ? 'enable' : 'disable';
@@ -1875,6 +1923,16 @@
             scrollwheel: editing,
             disableDoubleClickZoom: !editing,
             gestureHandling: editing ? 'greedy' : 'none'
+          });
+        } else if (engine === 'azure' && typeof map.setUserInteraction === 'function') {
+          map.setUserInteraction({
+            interactive: editing,
+            scrollZoomInteraction: editing,
+            dblClickZoomInteraction: editing,
+            dragPanInteraction: editing,
+            keyboardInteraction: editing,
+            touchInteraction: editing,
+            boxZoomInteraction: editing
           });
         }
       }
@@ -2114,6 +2172,7 @@
           selectedAnnotationId,
           selectedDistanceVertexIndex,
           selectedRadiusIndex,
+          toolMode,
           annotationStatusMessage,
           annotationToolName: String(toolOptions.name || ''),
           ...cloneAnnotations()
@@ -2123,7 +2182,7 @@
       window.erks = {
         init, setProvider, setEditing, setBoundary, setPlanFeatures, zoomBy,
         setState, fitBounds, resize, getState, prepareCapture,
-        currentLeafletTilesReady, setTool, finishDrawing,
+        currentLeafletTilesReady, setTool, finishDrawing, cancelActiveTool,
         updateSelectedAnnotation, deleteSelectedAnnotation, selectAnnotation,
         selectDistanceVertex, selectRadiusRing, addRadius, removeSelectedRadius,
         renderAnnotations
