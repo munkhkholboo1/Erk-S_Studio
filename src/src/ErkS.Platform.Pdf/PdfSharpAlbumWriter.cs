@@ -2021,7 +2021,16 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         double height = sourceHeight * scale;
         double x = target.X + (target.Width - width) * 0.5;
         double y = target.Y + (target.Height - height) * 0.5;
-        gfx.DrawImage(image, x, y, width, height);
+        var state = gfx.Save();
+        try
+        {
+            gfx.IntersectClip(target);
+            gfx.DrawImage(image, x, y, width, height);
+        }
+        finally
+        {
+            gfx.Restore(state);
+        }
     }
 
     private static void DrawVisualizationPage(

@@ -281,18 +281,21 @@ internal interface IProjectChatClient
     Task<StudioProjectChatResponse> GetProjectChatAsync(
         string projectId,
         int take = 100,
+        string? peerEmail = null,
         CancellationToken cancellationToken = default);
 
     Task<StudioProjectChatResponse> SendProjectChatMessageAsync(
         string projectId,
         string message,
         string? attachmentPath = null,
+        string? peerEmail = null,
         CancellationToken cancellationToken = default);
 
     Task<StudioProjectChatResponse> ReactToProjectChatMessageAsync(
         string projectId,
         string messageId,
         string reaction,
+        string? peerEmail = null,
         CancellationToken cancellationToken = default);
 
     Task<byte[]?> DownloadProjectChatAssetAsync(

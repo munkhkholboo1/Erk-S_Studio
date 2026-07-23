@@ -15,6 +15,20 @@ internal static class StudioWidgets
     /// <summary>Resolves an icon asset shipped next to this assembly (Assets folder).</summary>
     public static string GetAssetPath(string assetName)
     {
+#pragma warning disable IL3000 // DevMod loads this module externally; product builds use the fallback below.
+        string? moduleDirectory = System.IO.Path.GetDirectoryName(
+            typeof(StudioWidgets).Assembly.Location);
+#pragma warning restore IL3000
+        if (!string.IsNullOrWhiteSpace(moduleDirectory))
+        {
+            string moduleAssetPath = System.IO.Path.Combine(
+                moduleDirectory,
+                "Assets",
+                assetName);
+            if (System.IO.File.Exists(moduleAssetPath))
+                return moduleAssetPath;
+        }
+
         return System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", assetName);
     }
 

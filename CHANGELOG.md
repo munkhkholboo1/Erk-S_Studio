@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.13] - 2026-07-24
+
+- Keep project chat available beside every project workspace, including Album and inline map editing.
+- Preserve direct chat history for accepted project members without depending on online presence.
+- Match the website's Fluent animated emoji in quick send, pickers, messages, and reactions.
+- Clip registration and license source pages inside their generated document tiles.
+- Show DevMod as the next Demo version after the currently published Studio release.
+
 ## [0.1.0-dev.12] - 2026-07-23
 
 - Add project-member chat in Studio using the same Cloud ERA message, emoji, and attachment contract as the website.

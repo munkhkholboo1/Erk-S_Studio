@@ -1,14 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\..\Studio.Version.props" />
+
   <PropertyGroup>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <Version Condition="'$(StudioReleaseVersion)' == ''">0.1.0</Version>
+    <Version Condition="'$(StudioReleaseVersion)' == ''">$(StudioDevelopmentAssemblyVersion)</Version>
     <Version Condition="'$(StudioReleaseVersion)' != ''">$(StudioReleaseVersion)</Version>
-    <InformationalVersion Condition="'$(StudioReleaseLabel)' == ''">0.1.0-dev</InformationalVersion>
+    <InformationalVersion Condition="'$(StudioReleaseLabel)' == ''">$(StudioDevelopmentVersion)</InformationalVersion>
     <InformationalVersion Condition="'$(StudioReleaseLabel)' != ''">$(StudioReleaseLabel)</InformationalVersion>
     <!-- Product root: src/src/ErkS.Studio.App -> up 3 levels -->
     <StudioProductRoot>$(MSBuildProjectDirectory)\..\..\..</StudioProductRoot>
@@ -32,6 +34,9 @@
 
   <ItemGroup>
     <Content Include="Assets\*.svg" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\*.png"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\*.html" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Assets\site-context-map.html" />
     <Content Include="..\ErkS.Studio\Assets\logo-erks.ico"

@@ -620,7 +620,8 @@
       }
 
       function renderScale() {
-        return Math.max(.72, Math.min(2.4, host.clientWidth / 750));
+        // Keep overlays at the same physical size when capture resolution doubles.
+        return Math.max(.72, host.clientWidth / 750);
       }
 
       function appendOutlinedText(parent, x, y, text, scale, options = {}) {

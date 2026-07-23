@@ -1220,10 +1220,13 @@ internal sealed class StudioAccountService :
     public async Task<StudioProjectChatResponse> GetProjectChatAsync(
         string projectId,
         int take = 100,
+        string? peerEmail = null,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         string path = $"/api/cloud-era/v1/projects/{Uri.EscapeDataString(projectId)}/chat?take={Math.Clamp(take, 1, 200)}";
+        if (!string.IsNullOrWhiteSpace(peerEmail))
+            path += "&peerEmail=" + Uri.EscapeDataString(peerEmail.Trim());
         return await GetAuthorizedAsync<StudioProjectChatResponse>(path, cancellationToken).ConfigureAwait(true);
     }
 
@@ -1231,12 +1234,14 @@ internal sealed class StudioAccountService :
         string projectId,
         string message,
         string? attachmentPath = null,
+        string? peerEmail = null,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using var content = new MultipartFormDataContent();
         content.Add(new StringContent(message ?? "", Encoding.UTF8), "message");
+        content.Add(new StringContent(peerEmail?.Trim() ?? "", Encoding.UTF8), "peerEmail");
 
         FileStream? attachmentStream = null;
         try
@@ -1274,13 +1279,18 @@ internal sealed class StudioAccountService :
         string projectId,
         string messageId,
         string reaction,
+        string? peerEmail = null,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         string path = $"/api/cloud-era/v1/projects/{Uri.EscapeDataString(projectId)}/chat/messages/{Uri.EscapeDataString(messageId)}/reactions";
         return await PostAuthorizedAsync<StudioProjectChatReactionRequest, StudioProjectChatResponse>(
             path,
-            new StudioProjectChatReactionRequest { Reaction = reaction },
+            new StudioProjectChatReactionRequest
+            {
+                Reaction = reaction,
+                PeerEmail = peerEmail?.Trim() ?? "",
+            },
             cancellationToken).ConfigureAwait(true);
     }
 

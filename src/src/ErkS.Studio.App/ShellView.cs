@@ -24,7 +24,6 @@ internal sealed partial class ShellView : IDisposable
         Companies,
         Foundation,
         Participants,
-        Chat,
         Sources,
         Albums,
         Reports,
@@ -281,10 +280,10 @@ internal sealed partial class ShellView : IDisposable
                 await RefreshProjectsAsync(refreshNotifications: false);
             }
         };
-        projectChatRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        projectChatRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
         projectChatRefreshTimer.Tick += async (_, _) =>
         {
-            if (activePage == StudioPage.Chat && state.HasOpenProject)
+            if (state.HasOpenProject && account.IsSignedIn)
                 await RefreshProjectChatAsync(silent: true);
         };
 
@@ -379,16 +378,23 @@ internal sealed partial class ShellView : IDisposable
         pages[StudioPage.Companies] = BuildCompaniesPage();
         pages[StudioPage.Foundation] = BuildFoundationPage();
         pages[StudioPage.Participants] = BuildParticipantsPage();
-        pages[StudioPage.Chat] = BuildProjectChatPage();
         pages[StudioPage.Sources] = BuildSourcesPage();
         pages[StudioPage.Albums] = BuildAlbumPage();
         pages[StudioPage.Reports] = BuildReportsPage();
         pages[StudioPage.Archive] = BuildArchivePage();
 
         root.Children.Add(contentHost);
+        var shell = new Grid();
+        shell.Children.Add(root);
+        UIElement chatWidget = BuildProjectChatWidget();
+        projectChatPopup.Child = chatWidget;
+        projectChatPopup.PlacementTarget = shell;
+        projectChatPopup.CustomPopupPlacementCallback = PlaceProjectChatPopup;
+        shell.Children.Add(projectChatPopup);
+        shell.SizeChanged += (_, _) => RepositionProjectChatPopup();
         RebuildNavigation();
         SelectPage(StudioPage.Projects);
-        return root;
+        return shell;
     }
 
     private static UIElement BuildBrandBlock()
@@ -541,17 +547,18 @@ internal sealed partial class ShellView : IDisposable
         AddNavItem(StudioPage.Companies, "Компани", "icon-company.svg");
         if (!projectWorkspaceOpen || !state.HasOpenProject)
         {
+            UpdateProjectChatWidgetVisibility();
             return;
         }
 
         navPanel.Children.Add(BuildProjectContextBlock());
         AddNavItem(StudioPage.Foundation, "Төслийн мэдээлэл", "icon-project.svg");
         AddNavItem(StudioPage.Participants, "Оролцогчид", "icon-company.svg");
-        AddNavItem(StudioPage.Chat, "Чат", "icon-chat.svg");
         AddNavItem(StudioPage.Sources, ProjectSurfaceLabel("sources", "Эх үүсвэр"), "icon-sources.svg");
         AddNavItem(StudioPage.Albums, ProjectSurfaceLabel("albums", "Альбум"), "icon-album.svg");
         AddNavItem(StudioPage.Reports, ProjectSurfaceLabel("reports", "Тайлан"), "icon-publish.svg");
         AddNavItem(StudioPage.Archive, ProjectSurfaceLabel("archive", "Архив"), "icon-company.svg");
+        UpdateProjectChatWidgetVisibility();
     }
 
     private string ProjectSurfaceLabel(string sectionId, string fallback)
@@ -656,8 +663,6 @@ internal sealed partial class ShellView : IDisposable
     private void SelectPage(StudioPage page)
     {
         var previousPage = activePage;
-        if (previousPage == StudioPage.Chat && page != StudioPage.Chat)
-            projectChatRefreshTimer.Stop();
         if (page == StudioPage.Projects && projectWorkspaceOpen)
         {
             projectWorkspaceOpen = false;
@@ -709,12 +714,6 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshParticipantGroupSummaries();
             RefreshParticipantsList(refreshCloud: true);
-        }
-        else if (page == StudioPage.Chat)
-        {
-            ResetProjectChatForCurrentProject();
-            projectChatRefreshTimer.Start();
-            _ = RefreshProjectChatAsync(silent: false);
         }
         else if (page is StudioPage.Reports or StudioPage.Archive)
         {
@@ -1592,6 +1591,7 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshSourceDetails();
         }
+        UpdateProjectChatWidgetVisibility();
     }
 
     private UIElement BuildAccountAvatar()

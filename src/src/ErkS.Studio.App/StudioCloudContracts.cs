@@ -8,8 +8,13 @@ internal sealed class StudioProjectChatResponse
     public string ProjectCode { get; set; } = "";
     public string ProjectName { get; set; } = "";
     public string CurrentUserEmail { get; set; } = "";
+    public string SelectedPeerEmail { get; set; } = "";
+    public string ConversationKind { get; set; } = "";
+    public int UnreadTotal { get; set; }
     public string[] ReactionChoices { get; set; } = [];
     public List<StudioProjectChatParticipant> Participants { get; set; } = [];
+    public List<StudioProjectChatConversation> Conversations { get; set; } = [];
+    public StudioProjectChatParticipant? SelectedPeer { get; set; }
     public List<StudioProjectChatMessage> Messages { get; set; } = [];
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
@@ -23,6 +28,20 @@ internal sealed class StudioProjectChatParticipant
     public string ProfileImageUrl { get; set; } = "";
 }
 
+internal sealed class StudioProjectChatConversation
+{
+    public string PeerEmail { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Initials { get; set; } = "";
+    public string RoleLabel { get; set; } = "";
+    public string ProfileImageUrl { get; set; } = "";
+    public string LastMessagePreview { get; set; } = "";
+    public DateTimeOffset LastMessageAtUtc { get; set; }
+    public string LastMessageTime { get; set; } = "";
+    public bool LastMessageIsMine { get; set; }
+    public int UnreadCount { get; set; }
+}
+
 internal sealed class StudioProjectChatMessage
 {
     public string MessageId { get; set; } = "";
@@ -32,6 +51,8 @@ internal sealed class StudioProjectChatMessage
     public string AuthorRoleLabel { get; set; } = "";
     public string AuthorProfileImageUrl { get; set; } = "";
     public bool IsMine { get; set; }
+    public bool ReadByPeer { get; set; }
+    public string ReadLabel { get; set; } = "";
     public string Body { get; set; } = "";
     public DateTimeOffset CreatedAtUtc { get; set; }
     public string DisplayTime { get; set; } = "";
@@ -56,6 +77,7 @@ internal sealed class StudioProjectChatReaction
 internal sealed class StudioProjectChatReactionRequest
 {
     public string Reaction { get; set; } = "";
+    public string PeerEmail { get; set; } = "";
 }
 
 internal sealed class StudioLicenseResponse

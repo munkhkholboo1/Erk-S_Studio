@@ -1287,6 +1287,7 @@ internal sealed partial class ShellView
             state.Project.SiteContext,
             pageBackgroundSource);
         inlineSiteContextEditor = editor;
+        UpdateProjectChatWidgetVisibility();
         inlineSiteContextPersisted = false;
         editor.SiteContextSaved += snapshot =>
         {
@@ -1317,6 +1318,7 @@ internal sealed partial class ShellView
         }
 
         inlineSiteContextEditor = null;
+        UpdateProjectChatWidgetVisibility();
         inlineSiteContextPersisted = false;
         albumPagesWorkspaceList.IsEnabled = true;
         albumPreviewHost.Children.Remove(editor);
@@ -2152,6 +2154,7 @@ internal sealed partial class ShellView
             albumPreviewHost.Children.Remove(inlineSiteContextEditor);
             inlineSiteContextEditor.Dispose();
             inlineSiteContextEditor = null;
+            UpdateProjectChatWidgetVisibility();
             inlineSiteContextPersisted = false;
             albumPagesWorkspaceList.IsEnabled = true;
         }

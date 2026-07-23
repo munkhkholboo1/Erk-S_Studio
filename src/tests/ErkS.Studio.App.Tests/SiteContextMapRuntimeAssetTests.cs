@@ -45,6 +45,8 @@ public sealed class SiteContextMapRuntimeAssetTests
             Assert.Contains("updateSelectedAnnotation", runtime);
             Assert.Contains("selectedDistanceVertexIndex", runtime);
             Assert.Contains("selectDistanceVertex", runtime);
+            Assert.Contains("return Math.max(.72, host.clientWidth / 750);", runtime);
+            Assert.DoesNotContain("Math.min(2.4, host.clientWidth / 750)", runtime);
             Assert.Contains("radiiMeters", runtime);
             Assert.Contains("ringColors", runtime);
             Assert.Contains("normalizeRadiusRings", runtime);

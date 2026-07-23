@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\..\Studio.Version.props" />
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
@@ -7,8 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AssemblyTitle>Erk-S Studio</AssemblyTitle>
-    <Version Condition="'$(StudioReleaseVersion)' == ''">0.1.0</Version>
+    <Version Condition="'$(StudioReleaseVersion)' == ''">$(StudioDevelopmentAssemblyVersion)</Version>
     <Version Condition="'$(StudioReleaseVersion)' != ''">$(StudioReleaseVersion)</Version>
+    <InformationalVersion Condition="'$(StudioReleaseLabel)' == ''">$(StudioDevelopmentVersion)</InformationalVersion>
     <InformationalVersion Condition="'$(StudioReleaseLabel)' != ''">$(StudioReleaseLabel)</InformationalVersion>
     <ApplicationIcon>Assets\logo-erks.ico</ApplicationIcon>
     <StudioProductRoot>$(MSBuildProjectDirectory)\..\..\..</StudioProductRoot>
@@ -22,6 +25,7 @@
   <ItemGroup>
     <Content Include="Assets\logo-erks.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo-erks-*.png" CopyToOutputDirectory="PreserveNewest" />
+    <StudioFluentEmojiAsset Include="..\ErkS.Studio.App\Assets\fluent-*.png" />
   </ItemGroup>
 
   <!-- DevMod marker: lets the running host find the source checkout so
@@ -49,6 +53,15 @@
         Lines="ApplicationControl"
         Overwrite="true"
         WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <Target Name="CopyStudioFluentEmojiAssets"
+          AfterTargets="Publish"
+          Condition="'$(PublishDir)' != ''">
+    <MakeDir Directories="$(PublishDir)Assets" />
+    <Copy SourceFiles="@(StudioFluentEmojiAsset)"
+          DestinationFolder="$(PublishDir)Assets"
+          SkipUnchangedFiles="false" />
   </Target>
 
 </Project>

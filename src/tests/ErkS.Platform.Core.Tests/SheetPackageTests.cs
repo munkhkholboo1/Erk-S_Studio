@@ -1608,6 +1608,19 @@ public sealed class SheetPackageTests : IDisposable
             Assert.InRange(page.Width.Millimeter, 419.5, 420.5);
             Assert.InRange(page.Height.Millimeter, 296.5, 297.5);
         });
+
+        PdfVectorDocumentProfile vectorProfile = PdfVectorQualityInspector.Inspect(outputPath);
+        foreach ((ConceptGeneratedPagePlan plan, int index) in plans.Select((plan, index) => (plan, index)))
+        {
+            if (plan.DocumentPages.Count == 0)
+                continue;
+
+            int clippingPathCount = vectorProfile.Pages[index].Operators.Count(
+                operation => operation is "W" or "W*");
+            Assert.True(
+                clippingPathCount >= plan.DocumentPages.Count,
+                $"Generated document page {index + 1} must clip every source page to its tile.");
+        }
     }
 
     [Fact]
