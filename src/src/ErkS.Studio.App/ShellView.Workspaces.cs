@@ -67,6 +67,8 @@ internal sealed partial class ShellView
     private long albumPdfNavigationSerial;
     private CancellationTokenSource? albumThumbnailLoadCancellation;
     private string? selectedAlbumWorkspaceKey;
+    private SiteContextMapEditorControl? inlineSiteContextEditor;
+    private bool inlineSiteContextPersisted;
 
     private UIElement BuildSourcesPage()
     {
@@ -1205,9 +1207,10 @@ internal sealed partial class ShellView
         var open = StudioWidgets.CreateButton("PDF нээх");
         open.Click += (_, _) =>
         {
-            if (!string.IsNullOrWhiteSpace(lastAlbumPath) && File.Exists(lastAlbumPath))
+            string? previewPath = ResolveAlbumPreviewPath();
+            if (!string.IsNullOrWhiteSpace(previewPath))
             {
-                Process.Start(new ProcessStartInfo(lastAlbumPath) { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo(previewPath) { UseShellExecute = true });
             }
         };
         documentGroup.Children.Add(save);
@@ -1225,35 +1228,109 @@ internal sealed partial class ShellView
         return ribbon;
     }
 
-    private void EditSiteContextMaps()
+    private async void EditSiteContextMaps()
     {
         if (!EnsureProjectContentPermission())
             return;
+        if (inlineSiteContextEditor is not null)
+            return;
 
-        var dialog = new SiteContextMapEditorDialog(
+        const string siteContextSelectionKey = "component:site-context:None:1";
+        RefreshAlbumWorkspace(selectItemKey: siteContextSelectionKey);
+        AlbumPageWorkspaceItem? siteContextItem = albumPagesWorkspaceList.Items
+            .OfType<AlbumPageWorkspaceItem>()
+            .FirstOrDefault(item =>
+                !item.IsGroup &&
+                item.Component?.GeneratedPageKind == AlbumGeneratedPageKind.SiteContext);
+        if (siteContextItem is null)
+        {
+            SetStatus("Байршлын схем / Орчны тойм хуудас альбумын бүрдэлд алга байна.");
+            return;
+        }
+
+        albumPagesWorkspaceList.SelectedItem = siteContextItem;
+        selectedAlbumWorkspaceKey = siteContextItem.SelectionKey;
+        BindSelectedAlbumPage();
+
+        BitmapSource? pageBackgroundSource = null;
+        string? pageBackgroundPdfPath = ResolveAlbumPreviewPath();
+        int? sharedPageNumber = ResolveSharedAlbumComponentPage(
+            ProjectCloudSyncMetadata.SiteContextComponentCode);
+        int? builtPageNumber = sharedPageNumber ??
+                               siteContextItem.BuiltPageNumber ??
+                               ResolveBuiltAlbumPage(siteContextItem);
+        if (!string.IsNullOrWhiteSpace(pageBackgroundPdfPath) &&
+            builtPageNumber.HasValue)
+        {
+            try
+            {
+                // Keep this one-page render independent from the long-lived
+                // thumbnail cache. Album refreshes can switch that cache's PDF
+                // while this inline editor is being prepared.
+                var pageBackgroundImages = new PdfPageImageCache();
+                pageBackgroundSource = await pageBackgroundImages.GetPageAsync(
+                    pageBackgroundPdfPath,
+                    builtPageNumber.Value,
+                    1800,
+                    CancellationToken.None);
+            }
+            catch (Exception exception) when (
+                exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+            {
+                SetStatus($"Хуудасны фон уншсангүй: {exception.Message}");
+            }
+        }
+
+        var editor = new SiteContextMapEditorControl(
             state.ResolveProjectFolder(),
             state.Project.ProjectId,
-            state.Project.SiteContext)
-        {
-            Owner = Window.GetWindow(Root),
-        };
-        bool persistedDuringDialog = false;
-        dialog.SiteContextSaved += snapshot =>
+            state.Project.SiteContext,
+            pageBackgroundSource);
+        inlineSiteContextEditor = editor;
+        inlineSiteContextPersisted = false;
+        editor.SiteContextSaved += snapshot =>
         {
             state.Project.SiteContext = snapshot;
             state.MarkSiteContextChanged();
-            persistedDuringDialog = true;
+            inlineSiteContextPersisted = true;
         };
-        _ = dialog.ShowDialog();
-        if (!dialog.HasSavedChanges)
+        editor.Completed += saved => CompleteInlineSiteContextEditing(editor, saved);
+
+        albumPdfNavigationSerial++;
+        albumPreviewHost.Children.Clear();
+        albumPreviewHost.Children.Add(editor);
+        albumPagesWorkspaceList.IsEnabled = false;
+        SetStatus(pageBackgroundSource is null
+            ? "Байршлын схемийн суурь хуудас уншигдсангүй. Газрын зургийг A3 талбар дээр засварлаж байна."
+            : "Байршлын схемийн хуудсыг өөр дээр нь засварлаж байна.");
+    }
+
+    private void CompleteInlineSiteContextEditing(SiteContextMapEditorControl editor, bool saved)
+    {
+        if (!ReferenceEquals(inlineSiteContextEditor, editor))
             return;
 
-        if (!persistedDuringDialog)
+        if (saved && !inlineSiteContextPersisted)
         {
-            state.Project.SiteContext = dialog.Result;
+            state.Project.SiteContext = editor.Result;
             state.MarkSiteContextChanged();
         }
-        RefreshAlbumWorkspace(selectItemKey: "component:site-context:None:1");
+
+        inlineSiteContextEditor = null;
+        inlineSiteContextPersisted = false;
+        albumPagesWorkspaceList.IsEnabled = true;
+        albumPreviewHost.Children.Remove(editor);
+        editor.Dispose();
+
+        const string siteContextSelectionKey = "component:site-context:None:1";
+        RefreshAlbumWorkspace(selectItemKey: siteContextSelectionKey);
+        if (!saved)
+        {
+            RefreshAlbumPagePreview();
+            SetStatus("Байршлын схемийн засварыг болилоо.");
+            return;
+        }
+
         UpdateAlbum(
             silent: false,
             statusPrefix: "Байршлын схем болон орчны тойм шинэчлэгдлээ");
@@ -1412,7 +1489,8 @@ internal sealed partial class ShellView
         albumThumbnailLoadCancellation?.Dispose();
         albumThumbnailLoadCancellation = null;
 
-        if (!albumThumbnailMode || string.IsNullOrWhiteSpace(lastAlbumPath) || !File.Exists(lastAlbumPath))
+        string? previewPath = ResolveAlbumPreviewPath();
+        if (!albumThumbnailMode || string.IsNullOrWhiteSpace(previewPath))
         {
             return;
         }
@@ -1427,7 +1505,7 @@ internal sealed partial class ShellView
 
         var cancellation = new CancellationTokenSource();
         albumThumbnailLoadCancellation = cancellation;
-        _ = LoadAlbumThumbnailsAsync(items, lastAlbumPath, cancellation.Token);
+        _ = LoadAlbumThumbnailsAsync(items, previewPath, cancellation.Token);
     }
 
     private async Task LoadAlbumThumbnailsAsync(
@@ -1973,6 +2051,10 @@ internal sealed partial class ShellView
         {
             return;
         }
+        if (inlineSiteContextEditor is not null)
+        {
+            return;
+        }
 
         albumPreviewHost.Children.Clear();
         if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected)
@@ -1987,11 +2069,11 @@ internal sealed partial class ShellView
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(lastAlbumPath) &&
-            File.Exists(lastAlbumPath) &&
+        string? previewPath = ResolveAlbumPreviewPath();
+        if (!string.IsNullOrWhiteSpace(previewPath) &&
             (selected.BuiltPageNumber ?? ResolveBuiltAlbumPage(selected)) is int builtPage)
         {
-            ShowAlbumPdfPage(lastAlbumPath, builtPage);
+            ShowAlbumPdfPage(previewPath, builtPage);
             return;
         }
 
@@ -2065,6 +2147,14 @@ internal sealed partial class ShellView
 
     private void ResetAlbumPreviewForProjectChange()
     {
+        if (inlineSiteContextEditor is not null)
+        {
+            albumPreviewHost.Children.Remove(inlineSiteContextEditor);
+            inlineSiteContextEditor.Dispose();
+            inlineSiteContextEditor = null;
+            inlineSiteContextPersisted = false;
+            albumPagesWorkspaceList.IsEnabled = true;
+        }
         CancelVisualizationThumbnailLoading();
         albumPdfNavigationSerial++;
         albumThumbnailLoadCancellation?.Cancel();
@@ -2099,6 +2189,14 @@ internal sealed partial class ShellView
 
     private int? ResolveBuiltAlbumPage(AlbumPageWorkspaceItem selected)
     {
+        if (selected.Component?.GeneratedPageKind == AlbumGeneratedPageKind.SiteContext)
+        {
+            int? sharedPage = ResolveSharedAlbumComponentPage(
+                ProjectCloudSyncMetadata.SiteContextComponentCode);
+            if (sharedPage.HasValue)
+                return sharedPage;
+        }
+
         var project = state.CreateAlbumBuildProject();
         List<ConceptGeneratedPagePlan> generated =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(project).ToList();
@@ -2160,6 +2258,44 @@ internal sealed partial class ShellView
         }
 
         return null;
+    }
+
+    private int? ResolveSharedAlbumComponentPage(string componentCode)
+    {
+        string? previewPath = ResolveAlbumPreviewPath();
+        if (string.IsNullOrWhiteSpace(previewPath))
+            return null;
+
+        string albumPath = Path.GetFullPath(previewPath);
+        string albumFolderName = Path.GetFileName(
+            Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(albumPath) ?? ""));
+        bool usesSharedManifest =
+            albumFolderName.Equals("cloud", StringComparison.OrdinalIgnoreCase) ||
+            albumFolderName.Equals("cloud-local", StringComparison.OrdinalIgnoreCase);
+        if (!usesSharedManifest)
+            return null;
+
+        ProjectCloudAlbumComponentReference? component =
+            (state.Project.Cloud.SharedAlbumComponents ?? [])
+            .FirstOrDefault(item => item.Code.Equals(
+                componentCode,
+                StringComparison.OrdinalIgnoreCase));
+        return component?.PageNumbers
+            .Where(pageNumber => pageNumber > 0)
+            .OrderBy(pageNumber => pageNumber)
+            .Cast<int?>()
+            .FirstOrDefault();
+    }
+
+    private string? ResolveAlbumPreviewPath()
+    {
+        if (!string.IsNullOrWhiteSpace(lastAlbumPath) && File.Exists(lastAlbumPath))
+            return lastAlbumPath;
+
+        string? cloudPath = ResolveLastReceivedCloudAlbumPath();
+        return !string.IsNullOrWhiteSpace(cloudPath) && File.Exists(cloudPath)
+            ? cloudPath
+            : null;
     }
 
     private async void ShowAlbumPdfPage(string pdfPath, int pageNumber)

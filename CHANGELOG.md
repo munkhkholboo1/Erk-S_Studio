@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.12] - 2026-07-23
+
+- Add project-member chat in Studio using the same Cloud ERA message, emoji, and attachment contract as the website.
+- Add location markers, measured paths, and independently editable concentric-radius annotations to the location scheme and surrounding-context map.
+- Preserve the exact map viewport and high-resolution capture composition between editing, album preview, PDF generation, reopening, and CityGen geometry refreshes.
+- Keep annotation selection as editor-only state so saved albums never retain an active radius or marker highlight.
+- Migrate legacy generated album pages to the current renderer without discarding project-scoped source data.
+
 ## [0.1.0-dev.11] - 2026-07-22
 
 - Reject update catalog entries and downloaded installers that belong to another Erk-S product.

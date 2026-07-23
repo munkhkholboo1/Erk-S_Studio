@@ -658,6 +658,13 @@ public sealed class ProjectAlbumRecord
     public string LastPdfSha256 { get; set; } = "";
     public int LastPageCount { get; set; }
     public string LastPageSizeSummary { get; set; } = "";
+    /// <summary>
+    /// Revision of Studio's PDF composition rules used for the current local
+    /// album. Missing values from older project files intentionally deserialize
+    /// as zero so renderer upgrades can rebuild locally owned Cloud components
+    /// once without treating every project open as dirty.
+    /// </summary>
+    public int RendererRevision { get; set; }
     public int Version { get; set; } = 1;
 }
 

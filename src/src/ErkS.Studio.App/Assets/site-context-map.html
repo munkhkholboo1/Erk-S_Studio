@@ -7,6 +7,46 @@
     html, body, #map { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body { background: #15181d; font-family: Arial, sans-serif; }
     #map.locked { pointer-events: none; }
+    #annotation-overlay {
+      position: absolute; inset: 0; z-index: 720; width: 100%; height: 100%;
+      overflow: hidden; pointer-events: none;
+    }
+    #annotation-overlay .annotation-hit { pointer-events: none; }
+    #annotation-overlay.editing .annotation-hit {
+      pointer-events: auto; cursor: grab !important;
+    }
+    #annotation-overlay.editing .annotation-hit:active { cursor: grabbing !important; }
+    body.tool-landmark #map,
+    body.tool-landmark #map * {
+      cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='32' viewBox='0 0 24 32'%3E%3Cpath d='M12 1a9 9 0 0 0-9 9c0 7.2 9 20 9 20s9-12.8 9-20a9 9 0 0 0-9-9Z' fill='%23e5484d' stroke='white' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='10' r='3.7' fill='white'/%3E%3C/svg%3E") 12 30, crosshair !important;
+    }
+    body.tool-distance #map,
+    body.tool-distance #map * { cursor: crosshair !important; }
+    body.tool-radius #map,
+    body.tool-radius #map * { cursor: cell !important; }
+    .annotation-label {
+      font-family: Arial, sans-serif; font-weight: 700; letter-spacing: 0;
+      paint-order: stroke; stroke: rgba(255,255,255,.96); stroke-linejoin: round;
+    }
+    #map-legend {
+      position: absolute; z-index: 730; top: 10px; right: 10px;
+      display: grid; gap: 5px; max-width: 44%; box-sizing: border-box;
+      color: #15181d; background: rgba(255,255,255,.94);
+      border: 1px solid rgba(21,24,29,.34); border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+      font-family: Arial, sans-serif; line-height: 1.2;
+      pointer-events: none;
+    }
+    #map-legend.hidden { display: none; }
+    .legend-row {
+      display: grid; grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+    }
+    .legend-label { overflow-wrap: break-word; }
+    .legend-area-swatch {
+      display: block; box-sizing: border-box; border: 2px solid #e5484d;
+      background: rgba(229,72,77,.12);
+    }
     #message {
       position: absolute; inset: 0; z-index: 10000; display: none;
       align-items: center; justify-content: center; padding: 28px;
@@ -17,23 +57,31 @@
 </head>
 <body>
   <div id="map" class="locked"></div>
+  <svg id="annotation-overlay" aria-hidden="true"></svg>
+  <div id="map-legend" class="hidden"></div>
   <div id="message">Газрын зураг ачаалж байна...</div>
   <script>
     (() => {
       const host = document.getElementById('map');
       const message = document.getElementById('message');
+      const annotationOverlay = document.getElementById('annotation-overlay');
+      const mapLegend = document.getElementById('map-legend');
       const state = {
         providerId: 'OpenStreetMap', centerLatitude: 47.9184,
         centerLongitude: 106.9177, zoom: 15, bearing: 0,
-        attribution: '© OpenStreetMap contributors'
+        attribution: '© OpenStreetMap contributors',
+        landmarks: [], distanceMeasures: [], radiusMeasures: []
       };
       let options = {};
       let engine = '';
       let map = null;
       let tileLayer = null;
+      let leafletInteractiveMaxZoom = 19;
+      let tileLoadErrors = 0;
       let editing = false;
       let ready = false;
       let boundaryRing = [];
+      let boundaryAreaSquareMeters = 0;
       let leafletBoundaryCasing = null;
       let leafletBoundaryMain = null;
       let googleBoundaryCasing = null;
@@ -49,13 +97,113 @@
       let azureRoadSource = null;
       let azureBuildingSource = null;
       let azurePlanLayers = [];
+      let googleProjectionOverlay = null;
+      let toolMode = 'pan';
+      let toolOptions = {
+        name: '', color: '#e5484d', size: 1, isProjectSite: false,
+        radiusMeters: 500, strokeWidth: 1
+      };
+      let selectedAnnotationKind = '';
+      let selectedAnnotationId = '';
+      let activeDistanceId = '';
+      let selectedDistanceVertexIndex = -1;
+      let selectedRadiusIndex = 0;
+      let annotationStatusMessage = '';
+      let dragState = null;
+      let capturing = false;
 
       const scripts = new Map();
       const styles = new Set();
+      const leafletCaptureMaxZoom = 24;
+      const svgNamespace = 'http://www.w3.org/2000/svg';
+      const earthRadiusMeters = 6371008.8;
+      const locationIconPath =
+        'M647.1,323.5c0,278.5-220.4,489.3-297.4,554.5-15.1,12.8-37.2,12.8-52.3,0C220.4,812.9,0,602,0,323.5S144.9,0,323.5,0s323.5,144.9,323.5,323.5Z';
+      const locationIconShadowPath =
+        'M532.7,895.6c0,40.8-93.6,73.8-209.2,73.8s-209.2-33.1-209.2-73.8,41.4-50.8,103-63.6c26.4,26.9,49.8,47.8,66.5,61.9,11.1,9.4,25.1,14.5,39.6,14.5s28.6-5.2,39.6-14.5c16.7-14.2,40.1-35.1,66.5-61.9,61.7,12.8,103,36.5,103,63.6Z';
 
       function showMessage(text) {
         message.textContent = text;
         message.classList.toggle('visible', Boolean(text));
+      }
+
+      function delay(milliseconds) {
+        return new Promise(resolve => setTimeout(resolve, milliseconds));
+      }
+
+      function nextFrame() {
+        return new Promise(resolve => requestAnimationFrame(() => resolve()));
+      }
+
+      async function settleLayout() {
+        await nextFrame();
+        await nextFrame();
+      }
+
+      function currentLeafletTiles() {
+        if (engine !== 'leaflet' || !tileLayer || !tileLayer._tiles) return [];
+        return Object.values(tileLayer._tiles)
+          .filter(entry => entry && entry.current && entry.el);
+      }
+
+      function currentLeafletTilesReady() {
+        const tiles = currentLeafletTiles();
+        return tiles.length > 0 && tiles.every(entry =>
+          Boolean(entry.loaded) &&
+          entry.el.complete === true &&
+          Number(entry.el.naturalWidth) > 0);
+      }
+
+      async function waitForLeafletTiles(timeoutMilliseconds = 30000) {
+        const deadline = Date.now() + timeoutMilliseconds;
+        let stableSince = 0;
+        while (Date.now() < deadline) {
+          if (currentLeafletTilesReady()) {
+            if (!stableSince) stableSince = Date.now();
+            if (Date.now() - stableSince >= 300) return;
+          } else {
+            stableSince = 0;
+          }
+          await delay(80);
+        }
+        const count = currentLeafletTiles().length;
+        throw new Error(
+          `Map tiles did not finish loading (${count} visible, ${tileLoadErrors} failed).`);
+      }
+
+      async function prepareCapture(bounds) {
+        if (!map) throw new Error('Map is not ready for capture.');
+        capturing = true;
+        tileLoadErrors = 0;
+        if (engine === 'leaflet') {
+          // The capture viewport is larger than the live editor. At a
+          // provider's native maximum zoom, preserving the same bounds needs
+          // a temporary overzoom. Leaflet scales the last native tile level;
+          // the editor itself remains capped at the provider limit.
+          map.setMaxZoom(leafletCaptureMaxZoom);
+        }
+        resize();
+        await settleLayout();
+        if (bounds) fitBounds(bounds, true);
+        await settleLayout();
+
+        if (engine === 'leaflet') {
+          await waitForLeafletTiles();
+        } else {
+          // Google and Azure use independent render pipelines after resize.
+          await delay(1400);
+        }
+
+        updatePlanFeatureStyle();
+        updateBoundaryStyle();
+        renderAnnotations();
+        await settleLayout();
+        return {
+          ready: true,
+          zoom: mapZoom(),
+          tileCount: currentLeafletTiles().length,
+          tileLoadErrors
+        };
       }
 
       function loadStyle(url) {
@@ -93,13 +241,1209 @@
         }
       }
 
+      function createId() {
+        if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+          return globalThis.crypto.randomUUID().replaceAll('-', '');
+        }
+        return `map-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      }
+
+      function normalizeColor(value, fallback = '#e5484d') {
+        const color = String(value || '').trim().toLowerCase();
+        return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+      }
+
+      function coordinateObject(value) {
+        const longitude = Number(Array.isArray(value) ? value[0] : value && value.longitude);
+        const latitude = Number(Array.isArray(value) ? value[1] : value && value.latitude);
+        return Number.isFinite(longitude) && Number.isFinite(latitude) &&
+          longitude >= -180 && longitude <= 180 && latitude >= -85 && latitude <= 85
+          ? { longitude, latitude }
+          : null;
+      }
+
+      function normalizeRadiusRings(item) {
+        const explicit = item && Array.isArray(item.radiiMeters)
+          ? item.radiiMeters
+          : [];
+        const source = explicit.length > 0
+          ? explicit
+          : [item && item.radiusMeters];
+        const fallbackColor = normalizeColor(item && item.color, '#1668dc');
+        const explicitColors = item && Array.isArray(item.ringColors)
+          ? item.ringColors
+          : [];
+        const rings = source
+          .map((value, index) => ({
+            radiusMeters: Number(value),
+            color: normalizeColor(explicitColors[index], fallbackColor)
+          }))
+          .filter(ring => Number.isFinite(ring.radiusMeters) && ring.radiusMeters > 0)
+          .map(ring => ({
+            ...ring,
+            radiusMeters: Math.max(1, Math.min(1000000, ring.radiusMeters))
+          }))
+          .sort((left, right) => left.radiusMeters - right.radiusMeters);
+        const unique = rings.filter((ring, index) =>
+          index === 0 ||
+          Math.abs(ring.radiusMeters - rings[index - 1].radiusMeters) > .001);
+        const normalized = unique.length > 0
+          ? unique
+          : [{ radiusMeters: 500, color: fallbackColor }];
+        return normalized;
+      }
+
+      function syncLegacyRadius(measure) {
+        const rings = normalizeRadiusRings(measure);
+        measure.radiiMeters = rings.map(ring => ring.radiusMeters);
+        measure.ringColors = rings.map(ring => ring.color);
+        measure.radiusMeters = rings[0].radiusMeters;
+        measure.color = rings[0].color;
+        return measure.radiiMeters;
+      }
+
+      function radiusRings(measure) {
+        syncLegacyRadius(measure);
+        return measure.radiiMeters.map((radiusMeters, index) => ({
+          radiusMeters,
+          color: normalizeColor(measure.ringColors[index], measure.color)
+        }));
+      }
+
+      function applyRadiusRings(measure, rings, selectedRadiusMeters = null) {
+        const normalized = normalizeRadiusRings({
+          radiiMeters: rings.map(ring => ring.radiusMeters),
+          ringColors: rings.map(ring => ring.color),
+          radiusMeters: measure.radiusMeters,
+          color: measure.color
+        });
+        measure.radiiMeters = normalized.map(ring => ring.radiusMeters);
+        measure.ringColors = normalized.map(ring => ring.color);
+        measure.radiusMeters = normalized[0].radiusMeters;
+        measure.color = normalized[0].color;
+        if (Number.isFinite(selectedRadiusMeters)) {
+          const selectedIndex = normalized.findIndex(ring =>
+            Math.abs(ring.radiusMeters - selectedRadiusMeters) <= .001);
+          selectedRadiusIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        } else {
+          selectedRadiusIndex = Math.max(
+            0, Math.min(normalized.length - 1, selectedRadiusIndex));
+        }
+        return normalized;
+      }
+
+      function radiusExists(rings, radiusMeters, excludedIndex = -1) {
+        return rings.some((ring, index) =>
+          index !== excludedIndex &&
+          Math.abs(ring.radiusMeters - radiusMeters) <= .001);
+      }
+
+      function radiusIncrement(radiusMeters) {
+        if (radiusMeters < 100) return 10;
+        if (radiusMeters < 500) return 50;
+        if (radiusMeters <= 5000) return 500;
+        if (radiusMeters <= 20000) return 1000;
+        if (radiusMeters <= 100000) return 5000;
+        return 10000;
+      }
+
+      function nextAvailableRadius(rings, requestedRadiusMeters) {
+        const requested = Math.max(
+          1, Math.min(1000000, Number(requestedRadiusMeters) || 500));
+        if (!radiusExists(rings, requested)) return requested;
+        const step = radiusIncrement(requested);
+        for (let candidate = requested + step;
+             candidate <= 1000000;
+             candidate += step) {
+          if (!radiusExists(rings, candidate)) return candidate;
+        }
+        for (let candidate = requested - step;
+             candidate >= 1;
+             candidate -= step) {
+          if (!radiusExists(rings, candidate)) return candidate;
+        }
+        return null;
+      }
+
+      function normalizeAnnotations(value) {
+        const landmarks = value && Array.isArray(value.landmarks) ? value.landmarks : [];
+        const distances = value && Array.isArray(value.distanceMeasures)
+          ? value.distanceMeasures
+          : [];
+        const radii = value && Array.isArray(value.radiusMeasures) ? value.radiusMeasures : [];
+        const usedNumbers = new Set();
+        let nextNumber = 1;
+
+        state.landmarks = landmarks.map(item => {
+          const coordinate = coordinateObject(item.coordinate);
+          let number = Math.max(0, Math.round(Number(item.number) || 0));
+          if (number <= 0 || usedNumbers.has(number)) {
+            while (usedNumbers.has(nextNumber)) nextNumber++;
+            number = nextNumber;
+          }
+          usedNumbers.add(number);
+          nextNumber = Math.max(nextNumber, number + 1);
+          return {
+            id: String(item.id || createId()),
+            number,
+            name: String(item.name || '').trim(),
+            coordinate,
+            color: normalizeColor(item.color),
+            size: Math.max(.65, Math.min(1.8, Number(item.size) || 1)),
+            isProjectSite: Boolean(item.isProjectSite)
+          };
+        }).filter(item => item.coordinate);
+
+        state.distanceMeasures = distances.map(item => ({
+          id: String(item.id || createId()),
+          name: String(item.name || '').trim(),
+          path: (Array.isArray(item.path) ? item.path : [])
+            .map(coordinateObject)
+            .filter(Boolean),
+          color: normalizeColor(item.color, '#1668dc'),
+          strokeWidth: Math.max(.65, Math.min(2.5, Number(item.strokeWidth) || 1))
+        })).filter(item => item.path.length > 0);
+
+        state.radiusMeasures = radii.map(item => {
+          const rings = normalizeRadiusRings(item);
+          return {
+            id: String(item.id || createId()),
+            name: '',
+            center: coordinateObject(item.center),
+            radiiMeters: rings.map(ring => ring.radiusMeters),
+            ringColors: rings.map(ring => ring.color),
+            radiusMeters: rings[0].radiusMeters,
+            color: rings[0].color,
+            strokeWidth: Math.max(.65, Math.min(2.5, Number(item.strokeWidth) || 1))
+          };
+        }).filter(item => item.center);
+      }
+
+      function cloneAnnotations() {
+        return {
+          landmarks: state.landmarks.map(item => ({
+            ...item,
+            coordinate: { ...item.coordinate }
+          })),
+          distanceMeasures: state.distanceMeasures.map(item => ({
+            ...item,
+            path: item.path.map(point => ({ ...point }))
+          })),
+          radiusMeasures: state.radiusMeasures.map(item => ({
+            ...item,
+            center: { ...item.center },
+            radiiMeters: [...item.radiiMeters],
+            ringColors: [...item.ringColors]
+          }))
+        };
+      }
+
+      function selectedAnnotation() {
+        const collection = selectedAnnotationKind === 'landmark'
+          ? state.landmarks
+          : selectedAnnotationKind === 'distance'
+            ? state.distanceMeasures
+            : selectedAnnotationKind === 'radius'
+              ? state.radiusMeasures
+              : [];
+        return collection.find(item => item.id === selectedAnnotationId) || null;
+      }
+
+      function notifyAnnotationChanged() {
+        const payload = {
+          type: 'annotationChanged',
+          selectedAnnotationKind,
+          selectedAnnotationId,
+          selectedDistanceVertexIndex,
+          selectedRadiusIndex,
+          annotationStatusMessage,
+          annotationToolName: String(toolOptions.name || ''),
+          ...cloneAnnotations()
+        };
+        try {
+          if (globalThis.chrome && chrome.webview) chrome.webview.postMessage(payload);
+        } catch (_) { }
+      }
+
+      function svgElement(name, attributes = {}) {
+        const element = document.createElementNS(svgNamespace, name);
+        Object.entries(attributes).forEach(([key, value]) =>
+          element.setAttribute(key, String(value)));
+        return element;
+      }
+
+      function projectCoordinate(value) {
+        const point = coordinateObject(value);
+        if (!map || !point) return null;
+        try {
+          if (engine === 'leaflet') {
+            const projected = map.latLngToContainerPoint([point.latitude, point.longitude]);
+            return { x: projected.x, y: projected.y };
+          }
+          if (engine === 'google' && googleProjectionOverlay) {
+            const projection = googleProjectionOverlay.getProjection();
+            if (!projection) return null;
+            const projected = projection.fromLatLngToDivPixel(
+              new google.maps.LatLng(point.latitude, point.longitude));
+            return projected ? { x: projected.x, y: projected.y } : null;
+          }
+          if (engine === 'azure') {
+            const projected = map.positionsToPixels([[point.longitude, point.latitude]]);
+            const pixel = Array.isArray(projected) ? projected[0] : null;
+            return pixel ? { x: Number(pixel[0] ?? pixel.x), y: Number(pixel[1] ?? pixel.y) } : null;
+          }
+        } catch (_) { }
+        return null;
+      }
+
+      function unprojectPixel(x, y) {
+        if (!map || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+        try {
+          if (engine === 'leaflet') {
+            const coordinate = map.containerPointToLatLng([x, y]);
+            return { longitude: coordinate.lng, latitude: coordinate.lat };
+          }
+          if (engine === 'google' && googleProjectionOverlay) {
+            const projection = googleProjectionOverlay.getProjection();
+            if (!projection) return null;
+            const coordinate = projection.fromDivPixelToLatLng(
+              new google.maps.Point(x, y));
+            return coordinate
+              ? { longitude: coordinate.lng(), latitude: coordinate.lat() }
+              : null;
+          }
+          if (engine === 'azure') {
+            const positions = map.pixelsToPositions([[x, y]]);
+            const coordinate = Array.isArray(positions) ? positions[0] : null;
+            return coordinate
+              ? {
+                  longitude: Number(coordinate[0] ?? coordinate.longitude),
+                  latitude: Number(coordinate[1] ?? coordinate.latitude)
+                }
+              : null;
+          }
+        } catch (_) { }
+        return null;
+      }
+
+      function radians(value) { return value * Math.PI / 180; }
+      function degrees(value) { return value * 180 / Math.PI; }
+
+      function haversineDistance(left, right) {
+        const latitude1 = radians(left.latitude);
+        const latitude2 = radians(right.latitude);
+        const deltaLatitude = latitude2 - latitude1;
+        const deltaLongitude = radians(right.longitude - left.longitude);
+        const a = Math.sin(deltaLatitude / 2) ** 2 +
+          Math.cos(latitude1) * Math.cos(latitude2) *
+          Math.sin(deltaLongitude / 2) ** 2;
+        return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+
+      function destinationPoint(origin, bearingDegrees, distanceMeters) {
+        const angularDistance = distanceMeters / earthRadiusMeters;
+        const bearing = radians(bearingDegrees);
+        const latitude1 = radians(origin.latitude);
+        const longitude1 = radians(origin.longitude);
+        const latitude2 = Math.asin(
+          Math.sin(latitude1) * Math.cos(angularDistance) +
+          Math.cos(latitude1) * Math.sin(angularDistance) * Math.cos(bearing));
+        const longitude2 = longitude1 + Math.atan2(
+          Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitude1),
+          Math.cos(angularDistance) - Math.sin(latitude1) * Math.sin(latitude2));
+        return {
+          longitude: ((degrees(longitude2) + 540) % 360) - 180,
+          latitude: degrees(latitude2)
+        };
+      }
+
+      function formatDistance(distanceMeters) {
+        if (distanceMeters >= 1000) {
+          const kilometers = distanceMeters / 1000;
+          return `${kilometers >= 10 ? kilometers.toFixed(1) : kilometers.toFixed(2)} км`;
+        }
+        return `${Math.round(distanceMeters)} м`;
+      }
+
+      function formatArea(areaSquareMeters) {
+        if (areaSquareMeters >= 10000) {
+          return `${(areaSquareMeters / 10000).toLocaleString('mn-MN', {
+            maximumFractionDigits: 2
+          })} га`;
+        }
+        return `${Math.round(areaSquareMeters).toLocaleString('mn-MN')} м²`;
+      }
+
+      function niceDistanceStep(rawStep) {
+        if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+        const exponent = Math.floor(Math.log10(rawStep));
+        const fraction = rawStep / (10 ** exponent);
+        const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+        return nice * (10 ** exponent);
+      }
+
+      function pathMetrics(path) {
+        const segments = [];
+        let total = 0;
+        let pixelLength = 0;
+        for (let index = 1; index < path.length; index++) {
+          const distance = haversineDistance(path[index - 1], path[index]);
+          const pixelStart = projectCoordinate(path[index - 1]);
+          const pixelEnd = projectCoordinate(path[index]);
+          const pixels = pixelStart && pixelEnd
+            ? Math.hypot(pixelEnd.x - pixelStart.x, pixelEnd.y - pixelStart.y)
+            : 0;
+          segments.push({
+            start: path[index - 1], end: path[index],
+            from: total, distance, pixelStart, pixelEnd
+          });
+          total += distance;
+          pixelLength += pixels;
+        }
+        return { segments, total, pixelLength };
+      }
+
+      function pointAlongPath(metrics, distance) {
+        if (!metrics.segments.length) return null;
+        const clamped = Math.max(0, Math.min(metrics.total, distance));
+        const segment = metrics.segments.find(item =>
+          clamped <= item.from + item.distance) || metrics.segments.at(-1);
+        const ratio = segment.distance > 0
+          ? (clamped - segment.from) / segment.distance
+          : 0;
+        return {
+          longitude: segment.start.longitude +
+            (segment.end.longitude - segment.start.longitude) * ratio,
+          latitude: segment.start.latitude +
+            (segment.end.latitude - segment.start.latitude) * ratio
+        };
+      }
+
+      function renderScale() {
+        return Math.max(.72, Math.min(2.4, host.clientWidth / 750));
+      }
+
+      function appendOutlinedText(parent, x, y, text, scale, options = {}) {
+        const label = svgElement('text', {
+          x, y,
+          'text-anchor': options.anchor || 'middle',
+          'dominant-baseline': options.baseline || 'middle',
+          'font-size': (options.fontSize || 10) * scale,
+          'stroke-width': (options.strokeWidth || 3) * scale,
+          fill: options.color || '#15181d',
+          class: 'annotation-label'
+        });
+        label.textContent = text;
+        parent.appendChild(label);
+        return label;
+      }
+
+      function selectAnnotation(kind, id, notify = true) {
+        const previousKind = selectedAnnotationKind;
+        const previousId = selectedAnnotationId;
+        selectedAnnotationKind = String(kind || '');
+        selectedAnnotationId = String(id || '');
+        const item = selectedAnnotation();
+        if (!item) {
+          selectedAnnotationKind = '';
+          selectedAnnotationId = '';
+          selectedDistanceVertexIndex = -1;
+          selectedRadiusIndex = 0;
+        } else {
+          const changed = previousKind !== selectedAnnotationKind ||
+            previousId !== selectedAnnotationId;
+          if (changed) {
+            selectedDistanceVertexIndex = -1;
+            selectedRadiusIndex = 0;
+          }
+          if (selectedAnnotationKind === 'distance' && toolMode === 'distance') {
+            activeDistanceId = item.id;
+            if (selectedDistanceVertexIndex < 0 ||
+                selectedDistanceVertexIndex >= item.path.length) {
+              selectedDistanceVertexIndex = item.path.length - 1;
+            }
+          } else if (selectedAnnotationKind === 'radius') {
+            const radii = syncLegacyRadius(item);
+            selectedRadiusIndex = Math.max(
+              0, Math.min(radii.length - 1, selectedRadiusIndex));
+          }
+        }
+        renderAnnotations();
+        if (notify) notifyAnnotationChanged();
+      }
+
+      function selectDistanceVertex(id, vertexIndex, notify = true) {
+        const measure = state.distanceMeasures.find(item => item.id === id);
+        if (!measure || !Array.isArray(measure.path) || measure.path.length === 0) {
+          selectAnnotation('', '', notify);
+          return false;
+        }
+        selectedAnnotationKind = 'distance';
+        selectedAnnotationId = measure.id;
+        selectedDistanceVertexIndex = Math.max(
+          0, Math.min(measure.path.length - 1, Math.round(Number(vertexIndex) || 0)));
+        activeDistanceId = measure.id;
+        renderAnnotations();
+        if (notify) notifyAnnotationChanged();
+        return true;
+      }
+
+      function selectRadiusRing(id, radiusIndex, notify = true) {
+        const measure = state.radiusMeasures.find(item => item.id === id);
+        if (!measure) {
+          selectAnnotation('', '', notify);
+          return false;
+        }
+        const radii = syncLegacyRadius(measure);
+        selectedAnnotationKind = 'radius';
+        selectedAnnotationId = measure.id;
+        selectedRadiusIndex = Math.max(
+          0, Math.min(radii.length - 1, Math.round(Number(radiusIndex) || 0)));
+        const rings = radiusRings(measure);
+        const selectedRing = rings[selectedRadiusIndex];
+        toolOptions.radiusMeters = selectedRing.radiusMeters;
+        toolOptions.color = selectedRing.color;
+        annotationStatusMessage =
+          `Цагираг сонгогдлоо · R ${formatDistance(selectedRing.radiusMeters)}`;
+        renderAnnotations();
+        if (notify) notifyAnnotationChanged();
+        return true;
+      }
+
+      function beginDrag(event, kind, id, vertexIndex = -1) {
+        if (!editing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectedAnnotationKind = kind;
+        selectedAnnotationId = id;
+        if (kind === 'distance' && vertexIndex >= 0) {
+          const measure = state.distanceMeasures.find(item => item.id === id);
+          if (measure && vertexIndex < measure.path.length) {
+            selectedDistanceVertexIndex = vertexIndex;
+            activeDistanceId = id;
+          }
+        }
+        dragState = {
+          pointerId: event.pointerId,
+          kind,
+          id,
+          vertexIndex
+        };
+        try { annotationOverlay.setPointerCapture(event.pointerId); } catch (_) { }
+        renderAnnotations();
+        notifyAnnotationChanged();
+      }
+
+      function bindDraggable(element, kind, id, vertexIndex = -1) {
+        element.classList.add('annotation-hit');
+        element.addEventListener('pointerdown', event =>
+          beginDrag(event, kind, id, vertexIndex));
+        element.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (kind === 'distance' && vertexIndex >= 0) {
+            selectDistanceVertex(id, vertexIndex);
+          } else {
+            selectAnnotation(kind, id);
+          }
+        });
+      }
+
+      annotationOverlay.addEventListener('pointermove', event => {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+        const bounds = annotationOverlay.getBoundingClientRect();
+        const coordinate = unprojectPixel(
+          event.clientX - bounds.left,
+          event.clientY - bounds.top);
+        if (!coordinate) return;
+        const collection = dragState.kind === 'landmark'
+          ? state.landmarks
+          : dragState.kind === 'distance'
+            ? state.distanceMeasures
+            : state.radiusMeasures;
+        const item = collection.find(candidate => candidate.id === dragState.id);
+        if (!item) return;
+        if (dragState.kind === 'landmark') item.coordinate = coordinate;
+        else if (dragState.kind === 'radius') item.center = coordinate;
+        else if (dragState.vertexIndex >= 0 && dragState.vertexIndex < item.path.length) {
+          item.path[dragState.vertexIndex] = coordinate;
+        }
+        renderAnnotations();
+      });
+
+      function endDrag(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+        try { annotationOverlay.releasePointerCapture(event.pointerId); } catch (_) { }
+        dragState = null;
+        notifyAnnotationChanged();
+      }
+      annotationOverlay.addEventListener('pointerup', endDrag);
+      annotationOverlay.addEventListener('pointercancel', endDrag);
+
+      function renderLandmark(parent, landmark, scale) {
+        const point = projectCoordinate(landmark.coordinate);
+        if (!point) return;
+        const height = 44 * landmark.size * scale;
+        const factor = height / 969.4;
+        const width = 647.1 * factor;
+        const group = svgElement('g', {
+          transform: `translate(${point.x - width / 2} ${point.y - height}) scale(${factor})`
+        });
+        const main = svgElement('path', { d: locationIconPath, fill: landmark.color });
+        const center = svgElement('circle', {
+          cx: 323.5, cy: 323.5, r: 207.4, fill: '#fff'
+        });
+        const shadow = svgElement('path', {
+          d: locationIconShadowPath, fill: landmark.color
+        });
+        const number = svgElement('text', {
+          x: 323.5, y: 334,
+          'text-anchor': 'middle', 'dominant-baseline': 'middle',
+          'font-family': 'Arial, sans-serif', 'font-size': landmark.number >= 100 ? 178 : 220,
+          'font-weight': '700', fill: '#15181d'
+        });
+        number.textContent = String(landmark.number);
+        group.append(main, center, shadow, number);
+        bindDraggable(group, 'landmark', landmark.id);
+        parent.appendChild(group);
+        if (editing && selectedAnnotationKind === 'landmark' &&
+            selectedAnnotationId === landmark.id && !capturing) {
+          parent.appendChild(svgElement('circle', {
+            cx: point.x, cy: point.y - height * .66,
+            r: Math.max(width, height * .66) * .58,
+            fill: 'none', stroke: '#1f8fff',
+            'stroke-width': 2 * scale, 'stroke-dasharray': `${4 * scale} ${3 * scale}`
+          }));
+        }
+      }
+
+      function renderDistanceHandles(parent, measure, projected, scale) {
+        if (!editing || capturing) return;
+        projected.forEach((point, index) => {
+          const hit = svgElement('circle', {
+            cx: point.x, cy: point.y, r: 11 * scale,
+            fill: 'transparent', stroke: 'none'
+          });
+          bindDraggable(hit, 'distance', measure.id, index);
+          parent.appendChild(hit);
+          const selectedVertex = selectedAnnotationKind === 'distance' &&
+            selectedAnnotationId === measure.id &&
+            selectedDistanceVertexIndex === index;
+          parent.appendChild(svgElement('circle', {
+            cx: point.x, cy: point.y,
+            r: (selectedVertex ? 7 : 5.2) * scale,
+            fill: selectedVertex
+              ? '#1f8fff'
+              : selectedAnnotationKind === 'distance' &&
+                  selectedAnnotationId === measure.id
+                ? '#fff'
+                : measure.color,
+            stroke: selectedVertex ? '#fff' : measure.color,
+            'stroke-width': (selectedVertex ? 2.5 : 2) * scale
+          }));
+        });
+      }
+
+      function renderDistance(parent, measure, scale) {
+        if (!Array.isArray(measure.path) || measure.path.length === 0) return;
+        const projected = measure.path.map(projectCoordinate);
+        if (projected.some(point => !point)) return;
+        if (measure.path.length < 2) {
+          renderDistanceHandles(parent, measure, projected, scale);
+          return;
+        }
+        const points = projected.map(point => `${point.x},${point.y}`).join(' ');
+        const width = 2.2 * measure.strokeWidth * scale;
+        parent.appendChild(svgElement('polyline', {
+          points, fill: 'none', stroke: '#fff', 'stroke-opacity': .92,
+          'stroke-width': width + 3 * scale,
+          'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+        }));
+        const line = svgElement('polyline', {
+          points, fill: 'none', stroke: measure.color,
+          'stroke-width': width,
+          'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+          class: 'annotation-hit'
+        });
+        line.style.pointerEvents = editing ? 'stroke' : 'none';
+        line.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          selectAnnotation('distance', measure.id);
+        });
+        parent.appendChild(line);
+
+        const metrics = pathMetrics(measure.path);
+        if (metrics.total <= 0) return;
+        const targetTickPixels = 78 * scale;
+        const step = niceDistanceStep(
+          metrics.total / Math.max(1, metrics.pixelLength / targetTickPixels));
+        const tickCount = Math.min(40, Math.floor(metrics.total / step));
+        for (let index = 1; index <= tickCount; index++) {
+          const distance = index * step;
+          if (distance >= metrics.total - step * .1) break;
+          const coordinate = pointAlongPath(metrics, distance);
+          const before = projectCoordinate(pointAlongPath(metrics, Math.max(0, distance - step * .03)));
+          const after = projectCoordinate(pointAlongPath(metrics, Math.min(metrics.total, distance + step * .03)));
+          const point = projectCoordinate(coordinate);
+          if (!point || !before || !after) continue;
+          const length = Math.hypot(after.x - before.x, after.y - before.y) || 1;
+          const normalX = -(after.y - before.y) / length;
+          const normalY = (after.x - before.x) / length;
+          const tickLength = 5 * scale;
+          parent.appendChild(svgElement('line', {
+            x1: point.x - normalX * tickLength,
+            y1: point.y - normalY * tickLength,
+            x2: point.x + normalX * tickLength,
+            y2: point.y + normalY * tickLength,
+            stroke: measure.color, 'stroke-width': 1.35 * scale
+          }));
+          appendOutlinedText(
+            parent,
+            point.x + normalX * 11 * scale,
+            point.y + normalY * 11 * scale,
+            formatDistance(distance),
+            scale,
+            { fontSize: 7.5, color: measure.color, strokeWidth: 2.5 });
+        }
+
+        const midpoint = projectCoordinate(pointAlongPath(metrics, metrics.total / 2));
+        if (midpoint) {
+          appendOutlinedText(
+            parent, midpoint.x, midpoint.y - 15 * scale,
+            `Нийт ${formatDistance(metrics.total)}`,
+            scale,
+            { fontSize: 10, color: measure.color, strokeWidth: 4 });
+        }
+
+        renderDistanceHandles(parent, measure, projected, scale);
+      }
+
+      function renderRadius(parent, measure, scale) {
+        if (!measure.center || !Number.isFinite(measure.radiusMeters) ||
+            measure.radiusMeters <= 0) return;
+        const ringCoordinates = [];
+        for (let bearing = 0; bearing <= 360; bearing += 5) {
+          ringCoordinates.push(destinationPoint(
+            measure.center, bearing, measure.radiusMeters));
+        }
+        const ringPoints = ringCoordinates.map(projectCoordinate);
+        if (ringPoints.some(point => !point)) return;
+        const points = ringPoints.map(point => `${point.x},${point.y}`).join(' ');
+        const width = 2 * measure.strokeWidth * scale;
+        parent.appendChild(svgElement('polygon', {
+          points, fill: measure.color, 'fill-opacity': .08,
+          stroke: '#fff', 'stroke-opacity': .92,
+          'stroke-width': width + 3 * scale
+        }));
+        const ring = svgElement('polygon', {
+          points, fill: 'none', stroke: measure.color,
+          'stroke-width': width, 'stroke-dasharray': `${7 * scale} ${4 * scale}`,
+          class: 'annotation-hit'
+        });
+        ring.style.pointerEvents = editing ? 'stroke' : 'none';
+        ring.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          selectAnnotation('radius', measure.id);
+        });
+        parent.appendChild(ring);
+        const center = projectCoordinate(measure.center);
+        const edgeCoordinate = destinationPoint(measure.center, 90, measure.radiusMeters);
+        const edge = projectCoordinate(edgeCoordinate);
+        if (center && edge) {
+          parent.appendChild(svgElement('line', {
+            x1: center.x, y1: center.y, x2: edge.x, y2: edge.y,
+            stroke: measure.color, 'stroke-width': 1.4 * scale
+          }));
+          appendOutlinedText(
+            parent,
+            (center.x + edge.x) / 2,
+            (center.y + edge.y) / 2 - 9 * scale,
+            `${measure.name ? `${measure.name} · ` : ''}R ${formatDistance(measure.radiusMeters)}`,
+            scale,
+            { fontSize: 9, color: measure.color, strokeWidth: 3.5 });
+          if (editing && !capturing) {
+            const handle = svgElement('circle', {
+              cx: center.x, cy: center.y, r: 5.5 * scale,
+              fill: '#fff', stroke: measure.color, 'stroke-width': 2 * scale
+            });
+            bindDraggable(handle, 'radius', measure.id);
+            parent.appendChild(handle);
+          }
+        }
+      }
+
+      function renderRadiusSet(parent, measure, scale) {
+        if (!measure.center) return;
+        const rings = radiusRings(measure);
+        const radii = rings.map(ring => ring.radiusMeters);
+        const center = projectCoordinate(measure.center);
+        if (!center || radii.length === 0) return;
+        const width = 2 * measure.strokeWidth * scale;
+        const projectedRings = rings.map(ring => {
+          const coordinates = [];
+          for (let bearing = 0; bearing <= 360; bearing += 5) {
+            coordinates.push(destinationPoint(
+              measure.center,
+              bearing,
+              ring.radiusMeters));
+          }
+          const points = coordinates.map(projectCoordinate);
+          return points.some(point => !point)
+            ? null
+            : {
+                ...ring,
+                points,
+                path: points.map(point => `${point.x},${point.y}`).join(' ')
+              };
+        });
+        const outerRing = projectedRings.at(-1);
+        if (outerRing) {
+          parent.appendChild(svgElement('polygon', {
+            points: outerRing.path,
+            fill: outerRing.color,
+            'fill-opacity': .07,
+            stroke: 'none'
+          }));
+        }
+
+        projectedRings.forEach((ringData, index) => {
+          if (!ringData) return;
+          const selectedRing = editing && !capturing &&
+            selectedAnnotationKind === 'radius' &&
+            selectedAnnotationId === measure.id &&
+            selectedRadiusIndex === index;
+          const ringColor = ringData.color;
+          parent.appendChild(svgElement('polygon', {
+            points: ringData.path,
+            fill: 'none',
+            stroke: '#fff',
+            'stroke-opacity': .92,
+            'stroke-width': width + (selectedRing ? 4 : 3) * scale
+          }));
+          const ring = svgElement('polygon', {
+            points: ringData.path,
+            fill: 'none',
+            stroke: ringColor,
+            'stroke-width': width + (selectedRing ? 1.4 : 0) * scale,
+            'stroke-dasharray': selectedRing ? 'none' : `${7 * scale} ${4 * scale}`,
+            class: 'annotation-hit'
+          });
+          ring.style.pointerEvents = editing ? 'stroke' : 'none';
+          ring.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            selectRadiusRing(measure.id, index);
+          });
+          parent.appendChild(ring);
+        });
+
+        const maxRadius = radii.at(-1);
+        const maxEdge = projectCoordinate(destinationPoint(measure.center, 90, maxRadius));
+        if (maxEdge) {
+          parent.appendChild(svgElement('line', {
+            x1: center.x, y1: center.y, x2: maxEdge.x, y2: maxEdge.y,
+            stroke: outerRing.color, 'stroke-width': 1.4 * scale
+          }));
+          rings.forEach((ringData, index) => {
+            const edge = projectCoordinate(destinationPoint(
+              measure.center,
+              90,
+              ringData.radiusMeters));
+            if (!edge) return;
+            parent.appendChild(svgElement('line', {
+              x1: edge.x, y1: edge.y - 5 * scale,
+              x2: edge.x, y2: edge.y + 5 * scale,
+              stroke: ringData.color,
+              'stroke-width': (editing && !capturing &&
+                selectedAnnotationKind === 'radius' &&
+                selectedAnnotationId === measure.id &&
+                selectedRadiusIndex === index ? 2.4 : 1.4) * scale
+            }));
+            appendOutlinedText(
+              parent,
+              edge.x,
+              edge.y - (9 + index % 2 * 10) * scale,
+              `R ${formatDistance(ringData.radiusMeters)}`,
+              scale,
+              { fontSize: 8.5, color: ringData.color, strokeWidth: 3.5 });
+          });
+        }
+
+        if (editing && !capturing) {
+          const selectedRing = rings[Math.max(
+            0,
+            Math.min(rings.length - 1, selectedRadiusIndex))];
+          const handle = svgElement('circle', {
+            cx: center.x, cy: center.y, r: 6.2 * scale,
+            fill: '#fff', stroke: selectedRing.color, 'stroke-width': 2.2 * scale
+          });
+          bindDraggable(handle, 'radius', measure.id);
+          parent.appendChild(handle);
+        }
+      }
+
+      function appendLegendPin(row, landmark, scale) {
+        const height = 18 * scale;
+        const factor = height / 969.4;
+        const width = 647.1 * factor;
+        const icon = svgElement('svg', {
+          width, height, viewBox: '0 0 647.1 969.4',
+          'aria-hidden': 'true'
+        });
+        icon.append(
+          svgElement('path', { d: locationIconPath, fill: landmark.color }),
+          svgElement('circle', { cx: 323.5, cy: 323.5, r: 207.4, fill: '#fff' }),
+          svgElement('path', { d: locationIconShadowPath, fill: landmark.color })
+        );
+        const number = svgElement('text', {
+          x: 323.5, y: 334, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+          'font-family': 'Arial, sans-serif', 'font-size': landmark.number >= 100 ? 178 : 220,
+          'font-weight': '700', fill: '#15181d'
+        });
+        number.textContent = String(landmark.number);
+        icon.appendChild(number);
+        row.appendChild(icon);
+      }
+
+      function renderLegend(scale) {
+        mapLegend.replaceChildren();
+        const hasArea = boundaryAreaSquareMeters > 0;
+        if (!hasArea && state.landmarks.length === 0) {
+          mapLegend.classList.add('hidden');
+          return;
+        }
+        mapLegend.classList.remove('hidden');
+        mapLegend.style.padding = `${7 * scale}px ${8 * scale}px`;
+        mapLegend.style.gap = `${4 * scale}px`;
+        mapLegend.style.fontSize = `${8.5 * scale}px`;
+        if (hasArea) {
+          const row = document.createElement('div');
+          row.className = 'legend-row';
+          row.style.gap = `${6 * scale}px`;
+          const swatch = document.createElement('span');
+          swatch.className = 'legend-area-swatch';
+          swatch.style.width = `${16 * scale}px`;
+          swatch.style.height = `${10 * scale}px`;
+          const label = document.createElement('span');
+          label.className = 'legend-label';
+          label.textContent = `ТӨСЛИЙН ТАЛБАЙ · ${formatArea(boundaryAreaSquareMeters)}`;
+          row.append(swatch, label);
+          mapLegend.appendChild(row);
+        }
+        [...state.landmarks]
+          .sort((left, right) => left.number - right.number)
+          .forEach(landmark => {
+            const row = document.createElement('div');
+            row.className = 'legend-row';
+            row.style.gap = `${6 * scale}px`;
+            appendLegendPin(row, landmark, scale);
+            const label = document.createElement('span');
+            label.className = 'legend-label';
+            label.textContent = landmark.name ||
+              (landmark.isProjectSite ? 'Төслийн байршил' : `Байршил ${landmark.number}`);
+            row.appendChild(label);
+            mapLegend.appendChild(row);
+          });
+      }
+
+      function renderAnnotations() {
+        updateToolCursor();
+        const width = Math.max(1, host.clientWidth);
+        const height = Math.max(1, host.clientHeight);
+        annotationOverlay.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        annotationOverlay.replaceChildren();
+        annotationOverlay.classList.toggle('editing', editing && !capturing);
+        const scale = renderScale();
+        state.radiusMeasures.forEach(item => renderRadiusSet(annotationOverlay, item, scale));
+        state.distanceMeasures.forEach(item => renderDistance(annotationOverlay, item, scale));
+        state.landmarks.forEach(item => renderLandmark(annotationOverlay, item, scale));
+        renderLegend(scale);
+      }
+
+      function nextLandmarkNumber() {
+        const used = new Set(state.landmarks.map(item => item.number));
+        let number = 1;
+        while (used.has(number)) number++;
+        return number;
+      }
+
+      function handleMapClick(value) {
+        if (!editing) return;
+        const coordinate = coordinateObject(value);
+        if (!coordinate) return;
+        if (toolMode === 'landmark') {
+          const landmarkName = String(toolOptions.name || '').trim();
+          const landmark = {
+            id: createId(),
+            number: nextLandmarkNumber(),
+            name: landmarkName,
+            coordinate,
+            color: normalizeColor(toolOptions.color),
+            size: Math.max(.65, Math.min(1.8, Number(toolOptions.size) || 1)),
+            isProjectSite: Boolean(toolOptions.isProjectSite)
+          };
+          state.landmarks.push(landmark);
+          selectedAnnotationKind = '';
+          selectedAnnotationId = '';
+          toolOptions.name = '';
+          annotationStatusMessage =
+            `Байршил ${landmark.number} хадгалагдлаа · Нэр: ${landmark.name || 'Нэргүй'}`;
+        } else if (toolMode === 'distance') {
+          let measure = state.distanceMeasures.find(item => item.id === activeDistanceId);
+          if (!measure) {
+            measure = {
+              id: createId(),
+              name: '',
+              path: [],
+              color: normalizeColor(toolOptions.color, '#1668dc'),
+              strokeWidth: 1
+            };
+            state.distanceMeasures.push(measure);
+            activeDistanceId = measure.id;
+            selectedDistanceVertexIndex = -1;
+          }
+          if (selectedDistanceVertexIndex >= 0 &&
+              selectedDistanceVertexIndex < measure.path.length) {
+            if (selectedDistanceVertexIndex === 0 && measure.path.length > 1) {
+              measure.path.unshift(coordinate);
+              selectedDistanceVertexIndex = 0;
+            } else {
+              const insertIndex = selectedDistanceVertexIndex + 1;
+              measure.path.splice(insertIndex, 0, coordinate);
+              selectedDistanceVertexIndex = insertIndex;
+            }
+          } else {
+            measure.path.push(coordinate);
+            selectedDistanceVertexIndex = measure.path.length - 1;
+          }
+          selectedAnnotationKind = 'distance';
+          selectedAnnotationId = measure.id;
+          annotationStatusMessage =
+            `Зайн шугам · ${measure.path.length}-р цэг нэмэгдлээ`;
+        } else if (toolMode === 'radius') {
+          const radiusMeters = Math.max(
+            1, Math.min(1000000, Number(toolOptions.radiusMeters) || 500));
+          const measure = {
+            id: createId(),
+            name: '',
+            center: coordinate,
+            radiiMeters: [radiusMeters],
+            ringColors: [normalizeColor(toolOptions.color, '#1668dc')],
+            radiusMeters,
+            color: normalizeColor(toolOptions.color, '#1668dc'),
+            strokeWidth: 1
+          };
+          state.radiusMeasures.push(measure);
+          selectedAnnotationKind = 'radius';
+          selectedAnnotationId = measure.id;
+          selectedRadiusIndex = 0;
+          annotationStatusMessage =
+            `Радиусын төв хадгалагдлаа · R ${formatDistance(radiusMeters)}`;
+        } else {
+          return;
+        }
+        renderAnnotations();
+        notifyAnnotationChanged();
+      }
+
+      function updateToolCursor() {
+        document.body.classList.toggle(
+          'tool-landmark', editing && !capturing && toolMode === 'landmark');
+        document.body.classList.toggle(
+          'tool-distance', editing && !capturing && toolMode === 'distance');
+        document.body.classList.toggle(
+          'tool-radius', editing && !capturing && toolMode === 'radius');
+      }
+
+      function setTool(mode, value) {
+        const normalizedMode = ['pan', 'landmark', 'distance', 'radius'].includes(mode)
+          ? mode
+          : 'pan';
+        if (toolMode === 'distance' && normalizedMode !== 'distance') finishDrawing();
+        toolMode = normalizedMode;
+        Object.assign(toolOptions, value || {});
+        if (toolMode === 'distance' && selectedAnnotationKind === 'distance') {
+          const selected = selectedAnnotation();
+          activeDistanceId = selected ? selected.id : '';
+          if (selected && (selectedDistanceVertexIndex < 0 ||
+              selectedDistanceVertexIndex >= selected.path.length)) {
+            selectedDistanceVertexIndex = selected.path.length - 1;
+          }
+        } else if (toolMode !== 'distance') {
+          activeDistanceId = '';
+        }
+        updateToolCursor();
+        renderAnnotations();
+        return toolMode;
+      }
+
+      function finishDrawing() {
+        if (activeDistanceId) {
+          const index = state.distanceMeasures.findIndex(item => item.id === activeDistanceId);
+          if (index >= 0 && state.distanceMeasures[index].path.length < 2) {
+            state.distanceMeasures.splice(index, 1);
+            selectedAnnotationKind = '';
+            selectedAnnotationId = '';
+          }
+        }
+        activeDistanceId = '';
+        selectedDistanceVertexIndex = -1;
+        annotationStatusMessage = 'Зайн шугам дууслаа';
+        renderAnnotations();
+        notifyAnnotationChanged();
+      }
+
+      function updateSelectedAnnotation(value) {
+        const item = selectedAnnotation();
+        if (!item) return false;
+        const update = value || {};
+        let duplicateRadius = false;
+        if (selectedAnnotationKind === 'landmark' && 'name' in update) {
+          item.name = String(update.name || '').trim();
+        }
+        if (selectedAnnotationKind !== 'radius' && 'color' in update) {
+          item.color = normalizeColor(
+            update.color,
+            selectedAnnotationKind === 'landmark' ? '#e5484d' : '#1668dc');
+        }
+        if (selectedAnnotationKind === 'landmark') {
+          if ('size' in update) {
+            item.size = Math.max(.65, Math.min(1.8, Number(update.size) || 1));
+          }
+          if ('isProjectSite' in update) item.isProjectSite = Boolean(update.isProjectSite);
+        } else if (selectedAnnotationKind === 'radius') {
+          const rings = radiusRings(item);
+          const currentIndex = Math.max(
+            0, Math.min(rings.length - 1, selectedRadiusIndex));
+          const selectedRing = rings[currentIndex];
+          if ('color' in update) {
+            selectedRing.color = normalizeColor(update.color, selectedRing.color);
+          }
+          if ('radiusMeters' in update) {
+            const updatedRadius = Math.max(
+              1, Math.min(1000000, Number(update.radiusMeters) || 500));
+            if (radiusExists(rings, updatedRadius, currentIndex)) {
+              duplicateRadius = true;
+            } else {
+              selectedRing.radiusMeters = updatedRadius;
+            }
+          }
+          const selectedRadius = selectedRing.radiusMeters;
+          applyRadiusRings(item, rings, selectedRadius);
+          toolOptions.radiusMeters = selectedRadius;
+          toolOptions.color = selectedRing.color;
+        }
+        Object.assign(toolOptions, update);
+        if (selectedAnnotationKind === 'landmark') toolOptions.name = '';
+        if (selectedAnnotationKind === 'radius') {
+          toolOptions.radiusMeters = item.radiiMeters[selectedRadiusIndex];
+          toolOptions.color = item.ringColors[selectedRadiusIndex];
+        }
+        annotationStatusMessage = duplicateRadius
+          ? 'Энэ радиустай цагираг аль хэдийн байна · утга өөрчлөгдсөнгүй'
+          : selectedAnnotationKind === 'landmark'
+            ? `Байршил ${item.number} шинэчлэгдлээ · Нэр: ${item.name || 'Нэргүй'}`
+            : selectedAnnotationKind === 'radius'
+              ? `Цагираг шинэчлэгдлээ · R ${formatDistance(item.radiiMeters[selectedRadiusIndex])}`
+              : 'Зайн хэмжээсийн өнгө шинэчлэгдлээ';
+        renderAnnotations();
+        notifyAnnotationChanged();
+        return true;
+      }
+
+      function addRadius(value) {
+        if (selectedAnnotationKind !== 'radius') return false;
+        const item = selectedAnnotation();
+        if (!item) return false;
+        const requestedRadius = Math.max(
+          1, Math.min(1000000, Number(value) || Number(toolOptions.radiusMeters) || 500));
+        const rings = radiusRings(item);
+        const radius = nextAvailableRadius(rings, requestedRadius);
+        if (!Number.isFinite(radius)) {
+          annotationStatusMessage = 'Шинэ цагираг нэмэх боломжит радиус олдсонгүй';
+          notifyAnnotationChanged();
+          return false;
+        }
+        const selectedRing = rings[Math.max(
+          0, Math.min(rings.length - 1, selectedRadiusIndex))];
+        rings.push({
+          radiusMeters: radius,
+          color: normalizeColor(toolOptions.color, selectedRing.color)
+        });
+        applyRadiusRings(item, rings, radius);
+        toolOptions.radiusMeters = radius;
+        toolOptions.color = item.ringColors[selectedRadiusIndex];
+        annotationStatusMessage =
+          `Цагираг нэмэгдлээ · R ${formatDistance(radius)} · Нийт ${item.radiiMeters.length}`;
+        renderAnnotations();
+        notifyAnnotationChanged();
+        return true;
+      }
+
+      function removeSelectedRadius() {
+        if (selectedAnnotationKind !== 'radius') return false;
+        const item = selectedAnnotation();
+        if (!item) return false;
+        const rings = radiusRings(item);
+        const removeIndex = Math.max(
+          0, Math.min(rings.length - 1, selectedRadiusIndex));
+        const removedRadius = rings[removeIndex].radiusMeters;
+        if (rings.length === 1) {
+          const measureIndex = state.radiusMeasures.findIndex(
+            measure => measure.id === item.id);
+          if (measureIndex >= 0) state.radiusMeasures.splice(measureIndex, 1);
+          selectedAnnotationKind = '';
+          selectedAnnotationId = '';
+          selectedRadiusIndex = 0;
+        } else {
+          rings.splice(removeIndex, 1);
+          selectedRadiusIndex = Math.min(removeIndex, rings.length - 1);
+          const nextRadius = rings[selectedRadiusIndex].radiusMeters;
+          applyRadiusRings(item, rings, nextRadius);
+          toolOptions.radiusMeters = item.radiiMeters[selectedRadiusIndex];
+          toolOptions.color = item.ringColors[selectedRadiusIndex];
+        }
+        annotationStatusMessage =
+          `Цагираг хасагдлаа · R ${formatDistance(removedRadius)}`;
+        renderAnnotations();
+        notifyAnnotationChanged();
+        return true;
+      }
+
+      function deleteSelectedAnnotation() {
+        const collection = selectedAnnotationKind === 'landmark'
+          ? state.landmarks
+          : selectedAnnotationKind === 'distance'
+            ? state.distanceMeasures
+            : selectedAnnotationKind === 'radius'
+              ? state.radiusMeasures
+              : null;
+        if (!collection) return false;
+        const index = collection.findIndex(item => item.id === selectedAnnotationId);
+        if (index < 0) return false;
+        collection.splice(index, 1);
+        if (activeDistanceId === selectedAnnotationId) activeDistanceId = '';
+        selectedAnnotationKind = '';
+        selectedAnnotationId = '';
+        selectedDistanceVertexIndex = -1;
+        selectedRadiusIndex = 0;
+        annotationStatusMessage = 'Сонгосон тэмдэглэгээ хасагдлаа';
+        renderAnnotations();
+        notifyAnnotationChanged();
+        return true;
+      }
+
       function setBoundary(value) {
         const points = value && Array.isArray(value.ring) ? value.ring : [];
+        boundaryAreaSquareMeters = Math.max(0, Number(value && value.areaSquareMeters) || 0);
         boundaryRing = points
           .map(point => [Number(point.longitude), Number(point.latitude)])
           .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]) &&
             point[0] >= -180 && point[0] <= 180 && point[1] >= -85 && point[1] <= 85);
         if (boundaryRing.length < 4) boundaryRing = [];
+        renderAnnotations();
       }
 
       function validCoordinate(point) {
@@ -129,6 +1473,7 @@
               .filter(validCoordinate)
             : []
         })).filter(building => building.points.length >= 4);
+        renderAnnotations();
       }
 
       function mapZoom() {
@@ -470,7 +1815,7 @@
         return null;
       }
 
-      function fitBounds(bounds) {
+      function fitBounds(bounds, exact = false) {
         if (!map || !bounds) return;
         const west = Number(bounds.west);
         const south = Number(bounds.south);
@@ -478,7 +1823,19 @@
         const north = Number(bounds.north);
         if (![west, south, east, north].every(Number.isFinite)) return;
         if (engine === 'leaflet') {
-          map.fitBounds([[south, west], [north, east]], { animate: false, padding: [0, 0] });
+          const previousZoomSnap = map.options.zoomSnap;
+          try {
+            // A high-resolution capture is several times larger than the live
+            // editor. Integer zoom snapping can then widen the fitted area by a
+            // full zoom level. Capture with a fractional zoom so the selected
+            // geographic bounds remain identical.
+            if (exact) map.options.zoomSnap = 0;
+            map.fitBounds(
+              [[south, west], [north, east]],
+              { animate: false, padding: [0, 0] });
+          } finally {
+            map.options.zoomSnap = previousZoomSnap;
+          }
         } else if (engine === 'google') {
           map.fitBounds({ west, south, east, north }, 0);
         } else if (engine === 'azure') {
@@ -492,9 +1849,11 @@
         clearPlanFeatureLayers();
         clearBoundaryLayers();
         try {
+          if (googleProjectionOverlay) googleProjectionOverlay.setMap(null);
           if (engine === 'leaflet' && map) map.remove();
           if (engine === 'azure' && map) map.dispose();
         } catch (_) { }
+        googleProjectionOverlay = null;
         map = null;
         tileLayer = null;
         engine = '';
@@ -523,7 +1882,13 @@
         loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
         await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet-sdk');
         engine = 'leaflet';
-        map = L.map(host, { attributionControl: true, zoomControl: false })
+        const nativeMaxZoom = providerId === 'OpenTopoMap' ? 17 : 19;
+        leafletInteractiveMaxZoom = nativeMaxZoom;
+        map = L.map(host, {
+          attributionControl: true,
+          zoomControl: false,
+          maxZoom: leafletInteractiveMaxZoom
+        })
           .setView([state.centerLatitude, state.centerLongitude], state.zoom);
         const topo = providerId === 'OpenTopoMap';
         tileLayer = L.tileLayer(
@@ -531,16 +1896,35 @@
             ? 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'
             : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           {
-            maxZoom: topo ? 17 : 19,
+            maxNativeZoom: nativeMaxZoom,
+            maxZoom: leafletCaptureMaxZoom,
             attribution: topo
               ? '&copy; OpenStreetMap contributors, SRTM | OpenTopoMap'
               : '&copy; OpenStreetMap contributors'
-          }).addTo(map);
+          });
+        tileLayer.on('loading', () => {
+          ready = false;
+        });
+        tileLayer.on('load', () => {
+          ready = true;
+        });
+        tileLayer.on('tileerror', () => {
+          tileLoadErrors += 1;
+        });
+        tileLayer.addTo(map);
         map.on('moveend', pullState);
+        map.on('move', renderAnnotations);
+        map.on('resize', renderAnnotations);
+        map.on('click', event => {
+          if (toolMode !== 'pan') {
+            handleMapClick([event.latlng.lng, event.latlng.lat]);
+          }
+        });
         map.on('zoomend', () => {
           pullState();
           updatePlanFeatureStyle();
           updateBoundaryStyle();
+          renderAnnotations();
         });
         map.whenReady(() => {
           ready = true;
@@ -548,6 +1932,7 @@
           renderBoundary();
           showMessage('');
           applyInteraction();
+          renderAnnotations();
         });
       }
 
@@ -565,18 +1950,32 @@
           clickableIcons: false,
           keyboardShortcuts: false
         });
+        googleProjectionOverlay = new google.maps.OverlayView();
+        googleProjectionOverlay.onAdd = () => { };
+        googleProjectionOverlay.draw = renderAnnotations;
+        googleProjectionOverlay.onRemove = () => { };
+        googleProjectionOverlay.setMap(map);
+        map.addListener('click', event => {
+          if (toolMode !== 'pan' && event.latLng) {
+            handleMapClick([event.latLng.lng(), event.latLng.lat()]);
+          }
+        });
         map.addListener('idle', () => {
           if (!ready) {
             renderPlanFeatures();
             renderBoundary();
           }
-          ready = true; pullState(); showMessage('');
+          ready = true; pullState(); showMessage(''); renderAnnotations();
         });
-        map.addListener('center_changed', pullState);
+        map.addListener('center_changed', () => {
+          pullState();
+          renderAnnotations();
+        });
         map.addListener('zoom_changed', () => {
           pullState();
           updatePlanFeatureStyle();
           updateBoundaryStyle();
+          renderAnnotations();
         });
         applyInteraction();
       }
@@ -601,11 +2000,19 @@
           renderBoundary();
           showMessage('');
           applyInteraction();
+          renderAnnotations();
         });
+        map.events.add('click', event => {
+          if (toolMode !== 'pan' && event && event.position) {
+            handleMapClick(event.position);
+          }
+        });
+        map.events.add('move', renderAnnotations);
         map.events.add('moveend', () => {
           pullState();
           updatePlanFeatureStyle();
           updateBoundaryStyle();
+          renderAnnotations();
         });
       }
 
@@ -632,6 +2039,7 @@
       async function init(value) {
         options = value || {};
         Object.assign(state, options.viewport || {});
+        normalizeAnnotations(options.viewport);
         setBoundary(options.boundary);
         setPlanFeatures(options.planFeatures);
         editing = Boolean(options.editing);
@@ -643,6 +2051,7 @@
       function setEditing(value) {
         editing = Boolean(value);
         applyInteraction();
+        renderAnnotations();
       }
 
       function zoomBy(delta) {
@@ -655,8 +2064,20 @@
 
       function setState(value) {
         Object.assign(state, value || {});
+        if (value && (
+          Array.isArray(value.landmarks) ||
+          Array.isArray(value.distanceMeasures) ||
+          Array.isArray(value.radiusMeasures))) {
+          normalizeAnnotations(value);
+        }
+        capturing = false;
         if (!map) return;
-        if (engine === 'leaflet') map.setView([state.centerLatitude, state.centerLongitude], state.zoom);
+        if (engine === 'leaflet') {
+          map.setMaxZoom(leafletInteractiveMaxZoom);
+          map.setView(
+            [state.centerLatitude, state.centerLongitude],
+            Math.min(state.zoom, leafletInteractiveMaxZoom));
+        }
         else if (engine === 'google') {
           map.setCenter({ lat: state.centerLatitude, lng: state.centerLongitude });
           map.setZoom(Math.round(state.zoom));
@@ -666,6 +2087,7 @@
         }
         updatePlanFeatureStyle();
         updateBoundaryStyle();
+        renderAnnotations();
       }
 
       function resize() {
@@ -673,6 +2095,7 @@
         if (engine === 'leaflet') map.invalidateSize(false);
         else if (engine === 'google') google.maps.event.trigger(map, 'resize');
         else if (engine === 'azure') map.resize();
+        requestAnimationFrame(renderAnnotations);
       }
 
       function getState() {
@@ -685,13 +2108,24 @@
           bearing: state.bearing || 0,
           attribution: state.attribution,
           bounds: currentBounds(),
-          ready
+          ready,
+          selectedAnnotationKind,
+          selectedAnnotationId,
+          selectedDistanceVertexIndex,
+          selectedRadiusIndex,
+          annotationStatusMessage,
+          annotationToolName: String(toolOptions.name || ''),
+          ...cloneAnnotations()
         };
       }
 
       window.erks = {
         init, setProvider, setEditing, setBoundary, setPlanFeatures, zoomBy,
-        setState, fitBounds, resize, getState
+        setState, fitBounds, resize, getState, prepareCapture,
+        currentLeafletTilesReady, setTool, finishDrawing,
+        updateSelectedAnnotation, deleteSelectedAnnotation, selectAnnotation,
+        selectDistanceVertex, selectRadiusRing, addRadius, removeSelectedRadius,
+        renderAnnotations
       };
     })();
   </script>

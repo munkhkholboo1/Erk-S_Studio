@@ -1,5 +1,63 @@
 namespace ErkS.Studio;
 
+internal sealed class StudioProjectChatResponse
+{
+    public bool IsValid { get; set; }
+    public string Message { get; set; } = "";
+    public string ProjectId { get; set; } = "";
+    public string ProjectCode { get; set; } = "";
+    public string ProjectName { get; set; } = "";
+    public string CurrentUserEmail { get; set; } = "";
+    public string[] ReactionChoices { get; set; } = [];
+    public List<StudioProjectChatParticipant> Participants { get; set; } = [];
+    public List<StudioProjectChatMessage> Messages { get; set; } = [];
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioProjectChatParticipant
+{
+    public string Email { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Initials { get; set; } = "";
+    public string RoleLabel { get; set; } = "";
+    public string ProfileImageUrl { get; set; } = "";
+}
+
+internal sealed class StudioProjectChatMessage
+{
+    public string MessageId { get; set; } = "";
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public string AuthorInitials { get; set; } = "";
+    public string AuthorRoleLabel { get; set; } = "";
+    public string AuthorProfileImageUrl { get; set; } = "";
+    public bool IsMine { get; set; }
+    public string Body { get; set; } = "";
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public string DisplayTime { get; set; } = "";
+    public string AttachmentId { get; set; } = "";
+    public string AttachmentFileName { get; set; } = "";
+    public string AttachmentUrl { get; set; } = "";
+    public string AttachmentContentType { get; set; } = "";
+    public long AttachmentSizeBytes { get; set; }
+    public DateTimeOffset AttachmentExpiresAtUtc { get; set; }
+    public bool AttachmentIsImage { get; set; }
+    public bool AttachmentExpired { get; set; }
+    public List<StudioProjectChatReaction> Reactions { get; set; } = [];
+}
+
+internal sealed class StudioProjectChatReaction
+{
+    public string Reaction { get; set; } = "";
+    public int Count { get; set; }
+    public bool ReactedByMe { get; set; }
+}
+
+internal sealed class StudioProjectChatReactionRequest
+{
+    public string Reaction { get; set; } = "";
+}
+
 internal sealed class StudioLicenseResponse
 {
     public bool IsValid { get; set; }

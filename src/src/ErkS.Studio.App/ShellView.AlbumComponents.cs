@@ -242,6 +242,7 @@ internal sealed partial class ShellView
             return false;
         }
 
+        IReadOnlyList<string> rendererMigrationCodes = PrepareAlbumRendererMigration(revision);
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources =
             ProjectCloudSyncMetadata.PendingSourcePackages(state.Project);
         IReadOnlyList<string> rawPendingComponents =
@@ -299,6 +300,18 @@ internal sealed partial class ShellView
                 throw new InvalidDataException(
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
+            }
+            string[] unrenderedRendererMigrations = missing
+                .Where(code => rendererMigrationCodes.Contains(
+                    code,
+                    StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+            if (unrenderedRendererMigrations.Length > 0)
+            {
+                throw new InvalidDataException(
+                    "A locally owned album component requires a renderer upgrade but could not be rendered. " +
+                    "The existing Cloud component was preserved: " +
+                    string.Join(", ", unrenderedRendererMigrations));
             }
 
             var patches = new List<AlbumComponentPdfPatch>();
@@ -375,6 +388,9 @@ internal sealed partial class ShellView
                 });
             }
 
+            if (rendererMigrationCodes.Count > 0)
+                MarkAlbumRendererCurrent();
+
             CloudAlbumCacheMaintenance.Cleanup(previewFolder, outputPath);
             return true;
         }
@@ -394,6 +410,58 @@ internal sealed partial class ShellView
                 }
             }
         }
+    }
+
+    private IReadOnlyList<string> PrepareAlbumRendererMigration(
+        StudioCloudAlbumRevision revision)
+    {
+        if (state.Project.PrimaryAlbum.RendererRevision >=
+            StudioAlbumRendererMigration.CurrentRevision)
+        {
+            return [];
+        }
+
+        string ownerEmail = CurrentCloudOwnerEmail();
+        var manifest = (revision.SectionManifest ?? [])
+            .Select(component => new ProjectCloudAlbumComponentReference
+            {
+                Code = component.Code ?? "",
+                Label = component.Label ?? "",
+                Order = component.Order,
+                PageNumbers = (component.PageNumbers ?? []).ToList(),
+                Status = component.Status ?? "",
+                OwnerEmail = component.OwnerEmail ?? "",
+                SourceKey = component.SourceKey ?? "",
+                ComponentKind = component.ComponentKind ?? "",
+            })
+            .ToList();
+        bool hasVisualizations = CurrentProjectVisualizationSource()
+            .ImagesForProject(state.Project.ProjectId)
+            .Any(image => image.IsAvailable && image.IsIncludedInAlbum);
+        IReadOnlyList<string> rawCodes =
+            StudioAlbumRendererMigration.SelectLocallyRenderableComponents(
+                state.Project,
+                manifest,
+                ownerEmail,
+                HasOwnedAtdDocuments(ownerEmail),
+                hasVisualizations);
+        if (rawCodes.Count == 0)
+        {
+            MarkAlbumRendererCurrent();
+            return [];
+        }
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(state.Project, rawCodes);
+        return rawCodes
+            .Select(code => CanonicalPendingComponentCode(code, ownerEmail))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void MarkAlbumRendererCurrent()
+    {
+        state.Project.PrimaryAlbum.RendererRevision =
+            StudioAlbumRendererMigration.CurrentRevision;
     }
 
     private bool TryGetCachedCanonicalAlbum(
@@ -517,7 +585,8 @@ internal sealed partial class ShellView
         StudioCloudAlbumRevision currentRevision,
         string projectConcurrencyToken,
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
-        IReadOnlyList<StudioCloudSourcePackage> activeServerSources)
+        IReadOnlyList<StudioCloudSourcePackage> activeServerSources,
+        IReadOnlyList<string> rendererMigrationCodes)
     {
         if (!HasCompleteComponentManifest(currentRevision))
         {
@@ -573,6 +642,18 @@ internal sealed partial class ShellView
                 throw new InvalidDataException(
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
+            }
+            string[] unrenderedRendererMigrations = missing
+                .Where(code => rendererMigrationCodes.Contains(
+                    code,
+                    StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+            if (unrenderedRendererMigrations.Length > 0)
+            {
+                throw new InvalidDataException(
+                    "A locally owned album component requires a renderer upgrade but could not be rendered. " +
+                    "The existing Cloud component was preserved: " +
+                    string.Join(", ", unrenderedRendererMigrations));
             }
 
             var uploads = new List<StudioAlbumComponentUpload>();
@@ -634,6 +715,8 @@ internal sealed partial class ShellView
             ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
                 state.Project,
                 rawPendingComponents);
+            if (rendererMigrationCodes.Count > 0)
+                MarkAlbumRendererCurrent();
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,

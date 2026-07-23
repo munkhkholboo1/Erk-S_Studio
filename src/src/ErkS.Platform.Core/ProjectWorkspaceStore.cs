@@ -380,6 +380,10 @@ public static class ProjectWorkspaceStore
         {
             project.Deliverables.Albums[0].IsPrimary = true;
         }
+        foreach (ProjectAlbumRecord album in project.Deliverables.Albums)
+        {
+            album.RendererRevision = Math.Max(0, album.RendererRevision);
+        }
 
         project.Archive ??= new ProjectArchive();
         project.Archive.Items ??= [];

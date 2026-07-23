@@ -24,6 +24,7 @@ internal sealed partial class ShellView : IDisposable
         Companies,
         Foundation,
         Participants,
+        Chat,
         Sources,
         Albums,
         Reports,
@@ -232,6 +233,7 @@ internal sealed partial class ShellView : IDisposable
     private readonly TextBlock albumInfoText = new();
     private readonly DispatcherTimer autoRebuildTimer;
     private readonly DispatcherTimer notificationRefreshTimer;
+    private readonly DispatcherTimer projectChatRefreshTimer;
     private bool suppressAutomaticAlbumRebuild;
     private string? lastAlbumPath;
 
@@ -279,6 +281,12 @@ internal sealed partial class ShellView : IDisposable
                 await RefreshProjectsAsync(refreshNotifications: false);
             }
         };
+        projectChatRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        projectChatRefreshTimer.Tick += async (_, _) =>
+        {
+            if (activePage == StudioPage.Chat && state.HasOpenProject)
+                await RefreshProjectChatAsync(silent: true);
+        };
 
         var rootBorder = new Border
         {
@@ -322,6 +330,9 @@ internal sealed partial class ShellView : IDisposable
     {
         autoRebuildTimer.Stop();
         notificationRefreshTimer.Stop();
+        projectChatRefreshTimer.Stop();
+        projectChatLoadCancellation?.Cancel();
+        projectChatLoadCancellation?.Dispose();
         projectThumbnailLoadCancellation?.Cancel();
         projectThumbnailLoadCancellation?.Dispose();
         CancelVisualizationThumbnailLoading();
@@ -368,6 +379,7 @@ internal sealed partial class ShellView : IDisposable
         pages[StudioPage.Companies] = BuildCompaniesPage();
         pages[StudioPage.Foundation] = BuildFoundationPage();
         pages[StudioPage.Participants] = BuildParticipantsPage();
+        pages[StudioPage.Chat] = BuildProjectChatPage();
         pages[StudioPage.Sources] = BuildSourcesPage();
         pages[StudioPage.Albums] = BuildAlbumPage();
         pages[StudioPage.Reports] = BuildReportsPage();
@@ -535,6 +547,7 @@ internal sealed partial class ShellView : IDisposable
         navPanel.Children.Add(BuildProjectContextBlock());
         AddNavItem(StudioPage.Foundation, "Төслийн мэдээлэл", "icon-project.svg");
         AddNavItem(StudioPage.Participants, "Оролцогчид", "icon-company.svg");
+        AddNavItem(StudioPage.Chat, "Чат", "icon-chat.svg");
         AddNavItem(StudioPage.Sources, ProjectSurfaceLabel("sources", "Эх үүсвэр"), "icon-sources.svg");
         AddNavItem(StudioPage.Albums, ProjectSurfaceLabel("albums", "Альбум"), "icon-album.svg");
         AddNavItem(StudioPage.Reports, ProjectSurfaceLabel("reports", "Тайлан"), "icon-publish.svg");
@@ -643,6 +656,8 @@ internal sealed partial class ShellView : IDisposable
     private void SelectPage(StudioPage page)
     {
         var previousPage = activePage;
+        if (previousPage == StudioPage.Chat && page != StudioPage.Chat)
+            projectChatRefreshTimer.Stop();
         if (page == StudioPage.Projects && projectWorkspaceOpen)
         {
             projectWorkspaceOpen = false;
@@ -694,6 +709,12 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshParticipantGroupSummaries();
             RefreshParticipantsList(refreshCloud: true);
+        }
+        else if (page == StudioPage.Chat)
+        {
+            ResetProjectChatForCurrentProject();
+            projectChatRefreshTimer.Start();
+            _ = RefreshProjectChatAsync(silent: false);
         }
         else if (page is StudioPage.Reports or StudioPage.Archive)
         {
@@ -2936,6 +2957,9 @@ internal sealed partial class ShellView : IDisposable
                         manifestBootstrapped = true;
                     }
                 }
+                IReadOnlyList<string> rendererMigrationCodes = currentRevision is null
+                    ? []
+                    : PrepareAlbumRendererMigration(currentRevision);
                 int pendingComponentCount =
                     ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count;
                 if (sourcePackages.Count == 0 && pendingComponentCount == 0)
@@ -2964,7 +2988,8 @@ internal sealed partial class ShellView : IDisposable
                         currentRevision,
                         canonicalProjectToken,
                         sourcePackages,
-                        activeServerSources);
+                        activeServerSources,
+                        rendererMigrationCodes);
                     currentRevision = outcome.Revision;
                     syncedAlbumHash = outcome.Revision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = outcome.Revision.RevisionId;

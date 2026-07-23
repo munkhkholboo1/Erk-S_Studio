@@ -734,6 +734,7 @@ public sealed class AppState : IDisposable
             pageCount,
             pageSizeSummary,
             createdBy);
+        Project.PrimaryAlbum.RendererRevision = StudioAlbumRendererMigration.CurrentRevision;
     }
 
     private static StudioAlbumDocument CreateDefaultAlbum(ProjectWorkspace workspace)

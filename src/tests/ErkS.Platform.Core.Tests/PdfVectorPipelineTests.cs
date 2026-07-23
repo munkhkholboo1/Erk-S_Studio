@@ -239,6 +239,61 @@ public sealed class PdfVectorPipelineTests : IDisposable
     }
 
     [Fact]
+    public void ConceptPortraitFullSheetMigration_UsesStudioChromeWithoutRasterFallback()
+    {
+        string sourcePath = Path.Combine(workDirectory, "portrait-elevation-full-sheet.pdf");
+        WriteVectorPdf(sourcePath, [(297d, 420d, "Legacy Revit title block")]);
+        SheetRecord sheet = Intake(
+            sourcePath,
+            297,
+            420,
+            pageCount: 1,
+            cleanDrawing: false,
+            contentKind: "Elevation",
+            sheetDescription: "Portrait facade",
+            portrait: true,
+            includeFormatForFullSheet: true);
+        var project = new AlbumProject
+        {
+            Name = "Portrait migration",
+            Album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept"),
+        };
+        project.Album.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = sheet.Key,
+            TemplateSlotId = "elevations",
+            PageFormatId = PageFormatCatalog.SourceAsIsId,
+            PlacementMode = PagePlacementMode.FullPage,
+            FollowSourceFormat = true,
+        });
+        var library = new SheetLibrary();
+        library.Absorb(SheetPackageReader.Load(sheet.ManifestPath));
+
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(project, library);
+        AlbumBuildPage buildPage = Assert.Single(request.Sections.SelectMany(section => section.Pages));
+        Assert.Equal(PageFormatCatalog.ConceptElevationA3PortraitTopId, buildPage.Format.Id);
+        Assert.Equal(PagePlacementMode.FullPage, buildPage.Definition.PlacementMode);
+
+        string outputPath = Path.Combine(workDirectory, "portrait-elevation-migrated.pdf");
+        new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, library, outputPath);
+
+        PdfVectorPageProfile page = Assert.Single(
+            PdfVectorQualityInspector.Inspect(outputPath).Pages,
+            candidate =>
+                Math.Abs(candidate.WidthMm - 297) < 0.01 &&
+                Math.Abs(candidate.HeightMm - 420) < 0.01);
+        Assert.InRange(page.WidthMm, 296.99, 297.01);
+        Assert.InRange(page.HeightMm, 419.99, 420.01);
+        Assert.True(page.HasTextOperators);
+        Assert.True(page.HasPathPaintingOperators);
+        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Contains(page.XObjects, item =>
+            item.Kind == PdfVectorXObjectKind.Form &&
+            Math.Abs(item.WidthMm - 297) < 0.01 &&
+            Math.Abs(item.HeightMm - 420) < 0.01);
+    }
+
+    [Fact]
     public async Task LockedPreviewFile_DoesNotBlockCanonicalAlbumBuild()
     {
         string sourcePath = Path.Combine(workDirectory, "locked-preview-source.pdf");
@@ -404,10 +459,11 @@ public sealed class PdfVectorPipelineTests : IDisposable
         double contentHeightMm = 0,
         string contentKind = "",
         string sheetDescription = "",
-        bool portrait = false)
+        bool portrait = false,
+        bool includeFormatForFullSheet = false)
     {
         PageFormatSpec? format = null;
-        if (cleanDrawing)
+        if (cleanDrawing || includeFormatForFullSheet)
         {
             format = CreateConceptFormat(
                 contentKind.Equals("Elevation", StringComparison.OrdinalIgnoreCase),

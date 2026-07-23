@@ -8,6 +8,7 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+.codex-temp/
 
 # IDE and local tooling
 .vs/

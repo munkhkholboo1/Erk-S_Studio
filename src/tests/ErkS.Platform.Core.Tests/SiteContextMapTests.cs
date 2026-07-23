@@ -59,6 +59,104 @@ public sealed class SiteContextMapTests : IDisposable
     }
 
     [Fact]
+    public void Normalize_RepairsMapAnnotationsAndKeepsEachViewportIndependent()
+    {
+        var location = new ProjectMapViewport
+        {
+            Landmarks =
+            [
+                new ProjectMapLandmark
+                {
+                    Id = "site",
+                    Number = 1,
+                    Name = "Төслийн байршил",
+                    Coordinate = new ProjectGeoCoordinate
+                    {
+                        Longitude = 106.91,
+                        Latitude = 47.91,
+                    },
+                    IsProjectSite = true,
+                },
+                new ProjectMapLandmark
+                {
+                    Id = "center",
+                    Number = 1,
+                    Name = "Хотын төв",
+                    Coordinate = new ProjectGeoCoordinate
+                    {
+                        Longitude = 106.92,
+                        Latitude = 47.92,
+                    },
+                },
+            ],
+            DistanceMeasures =
+            [
+                new ProjectMapDistanceMeasure
+                {
+                    Id = "route",
+                    Path =
+                    [
+                        new ProjectGeoCoordinate { Longitude = 106.91, Latitude = 47.91 },
+                        new ProjectGeoCoordinate { Longitude = 106.92, Latitude = 47.92 },
+                    ],
+                },
+            ],
+            RadiusMeasures =
+            [
+                new ProjectMapRadiusMeasure
+                {
+                    Id = "radius",
+                    Center = new ProjectGeoCoordinate
+                    {
+                        Longitude = 106.91,
+                        Latitude = 47.91,
+                    },
+                    RadiusMeters = 1500,
+                    RadiiMeters = [1500, 3000],
+                },
+            ],
+        };
+
+        location.Normalize(ProjectMapViewportKinds.LocationScheme);
+        ProjectMapViewport overview = location.Clone();
+        overview.Normalize(ProjectMapViewportKinds.SurroundingsOverview);
+        overview.Landmarks[0].Name = "Өөр нэр";
+        overview.DistanceMeasures[0].Path[0].Longitude = 100;
+        overview.RadiusMeasures[0].RadiiMeters[0] = 500;
+
+        Assert.Equal([1, 2], location.Landmarks.Select(item => item.Number));
+        Assert.Equal("Төслийн байршил", location.Landmarks[0].Name);
+        Assert.Equal(106.91, location.DistanceMeasures[0].Path[0].Longitude);
+        Assert.Equal(1500, location.RadiusMeasures[0].RadiusMeters);
+        Assert.Equal([1500d, 3000d], location.RadiusMeasures[0].RadiiMeters);
+    }
+
+    [Fact]
+    public void RadiusMeasure_NormalizeMigratesLegacyValueAndKeepsDistinctConcentricRings()
+    {
+        var legacy = new ProjectMapRadiusMeasure { RadiusMeters = 2400 };
+        var multiple = new ProjectMapRadiusMeasure
+        {
+            RadiusMeters = 999,
+            RadiiMeters = [3000, 1500, 1500, double.NaN, -1],
+            RingColors = ["#e5484d", "#1668dc", "#087f8c", "#f0a51a", "#15181d"],
+        };
+
+        legacy.Normalize();
+        multiple.Normalize();
+        ProjectMapRadiusMeasure clone = multiple.Clone();
+        clone.RingColors[0] = "#15181d";
+
+        Assert.Equal([2400d], legacy.RadiiMeters);
+        Assert.Equal(2400, legacy.RadiusMeters);
+        Assert.Equal([1500d, 3000d], multiple.RadiiMeters);
+        Assert.Equal(["#1668dc", "#e5484d"], multiple.RingColors);
+        Assert.Equal(1500, multiple.RadiusMeters);
+        Assert.Equal("#1668dc", multiple.Color);
+        Assert.Equal("#1668dc", multiple.RingColors[0]);
+    }
+
+    [Fact]
     public void TemplateEnsure_MigratesLegacySiteContextToStudioGeneratedPage()
     {
         AlbumDefinition definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Album");
@@ -121,6 +219,51 @@ public sealed class SiteContextMapTests : IDisposable
                     Zoom = 16,
                     DetailZoom = 17,
                     SnapshotRelativePath = "assets/site-context/location-scheme.png",
+                    Landmarks =
+                    [
+                        new ProjectMapLandmark
+                        {
+                            Id = "site",
+                            Number = 1,
+                            Name = "Төслийн байршил",
+                            Coordinate = new ProjectGeoCoordinate
+                            {
+                                Longitude = 106.91,
+                                Latitude = 47.91,
+                            },
+                            Color = "#e5484d",
+                            Size = 1.15,
+                            IsProjectSite = true,
+                        },
+                    ],
+                    DistanceMeasures =
+                    [
+                        new ProjectMapDistanceMeasure
+                        {
+                            Id = "city-center",
+                            Name = "Хотын төв",
+                            Path =
+                            [
+                                new ProjectGeoCoordinate { Longitude = 106.91, Latitude = 47.91 },
+                                new ProjectGeoCoordinate { Longitude = 106.92, Latitude = 47.92 },
+                            ],
+                        },
+                    ],
+                    RadiusMeasures =
+                    [
+                        new ProjectMapRadiusMeasure
+                        {
+                            Id = "radius",
+                            Name = "1.5 км",
+                            Center = new ProjectGeoCoordinate
+                            {
+                                Longitude = 106.91,
+                                Latitude = 47.91,
+                            },
+                            RadiusMeters = 1500,
+                            RadiiMeters = [1500, 3000],
+                        },
+                    ],
                 },
                 SurroundingsOverview = new ProjectMapViewport
                 {
@@ -183,6 +326,18 @@ public sealed class SiteContextMapTests : IDisposable
             loaded.SiteContext.SurroundingsOverview.SnapshotRelativePath);
         Assert.Equal("Main road", Assert.Single(loaded.SiteContext.PlanFeatures.Roads).Name);
         Assert.Equal("B-01", Assert.Single(loaded.SiteContext.PlanFeatures.Buildings).Number);
+        Assert.Equal(
+            "Төслийн байршил",
+            Assert.Single(loaded.SiteContext.LocationScheme.Landmarks).Name);
+        Assert.Equal(
+            2,
+            Assert.Single(loaded.SiteContext.LocationScheme.DistanceMeasures).Path.Count);
+        Assert.Equal(
+            1500,
+            Assert.Single(loaded.SiteContext.LocationScheme.RadiusMeasures).RadiusMeters);
+        Assert.Equal(
+            [1500d, 3000d],
+            Assert.Single(loaded.SiteContext.LocationScheme.RadiusMeasures).RadiiMeters);
     }
 
     [Fact]

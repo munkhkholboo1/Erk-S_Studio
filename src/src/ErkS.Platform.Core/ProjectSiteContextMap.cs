@@ -333,6 +333,174 @@ public sealed class ProjectGeoCoordinate
     public double Latitude { get; set; }
 }
 
+public sealed class ProjectMapLandmark
+{
+    public string Id { get; set; } = "";
+    public int Number { get; set; }
+    public string Name { get; set; } = "";
+    public ProjectGeoCoordinate Coordinate { get; set; } = new();
+    public string Color { get; set; } = ProjectMapAnnotationDefaults.AccentColor;
+    public double Size { get; set; } = 1d;
+    public bool IsProjectSite { get; set; }
+
+    public bool HasCoordinate => ProjectMapAnnotationDefaults.IsValidCoordinate(Coordinate);
+
+    public void Normalize()
+    {
+        Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString("N") : Id.Trim();
+        Name = Name?.Trim() ?? "";
+        Coordinate ??= new ProjectGeoCoordinate();
+        Color = ProjectMapAnnotationDefaults.NormalizeColor(Color);
+        Size = double.IsFinite(Size) ? Math.Clamp(Size, 0.65d, 1.8d) : 1d;
+        Number = Math.Max(0, Number);
+    }
+
+    public ProjectMapLandmark Clone() => new()
+    {
+        Id = Id,
+        Number = Number,
+        Name = Name,
+        Coordinate = ProjectMapAnnotationDefaults.CloneCoordinate(Coordinate),
+        Color = Color,
+        Size = Size,
+        IsProjectSite = IsProjectSite,
+    };
+}
+
+public sealed class ProjectMapDistanceMeasure
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public List<ProjectGeoCoordinate> Path { get; set; } = [];
+    public string Color { get; set; } = ProjectMapAnnotationDefaults.MeasureColor;
+    public double StrokeWidth { get; set; } = 1d;
+
+    public bool HasGeometry => Path.Count >= 2;
+
+    public void Normalize()
+    {
+        Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString("N") : Id.Trim();
+        Name = Name?.Trim() ?? "";
+        Path = ProjectSiteRoadOverlay.NormalizeCoordinates(Path, closeRing: false);
+        Color = ProjectMapAnnotationDefaults.NormalizeColor(
+            Color,
+            ProjectMapAnnotationDefaults.MeasureColor);
+        StrokeWidth = double.IsFinite(StrokeWidth)
+            ? Math.Clamp(StrokeWidth, 0.65d, 2.5d)
+            : 1d;
+    }
+
+    public ProjectMapDistanceMeasure Clone() => new()
+    {
+        Id = Id,
+        Name = Name,
+        Path = Path.Select(ProjectMapAnnotationDefaults.CloneCoordinate).ToList(),
+        Color = Color,
+        StrokeWidth = StrokeWidth,
+    };
+}
+
+public sealed class ProjectMapRadiusMeasure
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public ProjectGeoCoordinate Center { get; set; } = new();
+    public List<double> RadiiMeters { get; set; } = [];
+    public List<string> RingColors { get; set; } = [];
+    public double RadiusMeters { get; set; } = 500d;
+    public string Color { get; set; } = ProjectMapAnnotationDefaults.MeasureColor;
+    public double StrokeWidth { get; set; } = 1d;
+
+    public bool HasGeometry =>
+        ProjectMapAnnotationDefaults.IsValidCoordinate(Center) &&
+        (RadiiMeters?.Any(radius => double.IsFinite(radius) && radius > 0) == true ||
+         double.IsFinite(RadiusMeters) && RadiusMeters > 0);
+
+    public void Normalize()
+    {
+        Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString("N") : Id.Trim();
+        Name = Name?.Trim() ?? "";
+        Center ??= new ProjectGeoCoordinate();
+        Color = ProjectMapAnnotationDefaults.NormalizeColor(
+            Color,
+            ProjectMapAnnotationDefaults.MeasureColor);
+        RadiiMeters ??= [];
+        RingColors ??= [];
+        List<(double Radius, string Color)> normalizedRings = RadiiMeters
+            .Select((radius, index) => (
+                Radius: radius,
+                Color: index < RingColors.Count ? RingColors[index] : Color))
+            .Where(item => double.IsFinite(item.Radius) && item.Radius > 0)
+            .Select(item => (
+                Radius: Math.Clamp(item.Radius, 1d, 1_000_000d),
+                Color: ProjectMapAnnotationDefaults.NormalizeColor(item.Color, Color)))
+            .OrderBy(item => item.Radius)
+            .GroupBy(item => item.Radius)
+            .Select(group => group.First())
+            .ToList();
+        if (normalizedRings.Count == 0)
+        {
+            normalizedRings.Add((
+                double.IsFinite(RadiusMeters) && RadiusMeters > 0
+                    ? Math.Clamp(RadiusMeters, 1d, 1_000_000d)
+                    : 500d,
+                Color));
+        }
+
+        RadiiMeters = normalizedRings.Select(item => item.Radius).ToList();
+        RingColors = normalizedRings.Select(item => item.Color).ToList();
+        RadiusMeters = RadiiMeters[0];
+        Color = RingColors[0];
+        StrokeWidth = double.IsFinite(StrokeWidth)
+            ? Math.Clamp(StrokeWidth, 0.65d, 2.5d)
+            : 1d;
+    }
+
+    public ProjectMapRadiusMeasure Clone() => new()
+    {
+        Id = Id,
+        Name = Name,
+        Center = ProjectMapAnnotationDefaults.CloneCoordinate(Center),
+        RadiiMeters = RadiiMeters?.ToList() ?? [],
+        RingColors = RingColors?.ToList() ?? [],
+        RadiusMeters = RadiusMeters,
+        Color = Color,
+        StrokeWidth = StrokeWidth,
+    };
+}
+
+internal static class ProjectMapAnnotationDefaults
+{
+    public const string AccentColor = "#e5484d";
+    public const string MeasureColor = "#1668dc";
+
+    public static bool IsValidCoordinate(ProjectGeoCoordinate? point) =>
+        point is not null &&
+        double.IsFinite(point.Longitude) &&
+        double.IsFinite(point.Latitude) &&
+        point.Longitude is >= -180d and <= 180d &&
+        point.Latitude is >= -85d and <= 85d;
+
+    public static ProjectGeoCoordinate CloneCoordinate(ProjectGeoCoordinate? point) => new()
+    {
+        Longitude = point?.Longitude ?? 0d,
+        Latitude = point?.Latitude ?? 0d,
+    };
+
+    public static string NormalizeColor(string? value, string fallback = AccentColor)
+    {
+        string normalized = value?.Trim() ?? "";
+        if (normalized.Length == 7 &&
+            normalized[0] == '#' &&
+            normalized.Skip(1).All(Uri.IsHexDigit))
+        {
+            return normalized.ToLowerInvariant();
+        }
+
+        return fallback;
+    }
+}
+
 public sealed class ProjectMapViewport
 {
     public string Kind { get; set; } = ProjectMapViewportKinds.LocationScheme;
@@ -342,6 +510,9 @@ public sealed class ProjectMapViewport
     public double Zoom { get; set; } = 15d;
     public double DetailZoom { get; set; }
     public double Bearing { get; set; }
+    public List<ProjectMapLandmark> Landmarks { get; set; } = [];
+    public List<ProjectMapDistanceMeasure> DistanceMeasures { get; set; } = [];
+    public List<ProjectMapRadiusMeasure> RadiusMeasures { get; set; } = [];
     public string SnapshotRelativePath { get; set; } = "";
     public string SnapshotSha256 { get; set; } = "";
     public int SnapshotPixelWidth { get; set; }
@@ -366,6 +537,25 @@ public sealed class ProjectMapViewport
             ? Math.Clamp(Math.Max(Zoom, DetailZoom), 1d, 22d)
             : Zoom;
         Bearing = double.IsFinite(Bearing) ? Bearing % 360d : 0d;
+        Landmarks = (Landmarks ?? [])
+            .Where(item => item is not null)
+            .ToList();
+        DistanceMeasures = (DistanceMeasures ?? [])
+            .Where(item => item is not null)
+            .ToList();
+        RadiusMeasures = (RadiusMeasures ?? [])
+            .Where(item => item is not null)
+            .ToList();
+        foreach (ProjectMapLandmark landmark in Landmarks)
+            landmark.Normalize();
+        foreach (ProjectMapDistanceMeasure measure in DistanceMeasures)
+            measure.Normalize();
+        foreach (ProjectMapRadiusMeasure measure in RadiusMeasures)
+            measure.Normalize();
+        Landmarks.RemoveAll(item => !item.HasCoordinate);
+        DistanceMeasures.RemoveAll(item => !item.HasGeometry);
+        RadiusMeasures.RemoveAll(item => !item.HasGeometry);
+        NormalizeLandmarkNumbers(Landmarks);
         SnapshotRelativePath = SnapshotRelativePath?.Trim() ?? "";
         SnapshotSha256 = SnapshotSha256?.Trim() ?? "";
         SnapshotPixelWidth = Math.Max(0, SnapshotPixelWidth);
@@ -382,6 +572,9 @@ public sealed class ProjectMapViewport
         Zoom = Zoom,
         DetailZoom = DetailZoom,
         Bearing = Bearing,
+        Landmarks = Landmarks.Select(item => item.Clone()).ToList(),
+        DistanceMeasures = DistanceMeasures.Select(item => item.Clone()).ToList(),
+        RadiusMeasures = RadiusMeasures.Select(item => item.Clone()).ToList(),
         SnapshotRelativePath = SnapshotRelativePath,
         SnapshotSha256 = SnapshotSha256,
         SnapshotPixelWidth = SnapshotPixelWidth,
@@ -389,6 +582,24 @@ public sealed class ProjectMapViewport
         Attribution = Attribution,
         UpdatedAtUtc = UpdatedAtUtc,
     };
+
+    private static void NormalizeLandmarkNumbers(List<ProjectMapLandmark> landmarks)
+    {
+        var used = new HashSet<int>();
+        int next = 1;
+        foreach (ProjectMapLandmark landmark in landmarks)
+        {
+            if (landmark.Number <= 0 || !used.Add(landmark.Number))
+            {
+                while (used.Contains(next))
+                    next++;
+                landmark.Number = next;
+                used.Add(next);
+            }
+
+            next = Math.Max(next, landmark.Number + 1);
+        }
+    }
 
     public static ProjectMapViewport CreateLocationScheme() => new()
     {

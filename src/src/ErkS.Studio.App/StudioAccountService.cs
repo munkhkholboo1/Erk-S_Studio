@@ -58,6 +58,7 @@ internal sealed class StudioAccountService :
     IControlledDocumentsClient,
     IAlbumsClient,
     IProfileImageClient,
+    IProjectChatClient,
     IDisposable
 {
     public const string ProductCode = "ErkS.Studio";
@@ -1213,6 +1214,103 @@ internal sealed class StudioAccountService :
         byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(true);
         return bytes.Length > 10L * 1024L * 1024L
             ? throw new StudioAccountException("Profile зураг хэт том байна.")
+            : bytes;
+    }
+
+    public async Task<StudioProjectChatResponse> GetProjectChatAsync(
+        string projectId,
+        int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        string path = $"/api/cloud-era/v1/projects/{Uri.EscapeDataString(projectId)}/chat?take={Math.Clamp(take, 1, 200)}";
+        return await GetAuthorizedAsync<StudioProjectChatResponse>(path, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioProjectChatResponse> SendProjectChatMessageAsync(
+        string projectId,
+        string message,
+        string? attachmentPath = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(message ?? "", Encoding.UTF8), "message");
+
+        FileStream? attachmentStream = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(attachmentPath))
+            {
+                StudioProjectChatAttachmentValidation validation = StudioProjectChatRules.ValidateAttachment(attachmentPath);
+                if (!validation.IsValid)
+                    throw new StudioAccountException(validation.Message);
+                attachmentStream = File.Open(attachmentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var fileContent = new StreamContent(attachmentStream);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(validation.ContentType);
+                content.Add(fileContent, "attachment", Path.GetFileName(attachmentPath));
+            }
+
+            string path = $"/api/cloud-era/v1/projects/{Uri.EscapeDataString(projectId)}/chat/messages";
+            using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(session.ServerUrl, path))
+            {
+                Content = content,
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+            using HttpResponseMessage response = await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken).ConfigureAwait(true);
+            return await ReadResponseAsync<StudioProjectChatResponse>(response, cancellationToken).ConfigureAwait(true);
+        }
+        finally
+        {
+            attachmentStream?.Dispose();
+        }
+    }
+
+    public async Task<StudioProjectChatResponse> ReactToProjectChatMessageAsync(
+        string projectId,
+        string messageId,
+        string reaction,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        string path = $"/api/cloud-era/v1/projects/{Uri.EscapeDataString(projectId)}/chat/messages/{Uri.EscapeDataString(messageId)}/reactions";
+        return await PostAuthorizedAsync<StudioProjectChatReactionRequest, StudioProjectChatResponse>(
+            path,
+            new StudioProjectChatReactionRequest { Reaction = reaction },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<byte[]?> DownloadProjectChatAssetAsync(
+        string assetPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath) ||
+            !assetPath.TrimStart('/').StartsWith("api/cloud-era/v1/projects/", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, assetPath));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(true);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        if (!response.IsSuccessStatusCode)
+            return await ReadResponseAsync<byte[]?>(response, cancellationToken).ConfigureAwait(true);
+        if (response.Content.Headers.ContentLength > StudioProjectChatRules.MaxAttachmentBytes)
+            throw new StudioAccountException("Чатын файл 15 MB-аас их байна.");
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(true);
+        return bytes.Length > StudioProjectChatRules.MaxAttachmentBytes
+            ? throw new StudioAccountException("Чатын файл 15 MB-аас их байна.")
             : bytes;
     }
 

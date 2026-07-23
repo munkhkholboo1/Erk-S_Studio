@@ -276,6 +276,30 @@ internal interface IProfileImageClient
     Task<byte[]?> GetProfileImageAsync(CancellationToken cancellationToken = default);
 }
 
+internal interface IProjectChatClient
+{
+    Task<StudioProjectChatResponse> GetProjectChatAsync(
+        string projectId,
+        int take = 100,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioProjectChatResponse> SendProjectChatMessageAsync(
+        string projectId,
+        string message,
+        string? attachmentPath = null,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioProjectChatResponse> ReactToProjectChatMessageAsync(
+        string projectId,
+        string messageId,
+        string reaction,
+        CancellationToken cancellationToken = default);
+
+    Task<byte[]?> DownloadProjectChatAssetAsync(
+        string assetPath,
+        CancellationToken cancellationToken = default);
+}
+
 internal interface IUpdatesClient
 {
     Task<StudioUpdateLatestResponse> CheckAsync(CancellationToken cancellationToken = default);
