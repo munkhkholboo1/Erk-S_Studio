@@ -797,6 +797,7 @@ public sealed class AppState : IDisposable
                 ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
                 ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
             ]);
+        ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(Project);
         InvalidateBuiltAlbum();
         SaveProject();
     }

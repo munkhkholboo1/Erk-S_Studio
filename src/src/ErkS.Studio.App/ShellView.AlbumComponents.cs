@@ -365,12 +365,15 @@ internal sealed partial class ShellView
                 patches,
                 outputPath);
 
+            CanonicalTitleBlockPreview canonicalPreview =
+                PrepareCanonicalTitleBlockPreview(outputPath, composition.Components);
+            outputPath = canonicalPreview.Path;
             string relativePath = ProjectWorkspacePaths.ToRelativePath(state.ProjectPath, outputPath);
-            string sha256 = ComputeFileSha256(outputPath);
+            string sha256 = canonicalPreview.Sha256;
             ProjectAlbumRecord album = state.Project.PrimaryAlbum;
             album.LastPdfPath = relativePath;
             album.LastPdfSha256 = sha256;
-            album.LastPageCount = composition.PageCount;
+            album.LastPageCount = canonicalPreview.PageCount;
             album.LastPageSizeSummary = revision.PageSizeSummary?.Trim() ?? "";
             lastAlbumPath = outputPath;
 
@@ -378,7 +381,7 @@ internal sealed partial class ShellView
             {
                 OutputPath = outputPath,
                 SheetCount = localBuild.SheetCount,
-                PageCount = composition.PageCount,
+                PageCount = canonicalPreview.PageCount,
             };
             result.Warnings.AddRange(localBuild.Warnings);
             Dictionary<string, StudioCloudAlbumSection> renderedByCode = rendered
@@ -708,20 +711,29 @@ internal sealed partial class ShellView
         string canonicalPdfPath,
         StudioCloudAlbumRevision revision)
     {
+        List<AlbumComponentPdfSlot> components = revision.SectionManifest
+            .Select(component => new AlbumComponentPdfSlot(
+                component.Code,
+                component.Order,
+                component.PageNumbers))
+            .ToList();
+        CanonicalTitleBlockPreview canonicalPreview =
+            PrepareCanonicalTitleBlockPreview(canonicalPdfPath, components);
+        string previewPath = canonicalPreview.Path;
         string relativePath = ProjectWorkspacePaths.ToRelativePath(
             state.ProjectPath!,
-            canonicalPdfPath);
+            previewPath);
         ProjectAlbumRecord album = state.Project.PrimaryAlbum;
         album.LastPdfPath = relativePath;
-        album.LastPdfSha256 = CleanSha256(revision.PdfSha256);
-        album.LastPageCount = revision.PageCount;
+        album.LastPdfSha256 = canonicalPreview.Sha256;
+        album.LastPageCount = canonicalPreview.PageCount;
         album.LastPageSizeSummary = revision.PageSizeSummary?.Trim() ?? "";
-        lastAlbumPath = canonicalPdfPath;
+        lastAlbumPath = previewPath;
         var result = new AlbumBuildResult
         {
-            OutputPath = canonicalPdfPath,
+            OutputPath = previewPath,
             SheetCount = state.Library.Snapshot().Count,
-            PageCount = revision.PageCount,
+            PageCount = canonicalPreview.PageCount,
         };
         result.Components.AddRange(revision.SectionManifest.Select(component => new AlbumBuildComponent
         {
@@ -731,6 +743,244 @@ internal sealed partial class ShellView
             PageNumbers = component.PageNumbers.ToList(),
         }));
         return result;
+    }
+
+    private CanonicalTitleBlockPreview PrepareCanonicalTitleBlockPreview(
+        string inputPdfPath,
+        IReadOnlyList<AlbumComponentPdfSlot> components)
+    {
+        AlbumProject canonicalProject = state.CreateAlbumBuildProject();
+        string inputSha256 = ComputeFileSha256(inputPdfPath);
+        string signature =
+            PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(canonicalProject);
+        string cacheFolder = Path.Combine(
+            state.ResolveOutputFolder(),
+            "cloud-local",
+            "titleblock");
+        Directory.CreateDirectory(cacheFolder);
+        string outputPath = Path.Combine(
+            cacheFolder,
+            $"canonical-{inputSha256[..16]}-{signature[..16]}.pdf");
+        if (!File.Exists(outputPath))
+        {
+            string temporaryPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                PdfSharpAlbumWriter.RestampCanonicalTitleBlocks(
+                    inputPdfPath,
+                    canonicalProject,
+                    components,
+                    temporaryPath);
+                File.Move(temporaryPath, outputPath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    try
+                    {
+                        File.Delete(temporaryPath);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                    }
+                }
+            }
+        }
+
+        int pageCount;
+        using (var document = PdfSharp.Pdf.IO.PdfReader.Open(
+                   outputPath,
+                   PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+        {
+            pageCount = document.PageCount;
+        }
+        string outputSha256 = ComputeFileSha256(outputPath);
+        CloudAlbumCacheMaintenance.Cleanup(cacheFolder, outputPath);
+        return new CanonicalTitleBlockPreview(
+            outputPath,
+            outputSha256,
+            signature,
+            pageCount);
+    }
+
+    private async Task<CanonicalTitleBlockPublicationOutcome>
+        PublishCanonicalTitleBlockRevisionAsync(
+            string projectId,
+            string albumId,
+            StudioCloudAlbumRevision startingRevision)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(albumId);
+        ArgumentNullException.ThrowIfNull(startingRevision);
+
+        string root = Path.Combine(
+            state.ResolveOutputFolder(),
+            "cloud",
+            "titleblock-publish");
+        string workFolder = Path.Combine(root, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workFolder);
+        StudioCloudAlbumRevision candidate = startingRevision;
+        try
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                StudioCloudProjectDetail canonical =
+                    await account.GetProjectAsync(projectId);
+                state.LinkCurrentProjectToCloud(
+                    canonical,
+                    account.Current!.ServerUrl,
+                    preserveCreation: true,
+                    preserveSyncState: true);
+                await ApplyCloudProjectRenderProfileAsync(canonical);
+
+                IReadOnlyList<StudioCloudAlbum> albums =
+                    await account.ListAlbumsAsync(projectId);
+                StudioCloudAlbum album = albums.FirstOrDefault(item =>
+                        item.AlbumId.Equals(albumId, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new InvalidDataException(
+                        "Canonical Cloud album disappeared while its title block was being updated.");
+                candidate = CurrentCloudAlbumRevision(album)
+                    ?? throw new InvalidDataException(
+                        "Canonical Cloud album has no current revision.");
+                if (!HasCompleteComponentManifest(candidate))
+                {
+                    throw new InvalidDataException(
+                        "Canonical Cloud album has no complete component manifest. " +
+                        "Its shared pages cannot be restamped safely.");
+                }
+
+                AlbumProject canonicalProject = state.CreateAlbumBuildProject();
+                string signature =
+                    PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(
+                        canonicalProject);
+                string inputPath = Path.Combine(
+                    workFolder,
+                    $"canonical-r{candidate.RevisionNumber:D4}-{attempt}.pdf");
+                await account.DownloadAlbumRevisionPdfAsync(candidate, inputPath);
+                string downloadedHash = ComputeFileSha256(inputPath);
+                if (!string.IsNullOrWhiteSpace(candidate.PdfSha256) &&
+                    !downloadedHash.Equals(
+                        candidate.PdfSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "Downloaded canonical album hash did not match the current Cloud revision.");
+                }
+
+                if (PdfSharpAlbumWriter.HasCanonicalTitleBlockSignature(
+                        inputPath,
+                        signature))
+                {
+                    return new CanonicalTitleBlockPublicationOutcome(
+                        candidate,
+                        signature,
+                        Uploaded: false);
+                }
+
+                string outputPath = Path.Combine(
+                    workFolder,
+                    $"canonical-titleblock-{attempt}.pdf");
+                List<AlbumComponentPdfSlot> components = candidate.SectionManifest
+                    .Select(component => new AlbumComponentPdfSlot(
+                        component.Code,
+                        component.Order,
+                        component.PageNumbers))
+                    .ToList();
+                PdfSharpAlbumWriter.RestampCanonicalTitleBlocks(
+                    inputPath,
+                    canonicalProject,
+                    components,
+                    outputPath);
+
+                // Recheck both metadata and album revision immediately before
+                // upload. A collaborator may have merged another component
+                // while this device was repainting the canonical cells.
+                StudioCloudProjectDetail gate =
+                    await account.GetProjectAsync(projectId);
+                IReadOnlyList<StudioCloudAlbum> gateAlbums =
+                    await account.ListAlbumsAsync(projectId);
+                StudioCloudAlbum? gateAlbum = gateAlbums.FirstOrDefault(item =>
+                    item.AlbumId.Equals(albumId, StringComparison.OrdinalIgnoreCase));
+                StudioCloudAlbumRevision? gateRevision =
+                    gateAlbum is null ? null : CurrentCloudAlbumRevision(gateAlbum);
+                if (gateRevision is null ||
+                    !gateRevision.RevisionId.Equals(
+                        candidate.RevisionId,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !gate.Project.ConcurrencyToken.Equals(
+                        canonical.Project.ConcurrencyToken,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                StudioCloudAlbumRevision uploaded;
+                try
+                {
+                    uploaded = await account.UploadAlbumRevisionAsync(
+                        projectId,
+                        albumId,
+                        outputPath,
+                        candidate.PageCount,
+                        candidate.PageSizeSummary,
+                        gate.Project.ConcurrencyToken);
+                }
+                catch (StudioAccountException exception) when (
+                    exception.StatusCode is System.Net.HttpStatusCode.Conflict or
+                        System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    continue;
+                }
+
+                uploaded = await account.SetAlbumComponentManifestAsync(
+                    projectId,
+                    albumId,
+                    uploaded.RevisionId,
+                    candidate.SectionManifest);
+                IReadOnlyList<StudioCloudAlbum> confirmedAlbums =
+                    await account.ListAlbumsAsync(projectId);
+                StudioCloudAlbum? confirmedAlbum = confirmedAlbums.FirstOrDefault(item =>
+                    item.AlbumId.Equals(albumId, StringComparison.OrdinalIgnoreCase));
+                StudioCloudAlbumRevision? confirmed = confirmedAlbum is null
+                    ? null
+                    : CurrentCloudAlbumRevision(confirmedAlbum);
+                if (confirmed is not null &&
+                    confirmed.RevisionId.Equals(
+                        uploaded.RevisionId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return new CanonicalTitleBlockPublicationOutcome(
+                        uploaded,
+                        signature,
+                        Uploaded: true);
+                }
+            }
+
+            throw new InvalidOperationException(
+                "Cloud album changed repeatedly while its canonical title block was being updated. " +
+                "No collaborator page was overwritten; run Sync again.");
+        }
+        finally
+        {
+            if (ProjectWorkspacePaths.IsInside(root, workFolder) &&
+                Directory.Exists(workFolder))
+            {
+                try
+                {
+                    Directory.Delete(workFolder, recursive: true);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
     }
 
     private static void AddLegacyComponentMigrationPatches(
@@ -1162,4 +1412,15 @@ internal sealed partial class ShellView
         StudioCloudAlbumRevision Revision,
         int ComponentCount,
         IReadOnlyList<string> ComponentCodes);
+
+    private sealed record CanonicalTitleBlockPreview(
+        string Path,
+        string Sha256,
+        string Signature,
+        int PageCount);
+
+    private sealed record CanonicalTitleBlockPublicationOutcome(
+        StudioCloudAlbumRevision Revision,
+        string Signature,
+        bool Uploaded);
 }

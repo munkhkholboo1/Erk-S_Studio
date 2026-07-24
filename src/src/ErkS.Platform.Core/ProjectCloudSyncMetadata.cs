@@ -207,6 +207,23 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.PendingAlbumComponentCodes.RemoveAll(completed.Contains);
     }
 
+    public static void MarkCanonicalTitleBlockPending(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.CanonicalTitleBlockPending = true;
+        MarkPending(project);
+    }
+
+    public static void MarkCanonicalTitleBlockPublished(
+        ProjectWorkspace project,
+        string signature)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Cloud.CanonicalTitleBlockPending = false;
+        project.Cloud.LastPublishedTitleBlockSignature =
+            signature?.Trim().ToLowerInvariant() ?? "";
+    }
+
     public static void MarkBuildingCompositionPending(ProjectWorkspace project)
     {
         ArgumentNullException.ThrowIfNull(project);

@@ -11,6 +11,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
+using ErkS.Platform.Pdf;
 using Microsoft.Win32;
 
 namespace ErkS.Studio;
@@ -2472,6 +2473,7 @@ internal sealed partial class ShellView : IDisposable
                         ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
                         ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
                     ]);
+                ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(state.Project);
             }
             state.SaveProject();
             foundationEditMode = false;
@@ -3077,12 +3079,42 @@ internal sealed partial class ShellView : IDisposable
                     ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
                         state.Project,
                         ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project));
+                    currentRevision = syncedRevision;
                     syncedAlbumHash = syncedRevision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = syncedRevision.RevisionId;
                     syncNote = localSources.Count == 0
                         ? $"Studio-ийн автомат {build.PageCount} хуудастай album R{syncedRevision.RevisionNumber} sync хийгдлээ."
                         : $"Бүтэн album R{syncedRevision.RevisionNumber} sync хийгдлээ.";
                 }
+            }
+
+            string publishedTitleBlockSignature = "";
+            string expectedTitleBlockSignature =
+                PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(
+                    state.CreateAlbumBuildProject());
+            bool titleBlockPublicationRequired =
+                state.Project.Cloud.CanonicalTitleBlockPending ||
+                !state.Project.Cloud.LastPublishedTitleBlockSignature.Equals(
+                    expectedTitleBlockSignature,
+                    StringComparison.OrdinalIgnoreCase);
+            if (titleBlockPublicationRequired &&
+                currentRevision is not null &&
+                HasCompleteComponentManifest(currentRevision))
+            {
+                SetStatus(
+                    "Төслийн болон байгууллагын каноник мэдээллийг бүх хуудасны булангийн хүснэгтэд шинэчилж байна...");
+                CanonicalTitleBlockPublicationOutcome titleBlockOutcome =
+                    await PublishCanonicalTitleBlockRevisionAsync(
+                        projectId,
+                        serverAlbum.AlbumId,
+                        currentRevision);
+                currentRevision = titleBlockOutcome.Revision;
+                syncedAlbumHash = currentRevision.PdfSha256.Trim().ToLowerInvariant();
+                syncedRevisionId = currentRevision.RevisionId;
+                publishedTitleBlockSignature = titleBlockOutcome.Signature;
+                syncNote += titleBlockOutcome.Uploaded
+                    ? $" Каноник төсөл/байгууллагын мэдээлэл R{currentRevision.RevisionNumber}-д шинэчлэгдлээ."
+                    : " Каноник төсөл/байгууллагын мэдээлэл аль хэдийн шинэ байсан.";
             }
 
             StudioCloudProjectDetail latest = await account.GetProjectAsync(projectId);
@@ -3095,9 +3127,26 @@ internal sealed partial class ShellView : IDisposable
                 latest.Project.ConcurrencyToken,
                 DateTimeOffset.UtcNow,
                 syncNote);
+            string finalTitleBlockSignature =
+                PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(
+                    state.CreateAlbumBuildProject());
+            if (!string.IsNullOrWhiteSpace(publishedTitleBlockSignature) &&
+                publishedTitleBlockSignature.Equals(
+                    finalTitleBlockSignature,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPublished(
+                    state.Project,
+                    finalTitleBlockSignature);
+            }
+            else if (titleBlockPublicationRequired)
+            {
+                ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(state.Project);
+            }
             if (ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
                 ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
-                state.Project.Cloud.BuildingCompositionPending)
+                state.Project.Cloud.BuildingCompositionPending ||
+                state.Project.Cloud.CanonicalTitleBlockPending)
             {
                 state.Project.Cloud.SyncStatus = ProjectSyncStatuses.Pending;
             }
@@ -3545,11 +3594,13 @@ internal sealed partial class ShellView : IDisposable
             bool hasPendingLocalWork = cloud.PendingProjectInformation is not null ||
                 ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
                 ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
-                cloud.BuildingCompositionPending;
+                cloud.BuildingCompositionPending ||
+                cloud.CanonicalTitleBlockPending;
             bool hasPendingAlbumWork =
                 ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
                 ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
-                cloud.BuildingCompositionPending;
+                cloud.BuildingCompositionPending ||
+                cloud.CanonicalTitleBlockPending;
             bool usingUnionPreview = hasPendingAlbumWork &&
                 TryBuildCloudUnionAlbumPreview(outputPath, revision, out _);
             if (!usingUnionPreview)

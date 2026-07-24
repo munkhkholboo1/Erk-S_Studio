@@ -10,7 +10,7 @@ namespace ErkS.Platform.Pdf;
 /// original page untouched; formatted pages preserve vector content and add
 /// the Studio-owned frame and title information.
 /// </summary>
-public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
+public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 {
     private const string FontName = BuildingArchitectureConceptPageLayout.FontFamilyName;
     private const double PointsPerMillimeter = 72.0 / 25.4;
@@ -23,6 +23,9 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         using var document = new PdfDocument();
         document.Info.Title = request.Project.Album.Title;
         document.Info.Author = request.Project.Company.Name;
+        document.Info.Keywords = WithCanonicalTitleBlockSignature(
+            document.Info.Keywords,
+            ComputeCanonicalTitleBlockSignature(request.Project));
         var components = new Dictionary<string, AlbumBuildComponent>(StringComparer.OrdinalIgnoreCase);
         int componentOrder = 0;
 
@@ -675,6 +678,54 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             gfx.DrawLine(finePen, Mm(x1), Mm(y), Mm(x5), Mm(y));
         }
 
+        DrawCanonicalConceptCornerMetadata(
+            gfx,
+            project,
+            grid,
+            borderPen,
+            finePen,
+            clearCanonicalCells: false);
+
+        DrawCellText(gfx, "Гарын үсэг", x3, y0, x4, y1, false, XStringFormats.Center);
+        DrawCellText(gfx, "Загвар", x4, y0, x5, y1, false, XStringFormats.Center);
+        DrawCellText(gfx, scaleText, x4, y1, x5, y2, false, XStringFormats.Center);
+        DrawCellText(gfx, $"Хуудас-{ValueOrDash(sheetNumber)}", x4, y2, x5, y3, false, XStringFormats.Center);
+        DrawCellText(gfx, $"{DateTime.Now:yyyy} он", x4, y3, x5, y4, false, XStringFormats.Center);
+    }
+
+    private static void DrawCanonicalConceptCornerMetadata(
+        XGraphics gfx,
+        AlbumProject project,
+        BuildingArchitectureConceptCornerGrid grid,
+        XPen borderPen,
+        XPen finePen,
+        bool clearCanonicalCells)
+    {
+        var x0 = grid.X0;
+        var x1 = grid.X1;
+        var x2 = grid.X2;
+        var x3 = grid.X3;
+        var y0 = grid.Y0;
+        var y1 = grid.Y1;
+        var y2 = grid.Y2;
+        var y3 = grid.Y3;
+        var y4 = grid.Y4;
+
+        if (clearCanonicalCells)
+        {
+            gfx.DrawRectangle(
+                new XSolidBrush(XColor.FromArgb(254, 254, 254)),
+                Mm(x0),
+                Mm(y0),
+                Mm(x3 - x0),
+                Mm(y4 - y0));
+            gfx.DrawRectangle(borderPen, Mm(x0), Mm(y0), Mm(x3 - x0), Mm(y4 - y0));
+            foreach (var x in new[] { x1, x2 })
+                gfx.DrawLine(finePen, Mm(x), Mm(y0), Mm(x), Mm(y4));
+            foreach (var y in new[] { y1, y2, y3 })
+                gfx.DrawLine(finePen, Mm(x1), Mm(y), Mm(x3), Mm(y));
+        }
+
         var company = project.Company;
         var companyName = CompanyDisplayName(company, project.DesignOrganizationName);
         var companyRepresentative = ResolveCompanyRepresentative(project);
@@ -691,20 +742,15 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawCompanyLogoOrMark(gfx, company, TopLeftRect(x0, y0, x1, y4));
         DrawCellText(gfx, ProjectDisplayName(project), x1, y0, x2, y1, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, "Нэр", x2, y0, x3, y1, false, XStringFormats.Center);
-        DrawCellText(gfx, "Гарын үсэг", x3, y0, x4, y1, false, XStringFormats.Center);
-        DrawCellText(gfx, "Загвар", x4, y0, x5, y1, false, XStringFormats.Center);
 
         DrawCellText(gfx, companyRole, x1, y1, x2, y2, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, companyRepresentative.Name, x2, y1, x3, y2, false, XStringFormats.Center);
-        DrawCellText(gfx, scaleText, x4, y1, x5, y2, false, XStringFormats.Center);
 
         DrawCellText(gfx, "Архитектор", x1, y2, x2, y3, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, architect, x2, y2, x3, y3, false, XStringFormats.Center);
-        DrawCellText(gfx, $"Хуудас-{ValueOrDash(sheetNumber)}", x4, y2, x5, y3, false, XStringFormats.Center);
 
         DrawCellText(gfx, "Захиалагч", x1, y3, x2, y4, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, ValueOrDash(clientName), x2, y3, x3, y4, false, XStringFormats.Center);
-        DrawCellText(gfx, $"{DateTime.Now:yyyy} он", x4, y3, x5, y4, false, XStringFormats.Center);
     }
 
     private static void DrawCellText(

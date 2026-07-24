@@ -243,6 +243,8 @@ public static class ProjectWorkspaceStore
             .ToList();
         project.Cloud.LastReceivedAlbumPdfPath =
             project.Cloud.LastReceivedAlbumPdfPath?.Trim() ?? "";
+        project.Cloud.LastPublishedTitleBlockSignature =
+            project.Cloud.LastPublishedTitleBlockSignature?.Trim().ToLowerInvariant() ?? "";
         project.Cloud.SharedSources = (project.Cloud.SharedSources ?? [])
             .OfType<ProjectCloudSourceReference>()
             .ToList();

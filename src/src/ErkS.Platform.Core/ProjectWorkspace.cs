@@ -134,6 +134,16 @@ public sealed class ProjectCloudLink
     public string LastReceivedAlbumPdfPath { get; set; } = "";
     public string LastReceivedClientLogoKey { get; set; } = "";
     public string LastReceivedDesignOrganizationLogoKey { get; set; } = "";
+    /// <summary>
+    /// True when canonical project/company metadata must be repainted on the
+    /// complete shared album, including components owned by other members.
+    /// </summary>
+    public bool CanonicalTitleBlockPending { get; set; }
+    /// <summary>
+    /// Signature of the canonical title-block metadata last published as a
+    /// complete Cloud album revision.
+    /// </summary>
+    public string LastPublishedTitleBlockSignature { get; set; } = "";
     public string LastServerConcurrencyToken { get; set; } = "";
     public string LastSyncError { get; set; } = "";
     public string LastSyncNote { get; set; } = "";

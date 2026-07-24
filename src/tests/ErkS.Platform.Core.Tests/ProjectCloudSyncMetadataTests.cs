@@ -94,6 +94,24 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void CanonicalTitleBlockRemainsPendingUntilExactSignatureIsPublished()
+    {
+        ProjectWorkspace project = Project();
+
+        ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(project);
+
+        Assert.True(project.Cloud.CanonicalTitleBlockPending);
+        Assert.Equal(ProjectSyncStatuses.Pending, project.Cloud.SyncStatus);
+
+        ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPublished(
+            project,
+            "ABCDEF");
+
+        Assert.False(project.Cloud.CanonicalTitleBlockPending);
+        Assert.Equal("abcdef", project.Cloud.LastPublishedTitleBlockSignature);
+    }
+
+    [Fact]
     public void BuildingCompositionQueuesCurrentAndPreviouslySharedSubCovers()
     {
         ProjectWorkspace project = Project();
