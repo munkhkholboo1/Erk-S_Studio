@@ -137,6 +137,46 @@ public sealed class StudioAlbumComponentOrderPolicyTests
     }
 
     [Fact]
+    public void Resolve_OwnedAtdSourceAlwaysFollowsLicenseAndPrecedesSiteContext()
+    {
+        const string owner = "partner@example.com";
+        var project = new ProjectWorkspace();
+        var sourceOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        string atdCode = StudioAlbumComponentIdentity.SourceCode(
+            owner,
+            StudioAlbumComponentIdentity.AtdSourceKey);
+
+        int license = StudioAlbumComponentOrderPolicy.Resolve(
+            project,
+            ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
+            "",
+            10,
+            sourceOrder);
+        int atdWithMetadata = StudioAlbumComponentOrderPolicy.Resolve(
+            project,
+            atdCode,
+            StudioAlbumComponentIdentity.AtdSourceKey,
+            900_000,
+            sourceOrder);
+        int atdRecoveredFromCode = StudioAlbumComponentOrderPolicy.Resolve(
+            project,
+            atdCode,
+            "",
+            900_000,
+            sourceOrder);
+        int siteContext = StudioAlbumComponentOrderPolicy.Resolve(
+            project,
+            ProjectCloudSyncMetadata.SiteContextComponentCode,
+            "",
+            0,
+            sourceOrder);
+
+        Assert.True(license < atdWithMetadata);
+        Assert.Equal(atdWithMetadata, atdRecoveredFromCode);
+        Assert.True(atdWithMetadata < siteContext);
+    }
+
+    [Fact]
     public void Resolve_PutsPackageSubCoverBeforeItsSourceAndUnassignedSourcesAfterBuildings()
     {
         const string owner = "architect@example.com";

@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.16] - 2026-07-25
+
+- Keep generated concept-album pages in one immutable semantic order even when legacy local or Cloud metadata contains drifted numeric order values.
+- Place the approved architectural planning task directly after the design-license pages and before the location scheme, surrounding context, and general-plan sheets.
+- Recognize collaborator-owned `foundation-atd` components as the canonical planning-task section instead of treating them as unassigned sources at the end of the album.
+- Invalidate previously normalized album caches so existing projects rebuild once with the corrected deterministic page order.
+
 ## [0.1.0-dev.15] - 2026-07-24
 
 - Keep every building sub-cover immediately before that building's sheets while preserving the page order authored by each Revit or AutoCAD source.

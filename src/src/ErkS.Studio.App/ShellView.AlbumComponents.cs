@@ -602,7 +602,7 @@ internal sealed partial class ShellView
                     $"{component.Code}|{component.Order}|{string.Join(",", component.PageNumbers)}")
                 .Prepend(revision.RevisionId)
                 .Prepend(CleanSha256(revision.PdfSha256))
-                .Prepend("canonical-album-order-v1"));
+                .Prepend("canonical-album-order-v2"));
         string signature = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(signatureText)))[..16].ToLowerInvariant();
         string canonicalFolder = Path.Combine(

@@ -28,6 +28,14 @@ internal static class StudioAlbumComponentOrderPolicy
         string normalizedSourceKey = (sourceKey ?? "").Trim();
         int safeLocalOrder = Math.Max(0, localOrder);
 
+        if (TryResolveFixedComponentOrder(
+                code,
+                normalizedSourceKey,
+                out int fixedOrder))
+        {
+            return fixedOrder;
+        }
+
         if (ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(code) &&
             TryResolveSubCoverGroup(project, code, out ProjectBuildingGroup subCoverGroup))
         {
@@ -81,38 +89,45 @@ internal static class StudioAlbumComponentOrderPolicy
         if (code.StartsWith("source:", StringComparison.OrdinalIgnoreCase))
             return UnassignedSourceBase + safeLocalOrder;
 
-        return FixedComponentOrder(code, normalizedSourceKey);
+        return 50_000;
     }
 
-    private static int FixedComponentOrder(string code, string sourceKey)
+    private static bool TryResolveFixedComponentOrder(
+        string code,
+        string sourceKey,
+        out int order)
     {
         if (code.Equals(
                 ProjectCloudSyncMetadata.CoverComponentCode,
                 StringComparison.OrdinalIgnoreCase) ||
             code.StartsWith("generated:cover:", StringComparison.OrdinalIgnoreCase))
         {
-            return 0;
+            order = 0;
+            return true;
         }
 
         if (code.StartsWith(
                 "generated:table-of-contents",
                 StringComparison.OrdinalIgnoreCase))
         {
-            return 5_000;
+            order = 5_000;
+            return true;
         }
 
         if (code.Equals(
                 ProjectCloudSyncMetadata.CompanyRegistrationComponentCode,
                 StringComparison.OrdinalIgnoreCase))
         {
-            return 10_000;
+            order = 10_000;
+            return true;
         }
 
         if (code.Equals(
                 ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
                 StringComparison.OrdinalIgnoreCase))
         {
-            return 20_000;
+            order = 20_000;
+            return true;
         }
 
         if (sourceKey.Equals(
@@ -120,19 +135,25 @@ internal static class StudioAlbumComponentOrderPolicy
                 StringComparison.OrdinalIgnoreCase) ||
             code.Equals(
                 ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                StringComparison.OrdinalIgnoreCase) ||
+            code.EndsWith(
+                ":" + StudioAlbumComponentIdentity.AtdSourceKey,
                 StringComparison.OrdinalIgnoreCase))
         {
-            return 30_000;
+            order = 30_000;
+            return true;
         }
 
         if (code.Equals(
                 ProjectCloudSyncMetadata.SiteContextComponentCode,
                 StringComparison.OrdinalIgnoreCase))
         {
-            return 40_000;
+            order = 40_000;
+            return true;
         }
 
-        return 50_000;
+        order = 0;
+        return false;
     }
 
     private static int BuildingOrder(int oneBasedBuildingOrder) =>

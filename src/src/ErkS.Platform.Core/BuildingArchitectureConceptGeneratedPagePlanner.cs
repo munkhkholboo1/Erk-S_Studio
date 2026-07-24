@@ -47,7 +47,8 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
         var drafts = new List<PageDraft>();
         foreach (AlbumCompositionItem component in project.Album.Composition
                      .Where(item => item.Kind == AlbumCompositionKind.Generated)
-                     .OrderBy(item => item.Order))
+                     .OrderBy(FixedGeneratedPageOrder)
+                     .ThenBy(item => item.Order))
         {
             switch (component.GeneratedPageKind)
             {
@@ -109,6 +110,16 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
             DocumentPages = draft.DocumentPages,
         }).ToList();
     }
+
+    private static int FixedGeneratedPageOrder(AlbumCompositionItem component) =>
+        component.GeneratedPageKind switch
+        {
+            AlbumGeneratedPageKind.Cover => 0,
+            AlbumGeneratedPageKind.DesignOrganization => 10,
+            AlbumGeneratedPageKind.PlanningTask => 20,
+            AlbumGeneratedPageKind.SiteContext => 30,
+            _ => 100 + Math.Max(0, component.Order),
+        };
 
     private static void AddDocumentBatches(
         ICollection<PageDraft> target,

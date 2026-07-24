@@ -1767,6 +1767,38 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void ConceptGeneratedPages_KeepPlanningTaskAfterLicenseWhenStoredOrdersDrift()
+    {
+        var project = new AlbumProject
+        {
+            Album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept album"),
+        };
+        project.Album.Composition.Single(item =>
+            item.GeneratedPageKind == AlbumGeneratedPageKind.Cover).Order = 900;
+        project.Album.Composition.Single(item =>
+            item.GeneratedPageKind == AlbumGeneratedPageKind.DesignOrganization).Order = 800;
+        project.Album.Composition.Single(item =>
+            item.GeneratedPageKind == AlbumGeneratedPageKind.PlanningTask).Order = 999;
+        project.Album.Composition.Single(item =>
+            item.GeneratedPageKind == AlbumGeneratedPageKind.SiteContext).Order = 1;
+
+        IReadOnlyList<ConceptGeneratedPagePlan> plans =
+            BuildingArchitectureConceptGeneratedPagePlanner.Create(project);
+
+        Assert.Equal(
+            [
+                ConceptGeneratedDocumentKind.None,
+                ConceptGeneratedDocumentKind.CompanyRegistrationCertificate,
+                ConceptGeneratedDocumentKind.CompanyDesignLicense,
+                ConceptGeneratedDocumentKind.ApprovedPlanningTask,
+                ConceptGeneratedDocumentKind.None,
+            ],
+            plans.Select(plan => plan.DocumentKind));
+        Assert.Equal(AlbumGeneratedPageKind.PlanningTask, plans[^2].Component.GeneratedPageKind);
+        Assert.Equal(AlbumGeneratedPageKind.SiteContext, plans[^1].Component.GeneratedPageKind);
+    }
+
+    [Fact]
     public void ProjectDocumentInspector_ReadsPdfPageCountAndAlbumStoreNormalizesLegacyNulls()
     {
         string sourcePath = Path.Combine(workDirectory, "approved-atd.pdf");
