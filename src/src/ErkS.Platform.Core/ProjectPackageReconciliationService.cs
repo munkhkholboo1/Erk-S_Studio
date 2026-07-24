@@ -159,6 +159,15 @@ public static class ProjectPackageReconciliationService
             }
         }
 
+        bool addedBuildingAssignments =
+            ProjectDesignSourceClassification.ApplyDefaultBuildingGroupAssignments(
+                project,
+                source,
+                manifest.Sheets.Select(entry =>
+                    SheetRecord.MakeKey(packageSource, entry, source.Id)));
+        if (addedBuildingAssignments)
+            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+
         if (usesConceptTemplate)
         {
             IReadOnlyList<AlbumPageDefinition> orderedPages =

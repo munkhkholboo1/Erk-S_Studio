@@ -11,40 +11,66 @@ internal sealed class DesignSourceDialog : Window
     private readonly ProjectWorkspace project;
     private readonly Func<string, string> defaultFolderResolver;
     private readonly ComboBox kindBox = new();
+    private readonly ComboBox purposeBox = new();
+    private readonly ComboBox buildingGroupBox = new();
     private readonly TextBox nameBox = new();
     private readonly TextBox inboxBox = new();
     private readonly TextBox documentTitleBox = new();
     private readonly TextBox documentPathBox = new();
     private readonly TextBox ownerBox = new();
     private readonly Button browseDocumentButton = StudioWidgets.CreateInlineButton("RVT файл сонгох...");
+    private readonly TextBlock classificationHint = new()
+    {
+        Foreground = StudioTheme.MutedTextBrush,
+        FontSize = StudioTheme.HintFontSize,
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new Thickness(StudioTheme.FormLabelWidth, 0, 0, 8),
+    };
+    private readonly List<ProjectBuildingGroup> buildingGroups;
+    private Grid purposeRow = null!;
+    private Grid buildingGroupRow = null!;
 
     public ProjectDesignSource? ResultSource { get; private set; }
+    public IReadOnlyList<ProjectBuildingGroup> ResultBuildingGroups { get; private set; } = [];
+    public bool BuildingGroupsChanged { get; private set; }
 
     public DesignSourceDialog(ProjectWorkspace project, Func<string, string> defaultFolderResolver)
     {
         this.project = project;
         this.defaultFolderResolver = defaultFolderResolver;
+        buildingGroups = project.BuildingGroups
+            .OrderBy(group => group.Order)
+            .Select(group => group.Clone())
+            .ToList();
         Title = "Эх үүсвэр нэмэх";
         Width = 620;
-        Height = 520;
+        Height = 620;
         MinWidth = 520;
-        MinHeight = 460;
+        MinHeight = 540;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
         StudioTheme.Apply(this);
 
         kindBox.ItemsSource = Enum.GetValues<DesignSourceKind>();
         kindBox.SelectedItem = DesignSourceKind.Revit;
-        nameBox.Text = "Revit - Архитектур";
+        purposeBox.ItemsSource = PurposeChoices;
+        purposeBox.DisplayMemberPath = nameof(SourcePurposeChoice.Label);
+        buildingGroupBox.ItemsSource = buildingGroups;
+        buildingGroupBox.DisplayMemberPath = nameof(ProjectBuildingGroup.Name);
+        buildingGroupBox.IsEditable = true;
+        buildingGroupBox.IsTextSearchEnabled = true;
+        buildingGroupBox.ToolTip =
+            "Одоо байгаа барилгын төрлийг сонгох эсвэл шинэ нэр бичиж үүсгэнэ.";
         ownerBox.Text = project.DesignOrganizationName;
-        inboxBox.Text = defaultFolderResolver(nameBox.Text);
         inboxBox.IsReadOnly = true;
         documentTitleBox.IsReadOnly = true;
         documentPathBox.IsReadOnly = true;
         ownerBox.IsReadOnly = true;
 
-        kindBox.SelectionChanged += (_, _) => ApplyKindDefaults();
         Content = BuildContent();
+        ApplyKindDefaults();
+        kindBox.SelectionChanged += (_, _) => ApplyKindDefaults();
+        purposeBox.SelectionChanged += (_, _) => RefreshClassificationRows();
     }
 
     private UIElement BuildContent()
@@ -69,6 +95,11 @@ internal sealed class DesignSourceDialog : Window
         form.Children.Add(StudioWidgets.CreateTitle("Эх үүсвэр"));
         form.Children.Add(StudioWidgets.CreateFormRow("Төрөл", kindBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Нэр", nameBox));
+        purposeRow = StudioWidgets.CreateFormRow("Зургийн төрөл", purposeBox);
+        form.Children.Add(purposeRow);
+        buildingGroupRow = StudioWidgets.CreateFormRow("Барилгын төрөл", buildingGroupBox);
+        form.Children.Add(buildingGroupRow);
+        form.Children.Add(classificationHint);
 
         form.Children.Add(StudioWidgets.CreateFormRow("Project inbox", inboxBox));
 
@@ -113,6 +144,23 @@ internal sealed class DesignSourceDialog : Window
         inboxBox.Text = defaultFolderResolver(defaultName);
         documentTitleBox.Clear();
         documentPathBox.Clear();
+        ProjectDesignSourcePurpose defaultPurpose = kind switch
+        {
+            DesignSourceKind.Revit => ProjectDesignSourcePurpose.Building,
+            DesignSourceKind.CityGen => ProjectDesignSourcePurpose.GeneralPlan,
+            _ => ProjectDesignSourcePurpose.Unspecified,
+        };
+        purposeBox.SelectedItem = PurposeChoices.First(choice =>
+            choice.Value == defaultPurpose);
+        if (kind == DesignSourceKind.Revit &&
+            buildingGroupBox.SelectedItem is null &&
+            string.IsNullOrWhiteSpace(buildingGroupBox.Text))
+        {
+            if (buildingGroups.Count > 0)
+                buildingGroupBox.SelectedItem = buildingGroups[0];
+            else
+                buildingGroupBox.Text = "Барилга 1";
+        }
         browseDocumentButton.Content = kind switch
         {
             DesignSourceKind.Revit => "RVT файл сонгох...",
@@ -120,6 +168,37 @@ internal sealed class DesignSourceDialog : Window
             DesignSourceKind.CityGen => "CityGen DWG/өгөгдөл сонгох...",
             DesignSourceKind.Pdf => "PDF файл сонгох...",
             _ => "Хавтас сонгох...",
+        };
+        RefreshClassificationRows();
+    }
+
+    private void RefreshClassificationRows()
+    {
+        bool supportsClassification =
+            kindBox.SelectedItem is DesignSourceKind.Revit or
+                DesignSourceKind.AutoCad or
+                DesignSourceKind.CityGen;
+        ProjectDesignSourcePurpose purpose =
+            (purposeBox.SelectedItem as SourcePurposeChoice)?.Value ??
+            ProjectDesignSourcePurpose.Unspecified;
+        purposeRow.Visibility = supportsClassification
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        buildingGroupRow.Visibility =
+            supportsClassification && purpose == ProjectDesignSourcePurpose.Building
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        classificationHint.Visibility = supportsClassification
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        classificationHint.Text = purpose switch
+        {
+            ProjectDesignSourcePurpose.GeneralPlan =>
+                "Энэ эх үүсвэр төслийн ерөнхий төлөвлөгөө, Project Land болон байршлын схемийг хариуцна.",
+            ProjectDesignSourcePurpose.Building =>
+                "Revit болон AutoCAD хуудсууд сонгосон нэг барилгын иж бүрдэлд нийлнэ.",
+            _ =>
+                "AutoCAD/CityGen package-ийн metadata-аас ерөнхий төлөвлөгөө эсвэл барилгын зургийг автоматаар танина.",
         };
     }
 
@@ -234,7 +313,19 @@ internal sealed class DesignSourceDialog : Window
         var inbox = string.IsNullOrWhiteSpace(inboxBox.Text)
             ? defaultFolderResolver(name)
             : inboxBox.Text.Trim();
-        ResultSource = new ProjectDesignSource
+        ProjectDesignSourcePurpose purpose =
+            (purposeBox.SelectedItem as SourcePurposeChoice)?.Value ??
+            ProjectDesignSourcePurpose.Unspecified;
+        string buildingGroupId = "";
+        if (purpose == ProjectDesignSourcePurpose.Building)
+        {
+            ProjectBuildingGroup? buildingGroup = ResolveBuildingGroup();
+            if (buildingGroup is null)
+                return;
+            buildingGroupId = buildingGroup.Id;
+        }
+
+        var source = new ProjectDesignSource
         {
             Kind = kind,
             Name = name,
@@ -246,7 +337,59 @@ internal sealed class DesignSourceDialog : Window
                 ? DesignSourceStatuses.Connected
                 : DesignSourceStatuses.WaitingForConnection,
         };
+        ProjectDesignSourceClassification.SetExplicitPurpose(
+            source,
+            purpose,
+            buildingGroupId);
+        ResultSource = source;
+        ResultBuildingGroups = buildingGroups
+            .OrderBy(group => group.Order)
+            .Select(group => group.Clone())
+            .ToList();
         DialogResult = true;
     }
 
+    private ProjectBuildingGroup? ResolveBuildingGroup()
+    {
+        string name = buildingGroupBox.SelectedItem is ProjectBuildingGroup selected
+            ? selected.Name.Trim()
+            : buildingGroupBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            StudioMessageDialog.Show(
+                this,
+                "Барилгын төрлөө сонгох эсвэл шинэ нэр оруулна уу.",
+                "Erk-S Studio",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return null;
+        }
+
+        ProjectBuildingGroup? existing = buildingGroups.FirstOrDefault(group =>
+            group.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+            return existing;
+
+        var created = new ProjectBuildingGroup
+        {
+            Name = name,
+            Order = buildingGroups.Count + 1,
+        };
+        buildingGroups.Add(created);
+        BuildingGroupsChanged = true;
+        buildingGroupBox.Items.Refresh();
+        buildingGroupBox.SelectedItem = created;
+        return created;
+    }
+
+    private static IReadOnlyList<SourcePurposeChoice> PurposeChoices { get; } =
+    [
+        new(ProjectDesignSourcePurpose.Unspecified, "Package metadata-аар таних"),
+        new(ProjectDesignSourcePurpose.GeneralPlan, "Ерөнхий төлөвлөгөө"),
+        new(ProjectDesignSourcePurpose.Building, "Барилгын зураг"),
+    ];
+
+    private sealed record SourcePurposeChoice(
+        ProjectDesignSourcePurpose Value,
+        string Label);
 }

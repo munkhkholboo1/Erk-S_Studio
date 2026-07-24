@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.15] - 2026-07-24
+
+- Keep every building sub-cover immediately before that building's sheets while preserving the page order authored by each Revit or AutoCAD source.
+- Use one canonical project-name projection for generated covers and every title block, and migrate existing albums to the corrected renderer.
+- Classify general-plan and building sources explicitly so multi-source building sets remain deterministic across local refresh and Cloud ERA synchronization.
+- Preserve project chat and site-context editing access from canonical project/source metadata instead of device-local state.
+
 ## [0.1.0-dev.14] - 2026-07-24
 
 - Combine Revit and AutoCAD sheets from multiple sources into ordered building groups without uploading native RVT or DWG files.

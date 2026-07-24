@@ -34,6 +34,7 @@ internal sealed partial class ShellView
     private readonly Popup projectChatPopup = new()
     {
         AllowsTransparency = true,
+        Focusable = true,
         Placement = PlacementMode.Custom,
         PopupAnimation = PopupAnimation.Fade,
         StaysOpen = true,
@@ -137,6 +138,11 @@ internal sealed partial class ShellView
     };
     private readonly TextBox projectChatComposer = new()
     {
+        AcceptsReturn = true,
+        AcceptsTab = false,
+        Focusable = true,
+        IsReadOnly = false,
+        IsTabStop = true,
         TextWrapping = TextWrapping.Wrap,
         VerticalContentAlignment = VerticalAlignment.Center,
         MinHeight = 38,
@@ -323,6 +329,8 @@ internal sealed partial class ShellView
 
     private UIElement BuildProjectChatComposer()
     {
+        InputMethod.SetIsInputMethodEnabled(projectChatComposer, true);
+
         var root = new StackPanel
         {
             Margin = new Thickness(10, 4, 10, 10),
@@ -358,7 +366,8 @@ internal sealed partial class ShellView
 
         projectChatComposer.PreviewKeyDown += async (_, args) =>
         {
-            if (args.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
+            if (args.Key == Key.Enter &&
+                !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
             {
                 args.Handled = true;
                 await SendProjectChatMessageAsync();
@@ -513,6 +522,28 @@ internal sealed partial class ShellView
         projectChatMessagesPanel.Children.Add(StudioWidgets.CreateHint("Мессежийг уншиж байна..."));
         projectChatRenderKey = "";
         await RefreshProjectChatAsync(silent: false);
+        FocusProjectChatComposer();
+    }
+
+    private void FocusProjectChatComposer()
+    {
+        dispatcher.BeginInvoke(
+            new Action(() =>
+            {
+                if (projectChatDock.Visibility != Visibility.Visible ||
+                    projectChatConversationView.Visibility != Visibility.Visible ||
+                    !projectChatComposer.IsVisible ||
+                    !projectChatComposer.IsEnabled)
+                {
+                    return;
+                }
+
+                projectChatComposer.Focus();
+                Keyboard.Focus(projectChatComposer);
+                projectChatComposer.CaretIndex = projectChatComposer.Text.Length;
+                projectChatComposer.SelectionLength = 0;
+            }),
+            DispatcherPriority.Input);
     }
 
     private void ResetProjectChatForCurrentProject()
@@ -1076,6 +1107,7 @@ internal sealed partial class ShellView
         finally
         {
             projectChatSendInProgress = false;
+            FocusProjectChatComposer();
         }
     }
 

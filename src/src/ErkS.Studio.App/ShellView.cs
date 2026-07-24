@@ -224,6 +224,7 @@ internal sealed partial class ShellView : IDisposable
 
     // Album workspace fields shared with ShellView.Workspaces.cs
     private readonly TextBox albumTitleBox = new();
+    private Button? editSiteContextButton;
     private readonly CheckBox autoRebuildCheck = new()
     {
         Content = "Эх үүсвэр шинэчлэгдэхэд альбум автоматаар шинэчлэх",

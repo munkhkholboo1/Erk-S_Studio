@@ -24,7 +24,7 @@ public sealed class AlbumComponentPdfComposerTests
                 new("source:owner-a:atd", 100, [2, 3]),
                 new("source:owner-b:atd", 110, [4, 5, 6]),
             ],
-            [new("source:owner-a:atd", 999, replacement)],
+            [new("source:owner-a:atd", 100, replacement)],
             output);
 
         Assert.Equal(8, result.PageCount);
@@ -34,6 +34,44 @@ public sealed class AlbumComponentPdfComposerTests
         Assert.Equal(100, result.Components.Single(item => item.Code == "source:owner-a:atd").Order);
         using PdfDocument preview = PdfReader.Open(output, PdfDocumentOpenMode.Import);
         Assert.Equal(8, preview.PageCount);
+    }
+
+    [Fact]
+    public void ReplacingExistingSubCoverMovesItBeforeItsBuildingSource()
+    {
+        using TemporaryFolder folder = new();
+        string canonical = folder.PathFor("canonical.pdf");
+        string replacement = folder.PathFor("sub-cover.pdf");
+        string output = folder.PathFor("preview.pdf");
+        WritePdf(canonical, 3);
+        WritePdf(replacement, 1);
+
+        AlbumComponentPdfCompositionResult result = AlbumComponentPdfComposer.Compose(
+            canonical,
+            3,
+            [
+                new("generated:cover", 0, [1]),
+                new("source:building-a", 300, [2]),
+                new("generated:building-sub-cover:building-a", 900, [3]),
+            ],
+            [new("generated:building-sub-cover:building-a", 200, replacement)],
+            output);
+
+        Assert.Equal(
+            [
+                "generated:cover",
+                "generated:building-sub-cover:building-a",
+                "source:building-a",
+            ],
+            result.Components.Select(item => item.Code));
+        Assert.Equal(
+            [2],
+            result.Components
+                .Single(item => item.Code == "generated:building-sub-cover:building-a")
+                .PageNumbers);
+        Assert.Equal(
+            [3],
+            result.Components.Single(item => item.Code == "source:building-a").PageNumbers);
     }
 
     [Fact]

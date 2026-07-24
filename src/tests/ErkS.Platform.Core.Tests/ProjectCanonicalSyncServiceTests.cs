@@ -83,6 +83,32 @@ public sealed class ProjectCanonicalSyncServiceTests
     }
 
     [Fact]
+    public void EmptyLegacyPendingRecordDoesNotEraseCanonicalProjectInformation()
+    {
+        ProjectWorkspace project = Project();
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
+        {
+            Foundation = new ProjectServerFoundationUpdate
+            {
+                IsAvailable = true,
+                ClientType = ProjectClientTypes.Citizen,
+            },
+            QueuedAtUtc = DateTimeOffset.UtcNow.AddDays(-1),
+        };
+        ProjectServerSnapshot snapshot = Snapshot();
+        snapshot.Foundation = SnapshotFoundation();
+
+        bool changed = ProjectCanonicalSyncService.Apply(project, snapshot);
+
+        Assert.True(changed);
+        Assert.Null(project.Cloud.PendingProjectInformation);
+        Assert.Equal("Canonical website name", project.Identity.Name);
+        Assert.Equal("Ulaanbaatar, Khan-Uul", project.Foundation.InitiationBasis.SiteAddress);
+        Assert.Equal(ProjectClientTypes.Organization, project.Foundation.InitiationBasis.ClientType);
+        Assert.Equal("Canonical client", project.Foundation.InitiationBasis.ClientName);
+    }
+
+    [Fact]
     public void LinkedMirrorCannotBeReboundToAnotherServerProject()
     {
         ProjectWorkspace project = Project();

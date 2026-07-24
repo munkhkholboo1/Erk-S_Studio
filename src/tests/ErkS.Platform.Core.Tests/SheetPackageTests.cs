@@ -1591,6 +1591,36 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal(
             new[] { "autocad-source", "revit-source", "revit-source" },
             sequence.Take(3).Select(item => item.Sheet!.SourceId));
+
+        var project = new AlbumProject
+        {
+            Name = "Mixed source project",
+            Album = definition,
+            DesignSources = sources,
+            BuildingGroups = buildingGroups,
+            SheetBuildingAssignments = assignments,
+        };
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(project, library);
+
+        Assert.Equal(2, request.Sections.Count);
+        Assert.All(request.Sections, section =>
+        {
+            Assert.Equal(AlbumBuildSectionKind.Building, section.Kind);
+            Assert.StartsWith("studio-building:", section.Key, StringComparison.OrdinalIgnoreCase);
+        });
+
+        string outputPath = Path.Combine(workDirectory, "building-sub-covers.pdf");
+        AlbumBuildResult result =
+            new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, library, outputPath);
+        AlbumBuildComponent[] buildingCovers = result.Components
+            .Where(component => component.Code.StartsWith(
+                "generated:building-sub-cover:",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.Equal(2, buildingCovers.Length);
+        Assert.All(buildingCovers, component => Assert.Single(component.PageNumbers));
+        Assert.True(File.Exists(outputPath));
     }
 
     [Fact]

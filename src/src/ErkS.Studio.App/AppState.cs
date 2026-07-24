@@ -518,6 +518,13 @@ public sealed class AppState : IDisposable
                 ? existingSource.OwnerOrganizationName
                 : source.OwnerOrganizationName;
             existingSource.Status = source.Status;
+            existingSource.Metadata ??=
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach ((string key, string value) in source.Metadata ??
+                     new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+            {
+                existingSource.Metadata[key] = value;
+            }
             if (!string.Equals(previousInbox, existingSource.InboxFolder, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(previousInbox))
             {
@@ -654,21 +661,61 @@ public sealed class AppState : IDisposable
             ApplyCityGenProjectSiteReconciliation(siteReconciliation))
             SaveProject();
 
-        var company = Project.Foundation.DesignCompany.OrganizationSnapshot;
+        CompanyProfile company = Project.Foundation.DesignCompany.OrganizationSnapshot;
+        ProjectServerSnapshot server = Project.Cloud.ServerSnapshot ?? new ProjectServerSnapshot();
+        ProjectServerInitiationBasis serverBasis =
+            server.Foundation?.InitiationBasis ?? new ProjectServerInitiationBasis();
+        ProjectInitiationBasis initiationBasis = CloneInitiationBasis(
+            Project.Foundation.InitiationBasis);
+        initiationBasis.ClientName = FirstAlbumValue(
+            initiationBasis.ClientName,
+            serverBasis.ClientName,
+            server.ClientName);
+        initiationBasis.SiteAddress = FirstAlbumValue(
+            initiationBasis.SiteAddress,
+            serverBasis.SiteAddress,
+            server.Information?.Location,
+            server.SiteAndLand?.Addresses?.FirstOrDefault());
+        initiationBasis.LandReference = FirstAlbumValue(
+            initiationBasis.LandReference,
+            serverBasis.LandReference,
+            server.SiteAndLand?.ParcelNumbers is { Count: > 0 } parcelNumbers
+                ? string.Join(", ", parcelNumbers)
+                : "");
+        initiationBasis.Summary = FirstAlbumValue(
+            initiationBasis.Summary,
+            serverBasis.Summary,
+            server.Information?.BuildingPurpose);
+        string projectName = FirstAlbumValue(
+            Project.Name,
+            server.Name,
+            server.Information?.Name);
+        string projectDescription = FirstAlbumValue(
+            Project.Identity.Description,
+            serverBasis.Summary,
+            server.Information?.BuildingPurpose);
+        string planningAuthorityName = FirstAlbumValue(
+            Project.Foundation.PlanningTask.IssuingAuthorityName,
+            server.Foundation?.PlanningTask?.IssuingAuthorityName,
+            server.PlanningAuthorityName);
+        string designOrganizationName = FirstAlbumValue(
+            Project.DesignOrganizationName,
+            server.DesignOrganizationName,
+            company.Name);
         return new AlbumProject
         {
             ProjectId = Project.ProjectId,
-            Name = Project.Name,
+            Name = projectName,
             Code = Project.Code,
-            Description = Project.Identity.Description,
+            Description = projectDescription,
             ServerProjectId = Project.Cloud.ServerProjectId,
             ServerUrl = Project.Cloud.ServerUrl,
             CloudProjectCode = Project.Cloud.CloudProjectCode,
-            ClientName = Project.Foundation.InitiationBasis.ClientName,
-            PlanningAuthorityName = Project.Foundation.PlanningTask.IssuingAuthorityName,
-            DesignOrganizationName = Project.DesignOrganizationName,
+            ClientName = initiationBasis.ClientName,
+            PlanningAuthorityName = planningAuthorityName,
+            DesignOrganizationName = designOrganizationName,
             CloudStatus = Project.Cloud.SyncStatus,
-            InitiationBasis = Project.Foundation.InitiationBasis,
+            InitiationBasis = initiationBasis,
             PlanningTask = Project.Foundation.PlanningTask,
             ApprovalWorkflow = Project.Foundation.ApprovalWorkflow.Clone(),
             Company = company,
@@ -697,6 +744,28 @@ public sealed class AppState : IDisposable
             ProjectFolder = ResolveProjectFolder(),
         };
     }
+
+    private static ProjectInitiationBasis CloneInitiationBasis(ProjectInitiationBasis source) => new()
+    {
+        SourceType = source.SourceType,
+        RequestNumber = source.RequestNumber,
+        RequestedAtUtc = source.RequestedAtUtc,
+        ClientType = source.ClientType,
+        ClientName = source.ClientName,
+        ClientEmail = source.ClientEmail,
+        ClientRepresentativePosition = source.ClientRepresentativePosition,
+        ClientRepresentativeName = source.ClientRepresentativeName,
+        ClientOrganizationSnapshot = source.ClientOrganizationSnapshot.Clone(),
+        SiteAddress = source.SiteAddress,
+        LandReference = source.LandReference,
+        SourceOrganizationName = source.SourceOrganizationName,
+        ServerRecordId = source.ServerRecordId,
+        Summary = source.Summary,
+        Documents = source.Documents.Select(document => document.Clone()).ToList(),
+    };
+
+    private static string FirstAlbumValue(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
 
     public ProjectAssetSourceReconciliationResult ReconcileProjectAssetSources()
     {

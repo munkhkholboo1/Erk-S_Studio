@@ -54,6 +54,46 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     }
 
     [Fact]
+    public void CreateAlbumBuildProject_UsesCanonicalSnapshotWhenLegacyLocalFieldsAreEmpty()
+    {
+        var (projectPath, _) = WriteProject(
+            sources: [],
+            pageKeys: [],
+            lastPdfPath: "",
+            cloudMirror: true);
+        ProjectWorkspace project = ProjectWorkspaceStore.Load(projectPath);
+        project.Identity.Name = "";
+        project.Foundation.InitiationBasis.SiteAddress = "";
+        project.Cloud.ServerSnapshot = new ProjectServerSnapshot
+        {
+            Name = "Canonical project name",
+            DesignOrganizationName = "Canonical design company",
+            Information = new ProjectServerInformation
+            {
+                Name = "Canonical project name",
+                Location = "Canonical project address",
+            },
+            Foundation = new ProjectServerFoundation
+            {
+                IsAvailable = true,
+                InitiationBasis = new ProjectServerInitiationBasis
+                {
+                    SiteAddress = "Canonical project address",
+                },
+            },
+        };
+        ProjectWorkspaceStore.Save(project, projectPath);
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+
+        AlbumProject buildProject = state.CreateAlbumBuildProject();
+
+        Assert.Equal("Canonical project name", buildProject.Name);
+        Assert.Equal("Canonical project address", buildProject.InitiationBasis.SiteAddress);
+        Assert.Equal("Canonical design company", buildProject.DesignOrganizationName);
+    }
+
+    [Fact]
     public void OpenProject_RecoversSiteContextSnapshotsAndQueuesCloudComponent()
     {
         var (projectPath, _) = WriteProject(

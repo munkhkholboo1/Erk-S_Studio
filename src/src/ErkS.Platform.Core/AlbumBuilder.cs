@@ -28,9 +28,17 @@ public sealed class AlbumBuildRequest
     public required IReadOnlyList<AlbumBuildSection> Sections { get; init; }
 }
 
+public enum AlbumBuildSectionKind
+{
+    Standard,
+    Building,
+}
+
 public sealed class AlbumBuildSection
 {
+    public string Key { get; init; } = "";
     public required string Title { get; init; }
+    public AlbumBuildSectionKind Kind { get; init; }
     public required IReadOnlyList<AlbumBuildPage> Pages { get; init; }
     public IReadOnlyList<SheetRecord> Sheets => Pages.Select(page => page.Sheet).ToList();
 }
@@ -243,10 +251,22 @@ public sealed class AlbumBuilder
         {
             Project = project,
             Sections = sectionRuns
-                .Select(run => new AlbumBuildSection { Title = run.Title, Pages = run.Pages })
+                .Select(run => new AlbumBuildSection
+                {
+                    Key = run.Key,
+                    Title = run.Title,
+                    Kind = IsBuildingSectionKey(run.Key)
+                        ? AlbumBuildSectionKind.Building
+                        : AlbumBuildSectionKind.Standard,
+                    Pages = run.Pages,
+                })
                 .ToList(),
         };
     }
+
+    private static bool IsBuildingSectionKey(string key) =>
+        key.StartsWith("studio-building:", StringComparison.OrdinalIgnoreCase) ||
+        key.StartsWith("package-building:", StringComparison.OrdinalIgnoreCase);
 
     private static AlbumBuildPage CreateConceptBuildPage(ConceptAlbumSourcePage item)
     {

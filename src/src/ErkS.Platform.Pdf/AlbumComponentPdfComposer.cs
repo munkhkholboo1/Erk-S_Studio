@@ -68,11 +68,15 @@ public static class AlbumComponentPdfComposer
 
         Dictionary<string, AlbumComponentPdfPatch> patchByCode = incoming
             .ToDictionary(item => item.Code, StringComparer.OrdinalIgnoreCase);
-        var specs = canonical.Select(item => new ComponentSpec(
-                item.Code,
-                item.Order,
-                item.PageNumbers,
-                patchByCode.GetValueOrDefault(item.Code)))
+        var specs = canonical.Select(item =>
+            {
+                AlbumComponentPdfPatch? patch = patchByCode.GetValueOrDefault(item.Code);
+                return new ComponentSpec(
+                    item.Code,
+                    patch?.Order ?? item.Order,
+                    item.PageNumbers,
+                    patch);
+            })
             .ToList();
         foreach (AlbumComponentPdfPatch patch in incoming)
         {

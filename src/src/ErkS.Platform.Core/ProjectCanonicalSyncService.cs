@@ -26,6 +26,12 @@ public static class ProjectCanonicalSyncService
         ProjectServerInitiationBasis serverBasis = serverFoundation.InitiationBasis ?? new();
         ProjectServerPlanningTask serverPlanningTask = serverFoundation.PlanningTask ?? new();
         PendingProjectInformationUpdate? pending = project.Cloud.PendingProjectInformation;
+        bool discardedEmptyPending = pending is not null && IsLegacyEmptyPending(pending);
+        if (discardedEmptyPending)
+        {
+            project.Cloud.PendingProjectInformation = null;
+            pending = null;
+        }
         ProjectServerFoundationUpdate? pendingFoundation = pending?.Foundation is { IsAvailable: true } value
             ? value
             : null;
@@ -168,7 +174,7 @@ public static class ProjectCanonicalSyncService
                 Math.Max(1, serverFoundation.Version)) + 1;
         }
 
-        return foundationChanged;
+        return foundationChanged || discardedEmptyPending;
     }
 
     private static ProjectServerSnapshot Clone(
@@ -278,6 +284,36 @@ public static class ProjectCanonicalSyncService
 
     private static string FirstValue(string? primary, string? fallback) =>
         !string.IsNullOrWhiteSpace(primary) ? primary.Trim() : Clean(fallback);
+
+    private static bool IsLegacyEmptyPending(PendingProjectInformationUpdate pending)
+    {
+        ProjectServerFoundationUpdate foundation = pending.Foundation ?? new();
+        bool onlyDefaultClientType =
+            string.IsNullOrWhiteSpace(foundation.ClientType) ||
+            ProjectClientTypes.Normalize(foundation.ClientType)
+                .Equals(ProjectClientTypes.Citizen, StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(pending.Name) &&
+            string.IsNullOrWhiteSpace(pending.ClientName) &&
+            string.IsNullOrWhiteSpace(pending.PlanningAuthorityName) &&
+            string.IsNullOrWhiteSpace(pending.DesignOrganizationName) &&
+            string.IsNullOrWhiteSpace(pending.Location) &&
+            string.IsNullOrWhiteSpace(pending.BuildingPurpose) &&
+            string.IsNullOrWhiteSpace(pending.CapacityUnit) &&
+            onlyDefaultClientType &&
+            string.IsNullOrWhiteSpace(foundation.SourceType) &&
+            string.IsNullOrWhiteSpace(foundation.RequestNumber) &&
+            string.IsNullOrWhiteSpace(foundation.ClientEmail) &&
+            string.IsNullOrWhiteSpace(foundation.ClientRepresentativePosition) &&
+            string.IsNullOrWhiteSpace(foundation.ClientRepresentativeName) &&
+            string.IsNullOrWhiteSpace(foundation.SiteAddress) &&
+            string.IsNullOrWhiteSpace(foundation.LandReference) &&
+            string.IsNullOrWhiteSpace(foundation.SourceOrganizationName) &&
+            string.IsNullOrWhiteSpace(foundation.BasisSummary) &&
+            string.IsNullOrWhiteSpace(foundation.AtdNumber) &&
+            string.IsNullOrWhiteSpace(foundation.AtdAuthorityName) &&
+            string.IsNullOrWhiteSpace(foundation.AtdStatus) &&
+            string.IsNullOrWhiteSpace(foundation.AtdSummary);
+    }
 
     private static string Clean(string? value) => value?.Trim() ?? "";
 

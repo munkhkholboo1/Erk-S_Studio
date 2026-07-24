@@ -83,6 +83,17 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         var sheetCount = 0;
         foreach (var section in request.Sections)
         {
+            if (section.Kind == AlbumBuildSectionKind.Building &&
+                section.Pages.Count > 0)
+            {
+                int firstPageIndex = document.PageCount;
+                DrawBuildingSubCoverPage(document, request.Project, section.Title);
+                RecordComponent(
+                    $"generated:building-sub-cover:{section.Key}",
+                    $"{section.Title} · Дэд нүүр хуудас",
+                    firstPageIndex);
+            }
+
             foreach (var buildPage in section.Pages)
             {
                 var sheet = buildPage.Sheet;
@@ -678,7 +689,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             : $"\"{companyName}\" {companyRepresentative.Role}".Trim();
 
         DrawCompanyLogoOrMark(gfx, company, TopLeftRect(x0, y0, x1, y4));
-        DrawCellText(gfx, project.Name, x1, y0, x2, y1, false, XStringFormats.CenterLeft);
+        DrawCellText(gfx, ProjectDisplayName(project), x1, y0, x2, y1, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, "Нэр", x2, y0, x3, y1, false, XStringFormats.Center);
         DrawCellText(gfx, "Гарын үсэг", x3, y0, x4, y1, false, XStringFormats.Center);
         DrawCellText(gfx, "Загвар", x4, y0, x5, y1, false, XStringFormats.Center);
@@ -810,6 +821,26 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         if (!string.IsNullOrWhiteSpace(company.Name))
             return company.Name.Trim();
         return fallback.Trim();
+    }
+
+    private static string ProjectDisplayName(AlbumProject project) =>
+        ValueOrDash(!string.IsNullOrWhiteSpace(project.Name) ? project.Name : project.Code);
+
+    private static string CompanyLegalDisplayName(CompanyProfile company, string fallback = "")
+    {
+        string name = !string.IsNullOrWhiteSpace(company.Name)
+            ? company.Name.Trim()
+            : CompanyDisplayName(company, fallback);
+        string legalForm = company.LegalForm?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(legalForm) ||
+            name.Contains(legalForm, StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        return string.IsNullOrWhiteSpace(name)
+            ? legalForm
+            : $"{name} {legalForm}";
     }
 
     private static string CompanyPhoneText(CompanyProfile company)
@@ -997,7 +1028,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         gfx.DrawLine(borderPen, rect.Right - bottomRightWidth, secondLine, rect.Right - bottomRightWidth, rect.Bottom);
 
         var padding = Math.Max(2, Math.Min(Mm(2), rect.Height * 0.08));
-        var projectName = string.IsNullOrWhiteSpace(project.Name) ? project.Code : project.Name;
+        var projectName = ProjectDisplayName(project);
         var companyName = CompanyDisplayName(project.Company, project.DesignOrganizationName);
 
         DrawFittedText(gfx, companyName, rect.Left + padding, rect.Top + padding,
@@ -1098,6 +1129,69 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
         return page;
     }
 
+    private static void DrawBuildingSubCoverPage(
+        PdfDocument document,
+        AlbumProject project,
+        string buildingName)
+    {
+        PdfPage page = AddA3LandscapePage(document);
+        using var gfx = XGraphics.FromPdfPage(page);
+        var border = new XPen(XColors.Black, Mm(0.25));
+        CompanyProfile company = project.Company.Clone();
+        company.LogoPath = ResolveAlbumAssetPath(project.ProjectFolder, company.LogoPath);
+        string companyName = CompanyLegalDisplayName(company, project.DesignOrganizationName);
+
+        gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
+        gfx.DrawRectangle(border, ToPoints(BuildingArchitectureConceptPageLayout.Frame));
+
+        DrawCompanyLogoOnly(
+            gfx,
+            company,
+            CoverCenteredRect(210.0, 245.0, 58.0, 42.0));
+        DrawCoverText(
+            gfx,
+            companyName,
+            CoverCenteredRect(210.0, 216.0, 220.0, 10.0),
+            2.5,
+            true,
+            XStringFormats.Center);
+        DrawCoverText(
+            gfx,
+            project.InitiationBasis.SiteAddress,
+            CoverCenteredRect(210.0, 183.0, 250.0, 10.0),
+            2.5,
+            false,
+            XStringFormats.Center);
+        DrawCoverText(
+            gfx,
+            ProjectDisplayName(project),
+            CoverCenteredRect(210.0, 164.0, 270.0, 16.0),
+            4.0,
+            false,
+            XStringFormats.Center);
+        DrawCoverText(
+            gfx,
+            "/ БАРИЛГЫН ЗУРАГ /",
+            CoverCenteredRect(210.0, 143.0, 130.0, 8.0),
+            2.5,
+            false,
+            XStringFormats.Center);
+        DrawCoverText(
+            gfx,
+            buildingName,
+            CoverCenteredRect(210.0, 116.0, 285.0, 22.0),
+            6.0,
+            true,
+            XStringFormats.Center);
+        DrawCoverText(
+            gfx,
+            $"{DateTime.Now:yyyy} ОН",
+            CoverCenteredRect(210.0, 18.0, 90.0, 10.0),
+            2.5,
+            false,
+            XStringFormats.Center);
+    }
+
     private const double CoverTableLeftMm = BuildingArchitectureConceptPageLayout.CoverTableLeftMm;
     private const double CoverReviewRoleRightMm = BuildingArchitectureConceptPageLayout.CoverReviewRoleRightMm;
     private const double CoverReviewNameRightMm = BuildingArchitectureConceptPageLayout.CoverReviewNameRightMm;
@@ -1189,7 +1283,7 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             XStringFormats.Center);
         DrawCoverText(
             gfx,
-            request.Project.Name,
+            ProjectDisplayName(request.Project),
             CoverCenteredRect(210.0, 207.510, 220.0, 12.0),
             projectNameTextHeightMm,
             false,
@@ -2312,11 +2406,8 @@ public sealed class PdfSharpAlbumWriter : IAlbumPdfWriter
             true,
             XStringFormats.Center);
 
-        if (!string.IsNullOrWhiteSpace(request.Project.Name))
-        {
-            gfx.DrawString(request.Project.Name, subtitleFont, XBrushes.Black,
-                new XRect(40, height * 0.38 + 52, width - 80, 26), XStringFormats.Center);
-        }
+        gfx.DrawString(ProjectDisplayName(request.Project), subtitleFont, XBrushes.Black,
+            new XRect(40, height * 0.38 + 52, width - 80, 26), XStringFormats.Center);
 
         if (!string.IsNullOrWhiteSpace(request.Project.Code))
         {

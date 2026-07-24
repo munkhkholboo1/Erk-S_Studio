@@ -166,7 +166,8 @@ public static class CityGenProjectSiteReconciler
     {
         foreach (ProjectDesignSource source in sources.Where(source =>
                      source is not null &&
-                     source.Kind is DesignSourceKind.AutoCad or DesignSourceKind.CityGen))
+                     (source.Kind is DesignSourceKind.AutoCad or DesignSourceKind.CityGen) &&
+                     !ProjectDesignSourceClassification.IsExplicitlyBuilding(source)))
         {
             string explicitPath = source.Metadata.TryGetValue("CityGenProjectSiteManifestPath", out string? configured)
                 ? configured

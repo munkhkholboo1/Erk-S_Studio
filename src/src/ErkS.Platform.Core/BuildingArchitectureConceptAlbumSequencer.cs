@@ -110,7 +110,8 @@ public static class BuildingArchitectureConceptAlbumSequencer
 
         var drawingPages = candidates
             .Where(candidate => !candidate.IsFixedTemplatePage)
-            .OrderBy(candidate => candidate.BuildingOrder)
+            .OrderBy(candidate => candidate.DrawingBand)
+            .ThenBy(candidate => candidate.BuildingOrder)
             .ThenBy(candidate => firstBuildingPositions[candidate.SourceGroupKey])
             .ThenBy(candidate => candidate.SlotOrder)
             .ThenBy(candidate => candidate.SourceOrder)
@@ -224,6 +225,9 @@ public static class BuildingArchitectureConceptAlbumSequencer
             sheetBuildingAssignments.TryGetValue(page.SheetKey, out var assignedGroupId) &&
             buildingGroupsById.TryGetValue(assignedGroupId, out assignedGroup);
         var hasPackageBuilding = !string.IsNullOrWhiteSpace(buildingIdentity.Title);
+        var isGeneralPlan =
+            source is not null &&
+            ProjectDesignSourceClassification.IsGeneralPlan(source);
         var groupKey = hasExplicitAssignment
             ? $"studio-building:{assignedGroup!.Id}"
             : hasPackageBuilding
@@ -248,6 +252,11 @@ public static class BuildingArchitectureConceptAlbumSequencer
             SourceGroupKey = groupKey,
             SourceGroupTitle = groupTitle,
             BuildingTitle = hasPackageBuilding ? buildingIdentity.Title : "",
+            DrawingBand = isGeneralPlan
+                ? 0
+                : hasExplicitAssignment || hasPackageBuilding
+                    ? 1
+                    : 2,
             BuildingOrder = hasExplicitAssignment
                 ? assignedGroup!.Order
                 : hasPackageBuilding
@@ -336,6 +345,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
         public required string SourceGroupKey { get; init; }
         public required string SourceGroupTitle { get; set; }
         public required string BuildingTitle { get; init; }
+        public required int DrawingBand { get; init; }
         public required int BuildingOrder { get; init; }
         public required bool IsPackageBuilding { get; init; }
         public required int SlotOrder { get; init; }

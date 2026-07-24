@@ -32,6 +32,8 @@ public static class ProjectCloudSyncMetadata
         "generated:planning-task:ApprovedPlanningTask";
     public const string VisualizationsComponentCode = "generated:visualizations";
     public const string SiteContextComponentCode = "generated:site-context:SiteContext";
+    public const string BuildingSubCoverComponentCodePrefix =
+        "generated:building-sub-cover:";
 
     private const string SourceKeyKey = "cloud.sourceKey";
     private const string SourceApplicationKey = "cloud.sourceApplication";
@@ -68,6 +70,7 @@ public static class ProjectCloudSyncMetadata
         source.Metadata[WorkPackageIdKey] = manifest.WorkPackageId?.Trim() ?? "";
         source.Metadata[SheetCountKey] = manifest.Sheets.Count.ToString(CultureInfo.InvariantCulture);
         source.Metadata[ContentHashKey] = manifestSha256.Trim().ToLowerInvariant();
+        ProjectDesignSourceClassification.RecordDetectedPurpose(source, manifest);
         MarkPending(project);
     }
 
@@ -208,8 +211,26 @@ public static class ProjectCloudSyncMetadata
     {
         ArgumentNullException.ThrowIfNull(project);
         project.Cloud.BuildingCompositionPending = true;
-        MarkPending(project);
+        IEnumerable<string> currentCodes = ProjectBuildingComposition
+            .NormalizeGroups(project.BuildingGroups)
+            .Select(BuildingSubCoverComponentCode);
+        IEnumerable<string> existingCodes = (project.Cloud.SharedAlbumComponents ?? [])
+            .Select(component => component.Code?.Trim() ?? "")
+            .Where(IsBuildingSubCoverComponentCode);
+        MarkAlbumComponentsPending(project, currentCodes.Concat(existingCodes));
     }
+
+    public static string BuildingSubCoverComponentCode(ProjectBuildingGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        return BuildingSubCoverComponentCodePrefix + "studio-building:" + group.Id.Trim();
+    }
+
+    public static bool IsBuildingSubCoverComponentCode(string? componentCode) =>
+        !string.IsNullOrWhiteSpace(componentCode) &&
+        componentCode.Trim().StartsWith(
+            BuildingSubCoverComponentCodePrefix,
+            StringComparison.OrdinalIgnoreCase);
 
     public static void MarkBuildingCompositionSynced(ProjectWorkspace project)
     {

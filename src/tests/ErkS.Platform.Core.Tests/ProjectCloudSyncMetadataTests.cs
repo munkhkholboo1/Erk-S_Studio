@@ -94,6 +94,38 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void BuildingCompositionQueuesCurrentAndPreviouslySharedSubCovers()
+    {
+        ProjectWorkspace project = Project();
+        project.BuildingGroups =
+        [
+            new ProjectBuildingGroup
+            {
+                Id = "building-a",
+                Name = "Орон сууц A",
+                Order = 1,
+            },
+        ];
+        string currentCode =
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(project.BuildingGroups[0]);
+        string staleCode =
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCodePrefix +
+            "studio-building:removed-building";
+        project.Cloud.SharedAlbumComponents =
+        [
+            new ProjectCloudAlbumComponentReference { Code = staleCode },
+        ];
+
+        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+
+        Assert.True(project.Cloud.BuildingCompositionPending);
+        Assert.Equal(
+            [currentCode, staleCode],
+            ProjectCloudSyncMetadata.PendingAlbumComponents(project));
+        Assert.Equal(ProjectSyncStatuses.Pending, project.Cloud.SyncStatus);
+    }
+
+    [Fact]
     public void LocalSourceCanRebindToCloudSourceWithoutPublishingNativePath()
     {
         ProjectWorkspace project = Project();

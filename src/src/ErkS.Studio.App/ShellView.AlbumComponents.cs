@@ -1,4 +1,6 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 
@@ -79,7 +81,10 @@ internal sealed partial class ShellView
                 Code = StudioAlbumComponentIdentity.SourceCode(source.RegisteredBy, source.SourceKey),
             })
             .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderBy(item => item.Source.RegisteredAtUtc).Last())
+            .Select(group => group
+                .OrderBy(item => item.Source.RegisteredAtUtc)
+                .ThenBy(item => item.Source.SourceId, StringComparer.OrdinalIgnoreCase)
+                .First())
             .OrderBy(source => source.Source.RegisteredAtUtc)
             .ThenBy(source => source.Code, StringComparer.OrdinalIgnoreCase)
             .Select((source, index) => new { source.Code, Index = index })
@@ -99,9 +104,13 @@ internal sealed partial class ShellView
                 hasVisualizations,
                 existingByCode);
             string code = identity.Code;
-            int order = existingByCode.TryGetValue(code, out StudioCloudAlbumSection? existing)
-                ? existing.Order
-                : CanonicalAlbumComponentOrder(identity, component.Order, sourceOrder);
+            existingByCode.TryGetValue(code, out StudioCloudAlbumSection? existing);
+            int order = StudioAlbumComponentOrderPolicy.Resolve(
+                state.Project,
+                identity.Code,
+                identity.SourceKey,
+                component.Order,
+                sourceOrder);
             if (!merged.TryGetValue(code, out StudioCloudAlbumSection? section))
             {
                 section = new StudioCloudAlbumSection
@@ -203,34 +212,6 @@ internal sealed partial class ShellView
             ProjectCloudSyncMetadata.CloudSourceKey(source));
     }
 
-    private static int CanonicalAlbumComponentOrder(
-        AlbumComponentIdentity identity,
-        int localOrder,
-        IReadOnlyDictionary<string, int> sourceOrder)
-    {
-        string code = identity.Code;
-        const string sourcePrefix = "source:";
-        if (code.StartsWith(sourcePrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            if (identity.SourceKey.Equals(
-                    StudioAlbumComponentIdentity.AtdSourceKey,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return Math.Max(0, localOrder);
-            }
-            if (identity.SourceKey.Equals(
-                    StudioAlbumComponentIdentity.VisualizationSourceKey,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return 20_000;
-            }
-            return sourceOrder.TryGetValue(code, out int index)
-                ? 1_000 + index
-                : 10_000 + Math.Max(0, localOrder);
-        }
-        return Math.Max(0, localOrder);
-    }
-
     private bool TryBuildCloudUnionAlbumPreview(out AlbumBuildResult result)
     {
         result = null!;
@@ -308,6 +289,7 @@ internal sealed partial class ShellView
                 localBuild,
                 activeServerSources,
                 revision.SectionManifest);
+            IncludeRenderedBuildingSubCovers(requestedCodes, rendered);
             List<StudioCloudAlbumSection> selected = rendered
                 .Where(component => requestedCodes.Contains(component.Code))
                 .ToList();
@@ -531,9 +513,176 @@ internal sealed partial class ShellView
             PageSizeSummary = state.Project.PrimaryAlbum.LastPageSizeSummary,
             SectionManifest = components,
         };
-        return !string.IsNullOrWhiteSpace(canonicalPdfPath) &&
-            File.Exists(canonicalPdfPath) &&
-            HasCompleteComponentManifest(revision);
+        if (string.IsNullOrWhiteSpace(canonicalPdfPath) ||
+            !File.Exists(canonicalPdfPath) ||
+            !HasCompleteComponentManifest(revision))
+        {
+            return false;
+        }
+
+        return TryNormalizeCachedCanonicalAlbum(ref canonicalPdfPath, revision);
+    }
+
+    private bool TryNormalizeCachedCanonicalAlbum(
+        ref string canonicalPdfPath,
+        StudioCloudAlbumRevision revision)
+    {
+        List<StudioCloudAlbumSection> original = revision.SectionManifest
+            .Select(CloneAlbumSection)
+            .ToList();
+        Dictionary<string, int> sourceOrder = SharedCloudSources()
+            .Where(source =>
+                string.IsNullOrWhiteSpace(source.Status) ||
+                source.Status.Equals("Registered", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(
+                source => StudioAlbumComponentIdentity.SourceCode(
+                    source.RegisteredBy,
+                    source.SourceKey),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(source => source.RegisteredAtUtc)
+                .ThenBy(source => source.SourceId, StringComparer.OrdinalIgnoreCase)
+                .First())
+            .OrderBy(source => source.RegisteredAtUtc)
+            .ThenBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(source => source.RegisteredBy, StringComparer.OrdinalIgnoreCase)
+            .Select((source, index) => new
+            {
+                Code = StudioAlbumComponentIdentity.SourceCode(
+                    source.RegisteredBy,
+                    source.SourceKey),
+                Index = index,
+            })
+            .ToDictionary(item => item.Code, item => item.Index, StringComparer.OrdinalIgnoreCase);
+
+        List<StudioCloudAlbumSection> ordered = original
+            .Select(component =>
+            {
+                StudioCloudAlbumSection clone = CloneAlbumSection(component);
+                clone.Order = StudioAlbumComponentOrderPolicy.Resolve(
+                    state.Project,
+                    clone.Code,
+                    clone.SourceKey,
+                    clone.Order,
+                    sourceOrder);
+                return clone;
+            })
+            .OrderBy(component => component.Order)
+            .ThenBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(component => component.PageNumbers.DefaultIfEmpty(int.MaxValue).Min())
+            .ToList();
+
+        int nextPage = 1;
+        foreach (StudioCloudAlbumSection component in ordered)
+        {
+            int pageCount = component.PageNumbers.Length;
+            component.PageNumbers = Enumerable.Range(nextPage, pageCount).ToArray();
+            nextPage += pageCount;
+        }
+
+        bool alreadyCanonical = original.All(component =>
+        {
+            StudioCloudAlbumSection expected = ordered.Single(item =>
+                item.Code.Equals(component.Code, StringComparison.OrdinalIgnoreCase));
+            return component.PageNumbers.SequenceEqual(expected.PageNumbers);
+        });
+        revision.SectionManifest = ordered;
+        revision.PageCount = nextPage - 1;
+        if (alreadyCanonical)
+            return true;
+
+        string signatureText = string.Join(
+            "\n",
+            original
+                .OrderBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
+                .Select(component =>
+                    $"{component.Code}|{component.Order}|{string.Join(",", component.PageNumbers)}")
+                .Prepend(revision.RevisionId)
+                .Prepend(CleanSha256(revision.PdfSha256))
+                .Prepend("canonical-album-order-v1"));
+        string signature = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(signatureText)))[..16].ToLowerInvariant();
+        string canonicalFolder = Path.Combine(
+            state.ResolveOutputFolder(),
+            "cloud-local",
+            "canonical");
+        Directory.CreateDirectory(canonicalFolder);
+        string outputPath = Path.Combine(
+            canonicalFolder,
+            $"{SafeFileName(state.Project.PrimaryAlbum.Title)}-R" +
+            $"{Math.Max(0, revision.RevisionNumber)}-{signature}.pdf");
+        string hashPath = outputPath + ".sha256";
+
+        if (!File.Exists(outputPath))
+        {
+            string temporaryPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp.pdf";
+            try
+            {
+                AlbumComponentPdfCompositionResult composition =
+                    AlbumComponentPdfComposer.Compose(
+                        canonicalPdfPath,
+                        original.SelectMany(component => component.PageNumbers).Max(),
+                        original.Select(component => new AlbumComponentPdfSlot(
+                            component.Code,
+                            ordered.Single(item => item.Code.Equals(
+                                component.Code,
+                                StringComparison.OrdinalIgnoreCase)).Order,
+                            component.PageNumbers)).ToList(),
+                        [],
+                        temporaryPath);
+                if (composition.PageCount != revision.PageCount ||
+                    composition.Components.Any(component =>
+                    {
+                        StudioCloudAlbumSection expected = ordered.Single(item =>
+                            item.Code.Equals(component.Code, StringComparison.OrdinalIgnoreCase));
+                        return component.Order != expected.Order ||
+                            !component.PageNumbers.SequenceEqual(expected.PageNumbers);
+                    }))
+                {
+                    throw new InvalidDataException(
+                        "Canonical album reorder did not match the expected component manifest.");
+                }
+
+                File.Move(temporaryPath, outputPath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+        }
+
+        string outputSha256 = ReadCachedSha256(hashPath);
+        if (string.IsNullOrWhiteSpace(outputSha256))
+        {
+            outputSha256 = ComputeFileSha256(outputPath);
+            File.WriteAllText(hashPath, outputSha256, Encoding.ASCII);
+        }
+        revision.PdfSha256 = outputSha256;
+        canonicalPdfPath = outputPath;
+        CloudAlbumCacheMaintenance.Cleanup(canonicalFolder, outputPath);
+        return true;
+    }
+
+    private static StudioCloudAlbumSection CloneAlbumSection(
+        StudioCloudAlbumSection component) => new()
+    {
+        Code = component.Code,
+        Label = component.Label,
+        Order = component.Order,
+        PageNumbers = (component.PageNumbers ?? []).ToArray(),
+        Status = component.Status,
+        OwnerEmail = component.OwnerEmail,
+        SourceKey = component.SourceKey,
+        ComponentKind = component.ComponentKind,
+    };
+
+    private static string ReadCachedSha256(string path)
+    {
+        if (!File.Exists(path))
+            return "";
+        string value = File.ReadAllText(path).Trim().ToLowerInvariant();
+        return value.Length == 64 && value.All(Uri.IsHexDigit) ? value : "";
     }
 
     private List<StudioCloudSourcePackage> SharedCloudSources() =>
@@ -658,6 +807,7 @@ internal sealed partial class ShellView
                 build,
                 activeServerSources,
                 currentRevision.SectionManifest);
+            IncludeRenderedBuildingSubCovers(requestedCodes, rendered);
             List<StudioCloudAlbumSection> selected = rendered
                 .Where(component => requestedCodes.Contains(component.Code))
                 .ToList();
@@ -873,6 +1023,17 @@ internal sealed partial class ShellView
             }
         }
         return normalized;
+    }
+
+    private static void IncludeRenderedBuildingSubCovers(
+        ISet<string> requestedCodes,
+        IEnumerable<StudioCloudAlbumSection> rendered)
+    {
+        foreach (StudioCloudAlbumSection component in rendered)
+        {
+            if (ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(component.Code))
+                requestedCodes.Add(component.Code);
+        }
     }
 
     private IReadOnlyList<string> EditablePendingAlbumComponents()

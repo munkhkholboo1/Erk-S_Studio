@@ -9,7 +9,7 @@ namespace ErkS.Studio;
 /// </summary>
 internal static class StudioAlbumRendererMigration
 {
-    public const int CurrentRevision = 1;
+    public const int CurrentRevision = 4;
 
     public static IReadOnlyList<string> SelectLocallyRenderableComponents(
         ProjectWorkspace project,

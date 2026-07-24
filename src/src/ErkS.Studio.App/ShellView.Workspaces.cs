@@ -317,7 +317,16 @@ internal sealed partial class ShellView
             return;
         }
 
+        string currentUserEmail = (account.Current?.Email ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(currentUserEmail))
+            ProjectCloudSyncMetadata.BindCloudOwner(dialog.ResultSource, currentUserEmail);
         state.AddDesignSource(dialog.ResultSource);
+        if (dialog.BuildingGroupsChanged)
+        {
+            state.UpdateBuildingComposition(
+                dialog.ResultBuildingGroups,
+                state.Project.SheetBuildingAssignments);
+        }
         RefreshSourceWorkspace(dialog.ResultSource.Id);
         SetStatus(dialog.ResultSource.Kind == DesignSourceKind.Revit
             ? $"RVT эх үүсвэр холбогдлоо: {dialog.ResultSource.DisplayName}. Revit-ийн Альбум хэсгээс Studio руу илгээнэ."
@@ -1252,14 +1261,8 @@ internal sealed partial class ShellView
             "icon-project.svg",
             "Байршлын зураг",
             "Байршлын схем болон орчны тоймын хамрах хүрээг тохируулна");
-        ProjectSiteContextEditAuthority siteContextAuthority =
-            ResolveSiteContextEditAuthority();
-        editSiteContext.IsEnabled =
-            CanEditProjectContent() && siteContextAuthority.CanEdit;
-        editSiteContext.ToolTip = siteContextAuthority.CanEdit
-            ? "Ерөнхий төлөвлөгөөний эх үүсвэрээр байршлын схем болон орчны тоймыг тохируулна."
-            : siteContextAuthority.Message;
-        ToolTipService.SetShowOnDisabled(editSiteContext, true);
+        editSiteContextButton = editSiteContext;
+        RefreshSiteContextEditUi();
         editSiteContext.Click += (_, _) => EditSiteContextMaps();
         var elevationInformation = StudioWidgets.CreateIconTextButton(
             "icon-project.svg",
@@ -1294,8 +1297,6 @@ internal sealed partial class ShellView
 
     private async void EditSiteContextMaps()
     {
-        if (!EnsureProjectContentPermission())
-            return;
         if (!EnsureSiteContextEditPermission())
             return;
         if (inlineSiteContextEditor is not null)
@@ -1429,6 +1430,19 @@ internal sealed partial class ShellView
         return false;
     }
 
+    private void RefreshSiteContextEditUi()
+    {
+        if (editSiteContextButton is null)
+            return;
+
+        ProjectSiteContextEditAuthority authority = ResolveSiteContextEditAuthority();
+        editSiteContextButton.IsEnabled = authority.CanEdit;
+        editSiteContextButton.ToolTip = authority.CanEdit
+            ? "Ерөнхий төлөвлөгөөний эх үүсвэрээр байршлын схем болон орчны тоймыг тохируулна."
+            : authority.Message;
+        ToolTipService.SetShowOnDisabled(editSiteContextButton, true);
+    }
+
     private void EditSelectedElevationSheetInformation()
     {
         if (!state.HasOpenProject || !CanEditProjectContent())
@@ -1519,6 +1533,7 @@ internal sealed partial class ShellView
 
     private void RefreshAlbumWorkspace(Guid? selectPageId = null, string? selectItemKey = null)
     {
+        RefreshSiteContextEditUi();
         var requestedSelectionKey = selectPageId is Guid pageId
             ? $"page:{pageId:N}"
             : selectItemKey;

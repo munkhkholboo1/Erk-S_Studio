@@ -83,11 +83,9 @@ public static class ProjectSiteContextEditingPolicy
         ArgumentNullException.ThrowIfNull(project);
         string currentEmail = NormalizeEmail(currentUserEmail);
         ProjectSiteBoundary boundary = project.SiteContext?.Boundary ?? new ProjectSiteBoundary();
-        if (!boundary.HasGeometry || string.IsNullOrWhiteSpace(boundary.SourceId))
-        {
-            return Denied(
-                "Байршлын схемийг засахын өмнө ерөнхий төлөвлөгөөний эх үүсвэрээс төслийн хилээ оруулна уу.");
-        }
+        string boundarySourceId = boundary.HasGeometry
+            ? boundary.SourceId?.Trim() ?? ""
+            : "";
 
         ProjectSiteContextSourceLock? sourceLock = ResolveCanonicalSourceLock(project);
         string canonicalSourceKey = sourceLock?.SourceKey ?? "";
@@ -96,13 +94,16 @@ public static class ProjectSiteContextEditingPolicy
 
         ProjectDesignSource? localSource = ResolveLocalSource(
             project,
-            boundary.SourceId,
+            boundarySourceId,
             canonicalSourceKey,
-            canonicalSourceOwnerEmail);
+            canonicalSourceOwnerEmail,
+            currentEmail);
         if (localSource is null)
         {
             return Denied(
-                "Энэ байршлын зурагт хамаарах ерөнхий төлөвлөгөөний эх үүсвэр энэ төхөөрөмжид холбогдоогүй байна.",
+                string.IsNullOrWhiteSpace(canonicalSourceKey)
+                    ? "AutoCAD/CityGen эх үүсвэрээ Ерөнхий төлөвлөгөө гэж ангилсны дараа байршлын зураг засах эрх нээгдэнэ."
+                    : "Энэ байршлын зурагт хамаарах ерөнхий төлөвлөгөөний эх үүсвэр энэ төхөөрөмжид холбогдоогүй байна.",
                 sourceKey: canonicalSourceKey,
                 ownerEmail: canonicalOwnerEmail);
         }
@@ -110,6 +111,13 @@ public static class ProjectSiteContextEditingPolicy
         {
             return Denied(
                 "Байршлын схемийг зөвхөн AutoCAD/CityGen ерөнхий төлөвлөгөөний эх үүсвэрээс удирдана.",
+                localSource.Id,
+                ProjectCloudSyncMetadata.CloudSourceKey(localSource));
+        }
+        if (ProjectDesignSourceClassification.IsExplicitlyBuilding(localSource))
+        {
+            return Denied(
+                "Барилгын зураг гэж ангилсан эх үүсвэр байршлын схемийг удирдахгүй.",
                 localSource.Id,
                 ProjectCloudSyncMetadata.CloudSourceKey(localSource));
         }
@@ -123,6 +131,22 @@ public static class ProjectSiteContextEditingPolicy
                 localSource.Id,
                 canonicalSourceKey,
                 canonicalOwnerEmail);
+        }
+        bool matchesBoundary = !string.IsNullOrWhiteSpace(boundarySourceId) &&
+                               (localSource.Id.Equals(
+                                    boundarySourceId,
+                                    StringComparison.OrdinalIgnoreCase) ||
+                                sourceKey.Equals(
+                                    boundarySourceId,
+                                    StringComparison.OrdinalIgnoreCase));
+        if (sourceLock is null &&
+            !matchesBoundary &&
+            !ProjectDesignSourceClassification.IsGeneralPlan(localSource))
+        {
+            return Denied(
+                "Эх үүсвэрийг Ерөнхий төлөвлөгөө гэж ангилсны дараа байршлын зураг засна.",
+                localSource.Id,
+                sourceKey);
         }
 
         ProjectCloudSourceReference? sharedSource = ResolveSharedSource(
@@ -177,7 +201,8 @@ public static class ProjectSiteContextEditingPolicy
         ProjectWorkspace project,
         string boundarySourceId,
         string canonicalSourceKey,
-        string canonicalOwnerEmail)
+        string canonicalOwnerEmail,
+        string currentUserEmail)
     {
         List<ProjectDesignSource> candidates = (project.Sources ?? [])
             .Where(source => source.Kind is DesignSourceKind.AutoCad or DesignSourceKind.CityGen)
@@ -203,11 +228,44 @@ public static class ProjectSiteContextEditingPolicy
             return current ?? (matches.Count == 1 ? matches[0] : null);
         }
 
-        return candidates.FirstOrDefault(source =>
+        ProjectDesignSource? boundarySource = candidates.FirstOrDefault(source =>
             source.Id.Equals(boundarySourceId, StringComparison.OrdinalIgnoreCase) ||
             ProjectCloudSyncMetadata.CloudSourceKey(source).Equals(
                 boundarySourceId,
                 StringComparison.OrdinalIgnoreCase));
+        if (boundarySource is not null)
+            return boundarySource;
+
+        List<ProjectDesignSource> generalPlanSources = candidates
+            .Where(ProjectDesignSourceClassification.IsGeneralPlan)
+            .ToList();
+        if (!string.IsNullOrWhiteSpace(currentUserEmail))
+        {
+            ProjectDesignSource? controlled = generalPlanSources
+                .Where(source => ResolveSourceController(project, source).Equals(
+                    currentUserEmail,
+                    StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(source => source.LastPackageAtUtc ?? source.CreatedAtUtc)
+                .ThenBy(source => source.Id, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (controlled is not null)
+                return controlled;
+        }
+
+        return generalPlanSources.Count == 1 ? generalPlanSources[0] : null;
+    }
+
+    private static string ResolveSourceController(
+        ProjectWorkspace project,
+        ProjectDesignSource source)
+    {
+        string localOwner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
+        ProjectCloudSourceReference? sharedSource = ResolveSharedSource(
+            project,
+            ProjectCloudSyncMetadata.CloudSourceKey(source),
+            localOwner);
+        string controller = EffectiveController(sharedSource);
+        return string.IsNullOrWhiteSpace(controller) ? localOwner : controller;
     }
 
     private static ProjectCloudSourceReference? ResolveSharedSource(
