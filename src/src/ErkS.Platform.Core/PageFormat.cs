@@ -172,7 +172,7 @@ public static class PageFormatCatalog
     {
         PageFormatDefinition resolved = Resolve(page);
         return BuildingArchitectureConceptPageLayout.UsesInformationHeader(
-            entry.ContentKind,
+            AlbumPageSourceMetadata.ResolveContentKind(page, entry),
             entry.Name,
             page.TemplateSlotId)
             ? BuildingArchitectureConceptPageLayout.ApplyElevationGeometry(resolved)

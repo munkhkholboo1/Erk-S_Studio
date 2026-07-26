@@ -98,14 +98,32 @@ public static class BuildingArchitectureConceptAlbumTemplate
 
     public static AlbumCompositionItem? FindSourceSlot(
         AlbumDefinition definition,
-        SheetPackageEntry entry)
+        SheetPackageEntry entry) =>
+        FindSourceSlot(
+            definition,
+            entry.ContentKind,
+            entry.Discipline,
+            entry.Name);
+
+    public static AlbumCompositionItem? FindSourceSlot(
+        AlbumDefinition definition,
+        string? contentKind,
+        string? discipline,
+        string? name)
     {
         var sourceSlots = definition.Composition
             .Where(item => item.Kind == AlbumCompositionKind.SourceSlot)
             .OrderBy(item => item.Order)
             .ToList();
 
-        var contentHints = new[] { entry.ContentKind, entry.Discipline }
+        var byExplicitSlot = sourceSlots.FirstOrDefault(item =>
+            EqualsNormalized(contentKind, item.Id));
+        if (byExplicitSlot is not null)
+        {
+            return byExplicitSlot;
+        }
+
+        var contentHints = new[] { contentKind, discipline }
             .Where(value => !string.IsNullOrWhiteSpace(value));
         var bySourceMetadata = sourceSlots.FirstOrDefault(item => item.MatchContentKinds.Any(expected =>
             contentHints.Any(actual => EqualsNormalized(actual, expected))));
@@ -114,8 +132,15 @@ public static class BuildingArchitectureConceptAlbumTemplate
             return bySourceMetadata;
         }
 
+        var bySheetName = sourceSlots.FirstOrDefault(item =>
+            item.MatchNameTerms.Any(term => Contains(name ?? "", term)));
+        if (bySheetName is not null)
+        {
+            return bySheetName;
+        }
+
         return sourceSlots.FirstOrDefault(item =>
-            item.MatchNameTerms.Any(term => Contains(entry.Name, term)));
+            EqualsNormalized(contentKind, item.Title));
     }
 
     public static AlbumCompositionItem? FindSlot(AlbumDefinition definition, string? slotId) =>
@@ -163,7 +188,7 @@ public static class BuildingArchitectureConceptAlbumTemplate
         Source("landscaping", 6, "06", "НОГООН БАЙГУУЛАМЖ", "Ерөнхий төлөвлөгөө", false, [], ["НОГООН БАЙГУУЛАМЖ"]),
         Source("solar-study", 7, "07", "НАРНЫ ЭЭВЭРЛЭЛТ", "Ерөнхий төлөвлөгөө", false, [], ["НАРНЫ ЭЭВЭРЛЭЛТ", "НАРНЫ ТУСГАЛ"]),
         Source("master-plan", 8, "08", "ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ", "Ерөнхий төлөвлөгөө", false, [], ["ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ"]),
-        Source("floor-plans", 9, "09+", "ДАВХРЫН БАЙГУУЛАЛТ", "Давхрын байгуулалт", true, ["Давхрын байгуулалт", "Байгуулалт"], ["ДАВХРЫН БАЙГУУЛАЛТ"]),
+        Source("floor-plans", 9, "09+", "ДАВХРЫН БАЙГУУЛАЛТ", "Давхрын байгуулалт", true, ["Давхрын байгуулалт", "Байгуулалт"], ["ДАВХРЫН БАЙГУУЛАЛТ", "БАЙГУУЛАЛТ"]),
         Source("sections", 10, "10+", "ОГТЛОЛ", "Огтлол", true, ["Огтлол"], ["ОГТЛОЛ"]),
         Source("elevations", 11, "11+", "НҮҮР ТАЛ", "Нүүр тал", true, ["Нүүр тал"], ["НҮҮР ТАЛ"]),
         Source("visualizations", 12, "12+", "ХАРАГДАХ БАЙДАЛ", "Харагдах байдал", true, ["Харагдах байдал"], ["ХАРАГДАХ БАЙДАЛ"]),

@@ -47,6 +47,40 @@ public sealed class PdfVectorPipelineTests : IDisposable
     }
 
     [Fact]
+    public void SourceCrop_ProducesCroppedVectorPageWithoutRasterFallback()
+    {
+        string sourcePath = Path.Combine(workDirectory, "legacy-title-block.pdf");
+        WriteVectorPdf(
+            sourcePath,
+            [(420d, 297d, "Legacy project title block")],
+            applyCropBox: false);
+        SheetRecord sheet = Intake(sourcePath, 420, 297, pageCount: 1, cleanDrawing: false);
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            PageFormatCatalog.SourceAsIsId,
+            PagePlacementMode.FullPage,
+            configure: project =>
+            {
+                project.Album.Pages.Single().SourceCrop = new SourcePageCropDefinition
+                {
+                    Enabled = true,
+                    LeftMm = 15,
+                    TopMm = 5,
+                    RightMm = 35,
+                    BottomMm = 20,
+                };
+            });
+
+        PdfVectorPageProfile page = Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
+
+        Assert.InRange(page.WidthMm, 369.99, 370.01);
+        Assert.InRange(page.HeightMm, 271.99, 272.01);
+        Assert.True(page.HasPathPaintingOperators);
+        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Contains(page.XObjects, item => item.Kind == PdfVectorXObjectKind.Form);
+    }
+
+    [Fact]
     public void PreserveDrawingSpace_UsesOneToOneScaleWithoutRasterFallback()
     {
         PageRectMm drawing = BuildingArchitectureConceptPageLayout.DrawingArea;
@@ -587,7 +621,8 @@ public sealed class PdfVectorPipelineTests : IDisposable
 
     private static void WriteVectorPdf(
         string path,
-        IReadOnlyList<(double WidthMm, double HeightMm, string Label)> pages)
+        IReadOnlyList<(double WidthMm, double HeightMm, string Label)> pages,
+        bool applyCropBox = true)
     {
         using var document = new PdfDocument();
         foreach ((double widthMm, double heightMm, string label) in pages)
@@ -595,10 +630,13 @@ public sealed class PdfVectorPipelineTests : IDisposable
             PdfPage page = document.AddPage();
             page.Width = XUnit.FromMillimeter(widthMm);
             page.Height = XUnit.FromMillimeter(heightMm);
-            double crop = XUnit.FromMillimeter(2).Point;
-            page.CropBox = new PdfRectangle(
-                new XPoint(crop, crop),
-                new XPoint(page.Width.Point - crop, page.Height.Point - crop));
+            if (applyCropBox)
+            {
+                double crop = XUnit.FromMillimeter(2).Point;
+                page.CropBox = new PdfRectangle(
+                    new XPoint(crop, crop),
+                    new XPoint(page.Width.Point - crop, page.Height.Point - crop));
+            }
             using XGraphics graphics = XGraphics.FromPdfPage(page);
             graphics.DrawLine(new XPen(XColors.Black, 0.25), 30, 40, page.Width.Point - 30, 40);
             graphics.DrawLine(new XPen(XColors.DarkBlue, 1.0), 30, 55, page.Width.Point - 30, 55);

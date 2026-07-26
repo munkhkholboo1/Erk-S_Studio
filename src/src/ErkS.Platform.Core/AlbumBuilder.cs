@@ -75,6 +75,9 @@ public sealed class AlbumBuildComponent
     public required string Code { get; init; }
     public required string Label { get; init; }
     public required int Order { get; init; }
+    public string SourceIdentity { get; init; } = "";
+    public string SectionKey { get; init; } = "";
+    public string SequenceKey { get; init; } = "";
     public List<int> PageNumbers { get; init; } = [];
 }
 
@@ -126,6 +129,9 @@ public sealed class AlbumBuilder
                 Code = component.Code,
                 Label = component.Label,
                 Order = component.Order,
+                SourceIdentity = component.SourceIdentity,
+                SectionKey = component.SectionKey,
+                SequenceKey = component.SequenceKey,
                 PageNumbers = component.PageNumbers.ToList(),
             }));
             return result;
@@ -290,10 +296,21 @@ public sealed class AlbumBuilder
                 PlacementMode = PagePlacementMode.FullPage,
                 NumberOverride = item.Page.NumberOverride,
                 TitleOverride = item.Page.TitleOverride,
+                ContentKindOverride = item.Page.ContentKindOverride,
+                SourceCrop = item.Page.SourceCrop is null
+                    ? null
+                    : new SourcePageCropDefinition
+                    {
+                        Enabled = item.Page.SourceCrop.Enabled,
+                        LeftMm = item.Page.SourceCrop.LeftMm,
+                        TopMm = item.Page.SourceCrop.TopMm,
+                        RightMm = item.Page.SourceCrop.RightMm,
+                        BottomMm = item.Page.SourceCrop.BottomMm,
+                    },
                 ElevationDescriptionOverride = item.Page.ElevationDescriptionOverride,
             };
             configured = BuildingArchitectureConceptPageLayout.UsesInformationHeader(
-                sheet.Entry.ContentKind,
+                AlbumPageSourceMetadata.ResolveContentKind(item.Page, sheet.Entry),
                 sheet.Entry.Name,
                 item.Page.TemplateSlotId)
                 ? BuildingArchitectureConceptPageLayout.ApplyElevationGeometry(sourceFormat)

@@ -15,6 +15,7 @@ public sealed class SheetRecord
     public required Guid PackageId { get; init; }
     public required string ManifestPath { get; init; }
     public required string PdfPath { get; init; }
+    public required int SourceSheetIndex { get; init; }
     public required DateTimeOffset ExportedAtUtc { get; init; }
     public DateTimeOffset ReceivedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
@@ -186,8 +187,9 @@ public sealed class SheetLibrary
             }
 
             sourceSnapshots.TryGetValue(sourceIdentity, out var activeSnapshot);
-            foreach (var entry in manifest.Sheets)
+            for (int sourceSheetIndex = 0; sourceSheetIndex < manifest.Sheets.Count; sourceSheetIndex++)
             {
+                SheetPackageEntry entry = manifest.Sheets[sourceSheetIndex];
                 var key = SheetRecord.MakeKey(manifest.Source, entry, sourceId);
                 if (activeSnapshot is not null &&
                     activeSnapshot.PackageId != manifest.PackageId &&
@@ -209,6 +211,7 @@ public sealed class SheetLibrary
                     PackageId = manifest.PackageId,
                     ManifestPath = loadResult.ManifestPath,
                     PdfPath = verifiedPaths[entry],
+                    SourceSheetIndex = sourceSheetIndex,
                     ExportedAtUtc = manifest.ExportedAtUtc,
                     IsVerified = true,
                 };

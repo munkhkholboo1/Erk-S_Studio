@@ -124,6 +124,17 @@ public static class ProjectPackageReconciliationService
                 project.SheetBuildingAssignments.Remove(key);
             if (staleBuildingAssignments.Count > 0)
                 ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+
+            HashSet<string> authoritativeSheetIds = manifest.Sheets
+                .Select(entry => entry.SheetId?.Trim() ?? "")
+                .Where(sheetId => sheetId.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (string staleSheetId in (source.InactiveSheetIds ?? [])
+                         .Where(sheetId => !authoritativeSheetIds.Contains(sheetId))
+                         .ToList())
+            {
+                source.RemoveSheetActivityState(staleSheetId);
+            }
         }
 
         foreach (SheetPackageEntry entry in manifest.Sheets)
@@ -135,28 +146,13 @@ public static class ProjectPackageReconciliationService
                 continue;
             }
 
-            List<AlbumPageDefinition> pages = album.Pages
-                .Where(page => string.Equals(page.SheetKey, key, StringComparison.Ordinal))
-                .ToList();
-            if (usesConceptTemplate && pages.Count == 0)
+            if (!source.IsSheetActive(entry.SheetId))
             {
-                var newPage = new AlbumPageDefinition { SheetKey = key };
-                album.Pages.Add(newPage);
-                pages.Add(newPage);
+                removedAlbumPageCount += RemoveSheetFromAlbum(album, key);
+                continue;
             }
 
-            AlbumCompositionItem? slot = usesConceptTemplate
-                ? BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(album, entry)
-                : null;
-            foreach (AlbumPageDefinition page in pages)
-            {
-                if (usesConceptTemplate)
-                {
-                    page.TemplateSlotId = slot?.Id ?? "";
-                    page.SectionId = BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(album, slot);
-                }
-                PageFormatResolver.ApplySourceFormat(page, entry);
-            }
+            SynchronizeActiveSheet(album, entry, key, usesConceptTemplate);
         }
 
         bool addedBuildingAssignments =
@@ -183,5 +179,280 @@ public static class ProjectPackageReconciliationService
         }
 
         return new ProjectPackageReconciliationResult(source.Id, removedAlbumPageCount);
+    }
+
+    public static int SetSheetActivity(
+        ProjectWorkspace project,
+        AlbumDefinition album,
+        SheetLibrary library,
+        ProjectDesignSource source,
+        IEnumerable<string> sheetIds,
+        bool active)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(album);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(sheetIds);
+
+        if (!project.Sources.Any(existing =>
+                string.Equals(existing.Id, source.Id, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("The source does not belong to the current project.");
+        }
+
+        HashSet<string> targetIds = sheetIds
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (targetIds.Count == 0)
+        {
+            return 0;
+        }
+
+        bool usesConceptTemplate = string.Equals(
+            album.TemplateId,
+            BuildingArchitectureConceptAlbumTemplate.TemplateId,
+            StringComparison.OrdinalIgnoreCase);
+        List<SheetRecord> targetRecords = library.Snapshot()
+            .Where(record =>
+                record.IsVerified &&
+                targetIds.Contains(record.Entry.SheetId) &&
+                (string.Equals(record.SourceId, source.Id, StringComparison.OrdinalIgnoreCase) ||
+                 (source.UseLegacySheetKeys && string.IsNullOrWhiteSpace(record.SourceId))))
+            .ToList();
+        int removedPageCount = 0;
+        foreach (string sheetId in targetIds)
+        {
+            List<SheetRecord> sheetRecords = targetRecords
+                .Where(record =>
+                    string.Equals(
+                        record.Entry.SheetId,
+                        sheetId,
+                        StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (active)
+            {
+                source.SetSheetActive(sheetId, active: true);
+                ProjectInactiveSourceSheetState? inactiveState =
+                    source.TakeInactiveSheetState(sheetId);
+                if (inactiveState is not null)
+                {
+                    RestoreInactiveSheetState(
+                        project,
+                        album,
+                        inactiveState,
+                        sheetRecords.FirstOrDefault()?.Key ?? inactiveState.SheetKey);
+                }
+
+                foreach (SheetRecord record in sheetRecords)
+                {
+                    SynchronizeActiveSheet(
+                        album,
+                        record.Entry,
+                        record.Key,
+                        usesConceptTemplate);
+                }
+            }
+            else
+            {
+                if (source.IsSheetActive(sheetId))
+                {
+                    ProjectInactiveSourceSheetState? inactiveState =
+                        CaptureInactiveSheetState(project, album, sheetId, sheetRecords);
+                    if (inactiveState is not null)
+                    {
+                        source.StoreInactiveSheetState(inactiveState);
+                    }
+                }
+
+                source.SetSheetActive(sheetId, active: false);
+                foreach (SheetRecord record in sheetRecords)
+                {
+                    removedPageCount += RemoveSheetFromAlbum(album, record.Key);
+                }
+            }
+        }
+
+        if (usesConceptTemplate)
+        {
+            IReadOnlyList<AlbumPageDefinition> orderedPages =
+                BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                    album,
+                    album.Pages,
+                    library,
+                    project.Sources,
+                    project.BuildingGroups,
+                    project.SheetBuildingAssignments);
+            album.Pages.Clear();
+            album.Pages.AddRange(orderedPages);
+        }
+
+        return removedPageCount;
+    }
+
+    private static void SynchronizeActiveSheet(
+        AlbumDefinition album,
+        SheetPackageEntry entry,
+        string key,
+        bool usesConceptTemplate)
+    {
+        List<AlbumPageDefinition> pages = album.Pages
+            .Where(page => string.Equals(page.SheetKey, key, StringComparison.Ordinal))
+            .ToList();
+        if (usesConceptTemplate && pages.Count == 0)
+        {
+            var newPage = new AlbumPageDefinition { SheetKey = key };
+            album.Pages.Add(newPage);
+            pages.Add(newPage);
+        }
+
+        foreach (AlbumPageDefinition page in pages)
+        {
+            if (usesConceptTemplate)
+            {
+                AlbumCompositionItem? slot =
+                    BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(
+                        album,
+                        AlbumPageSourceMetadata.ResolveContentKind(page, entry),
+                        entry.Discipline,
+                        entry.Name);
+                if (slot is not null)
+                {
+                    page.TemplateSlotId = slot.Id;
+                    page.SectionId =
+                        BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(album, slot);
+                }
+            }
+            PageFormatResolver.ApplySourceFormat(page, entry);
+        }
+    }
+
+    private static ProjectInactiveSourceSheetState? CaptureInactiveSheetState(
+        ProjectWorkspace project,
+        AlbumDefinition album,
+        string sheetId,
+        IReadOnlyList<SheetRecord> records)
+    {
+        HashSet<string> keys = records
+            .Select(record => record.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (keys.Count == 0)
+        {
+            return null;
+        }
+
+        string sheetKey = records[0].Key;
+        var state = new ProjectInactiveSourceSheetState
+        {
+            SheetId = sheetId,
+            SheetKey = sheetKey,
+            BuildingGroupId = keys
+                .Select(key => project.SheetBuildingAssignments.TryGetValue(key, out string? groupId)
+                    ? groupId
+                    : "")
+                .FirstOrDefault(groupId => !string.IsNullOrWhiteSpace(groupId)) ?? "",
+        };
+
+        for (int index = 0; index < album.Pages.Count; index++)
+        {
+            AlbumPageDefinition page = album.Pages[index];
+            if (keys.Contains(page.SheetKey))
+            {
+                state.AlbumPages.Add(new ProjectInactiveAlbumPageState
+                {
+                    AlbumIndex = index,
+                    Page = page,
+                });
+            }
+        }
+
+        foreach (AlbumSection section in album.Sections)
+        {
+            for (int index = 0; index < section.SheetKeys.Count; index++)
+            {
+                if (keys.Contains(section.SheetKeys[index]))
+                {
+                    state.SectionPlacements.Add(new ProjectInactiveAlbumSectionPlacement
+                    {
+                        SectionId = section.Id,
+                        SheetIndex = index,
+                    });
+                }
+            }
+        }
+
+        return state;
+    }
+
+    private static void RestoreInactiveSheetState(
+        ProjectWorkspace project,
+        AlbumDefinition album,
+        ProjectInactiveSourceSheetState state,
+        string currentSheetKey)
+    {
+        state.Normalize();
+        string restoredKey = string.IsNullOrWhiteSpace(currentSheetKey)
+            ? state.SheetKey
+            : currentSheetKey.Trim();
+        if (restoredKey.Length == 0)
+        {
+            return;
+        }
+
+        foreach (ProjectInactiveAlbumPageState pageState in state.AlbumPages
+                     .OrderBy(item => item.AlbumIndex))
+        {
+            AlbumPageDefinition page = pageState.Page;
+            page.SheetKey = restoredKey;
+            bool alreadyPresent = album.Pages.Any(existing =>
+                existing.Id == page.Id ||
+                ReferenceEquals(existing, page));
+            if (!alreadyPresent)
+            {
+                album.Pages.Insert(
+                    Math.Clamp(pageState.AlbumIndex, 0, album.Pages.Count),
+                    page);
+            }
+        }
+
+        foreach (ProjectInactiveAlbumSectionPlacement placement in state.SectionPlacements
+                     .OrderBy(item => item.SheetIndex))
+        {
+            AlbumSection? section = album.Sections.FirstOrDefault(item =>
+                item.Id == placement.SectionId);
+            if (section is null ||
+                section.SheetKeys.Contains(restoredKey, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            section.SheetKeys.Insert(
+                Math.Clamp(placement.SheetIndex, 0, section.SheetKeys.Count),
+                restoredKey);
+        }
+
+        if (!string.IsNullOrWhiteSpace(state.BuildingGroupId))
+        {
+            if (!string.Equals(state.SheetKey, restoredKey, StringComparison.Ordinal))
+            {
+                project.SheetBuildingAssignments.Remove(state.SheetKey);
+            }
+            project.SheetBuildingAssignments[restoredKey] = state.BuildingGroupId;
+            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+        }
+    }
+
+    private static int RemoveSheetFromAlbum(AlbumDefinition album, string sheetKey)
+    {
+        int removed = album.Pages.RemoveAll(page =>
+            string.Equals(page.SheetKey, sheetKey, StringComparison.Ordinal));
+        foreach (AlbumSection section in album.Sections)
+        {
+            section.SheetKeys.RemoveAll(key =>
+                string.Equals(key, sheetKey, StringComparison.Ordinal));
+        }
+        return removed;
     }
 }

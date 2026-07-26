@@ -37,12 +37,13 @@ jobs:
         run: src/scripts/Test-CloudEraGeneratedClient.ps1
 
       - name: Build Release
-        run: dotnet build src/ErkS.Studio.slnx -c Release --no-restore
+        run: dotnet build src/ErkS.Studio.slnx -c Release --no-restore -p:StudioProductBuild=true
 
       - name: Unit and integration tests with coverage
         run: >-
           dotnet test src/tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj
           -c Release --no-build --no-restore
+          -p:StudioProductBuild=true
           --collect:"XPlat Code Coverage"
           --results-directory artifacts/test-results
           --logger "trx;LogFileName=all-tests.trx"
@@ -51,6 +52,7 @@ jobs:
         run: >-
           dotnet test src/tests/ErkS.Studio.App.Tests/ErkS.Studio.App.Tests.csproj
           -c Release --no-build --no-restore
+          -p:StudioProductBuild=true
           --results-directory artifacts/app-tests
           --logger "trx;LogFileName=studio-app-tests.trx"
 
@@ -58,6 +60,7 @@ jobs:
         run: >-
           dotnet test src/tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj
           -c Release --no-build --no-restore
+          -p:StudioProductBuild=true
           --filter "FullyQualifiedName~SheetPackageSecurityTests|FullyQualifiedName~AlbumBuildIntegrityTests|FullyQualifiedName~UpdatePackageSecurityTests"
           --results-directory artifacts/security-tests
           --logger "trx;LogFileName=security-tests.trx"
@@ -66,9 +69,16 @@ jobs:
         run: >-
           dotnet test src/tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj
           -c Release --no-build --no-restore
+          -p:StudioProductBuild=true
           --filter "FullyQualifiedName~PdfVectorPipelineTests"
           --results-directory artifacts/pdf-tests
           --logger "trx;LogFileName=pdf-golden-tests.trx"
+
+      - name: Record external host acceptance
+        shell: pwsh
+        run: >-
+          src/scripts/Test-Studio-ExternalAcceptance.ps1
+          -OutputPath artifacts/external-acceptance.json
 
       - name: Enforce security branch coverage
         shell: pwsh
@@ -95,12 +105,13 @@ jobs:
       - name: WPF product publish smoke
         run: >-
           dotnet publish src/src/ErkS.Studio/ErkS.Studio.csproj
-          -c Release -r win-x64 --self-contained false
+          -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:StudioProductBuild=true
           -p:StudioReleaseVersion=0.0.0.1
           -p:StudioReleaseLabel="CI Smoke"
+          --artifacts-path artifacts/dotnet-product
           -o artifacts/wpf-publish
 
       - name: Validate product payload
@@ -124,18 +135,70 @@ jobs:
             throw "Published application is not a valid Windows executable."
           }
 
+      - name: Start published product root view
+        shell: pwsh
+        run: |
+          $root = Resolve-Path artifacts/wpf-publish
+          $exe = Join-Path $root "ErkS.Studio.exe"
+          $failureLog = Join-Path $root "release-smoke-failure.log"
+          $smokeOutput = Join-Path (Get-Location) "artifacts/ui-smoke"
+          $argumentLine = (
+            '--release-smoke-test --release-smoke-output="' +
+            $smokeOutput +
+            '"')
+          $process = Start-Process `
+            -FilePath $exe `
+            -ArgumentList $argumentLine `
+            -PassThru `
+            -Wait
+          if ($process.ExitCode -ne 0) {
+            $details = if (Test-Path -LiteralPath $failureLog -PathType Leaf) {
+              Get-Content -LiteralPath $failureLog -Raw
+            } else {
+              "The product did not create a failure log."
+            }
+            throw "Product startup smoke failed with exit code $($process.ExitCode).`n$details"
+          }
+          $manifestPath = Join-Path $smokeOutput "manifest.json"
+          if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+            throw "Product startup smoke did not create a DPI manifest."
+          }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          $scenarios = @($manifest.scenarios)
+          if ($scenarios.Count -ne 3) {
+            throw "Expected three DPI scenarios; received $($scenarios.Count)."
+          }
+          foreach ($scenario in $scenarios) {
+            if (-not (Test-Path -LiteralPath $scenario.outputPath -PathType Leaf)) {
+              throw "Missing UI smoke image: $($scenario.outputPath)"
+            }
+            if ((Get-Item -LiteralPath $scenario.outputPath).Length -lt 10240) {
+              throw "UI smoke image is unexpectedly small: $($scenario.outputPath)"
+            }
+            if ([int]$scenario.distinctColorBuckets -lt 4 -or
+                [int64]$scenario.visiblePixels * 4 -lt [int64]$scenario.sampledPixels) {
+              throw "UI smoke pixel validation failed for '$($scenario.name)'."
+            }
+          }
+
       - name: Validate signed-release gate syntax
         shell: pwsh
         run: |
-          $script = Resolve-Path src/scripts/Publish-Studio-Demo.ps1
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            $script,
-            [ref]$tokens,
-            [ref]$errors)
-          if ($errors.Count) { throw ($errors | Out-String) }
-          $text = Get-Content -LiteralPath $script -Raw
+          $scripts = @(
+            (Resolve-Path src/scripts/Publish-Studio-Demo.ps1),
+            (Resolve-Path src/scripts/Test-Studio-ExternalAcceptance.ps1),
+            (Resolve-Path src/scripts/Test-Studio-ReleaseArtifact.ps1)
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $script,
+              [ref]$tokens,
+              [ref]$errors)
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+          $text = Get-Content -LiteralPath $scripts[0] -Raw
           foreach ($required in "/fd", "SHA256", "/tr", "Get-AuthenticodeSignature", "ExpectedPublisher") {
             if (-not $text.Contains($required, [StringComparison]::Ordinal)) {
               throw "Release signing gate is missing '$required'."
@@ -152,5 +215,7 @@ jobs:
             artifacts/app-tests
             artifacts/security-tests
             artifacts/pdf-tests
+            artifacts/external-acceptance.json
+            artifacts/ui-smoke
           if-no-files-found: warn
           retention-days: 14

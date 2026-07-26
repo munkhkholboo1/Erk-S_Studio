@@ -784,6 +784,17 @@ public sealed class SheetPackageSecurityTests : IDisposable
         var album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
         Assert.NotNull(ProjectPackageReconciliationService.Apply(project, album, library, initialResult));
         Assert.Equal(2, album.Pages.Count);
+        AlbumPageDefinition retainedPage = album.Pages.Single(page =>
+            page.SheetKey.Equals("security-source|a1", StringComparison.OrdinalIgnoreCase));
+        retainedPage.ContentKindOverride = "elevations";
+        retainedPage.SourceCrop = new SourcePageCropDefinition
+        {
+            Enabled = true,
+            LeftMm = 15,
+            TopMm = 5,
+            RightMm = 35,
+            BottomMm = 20,
+        };
         AlbumSection section = album.Sections.First();
         section.SheetKeys.AddRange(["security-source|a1", "security-source|a2", "other-source|x1"]);
         project.BuildingGroups =
@@ -820,6 +831,15 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.NotNull(reconciliation);
         Assert.Equal(1, reconciliation.RemovedAlbumPageCount);
         Assert.Equal(["security-source|a1"], album.Pages.Select(page => page.SheetKey));
+        AlbumPageDefinition currentPage = Assert.Single(album.Pages);
+        Assert.Same(retainedPage, currentPage);
+        Assert.Equal("elevations", currentPage.ContentKindOverride);
+        Assert.NotNull(currentPage.SourceCrop);
+        Assert.True(currentPage.SourceCrop.Enabled);
+        Assert.Equal(15, currentPage.SourceCrop.LeftMm);
+        Assert.Equal(5, currentPage.SourceCrop.TopMm);
+        Assert.Equal(35, currentPage.SourceCrop.RightMm);
+        Assert.Equal(20, currentPage.SourceCrop.BottomMm);
         Assert.Contains("security-source|a1", section.SheetKeys);
         Assert.DoesNotContain("security-source|a2", section.SheetKeys);
         Assert.Contains("other-source|x1", section.SheetKeys);
@@ -829,6 +849,143 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.True(project.Cloud.BuildingCompositionPending);
         Assert.Equal("Keep title.rvt", source.NativeDocumentTitle);
         Assert.Equal(@"D:\keep\title.rvt", source.NativeDocumentPath);
+    }
+
+    [Fact]
+    public void InactiveSourceSheet_RemainsVisibleAndExcludedAcrossPackageRefresh()
+    {
+        PackageFiles package = WritePackage(
+            "inactive-source-sheet",
+            ["A1", "A2", "A3"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow);
+        SheetPackageManifest manifest = LoadManifest(package.ManifestPath);
+        manifest.Source.Application = SheetSourceApplication.Pdf;
+        manifest.Sheets[0].ContentKind = "elevations";
+        manifest.Sheets[1].ContentKind = "floor-plans";
+        manifest.Sheets[2].ContentKind = "sections";
+        SaveManifest(package.ManifestPath, manifest);
+        SheetPackageLoadResult verified = SheetPackageReader.Load(package.ManifestPath);
+        var library = new SheetLibrary();
+        library.Absorb(verified);
+        var source = new ProjectDesignSource
+        {
+            Id = "security-source",
+            Kind = DesignSourceKind.Pdf,
+        };
+        var project = new ProjectWorkspace { Sources = [source] };
+        var album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+
+        Assert.NotNull(ProjectPackageReconciliationService.Apply(
+            project,
+            album,
+            library,
+            verified));
+        Assert.Equal(
+            ["security-source|a1", "security-source|a2", "security-source|a3"],
+            album.Pages.Select(page => page.SheetKey));
+        project.BuildingGroups =
+        [
+            new ProjectBuildingGroup
+            {
+                Id = "building-1",
+                Name = "Building 1",
+                Order = 1,
+            },
+        ];
+        project.SheetBuildingAssignments = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["security-source|a1"] = "building-1",
+            ["security-source|a2"] = "building-1",
+            ["security-source|a3"] = "building-1",
+        };
+        AlbumPageDefinition retainedPage = album.Pages.Single(page =>
+            page.SheetKey.Equals("security-source|a2", StringComparison.OrdinalIgnoreCase));
+        Guid retainedPageId = retainedPage.Id;
+        retainedPage.TemplateSlotId = "floor-plans";
+        retainedPage.TitleOverride = "Roof plan";
+        retainedPage.ContentKindOverride = "floor-plans";
+        retainedPage.SourceCrop = new SourcePageCropDefinition
+        {
+            Enabled = true,
+            LeftMm = 12,
+            TopMm = 4,
+            RightMm = 28,
+            BottomMm = 16,
+        };
+        AlbumSection retainedSection = album.Sections.First();
+        retainedSection.SheetKeys.AddRange(
+            ["security-source|a1", "security-source|a2", "security-source|a3"]);
+
+        int removedPageCount = ProjectPackageReconciliationService.SetSheetActivity(
+            project,
+            album,
+            library,
+            source,
+            ["A2"],
+            active: false);
+
+        Assert.Equal(1, removedPageCount);
+        Assert.Equal(3, library.Snapshot().Count);
+        Assert.False(source.IsSheetActive("A2"));
+        Assert.Equal(
+            ["security-source|a1", "security-source|a3"],
+            album.Pages.Select(page => page.SheetKey));
+        Assert.DoesNotContain(
+            album.Pages,
+            page => page.SheetKey.Equals(
+                "security-source|a2",
+                StringComparison.OrdinalIgnoreCase));
+        ProjectInactiveSourceSheetState retainedState =
+            Assert.Single(source.InactiveSheetStates);
+        Assert.Equal("A2", retainedState.SheetId);
+        Assert.Equal("building-1", retainedState.BuildingGroupId);
+        Assert.Equal(retainedPageId, Assert.Single(retainedState.AlbumPages).Page.Id);
+        Assert.Equal(1, Assert.Single(retainedState.SectionPlacements).SheetIndex);
+
+        Assert.NotNull(ProjectPackageReconciliationService.Apply(
+            project,
+            album,
+            library,
+            verified));
+        Assert.Equal(2, album.Pages.Count);
+        Assert.DoesNotContain(
+            album.Pages,
+            page => page.SheetKey.Equals(
+                "security-source|a2",
+                StringComparison.OrdinalIgnoreCase));
+
+        ProjectPackageReconciliationService.SetSheetActivity(
+            project,
+            album,
+            library,
+            source,
+            ["A2"],
+            active: true);
+
+        Assert.True(source.IsSheetActive("A2"));
+        Assert.Empty(source.InactiveSheetIds);
+        Assert.Empty(source.InactiveSheetStates);
+        Assert.Equal(
+            ["security-source|a1", "security-source|a2", "security-source|a3"],
+            album.Pages.Select(page => page.SheetKey));
+        AlbumPageDefinition restoredPage = album.Pages.Single(page =>
+            page.SheetKey.Equals("security-source|a2", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(retainedPageId, restoredPage.Id);
+        Assert.Equal("floor-plans", restoredPage.TemplateSlotId);
+        Assert.Equal("Roof plan", restoredPage.TitleOverride);
+        Assert.Equal("floor-plans", restoredPage.ContentKindOverride);
+        Assert.NotNull(restoredPage.SourceCrop);
+        Assert.True(restoredPage.SourceCrop.Enabled);
+        Assert.Equal(12, restoredPage.SourceCrop.LeftMm);
+        Assert.Equal(4, restoredPage.SourceCrop.TopMm);
+        Assert.Equal(28, restoredPage.SourceCrop.RightMm);
+        Assert.Equal(16, restoredPage.SourceCrop.BottomMm);
+        Assert.Equal("building-1", project.SheetBuildingAssignments[restoredPage.SheetKey]);
+        Assert.Equal(
+            ["security-source|a1", "security-source|a2", "security-source|a3"],
+            retainedSection.SheetKeys);
     }
 
     [Fact]

@@ -407,10 +407,47 @@ public sealed class AlbumPageDefinition
     public string TitleOverride { get; set; } = "";
 
     /// <summary>
+    /// Optional Studio-owned page classification. Empty values inherit the
+    /// source manifest so existing album files keep their current behavior.
+    /// </summary>
+    public string ContentKindOverride { get; set; } = "";
+
+    /// <summary>
+    /// Non-destructive crop applied while the source PDF is composed. This is
+    /// intended for legacy PDFs that already contain another project's frame
+    /// or title block; the original PDF remains untouched and vector content
+    /// stays vector.
+    /// </summary>
+    public SourcePageCropDefinition? SourceCrop { get; set; }
+
+    /// <summary>
     /// Optional Studio-owned facade narrative. Null inherits the source
     /// sheet's description; an explicit value remains project-local.
     /// </summary>
     public string? ElevationDescriptionOverride { get; set; }
+}
+
+public sealed class SourcePageCropDefinition
+{
+    public bool Enabled { get; set; }
+
+    public double LeftMm { get; set; }
+
+    public double TopMm { get; set; }
+
+    public double RightMm { get; set; }
+
+    public double BottomMm { get; set; }
+}
+
+public static class AlbumPageSourceMetadata
+{
+    public static string ResolveContentKind(
+        AlbumPageDefinition page,
+        ErkS.Platform.Contracts.SheetPackageEntry entry) =>
+        string.IsNullOrWhiteSpace(page.ContentKindOverride)
+            ? entry.ContentKind?.Trim() ?? ""
+            : page.ContentKindOverride.Trim();
 }
 
 public enum PagePlacementMode

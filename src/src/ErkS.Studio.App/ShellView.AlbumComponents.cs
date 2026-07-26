@@ -98,7 +98,7 @@ internal sealed partial class ShellView
         foreach (AlbumBuildComponent component in build.Components)
         {
             AlbumComponentIdentity identity = CanonicalAlbumComponentIdentity(
-                component.Code,
+                component,
                 ownerEmail,
                 hasOwnedAtd,
                 hasVisualizations,
@@ -144,14 +144,14 @@ internal sealed partial class ShellView
     }
 
     private AlbumComponentIdentity CanonicalAlbumComponentIdentity(
-        string localCode,
+        AlbumBuildComponent component,
         string ownerEmail,
         bool hasOwnedAtd,
         bool hasVisualizations,
         IReadOnlyDictionary<string, StudioCloudAlbumSection> existingByCode)
     {
         const string sourcePrefix = "source:";
-        string normalized = localCode.Trim();
+        string normalized = component.Code.Trim();
         if (normalized.Equals(ProjectCloudSyncMetadata.ApprovedAtdComponentCode, StringComparison.OrdinalIgnoreCase) &&
             hasOwnedAtd)
         {
@@ -200,7 +200,9 @@ internal sealed partial class ShellView
                 StudioAlbumComponentIdentity.SourceComponentKind);
         }
 
-        string localIdentity = normalized[sourcePrefix.Length..].Trim();
+        string localIdentity = !string.IsNullOrWhiteSpace(component.SourceIdentity)
+            ? component.SourceIdentity.Trim()
+            : StudioAlbumComponentIdentity.BaseSourceCode(normalized)[sourcePrefix.Length..].Trim();
         ProjectDesignSource? source = state.Project.Sources.FirstOrDefault(item =>
             item.Id.Equals(localIdentity, StringComparison.OrdinalIgnoreCase) ||
             ProjectCloudSyncMetadata.CloudSourceKey(item).Equals(localIdentity, StringComparison.OrdinalIgnoreCase));
@@ -209,7 +211,9 @@ internal sealed partial class ShellView
         string sourceOwner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
         return AlbumComponentIdentity.Source(
             string.IsNullOrWhiteSpace(sourceOwner) ? ownerEmail : sourceOwner,
-            ProjectCloudSyncMetadata.CloudSourceKey(source));
+            ProjectCloudSyncMetadata.CloudSourceKey(source),
+            component.SectionKey,
+            component.SequenceKey);
     }
 
     private bool TryBuildCloudUnionAlbumPreview(out AlbumBuildResult result)
@@ -255,22 +259,15 @@ internal sealed partial class ShellView
         IReadOnlyList<string> rawPendingComponents =
             EditablePendingAlbumComponents();
         string ownerEmail = CurrentCloudOwnerEmail();
-        Dictionary<string, string> sourceCodes = pendingSources
-            .GroupBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group => StudioAlbumComponentIdentity.SourceCode(ownerEmail, group.Key),
-                StringComparer.OrdinalIgnoreCase);
         Dictionary<string, string> pendingCodeMap = rawPendingComponents
             .ToDictionary(
                 code => code,
                 code => CanonicalPendingComponentCode(code, ownerEmail),
                 StringComparer.OrdinalIgnoreCase);
-        HashSet<string> requestedCodes = sourceCodes.Values
-            .Concat(pendingCodeMap.Values)
+        HashSet<string> requestedCodes = pendingCodeMap.Values
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (requestedCodes.Count == 0)
+        if (pendingSources.Count == 0 && requestedCodes.Count == 0)
         {
             result = PointPrimaryAlbumAtCanonical(canonicalPdfPath, revision);
             return true;
@@ -291,17 +288,22 @@ internal sealed partial class ShellView
                 revision.SectionManifest);
             IncludeRenderedBuildingSubCovers(requestedCodes, rendered);
             List<StudioCloudAlbumSection> selected = rendered
-                .Where(component => requestedCodes.Contains(component.Code))
+                .Where(component =>
+                    MatchesAnyPendingSource(component, pendingSources, ownerEmail) ||
+                    requestedCodes.Any(code =>
+                        MatchesRequestedComponentCode(component, code)))
                 .ToList();
             string[] missing = requestedCodes
                 .Where(code => selected.All(component =>
-                    !component.Code.Equals(code, StringComparison.OrdinalIgnoreCase)))
+                    !MatchesRequestedComponentCode(component, code)))
                 .ToArray();
-            string[] unrenderedSourcesWithSheets = missing
-                .Where(code => pendingSources.Any(source =>
+            string[] unrenderedSourcesWithSheets = pendingSources
+                .Where(source =>
                     source.SheetCount > 0 &&
-                    sourceCodes.TryGetValue(source.SourceKey, out string? sourceCode) &&
-                    code.Equals(sourceCode, StringComparison.OrdinalIgnoreCase)))
+                    selected.All(component =>
+                        !MatchesPendingSource(component, source, ownerEmail)))
+                .Select(source => source.SourceKey)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (unrenderedSourcesWithSheets.Length > 0)
             {
@@ -350,6 +352,12 @@ internal sealed partial class ShellView
                     "",
                     Remove: true));
             }
+            AddStaleSourceComponentRemovalPatches(
+                patches,
+                selected,
+                currentByCode.Values,
+                pendingSources,
+                ownerEmail);
 
             string previewFolder = Path.Combine(state.ResolveOutputFolder(), "cloud-local");
             string outputPath = Path.Combine(
@@ -1031,21 +1039,14 @@ internal sealed partial class ShellView
         string ownerEmail = CurrentCloudOwnerEmail();
         IReadOnlyList<string> rawPendingComponents =
             EditablePendingAlbumComponents();
-        Dictionary<string, string> sourceCodes = pendingSources
-            .GroupBy(source => source.SourceKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group => StudioAlbumComponentIdentity.SourceCode(ownerEmail, group.Key),
-                StringComparer.OrdinalIgnoreCase);
         Dictionary<string, string> pendingCodeMap = rawPendingComponents
             .ToDictionary(
                 code => code,
                 code => CanonicalPendingComponentCode(code, ownerEmail),
                 StringComparer.OrdinalIgnoreCase);
-        HashSet<string> requestedCodes = sourceCodes.Values
-            .Concat(pendingCodeMap.Values)
+        HashSet<string> requestedCodes = pendingCodeMap.Values
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (requestedCodes.Count == 0)
+        if (pendingSources.Count == 0 && requestedCodes.Count == 0)
             return new AlbumComponentMergeOutcome(currentRevision, 0, []);
 
         string root = Path.Combine(state.ResolveOutputFolder(), "cloud", "component-sync");
@@ -1059,17 +1060,22 @@ internal sealed partial class ShellView
                 currentRevision.SectionManifest);
             IncludeRenderedBuildingSubCovers(requestedCodes, rendered);
             List<StudioCloudAlbumSection> selected = rendered
-                .Where(component => requestedCodes.Contains(component.Code))
+                .Where(component =>
+                    MatchesAnyPendingSource(component, pendingSources, ownerEmail) ||
+                    requestedCodes.Any(code =>
+                        MatchesRequestedComponentCode(component, code)))
                 .ToList();
             string[] missing = requestedCodes
                 .Where(code => selected.All(component =>
-                    !component.Code.Equals(code, StringComparison.OrdinalIgnoreCase)))
+                    !MatchesRequestedComponentCode(component, code)))
                 .ToArray();
-            string[] unrenderedSourcesWithSheets = missing
-                .Where(code => pendingSources.Any(source =>
+            string[] unrenderedSourcesWithSheets = pendingSources
+                .Where(source =>
                     source.SheetCount > 0 &&
-                    sourceCodes.TryGetValue(source.SourceKey, out string? sourceCode) &&
-                    code.Equals(sourceCode, StringComparison.OrdinalIgnoreCase)))
+                    selected.All(component =>
+                        !MatchesPendingSource(component, source, ownerEmail)))
+                .Select(source => source.SourceKey)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (unrenderedSourcesWithSheets.Length > 0)
             {
@@ -1124,6 +1130,12 @@ internal sealed partial class ShellView
                     SourceKey: current.SourceKey,
                     ComponentKind: current.ComponentKind));
             }
+            AddStaleSourceComponentRemovalUploads(
+                uploads,
+                selected,
+                currentByCode.Values,
+                pendingSources,
+                ownerEmail);
 
             StudioCloudAlbumRevision merged = uploads.Count == 0
                 ? currentRevision
@@ -1133,9 +1145,7 @@ internal sealed partial class ShellView
                     currentRevision.RevisionId,
                     projectConcurrencyToken,
                     uploads);
-            foreach (ProjectSourceSyncCandidate source in pendingSources.Where(source =>
-                         sourceCodes.TryGetValue(source.SourceKey, out string? code) &&
-                         requestedCodes.Contains(code)))
+            foreach (ProjectSourceSyncCandidate source in pendingSources)
             {
                 ProjectCloudSyncMetadata.MarkSourceSynced(source);
             }
@@ -1154,7 +1164,11 @@ internal sealed partial class ShellView
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,
-                requestedCodes.ToArray());
+                selected
+                    .Select(component => component.Code)
+                    .Concat(requestedCodes)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
         }
         finally
         {
@@ -1275,6 +1289,166 @@ internal sealed partial class ShellView
         return normalized;
     }
 
+    private static bool MatchesRequestedComponentCode(
+        StudioCloudAlbumSection component,
+        string requestedCode)
+    {
+        string requested = (requestedCode ?? "").Trim();
+        if (component.Code.Equals(requested, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!IsSourceComponent(component) ||
+            !StudioAlbumComponentIdentity.IsOwnedSourceCode(requested) ||
+            StudioAlbumComponentIdentity.TryGetSourceSlice(
+                requested,
+                out _,
+                out _))
+        {
+            return false;
+        }
+
+        return StudioAlbumComponentIdentity.BaseSourceCode(component.Code)
+            .Equals(
+                StudioAlbumComponentIdentity.BaseSourceCode(requested),
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesAnyPendingSource(
+        StudioCloudAlbumSection component,
+        IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
+        string currentOwnerEmail) =>
+        pendingSources.Any(source =>
+            MatchesPendingSource(component, source, currentOwnerEmail));
+
+    private static bool MatchesPendingSource(
+        StudioCloudAlbumSection component,
+        ProjectSourceSyncCandidate source,
+        string currentOwnerEmail)
+    {
+        if (!IsSourceComponent(component))
+            return false;
+
+        string sourceOwner = ProjectCloudSyncMetadata.CloudOwnerEmail(source.Source);
+        if (string.IsNullOrWhiteSpace(sourceOwner))
+            sourceOwner = (currentOwnerEmail ?? "").Trim().ToLowerInvariant();
+        string expectedBaseCode = StudioAlbumComponentIdentity.SourceCode(
+            sourceOwner,
+            source.SourceKey);
+
+        if (StudioAlbumComponentIdentity.IsOwnedSourceCode(component.Code))
+        {
+            return StudioAlbumComponentIdentity.BaseSourceCode(component.Code)
+                .Equals(expectedBaseCode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return component.SourceKey.Equals(
+                source.SourceKey,
+                StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(component.OwnerEmail) ||
+             component.OwnerEmail.Equals(
+                 sourceOwner,
+                 StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSourceComponent(StudioCloudAlbumSection component) =>
+        component.ComponentKind.Equals(
+            StudioAlbumComponentIdentity.SourceComponentKind,
+            StringComparison.OrdinalIgnoreCase) ||
+        component.Code.StartsWith("source:", StringComparison.OrdinalIgnoreCase);
+
+    private static IEnumerable<StudioCloudAlbumSection> StaleSourceComponents(
+        IReadOnlyList<StudioCloudAlbumSection> selected,
+        IEnumerable<StudioCloudAlbumSection> current,
+        IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
+        string ownerEmail)
+    {
+        HashSet<string> selectedCodes = selected
+            .Where(IsSourceComponent)
+            .Select(component => component.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> selectedBaseCodes = selected
+            .Where(component =>
+                IsSourceComponent(component) &&
+                StudioAlbumComponentIdentity.IsOwnedSourceCode(component.Code))
+            .Select(component =>
+                StudioAlbumComponentIdentity.BaseSourceCode(component.Code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return current.Where(component =>
+        {
+            if (!IsSourceComponent(component) ||
+                selectedCodes.Contains(component.Code))
+            {
+                return false;
+            }
+
+            bool replacedByRenderedSlice =
+                StudioAlbumComponentIdentity.IsOwnedSourceCode(component.Code) &&
+                selectedBaseCodes.Contains(
+                    StudioAlbumComponentIdentity.BaseSourceCode(component.Code));
+            return replacedByRenderedSlice ||
+                MatchesAnyPendingSource(component, pendingSources, ownerEmail);
+        });
+    }
+
+    private static void AddStaleSourceComponentRemovalPatches(
+        ICollection<AlbumComponentPdfPatch> patches,
+        IReadOnlyList<StudioCloudAlbumSection> selected,
+        IEnumerable<StudioCloudAlbumSection> current,
+        IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
+        string ownerEmail)
+    {
+        foreach (StudioCloudAlbumSection component in StaleSourceComponents(
+                     selected,
+                     current,
+                     pendingSources,
+                     ownerEmail))
+        {
+            if (patches.Any(patch => patch.Code.Equals(
+                    component.Code,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            patches.Add(new AlbumComponentPdfPatch(
+                component.Code,
+                component.Order,
+                "",
+                Remove: true));
+        }
+    }
+
+    private static void AddStaleSourceComponentRemovalUploads(
+        ICollection<StudioAlbumComponentUpload> uploads,
+        IReadOnlyList<StudioCloudAlbumSection> selected,
+        IEnumerable<StudioCloudAlbumSection> current,
+        IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
+        string ownerEmail)
+    {
+        foreach (StudioCloudAlbumSection component in StaleSourceComponents(
+                     selected,
+                     current,
+                     pendingSources,
+                     ownerEmail))
+        {
+            if (uploads.Any(upload => upload.Code.Equals(
+                    component.Code,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            uploads.Add(new StudioAlbumComponentUpload(
+                component.Code,
+                component.Label,
+                component.Order,
+                "",
+                Remove: true,
+                SourceKey: component.SourceKey,
+                ComponentKind: component.ComponentKind));
+        }
+    }
+
     private static void IncludeRenderedBuildingSubCovers(
         ISet<string> requestedCodes,
         IEnumerable<StudioCloudAlbumSection> rendered)
@@ -1393,8 +1567,16 @@ internal sealed partial class ShellView
             "",
             StudioAlbumComponentIdentity.GeneratedComponentKind);
 
-        public static AlbumComponentIdentity Source(string ownerEmail, string sourceKey) => new(
-            StudioAlbumComponentIdentity.SourceCode(ownerEmail, sourceKey),
+        public static AlbumComponentIdentity Source(
+            string ownerEmail,
+            string sourceKey,
+            string sectionKey = "",
+            string sequenceKey = "") => new(
+            StudioAlbumComponentIdentity.SourceSliceCode(
+                ownerEmail,
+                sourceKey,
+                sectionKey,
+                sequenceKey),
             ownerEmail.Trim().ToLowerInvariant(),
             sourceKey.Trim(),
             StudioAlbumComponentIdentity.SourceComponentKind);

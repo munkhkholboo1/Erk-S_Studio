@@ -400,6 +400,7 @@ public static class ProjectWorkspaceStore
         foreach (var source in project.Sources)
         {
             source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            source.NormalizeSheetActivityState();
             if (string.IsNullOrWhiteSpace(source.Id))
             {
                 source.Id = Guid.NewGuid().ToString("N");
@@ -921,6 +922,8 @@ public static class LegacyAlbumProjectImporter
             LastPackageAtUtc = source.LastPackageAtUtc,
             UseLegacySheetKeys = source.UseLegacySheetKeys,
             Metadata = new Dictionary<string, string>(source.Metadata, StringComparer.OrdinalIgnoreCase),
+            InactiveSheetIds = [.. (source.InactiveSheetIds ?? [])],
+            InactiveSheetStates = CloneInactiveSheetStates(source.InactiveSheetStates),
         };
 
         if (string.IsNullOrWhiteSpace(clone.InboxFolder) || !ProjectWorkspacePaths.IsInside(projectFolder, clone.InboxFolder))
@@ -932,6 +935,21 @@ public static class LegacyAlbumProjectImporter
             clone.InboxFolder = Path.Combine(projectFolder, "sources", SafePathSegment(clone.DisplayName), "deliveries");
         }
         return clone;
+    }
+
+    private static List<ProjectInactiveSourceSheetState> CloneInactiveSheetStates(
+        List<ProjectInactiveSourceSheetState>? states)
+    {
+        if (states is null || states.Count == 0)
+        {
+            return [];
+        }
+
+        string json = JsonSerializer.Serialize(states, SheetPackageJson.Options);
+        return JsonSerializer.Deserialize<List<ProjectInactiveSourceSheetState>>(
+                   json,
+                   SheetPackageJson.Options) ??
+               [];
     }
 
     private static string ResolveOutputRelativePath(string projectFolder, string outputFolder)

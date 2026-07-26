@@ -216,6 +216,35 @@ public sealed class SheetPackageTests : IDisposable
         {
             Title = "Загвар зургийн тайлан",
         });
+        project.Sources.Add(new ProjectDesignSource
+        {
+            Id = "pdf-source",
+            Kind = DesignSourceKind.Pdf,
+            Name = "Legacy album.pdf",
+            InactiveSheetIds = ["pdf-page-0001", "PDF-PAGE-0001", " pdf-page-0003 "],
+            InactiveSheetStates =
+            [
+                new ProjectInactiveSourceSheetState
+                {
+                    SheetId = " PDF-PAGE-0001 ",
+                    SheetKey = "pdf-source|pdf-page-0001",
+                    BuildingGroupId = "building-2",
+                    AlbumPages =
+                    [
+                        new ProjectInactiveAlbumPageState
+                        {
+                            AlbumIndex = 5,
+                            Page = new AlbumPageDefinition
+                            {
+                                SheetKey = "pdf-source|pdf-page-0001",
+                                TemplateSlotId = "floor-plans",
+                                TitleOverride = "Roof plan",
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
         var path = Path.Combine(workDirectory, ProjectWorkspace.DefaultFileName);
 
         ProjectWorkspaceStore.Save(project, path);
@@ -232,6 +261,18 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal(["Major architect", "Architect"], loaded.Foundation.DesignCompany.Members.Single().Roles);
         Assert.Equal(ProjectWorkspace.ConceptAlbumRelativePath, loaded.PrimaryAlbum.DocumentPath);
         Assert.Equal("Загвар зургийн тайлан", loaded.Deliverables.Reports.Single().Title);
+        Assert.Equal(
+            ["pdf-page-0001", "pdf-page-0003"],
+            loaded.Sources.Single(source => source.Id == "pdf-source").InactiveSheetIds);
+        ProjectInactiveSourceSheetState inactiveState = Assert.Single(
+            loaded.Sources.Single(source => source.Id == "pdf-source").InactiveSheetStates);
+        Assert.Equal("PDF-PAGE-0001", inactiveState.SheetId);
+        Assert.Equal("pdf-source|pdf-page-0001", inactiveState.SheetKey);
+        Assert.Equal("building-2", inactiveState.BuildingGroupId);
+        ProjectInactiveAlbumPageState inactivePage = Assert.Single(inactiveState.AlbumPages);
+        Assert.Equal(5, inactivePage.AlbumIndex);
+        Assert.Equal("floor-plans", inactivePage.Page.TemplateSlotId);
+        Assert.Equal("Roof plan", inactivePage.Page.TitleOverride);
     }
 
     [Fact]
@@ -1367,6 +1408,7 @@ public sealed class SheetPackageTests : IDisposable
     [Theory]
     [InlineData("Давхрын байгуулалт", "1-Р ДАВХРЫН БАЙГУУЛАЛТ", "floor-plans")]
     [InlineData("Байгуулалт", "1-Р ДАВХАР", "floor-plans")]
+    [InlineData("", "23 - ДЭЭВРИЙН БАЙГУУЛАЛТ", "floor-plans")]
     [InlineData("Огтлол", "ОГТЛОЛ 1-1", "sections")]
     [InlineData("Нүүр тал", "НҮҮР ТАЛ X1-X3", "elevations")]
     [InlineData("Харагдах байдал", "ХАРАГДАХ БАЙДАЛ", "visualizations")]
@@ -1617,9 +1659,60 @@ public sealed class SheetPackageTests : IDisposable
                 "generated:building-sub-cover:",
                 StringComparison.OrdinalIgnoreCase))
             .ToArray();
+        AlbumBuildComponent[] buildingSequence = result.Components
+            .Where(component =>
+                component.Code.StartsWith(
+                    "generated:building-sub-cover:",
+                    StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrWhiteSpace(component.SourceIdentity))
+            .ToArray();
 
         Assert.Equal(2, buildingCovers.Length);
         Assert.All(buildingCovers, component => Assert.Single(component.PageNumbers));
+        Assert.Collection(
+            buildingSequence,
+            component => Assert.Equal(
+                "generated:building-sub-cover:studio-building:annex",
+                component.Code),
+            component =>
+            {
+                Assert.Equal("autocad-source", component.SourceIdentity);
+                Assert.Equal("studio-building:annex", component.SectionKey);
+                Assert.Equal("floor-plans", component.SequenceKey);
+            },
+            component =>
+            {
+                Assert.Equal("revit-source", component.SourceIdentity);
+                Assert.Equal("studio-building:annex", component.SectionKey);
+                Assert.Equal("sections", component.SequenceKey);
+            },
+            component =>
+            {
+                Assert.Equal("revit-source", component.SourceIdentity);
+                Assert.Equal("studio-building:annex", component.SectionKey);
+                Assert.Equal("elevations", component.SequenceKey);
+            },
+            component => Assert.Equal(
+                "generated:building-sub-cover:studio-building:main",
+                component.Code),
+            component =>
+            {
+                Assert.Equal("autocad-source", component.SourceIdentity);
+                Assert.Equal("studio-building:main", component.SectionKey);
+                Assert.Equal("floor-plans", component.SequenceKey);
+            },
+            component =>
+            {
+                Assert.Equal("revit-source", component.SourceIdentity);
+                Assert.Equal("studio-building:main", component.SectionKey);
+                Assert.Equal("sections", component.SequenceKey);
+            },
+            component =>
+            {
+                Assert.Equal("revit-source", component.SourceIdentity);
+                Assert.Equal("studio-building:main", component.SectionKey);
+                Assert.Equal("elevations", component.SequenceKey);
+            });
         Assert.True(File.Exists(outputPath));
     }
 

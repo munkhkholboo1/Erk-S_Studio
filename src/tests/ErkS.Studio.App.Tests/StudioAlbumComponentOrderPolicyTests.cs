@@ -303,6 +303,250 @@ public sealed class StudioAlbumComponentOrderPolicyTests
         Assert.True(subCover < buildingSource);
     }
 
+    [Fact]
+    public void Resolve_WithoutGeneralPlan_KeepsSparseBuildingGroupsBesideTheirSubCovers()
+    {
+        const string owner = "architect@example.com";
+        const string sourceKey = "shared-building-source";
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "ORDER-04",
+            "Sparse building order");
+        var buildingOne = new ProjectBuildingGroup
+        {
+            Id = "building-one",
+            Name = "Building 1",
+            Order = 1,
+        };
+        var buildingTwo = new ProjectBuildingGroup
+        {
+            Id = "building-two",
+            Name = "Building 2",
+            Order = 2,
+        };
+        var buildingThree = new ProjectBuildingGroup
+        {
+            Id = "building-three",
+            Name = "Building 3",
+            Order = 3,
+        };
+        project.BuildingGroups = [buildingOne, buildingTwo, buildingThree];
+        project.Sources.Add(new ProjectDesignSource { Id = sourceKey });
+
+        string baseSourceCode =
+            StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+        var registrationOrder = new Dictionary<string, int>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [baseSourceCode] = 0,
+        };
+        string buildingOnePlan = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:" + buildingOne.Id,
+            "floor-plans");
+        string buildingTwoSection = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:" + buildingTwo.Id,
+            "sections");
+        string buildingThreeElevation = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:" + buildingThree.Id,
+            "elevations");
+
+        int buildingOneCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(buildingOne),
+            "",
+            localOrder: 90,
+            registrationOrder);
+        int buildingOneSheets = Resolve(
+            project,
+            buildingOnePlan,
+            sourceKey,
+            localOrder: 80,
+            registrationOrder);
+        int buildingTwoCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(buildingTwo),
+            "",
+            localOrder: 70,
+            registrationOrder);
+        int buildingTwoSheets = Resolve(
+            project,
+            buildingTwoSection,
+            sourceKey,
+            localOrder: 60,
+            registrationOrder);
+        int buildingThreeCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(buildingThree),
+            "",
+            localOrder: 50,
+            registrationOrder);
+        int buildingThreeSheets = Resolve(
+            project,
+            buildingThreeElevation,
+            sourceKey,
+            localOrder: 40,
+            registrationOrder);
+
+        Assert.True(buildingOneCover < buildingOneSheets);
+        Assert.True(buildingOneSheets < buildingTwoCover);
+        Assert.True(buildingTwoCover < buildingTwoSheets);
+        Assert.True(buildingTwoSheets < buildingThreeCover);
+        Assert.True(buildingThreeCover < buildingThreeSheets);
+    }
+
+    [Fact]
+    public void Resolve_LegacyRawSourcesWithoutMetadataStayBesideTheirBuildingSubCovers()
+    {
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "ORDER-LEGACY",
+            "Legacy source order");
+        var buildingOne = new ProjectBuildingGroup
+        {
+            Id = "building-one",
+            Name = "Building 1",
+            Order = 1,
+        };
+        var buildingTwo = new ProjectBuildingGroup
+        {
+            Id = "building-two",
+            Name = "Building 2",
+            Order = 2,
+        };
+        var buildingThree = new ProjectBuildingGroup
+        {
+            Id = "building-three",
+            Name = "Building 3",
+            Order = 3,
+        };
+        project.BuildingGroups = [buildingOne, buildingTwo, buildingThree];
+
+        var sourceOne = new ProjectDesignSource { Id = "legacy-source-one" };
+        var sourceTwo = new ProjectDesignSource { Id = "legacy-source-two" };
+        var sourceThree = new ProjectDesignSource { Id = "legacy-source-three" };
+        project.Sources.AddRange([sourceOne, sourceTwo, sourceThree]);
+        project.SheetBuildingAssignments[sourceOne.Id + "|sheet-1"] = buildingOne.Id;
+        project.SheetBuildingAssignments[sourceTwo.Id + "|sheet-1"] = buildingTwo.Id;
+        project.SheetBuildingAssignments[sourceThree.Id + "|sheet-1"] = buildingThree.Id;
+
+        string sourceOneCode = "source:" + sourceOne.Id;
+        string sourceTwoCode = "source:" + sourceTwo.Id;
+        string sourceThreeCode = "source:" + sourceThree.Id;
+        var registrationOrder = new Dictionary<string, int>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [sourceOneCode] = 1000,
+            [sourceTwoCode] = 1001,
+            [sourceThreeCode] = 1002,
+        };
+
+        int buildingOneCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(buildingOne),
+            "",
+            localOrder: 200_000,
+            registrationOrder);
+        int buildingOneSheets = Resolve(
+            project,
+            sourceOneCode,
+            "",
+            localOrder: 1000,
+            registrationOrder);
+        int buildingTwoCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(buildingTwo),
+            "",
+            localOrder: 210_000,
+            registrationOrder);
+        int buildingTwoSheets = Resolve(
+            project,
+            sourceTwoCode,
+            "",
+            localOrder: 1001,
+            registrationOrder);
+        int buildingThreeCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(buildingThree),
+            "",
+            localOrder: 220_000,
+            registrationOrder);
+        int buildingThreeSheets = Resolve(
+            project,
+            sourceThreeCode,
+            "",
+            localOrder: 1002,
+            registrationOrder);
+
+        Assert.True(buildingOneCover < buildingOneSheets);
+        Assert.True(buildingOneSheets < buildingTwoCover);
+        Assert.True(buildingTwoCover < buildingTwoSheets);
+        Assert.True(buildingTwoSheets < buildingThreeCover);
+        Assert.True(buildingThreeCover < buildingThreeSheets);
+    }
+
+    [Fact]
+    public void Resolve_SparseSheetTypesKeepPlanSectionElevationSlotOrder()
+    {
+        const string owner = "architect@example.com";
+        const string sourceKey = "building-source";
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "ORDER-05",
+            "Sheet type order");
+        var building = new ProjectBuildingGroup
+        {
+            Id = "building-one",
+            Name = "Building 1",
+            Order = 1,
+        };
+        project.BuildingGroups = [building];
+        string baseSourceCode =
+            StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+        var registrationOrder = new Dictionary<string, int>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [baseSourceCode] = 0,
+        };
+        string sectionKey = "studio-building:" + building.Id;
+
+        int plan = Resolve(
+            project,
+            StudioAlbumComponentIdentity.SourceSliceCode(
+                owner,
+                sourceKey,
+                sectionKey,
+                "floor-plans"),
+            sourceKey,
+            localOrder: 30,
+            registrationOrder);
+        int section = Resolve(
+            project,
+            StudioAlbumComponentIdentity.SourceSliceCode(
+                owner,
+                sourceKey,
+                sectionKey,
+                "sections"),
+            sourceKey,
+            localOrder: 20,
+            registrationOrder);
+        int elevation = Resolve(
+            project,
+            StudioAlbumComponentIdentity.SourceSliceCode(
+                owner,
+                sourceKey,
+                sectionKey,
+                "elevations"),
+            sourceKey,
+            localOrder: 10,
+            registrationOrder);
+
+        Assert.True(plan < section);
+        Assert.True(section < elevation);
+    }
+
     private static int Resolve(
         ProjectWorkspace project,
         string componentCode,

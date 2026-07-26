@@ -177,7 +177,8 @@ internal sealed class DesignSourceDialog : Window
         bool supportsClassification =
             kindBox.SelectedItem is DesignSourceKind.Revit or
                 DesignSourceKind.AutoCad or
-                DesignSourceKind.CityGen;
+                DesignSourceKind.CityGen or
+                DesignSourceKind.Pdf;
         ProjectDesignSourcePurpose purpose =
             (purposeBox.SelectedItem as SourcePurposeChoice)?.Value ??
             ProjectDesignSourcePurpose.Unspecified;
@@ -308,6 +309,23 @@ internal sealed class DesignSourceDialog : Window
         {
             StudioMessageDialog.Show(this, "Эх үүсвэрийн нэр оруулна уу.", "Erk-S Studio", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
+        }
+
+        if (kind == DesignSourceKind.Pdf)
+        {
+            string pdfPath = documentPathBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(pdfPath) ||
+                !File.Exists(pdfPath) ||
+                !Path.GetExtension(pdfPath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                StudioMessageDialog.Show(
+                    this,
+                    "PDF эх файлаа сонгоно уу.",
+                    "Erk-S Studio",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
         }
 
         var inbox = string.IsNullOrWhiteSpace(inboxBox.Text)

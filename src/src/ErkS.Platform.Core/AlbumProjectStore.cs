@@ -128,6 +128,7 @@ public static class AlbumProjectStore
             }
 
             source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            source.NormalizeSheetActivityState();
         }
     }
 }

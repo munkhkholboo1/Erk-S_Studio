@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.20",
-    [string]$AssemblyVersion = "0.0.1.20",
+    [string]$ReleaseVersion = "V0.001.21",
+    [string]$AssemblyVersion = "0.0.1.21",
     [string]$OutputDirectory = "",
     [string]$CodeSigningThumbprint = $env:ERKS_CODE_SIGN_CERT_THUMBPRINT,
     [string]$ExpectedPublisher = "Erk-S LLC",
@@ -25,10 +25,18 @@ if (-not $OutputDirectory.StartsWith($ProductBuildRoot.TrimEnd('\') + '\', [Stri
 
 $PublishDirectory = Join-Path $OutputDirectory "publish"
 $InstallerBuildDirectory = Join-Path $OutputDirectory "installer-build"
+$BuildArtifactsDirectory = Join-Path $OutputDirectory "dotnet-artifacts"
+$AcceptanceDirectory = Join-Path $OutputDirectory "acceptance"
 $SetupPath = Join-Path $OutputDirectory ("ErkS_Studio_Demo_" + $ReleaseVersion + "_Setup.exe")
 $PortableZip = Join-Path $OutputDirectory ("ErkS_Studio_Demo_" + $ReleaseVersion + "_Portable.zip")
 $PayloadZip = Join-Path $InstallerBuildDirectory "payload.zip"
 $ProjectPath = Join-Path $SourceRoot "src\ErkS.Studio\ErkS.Studio.csproj"
+$ExternalAcceptanceScript = Join-Path $ScriptRoot "Test-Studio-ExternalAcceptance.ps1"
+$ReleaseArtifactScript = Join-Path $ScriptRoot "Test-Studio-ReleaseArtifact.ps1"
+$TestProjects = @(
+    (Join-Path $SourceRoot "tests\ErkS.Platform.Core.Tests\ErkS.Platform.Core.Tests.csproj"),
+    (Join-Path $SourceRoot "tests\ErkS.Studio.App.Tests\ErkS.Studio.App.Tests.csproj")
+)
 $InstallerRoot = Join-Path $ProductRoot "installer"
 $InstallerSource = Join-Path $InstallerRoot "ErkS.Studio.Setup.cs"
 $InstallerManifest = Join-Path $InstallerRoot "ErkS.Studio.Setup.manifest"
@@ -139,8 +147,77 @@ function Invoke-ErkSCodeSign {
     }
 }
 
+function Invoke-ReleaseArtifactGate {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ReportName
+    )
+
+    $Arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $ReleaseArtifactScript,
+        "-Path", $Path,
+        "-ExpectedPublisher", $ExpectedPublisher,
+        "-ExpectedProductVersion", "Demo $ReleaseVersion",
+        "-OutputPath", (Join-Path $AcceptanceDirectory $ReportName)
+    )
+    if ($AllowPrivateTrustDemoCertificate) {
+        $Arguments += "-AllowPrivateTrust"
+    }
+
+    & powershell @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release artifact trust gate failed for '$Path'. Exit code: $LASTEXITCODE"
+    }
+}
+
+function Assert-UiSmokeArtifacts {
+    param([Parameter(Mandatory = $true)][string]$Directory)
+
+    $ManifestPath = Join-Path $Directory "manifest.json"
+    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
+        throw "UI smoke manifest was not created: $ManifestPath"
+    }
+
+    $Manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+    $Scenarios = @($Manifest.scenarios)
+    if ($Scenarios.Count -ne 3) {
+        throw "UI smoke must contain exactly three DPI scenarios; received $($Scenarios.Count)."
+    }
+
+    foreach ($Scenario in $Scenarios) {
+        $ImagePath = [string]$Scenario.outputPath
+        if (-not (Test-Path -LiteralPath $ImagePath -PathType Leaf)) {
+            throw "UI smoke image is missing for '$($Scenario.name)': $ImagePath"
+        }
+        if ((Get-Item -LiteralPath $ImagePath).Length -lt 10240) {
+            throw "UI smoke image is unexpectedly small for '$($Scenario.name)': $ImagePath"
+        }
+        if ([int]$Scenario.distinctColorBuckets -lt 4 -or
+            [int64]$Scenario.visiblePixels * 4 -lt [int64]$Scenario.sampledPixels) {
+            throw "UI smoke image validation failed for '$($Scenario.name)'."
+        }
+    }
+}
+
 if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
     throw "AssemblyVersion нь 0.0.1 эсвэл 0.0.1.1 хэлбэртэй байна."
+}
+
+foreach ($TestProject in $TestProjects) {
+    if (-not (Test-Path -LiteralPath $TestProject -PathType Leaf)) {
+        throw "Release regression test project was not found: $TestProject"
+    }
+
+    Write-Host "Running product-mode regression tests: $([IO.Path]::GetFileNameWithoutExtension($TestProject))"
+    & dotnet test $TestProject -c "Release" --nologo `
+        "-p:StudioProductBuild=true" `
+        "-p:StudioReleaseVersion=$AssemblyVersion" `
+        "-p:StudioReleaseLabel=Demo $ReleaseVersion"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Studio release regression gate failed for '$TestProject'. Exit code: $LASTEXITCODE"
+    }
 }
 
 $SigningContext = Get-CodeSigningContext -Thumbprint $CodeSigningThumbprint
@@ -161,6 +238,18 @@ if (Test-Path -LiteralPath $OutputDirectory) {
 }
 New-Item -ItemType Directory -Path $PublishDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $InstallerBuildDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $AcceptanceDirectory -Force | Out-Null
+
+& powershell `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File $ExternalAcceptanceScript `
+    -OutputPath (Join-Path $AcceptanceDirectory "external-hosts.json") `
+    -RequireExternalRepositories `
+    -RequireInstalledHosts
+if ($LASTEXITCODE -ne 0) {
+    throw "AutoCAD/Revit external acceptance gate failed. Exit code: $LASTEXITCODE"
+}
 
 $PublishArguments = @(
     "publish", $ProjectPath,
@@ -175,12 +264,14 @@ $PublishArguments = @(
     "-p:StudioProductBuild=true",
     "-p:StudioReleaseVersion=$AssemblyVersion",
     "-p:StudioReleaseLabel=Demo $ReleaseVersion",
+    "--artifacts-path", $BuildArtifactsDirectory,
     "-o", $PublishDirectory
 )
 & dotnet @PublishArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Erk-S Studio product publish амжилтгүй боллоо."
 }
+Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
 
 Copy-Item -LiteralPath (Join-Path $InstallerRoot "Uninstall-ErkS-Studio.ps1") -Destination $PublishDirectory -Force
 Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File -Filter "*.pdb" | Remove-Item -Force
@@ -281,6 +372,9 @@ if ($VersionInfo.ProductVersion -notlike "*Demo $ReleaseVersion*") {
 }
 
 Invoke-ErkSCodeSign -Path $PublishedExe -SigningContext $SigningContext
+Invoke-ReleaseArtifactGate `
+    -Path $PublishedExe `
+    -ReportName "published-exe-trust.json"
 
 Compress-Archive -Path (Join-Path $PublishDirectory "*") -DestinationPath $PortableZip -CompressionLevel Optimal
 Copy-Item -LiteralPath $PortableZip -Destination $PayloadZip -Force
@@ -348,6 +442,9 @@ if ($SetupVersion.ProductVersion -ne "Demo $ReleaseVersion") {
 }
 
 Invoke-ErkSCodeSign -Path $SetupPath -SigningContext $SigningContext
+Invoke-ReleaseArtifactGate `
+    -Path $SetupPath `
+    -ReportName "setup-trust.json"
 
 $SmokeInstallDirectory = [IO.Path]::GetFullPath((Join-Path $OutputDirectory "installer-smoke"))
 $ExpectedSmokePrefix = $OutputDirectory.TrimEnd('\') + '\'
@@ -401,6 +498,134 @@ $SmokeForbiddenFiles = Get-ChildItem -LiteralPath $SmokeInstallDirectory -Recurs
 if ($SmokeForbiddenFiles) {
     throw "Final setup smoke test found forbidden product data: $($SmokeForbiddenFiles.FullName -join ', ')"
 }
+Invoke-ReleaseArtifactGate `
+    -Path $SmokeExe `
+    -ReportName "clean-install-exe-trust.json"
+
+$StartupSmokeFailureLog = Join-Path $SmokeInstallDirectory "release-smoke-failure.log"
+if (Test-Path -LiteralPath $StartupSmokeFailureLog -PathType Leaf) {
+    Remove-Item -LiteralPath $StartupSmokeFailureLog -Force
+}
+
+$CleanInstallUiSmokeDirectory = Join-Path $AcceptanceDirectory "clean-install-ui"
+$StartupSmokeArgumentLine = (
+    '--release-smoke-test --release-smoke-output="' +
+    $CleanInstallUiSmokeDirectory +
+    '"')
+$StartupSmokeProcess = Start-Process `
+    -FilePath $SmokeExe `
+    -ArgumentList $StartupSmokeArgumentLine `
+    -PassThru `
+    -Wait
+if ($StartupSmokeProcess.ExitCode -ne 0) {
+    $StartupSmokeDetails = if (Test-Path -LiteralPath $StartupSmokeFailureLog -PathType Leaf) {
+        Get-Content -LiteralPath $StartupSmokeFailureLog -Raw
+    } else {
+        "The installed application did not create a failure log."
+    }
+    throw "Final installed application startup smoke test failed with exit code $($StartupSmokeProcess.ExitCode).`n$StartupSmokeDetails"
+}
+Assert-UiSmokeArtifacts -Directory $CleanInstallUiSmokeDirectory
+
+$UpdateSmokeArgumentLine = (
+    '/quiet /update /nolaunch /skipshortcuts /skipregistration /installroot="' +
+    $SmokeInstallDirectory +
+    '"')
+$UpdateHoldReadyPath = Join-Path $AcceptanceDirectory "update-running.ready"
+if (Test-Path -LiteralPath $UpdateHoldReadyPath -PathType Leaf) {
+    Remove-Item -LiteralPath $UpdateHoldReadyPath -Force
+}
+$UpdateHoldArgumentLine = (
+    '--release-update-hold-test --release-update-ready="' +
+    $UpdateHoldReadyPath +
+    '"')
+$UpdateHoldProcess = $null
+$UpdateSmokeProcess = $null
+$UpdateStartedAt = [DateTimeOffset]::UtcNow
+try {
+    $UpdateHoldProcess = Start-Process `
+        -FilePath $SmokeExe `
+        -ArgumentList $UpdateHoldArgumentLine `
+        -PassThru
+
+    $UpdateHoldDeadline = [DateTimeOffset]::Now.AddSeconds(20)
+    while (-not (Test-Path -LiteralPath $UpdateHoldReadyPath -PathType Leaf) -and
+        -not $UpdateHoldProcess.HasExited -and
+        [DateTimeOffset]::Now -lt $UpdateHoldDeadline) {
+        Start-Sleep -Milliseconds 100
+    }
+    if (-not (Test-Path -LiteralPath $UpdateHoldReadyPath -PathType Leaf)) {
+        throw "Installed Studio did not enter the running-update acceptance state."
+    }
+
+    $UpdateSmokeProcess = Start-Process `
+        -FilePath $SetupPath `
+        -ArgumentList $UpdateSmokeArgumentLine `
+        -PassThru `
+        -Wait
+    if ($UpdateSmokeProcess.ExitCode -ne 0) {
+        $InstallerLog = Join-Path ([IO.Path]::GetTempPath()) "ErkS-Studio-Setup.log"
+        $InstallerLogTail = if (Test-Path -LiteralPath $InstallerLog -PathType Leaf) {
+            (Get-Content -LiteralPath $InstallerLog -Tail 30) -join [Environment]::NewLine
+        } else {
+            "No installer log was created."
+        }
+        throw "Final setup update smoke test failed with exit code $($UpdateSmokeProcess.ExitCode).`n$InstallerLogTail"
+    }
+
+    if (-not $UpdateHoldProcess.WaitForExit(10000)) {
+        throw "The signed updater completed without closing the running Studio process."
+    }
+}
+finally {
+    if ($UpdateHoldProcess -and -not $UpdateHoldProcess.HasExited) {
+        $UpdateHoldProcess.Kill()
+        $UpdateHoldProcess.WaitForExit(5000)
+    }
+}
+
+$UpdateRunningAcceptance = [ordered]@{
+    generatedAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
+    installedExecutable = $SmokeExe
+    runningProcessId = $UpdateHoldProcess.Id
+    updaterExitCode = $UpdateSmokeProcess.ExitCode
+    runningProcessClosedAutomatically = $UpdateHoldProcess.HasExited
+    durationMs = [int]([DateTimeOffset]::UtcNow - $UpdateStartedAt).TotalMilliseconds
+}
+$UpdateRunningAcceptance |
+    ConvertTo-Json -Depth 4 |
+    Set-Content -LiteralPath (Join-Path $AcceptanceDirectory "running-update.json") -Encoding UTF8
+Remove-Item -LiteralPath $UpdateHoldReadyPath -Force
+
+$UpdatedSmokeVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($SmokeExe)
+if ($UpdatedSmokeVersion.ProductVersion -notlike "*Demo $ReleaseVersion*") {
+    throw "Final setup update smoke test installed the wrong product version: $($UpdatedSmokeVersion.ProductVersion)"
+}
+Invoke-ReleaseArtifactGate `
+    -Path $SmokeExe `
+    -ReportName "updated-install-exe-trust.json"
+if (Test-Path -LiteralPath $StartupSmokeFailureLog -PathType Leaf) {
+    Remove-Item -LiteralPath $StartupSmokeFailureLog -Force
+}
+$UpdatedInstallUiSmokeDirectory = Join-Path $AcceptanceDirectory "updated-install-ui"
+$UpdatedStartupSmokeArgumentLine = (
+    '--release-smoke-test --release-smoke-output="' +
+    $UpdatedInstallUiSmokeDirectory +
+    '"')
+$UpdatedStartupSmokeProcess = Start-Process `
+    -FilePath $SmokeExe `
+    -ArgumentList $UpdatedStartupSmokeArgumentLine `
+    -PassThru `
+    -Wait
+if ($UpdatedStartupSmokeProcess.ExitCode -ne 0) {
+    $UpdatedStartupSmokeDetails = if (Test-Path -LiteralPath $StartupSmokeFailureLog -PathType Leaf) {
+        Get-Content -LiteralPath $StartupSmokeFailureLog -Raw
+    } else {
+        "The updated application did not create a failure log."
+    }
+    throw "Final updated application startup smoke test failed with exit code $($UpdatedStartupSmokeProcess.ExitCode).`n$UpdatedStartupSmokeDetails"
+}
+Assert-UiSmokeArtifacts -Directory $UpdatedInstallUiSmokeDirectory
 
 Remove-Item -LiteralPath $SmokeInstallDirectory -Recurse -Force
 Remove-Item -LiteralPath $InstallerBuildDirectory -Recurse -Force
@@ -496,8 +721,18 @@ $ReleaseMetadata = [ordered]@{
     timestampUrl = $TimestampUrl
     productDataIncluded = $false
     devUpdateIncluded = $false
+    acceptanceReports = [ordered]@{
+        externalHosts = "acceptance/external-hosts.json"
+        publishedExecutableTrust = "acceptance/published-exe-trust.json"
+        setupTrust = "acceptance/setup-trust.json"
+        cleanInstallExecutableTrust = "acceptance/clean-install-exe-trust.json"
+        updatedInstallExecutableTrust = "acceptance/updated-install-exe-trust.json"
+        runningApplicationUpdate = "acceptance/running-update.json"
+        cleanInstallUi = "acceptance/clean-install-ui/manifest.json"
+        updatedInstallUi = "acceptance/updated-install-ui/manifest.json"
+    }
 }
-$ReleaseMetadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory "release.json") -Encoding UTF8
+$ReleaseMetadata | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory "release.json") -Encoding UTF8
 
 Write-Host "Erk-S Studio Demo $ReleaseVersion product package ready."
 Write-Host "Setup: $SetupPath"

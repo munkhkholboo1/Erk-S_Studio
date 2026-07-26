@@ -34,6 +34,8 @@ internal sealed class StudioRuntime
     private static readonly string[] SharedAssemblyNames =
     [
         "ErkS.Studio.Contracts",
+        "Microsoft.Windows.SDK.NET",
+        "WinRT.Runtime",
     ];
 
     public string? DevRoot { get; }

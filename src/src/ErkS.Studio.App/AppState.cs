@@ -525,6 +525,15 @@ public sealed class AppState : IDisposable
             {
                 existingSource.Metadata[key] = value;
             }
+            foreach (string inactiveSheetId in source.InactiveSheetIds ?? [])
+            {
+                existingSource.SetSheetActive(inactiveSheetId, active: false);
+            }
+            foreach (ProjectInactiveSourceSheetState inactiveState in source.InactiveSheetStates ?? [])
+            {
+                existingSource.StoreInactiveSheetState(inactiveState);
+            }
+            existingSource.NormalizeSheetActivityState();
             if (!string.Equals(previousInbox, existingSource.InboxFolder, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(previousInbox))
             {
@@ -610,6 +619,22 @@ public sealed class AppState : IDisposable
         }
         SaveProject();
         return new PackageRecordResult(reconciled.SourceId, reconciled.RemovedAlbumPageCount);
+    }
+
+    public void SetSourceSheetActivity(
+        ProjectDesignSource source,
+        IEnumerable<string> sheetIds,
+        bool active)
+    {
+        ProjectPackageReconciliationService.SetSheetActivity(
+            Project,
+            Album,
+            Library,
+            source,
+            sheetIds,
+            active);
+        InvalidateBuiltAlbum();
+        SaveProject();
     }
 
     public IReadOnlyList<SheetPackageCheckpoint> CurrentSourcePackageCheckpoints()

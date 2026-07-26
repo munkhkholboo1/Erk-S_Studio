@@ -14,6 +14,8 @@ internal sealed class StudioLoadContext : AssemblyLoadContext
     private static readonly HashSet<string> SharedAssemblyNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "ErkS.Studio.Contracts",
+        "Microsoft.Windows.SDK.NET",
+        "WinRT.Runtime",
     };
 
     private readonly AssemblyDependencyResolver resolver;

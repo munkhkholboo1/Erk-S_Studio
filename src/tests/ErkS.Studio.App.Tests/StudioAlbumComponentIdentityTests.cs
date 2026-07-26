@@ -22,4 +22,32 @@ public sealed class StudioAlbumComponentIdentityTests
         Assert.True(StudioAlbumComponentIdentity.IsOwnedSourceCode(first));
         Assert.True(StudioAlbumComponentIdentity.IsOwnedSourceCode(second));
     }
+
+    [Fact]
+    public void SourceSliceCode_RoundTripsBuildingAndSheetTypeWithoutChangingSourceIdentity()
+    {
+        const string owner = "architect@erks.local";
+        const string sourceKey = "shared-building-source";
+        const string sectionKey = "studio-building:building-2";
+        const string sequenceKey = "sections";
+
+        string sourceCode = StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+        string sliceCode = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            sectionKey,
+            sequenceKey);
+
+        Assert.NotEqual(sourceCode, sliceCode);
+        Assert.Equal(
+            sourceCode,
+            StudioAlbumComponentIdentity.BaseSourceCode(sliceCode));
+        Assert.True(StudioAlbumComponentIdentity.IsOwnedSourceCode(sliceCode));
+        Assert.True(StudioAlbumComponentIdentity.TryGetSourceSlice(
+            sliceCode,
+            out string actualSection,
+            out string actualSequence));
+        Assert.Equal(sectionKey, actualSection);
+        Assert.Equal(sequenceKey, actualSequence);
+    }
 }

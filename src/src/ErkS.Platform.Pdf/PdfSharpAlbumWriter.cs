@@ -29,7 +29,13 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         var components = new Dictionary<string, AlbumBuildComponent>(StringComparer.OrdinalIgnoreCase);
         int componentOrder = 0;
 
-        void RecordComponent(string code, string label, int firstPageIndex)
+        void RecordComponent(
+            string code,
+            string label,
+            int firstPageIndex,
+            string sourceIdentity = "",
+            string sectionKey = "",
+            string sequenceKey = "")
         {
             int lastPageIndex = document.PageCount;
             if (lastPageIndex <= firstPageIndex)
@@ -41,6 +47,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                     Code = code,
                     Label = label,
                     Order = componentOrder++,
+                    SourceIdentity = sourceIdentity,
+                    SectionKey = sectionKey,
+                    SequenceKey = sequenceKey,
                 };
                 components.Add(code, component);
             }
@@ -107,7 +116,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 }
 
                 int firstPageIndex = document.PageCount;
-                if (buildPage.Format.Kind == PageFormatKind.SourceAsIs)
+                if (buildPage.Format.Kind == PageFormatKind.SourceAsIs &&
+                    buildPage.Definition.SourceCrop is not { Enabled: true })
                 {
                     ImportSourceAsIs(document, sheet);
                 }
@@ -119,10 +129,22 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 string sourceIdentity = !string.IsNullOrWhiteSpace(sheet.SourceId)
                     ? sheet.SourceId
                     : sheet.SourceIdentity;
+                string sectionKey = (section.Key ?? "").Trim();
+                string sequenceKey = (buildPage.Definition.TemplateSlotId ?? "").Trim();
+                string componentCode = "source:" + sourceIdentity;
+                if (!string.IsNullOrWhiteSpace(sectionKey) ||
+                    !string.IsNullOrWhiteSpace(sequenceKey))
+                {
+                    componentCode +=
+                        $"|album-slice|{sectionKey}|{sequenceKey}";
+                }
                 RecordComponent(
-                    "source:" + sourceIdentity,
+                    componentCode,
                     string.IsNullOrWhiteSpace(section.Title) ? sheet.DisplayLabel : section.Title,
-                    firstPageIndex);
+                    firstPageIndex,
+                    sourceIdentity,
+                    sectionKey,
+                    sequenceKey);
 
                 sheetCount++;
             }
@@ -220,9 +242,18 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                     $"Referenced PDF page {sourcePageNumber} is unavailable for {buildPage.Sheet.DisplayLabel}.");
             }
             form.PageNumber = sourcePageNumber;
+            XRect sourceRect = ResolveSourceRectangle(form, buildPage.Definition.SourceCrop);
             var page = document.AddPage();
-            page.Width = XUnit.FromMillimeter(buildPage.Format.WidthMm);
-            page.Height = XUnit.FromMillimeter(buildPage.Format.HeightMm);
+            if (buildPage.Format.Kind == PageFormatKind.SourceAsIs)
+            {
+                page.Width = XUnit.FromPoint(sourceRect.Width);
+                page.Height = XUnit.FromPoint(sourceRect.Height);
+            }
+            else
+            {
+                page.Width = XUnit.FromMillimeter(buildPage.Format.WidthMm);
+                page.Height = XUnit.FromMillimeter(buildPage.Format.HeightMm);
+            }
             using var gfx = XGraphics.FromPdfPage(page);
 
             // Revit's white page can become transparent when imported as a PDF form.
@@ -235,12 +266,14 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static void DrawSource(XGraphics gfx, XPdfForm form, AlbumBuildPage buildPage)
     {
         var format = buildPage.Format;
-        var target = buildPage.Definition.PlacementMode == PagePlacementMode.FullPage
-            ? new XRect(0, 0, Mm(format.WidthMm), Mm(format.HeightMm))
-            : ToPoints(format.DrawingArea);
-
-        var sourceWidth = Math.Max(1, form.PointWidth);
-        var sourceHeight = Math.Max(1, form.PointHeight);
+        var sourceRect = ResolveSourceRectangle(form, buildPage.Definition.SourceCrop);
+        var target = format.Kind == PageFormatKind.SourceAsIs
+            ? new XRect(0, 0, sourceRect.Width, sourceRect.Height)
+            : buildPage.Definition.PlacementMode == PagePlacementMode.FullPage
+                ? new XRect(0, 0, Mm(format.WidthMm), Mm(format.HeightMm))
+                : ToPoints(format.DrawingArea);
+        var sourceWidth = sourceRect.Width;
+        var sourceHeight = sourceRect.Height;
         if (buildPage.Definition.PlacementMode == PagePlacementMode.PreserveDrawingSpace)
         {
             var widthDifferenceMm = Math.Abs(target.Width - sourceWidth) / PointsPerMillimeter;
@@ -256,7 +289,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
             var preserveState = gfx.Save();
             gfx.IntersectClip(target);
-            gfx.DrawImage(form, target.X, target.Y, sourceWidth, sourceHeight);
+            gfx.DrawImage(
+                form,
+                new XRect(target.X, target.Y, sourceWidth, sourceHeight),
+                sourceRect,
+                XGraphicsUnit.Point);
             gfx.Restore(preserveState);
             return;
         }
@@ -273,8 +310,38 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         var state = gfx.Save();
         gfx.IntersectClip(target);
-        gfx.DrawImage(form, x, y, width, height);
+        gfx.DrawImage(
+            form,
+            new XRect(x, y, width, height),
+            sourceRect,
+            XGraphicsUnit.Point);
         gfx.Restore(state);
+    }
+
+    private static XRect ResolveSourceRectangle(
+        XPdfForm form,
+        SourcePageCropDefinition? crop)
+    {
+        double formWidth = Math.Max(1, form.PointWidth);
+        double formHeight = Math.Max(1, form.PointHeight);
+        if (crop is not { Enabled: true })
+        {
+            return new XRect(0, 0, formWidth, formHeight);
+        }
+
+        double left = Mm(Math.Max(0, crop.LeftMm));
+        double top = Mm(Math.Max(0, crop.TopMm));
+        double right = Mm(Math.Max(0, crop.RightMm));
+        double bottom = Mm(Math.Max(0, crop.BottomMm));
+        double width = formWidth - left - right;
+        double height = formHeight - top - bottom;
+        if (width <= 0.5 || height <= 0.5)
+        {
+            throw new InvalidDataException(
+                "PDF source crop removes the complete page. Reduce the crop margins.");
+        }
+
+        return new XRect(left, top, width, height);
     }
 
     private static void DrawPageFormat(
@@ -284,6 +351,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildPage buildPage)
     {
         var format = buildPage.Format;
+        if (format.Kind == PageFormatKind.SourceAsIs)
+        {
+            return;
+        }
+
         if (BuildingArchitectureConceptPageLayout.SupportsStudioChrome(format))
         {
             DrawConceptSheetChrome(gfx, project, buildPage);
@@ -333,7 +405,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildPage buildPage)
     {
         bool hasInformationHeader = BuildingArchitectureConceptPageLayout.UsesInformationHeader(
-            buildPage.Sheet.Entry.ContentKind,
+            AlbumPageSourceMetadata.ResolveContentKind(
+                buildPage.Definition,
+                buildPage.Sheet.Entry),
             buildPage.Sheet.Entry.Name,
             buildPage.Definition.TemplateSlotId);
         BuildingArchitectureConceptPageRegions regions =

@@ -1,4 +1,5 @@
 using System.Globalization;
+using ErkS.Platform.Contracts;
 
 namespace ErkS.Platform.Core;
 
@@ -105,17 +106,29 @@ public static class BuildingArchitectureConceptAlbumSequencer
             .Where(candidate => candidate.IsFixedTemplatePage)
             .OrderBy(candidate => candidate.SlotOrder)
             .ThenBy(candidate => candidate.SourceOrder)
+            .ThenBy(candidate => candidate.SourceSheetOrder)
             .ThenBy(candidate => candidate.OriginalIndex)
             .ToList();
+
+        var pdfSourceBlockOrders = candidates
+            .Where(candidate => !candidate.IsFixedTemplatePage && candidate.IsPdfSource)
+            .GroupBy(candidate => candidate.SourceBlockKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Min(candidate => candidate.SlotOrder),
+                StringComparer.OrdinalIgnoreCase);
 
         var drawingPages = candidates
             .Where(candidate => !candidate.IsFixedTemplatePage)
             .OrderBy(candidate => candidate.DrawingBand)
             .ThenBy(candidate => candidate.BuildingOrder)
             .ThenBy(candidate => firstBuildingPositions[candidate.SourceGroupKey])
-            .ThenBy(candidate => candidate.SlotOrder)
+            .ThenBy(candidate => candidate.IsPdfSource
+                ? pdfSourceBlockOrders[candidate.SourceBlockKey]
+                : candidate.SlotOrder)
             .ThenBy(candidate => candidate.SourceOrder)
             .ThenBy(candidate => candidate.SourceSortName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.SourceSheetOrder)
             .ThenBy(candidate => candidate.OriginalIndex)
             .ToList();
 
@@ -247,6 +260,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
             Source = source,
             OriginalIndex = originalIndex,
             SourceOrder = sourceOrder.TryGetValue(sourceId, out var index) ? index : int.MaxValue,
+            SourceSheetOrder = ResolveSourceSheetOrder(sheet, originalIndex),
             SourceId = sourceId,
             SourceSortName = sourceTitle,
             SourceGroupKey = groupKey,
@@ -264,12 +278,27 @@ public static class BuildingArchitectureConceptAlbumSequencer
                     : int.MaxValue,
             IsPackageBuilding = !hasExplicitAssignment && hasPackageBuilding,
             SlotOrder = slot?.Order ?? int.MaxValue,
+            IsPdfSource =
+                source?.Kind == DesignSourceKind.Pdf ||
+                sheet?.Source.Application == SheetSourceApplication.Pdf,
             IsFixedTemplatePage = slot is
             {
                 Kind: AlbumCompositionKind.SourceSlot,
                 AllowMultiple: false,
             },
         };
+    }
+
+    private static int ResolveSourceSheetOrder(SheetRecord? sheet, int fallbackOrder)
+    {
+        if (sheet is null)
+        {
+            return fallbackOrder;
+        }
+
+        return sheet.Entry.PdfPageNumber > 0
+            ? sheet.Entry.PdfPageNumber - 1
+            : sheet.SourceSheetIndex;
     }
 
     private static (string Key, string Title) ResolveBuildingIdentity(SheetRecord? sheet)
@@ -340,15 +369,18 @@ public static class BuildingArchitectureConceptAlbumSequencer
         public required ProjectDesignSource? Source { get; init; }
         public required int OriginalIndex { get; init; }
         public required int SourceOrder { get; init; }
+        public required int SourceSheetOrder { get; init; }
         public required string SourceId { get; init; }
         public required string SourceSortName { get; init; }
         public required string SourceGroupKey { get; init; }
+        public string SourceBlockKey => $"{SourceGroupKey}\u001f{SourceId}";
         public required string SourceGroupTitle { get; set; }
         public required string BuildingTitle { get; init; }
         public required int DrawingBand { get; init; }
         public required int BuildingOrder { get; init; }
         public required bool IsPackageBuilding { get; init; }
         public required int SlotOrder { get; init; }
+        public required bool IsPdfSource { get; init; }
         public required bool IsFixedTemplatePage { get; init; }
 
         public ConceptAlbumSourcePage ToSequenceItem(string automaticNumber) => new()
