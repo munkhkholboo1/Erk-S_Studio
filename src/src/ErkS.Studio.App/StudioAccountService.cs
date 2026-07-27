@@ -1068,54 +1068,18 @@ internal sealed class StudioAccountService :
     {
         RequireCapability(CloudEraFeatures.AlbumComponentMergeV1);
         RequireCapability(CloudEraFeatures.ContributorOwnedComponentsV1);
-        List<StudioAlbumComponentUpload> uploads = (components ?? [])
-            .Where(item => item is not null)
-            .ToList();
-        if (uploads.Count == 0)
-            throw new StudioAccountException("No album source component was selected for sync.");
-        if (uploads.Any(item => !item.Remove && !File.Exists(item.PdfPath)))
-            throw new StudioAccountException("One or more rendered album component PDFs are unavailable.");
-        if (string.IsNullOrWhiteSpace(expectedRevisionId) || string.IsNullOrWhiteSpace(projectConcurrencyToken))
-            throw new StudioAccountException("Canonical album revision/version is missing. Refresh and try again.");
-
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio account is not signed in.");
-        using var content = new MultipartFormDataContent();
-        content.Add(new StringContent(expectedRevisionId.Trim()), "expectedRevisionId");
-        content.Add(new StringContent(projectConcurrencyToken.Trim()), "projectConcurrencyToken");
-        var descriptors = new List<StudioCloudAlbumComponentUploadDescriptor>();
-        for (int index = 0; index < uploads.Count; index++)
-        {
-            StudioAlbumComponentUpload component = uploads[index];
-            string fieldName = "component" + index.ToString(CultureInfo.InvariantCulture);
-            descriptors.Add(new StudioCloudAlbumComponentUploadDescriptor
-            {
-                FieldName = fieldName,
-                Code = component.Code,
-                Label = component.Label,
-                Order = component.Order,
-                Remove = component.Remove,
-                SourceKey = component.SourceKey,
-                ComponentKind = component.ComponentKind,
-            });
-            if (component.Remove)
-                continue;
-            var stream = new FileStream(component.PdfPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var file = new StreamContent(stream);
-            file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-            content.Add(file, fieldName, Path.GetFileName(component.PdfPath));
-        }
-        content.Add(new StringContent(JsonSerializer.Serialize(descriptors, JsonOptions)), "components");
-
-        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
-            "/albums/" + Uri.EscapeDataString(albumId) + "/components";
-        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, path))
-        {
-            Content = content,
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
-        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
-        return await ReadResponseAsync<StudioCloudAlbumRevision>(response, cancellationToken).ConfigureAwait(true);
+        return await CloudEraAlbumComponentUploader.MergeAsync(
+            httpClient,
+            session.ServerUrl,
+            session.AccessToken,
+            projectId,
+            albumId,
+            expectedRevisionId,
+            projectConcurrencyToken,
+            components,
+            cancellationToken).ConfigureAwait(true);
     }
 
     public async Task DownloadAlbumRevisionPdfAsync(

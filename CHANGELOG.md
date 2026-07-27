@@ -8,6 +8,12 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.17] - 2026-07-27
+
+- Upload Cloud ERA album components as bounded individual requests instead of one oversized multipart payload.
+- Chain the returned album revision and project concurrency token across component uploads so collaborator changes remain ordered.
+- Report the exact component rejected by a server size limit while allowing the server to accept one bounded large PDF component safely.
+
 ## [0.1.0-dev.16] - 2026-07-25
 
 - Keep generated concept-album pages in one immutable semantic order even when legacy local or Cloud metadata contains drifted numeric order values.
