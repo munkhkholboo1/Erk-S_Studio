@@ -50,4 +50,34 @@ public sealed class StudioAlbumComponentIdentityTests
         Assert.Equal(sectionKey, actualSection);
         Assert.Equal(sequenceKey, actualSequence);
     }
+
+    [Fact]
+    public void LegacySnapshot_CoversEveryExistingCloudPage()
+    {
+        StudioCloudAlbumSection section =
+            StudioAlbumComponentIdentity.CreateLegacySnapshotSection(32);
+
+        Assert.Equal(
+            StudioAlbumComponentIdentity.LegacySnapshotComponentCode,
+            section.Code);
+        Assert.Equal(
+            StudioAlbumComponentIdentity.LegacySnapshotComponentKind,
+            section.ComponentKind);
+        Assert.Equal(Enumerable.Range(1, 32), section.PageNumbers);
+        Assert.False(
+            StudioAlbumComponentIdentity.HasNoAssignedPages([section]));
+    }
+
+    [Fact]
+    public void EmptyLegacyRows_HaveNoAssignedPages()
+    {
+        StudioCloudAlbumSection[] sections =
+        [
+            new() { Code = "generated:cover", PageNumbers = [] },
+            new() { Code = "source:legacy", PageNumbers = [] },
+        ];
+
+        Assert.True(
+            StudioAlbumComponentIdentity.HasNoAssignedPages(sections));
+    }
 }

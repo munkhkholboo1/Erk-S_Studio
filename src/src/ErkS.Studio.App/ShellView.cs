@@ -389,11 +389,10 @@ internal sealed partial class ShellView : IDisposable
         var shell = new Grid();
         shell.Children.Add(root);
         UIElement chatWidget = BuildProjectChatWidget();
-        projectChatPopup.Child = chatWidget;
-        projectChatPopup.PlacementTarget = shell;
-        projectChatPopup.CustomPopupPlacementCallback = PlaceProjectChatPopup;
-        shell.Children.Add(projectChatPopup);
-        shell.SizeChanged += (_, _) => RepositionProjectChatPopup();
+        Panel.SetZIndex(chatWidget, 1000);
+        shell.Children.Add(chatWidget);
+        shell.SizeChanged += (_, _) => RepositionProjectChatOverlay();
+        RepositionProjectChatOverlay();
         RebuildNavigation();
         SelectPage(StudioPage.Projects);
         return shell;

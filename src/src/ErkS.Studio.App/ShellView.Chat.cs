@@ -31,14 +31,6 @@ internal sealed partial class ShellView
         VerticalAlignment = VerticalAlignment.Bottom,
         Visibility = Visibility.Collapsed,
     };
-    private readonly Popup projectChatPopup = new()
-    {
-        AllowsTransparency = true,
-        Focusable = true,
-        Placement = PlacementMode.Custom,
-        PopupAnimation = PopupAnimation.Fade,
-        StaysOpen = true,
-    };
     private readonly Grid projectChatLauncherLayer = new()
     {
         Width = 124,
@@ -427,7 +419,6 @@ internal sealed partial class ShellView
                          account.IsSignedIn &&
                          !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId);
         projectChatWidgetHost.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
-        projectChatPopup.IsOpen = available;
         if (!available)
         {
             projectChatRefreshTimer.Stop();
@@ -442,7 +433,7 @@ internal sealed partial class ShellView
         projectChatRefreshTimer.Start();
         if (!projectChatBoundProjectId.Equals(previousProjectId, StringComparison.Ordinal))
             _ = RefreshProjectChatAsync(silent: true);
-        RepositionProjectChatPopup();
+        RepositionProjectChatOverlay();
     }
 
     private async Task OpenProjectChatWidgetAsync()
@@ -452,7 +443,7 @@ internal sealed partial class ShellView
         projectChatLauncherLayer.Visibility = Visibility.Collapsed;
         projectChatDock.Visibility = Visibility.Visible;
         ShowProjectChatMemberList();
-        RepositionProjectChatPopup();
+        RepositionProjectChatOverlay();
         await RefreshProjectChatAsync(silent: false);
     }
 
@@ -462,40 +453,16 @@ internal sealed partial class ShellView
         projectChatDock.Visibility = Visibility.Collapsed;
         projectChatLauncherLayer.Visibility = Visibility.Visible;
         ShowProjectChatMemberList();
-        RepositionProjectChatPopup();
+        RepositionProjectChatOverlay();
     }
 
-    private CustomPopupPlacement[] PlaceProjectChatPopup(
-        Size popupSize,
-        Size targetSize,
-        Point offset)
+    private void RepositionProjectChatOverlay()
     {
         double bottomOffset = inlineSiteContextEditor is null
             ? ProjectChatBottomOffset
             : ProjectChatEditorBottomOffset;
-        return
-        [
-            new CustomPopupPlacement(
-                new Point(
-                    Math.Max(0, targetSize.Width - popupSize.Width - ProjectChatRightOffset),
-                    Math.Max(0, targetSize.Height - popupSize.Height - bottomOffset)),
-                PopupPrimaryAxis.None),
-        ];
-    }
-
-    private void RepositionProjectChatPopup()
-    {
-        if (!projectChatPopup.IsOpen)
-            return;
-
-        dispatcher.BeginInvoke(
-            new Action(() =>
-            {
-                double offset = projectChatPopup.HorizontalOffset;
-                projectChatPopup.HorizontalOffset = offset + 0.01;
-                projectChatPopup.HorizontalOffset = offset;
-            }),
-            DispatcherPriority.Loaded);
+        projectChatWidgetHost.Margin =
+            new Thickness(0, 0, ProjectChatRightOffset, bottomOffset);
     }
 
     private void ShowProjectChatMemberList()

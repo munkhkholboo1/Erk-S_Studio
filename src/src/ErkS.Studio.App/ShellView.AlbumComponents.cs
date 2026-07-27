@@ -1197,6 +1197,20 @@ internal sealed partial class ShellView
         if (HasCompleteComponentManifest(currentRevision))
             return currentRevision;
 
+        if (StudioAlbumComponentIdentity.HasNoAssignedPages(
+                currentRevision.SectionManifest) &&
+            currentRevision.PageCount > 0)
+        {
+            return await account.SetAlbumComponentManifestAsync(
+                projectId,
+                serverAlbum.AlbumId,
+                currentRevision.RevisionId,
+                [
+                    StudioAlbumComponentIdentity.CreateLegacySnapshotSection(
+                        currentRevision.PageCount),
+                ]);
+        }
+
         string root = Path.Combine(state.ResolveOutputFolder(), "cloud", "component-bootstrap");
         string workFolder = Path.Combine(root, Guid.NewGuid().ToString("N"));
         try

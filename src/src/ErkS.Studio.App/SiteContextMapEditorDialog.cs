@@ -142,6 +142,8 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
     {
         Width = 180,
         Margin = new Thickness(4, 0, 8, 4),
+        AcceptsReturn = false,
+        AcceptsTab = false,
         ToolTip = "Таних тэмдэгт харагдах нэр",
     };
     private readonly TextBlock annotationColorLabel = CreateToolLabel("Өнгө");
@@ -470,7 +472,13 @@ internal sealed class SiteContextMapEditorControl : UserControl, IDisposable
         finishDrawingButton.Click += async (_, _) => await FinishDistanceAsync();
         deleteAnnotationButton.Click += async (_, _) => await DeleteSelectedAnnotationAsync();
         annotationBox.SelectionChanged += async (_, _) => await SelectAnnotationAsync();
-        annotationNameBox.TextChanged += async (_, _) => await ApplyAnnotationInputsAsync();
+        annotationNameBox.KeyDown += async (_, args) =>
+        {
+            if (args.Key != Key.Enter)
+                return;
+            args.Handled = true;
+            await ApplyAnnotationInputsAsync();
+        };
         annotationNameBox.LostFocus += async (_, _) => await ApplyAnnotationInputsAsync();
         annotationColorBox.SelectionChanged += async (_, _) => await ApplyAnnotationInputsAsync();
         annotationScaleSlider.ValueChanged += async (_, _) =>

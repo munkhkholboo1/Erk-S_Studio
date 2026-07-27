@@ -11,6 +11,10 @@ internal static class StudioAlbumComponentIdentity
 
     public const string SourceComponentKind = "Source";
     public const string GeneratedComponentKind = "Generated";
+    public const string LegacySnapshotComponentCode =
+        "legacy:cloud-album-snapshot";
+    public const string LegacySnapshotComponentKind = "LegacySnapshot";
+    public const int LegacySnapshotComponentOrder = -1_000_000;
     public const string SiteContextComponentKind =
         ProjectSiteContextEditingPolicy.SiteContextComponentKind;
     public const string AtdSourceKey = "foundation-atd";
@@ -114,6 +118,30 @@ internal static class StudioAlbumComponentIdentity
             parts[1].Length == 16 &&
             parts[1].All(Uri.IsHexDigit) &&
             !string.IsNullOrWhiteSpace(parts[2]);
+    }
+
+    public static bool HasNoAssignedPages(
+        IEnumerable<StudioCloudAlbumSection> components) =>
+        !(components ?? []).Any(component =>
+            (component.PageNumbers ?? []).Length > 0);
+
+    public static StudioCloudAlbumSection CreateLegacySnapshotSection(
+        int pageCount)
+    {
+        if (pageCount < 1)
+            throw new InvalidDataException("Album page count must be at least one.");
+
+        return new StudioCloudAlbumSection
+        {
+            Code = LegacySnapshotComponentCode,
+            Label = "Legacy cloud album snapshot",
+            Order = LegacySnapshotComponentOrder,
+            PageNumbers = Enumerable.Range(1, pageCount).ToArray(),
+            Status = "Available",
+            OwnerEmail = "",
+            SourceKey = "",
+            ComponentKind = LegacySnapshotComponentKind,
+        };
     }
 
     private static string EncodeSliceValue(string value) =>
