@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.18] - 2026-07-28
+
+- Merge collaborator-owned album components by canonical source identity without replacing another device's source contribution or duplicating Studio-generated pages.
+- Keep building sub-covers, source-authored sheets, disabled PDF pages, and restored PDF pages in one deterministic album order across rebuilds and Cloud synchronization.
+- Preview each Cloud synchronization before transfer, showing the authoritative project, organization, map, source, and album changes that will be sent or received.
+- Render PDF source thumbnails from their real pages, preserve bookmark titles, and restore re-enabled pages to their original source position and settings.
+- Keep project chat available beside the album while retaining role-based ownership for project, organization, map, and source updates.
+
 ## [0.1.0-dev.17] - 2026-07-27
 
 - Upload Cloud ERA album components as bounded individual requests instead of one oversized multipart payload.

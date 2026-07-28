@@ -31,6 +31,15 @@ internal sealed partial class ShellView
         VerticalAlignment = VerticalAlignment.Bottom,
         Visibility = Visibility.Collapsed,
     };
+    private readonly ColumnDefinition albumProjectChatColumn = new()
+    {
+        Width = new GridLength(0),
+    };
+    private readonly Grid albumProjectChatHost = new()
+    {
+        Visibility = Visibility.Collapsed,
+        Margin = new Thickness(8, 0, 0, 0),
+    };
     private readonly Grid projectChatLauncherLayer = new()
     {
         Width = 124,
@@ -161,6 +170,7 @@ internal sealed partial class ShellView
     private bool projectChatRefreshInProgress;
     private bool projectChatSendInProgress;
     private bool projectChatEmojiHoldTriggered;
+    private bool projectChatDockIsAlbumDocked;
     private IReadOnlyList<string> projectChatEmojiChoices = StudioEmojiCatalog.Choices;
 
     private UIElement BuildProjectChatWidget()
@@ -424,6 +434,7 @@ internal sealed partial class ShellView
             projectChatRefreshTimer.Stop();
             projectChatDock.Visibility = Visibility.Collapsed;
             projectChatLauncherLayer.Visibility = Visibility.Visible;
+            AttachProjectChatDockToOverlay();
             ResetProjectChatForCurrentProject();
             return;
         }
@@ -442,6 +453,7 @@ internal sealed partial class ShellView
             return;
         projectChatLauncherLayer.Visibility = Visibility.Collapsed;
         projectChatDock.Visibility = Visibility.Visible;
+        UpdateProjectChatPresentationForPage();
         ShowProjectChatMemberList();
         RepositionProjectChatOverlay();
         await RefreshProjectChatAsync(silent: false);
@@ -452,17 +464,80 @@ internal sealed partial class ShellView
         projectChatSelectedPeerEmail = "";
         projectChatDock.Visibility = Visibility.Collapsed;
         projectChatLauncherLayer.Visibility = Visibility.Visible;
+        AttachProjectChatDockToOverlay();
         ShowProjectChatMemberList();
         RepositionProjectChatOverlay();
     }
 
     private void RepositionProjectChatOverlay()
     {
+        if (projectChatDockIsAlbumDocked)
+            return;
+
         double bottomOffset = inlineSiteContextEditor is null
             ? ProjectChatBottomOffset
             : ProjectChatEditorBottomOffset;
         projectChatWidgetHost.Margin =
             new Thickness(0, 0, ProjectChatRightOffset, bottomOffset);
+    }
+
+    private void UpdateProjectChatPresentationForPage()
+    {
+        if (projectChatDock.Visibility != Visibility.Visible)
+        {
+            if (projectChatDockIsAlbumDocked)
+                AttachProjectChatDockToOverlay();
+            return;
+        }
+
+        if (activePage == StudioPage.Albums)
+            AttachProjectChatDockToAlbum();
+        else
+            AttachProjectChatDockToOverlay();
+    }
+
+    private void AttachProjectChatDockToAlbum()
+    {
+        if (projectChatDockIsAlbumDocked)
+            return;
+
+        RemoveProjectChatDockFromParent();
+        projectChatDock.Width = double.NaN;
+        projectChatDock.Height = double.NaN;
+        projectChatDock.HorizontalAlignment = HorizontalAlignment.Stretch;
+        projectChatDock.VerticalAlignment = VerticalAlignment.Stretch;
+        projectChatDock.Margin = new Thickness(0);
+        albumProjectChatHost.Children.Add(projectChatDock);
+        albumProjectChatColumn.Width = new GridLength(388);
+        albumProjectChatHost.Visibility = Visibility.Visible;
+        projectChatDockIsAlbumDocked = true;
+    }
+
+    private void AttachProjectChatDockToOverlay()
+    {
+        if (!projectChatDockIsAlbumDocked &&
+            ReferenceEquals(projectChatDock.Parent, projectChatWidgetHost))
+        {
+            return;
+        }
+
+        RemoveProjectChatDockFromParent();
+        projectChatDock.Width = 380;
+        projectChatDock.Height = 580;
+        projectChatDock.HorizontalAlignment = HorizontalAlignment.Right;
+        projectChatDock.VerticalAlignment = VerticalAlignment.Bottom;
+        projectChatDock.Margin = new Thickness(0);
+        projectChatWidgetHost.Children.Add(projectChatDock);
+        albumProjectChatColumn.Width = new GridLength(0);
+        albumProjectChatHost.Visibility = Visibility.Collapsed;
+        projectChatDockIsAlbumDocked = false;
+        RepositionProjectChatOverlay();
+    }
+
+    private void RemoveProjectChatDockFromParent()
+    {
+        if (projectChatDock.Parent is Panel panel)
+            panel.Children.Remove(projectChatDock);
     }
 
     private void ShowProjectChatMemberList()

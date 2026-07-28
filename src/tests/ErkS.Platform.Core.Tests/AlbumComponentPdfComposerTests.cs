@@ -100,6 +100,34 @@ public sealed class AlbumComponentPdfComposerTests
     }
 
     [Fact]
+    public void RemovingAnAliasDropsOnlyItsPhysicalPages()
+    {
+        using TemporaryFolder folder = new();
+        string canonical = folder.PathFor("canonical.pdf");
+        string output = folder.PathFor("preview.pdf");
+        WritePdfWithWidths(canonical, [100, 200, 300]);
+
+        AlbumComponentPdfCompositionResult result = AlbumComponentPdfComposer.Compose(
+            canonical,
+            3,
+            [
+                new("generated:sub-cover:alias", 200, [1]),
+                new("generated:sub-cover:canonical", 200, [2]),
+                new("source:owner-a:plans", 300, [3]),
+            ],
+            [new("generated:sub-cover:alias", 0, "", Remove: true)],
+            output);
+
+        Assert.Equal(2, result.PageCount);
+        Assert.Equal(
+            ["generated:sub-cover:canonical", "source:owner-a:plans"],
+            result.Components.Select(item => item.Code));
+        using PdfDocument preview = PdfReader.Open(output, PdfDocumentOpenMode.Import);
+        Assert.Equal(200, preview.Pages[0].Width.Point, precision: 3);
+        Assert.Equal(300, preview.Pages[1].Width.Point, precision: 3);
+    }
+
+    [Fact]
     public void IncompleteCanonicalManifestIsRejectedBeforeWritingPreview()
     {
         using TemporaryFolder folder = new();
@@ -123,6 +151,18 @@ public sealed class AlbumComponentPdfComposerTests
         using var document = new PdfDocument();
         for (int index = 0; index < pageCount; index++)
             document.AddPage();
+        document.Save(path);
+    }
+
+    private static void WritePdfWithWidths(string path, double[] widths)
+    {
+        using var document = new PdfDocument();
+        foreach (double width in widths)
+        {
+            PdfPage page = document.AddPage();
+            page.Width = PdfSharp.Drawing.XUnit.FromPoint(width);
+            page.Height = PdfSharp.Drawing.XUnit.FromPoint(400);
+        }
         document.Save(path);
     }
 

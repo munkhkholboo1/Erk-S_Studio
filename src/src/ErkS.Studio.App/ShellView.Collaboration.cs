@@ -141,7 +141,22 @@ internal sealed partial class ShellView
         }
     }
 
-    private async Task<bool> RefreshCurrentProjectCloudAccessAsync(bool reportResult = false)
+    private async Task<StudioCloudProjectRefreshResult> InspectCurrentProjectCloudChangesAsync(
+        string projectId)
+    {
+        ProjectCloudLink cloud = state.Project.Cloud;
+        string knownToken = !string.IsNullOrWhiteSpace(cloud.LastServerConcurrencyToken)
+            ? cloud.LastServerConcurrencyToken
+            : cloud.ServerSnapshot.ConcurrencyToken;
+        bool forceFullRefresh = CloudMirrorNeedsFullRefresh();
+        return forceFullRefresh
+            ? new StudioCloudProjectRefreshResult(true, await account.GetProjectAsync(projectId))
+            : await account.GetProjectChangesAsync(projectId, knownToken);
+    }
+
+    private async Task<bool> RefreshCurrentProjectCloudAccessAsync(
+        bool reportResult = false,
+        StudioCloudProjectRefreshResult? inspectedRefresh = null)
     {
         if (refreshingCurrentProjectAccess ||
             !state.HasOpenProject ||
@@ -164,14 +179,8 @@ internal sealed partial class ShellView
         await Task.Yield();
         try
         {
-            ProjectCloudLink cloud = state.Project.Cloud;
-            string knownToken = !string.IsNullOrWhiteSpace(cloud.LastServerConcurrencyToken)
-                ? cloud.LastServerConcurrencyToken
-                : cloud.ServerSnapshot.ConcurrencyToken;
-            bool forceFullRefresh = CloudMirrorNeedsFullRefresh();
-            StudioCloudProjectRefreshResult refresh = forceFullRefresh
-                ? new StudioCloudProjectRefreshResult(true, await account.GetProjectAsync(projectId))
-                : await account.GetProjectChangesAsync(projectId, knownToken);
+            StudioCloudProjectRefreshResult refresh = inspectedRefresh
+                ?? await InspectCurrentProjectCloudChangesAsync(projectId);
             if (!state.HasOpenProject ||
                 !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
             {
@@ -623,21 +632,8 @@ internal sealed partial class ShellView
             return false;
         if (!state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
             return true;
-        if (!account.IsSignedIn)
-            return false;
-
-        HashSet<string> editableRoles = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "ProjectAdmin",
-            "Client",
-            "AuthoritySpecialist",
-            "AuthorityDepartmentHead",
-            "ChiefArchitect",
-            "DesignCompanyAdmin",
-            "MajorArchitect",
-            "Architect",
-        };
-        return state.Project.Cloud.CurrentUserRoles.Any(editableRoles.Contains);
+        return account.IsSignedIn &&
+            ProjectCloudSyncAuthority.CanManageCanonicalMetadata(state.Project.Cloud);
     }
 
     private bool EnsureProjectContentPermission()

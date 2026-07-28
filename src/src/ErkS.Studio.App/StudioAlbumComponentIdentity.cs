@@ -110,6 +110,91 @@ internal static class StudioAlbumComponentIdentity
              sectionKey.StartsWith("package-building:", StringComparison.OrdinalIgnoreCase));
     }
 
+    public static string CanonicalBuildingSectionKey(
+        ProjectWorkspace project,
+        string sectionKey)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        string identity = (sectionKey ?? "").Trim();
+        return TryResolveBuildingGroup(project, identity, out ProjectBuildingGroup group)
+            ? $"studio-building:{group.Id.Trim()}"
+            : identity;
+    }
+
+    public static string CanonicalBuildingSubCoverCode(
+        ProjectWorkspace project,
+        string componentCode)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        string code = (componentCode ?? "").Trim();
+        if (!ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(code))
+            return code;
+
+        string identity = code[
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCodePrefix.Length..].Trim();
+        return TryResolveBuildingGroup(project, identity, out ProjectBuildingGroup group)
+            ? ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(group)
+            : code;
+    }
+
+    public static string CanonicalComponentCode(
+        ProjectWorkspace project,
+        string componentCode)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        string code = CanonicalBuildingSubCoverCode(project, componentCode);
+        if (!TryGetSourceSlice(code, out string sectionKey, out string sequenceKey))
+            return code;
+
+        string canonicalSectionKey = CanonicalBuildingSectionKey(project, sectionKey);
+        if (canonicalSectionKey.Equals(sectionKey, StringComparison.OrdinalIgnoreCase))
+            return code;
+
+        return BaseSourceCode(code) +
+            AlbumSliceMarker +
+            EncodeSliceValue(canonicalSectionKey) +
+            "." +
+            EncodeSliceValue(sequenceKey);
+    }
+
+    public static bool TryResolveBuildingGroup(
+        ProjectWorkspace project,
+        string identity,
+        out ProjectBuildingGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        const string studioBuildingPrefix = "studio-building:";
+        const string packageBuildingIdPrefix = "package-building:id:";
+        const string packageBuildingNamePrefix = "package-building:name:";
+
+        string normalized = (identity ?? "").Trim();
+        string groupId = normalized;
+        string groupName = normalized;
+        if (normalized.StartsWith(studioBuildingPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            groupId = normalized[studioBuildingPrefix.Length..].Trim();
+            groupName = "";
+        }
+        else if (normalized.StartsWith(packageBuildingIdPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            groupId = normalized[packageBuildingIdPrefix.Length..].Trim();
+            groupName = "";
+        }
+        else if (normalized.StartsWith(packageBuildingNamePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            groupId = "";
+            groupName = normalized[packageBuildingNamePrefix.Length..].Trim();
+        }
+
+        ProjectBuildingGroup? matched = project.BuildingGroups.FirstOrDefault(candidate =>
+            (!string.IsNullOrWhiteSpace(groupId) &&
+             candidate.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(groupName) &&
+             candidate.Name.Equals(groupName, StringComparison.OrdinalIgnoreCase)));
+        group = matched!;
+        return matched is not null;
+    }
+
     public static bool IsOwnedSourceCode(string code)
     {
         string[] parts = BaseSourceCode(code).Split(':', 3);
@@ -118,6 +203,54 @@ internal static class StudioAlbumComponentIdentity
             parts[1].Length == 16 &&
             parts[1].All(Uri.IsHexDigit) &&
             !string.IsNullOrWhiteSpace(parts[2]);
+    }
+
+    public static bool TryResolveExistingSource(
+        string componentCode,
+        string sourceIdentity,
+        IEnumerable<StudioCloudAlbumSection> existingComponents,
+        out StudioCloudAlbumSection? existing)
+    {
+        existing = null;
+        StudioCloudAlbumSection[] sourceComponents = (existingComponents ?? [])
+            .Where(component =>
+                component.ComponentKind.Equals(
+                    SourceComponentKind,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(component.OwnerEmail) &&
+                !string.IsNullOrWhiteSpace(component.SourceKey))
+            .ToArray();
+
+        string normalizedCode = (componentCode ?? "").Trim();
+        existing = sourceComponents.FirstOrDefault(component =>
+            component.Code.Equals(normalizedCode, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+            return true;
+
+        string identity = (sourceIdentity ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(identity) &&
+            normalizedCode.StartsWith("source:", StringComparison.OrdinalIgnoreCase))
+        {
+            string baseCode = BaseSourceCode(normalizedCode);
+            identity = baseCode["source:".Length..].Trim();
+        }
+        if (string.IsNullOrWhiteSpace(identity))
+            return false;
+
+        StudioCloudAlbumSection[] matches = sourceComponents
+            .Where(component =>
+                component.SourceKey.Equals(identity, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(
+                component =>
+                    $"{component.OwnerEmail.Trim().ToLowerInvariant()}|{component.SourceKey.Trim()}",
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+        if (matches.Length != 1)
+            return false;
+
+        existing = matches[0];
+        return true;
     }
 
     public static bool HasNoAssignedPages(

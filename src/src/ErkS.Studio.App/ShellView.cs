@@ -720,6 +720,8 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshReportsAndArchive();
         }
+
+        UpdateProjectChatPresentationForPage();
     }
 
     private UIElement BuildProjectsPage()
@@ -2740,32 +2742,99 @@ internal sealed partial class ShellView : IDisposable
             return;
 
         string projectId = state.Project.Cloud.ServerProjectId;
-        bool refreshed = await RefreshCurrentProjectCloudAccessAsync(reportResult: true);
-        if (!refreshed ||
-            !state.HasOpenProject ||
-            !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(projectId))
         {
+            SetStatus("Энэ локал төсөл Cloud ERA project-той холбогдоогүй байна.");
             return;
         }
 
-        if (!CanEditProjectContent())
+        try
         {
-            SetStatus("Cloud ERA өөрчлөлт татагдлаа. Таны project role локал өөрчлөлт илгээх эрхгүй байна.");
-            return;
-        }
+            CollectUiToProject();
+            state.SaveProject();
+            SetStatus("Энэ Studio болон Cloud ERA-ийн өөрчлөлтийг харьцуулж байна...");
+            StudioCloudProjectRefreshResult remote =
+                await InspectCurrentProjectCloudChangesAsync(projectId);
+            if (!state.HasOpenProject ||
+                !state.Project.Cloud.ServerProjectId.Equals(
+                    projectId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
 
-        await SyncCurrentProjectAsync();
+            string fingerprint = StudioDeviceIdentity.Fingerprint;
+            string shortFingerprint = fingerprint[..Math.Min(8, fingerprint.Length)];
+            CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
+                state.Project,
+                account.Current?.Email,
+                $"{Environment.MachineName} · {shortFingerprint}",
+                remote);
+            var dialog = new CloudSyncPreviewDialog(plan)
+            {
+                Owner = Window.GetWindow(Root),
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                SetStatus("Cloud ERA Sync цуцлагдлаа. Локал pending өөрчлөлт хадгалагдсан.");
+                return;
+            }
+
+            if (remote.IsModified)
+            {
+                bool refreshed = await RefreshCurrentProjectCloudAccessAsync(
+                    reportResult: true,
+                    inspectedRefresh: remote);
+                if (!refreshed ||
+                    !state.HasOpenProject ||
+                    !state.Project.Cloud.ServerProjectId.Equals(
+                        projectId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                ProjectCloudSyncMetadata.MarkCloudChecked(
+                    state.Project,
+                    DateTimeOffset.UtcNow);
+                state.SaveProject();
+            }
+
+            if (!plan.HasUploads)
+            {
+                SetStatus(plan.HasBlockedPendingChanges
+                    ? "Cloud өөрчлөлт татагдлаа. Эрхгүй локал засвар Cloud руу илгээгдээгүй, pending хэвээр үлдлээ."
+                    : "Cloud ERA Sync шалгалт дууслаа. Илгээх эсвэл татах өөрчлөлт алга.");
+                return;
+            }
+
+            await SyncCurrentProjectAsync(plan);
+        }
+        catch (StudioAccountException exception) when (
+            exception.StatusCode is System.Net.HttpStatusCode.Forbidden or
+                System.Net.HttpStatusCode.NotFound)
+        {
+            CloseCurrentCloudProjectAfterAccessEnded(
+                "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+            _ = RefreshProjectsAsync();
+        }
+        catch (Exception exception) when (
+            exception is StudioAccountException or
+                HttpRequestException or
+                IOException or
+                InvalidDataException or
+                TaskCanceledException)
+        {
+            SetStatus("Cloud ERA Sync шалгалт амжилтгүй: " + exception.Message);
+        }
     }
 
-    private async Task SyncCurrentProjectAsync()
+    private async Task SyncCurrentProjectAsync(CloudSyncPreviewPlan plan)
     {
         if (!state.HasOpenProject || syncInProgress)
             return;
-        if (!CanEditProjectContent())
-        {
-            SetStatus("Таны project role source package болон album publish хийх эрхгүй байна.");
-            return;
-        }
         if (!await EnsureSignedInAsync())
             return;
 
@@ -2787,7 +2856,26 @@ internal sealed partial class ShellView : IDisposable
             CollectUiToProject();
             state.SaveProject();
 
-            await ConfirmPendingProjectCompanyAssignmentAsync();
+            CloudSyncPreviewPlan currentAuthority = CloudSyncPreviewPlanner.Build(
+                state.Project,
+                account.Current?.Email,
+                Environment.MachineName,
+                new StudioCloudProjectRefreshResult(false, null));
+            bool canUploadProjectInformation =
+                plan.AuthorizeProjectInformation &&
+                currentAuthority.AuthorizeProjectInformation;
+            bool canUploadCompanyAssignment =
+                plan.AuthorizeCompanyAssignment &&
+                currentAuthority.AuthorizeCompanyAssignment;
+            bool canUploadBuildingComposition =
+                plan.AuthorizeBuildingComposition &&
+                currentAuthority.AuthorizeBuildingComposition;
+            bool canUploadCanonicalTitleBlock =
+                plan.AuthorizeCanonicalTitleBlock &&
+                currentAuthority.AuthorizeCanonicalTitleBlock;
+
+            if (canUploadCompanyAssignment)
+                await ConfirmPendingProjectCompanyAssignmentAsync();
             cloud.SyncStatus = ProjectSyncStatuses.Syncing;
             state.SaveProject();
 
@@ -2796,7 +2884,7 @@ internal sealed partial class ShellView : IDisposable
             ProjectInformationReconciliationResult? informationReconciliation = null;
             string projectInformationNotice = "";
             StudioCloudProjectDetail canonical;
-            if (pendingInformation is not null)
+            if (pendingInformation is not null && canUploadProjectInformation)
             {
                 SetStatus("Хүлээгдэж буй төслийн мэдээллийг Cloud ERA руу илгээж байна...");
                 StudioCloudProjectInformationUpdateRequest informationRequest =
@@ -2832,8 +2920,10 @@ internal sealed partial class ShellView : IDisposable
                 await ReconcileAtdControlledDocumentAsync(
                     projectId,
                     canonical.Project.ConcurrencyToken,
-                    allowUpload: true);
-            if (documentSync.HasPendingOrConflict && !documentSync.Uploaded)
+                    allowUpload: canUploadProjectInformation);
+            if (canUploadProjectInformation &&
+                documentSync.HasPendingOrConflict &&
+                !documentSync.Uploaded)
             {
                 state.SaveProject();
                 BindProjectToUi();
@@ -2856,8 +2946,38 @@ internal sealed partial class ShellView : IDisposable
 
             SetStatus("Cloud ERA төслийн бүтэц болон empty template album-ыг шалгаж байна...");
             StudioCloudAlbum ensuredAlbum = await account.EnsureConceptAlbumAsync(projectId);
-            IReadOnlyList<ProjectSourceSyncCandidate> sourcePackages =
+            IReadOnlyList<ProjectSourceSyncCandidate> allPendingSourcePackages =
                 ProjectCloudSyncMetadata.PendingSourcePackages(state.Project);
+            IReadOnlyList<ProjectSourceSyncCandidate> sourcePackages =
+                allPendingSourcePackages
+                    .Where(plan.IsSourceAuthorized)
+                    .Where(currentAuthority.IsSourceAuthorized)
+                    .Where(source =>
+                        ProjectCloudSyncAuthority.ResolveSource(
+                            state.Project,
+                            source.Source,
+                            account.Current?.Email).CanEdit)
+                    .ToList();
+            IReadOnlyList<string> allPendingAlbumComponents =
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project);
+            IReadOnlyList<string> authorizedPendingAlbumComponents =
+                allPendingAlbumComponents
+                    .Where(plan.IsComponentAuthorized)
+                    .Where(currentAuthority.IsComponentAuthorized)
+                    .ToList();
+            bool hasUnauthorizedPendingChanges =
+                allPendingSourcePackages.Count != sourcePackages.Count ||
+                allPendingAlbumComponents.Count != authorizedPendingAlbumComponents.Count ||
+                (state.Project.Cloud.PendingProjectInformation is not null &&
+                 !canUploadProjectInformation) ||
+                (state.Project.Foundation.DesignCompany.AssignmentSource.Equals(
+                     "StudioCloudPending",
+                     StringComparison.OrdinalIgnoreCase) &&
+                 !canUploadCompanyAssignment) ||
+                (state.Project.Cloud.BuildingCompositionPending &&
+                 !canUploadBuildingComposition) ||
+                (state.Project.Cloud.CanonicalTitleBlockPending &&
+                 !canUploadCanonicalTitleBlock);
             foreach (ProjectSourceSyncCandidate source in sourcePackages)
             {
                 StudioCloudSourcePackage acknowledgement = await account.RegisterSourcePackageAsync(
@@ -2898,7 +3018,8 @@ internal sealed partial class ShellView : IDisposable
             await ApplyCloudProjectRenderProfileAsync(canonical);
             BindFoundationFieldsToUi();
             string canonicalProjectToken = canonical.Project.ConcurrencyToken;
-            if (state.Project.Cloud.BuildingCompositionPending)
+            if (state.Project.Cloud.BuildingCompositionPending &&
+                canUploadBuildingComposition)
             {
                 SetStatus("Барилгын бүлэг болон хуудасны харьяаллыг Cloud ERA-д нэгтгэж байна...");
                 StudioCloudBuildingCompositionUpdateRequest compositionRequest =
@@ -2988,8 +3109,7 @@ internal sealed partial class ShellView : IDisposable
                 IReadOnlyList<string> rendererMigrationCodes = currentRevision is null
                     ? []
                     : PrepareAlbumRendererMigration(currentRevision);
-                int pendingComponentCount =
-                    ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count;
+                int pendingComponentCount = authorizedPendingAlbumComponents.Count;
                 if (sourcePackages.Count == 0 && pendingComponentCount == 0)
                 {
                     syncNote = manifestBootstrapped
@@ -3016,6 +3136,7 @@ internal sealed partial class ShellView : IDisposable
                         currentRevision,
                         canonicalProjectToken,
                         sourcePackages,
+                        authorizedPendingAlbumComponents,
                         activeServerSources,
                         rendererMigrationCodes);
                     currentRevision = outcome.Revision;
@@ -3026,6 +3147,13 @@ internal sealed partial class ShellView : IDisposable
                         : $"{outcome.ComponentCount} component Cloud album R{outcome.Revision.RevisionNumber}-д merge хийгдлээ. " +
                           $"Бусад {missingRemoteSources.Count} remote source хэвээр хадгалагдсан.";
                 }
+            }
+            else if (hasUnauthorizedPendingChanges)
+            {
+                syncNote =
+                    "Энэ mirror-д өөр эзэмшигчийн эсвэл admin эрх шаардсан pending өөрчлөлт байна. " +
+                    "Canonical album-ыг бүтнээр нь солихгүйгээр эрхтэй source metadata-г бүртгэлээ; " +
+                    "эрхгүй өөрчлөлт локалд pending хэвээр үлдлээ.";
             }
             else
             {
@@ -3077,7 +3205,7 @@ internal sealed partial class ShellView : IDisposable
                         ProjectCloudSyncMetadata.MarkSourceSynced(source);
                     ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
                         state.Project,
-                        ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project));
+                        authorizedPendingAlbumComponents);
                     currentRevision = syncedRevision;
                     syncedAlbumHash = syncedRevision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = syncedRevision.RevisionId;
@@ -3096,7 +3224,8 @@ internal sealed partial class ShellView : IDisposable
                 !state.Project.Cloud.LastPublishedTitleBlockSignature.Equals(
                     expectedTitleBlockSignature,
                     StringComparison.OrdinalIgnoreCase);
-            if (titleBlockPublicationRequired &&
+            if (canUploadCanonicalTitleBlock &&
+                titleBlockPublicationRequired &&
                 currentRevision is not null &&
                 HasCompleteComponentManifest(currentRevision))
             {
@@ -3117,7 +3246,11 @@ internal sealed partial class ShellView : IDisposable
             }
 
             StudioCloudProjectDetail latest = await account.GetProjectAsync(projectId);
-            state.LinkCurrentProjectToCloud(latest, account.Current!.ServerUrl, preserveCreation: true);
+            state.LinkCurrentProjectToCloud(
+                latest,
+                account.Current!.ServerUrl,
+                preserveCreation: true,
+                preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
             ProjectCloudSyncMetadata.MarkSynced(
                 state.Project,
@@ -3138,12 +3271,16 @@ internal sealed partial class ShellView : IDisposable
                     state.Project,
                     finalTitleBlockSignature);
             }
-            else if (titleBlockPublicationRequired)
+            else if (canUploadCanonicalTitleBlock && titleBlockPublicationRequired)
             {
                 ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(state.Project);
             }
             if (ProjectCloudSyncMetadata.PendingSourcePackages(state.Project).Count > 0 ||
                 ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project).Count > 0 ||
+                state.Project.Cloud.PendingProjectInformation is not null ||
+                state.Project.Foundation.DesignCompany.AssignmentSource.Equals(
+                    "StudioCloudPending",
+                    StringComparison.OrdinalIgnoreCase) ||
                 state.Project.Cloud.BuildingCompositionPending ||
                 state.Project.Cloud.CanonicalTitleBlockPending)
             {
@@ -3170,7 +3307,11 @@ internal sealed partial class ShellView : IDisposable
                 SetStatus(projectInformationNotice);
                 return;
             }
-            SetStatus($"Sync дууслаа: {sourcePackages.Count} source package. {syncNote}");
+            string blockedNotice = hasUnauthorizedPendingChanges
+                ? " Эрхгүй өөрчлөлтүүд илгээгдээгүй, локал pending хэвээр үлдсэн."
+                : "";
+            SetStatus(
+                $"Sync дууслаа: {sourcePackages.Count} source package. {syncNote}{blockedNotice}");
         }
         catch (StudioAccountException exception) when (
             exception.StatusCode is System.Net.HttpStatusCode.Conflict or

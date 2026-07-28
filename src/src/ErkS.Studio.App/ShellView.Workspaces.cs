@@ -59,6 +59,7 @@ internal sealed partial class ShellView
     private readonly ToggleButton albumListViewToggle = new();
     private readonly ToggleButton albumThumbnailViewToggle = new();
     private readonly PdfPageImageCache albumPageImages = new();
+    private readonly PdfPageImageCache sourceSheetPageImages = new();
     private readonly HashSet<string> collapsedAlbumWorkspaceNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Grid albumPreviewHost = new();
     private readonly WebView2 albumPdfViewer = new()
@@ -1020,7 +1021,6 @@ internal sealed partial class ShellView
         long loadSerial,
         CancellationToken cancellationToken)
     {
-        var pageImages = new PdfPageImageCache();
         int renderedCount = 0;
         string? firstFailure = null;
         foreach (SheetWorkspaceItem item in items)
@@ -1030,7 +1030,7 @@ internal sealed partial class ShellView
                 cancellationToken.ThrowIfCancellationRequested();
                 int pageNumber = Math.Max(1, item.Record.Entry.PdfPageNumber);
                 BitmapSource? image = await RenderSourceSheetThumbnailAsync(
-                    pageImages,
+                    sourceSheetPageImages,
                     item.Record.PdfPath,
                     pageNumber,
                     cancellationToken);
@@ -1327,6 +1327,7 @@ internal sealed partial class ShellView
             Width = new GridLength(1, GridUnitType.Star),
             MinWidth = 360,
         });
+        workspace.ColumnDefinitions.Add(albumProjectChatColumn);
         Grid.SetRow(workspace, 1);
         root.Children.Add(workspace);
 
@@ -1342,6 +1343,8 @@ internal sealed partial class ShellView
         albumPreviewHost.Background = new SolidColorBrush(Color.FromRgb(54, 58, 64));
         var previewPane = BuildPane("Альбумын бодит харагдац", albumPreviewHost, new Thickness(0));
         workspace.Children.Add(previewPane);
+        Grid.SetColumn(albumProjectChatHost, 1);
+        workspace.Children.Add(albumProjectChatHost);
         return root;
     }
 

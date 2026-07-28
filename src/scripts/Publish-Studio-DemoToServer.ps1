@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.21",
+    [string]$ReleaseVersion = "V0.001.24",
 
     [Parameter(Mandatory = $true)]
     [string]$ReleaseNotes,

@@ -482,7 +482,12 @@ internal sealed partial class ShellView
         bool canonicalCloudProfile = companyCatalogCloudVerified &&
             selectedCompanyEntry?.SyncStatus.Equals(CompanySyncStatuses.Cloud, StringComparison.OrdinalIgnoreCase) == true &&
             !selected!.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase);
-        companyUseInProjectButton.IsEnabled = canonicalCloudProfile && canManage && !sameOrganization;
+        bool canEditProject = CanEditProjectInformation();
+        companyUseInProjectButton.IsEnabled =
+            canonicalCloudProfile &&
+            canManage &&
+            canEditProject &&
+            !sameOrganization;
         companyUseInProjectButton.Content = sameOrganization
             ? "Төсөлд сонгогдсон"
             : string.IsNullOrWhiteSpace(assignedId)
@@ -490,6 +495,8 @@ internal sealed partial class ShellView
                 : "Компани солих";
         companyUseInProjectButton.ToolTip = !canonicalCloudProfile
             ? "Байгууллагын Cloud ERA бүртгэлийг шинэчилж баталгаажуулсны дараа төсөлд ашиглана."
+            : !canEditProject
+                ? "Төслийн байгууллагыг ProjectAdmin эсвэл DesignCompanyAdmin эрхтэй гишүүн сонгоно."
             : sameOrganization
                 ? "Энэ компани төсөлд баталгаажсан. Бүртгэлийн шинэчлэлт автоматаар төслийн snapshot-д орно."
             : canManage
@@ -501,6 +508,11 @@ internal sealed partial class ShellView
     {
         if (!state.HasOpenProject || selectedCompanyEntry is null)
             return;
+        if (!CanEditProjectInformation())
+        {
+            SetStatus("Төслийн байгууллагыг ProjectAdmin эсвэл DesignCompanyAdmin эрхтэй гишүүн өөрчилнө.");
+            return;
+        }
         CompanyProfile profile = selectedCompanyEntry.Profile;
         if (!profile.OrganizationType.Equals("DesignCompany", StringComparison.OrdinalIgnoreCase))
         {
@@ -580,6 +592,8 @@ internal sealed partial class ShellView
     {
         if (!state.HasOpenProject)
             return;
+        if (!CanEditProjectInformation())
+            return;
         ProjectWorkspace project = state.Project;
         ProjectCompanyAssignment assignment = project.Foundation.DesignCompany;
         bool cloudLinked = project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
@@ -591,7 +605,11 @@ internal sealed partial class ShellView
         StudioCloudProjectDetail latest = await account.AssignDesignOrganizationAsync(
             project.Cloud.ServerProjectId,
             assignment.OrganizationId);
-        state.LinkCurrentProjectToCloud(latest, account.Current!.ServerUrl, preserveCreation: true);
+        state.LinkCurrentProjectToCloud(
+            latest,
+            account.Current!.ServerUrl,
+            preserveCreation: true,
+            preserveSyncState: true);
         ProjectCompanyAssignmentService.ConfirmCloudAssignment(state.Project, profile);
         state.SaveProject();
     }

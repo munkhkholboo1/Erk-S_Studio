@@ -91,7 +91,11 @@ internal sealed partial class ShellView
             .ToDictionary(item => item.Code, item => item.Index, StringComparer.OrdinalIgnoreCase);
         Dictionary<string, StudioCloudAlbumSection> existingByCode = (existingManifest ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item.Code))
-            .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(
+                item => StudioAlbumComponentIdentity.CanonicalComponentCode(
+                    state.Project,
+                    item.Code),
+                StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         var merged = new Dictionary<string, StudioCloudAlbumSection>(StringComparer.OrdinalIgnoreCase);
@@ -152,6 +156,17 @@ internal sealed partial class ShellView
     {
         const string sourcePrefix = "source:";
         string normalized = component.Code.Trim();
+        if (ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(normalized))
+        {
+            return AlbumComponentIdentity.Generated(
+                StudioAlbumComponentIdentity.CanonicalComponentCode(
+                    state.Project,
+                    normalized));
+        }
+        string canonicalSectionKey =
+            StudioAlbumComponentIdentity.CanonicalBuildingSectionKey(
+                state.Project,
+                component.SectionKey);
         if (normalized.Equals(ProjectCloudSyncMetadata.ApprovedAtdComponentCode, StringComparison.OrdinalIgnoreCase) &&
             hasOwnedAtd)
         {
@@ -203,6 +218,20 @@ internal sealed partial class ShellView
         string localIdentity = !string.IsNullOrWhiteSpace(component.SourceIdentity)
             ? component.SourceIdentity.Trim()
             : StudioAlbumComponentIdentity.BaseSourceCode(normalized)[sourcePrefix.Length..].Trim();
+        if (StudioAlbumComponentIdentity.TryResolveExistingSource(
+                normalized,
+                localIdentity,
+                existingByCode.Values,
+                out StudioCloudAlbumSection? existingSource) &&
+            existingSource is not null)
+        {
+            return AlbumComponentIdentity.Source(
+                existingSource.OwnerEmail,
+                existingSource.SourceKey,
+                canonicalSectionKey,
+                component.SequenceKey);
+        }
+
         ProjectDesignSource? source = state.Project.Sources.FirstOrDefault(item =>
             item.Id.Equals(localIdentity, StringComparison.OrdinalIgnoreCase) ||
             ProjectCloudSyncMetadata.CloudSourceKey(item).Equals(localIdentity, StringComparison.OrdinalIgnoreCase));
@@ -212,7 +241,7 @@ internal sealed partial class ShellView
         return AlbumComponentIdentity.Source(
             string.IsNullOrWhiteSpace(sourceOwner) ? ownerEmail : sourceOwner,
             ProjectCloudSyncMetadata.CloudSourceKey(source),
-            component.SectionKey,
+            canonicalSectionKey,
             component.SequenceKey);
     }
 
@@ -286,7 +315,6 @@ internal sealed partial class ShellView
                 localBuild,
                 activeServerSources,
                 revision.SectionManifest);
-            IncludeRenderedBuildingSubCovers(requestedCodes, rendered);
             List<StudioCloudAlbumSection> selected = rendered
                 .Where(component =>
                     MatchesAnyPendingSource(component, pendingSources, ownerEmail) ||
@@ -340,8 +368,19 @@ internal sealed partial class ShellView
             }
 
             Dictionary<string, StudioCloudAlbumSection> currentByCode = revision.SectionManifest
-                .ToDictionary(component => component.Code, StringComparer.OrdinalIgnoreCase);
+                .GroupBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderBy(component => component.Order)
+                        .ThenBy(component => component.PageNumbers.FirstOrDefault())
+                        .First(),
+                    StringComparer.OrdinalIgnoreCase);
             AddLegacyComponentMigrationPatches(patches, selected, currentByCode);
+            AddCanonicalAliasMigrationPatches(
+                patches,
+                selected,
+                revision.SectionManifest);
             foreach (string code in missing)
             {
                 if (!currentByCode.TryGetValue(code, out StudioCloudAlbumSection? current))
@@ -566,51 +605,39 @@ internal sealed partial class ShellView
             })
             .ToDictionary(item => item.Code, item => item.Index, StringComparer.OrdinalIgnoreCase);
 
-        List<StudioCloudAlbumSection> ordered = original
-            .Select(component =>
-            {
-                StudioCloudAlbumSection clone = CloneAlbumSection(component);
-                clone.Order = StudioAlbumComponentOrderPolicy.Resolve(
-                    state.Project,
-                    clone.Code,
-                    clone.SourceKey,
-                    clone.Order,
-                    sourceOrder);
-                return clone;
-            })
-            .OrderBy(component => component.Order)
-            .ThenBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(component => component.PageNumbers.DefaultIfEmpty(int.MaxValue).Min())
+        StudioAlbumComponentManifestNormalizationPlan plan =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                state.Project,
+                original,
+                sourceOrder);
+        List<StudioCloudAlbumSection> targetManifest = plan.TargetManifest
+            .Select(CloneAlbumSection)
             .ToList();
-
-        int nextPage = 1;
-        foreach (StudioCloudAlbumSection component in ordered)
+        int targetPageCount = targetManifest
+            .SelectMany(component => component.PageNumbers)
+            .DefaultIfEmpty(0)
+            .Max();
+        if (!plan.RequiresPdfRewrite)
         {
-            int pageCount = component.PageNumbers.Length;
-            component.PageNumbers = Enumerable.Range(nextPage, pageCount).ToArray();
-            nextPage += pageCount;
-        }
-
-        bool alreadyCanonical = original.All(component =>
-        {
-            StudioCloudAlbumSection expected = ordered.Single(item =>
-                item.Code.Equals(component.Code, StringComparison.OrdinalIgnoreCase));
-            return component.PageNumbers.SequenceEqual(expected.PageNumbers);
-        });
-        revision.SectionManifest = ordered;
-        revision.PageCount = nextPage - 1;
-        if (alreadyCanonical)
+            revision.SectionManifest = targetManifest;
+            revision.PageCount = targetPageCount;
             return true;
+        }
 
         string signatureText = string.Join(
             "\n",
-            original
+            plan.OriginalSlots
                 .OrderBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
                 .Select(component =>
                     $"{component.Code}|{component.Order}|{string.Join(",", component.PageNumbers)}")
+                .Concat(plan.TargetManifest
+                    .OrderBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
+                    .Select(component =>
+                        $"target:{component.Code}|{component.Order}|" +
+                        $"{string.Join(",", component.PageNumbers)}"))
                 .Prepend(revision.RevisionId)
                 .Prepend(CleanSha256(revision.PdfSha256))
-                .Prepend("canonical-album-order-v2"));
+                .Prepend("canonical-album-order-v3"));
         string signature = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(signatureText)))[..16].ToLowerInvariant();
         string canonicalFolder = Path.Combine(
@@ -629,23 +656,42 @@ internal sealed partial class ShellView
             string temporaryPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp.pdf";
             try
             {
+                Dictionary<string, StudioCloudAlbumSection> targetByCode =
+                    plan.TargetManifest.ToDictionary(
+                        component => component.Code,
+                        StringComparer.OrdinalIgnoreCase);
+                List<AlbumComponentPdfPatch> removals = plan.RemovedCodes
+                    .Select(code => new AlbumComponentPdfPatch(
+                        code,
+                        0,
+                        "",
+                        Remove: true))
+                    .ToList();
                 AlbumComponentPdfCompositionResult composition =
                     AlbumComponentPdfComposer.Compose(
                         canonicalPdfPath,
-                        original.SelectMany(component => component.PageNumbers).Max(),
-                        original.Select(component => new AlbumComponentPdfSlot(
+                        plan.OriginalPageCount,
+                        plan.OriginalSlots.Select(component => new AlbumComponentPdfSlot(
                             component.Code,
-                            ordered.Single(item => item.Code.Equals(
-                                component.Code,
-                                StringComparison.OrdinalIgnoreCase)).Order,
+                            plan.CanonicalCodeByRetainedCode.TryGetValue(
+                                    component.Code,
+                                    out string? canonicalCode)
+                                ? targetByCode[canonicalCode].Order
+                                : component.Order,
                             component.PageNumbers)).ToList(),
-                        [],
+                        removals,
                         temporaryPath);
-                if (composition.PageCount != revision.PageCount ||
+                if (composition.PageCount != targetPageCount ||
+                    composition.Components.Count != plan.TargetManifest.Count ||
                     composition.Components.Any(component =>
                     {
-                        StudioCloudAlbumSection expected = ordered.Single(item =>
-                            item.Code.Equals(component.Code, StringComparison.OrdinalIgnoreCase));
+                        if (!plan.CanonicalCodeByRetainedCode.TryGetValue(
+                                component.Code,
+                                out string? canonicalCode))
+                        {
+                            return true;
+                        }
+                        StudioCloudAlbumSection expected = targetByCode[canonicalCode];
                         return component.Order != expected.Order ||
                             !component.PageNumbers.SequenceEqual(expected.PageNumbers);
                     }))
@@ -663,12 +709,17 @@ internal sealed partial class ShellView
             }
         }
 
+        if (!File.Exists(outputPath))
+            throw new FileNotFoundException("Canonical album reorder output was not created.", outputPath);
+
         string outputSha256 = ReadCachedSha256(hashPath);
         if (string.IsNullOrWhiteSpace(outputSha256))
         {
             outputSha256 = ComputeFileSha256(outputPath);
             File.WriteAllText(hashPath, outputSha256, Encoding.ASCII);
         }
+        revision.SectionManifest = targetManifest;
+        revision.PageCount = targetPageCount;
         revision.PdfSha256 = outputSha256;
         canonicalPdfPath = outputPath;
         CloudAlbumCacheMaintenance.Cleanup(canonicalFolder, outputPath);
@@ -1020,12 +1071,43 @@ internal sealed partial class ShellView
         }
     }
 
+    private void AddCanonicalAliasMigrationPatches(
+        ICollection<AlbumComponentPdfPatch> patches,
+        IReadOnlyList<StudioCloudAlbumSection> selected,
+        IEnumerable<StudioCloudAlbumSection> current)
+    {
+        HashSet<string> selectedCodes = selected
+            .Select(component => component.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (StudioCloudAlbumSection component in current)
+        {
+            string canonicalCode = StudioAlbumComponentIdentity.CanonicalComponentCode(
+                state.Project,
+                component.Code);
+            if (canonicalCode.Equals(component.Code, StringComparison.OrdinalIgnoreCase) ||
+                !selectedCodes.Contains(canonicalCode) ||
+                patches.Any(patch => patch.Code.Equals(
+                    component.Code,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            patches.Add(new AlbumComponentPdfPatch(
+                component.Code,
+                component.Order,
+                "",
+                Remove: true));
+        }
+    }
+
     private async Task<AlbumComponentMergeOutcome> MergePendingAlbumComponentsAsync(
         string projectId,
         StudioCloudAlbum serverAlbum,
         StudioCloudAlbumRevision currentRevision,
         string projectConcurrencyToken,
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
+        IReadOnlyList<string> rawPendingComponents,
         IReadOnlyList<StudioCloudSourcePackage> activeServerSources,
         IReadOnlyList<string> rendererMigrationCodes)
     {
@@ -1037,8 +1119,6 @@ internal sealed partial class ShellView
         }
 
         string ownerEmail = CurrentCloudOwnerEmail();
-        IReadOnlyList<string> rawPendingComponents =
-            EditablePendingAlbumComponents();
         Dictionary<string, string> pendingCodeMap = rawPendingComponents
             .ToDictionary(
                 code => code,
@@ -1058,7 +1138,6 @@ internal sealed partial class ShellView
                 build,
                 activeServerSources,
                 currentRevision.SectionManifest);
-            IncludeRenderedBuildingSubCovers(requestedCodes, rendered);
             List<StudioCloudAlbumSection> selected = rendered
                 .Where(component =>
                     MatchesAnyPendingSource(component, pendingSources, ownerEmail) ||
@@ -1115,8 +1194,19 @@ internal sealed partial class ShellView
             }
 
             Dictionary<string, StudioCloudAlbumSection> currentByCode = currentRevision.SectionManifest
-                .ToDictionary(component => component.Code, StringComparer.OrdinalIgnoreCase);
+                .GroupBy(component => component.Code, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderBy(component => component.Order)
+                        .ThenBy(component => component.PageNumbers.FirstOrDefault())
+                        .First(),
+                    StringComparer.OrdinalIgnoreCase);
             AddLegacyComponentMigrationRemovals(uploads, selected, currentByCode);
+            AddCanonicalAliasMigrationRemovals(
+                uploads,
+                selected,
+                currentRevision.SectionManifest);
             foreach (string code in missing)
             {
                 if (!currentByCode.TryGetValue(code, out StudioCloudAlbumSection? current))
@@ -1266,9 +1356,20 @@ internal sealed partial class ShellView
         IReadOnlyList<StudioCloudAlbumSection> left,
         IReadOnlyList<StudioCloudAlbumSection> right)
     {
+        if (left.Count != right.Count ||
+            left.Select(item => item.Code)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() != left.Count ||
+            right.Select(item => item.Code)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() != right.Count)
+        {
+            return false;
+        }
+
         Dictionary<string, StudioCloudAlbumSection> rightByCode = right
             .ToDictionary(item => item.Code, StringComparer.OrdinalIgnoreCase);
-        return left.Count == right.Count && left.All(item =>
+        return left.All(item =>
             rightByCode.TryGetValue(item.Code, out StudioCloudAlbumSection? other) &&
             item.Order == other.Order &&
             item.Label.Equals(other.Label, StringComparison.Ordinal) &&
@@ -1285,6 +1386,9 @@ internal sealed partial class ShellView
             return StudioAlbumComponentIdentity.SourceCode(ownerEmail, StudioAlbumComponentIdentity.AtdSourceKey);
         if (normalized.Equals(ProjectCloudSyncMetadata.VisualizationsComponentCode, StringComparison.OrdinalIgnoreCase))
             return StudioAlbumComponentIdentity.SourceCode(ownerEmail, StudioAlbumComponentIdentity.VisualizationSourceKey);
+        normalized = StudioAlbumComponentIdentity.CanonicalComponentCode(
+            state.Project,
+            normalized);
         if (StudioAlbumComponentIdentity.IsOwnedSourceCode(normalized))
             return normalized;
         if (normalized.StartsWith("source:", StringComparison.OrdinalIgnoreCase))
@@ -1463,17 +1567,6 @@ internal sealed partial class ShellView
         }
     }
 
-    private static void IncludeRenderedBuildingSubCovers(
-        ISet<string> requestedCodes,
-        IEnumerable<StudioCloudAlbumSection> rendered)
-    {
-        foreach (StudioCloudAlbumSection component in rendered)
-        {
-            if (ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(component.Code))
-                requestedCodes.Add(component.Code);
-        }
-    }
-
     private IReadOnlyList<string> EditablePendingAlbumComponents()
     {
         IReadOnlyList<string> pending =
@@ -1492,9 +1585,6 @@ internal sealed partial class ShellView
         if (authority.CanEdit)
             return pending;
 
-        ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
-            state.Project,
-            [ProjectCloudSyncMetadata.SiteContextComponentCode]);
         return pending
             .Where(code => !code.Equals(
                 ProjectCloudSyncMetadata.SiteContextComponentCode,
@@ -1531,6 +1621,39 @@ internal sealed partial class ShellView
                 Remove: true,
                 SourceKey: legacy.SourceKey,
                 ComponentKind: legacy.ComponentKind));
+        }
+    }
+
+    private void AddCanonicalAliasMigrationRemovals(
+        ICollection<StudioAlbumComponentUpload> uploads,
+        IReadOnlyList<StudioCloudAlbumSection> selected,
+        IEnumerable<StudioCloudAlbumSection> current)
+    {
+        HashSet<string> selectedCodes = selected
+            .Select(component => component.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (StudioCloudAlbumSection component in current)
+        {
+            string canonicalCode = StudioAlbumComponentIdentity.CanonicalComponentCode(
+                state.Project,
+                component.Code);
+            if (canonicalCode.Equals(component.Code, StringComparison.OrdinalIgnoreCase) ||
+                !selectedCodes.Contains(canonicalCode) ||
+                uploads.Any(upload => upload.Code.Equals(
+                    component.Code,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            uploads.Add(new StudioAlbumComponentUpload(
+                component.Code,
+                component.Label,
+                component.Order,
+                "",
+                Remove: true,
+                SourceKey: component.SourceKey,
+                ComponentKind: component.ComponentKind));
         }
     }
 

@@ -390,34 +390,11 @@ internal static class StudioAlbumComponentOrderPolicy
         string identity,
         out ProjectBuildingGroup group)
     {
-        const string studioBuildingPrefix = "studio-building:";
-        const string packageBuildingIdPrefix = "package-building:id:";
-        const string packageBuildingNamePrefix = "package-building:name:";
-        string groupId = identity;
-        string groupName = identity;
-        if (identity.StartsWith(studioBuildingPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            groupId = identity[studioBuildingPrefix.Length..].Trim();
-            groupName = "";
-        }
-        else if (identity.StartsWith(packageBuildingIdPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            groupId = identity[packageBuildingIdPrefix.Length..].Trim();
-            groupName = "";
-        }
-        else if (identity.StartsWith(packageBuildingNamePrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            groupId = "";
-            groupName = identity[packageBuildingNamePrefix.Length..].Trim();
-        }
-
-        ProjectBuildingGroup? matched = project.BuildingGroups.FirstOrDefault(candidate =>
-            (!string.IsNullOrWhiteSpace(groupId) &&
-             candidate.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)) ||
-            (!string.IsNullOrWhiteSpace(groupName) &&
-             candidate.Name.Equals(groupName, StringComparison.OrdinalIgnoreCase)));
-        group = matched!;
-        return matched is not null;
+        bool resolved = StudioAlbumComponentIdentity.TryResolveBuildingGroup(
+            project,
+            identity,
+            out group);
+        return resolved;
     }
 
     private static bool IsBuildingSectionIdentity(string sectionKey) =>
