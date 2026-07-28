@@ -258,6 +258,40 @@ internal static class StudioAlbumComponentIdentity
         !(components ?? []).Any(component =>
             (component.PageNumbers ?? []).Length > 0);
 
+    public static bool IsLegacySnapshot(StudioCloudAlbumSection component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        return component.Code.Equals(
+                LegacySnapshotComponentCode,
+                StringComparison.OrdinalIgnoreCase) ||
+            component.ComponentKind.Equals(
+                LegacySnapshotComponentKind,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool ContainsLegacySnapshot(
+        IEnumerable<StudioCloudAlbumSection> components) =>
+        (components ?? []).Any(IsLegacySnapshot);
+
+    public static bool HasCompletePageCoverage(
+        IEnumerable<StudioCloudAlbumSection> components,
+        int pageCount)
+    {
+        int[] pages = (components ?? [])
+            .SelectMany(component => component.PageNumbers ?? [])
+            .Order()
+            .ToArray();
+        return pageCount > 0 &&
+            pages.Length == pages.Distinct().Count() &&
+            pages.SequenceEqual(Enumerable.Range(1, pageCount));
+    }
+
+    public static bool IsMergeReady(
+        IEnumerable<StudioCloudAlbumSection> components,
+        int pageCount) =>
+        HasCompletePageCoverage(components, pageCount) &&
+        !ContainsLegacySnapshot(components);
+
     public static StudioCloudAlbumSection CreateLegacySnapshotSection(
         int pageCount)
     {

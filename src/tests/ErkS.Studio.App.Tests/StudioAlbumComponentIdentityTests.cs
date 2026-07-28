@@ -67,6 +67,43 @@ public sealed class StudioAlbumComponentIdentityTests
         Assert.Equal(Enumerable.Range(1, 32), section.PageNumbers);
         Assert.False(
             StudioAlbumComponentIdentity.HasNoAssignedPages([section]));
+        Assert.True(
+            StudioAlbumComponentIdentity.HasCompletePageCoverage([section], 32));
+        Assert.True(
+            StudioAlbumComponentIdentity.ContainsLegacySnapshot([section]));
+        Assert.False(
+            StudioAlbumComponentIdentity.IsMergeReady([section], 32));
+    }
+
+    [Fact]
+    public void CanonicalManifest_IsMergeReadyOnlyWhenCoverageIsComplete()
+    {
+        StudioCloudAlbumSection[] sections =
+        [
+            new()
+            {
+                Code = "generated:cover",
+                ComponentKind = StudioAlbumComponentIdentity.GeneratedComponentKind,
+                PageNumbers = [1],
+            },
+            new()
+            {
+                Code = StudioAlbumComponentIdentity.SourceCode(
+                    "architect@erks.local",
+                    "building"),
+                ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
+                PageNumbers = [2, 3],
+            },
+        ];
+
+        Assert.True(
+            StudioAlbumComponentIdentity.HasCompletePageCoverage(sections, 3));
+        Assert.False(
+            StudioAlbumComponentIdentity.ContainsLegacySnapshot(sections));
+        Assert.True(
+            StudioAlbumComponentIdentity.IsMergeReady(sections, 3));
+        Assert.False(
+            StudioAlbumComponentIdentity.IsMergeReady(sections, 4));
     }
 
     [Fact]

@@ -1342,15 +1342,9 @@ internal sealed partial class ShellView
     }
 
     private static bool HasCompleteComponentManifest(StudioCloudAlbumRevision revision)
-    {
-        int[] pages = (revision.SectionManifest ?? [])
-            .SelectMany(component => component.PageNumbers ?? [])
-            .Order()
-            .ToArray();
-        return revision.PageCount > 0 &&
-            pages.Length == pages.Distinct().Count() &&
-            pages.SequenceEqual(Enumerable.Range(1, revision.PageCount));
-    }
+        => StudioAlbumComponentIdentity.HasCompletePageCoverage(
+            revision.SectionManifest ?? [],
+            revision.PageCount);
 
     private static bool ComponentManifestsEqual(
         IReadOnlyList<StudioCloudAlbumSection> left,
