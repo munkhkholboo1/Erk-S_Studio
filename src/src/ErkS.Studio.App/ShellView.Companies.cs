@@ -95,6 +95,7 @@ internal sealed partial class ShellView
     private string requestedCompanySelectionId = "";
     private bool removeCompanyLogoRequested;
     private bool refreshingCompanies;
+    private long companyCatalogAccountEpoch = -1;
     private bool companyCatalogCloudVerified;
     private bool companyRegistryImportInProgress;
     private bool companySaveInProgress;
@@ -304,8 +305,12 @@ internal sealed partial class ShellView
 
     private async Task RefreshCompaniesAsync(bool forceCloud = false)
     {
-        if (refreshingCompanies || companyEditorMode != CompanyEditorMode.View)
+        if (refreshingCompanies)
             return;
+        ResetAccountBoundCompanyCatalog();
+        if (companyEditorMode != CompanyEditorMode.View)
+            return;
+        StudioOperationContext operationContext = CaptureOperationContext();
         if (!account.IsSignedIn)
         {
             companyCatalogCloudVerified = false;
@@ -334,9 +339,12 @@ internal sealed partial class ShellView
             string previousId = string.IsNullOrWhiteSpace(requestedCompanySelectionId)
                 ? selectedCompanyEntry?.Profile.OrganizationId ?? ""
                 : requestedCompanySelectionId;
+            requestedCompanySelectionId = "";
             try
             {
                 IReadOnlyList<StudioCloudOrganization> cloudItems = await account.ListOrganizationsAsync();
+                if (!IsOperationContextCurrent(operationContext))
+                    return;
                 companyCatalogCloudVerified = true;
                 var merged = new List<CompanyCatalogEntry>();
                 foreach (StudioCloudOrganization cloud in cloudItems)
@@ -375,6 +383,8 @@ internal sealed partial class ShellView
                         else
                         {
                             StudioDownloadedImage? logo = await account.GetOrganizationLogoAsync(cloud.LogoUrl);
+                            if (!IsOperationContextCurrent(operationContext))
+                                return;
                             if (logo is not null)
                                 profile.LogoPath = store.StoreLogo(cloud.OrganizationId, logo.Bytes, logo.ContentType);
                         }
@@ -382,6 +392,7 @@ internal sealed partial class ShellView
                     merged.Add(new CompanyCatalogEntry
                     {
                         Profile = profile,
+                        ConcurrencyToken = cloud.ConcurrencyToken,
                         CanManage = cloud.CanManage,
                         CurrentUserRole = cloud.CurrentUserRole,
                         SyncStatus = CompanySyncStatuses.Cloud,
@@ -398,20 +409,47 @@ internal sealed partial class ShellView
             }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
+                if (!IsOperationContextCurrent(operationContext))
+                    return;
                 companyCatalogCloudVerified = false;
                 companyEntries = cached.OrderBy(item => CompanyDisplayName(item.Profile), StringComparer.CurrentCultureIgnoreCase).ToList();
                 companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · локал cache · Cloud шинэчлэгдсэнгүй";
                 SetStatus("Компанийн cloud сан шинэчлэгдсэнгүй: " + exception.Message);
             }
             RefreshCompanyList(previousId);
-            requestedCompanySelectionId = "";
             RefreshCompanyProjectActionUi();
         }
         finally
         {
             refreshingCompanies = false;
-            ApplyCompanyEditorModeUi();
+            if (IsOperationContextCurrent(operationContext))
+            {
+                ApplyCompanyEditorModeUi();
+            }
+            else if (Application.Current?.Dispatcher.HasShutdownStarted != true)
+            {
+                _ = RefreshCompaniesAsync(forceCloud);
+            }
         }
+    }
+
+    private void ResetAccountBoundCompanyCatalog()
+    {
+        if (companyCatalogAccountEpoch == account.SessionEpoch)
+            return;
+
+        companyCatalogAccountEpoch = account.SessionEpoch;
+        companyCatalogCloudVerified = false;
+        companyEntries = [];
+        companyLibraryStore = null;
+        companyLibraryAccount = "";
+        requestedCompanySelectionId = "";
+        companySelectionBeforeCreate = "";
+        companyLibraryList.ItemsSource = Array.Empty<CompanyListRow>();
+        ClearCompanyEditor();
+        companyLibraryStatus.Text = account.IsSignedIn
+            ? "Компанийн Cloud ERA санг уншиж байна..."
+            : "Компанийн санг харахын тулд Studio бүртгэлээр нэвтэрнэ үү.";
     }
 
     private CompanyLibraryStore EnsureCompanyLibraryStore()
@@ -534,6 +572,7 @@ internal sealed partial class ShellView
             SetStatus("Сонгосон компанийн нэр дээр төсөл хэрэгжүүлэх эрх баталгаажаагүй байна.");
             return;
         }
+        StudioOperationContext operationContext = CaptureOperationContext();
         bool sameOrganization = !string.IsNullOrWhiteSpace(assignment.OrganizationId) &&
             assignment.OrganizationId.Equals(profile.OrganizationId, StringComparison.OrdinalIgnoreCase);
         if (sameOrganization)
@@ -552,6 +591,8 @@ internal sealed partial class ShellView
         {
             return;
         }
+        if (!IsOperationContextCurrent(operationContext))
+            return;
 
         bool cloudLinked = project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(project.Cloud.ServerProjectId);
@@ -565,12 +606,19 @@ internal sealed partial class ShellView
             try
             {
                 await ConfirmPendingProjectCompanyAssignmentAsync(profile);
+                RequireOperationContext(operationContext, "Project company assignment");
                 BindProjectToUi();
                 UpdateAlbum(silent: true, statusPrefix: "Cloud ERA компанийн assignment шинэчлэгдлээ");
                 SetStatus($"{CompanyDisplayName(profile)} компани төсөлд сонгогдож, Cloud ERA-д баталгаажлаа.");
             }
+            catch (StudioOperationContextChangedException)
+            {
+                return;
+            }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
+                if (!IsOperationContextCurrent(operationContext))
+                    return;
                 project.Cloud.SyncStatus = ProjectSyncStatuses.Pending;
                 project.Cloud.LastSyncError = exception.Message;
                 project.Cloud.LastSyncNote = "Компанийн сонголт локалд хадгалагдсан; Cloud ERA баталгаажуулалт хүлээгдэж байна.";
@@ -585,6 +633,8 @@ internal sealed partial class ShellView
         }
 
         await RefreshProjectsAsync();
+        if (!IsOperationContextCurrent(operationContext))
+            return;
         RefreshCompanyProjectActionUi();
     }
 
@@ -594,6 +644,7 @@ internal sealed partial class ShellView
             return;
         if (!CanEditProjectInformation())
             return;
+        StudioOperationContext operationContext = CaptureOperationContext();
         ProjectWorkspace project = state.Project;
         ProjectCompanyAssignment assignment = project.Foundation.DesignCompany;
         bool cloudLinked = project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
@@ -605,9 +656,11 @@ internal sealed partial class ShellView
         StudioCloudProjectDetail latest = await account.AssignDesignOrganizationAsync(
             project.Cloud.ServerProjectId,
             assignment.OrganizationId);
+        RequireOperationContext(operationContext, "Project company assignment");
         state.LinkCurrentProjectToCloud(
             latest,
             account.Current!.ServerUrl,
+            account.Current.Email,
             preserveCreation: true,
             preserveSyncState: true);
         ProjectCompanyAssignmentService.ConfirmCloudAssignment(state.Project, profile);
@@ -715,16 +768,40 @@ internal sealed partial class ShellView
         {
             StudioCloudOrganization cloud = profile.OrganizationId.StartsWith("local-", StringComparison.OrdinalIgnoreCase)
                 ? await account.CreateOrganizationAsync(ToCloudCompanyRequest(profile))
-                : await account.UpdateOrganizationAsync(profile.OrganizationId, ToCloudCompanyRequest(profile));
+                : await account.UpdateOrganizationAsync(
+                    profile.OrganizationId,
+                    ToCloudCompanyRequest(profile, entry.ConcurrencyToken));
+            StudioOrganizationMutationCheckpoint.Apply(
+                entry,
+                profile,
+                cloud);
+            if (!companyEntries.Contains(entry))
+                companyEntries.Add(entry);
+            store.Save(companyEntries);
             string localLogoPath = profile.LogoPath;
             if (removeCompanyLogoRequested)
             {
-                cloud = await account.DeleteOrganizationLogoAsync(cloud.OrganizationId);
+                cloud = await account.DeleteOrganizationLogoAsync(
+                    cloud.OrganizationId,
+                    cloud.ConcurrencyToken);
+                StudioOrganizationMutationCheckpoint.Apply(
+                    entry,
+                    profile,
+                    cloud);
+                store.Save(companyEntries);
                 localLogoPath = "";
             }
             else if (!string.IsNullOrWhiteSpace(logoUploadPath))
             {
-                cloud = await account.UploadOrganizationLogoAsync(cloud.OrganizationId, logoUploadPath);
+                cloud = await account.UploadOrganizationLogoAsync(
+                    cloud.OrganizationId,
+                    logoUploadPath,
+                    cloud.ConcurrencyToken);
+                StudioOrganizationMutationCheckpoint.Apply(
+                    entry,
+                    profile,
+                    cloud);
+                store.Save(companyEntries);
             }
             CompanyProfile synced = MapCloudCompany(cloud);
             synced.LogoPath = localLogoPath;
@@ -735,6 +812,7 @@ internal sealed partial class ShellView
                 .Select(document => document.Clone())
                 .ToList();
             entry.Profile = synced;
+            entry.ConcurrencyToken = cloud.ConcurrencyToken;
             entry.CanManage = cloud.CanManage;
             entry.CurrentUserRole = cloud.CurrentUserRole;
             entry.SyncStatus = CompanySyncStatuses.Cloud;
@@ -756,6 +834,14 @@ internal sealed partial class ShellView
         catch (StudioAccountException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
         {
             SaveCompanyAsPending(entry, profile, store, exception.Message);
+        }
+        catch (StudioAccountException exception) when (
+            exception.StatusCode == HttpStatusCode.PreconditionFailed)
+        {
+            SetStatus(
+                "Байгууллагын мэдээлэл сервер дээр өөрчлөгдсөн тул хуучин " +
+                "draft-аар дарж бичсэнгүй. Компанийн санг шинэчлээд " +
+                $"өөрчлөлтөө харьцуулна уу. {exception.Message}");
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
@@ -787,6 +873,7 @@ internal sealed partial class ShellView
             return;
         }
 
+        StudioOperationContext operationContext = CaptureOperationContext();
         MessageBoxResult confirmation = StudioMessageDialog.Show(
             Window.GetWindow(Root),
             "Энэ байгууллагыг устгах уу? Төслийн түүхэн snapshot болон өмнө үүссэн альбум хадгалагдана. Энэ үйлдлийг буцаахгүй.",
@@ -795,11 +882,18 @@ internal sealed partial class ShellView
             MessageBoxImage.Warning);
         if (confirmation != MessageBoxResult.Yes)
             return;
+        if (!IsOperationContextCurrent(operationContext))
+            return;
 
         try
         {
             if (!localDraft)
-                await account.DeleteOrganizationAsync(entry.Profile.OrganizationId);
+            {
+                await account.DeleteOrganizationAsync(
+                    entry.Profile.OrganizationId,
+                    entry.ConcurrencyToken);
+                RequireOperationContext(operationContext, "Organization deletion");
+            }
 
             companyEntries.Remove(entry);
             selectedCompanyEntry = null;
@@ -810,8 +904,13 @@ internal sealed partial class ShellView
             companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · Cloud ERA";
             SetStatus("Байгууллага устгагдлаа. Төслийн түүхэн мэдээлэл хэвээр хадгалагдана.");
         }
+        catch (StudioOperationContextChangedException)
+        {
+        }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             SetStatus("Байгууллага устгагдсангүй: " + exception.Message);
         }
     }
@@ -1348,6 +1447,13 @@ internal sealed partial class ShellView
     private static StudioCloudOrganizationUpsertRequest ToCloudCompanyRequest(CompanyProfile profile) =>
         StudioCompanyProfileMapper.ToUpsertRequest(profile);
 
+    private static StudioCloudOrganizationUpsertRequest ToCloudCompanyRequest(
+        CompanyProfile profile,
+        string baseConcurrencyToken) =>
+        StudioCompanyProfileMapper.ToUpsertRequest(
+            profile,
+            baseConcurrencyToken);
+
     private async Task ImportOrganizationRegistryAsync()
     {
         CompanyCatalogEntry? entry = selectedCompanyEntry;
@@ -1372,6 +1478,7 @@ internal sealed partial class ShellView
         }
 
         string organizationId = profile.OrganizationId;
+        StudioOperationContext operationContext = CaptureOperationContext();
         companyRegistryImportInProgress = true;
         libraryCompanyOpenRegistryButton.IsEnabled = false;
         libraryCompanyOpenRegistryButton.Content = "ДАН зөвшөөрөл хүлээж байна";
@@ -1379,7 +1486,9 @@ internal sealed partial class ShellView
         {
             StudioOrganizationRegistryImportResponse started = await account.BeginOrganizationRegistryImportAsync(
                 organizationId,
-                profile.RegistrationNumber);
+                profile.RegistrationNumber,
+                entry.ConcurrencyToken);
+            RequireOperationContext(operationContext, "Organization registry import");
             if (string.IsNullOrWhiteSpace(started.AuthorizationUrl))
                 throw new StudioAccountException("ДАН зөвшөөрлийн холбоос ирсэнгүй.");
             Process.Start(new ProcessStartInfo(started.AuthorizationUrl) { UseShellExecute = true });
@@ -1392,12 +1501,15 @@ internal sealed partial class ShellView
                    Application.Current?.Dispatcher.HasShutdownStarted != true)
             {
                 await Task.Delay(TimeSpan.FromSeconds(2));
+                RequireOperationContext(operationContext, "Organization registry import");
                 StudioOrganizationRegistryImportResponse current =
                     await account.GetOrganizationRegistryImportAsync(organizationId, started.ImportId);
+                RequireOperationContext(operationContext, "Organization registry import");
                 if (current.Status.Equals(StudioOrganizationRegistryImportStatuses.Completed, StringComparison.Ordinal))
                 {
                     requestedCompanySelectionId = organizationId;
                     await RefreshCompaniesAsync(forceCloud: true);
+                    RequireOperationContext(operationContext, "Organization registry import");
                     CompanyProfile? refreshed = companyEntries.FirstOrDefault(item =>
                         item.Profile.OrganizationId.Equals(organizationId, StringComparison.OrdinalIgnoreCase))?.Profile;
                     if (refreshed is not null)
@@ -1422,17 +1534,25 @@ internal sealed partial class ShellView
             }
             SetStatus("ДАН зөвшөөрлийн хугацаа дууслаа. Дахин оролдоно уу.");
         }
+        catch (StudioOperationContextChangedException)
+        {
+        }
         catch (Exception exception) when (
             exception is StudioAccountException or HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             SetStatus("ДАН-аас мэдээлэл татсангүй: " + exception.Message);
         }
         finally
         {
             companyRegistryImportInProgress = false;
-            libraryCompanyOpenRegistryButton.Content = "ДАН-аар мэдээлэл татах";
-            if (selectedCompanyEntry is not null)
-                RefreshCompanyRegistryImportButton(selectedCompanyEntry);
+            if (IsOperationContextCurrent(operationContext))
+            {
+                libraryCompanyOpenRegistryButton.Content = "ДАН-аар мэдээлэл татах";
+                if (selectedCompanyEntry is not null)
+                    RefreshCompanyRegistryImportButton(selectedCompanyEntry);
+            }
         }
     }
 

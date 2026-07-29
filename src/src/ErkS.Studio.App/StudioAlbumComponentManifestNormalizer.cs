@@ -28,6 +28,7 @@ internal static class StudioAlbumComponentManifestNormalizer
             .Where(component => component is not null)
             .Select(Clone)
             .ToArray();
+        ValidateSourceIdentities(manifestEntries);
         var canonicalInputCodeBySlotCode =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         List<StudioCloudAlbumSection> originalSlots = manifestEntries
@@ -231,6 +232,51 @@ internal static class StudioAlbumComponentManifestNormalizer
             .Select(value => value?.Trim() ?? "")
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ??
             fallback;
+    }
+
+    private static void ValidateSourceIdentities(
+        IEnumerable<StudioCloudAlbumSection> components)
+    {
+        foreach (StudioCloudAlbumSection component in components)
+        {
+            string code = (component.Code ?? "").Trim();
+            if (!StudioAlbumComponentIdentity.IsOwnedSourceCode(code))
+                continue;
+
+            string owner = (component.OwnerEmail ?? "").Trim().ToLowerInvariant();
+            string sourceKey = (component.SourceKey ?? "").Trim();
+            bool hasOwner = !string.IsNullOrWhiteSpace(owner);
+            bool hasSourceKey = !string.IsNullOrWhiteSpace(sourceKey);
+            if (!hasOwner && !hasSourceKey)
+                continue;
+            if (!hasOwner || !hasSourceKey)
+            {
+                throw new InvalidDataException(
+                    "Owned album source component metadata is incomplete.");
+            }
+
+            string expectedBaseCode =
+                StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+            string actualBaseCode =
+                StudioAlbumComponentIdentity.BaseSourceCode(code);
+            if (!actualBaseCode.Equals(
+                    expectedBaseCode,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Album source component metadata does not match its immutable owner/source identity.");
+            }
+
+            if (!code.Equals(actualBaseCode, StringComparison.OrdinalIgnoreCase) &&
+                !StudioAlbumComponentIdentity.TryGetSourceSlice(
+                    code,
+                    out _,
+                    out _))
+            {
+                throw new InvalidDataException(
+                    "Album source component slice identity is invalid.");
+            }
+        }
     }
 
     private sealed record RetainedComponent(

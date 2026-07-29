@@ -165,6 +165,7 @@ internal sealed partial class ShellView
     private CancellationTokenSource? projectChatLoadCancellation;
     private string projectChatAttachmentPath = "";
     private string projectChatBoundProjectId = "";
+    private long projectChatBoundAccountEpoch = -1;
     private string projectChatSelectedPeerEmail = "";
     private string projectChatRenderKey = "";
     private bool projectChatRefreshInProgress;
@@ -440,10 +441,14 @@ internal sealed partial class ShellView
         }
 
         string previousProjectId = projectChatBoundProjectId;
+        long previousAccountEpoch = projectChatBoundAccountEpoch;
         ResetProjectChatForCurrentProject();
         projectChatRefreshTimer.Start();
-        if (!projectChatBoundProjectId.Equals(previousProjectId, StringComparison.Ordinal))
+        if (!projectChatBoundProjectId.Equals(previousProjectId, StringComparison.Ordinal) ||
+            projectChatBoundAccountEpoch != previousAccountEpoch)
+        {
             _ = RefreshProjectChatAsync(silent: true);
+        }
         RepositionProjectChatOverlay();
     }
 
@@ -593,13 +598,18 @@ internal sealed partial class ShellView
         string projectId = state.HasOpenProject
             ? state.Project.Cloud.ServerProjectId.Trim()
             : "";
-        if (projectChatBoundProjectId.Equals(projectId, StringComparison.Ordinal))
+        long accountEpoch = account.SessionEpoch;
+        if (projectChatBoundProjectId.Equals(projectId, StringComparison.Ordinal) &&
+            projectChatBoundAccountEpoch == accountEpoch)
+        {
             return;
+        }
 
         projectChatLoadCancellation?.Cancel();
         projectChatLoadCancellation?.Dispose();
         projectChatLoadCancellation = null;
         projectChatBoundProjectId = projectId;
+        projectChatBoundAccountEpoch = accountEpoch;
         projectChatSelectedPeerEmail = "";
         projectChatRenderKey = "";
         projectChatConversationListPanel.Tag = null;
@@ -630,6 +640,7 @@ internal sealed partial class ShellView
         string projectId = state.Project.Cloud.ServerProjectId.Trim();
         if (string.IsNullOrWhiteSpace(projectId) || !account.IsSignedIn)
             return;
+        StudioOperationContext operationContext = CaptureOperationContext();
 
         projectChatRefreshInProgress = true;
         projectChatLoadCancellation?.Cancel();
@@ -648,7 +659,7 @@ internal sealed partial class ShellView
                 peerEmail: string.IsNullOrWhiteSpace(selectedPeer) ? null : selectedPeer,
                 cancellationToken: cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
-                !projectId.Equals(state.Project.Cloud.ServerProjectId, StringComparison.Ordinal))
+                !IsOperationContextCurrent(operationContext))
             {
                 return;
             }
@@ -668,11 +679,17 @@ internal sealed partial class ShellView
         catch (Exception exception) when (
             exception is StudioAccountException or HttpRequestException or IOException)
         {
-            projectChatStatusText.Text = "Чат шинэчлэгдсэнгүй: " + exception.Message;
+            if (IsOperationContextCurrent(operationContext))
+                projectChatStatusText.Text = "Чат шинэчлэгдсэнгүй: " + exception.Message;
         }
         finally
         {
             projectChatRefreshInProgress = false;
+            if (!IsOperationContextCurrent(operationContext) &&
+                Application.Current?.Dispatcher.HasShutdownStarted != true)
+            {
+                _ = RefreshProjectChatAsync(silent: true);
+            }
         }
     }
 

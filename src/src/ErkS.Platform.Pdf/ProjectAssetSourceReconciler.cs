@@ -4,6 +4,11 @@ namespace ErkS.Platform.Pdf;
 
 public sealed class ProjectAssetSourceReconciliationResult
 {
+    private readonly HashSet<string> changedDocumentCategories =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> changedVisualizationIds =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public int UpdatedDocumentCount { get; internal set; }
     public int MissingDocumentCount { get; internal set; }
     public int RestoredDocumentCount { get; internal set; }
@@ -11,6 +16,10 @@ public sealed class ProjectAssetSourceReconciliationResult
     public int MissingVisualizationCount { get; internal set; }
     public int RestoredVisualizationCount { get; internal set; }
     public int ErrorCount { get; internal set; }
+    public IReadOnlyCollection<string> ChangedDocumentCategories =>
+        changedDocumentCategories;
+    public IReadOnlyCollection<string> ChangedVisualizationIds =>
+        changedVisualizationIds;
 
     public bool Changed =>
         UpdatedDocumentCount > 0 ||
@@ -30,7 +39,15 @@ public sealed class ProjectAssetSourceReconciliationResult
         MissingVisualizationCount += other.MissingVisualizationCount;
         RestoredVisualizationCount += other.RestoredVisualizationCount;
         ErrorCount += other.ErrorCount;
+        changedDocumentCategories.UnionWith(other.changedDocumentCategories);
+        changedVisualizationIds.UnionWith(other.changedVisualizationIds);
     }
+
+    internal void RecordDocumentChange(ProjectFileReference document) =>
+        changedDocumentCategories.Add(document.Category?.Trim() ?? "");
+
+    internal void RecordVisualizationChange(ProjectVisualizationImage image) =>
+        changedVisualizationIds.Add(image.Id?.Trim() ?? "");
 }
 
 /// <summary>
@@ -42,37 +59,58 @@ public static class ProjectAssetSourceReconciler
 {
     public static ProjectAssetSourceReconciliationResult ReconcileProject(
         ProjectWorkspace project,
-        string projectPath)
+        string projectPath) =>
+        ReconcileProject(
+            project,
+            projectPath,
+            documentScope: null,
+            visualizationScope: null);
+
+    public static ProjectAssetSourceReconciliationResult ReconcileProject(
+        ProjectWorkspace project,
+        string projectPath,
+        Func<ProjectFileReference, bool>? documentScope,
+        Func<ProjectVisualizationImage, bool>? visualizationScope)
     {
         ArgumentNullException.ThrowIfNull(project);
         string fullProjectPath = Path.GetFullPath(projectPath);
         var result = new ProjectAssetSourceReconciliationResult();
+        documentScope ??= static _ => true;
+        visualizationScope ??= static _ => true;
 
         ReconcileDocuments(
             project.Foundation.InitiationBasis.Documents,
             ResolveProjectDocumentPath,
             StoreProjectDocument,
             fullProjectPath,
-            result);
+            result,
+            documentScope);
         ReconcileDocuments(
             project.Foundation.PlanningTask.Documents,
             ResolveProjectDocumentPath,
             StoreProjectDocument,
             fullProjectPath,
-            result);
+            result,
+            documentScope);
         ReconcileDocuments(
             project.Foundation.DesignCompany.OrganizationSnapshot.RegistrationCertificateDocuments,
             ResolveProjectDocumentPath,
             StoreProjectDocument,
             fullProjectPath,
-            result);
+            result,
+            documentScope);
         ReconcileDocuments(
             project.Foundation.DesignCompany.OrganizationSnapshot.DesignLicenseDocuments,
             ResolveProjectDocumentPath,
             StoreProjectDocument,
             fullProjectPath,
-            result);
-        ReconcileVisualizations(project, fullProjectPath, result);
+            result,
+            documentScope);
+        ReconcileVisualizations(
+            project,
+            fullProjectPath,
+            result,
+            visualizationScope);
         return result;
     }
 
@@ -91,7 +129,8 @@ public static class ProjectAssetSourceReconciler
                 document.Category,
                 sourcePath),
             context: "",
-            result);
+            result,
+            scope: null);
         ReconcileDocuments(
             profile.DesignLicenseDocuments,
             ResolveAbsoluteDocumentPath,
@@ -100,7 +139,8 @@ public static class ProjectAssetSourceReconciler
                 document.Category,
                 sourcePath),
             context: "",
-            result);
+            result,
+            scope: null);
         return result;
     }
 
@@ -109,9 +149,13 @@ public static class ProjectAssetSourceReconciler
         Func<string, ProjectFileReference, string> resolveStoredPath,
         Func<string, ProjectFileReference, string, string> storeLinkedSource,
         string context,
-        ProjectAssetSourceReconciliationResult result)
+        ProjectAssetSourceReconciliationResult result,
+        Func<ProjectFileReference, bool>? scope)
     {
-        foreach (ProjectFileReference document in documents.Where(item => item is not null))
+        scope ??= static _ => true;
+        foreach (ProjectFileReference document in documents
+                     .Where(item => item is not null)
+                     .Where(scope))
         {
             document.LinkedSourcePath = document.LinkedSourcePath?.Trim() ?? "";
             document.Version = Math.Max(1, document.Version);
@@ -125,6 +169,7 @@ public static class ProjectAssetSourceReconciler
                 {
                     document.IsAvailable = false;
                     result.MissingDocumentCount++;
+                    result.RecordDocumentChange(document);
                 }
                 continue;
             }
@@ -139,6 +184,7 @@ public static class ProjectAssetSourceReconciler
                 {
                     document.IsAvailable = true;
                     result.RestoredDocumentCount++;
+                    result.RecordDocumentChange(document);
                 }
                 continue;
             }
@@ -189,9 +235,15 @@ public static class ProjectAssetSourceReconciler
                 if (sourceContentChanged)
                     document.Version = Math.Max(1, document.Version) + 1;
                 if (!wasAvailable)
+                {
                     result.RestoredDocumentCount++;
+                    result.RecordDocumentChange(document);
+                }
                 if (changed)
+                {
                     result.UpdatedDocumentCount++;
+                    result.RecordDocumentChange(document);
+                }
             }
             catch (Exception exception) when (
                 exception is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -201,6 +253,7 @@ public static class ProjectAssetSourceReconciler
                 {
                     document.IsAvailable = false;
                     result.MissingDocumentCount++;
+                    result.RecordDocumentChange(document);
                 }
             }
         }
@@ -209,10 +262,14 @@ public static class ProjectAssetSourceReconciler
     private static void ReconcileVisualizations(
         ProjectWorkspace project,
         string projectPath,
-        ProjectAssetSourceReconciliationResult result)
+        ProjectAssetSourceReconciliationResult result,
+        Func<ProjectVisualizationImage, bool>? scope)
     {
+        scope ??= static _ => true;
         project.Visualizations.Normalize(project.ProjectId);
-        foreach (ProjectVisualizationImage image in project.Visualizations.ImagesForProject(project.ProjectId))
+        foreach (ProjectVisualizationImage image in project.Visualizations
+                     .ImagesForProject(project.ProjectId)
+                     .Where(scope))
         {
             string storedPath = ResolveProjectPath(projectPath, image.RelativePath);
             string linkedPath = ResolveOptionalFullPath(image.LinkedSourcePath);
@@ -224,6 +281,7 @@ public static class ProjectAssetSourceReconciler
                 {
                     image.IsAvailable = false;
                     result.MissingVisualizationCount++;
+                    result.RecordVisualizationChange(image);
                 }
                 continue;
             }
@@ -239,6 +297,7 @@ public static class ProjectAssetSourceReconciler
                 {
                     image.IsAvailable = true;
                     result.RestoredVisualizationCount++;
+                    result.RecordVisualizationChange(image);
                 }
                 continue;
             }
@@ -296,9 +355,15 @@ public static class ProjectAssetSourceReconciler
                 if (sourceContentChanged)
                     image.Version = Math.Max(1, image.Version) + 1;
                 if (!wasAvailable)
+                {
                     result.RestoredVisualizationCount++;
+                    result.RecordVisualizationChange(image);
+                }
                 if (changed)
+                {
                     result.UpdatedVisualizationCount++;
+                    result.RecordVisualizationChange(image);
+                }
             }
             catch (Exception exception) when (
                 exception is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -308,6 +373,7 @@ public static class ProjectAssetSourceReconciler
                 {
                     image.IsAvailable = false;
                     result.MissingVisualizationCount++;
+                    result.RecordVisualizationChange(image);
                 }
             }
         }

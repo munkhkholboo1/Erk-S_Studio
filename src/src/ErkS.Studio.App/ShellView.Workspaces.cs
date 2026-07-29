@@ -105,6 +105,8 @@ internal sealed partial class ShellView
     private bool albumThumbnailMode;
     private bool albumPdfViewerConfigured;
     private bool sourceRefreshInProgress;
+    private bool sourceRemovalInProgress;
+    private bool sourceRelationshipMutationInProgress;
     private CancellationTokenSource? sourceSheetThumbnailLoadCancellation;
     private long sourceSheetThumbnailLoadSerial;
     private string? loadedAlbumPdfDocumentKey;
@@ -215,10 +217,16 @@ internal sealed partial class ShellView
             "Зөвхөн энэ төхөөрөмжийн Revit/AutoCAD package, АТД, гэрчилгээ, тусгай зөвшөөрөл " +
             "болон харагдах байдлын файлын өөрчлөлтийг шалгаж локал album-ыг шинэчилнэ. Cloud төслийг татахгүй.";
         rescan.Click += (_, _) => CheckForSourceUpdates();
+        var openOperationLog = StudioWidgets.CreateButton("Үйлдлийн лог");
+        openOperationLog.ToolTip =
+            "Source Refresh болон Cloud Sync хаана, ямар reason code-оор зогссон эсвэл дууссаныг харна.\n" +
+            operationDiagnosticLog.LogPath;
+        openOperationLog.Click += (_, _) => OpenOperationDiagnosticLogFolder();
         sourceGroup.Children.Add(addSource);
         sourceGroup.Children.Add(addVisualizationSource);
         sourceGroup.Children.Add(configureBuildings);
         sourceGroup.Children.Add(rescan);
+        sourceGroup.Children.Add(openOperationLog);
         ribbon.Children.Add(sourceGroup);
         return ribbon;
     }
@@ -252,29 +260,114 @@ internal sealed partial class ShellView
 
     private void CheckForSourceUpdates()
     {
-        if (!state.HasOpenProject || sourceRefreshInProgress || !EnsureProjectContentPermission())
+        string operationId = BeginDiagnosticOperation(
+            "source_refresh",
+            "source_refresh_started",
+            "Локал эх үүсвэрийн өөрчлөлт шалгах үйлдэл эхэллээ.");
+        bool canEditProjectContent = state.HasOpenProject && CanEditProjectContent();
+        bool projectTransitionInProgress =
+            refreshingCurrentProjectAccess || projectOpenInProgress;
+        if (!StudioRefreshSyncOperationPolicy.CanStartSourceRefresh(
+                state.HasOpenProject,
+                canEditProjectContent,
+                projectTransitionInProgress,
+                sourceRefreshInProgress,
+                syncInProgress || syncPreparationInProgress))
         {
+            if (state.HasOpenProject &&
+                !projectTransitionInProgress &&
+                !sourceRefreshInProgress &&
+                !syncInProgress &&
+                !syncPreparationInProgress &&
+                !canEditProjectContent)
+            {
+                _ = EnsureProjectContentPermission();
+            }
+            string reasonCode;
+            string message;
+            if (!state.HasOpenProject)
+            {
+                reasonCode = "source_refresh_no_open_project";
+                message = "Source Refresh зогслоо: нээлттэй төсөл алга.";
+            }
+            else if (sourceRefreshInProgress)
+            {
+                reasonCode = "source_refresh_already_running";
+                message = "Source Refresh аль хэдийн ажиллаж байна.";
+            }
+            else if (syncInProgress || syncPreparationInProgress)
+            {
+                reasonCode = "source_refresh_blocked_by_cloud_sync";
+                message = "Source Refresh зогслоо: Cloud Sync дууссаны дараа дахин ажиллуулна уу.";
+            }
+            else if (projectTransitionInProgress)
+            {
+                reasonCode = "source_refresh_blocked_by_project_transition";
+                message =
+                    "Source Refresh зогслоо: төслийн access шалгалт эсвэл workspace нээлт дуусаагүй байна.";
+            }
+            else
+            {
+                reasonCode = "source_refresh_permission_denied";
+                message = "Source Refresh зогслоо: таны project role альбум боловсруулах эрхгүй байна.";
+            }
+            SetOperationStatus(
+                operationId,
+                "source_refresh",
+                "blocked",
+                reasonCode,
+                message);
             return;
         }
 
+        StudioOperationContext operationContext = CaptureOperationContext();
         sourceRefreshInProgress = true;
+        RefreshSyncUi();
+        IReadOnlyList<ProjectDesignSource> ownedSources =
+            StudioSourceRefreshScope.OwnedSources(
+                state.Project,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint);
         var selectedSourceId = (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
         SheetIntakeScanResult scan;
-        var assetScan = new ProjectAssetSourceReconciliationResult();
+        ProjectAssetSourceReconciliationResult assetScan;
         CityGenProjectSiteReconciliationResult siteScan;
         try
         {
-            SetStatus("Локал эх үүсвэрийн өөрчлөлт шалгаж байна...");
-            assetScan.Merge(ReconcileCompanyAssetSources());
-            assetScan.Merge(state.ReconcileProjectAssetSources());
-            siteScan = state.ReconcileCityGenProjectSite();
-            RefreshLocalPdfSources();
-            scan = state.Intake.Rescan();
+            if (ownedSources.Count == 0)
+            {
+                SetOperationStatus(
+                    operationId,
+                    "source_refresh",
+                    "progress",
+                    "source_refresh_no_local_sources",
+                    "Энэ бүртгэл/төхөөрөмжид баталгаатай локал эх үүсвэр алга. Cloud эх үүсвэрүүдэд хүрэхгүй.");
+            }
+            else
+            {
+                SetOperationStatus(
+                    operationId,
+                    "source_refresh",
+                    "progress",
+                    "source_refresh_scanning_local_sources",
+                    $"Локал эх үүсвэрийн өөрчлөлт шалгаж байна: {ownedSources.Count} source...");
+            }
+            assetScan = state.ReconcileProjectAssetSources();
+            siteScan = state.ReconcileCityGenProjectSite(ownedSources);
+            RefreshLocalPdfSources(ownedSources);
+            scan = state.Intake.RescanFolders(SourceInboxFolders(ownedSources));
         }
         catch (Exception exception)
         {
             sourceRefreshInProgress = false;
-            SetStatus($"Локал эх үүсвэр шалгахад алдаа: {exception.Message}");
+            RefreshSyncUi();
+            SetOperationStatus(
+                operationId,
+                "source_refresh",
+                "error",
+                "source_refresh_scan_failed",
+                $"Локал эх үүсвэр шалгахад алдаа: {exception.Message}",
+                exception);
             return;
         }
 
@@ -284,19 +377,72 @@ internal sealed partial class ShellView
         {
             try
             {
+                if (!CanContinueSourceRefresh(operationContext))
+                {
+                    SetOperationStatus(
+                        operationId,
+                        "source_refresh",
+                        "cancelled",
+                        "source_refresh_context_changed",
+                        "Source Refresh-ийн үр дүнг хэрэгжүүлээгүй: бүртгэл, төсөл эсвэл access төлөв үйлдлийн явцад өөрчлөгдсөн.");
+                    return;
+                }
+
                 autoRebuildTimer.Stop();
                 RefreshSourceWorkspace(selectedSourceId);
                 RefreshAlbumWorkspace();
-                UpdateAlbum(
+                bool updated = UpdateAlbum(
                     silent: false,
-                    statusPrefix: BuildSourceRefreshSummary(scan, assetScan, siteScan));
+                    statusPrefix: BuildSourceRefreshSummary(scan, assetScan, siteScan),
+                    origin: StudioWorkspaceOperation.SourceRefresh);
+                if (updated)
+                {
+                    RecordDiagnosticOperation(
+                        operationId,
+                        "source_refresh",
+                        "completed",
+                        "source_refresh_completed",
+                        statusText.Text);
+                }
+                else
+                {
+                    SetOperationStatus(
+                        operationId,
+                        "source_refresh",
+                        "error",
+                        "source_refresh_album_rebuild_failed",
+                        statusText.Text);
+                }
+            }
+            catch (Exception exception)
+            {
+                SetOperationStatus(
+                    operationId,
+                    "source_refresh",
+                    "error",
+                    "source_refresh_ui_refresh_failed",
+                    "Source Refresh-ийн дараах UI/альбум шинэчлэлт амжилтгүй: " + exception.Message,
+                    exception);
             }
             finally
             {
                 sourceRefreshInProgress = false;
+                RefreshSyncUi();
             }
         }), System.Windows.Threading.DispatcherPriority.Background);
     }
+
+    private bool CanContinueSourceRefresh(
+        StudioOperationContext operationContext) =>
+        StudioRefreshSyncOperationPolicy.CanContinueSourceRefresh(
+            operationContext,
+            refreshingCurrentProjectAccess || projectOpenInProgress,
+            state.HasOpenProject,
+            state.HasOpenProject ? state.Project : null,
+            state.ProjectPath,
+            account.Current,
+            state.WorkspaceEpoch,
+            account.SessionEpoch);
 
     private static string BuildSourceRefreshSummary(
         SheetIntakeScanResult scan,
@@ -537,7 +683,13 @@ internal sealed partial class ShellView
 
         string currentUserEmail = (account.Current?.Email ?? "").Trim();
         if (!string.IsNullOrWhiteSpace(currentUserEmail))
+        {
             ProjectCloudSyncMetadata.BindCloudOwner(dialog.ResultSource, currentUserEmail);
+            StudioLocalSourceBindingPolicy.Bind(
+                dialog.ResultSource,
+                currentUserEmail,
+                StudioDeviceIdentity.Fingerprint);
+        }
         if (dialog.BuildingGroupsChanged)
         {
             state.UpdateBuildingComposition(
@@ -573,11 +725,32 @@ internal sealed partial class ShellView
         }
     }
 
-    private void RefreshLocalPdfSources()
+    private static IReadOnlyList<string> SourceInboxFolders(
+        IEnumerable<ProjectDesignSource> sources) =>
+        (sources ?? [])
+        .SelectMany(source =>
+        {
+            var folders = new List<string>();
+            if (!string.IsNullOrWhiteSpace(source.InboxFolder))
+                folders.Add(source.InboxFolder);
+            if (source.Metadata.TryGetValue(
+                    "LegacyInboxFolder",
+                    out string? legacyInbox) &&
+                !string.IsNullOrWhiteSpace(legacyInbox))
+            {
+                folders.Add(legacyInbox);
+            }
+            return folders;
+        })
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    private void RefreshLocalPdfSources(
+        IEnumerable<ProjectDesignSource>? sources = null)
     {
         var importer = new LocalPdfSheetPackageImporter();
         bool changed = false;
-        foreach (ProjectDesignSource source in state.Project.Sources.Where(item =>
+        foreach (ProjectDesignSource source in (sources ?? state.Project.Sources).Where(item =>
                      item.Kind == DesignSourceKind.Pdf))
         {
             LocalPdfSheetPackageImportResult result = importer.Import(state.Project, source);
@@ -614,33 +787,80 @@ internal sealed partial class ShellView
             .OfType<ProjectCloudSourceReference>()
             .FirstOrDefault(item =>
                 string.Equals(item.SourceKey, sourceKey, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(item.OwnerEmail, sourceOwner, StringComparison.OrdinalIgnoreCase));
-        if (sharedSource is not null &&
-            account.IsSignedIn &&
-            state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
+                string.Equals(
+                    StudioSharedSourceProjection.ImmutableOwner(item),
+                    sourceOwner,
+                    StringComparison.OrdinalIgnoreCase));
+        bool cloudLinked =
+            state.Project.Cloud.Origin.Equals(
+                ProjectOrigins.Cloud,
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(
+                state.Project.Cloud.ServerProjectId);
+        ProjectLocalAlbumComponentClaim? removalClaim = null;
+        if (sharedSource is not null && cloudLinked)
         {
+            removalClaim = StudioSourceRemovalOutbox.Stage(
+                state.Project,
+                source,
+                sharedSource,
+                currentOwner,
+                StudioDeviceIdentity.Fingerprint,
+                StudioLocalSourceBindingPolicy.HasVerifiedPayload(source));
+            // Persist before the remote call. A timeout after a committed
+            // retire must not resurrect the source after restart.
+            state.SaveProject();
+            if (!account.IsSignedIn)
+            {
+                SetStatus(
+                    "Эх үүсвэрийг салгах хүсэлт pending боллоо. Cloud Sync хийхэд registry row-г retire хийсний дараа локал холбоос болон альбумын component хасагдана.");
+                return;
+            }
+
+            StudioOperationContext removalContext =
+                CaptureOperationContext();
+            sourceRemovalInProgress = true;
             try
             {
                 await account.RetireSourcePackageAsync(
-                    state.Project.Cloud.ServerProjectId,
+                    removalContext.ServerProjectId,
                     sharedSource.SourceId);
-                state.Project.Cloud.SharedSources.RemoveAll(item =>
-                    item is not null &&
-                    string.Equals(item.SourceId, sharedSource.SourceId, StringComparison.OrdinalIgnoreCase));
+                if (!IsOperationContextCurrent(removalContext))
+                {
+                    SetStatus(
+                        "Source retire сервер дээр баталгаажсан боловч нээлттэй төсөл/бүртгэл солигдсон тул шинэ workspace-д локал өөрчлөлт хийгээгүй. Анхны төсөл дээр Sync хийхэд pending хүсэлт дуусна. [reason: source_removal_context_changed]");
+                    return;
+                }
+                StudioSourceRemovalOutbox.ApplyRegistryRetirement(
+                    state.Project,
+                    removalClaim);
             }
             catch (Exception exception) when (
                 exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
-                SetStatus("Cloud эх үүсвэрийг салгаж чадсангүй. Локал холбоос хэвээр үлдлээ: " + exception.Message);
+                SetStatus(
+                    "Cloud source retire баталгаажаагүй тул локал эх үүсвэрийг хасаагүй. Хүсэлт pending хэвээр; дараагийн Sync idempotent байдлаар дахин оролдоно: " +
+                    exception.Message);
                 return;
+            }
+            finally
+            {
+                sourceRemovalInProgress = false;
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(sourceOwner) && !string.IsNullOrWhiteSpace(sourceKey))
+        if (removalClaim is null &&
+            !string.IsNullOrWhiteSpace(sourceOwner) &&
+            !string.IsNullOrWhiteSpace(sourceKey))
         {
-            state.MarkAlbumComponentChanged(
-                StudioAlbumComponentIdentity.SourceCode(sourceOwner, sourceKey));
+            ProjectCloudSyncMetadata.MarkAlbumComponentPendingForBinding(
+                state.Project,
+                StudioAlbumComponentIdentity.SourceCode(
+                    sourceOwner,
+                    sourceKey),
+                currentOwner,
+                StudioDeviceIdentity.Fingerprint,
+                isRemoval: true);
         }
 
         int removedPageCount = state.RemoveDesignSource(source);
@@ -652,6 +872,53 @@ internal sealed partial class ShellView
             $"{source.DisplayName}. Эх файл, хүлээн авсан PDF-үүд хэвээр үлдсэн.");
     }
 
+    private async Task<int> ProcessPendingDesignSourceRemovalsAsync(
+        string projectId,
+        StudioOperationContext operationContext)
+    {
+        IReadOnlyList<ProjectLocalAlbumComponentClaim> pending =
+            StudioSourceRemovalOutbox.Pending(
+                state.Project,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint);
+        int removed = 0;
+        foreach (ProjectLocalAlbumComponentClaim claim in pending)
+        {
+            RequireOperationContext(
+                operationContext,
+                "cloud_sync_source_retire_start");
+            // DELETE is exact-current-source CAS and idempotent for an
+            // already retired row. Thus a timeout after a committed response
+            // is safely retried after restart.
+            ProjectDesignSource? local =
+                await StudioSourceRemovalOutbox.ConfirmRegistryRetirementAsync(
+                    state.Project,
+                    claim,
+                    account.Current?.Email,
+                    StudioDeviceIdentity.Fingerprint,
+                    sourceId => account.RetireSourcePackageAsync(
+                        projectId,
+                        sourceId),
+                    () => RequireOperationContext(
+                        operationContext,
+                        "cloud_sync_source_retire_acknowledgement"));
+            RequireOperationContext(
+                operationContext,
+                "cloud_sync_source_retire_apply");
+            if (local is not null)
+            {
+                state.RemoveDesignSource(local);
+                removed++;
+            }
+            else
+            {
+                state.SaveProject();
+            }
+        }
+
+        return removed;
+    }
+
     private void RelinkSelectedNativeSource()
     {
         if (!EnsureProjectContentPermission() ||
@@ -659,7 +926,12 @@ internal sealed partial class ShellView
         {
             return;
         }
-        if (!CanEditLocalSource(source))
+        ProjectSourceEditAuthority authority =
+            ProjectCloudSyncAuthority.ResolveSource(
+                state.Project,
+                source,
+                account.Current?.Email);
+        if (!authority.CanEdit)
         {
             SetStatus("Бусдын эх үүсвэрийн локал файлыг солих боломжгүй.");
             return;
@@ -680,9 +952,47 @@ internal sealed partial class ShellView
 
         source.NativeDocumentPath = Path.GetFullPath(dialog.FileName);
         source.NativeDocumentTitle = Path.GetFileName(dialog.FileName);
+        if (!StudioLocalSourceBindingPolicy.TryExplicitRelink(
+                source,
+                authority.OwnerEmail,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint,
+                hasVerifiedPayload: File.Exists(source.NativeDocumentPath)))
+        {
+            SetStatus(
+                "Локал эх файлыг холбосонгүй: энэ бүртгэл source-ийн баталгаажсан хариуцагч биш эсвэл файл уншигдахгүй байна.");
+            return;
+        }
         source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         source.Metadata["local.nativeRelinkedAtUtc"] = DateTimeOffset.UtcNow.ToString("O");
         state.SaveProject();
+        state.RefreshSourceRuntimeWatchers();
+        if (source.Kind == DesignSourceKind.Pdf)
+        {
+            try
+            {
+                StudioPdfSourceRelinkIntakeResult relink =
+                    StudioPdfSourceRelinkIntake.ImportAndRescan(
+                        state.Project,
+                        source,
+                        state.Intake);
+                state.SaveProject();
+                RefreshSourceWorkspace(source.Id);
+                SetStatus(
+                    $"PDF эх файл дахин холбогдож, {relink.Import.PageCount} хуудас шууд импортлогдлоо: " +
+                    $"{source.NativeDocumentTitle}. Эх PDF Cloud ERA руу илгээгдэхгүй; " +
+                    "баталгаажсан contribution дараагийн Cloud Sync-ээр нэгтгэгдэнэ.");
+            }
+            catch (Exception exception)
+            {
+                RefreshSourceWorkspace(source.Id);
+                SetStatus(
+                    $"PDF эх файл холбогдсон боловч хуудсуудыг баталгаатай импортлож чадсангүй: " +
+                    exception.Message);
+            }
+            return;
+        }
+
         RefreshSourceWorkspace(source.Id);
         SetStatus(
             $"Локал эх файл дахин холбогдлоо: {source.NativeDocumentTitle}. " +
@@ -719,15 +1029,20 @@ internal sealed partial class ShellView
         }
 
         string projectId = state.Project.Cloud.ServerProjectId;
+        string bindingAccountEmail = account.Current?.Email ?? "";
+        StudioOperationContext operationContext = CaptureOperationContext();
+        sourceRelationshipMutationInProgress = true;
         try
         {
             IReadOnlyList<StudioCloudDesignPackage> packages = await account.ListDesignPackagesAsync(projectId);
-            string currentEmail = account.Current?.Email ?? "";
-            List<StudioCloudSourcePackage> available = LatestCloudSources(packages)
-                .Where(cloudSource => cloudSource.CustodianEmail.Equals(currentEmail, StringComparison.OrdinalIgnoreCase))
-                .Where(cloudSource => !state.Project.Sources.Any(local =>
-                    !ReferenceEquals(local, source) &&
-                    ProjectCloudSyncMetadata.CloudSourceKey(local).Equals(cloudSource.SourceKey, StringComparison.OrdinalIgnoreCase)))
+            if (!CanContinueCloudSourceBinding(operationContext, source))
+                return;
+            List<StudioCloudSourcePackage> available =
+                StudioCloudSourceBindingPolicy.EligibleSources(
+                    state.Project,
+                    source,
+                    LatestCloudSources(packages),
+                    bindingAccountEmail)
                 .ToList();
             if (available.Count == 0)
             {
@@ -740,16 +1055,22 @@ internal sealed partial class ShellView
             var dialog = new CloudSourceBindingDialog(available) { Owner = Window.GetWindow(Root) };
             if (dialog.ShowDialog() != true || dialog.SelectedSource is null)
                 return;
-            if (!state.HasOpenProject ||
-                !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
-            {
+            if (!CanContinueCloudSourceBinding(operationContext, source))
                 return;
-            }
 
             ProjectCloudSyncMetadata.BindToCloudSource(
                 state.Project,
                 source,
                 dialog.SelectedSource.SourceKey);
+            ProjectCloudSyncMetadata.BindCloudOwner(
+                source,
+                StudioCloudSourceBindingPolicy.ImmutableOwner(
+                    dialog.SelectedSource,
+                    bindingAccountEmail));
+            StudioLocalSourceBindingPolicy.Bind(
+                source,
+                bindingAccountEmail,
+                StudioDeviceIdentity.Fingerprint);
             state.SaveProject();
             RefreshSourceWorkspace(source.Id);
             RefreshSyncUi();
@@ -761,7 +1082,24 @@ internal sealed partial class ShellView
         {
             SetStatus("Cloud source холбож чадсангүй: " + exception.Message);
         }
+        finally
+        {
+            sourceRelationshipMutationInProgress = false;
+        }
     }
+
+    private bool CanContinueCloudSourceBinding(
+        StudioOperationContext operationContext,
+        ProjectDesignSource source) =>
+        StudioCloudSourceBindingContinuationPolicy.CanApply(
+            operationContext,
+            source,
+            state.HasOpenProject,
+            state.HasOpenProject ? state.Project : null,
+            state.ProjectPath,
+            account.Current,
+            state.WorkspaceEpoch,
+            account.SessionEpoch);
 
     private async Task TransferCloudSourceCustodyAsync()
     {
@@ -771,10 +1109,17 @@ internal sealed partial class ShellView
             return;
         }
         string projectId = state.Project.Cloud.ServerProjectId;
+        StudioOperationContext operationContext =
+            CaptureOperationContext();
+        sourceRelationshipMutationInProgress = true;
         try
         {
             StudioCloudProjectDetail project = await account.GetProjectAsync(projectId);
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             IReadOnlyList<StudioProjectRole> roleCatalog = await account.ListProjectRolesAsync();
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             HashSet<string> editRoles = roleCatalog
                 .Where(role => role.CanEditContent)
                 .Select(role => role.Code)
@@ -786,6 +1131,8 @@ internal sealed partial class ShellView
                     (participant.Roles ?? []).Any(editRoles.Contains))
                 .ToList();
             IReadOnlyList<StudioCloudDesignPackage> packages = await account.ListDesignPackagesAsync(projectId);
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             List<StudioCloudSourcePackage> sources = LatestCloudSources(packages);
             if (sources.Count == 0 || participants.Count == 0)
             {
@@ -810,7 +1157,11 @@ internal sealed partial class ShellView
             await account.AssignSourceCustodianAsync(
                 projectId,
                 dialog.Draft.SourceId,
-                dialog.Draft.ParticipantId);
+                dialog.Draft.ParticipantId,
+                project.Project.ConcurrencyToken,
+                dialog.Draft.SourceId);
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             SetStatus(
                 $"Cloud source хариуцагч шилжлээ: {dialog.Draft.DisplayLabel}. " +
                 "Native файлыг талууд платформоос гадуур хүлээлцэж, шинэ хариуцагч локал файлаа дахин холбоно.");
@@ -818,6 +1169,10 @@ internal sealed partial class ShellView
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
             SetStatus("Cloud source хариуцагч шилжсэнгүй: " + exception.Message);
+        }
+        finally
+        {
+            sourceRelationshipMutationInProgress = false;
         }
     }
 
@@ -900,14 +1255,21 @@ internal sealed partial class ShellView
                     StringComparison.OrdinalIgnoreCase))
             .ToList();
         var representedCloudSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (visualizations.IsConfiguredForProject(state.Project.ProjectId))
+        IReadOnlyList<ProjectVisualizationImage> currentVisualizationImages =
+            CurrentProjectVisualizationImages();
+        if (visualizations.IsConfiguredForProject(state.Project.ProjectId) &&
+            (!StudioAuxiliarySourceLocalityPolicy.IsCloudLinked(state.Project) ||
+             currentVisualizationImages.Count > 0))
         {
             items.Add(SourceWorkspaceItem.Visualizations(
-                visualizations.ImagesForProject(state.Project.ProjectId).Count,
+                currentVisualizationImages.Count,
                 visualizations.ImagesPerPage));
-            representedCloudSources.Add(CloudSourceIdentity(
-                currentOwner,
-                StudioAlbumComponentIdentity.VisualizationSourceKey));
+            if (HasLocalVisualizationImages())
+            {
+                representedCloudSources.Add(CloudSourceIdentity(
+                    currentOwner,
+                    StudioAlbumComponentIdentity.VisualizationSourceKey));
+            }
         }
         if (!string.IsNullOrWhiteSpace(currentOwner) && HasOwnedAtdDocuments(currentOwner))
         {
@@ -915,35 +1277,80 @@ internal sealed partial class ShellView
                 currentOwner,
                 StudioAlbumComponentIdentity.AtdSourceKey));
         }
-        items.AddRange(state.Project.Sources
-            .Select(source =>
-            {
-                string owner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
-                if (string.IsNullOrWhiteSpace(owner))
-                    owner = currentOwner;
-                string sourceKey = ProjectCloudSyncMetadata.CloudSourceKey(source);
-                representedCloudSources.Add(CloudSourceIdentity(
-                    owner,
-                    sourceKey));
-                ProjectCloudAlbumComponentReference? component = sharedComponents.FirstOrDefault(item =>
-                    CloudSourceIdentity(item.OwnerEmail, item.SourceKey).Equals(
-                        CloudSourceIdentity(owner, sourceKey),
+        bool cloudProject =
+            state.Project.Cloud.Origin.Equals(
+                ProjectOrigins.Cloud,
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId);
+        foreach (ProjectDesignSource source in state.Project.Sources)
+        {
+            string sourceKey = ProjectCloudSyncMetadata.CloudSourceKey(source);
+            string immutableOwner = cloudProject
+                ? StudioLocalSourceBindingPolicy.ResolveLegacyImmutableOwner(
+                    state.Project,
+                    source)
+                : ProjectCloudSyncMetadata.CloudOwnerEmail(source);
+            if (!cloudProject && string.IsNullOrWhiteSpace(immutableOwner))
+                immutableOwner = currentOwner;
+            ProjectCloudSourceReference? sharedSource =
+                (state.Project.Cloud.SharedSources ?? [])
+                .FirstOrDefault(item =>
+                    item.SourceKey.Equals(
+                        sourceKey,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    StudioSharedSourceProjection.ImmutableOwner(item).Equals(
+                        immutableOwner,
                         StringComparison.OrdinalIgnoreCase));
-                string detail = $"{source.DisplayName}  |  {SourceStatusLabel(source.Status)}";
+            string identity = CloudSourceIdentity(immutableOwner, sourceKey);
+            if (!string.IsNullOrWhiteSpace(immutableOwner))
+                representedCloudSources.Add(identity);
+            ProjectCloudAlbumComponentReference? component =
+                sharedComponents.FirstOrDefault(item =>
+                    CloudSourceIdentity(item.OwnerEmail, item.SourceKey).Equals(
+                        identity,
+                        StringComparison.OrdinalIgnoreCase));
+            bool hasVerifiedPayload =
+                StudioLocalSourceBindingPolicy.HasVerifiedPayload(source);
+            bool isLocal =
+                StudioLocalSourceBindingPolicy.IsLocal(
+                    source,
+                    currentOwner,
+                    StudioDeviceIdentity.Fingerprint,
+                    hasVerifiedPayload);
+            if (isLocal)
+            {
+                string detail =
+                    $"{source.DisplayName} | Локал | {SourceStatusLabel(source.Status)}";
                 if (component is not null)
                     detail += $" | Альбум #{component.Order}";
-                return new SourceWorkspaceItem(
+                items.Add(new SourceWorkspaceItem(
                     source,
                     false,
                     SourceDocumentLabel(source),
                     detail,
-                    CloudComponent: component);
-            })
-            .ToList());
+                    CloudSource: sharedSource,
+                    CloudComponent: component));
+                continue;
+            }
+
+            string cloudName = sharedSource is not null &&
+                !string.IsNullOrWhiteSpace(
+                    sharedSource.SourceDocumentReference)
+                    ? sharedSource.SourceDocumentReference
+                    : SourceDocumentLabel(source);
+            items.Add(SourceWorkspaceItem.CloudBinding(
+                source,
+                sharedSource,
+                component,
+                cloudName,
+                $"Cloud | {immutableOwner} | Локал payload энэ бүртгэл/төхөөрөмжид баталгаажаагүй | Зөвхөн харах"));
+        }
         foreach (ProjectCloudSourceReference cloudSource in
                  (state.Project.Cloud.SharedSources ?? []).OfType<ProjectCloudSourceReference>())
         {
-            string identity = CloudSourceIdentity(cloudSource.OwnerEmail, cloudSource.SourceKey);
+            string identity = CloudSourceIdentity(
+                StudioSharedSourceProjection.ImmutableOwner(cloudSource),
+                cloudSource.SourceKey);
             if (!representedCloudSources.Add(identity))
                 continue;
             string name = string.IsNullOrWhiteSpace(cloudSource.SourceDocumentReference)
@@ -1099,13 +1506,21 @@ internal sealed partial class ShellView
                     ? state.Album.Pages
                     : Array.Empty<AlbumPageDefinition>());
         bool isPdfSource = source?.Kind == DesignSourceKind.Pdf;
+        bool canEditProjectContent = CanEditProjectContent();
         excludeSelectedSourceSheetsButton.IsEnabled =
-            isPdfSource && selected.Any(item => item.IsActive);
+            canEditProjectContent &&
+            isPdfSource &&
+            selected.Any(item => item.IsActive);
         includeSelectedSourceSheetsButton.IsEnabled =
-            isPdfSource && selected.Any(item => !item.IsActive);
-        editSelectedSourcePdfPageButton.IsEnabled = editResolution.IsButtonEnabled;
-        editSelectedSourcePdfPageButton.ToolTip =
-            PdfSourcePageEditToolTip(editResolution.State);
+            canEditProjectContent &&
+            isPdfSource &&
+            selected.Any(item => !item.IsActive);
+        editSelectedSourcePdfPageButton.IsEnabled =
+            canEditProjectContent &&
+            editResolution.IsButtonEnabled;
+        editSelectedSourcePdfPageButton.ToolTip = canEditProjectContent
+            ? PdfSourcePageEditToolTip(editResolution.State)
+            : "Одоогийн Studio бүртгэлийн Cloud эрх шинэчлэгдээгүй тул PDF хуудсыг засах боломжгүй.";
     }
 
     private static string PdfSourcePageEditToolTip(PdfSourcePageEditState state) =>
@@ -1121,6 +1536,8 @@ internal sealed partial class ShellView
                 "Энэ PDF хуудас альбумд идэвхгүй байна. Эхлээд “Альбумд оруулах” товчийг дарна уу.",
             PdfSourcePageEditState.AlbumPageMissing =>
                 "Энэ PDF хуудасны альбумын тохиргоо олдсонгүй.",
+            PdfSourcePageEditState.AmbiguousAlbumPage =>
+                "Энэ SheetKey-ээр альбумд давхардсан хуудас байна. Эх үүсвэрээс шинэчилж давхардлыг арилгасны дараа засна уу.",
             PdfSourcePageEditState.Ready =>
                 "Сонгосон PDF хуудасны crop, mask, offset болон rotation-ийг засна.",
             _ => "Засах нэг PDF хуудсаа сонгоно уу.",
@@ -1128,6 +1545,11 @@ internal sealed partial class ShellView
 
     private void EditSelectedSourcePdfPage()
     {
+        if (!EnsureProjectContentPermission())
+        {
+            return;
+        }
+
         ProjectDesignSource? source =
             (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.Source;
         PdfSourcePageEditResolution resolution =
@@ -1161,6 +1583,11 @@ internal sealed partial class ShellView
                 SetStatus(
                     "Сонгосон PDF хуудасны альбумын тохиргоо олдсонгүй. " +
                     "“Эх үүсвэр шалгах” үйлдлээр альбумын хуудсыг сэргээнэ үү.");
+                return;
+            case PdfSourcePageEditState.AmbiguousAlbumPage:
+                SetStatus(
+                    "Сонгосон PDF SheetKey-ээр альбумд нэгээс олон хуудас байна. " +
+                    "Санамсаргүй хуудсыг засахаас хамгаалж үйлдлийг зогсоолоо.");
                 return;
             case PdfSourcePageEditState.Ready:
                 EditPdfSourcePage(resolution.Sheet!, resolution.Page!);
@@ -1374,23 +1801,43 @@ internal sealed partial class ShellView
 
         if (selected.IsCloudPlaceholder)
         {
+            ProjectDesignSource? localBinding = selected.Source;
             ProjectCloudSourceReference? cloudSource = selected.CloudSource;
             ProjectCloudAlbumComponentReference? component = selected.CloudComponent;
-            string owner = cloudSource?.OwnerEmail ?? component?.OwnerEmail ?? "";
-            string sourceKey = cloudSource?.SourceKey ?? component?.SourceKey ?? "";
+            string owner = cloudSource is null
+                ? component?.OwnerEmail ??
+                  (localBinding is null
+                      ? ""
+                      : ProjectCloudSyncMetadata.CloudOwnerEmail(localBinding))
+                : StudioSharedSourceProjection.ImmutableOwner(cloudSource);
+            string sourceKey = cloudSource?.SourceKey ??
+                component?.SourceKey ??
+                (localBinding is null
+                    ? ""
+                    : ProjectCloudSyncMetadata.CloudSourceKey(localBinding));
             int itemCount = component?.PageNumbers.Count ?? cloudSource?.SheetCount ?? 0;
             sourceDetailsText.Text =
+                $"Төлөв: Cloud эх үүсвэр\n" +
                 $"Эх үүсвэр: {selected.Name}\n" +
                 $"Эзэмшигч: {(string.IsNullOrWhiteSpace(owner) ? "-" : owner)}\n" +
                 $"Source key: {(string.IsNullOrWhiteSpace(sourceKey) ? "-" : sourceKey)}\n" +
                 $"Альбумын дараалал: {(component?.Order.ToString() ?? "-")}\n" +
                 $"Хуудас / sheet: {itemCount}";
             sourceWorkflowText.Text =
-                "Энэ нь Cloud ERA-аас ирсэн metadata placeholder. Эх файл дамжуулагдаагүй. " +
-                "Үүсгэсэн хэрэглэгч нь өөрийн төхөөрөмжөөс шинэчлэх, солих эсвэл хасах эрхтэй.";
+                localBinding is null
+                    ? "Энэ нь Cloud ERA-аас ирсэн metadata placeholder. Эх файл дамжуулагдаагүй."
+                    : "Энэ бүртгэл/төхөөрөмжид баталгаатай локал payload байхгүй. " +
+                      "Баталгаажсан хариуцагч бол “Эх файлыг солих” үйлдлээр зориуд дахин холбоно.";
             openNativeSourceButton.Visibility = Visibility.Collapsed;
             openSourceFolderButton.Visibility = Visibility.Collapsed;
             visualizationSourceControls.Visibility = Visibility.Collapsed;
+            if (localBinding is not null)
+            {
+                SetNativeSourceActionsVisible(
+                    hasNativeSource: true,
+                    ownsSource: CanControlSource(localBinding),
+                    hasLocalPayload: false);
+            }
             return;
         }
 
@@ -1425,7 +1872,10 @@ internal sealed partial class ShellView
         };
     }
 
-    private void SetNativeSourceActionsVisible(bool hasNativeSource, bool ownsSource = false)
+    private void SetNativeSourceActionsVisible(
+        bool hasNativeSource,
+        bool ownsSource = false,
+        bool hasLocalPayload = true)
     {
         Visibility sourceVisibility = hasNativeSource ? Visibility.Visible : Visibility.Collapsed;
         relinkNativeSourceButton.Visibility = sourceVisibility;
@@ -1439,22 +1889,28 @@ internal sealed partial class ShellView
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        bool canEdit = hasNativeSource && ownsSource && CanEditProjectContent();
-        relinkNativeSourceButton.IsEnabled = canEdit;
-        removeDesignSourceButton.IsEnabled = canEdit;
-        bindCloudSourceButton.IsEnabled = canEdit && account.IsSignedIn;
+        bool canControl = hasNativeSource && ownsSource && CanEditProjectContent();
+        bool canEditLocalPayload = canControl && hasLocalPayload;
+        relinkNativeSourceButton.IsEnabled = canControl;
+        removeDesignSourceButton.IsEnabled = canEditLocalPayload;
+        bindCloudSourceButton.IsEnabled =
+            canEditLocalPayload && account.IsSignedIn;
         transferSourceCustodyButton.IsEnabled = cloudProject && CanManageProjectTeam();
     }
 
-    private bool CanEditLocalSource(ProjectDesignSource source)
-    {
-        string owner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
-        if (string.IsNullOrWhiteSpace(owner))
-            return true;
-        string current = (account.Current?.Email ?? "").Trim().ToLowerInvariant();
-        return !string.IsNullOrWhiteSpace(current) &&
-            owner.Equals(current, StringComparison.OrdinalIgnoreCase);
-    }
+    private bool CanControlSource(ProjectDesignSource source)
+        => StudioSourceRefreshScope.CanRefresh(
+            state.Project,
+            source,
+            account.Current?.Email);
+
+    private bool CanEditLocalSource(ProjectDesignSource source) =>
+        CanControlSource(source) &&
+        StudioLocalSourceBindingPolicy.IsLocal(
+            source,
+            account.Current?.Email,
+            StudioDeviceIdentity.Fingerprint,
+            StudioLocalSourceBindingPolicy.HasVerifiedPayload(source));
 
     private static string CloudSourceIdentity(string ownerEmail, string sourceKey) =>
         $"{(ownerEmail ?? "").Trim().ToLowerInvariant()}\n{(sourceKey ?? "").Trim().ToLowerInvariant()}";
@@ -1795,7 +2251,7 @@ internal sealed partial class ShellView
         albumTitleBox.Margin = new Thickness(0, 0, 8, 4);
         albumTitleBox.TextChanged += (_, _) =>
         {
-            if (!bindingAlbumPage)
+            if (!bindingAlbumPage && CanEditProjectContent())
             {
                 state.Album.Title = string.IsNullOrWhiteSpace(albumTitleBox.Text)
                     ? "Project album"
@@ -2180,6 +2636,7 @@ internal sealed partial class ShellView
     private void RefreshAlbumWorkspace(Guid? selectPageId = null, string? selectItemKey = null)
     {
         RefreshSiteContextEditUi();
+        bool canEditProjectContent = CanEditProjectContent();
         var requestedSelectionKey = selectPageId is Guid pageId
             ? $"page:{pageId:N}"
             : selectItemKey;
@@ -2205,8 +2662,12 @@ internal sealed partial class ShellView
         }
 
         albumTitleBox.Text = state.Album.Title;
+        albumTitleBox.IsReadOnly = !canEditProjectContent;
         includeCoverCheck.IsChecked = state.Album.IncludeCover;
         includeTocCheck.IsChecked = state.Album.IncludeTableOfContents;
+        includeCoverCheck.IsEnabled = canEditProjectContent;
+        includeTocCheck.IsEnabled = canEditProjectContent;
+        autoRebuildCheck.IsEnabled = canEditProjectContent;
         var hasComposition = state.Album.Composition.Count > 0;
         int visualizationImageCount = CurrentProjectVisualizationImages().Count;
         includeCoverCheck.Visibility = hasComposition ? Visibility.Collapsed : Visibility.Visible;
@@ -2326,7 +2787,8 @@ internal sealed partial class ShellView
             return FlattenAlbumWorkspace(root);
         }
 
-        AlbumProject buildProject = state.CreateAlbumBuildProject();
+        AlbumProject buildProject = state.CreateAlbumBuildProject(
+            reconcileLinkedProjectAssets: false);
         IReadOnlyList<ConceptGeneratedPagePlan> generatedPlans =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(buildProject);
         var sequence = BuildingArchitectureConceptAlbumSequencer.Create(
@@ -2624,6 +3086,7 @@ internal sealed partial class ShellView
     private void BindSelectedAlbumPage()
     {
         bindingAlbumPage = true;
+        bool canEditProjectContent = CanEditProjectContent();
         albumSectionBox.ItemsSource = new[] { new SectionChoice(null, "Бүлэггүй") }
             .Concat(state.Album.Sections.Select(section => new SectionChoice(section.Id, section.Title)))
             .ToList();
@@ -2631,7 +3094,7 @@ internal sealed partial class ShellView
         if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem selected &&
             selected.Page is AlbumPageDefinition page)
         {
-            SetAlbumPagePropertiesEnabled(true);
+            SetAlbumPagePropertiesEnabled(canEditProjectContent);
             var sheet = state.Library.Find(page.SheetKey);
             albumPageNumberBox.Text = selected.Number;
             albumPageTitleBox.Text = string.IsNullOrWhiteSpace(page.TitleOverride)
@@ -2669,7 +3132,9 @@ internal sealed partial class ShellView
             albumPdfFormatPanel.Visibility = canCrop ? Visibility.Visible : Visibility.Collapsed;
             albumSourceCropCheck.Visibility = canCrop ? Visibility.Visible : Visibility.Collapsed;
             albumSourceCropPanel.Visibility = canCrop ? Visibility.Visible : Visibility.Collapsed;
-            albumSourceCropCheck.IsEnabled = canCrop;
+            albumSourceCropCheck.IsEnabled =
+                canEditProjectContent &&
+                canCrop;
             albumSourceCropCheck.IsChecked = canCrop && crop.Enabled;
             albumCropLeftBox.Text = FormatCropMillimeters(crop.LeftMm);
             albumCropTopBox.Text = FormatCropMillimeters(crop.TopMm);
@@ -2683,7 +3148,9 @@ internal sealed partial class ShellView
                     .FirstOrDefault(choice =>
                         choice.Value == PagePlacementMode.PreservePhysicalSize);
             }
-            albumPlacementBox.IsEnabled = !canCrop;
+            albumPlacementBox.IsEnabled =
+                canEditProjectContent &&
+                !canCrop;
             RefreshAlbumSourceCropControls();
         }
         else if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem
@@ -2748,6 +3215,14 @@ internal sealed partial class ShellView
         albumPlacementBox.IsEnabled = enabled;
         albumContentKindBox.IsEnabled = enabled;
         albumSectionBox.IsEnabled = enabled;
+        albumPdfPageSizeBox.IsEnabled = enabled;
+        albumPdfOrientationBox.IsEnabled = enabled;
+        albumPdfBindEdgeBox.IsEnabled = enabled;
+        albumPdfDrawingScaleBox.IsEnabled = enabled;
+        albumPdfCustomWidthBox.IsEnabled = enabled;
+        albumPdfCustomHeightBox.IsEnabled = enabled;
+        albumPdfApplyFormatButton.IsEnabled = enabled;
+        albumPdfEditPageButton.IsEnabled = enabled;
         if (!enabled)
         {
             albumPdfFormatPanel.Visibility = Visibility.Collapsed;
@@ -2759,6 +3234,7 @@ internal sealed partial class ShellView
     private void ApplyAlbumPageProperties()
     {
         if (bindingAlbumPage ||
+            !CanEditProjectContent() ||
             albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
             selected.Page is not AlbumPageDefinition page)
         {
@@ -2928,20 +3404,32 @@ internal sealed partial class ShellView
             PdfSourcePageFormatFactory.CustomCode,
             StringComparison.OrdinalIgnoreCase);
 
-        albumPdfOrientationBox.IsEnabled = !sourceAsIs;
-        albumPdfBindEdgeBox.IsEnabled = !sourceAsIs;
+        bool canEditProjectContent = CanEditProjectContent();
+        albumPdfPageSizeBox.IsEnabled = canEditProjectContent;
+        albumPdfOrientationBox.IsEnabled =
+            canEditProjectContent &&
+            !sourceAsIs;
+        albumPdfBindEdgeBox.IsEnabled =
+            canEditProjectContent &&
+            !sourceAsIs;
+        albumPdfDrawingScaleBox.IsEnabled = canEditProjectContent;
+        albumPdfCustomWidthBox.IsEnabled = canEditProjectContent;
+        albumPdfCustomHeightBox.IsEnabled = canEditProjectContent;
         albumPdfCustomSizePanel.Visibility = custom
             ? Visibility.Visible
             : Visibility.Collapsed;
         albumPdfApplyFormatButton.IsEnabled =
+            canEditProjectContent &&
             albumPdfFormatPanel.Visibility == Visibility.Visible;
         albumPdfEditPageButton.IsEnabled =
+            canEditProjectContent &&
             albumPdfFormatPanel.Visibility == Visibility.Visible;
     }
 
     private void ApplyPdfPageFormat()
     {
         if (bindingAlbumPage ||
+            !EnsureProjectContentPermission() ||
             albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
             selected.Page is not AlbumPageDefinition page)
         {
@@ -3044,6 +3532,25 @@ internal sealed partial class ShellView
             return;
         }
 
+        ProjectDesignSource? source = state.Project.Sources.FirstOrDefault(
+            candidate => candidate.Id.Equals(
+                sheet.Source.SourceId,
+                StringComparison.OrdinalIgnoreCase));
+        StudioPdfPageEditCloudDecision cloudDecision =
+            StudioPdfPageEditCloudPolicy.Resolve(
+                state.Project,
+                source,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint,
+                source is not null &&
+                StudioLocalSourceBindingPolicy.HasVerifiedPayload(source));
+        if (!cloudDecision.Allowed)
+        {
+            SetStatus(
+                $"{cloudDecision.Message} [reason: {cloudDecision.ReasonCode}]");
+            return;
+        }
+
         PageFormatDefinition studioFormat =
             PdfSourcePageStudioLayout.ResolvePreviewFormat(page, sheet.Entry);
         var dialog = new PdfSourcePageEditorWindow(
@@ -3051,6 +3558,7 @@ internal sealed partial class ShellView
             sheet,
             page.SourceCrop,
             studioFormat,
+            PdfSourcePageStudioLayout.UsesInformationHeader(page, sheet.Entry),
             page.ScaleTextOverride)
         {
             Owner = Window.GetWindow(Root),
@@ -3060,19 +3568,28 @@ internal sealed partial class ShellView
             return;
         }
 
-        SourcePageCropDefinition result = dialog.Result;
-        result.ScalePercent = 100;
-        page.SourceCrop = result;
-        page.ScaleTextOverride = dialog.ScaleTextOverride;
-        if (PdfSourcePagePlacementGeometry.HasCompositionEdits(result))
-            PdfSourcePageStudioLayout.ApplyConfirmedCrop(page, sheet.Entry);
+        PdfSourcePageEditCommitPolicy.ApplyAcceptedEdit(
+            page,
+            sheet.Entry,
+            dialog.Result,
+            dialog.ScaleTextOverride);
+        if (!string.IsNullOrWhiteSpace(cloudDecision.ComponentCode))
+        {
+            ProjectCloudSyncMetadata.MarkAlbumComponentPendingForBinding(
+                state.Project,
+                cloudDecision.ComponentCode,
+                account.Current?.Email ?? "",
+                StudioDeviceIdentity.Fingerprint,
+                isRemoval: false);
+        }
         state.SaveProject();
         RefreshReceivedSheetWorkspace(selectSheetKey: sheet.Key);
         RefreshAlbumWorkspace(selectPageId: page.Id);
         UpdateAlbum(
             silent: false,
             statusPrefix:
-                "PDF crop, Studio байрлал болон булангийн масштаб хадгалагдлаа");
+                "PDF crop, Studio байрлал болон булангийн масштаб хадгалагдлаа",
+            origin: cloudDecision.BuildOperation);
     }
 
     private void RefreshAlbumSourceCropControls()
@@ -3171,7 +3688,7 @@ internal sealed partial class ShellView
 
     private void ApplyAlbumOptions()
     {
-        if (bindingAlbumPage)
+        if (bindingAlbumPage || !CanEditProjectContent())
         {
             return;
         }
@@ -3182,7 +3699,8 @@ internal sealed partial class ShellView
 
     private void RemoveSelectedAlbumPage()
     {
-        if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
+        if (!EnsureProjectContentPermission() ||
+            albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
             selected.Page is not AlbumPageDefinition page)
         {
             return;
@@ -3198,7 +3716,8 @@ internal sealed partial class ShellView
 
     private void MoveSelectedAlbumPage(int offset)
     {
-        if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
+        if (!EnsureProjectContentPermission() ||
+            albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
             selected.Page is not AlbumPageDefinition page)
         {
             return;
@@ -3371,7 +3890,8 @@ internal sealed partial class ShellView
                 return sharedPage;
         }
 
-        var project = state.CreateAlbumBuildProject();
+        var project = state.CreateAlbumBuildProject(
+            reconcileLinkedProjectAssets: false);
         List<ConceptGeneratedPagePlan> generated =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(project).ToList();
 
@@ -4469,10 +4989,14 @@ internal sealed partial class ShellView
         string Name,
         string Detail,
         ProjectCloudSourceReference? CloudSource = null,
-        ProjectCloudAlbumComponentReference? CloudComponent = null)
+        ProjectCloudAlbumComponentReference? CloudComponent = null,
+        bool HasLocalPayload = true)
     {
-        public bool IsCloudPlaceholder => Source is null &&
-            (CloudSource is not null || CloudComponent is not null);
+        public bool IsCloudPlaceholder => !IsVisualization &&
+            !HasLocalPayload &&
+            (Source is not null ||
+             CloudSource is not null ||
+             CloudComponent is not null);
 
         public string SelectionKey => IsVisualization
             ? VisualizationSourceSelectionKey
@@ -4498,7 +5022,8 @@ internal sealed partial class ShellView
             name,
             detail,
             CloudSource: source,
-            CloudComponent: component);
+            CloudComponent: component,
+            HasLocalPayload: false);
 
         public static SourceWorkspaceItem Cloud(
             ProjectCloudAlbumComponentReference component,
@@ -4508,7 +5033,22 @@ internal sealed partial class ShellView
             false,
             name,
             detail,
-            CloudComponent: component);
+            CloudComponent: component,
+            HasLocalPayload: false);
+
+        public static SourceWorkspaceItem CloudBinding(
+            ProjectDesignSource source,
+            ProjectCloudSourceReference? cloudSource,
+            ProjectCloudAlbumComponentReference? component,
+            string name,
+            string detail) => new(
+            source,
+            false,
+            name,
+            detail,
+            CloudSource: cloudSource,
+            CloudComponent: component,
+            HasLocalPayload: false);
 
         public override string ToString() => $"{Name}\n{Detail}";
     }

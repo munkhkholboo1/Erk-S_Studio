@@ -57,7 +57,55 @@ internal sealed partial class ShellView
     }
 
     private IReadOnlyList<ProjectVisualizationImage> CurrentProjectVisualizationImages() =>
-        CurrentProjectVisualizationSource().ImagesForProject(state.Project.ProjectId);
+        CurrentProjectVisualizationSource()
+            .ImagesForProject(state.Project.ProjectId)
+            .Where(image =>
+                StudioAuxiliarySourceLocalityPolicy.BindingMatches(
+                    state.Project,
+                    image,
+                    account.Current?.Email,
+                    StudioDeviceIdentity.Fingerprint) ||
+                StudioAuxiliarySourceLocalityPolicy.CanExplicitlyBind(
+                    state.Project,
+                    image,
+                    account.Current?.Email))
+            .ToList();
+
+    private bool IsLocalVisualizationImage(ProjectVisualizationImage image) =>
+        state.ProjectPath is not null &&
+        StudioAuxiliarySourceLocalityPolicy.IsLocalVisualizationImage(
+            state.Project,
+            image,
+            account.Current?.Email,
+            StudioDeviceIdentity.Fingerprint,
+            StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+                state.ProjectPath,
+                image));
+
+    private bool CanRelinkVisualizationImage(ProjectVisualizationImage image) =>
+        StudioAuxiliarySourceLocalityPolicy.CanExplicitlyBind(
+            state.Project,
+            image,
+            account.Current?.Email);
+
+    private bool HasLocalVisualizationImages() =>
+        CurrentProjectVisualizationSource()
+            .ImagesForProject(state.Project.ProjectId)
+            .Any(IsLocalVisualizationImage);
+
+    private void MarkVisualizationComponentChanged()
+    {
+        bool hasIncludedLocalImage = CurrentProjectVisualizationSource()
+            .ImagesForProject(state.Project.ProjectId)
+            .Any(image =>
+                IsLocalVisualizationImage(image) &&
+                image.IsIncludedInAlbum);
+        state.MarkAuxiliaryAlbumComponentChanged(
+            ProjectCloudSyncMetadata.VisualizationsComponentCode,
+            account.Current?.Email,
+            StudioDeviceIdentity.Fingerprint,
+            isRemoval: !hasIncludedLocalImage);
+    }
 
     private void ConfigureVisualizationSourceForCurrentProject()
     {
@@ -293,9 +341,11 @@ internal sealed partial class ShellView
                     throw new InvalidDataException("Зургийн хэмжээ уншигдсангүй.");
                 ProjectVisualizationImage? linkedImage = visualizationSource
                     .ImagesForProject(state.Project.ProjectId)
+                    .Where(image => CanRelinkVisualizationImage(image))
                     .FirstOrDefault(image => PathsEqual(image.LinkedSourcePath, linkedSourcePath));
                 ProjectVisualizationImage? sameContent = visualizationSource
                     .ImagesForProject(state.Project.ProjectId)
+                    .Where(CanRelinkVisualizationImage)
                     .FirstOrDefault(image => image.Sha256.Equals(
                         inspection.Sha256,
                         StringComparison.OrdinalIgnoreCase));
@@ -309,6 +359,11 @@ internal sealed partial class ShellView
                             TimeSpan.Zero);
                         sameContent.OriginalFileName = Path.GetFileName(sourcePath);
                         sameContent.IsAvailable = true;
+                        StudioAuxiliarySourceLocalityPolicy.Bind(
+                            state.Project,
+                            sameContent,
+                            account.Current?.Email,
+                            StudioDeviceIdentity.Fingerprint);
                         updated++;
                         continue;
                     }
@@ -337,13 +392,18 @@ internal sealed partial class ShellView
                     linkedImage.PixelHeight = inspection.PixelHeight;
                     linkedImage.Sha256 = inspection.Sha256;
                     linkedImage.IsAvailable = true;
+                    StudioAuxiliarySourceLocalityPolicy.Bind(
+                        state.Project,
+                        linkedImage,
+                        account.Current?.Email,
+                        StudioDeviceIdentity.Fingerprint);
                     if (contentChanged)
                         linkedImage.Version = Math.Max(1, linkedImage.Version) + 1;
                     updated++;
                     continue;
                 }
 
-                visualizationSource.Images.Add(new ProjectVisualizationImage
+                var image = new ProjectVisualizationImage
                 {
                     OwnerProjectId = state.Project.ProjectId,
                     OriginalFileName = Path.GetFileName(sourcePath),
@@ -357,11 +417,18 @@ internal sealed partial class ShellView
                     PixelHeight = inspection.PixelHeight,
                     Sha256 = inspection.Sha256,
                     AddedAtUtc = DateTimeOffset.UtcNow,
-                });
+                };
+                StudioAuxiliarySourceLocalityPolicy.Bind(
+                    state.Project,
+                    image,
+                    account.Current?.Email,
+                    StudioDeviceIdentity.Fingerprint);
+                visualizationSource.Images.Add(image);
                 added++;
             }
             catch (Exception exception) when (
-                exception is IOException or InvalidDataException or UnauthorizedAccessException)
+                exception is IOException or InvalidDataException or
+                    UnauthorizedAccessException or InvalidOperationException)
             {
                 SetStatus($"{Path.GetFileName(sourcePath)} зураг нэмэгдсэнгүй: {exception.Message}");
             }
@@ -375,6 +442,7 @@ internal sealed partial class ShellView
         }
 
         visualizationSource.Normalize(state.Project.ProjectId);
+        MarkVisualizationComponentChanged();
         state.SaveProject();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(
@@ -387,7 +455,8 @@ internal sealed partial class ShellView
     {
         if (!EnsureProjectContentPermission() || state.ProjectPath is null ||
             visualizationImagesWorkspaceList.SelectedItems.Count != 1 ||
-            visualizationImagesWorkspaceList.SelectedItem is not VisualizationImageWorkspaceItem selected)
+            visualizationImagesWorkspaceList.SelectedItem is not VisualizationImageWorkspaceItem selected ||
+            !CanRelinkVisualizationImage(selected.Image))
         {
             return;
         }
@@ -430,9 +499,15 @@ internal sealed partial class ShellView
             image.PixelHeight = inspection.PixelHeight;
             image.Sha256 = inspection.Sha256;
             image.IsAvailable = true;
+            StudioAuxiliarySourceLocalityPolicy.Bind(
+                state.Project,
+                image,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint);
             if (contentChanged)
                 image.Version = Math.Max(1, image.Version) + 1;
 
+            MarkVisualizationComponentChanged();
             state.SaveProject();
             RefreshSourceWorkspace(VisualizationSourceSelectionKey);
             UpdateAlbum(
@@ -440,7 +515,8 @@ internal sealed partial class ShellView
                 statusPrefix: $"{image.OriginalFileName} эх зураг дахин холбогдлоо");
         }
         catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException)
+            exception is IOException or InvalidDataException or
+                UnauthorizedAccessException or InvalidOperationException)
         {
             SetStatus($"Харагдах байдлын эх зураг холбогдсонгүй: {exception.Message}");
         }
@@ -453,14 +529,15 @@ internal sealed partial class ShellView
         ProjectVisualizationImage[] selectedImages = visualizationImagesWorkspaceList.SelectedItems
             .Cast<VisualizationImageWorkspaceItem>()
             .Select(item => item.Image)
-            .Where(image => image.IsIncludedInAlbum)
+            .Where(image => IsLocalVisualizationImage(image) &&
+                image.IsIncludedInAlbum)
             .ToArray();
         if (selectedImages.Length == 0)
             return;
 
         foreach (ProjectVisualizationImage image in selectedImages)
             image.IsIncludedInAlbum = false;
-        state.MarkAlbumComponentChanged(ProjectCloudSyncMetadata.VisualizationsComponentCode);
+        MarkVisualizationComponentChanged();
         state.MarkFoundationContentChanged();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(
@@ -475,14 +552,15 @@ internal sealed partial class ShellView
         ProjectVisualizationImage[] selectedImages = visualizationImagesWorkspaceList.SelectedItems
             .Cast<VisualizationImageWorkspaceItem>()
             .Select(item => item.Image)
-            .Where(image => !image.IsIncludedInAlbum)
+            .Where(image => IsLocalVisualizationImage(image) &&
+                !image.IsIncludedInAlbum)
             .ToArray();
         if (selectedImages.Length == 0)
             return;
 
         foreach (ProjectVisualizationImage image in selectedImages)
             image.IsIncludedInAlbum = true;
-        state.MarkAlbumComponentChanged(ProjectCloudSyncMetadata.VisualizationsComponentCode);
+        MarkVisualizationComponentChanged();
         state.MarkFoundationContentChanged();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(
@@ -496,15 +574,28 @@ internal sealed partial class ShellView
             return;
 
         ProjectVisualizationSource source = CurrentProjectVisualizationSource();
-        if (CurrentProjectVisualizationImages().Count == 0)
+        List<ProjectVisualizationImage> editableImages =
+            CurrentProjectVisualizationImages()
+                .Where(IsLocalVisualizationImage)
+                .Select(image => image.Clone())
+                .ToList();
+        if (editableImages.Count == 0)
         {
             SetStatus("Харагдах байдлын эх үүсвэрт зураг нэмээгүй байна.");
             return;
         }
 
         int firstPageNumber = ResolveFirstVisualizationPageNumber();
+        var editableSource = new ProjectVisualizationSource
+        {
+            OwnerProjectId = state.Project.ProjectId,
+            IsConfigured = true,
+            Title = source.Title,
+            ImagesPerPage = source.ImagesPerPage,
+            Images = editableImages,
+        };
         var dialog = new VisualizationAlbumEditorDialog(
-            source,
+            editableSource,
             state.Project.ProjectId,
             firstPageNumber,
             ResolveVisualizationImagePath)
@@ -517,6 +608,8 @@ internal sealed partial class ShellView
         int changed = 0;
         foreach (ProjectVisualizationImage image in CurrentProjectVisualizationImages())
         {
+            if (!IsLocalVisualizationImage(image))
+                continue;
             if (!dialog.InclusionByImageId.TryGetValue(image.Id, out bool included) ||
                 image.IsIncludedInAlbum == included)
             {
@@ -529,7 +622,7 @@ internal sealed partial class ShellView
         if (changed == 0)
             return;
 
-        state.MarkAlbumComponentChanged(ProjectCloudSyncMetadata.VisualizationsComponentCode);
+        MarkVisualizationComponentChanged();
         state.MarkFoundationContentChanged();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(
@@ -564,11 +657,17 @@ internal sealed partial class ShellView
             .Cast<VisualizationImageWorkspaceItem>()
             .Select(item => item.Image)
             .ToArray();
-        relinkVisualizationImageButton.IsEnabled = canEdit && selected.Length == 1;
+        relinkVisualizationImageButton.IsEnabled = canEdit &&
+            selected.Length == 1 &&
+            CanRelinkVisualizationImage(selected[0]);
         excludeVisualizationImagesButton.IsEnabled =
-            canEdit && selected.Any(image => image.IsIncludedInAlbum);
+            canEdit && selected.Any(image =>
+                IsLocalVisualizationImage(image) &&
+                image.IsIncludedInAlbum);
         includeVisualizationImagesButton.IsEnabled =
-            canEdit && selected.Any(image => !image.IsIncludedInAlbum);
+            canEdit && selected.Any(image =>
+                IsLocalVisualizationImage(image) &&
+                !image.IsIncludedInAlbum);
     }
 
     private void ChangeVisualizationImagesPerPage()
@@ -577,6 +676,7 @@ internal sealed partial class ShellView
             visualizationImagesPerPageBox.SelectedItem is not ImagesPerPageChoice choice ||
             !state.HasOpenProject ||
             !CanEditProjectContent() ||
+            !HasLocalVisualizationImages() ||
             CurrentProjectVisualizationSource().ImagesPerPage == choice.Value)
         {
             return;
@@ -586,6 +686,7 @@ internal sealed partial class ShellView
         source.ConfigureForProject(state.Project.ProjectId);
         source.ImagesPerPage = choice.Value;
         source.Normalize(state.Project.ProjectId);
+        MarkVisualizationComponentChanged();
         state.SaveProject();
         RefreshSourceWorkspace(VisualizationSourceSelectionKey);
         UpdateAlbum(

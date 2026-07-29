@@ -37,6 +37,7 @@ public sealed class LegacyLoopbackCapabilityTests
         Assert.True(CloudEraCapabilityPolicy.Supports(capabilities, CloudEraFeatures.AlbumRevisions));
         Assert.True(CloudEraCapabilityPolicy.Supports(capabilities, CloudEraFeatures.ParticipantRoleManagement));
         Assert.False(CloudEraCapabilityPolicy.Supports(capabilities, CloudEraFeatures.OptimisticConcurrency));
+        Assert.False(CloudEraCapabilityPolicy.Supports(capabilities, CloudEraFeatures.SourcePackageCasV1));
     }
 
     [Fact]

@@ -258,6 +258,27 @@ internal static class StudioAlbumComponentIdentity
         !(components ?? []).Any(component =>
             (component.PageNumbers ?? []).Length > 0);
 
+    public static bool IsSourceComponent(StudioCloudAlbumSection component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        if ((component.PageNumbers ?? []).Length == 0 &&
+            string.Equals(
+                component.Status,
+                "Planned",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.Equals(
+                component.ComponentKind,
+                SourceComponentKind,
+                StringComparison.OrdinalIgnoreCase) ||
+            (component.Code ?? "").StartsWith(
+                "source:",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsLegacySnapshot(StudioCloudAlbumSection component)
     {
         ArgumentNullException.ThrowIfNull(component);
@@ -291,6 +312,20 @@ internal static class StudioAlbumComponentIdentity
         int pageCount) =>
         HasCompletePageCoverage(components, pageCount) &&
         !ContainsLegacySnapshot(components);
+
+    public static bool HasRecoverablePriorManifest(
+        StudioCloudAlbumRevision current,
+        IEnumerable<StudioCloudAlbumRevision> revisions)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        return HasNoAssignedPages(current.SectionManifest) &&
+            (revisions ?? []).Any(candidate =>
+                candidate.RevisionNumber < current.RevisionNumber &&
+                candidate.PageCount == current.PageCount &&
+                IsMergeReady(
+                    candidate.SectionManifest,
+                    candidate.PageCount));
+    }
 
     public static StudioCloudAlbumSection CreateLegacySnapshotSection(
         int pageCount)

@@ -123,6 +123,7 @@ internal sealed class StudioCloudOrganizationListResponse
 internal sealed class StudioCloudOrganization
 {
     public string OrganizationId { get; set; } = "";
+    public string ConcurrencyToken { get; set; } = "";
     public string LegalName { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
@@ -160,6 +161,7 @@ internal sealed class StudioCloudOrganization
 
 internal sealed class StudioCloudOrganizationUpsertRequest
 {
+    public string BaseConcurrencyToken { get; set; } = "";
     public bool RegistryFieldsIncluded { get; set; }
     public string LegalName { get; set; } = "";
     public string DisplayName { get; set; } = "";
@@ -198,6 +200,7 @@ internal static class StudioOrganizationRegistryImportStatuses
 internal sealed class StudioOrganizationRegistryImportRequest
 {
     public string RegistrationNumber { get; set; } = "";
+    public string BaseConcurrencyToken { get; set; } = "";
 }
 
 internal sealed class StudioOrganizationRegistryImportResponse
@@ -413,6 +416,7 @@ internal sealed class StudioCloudBuildingGroup
 
 internal sealed class StudioCloudBuildingSheetAssignment
 {
+    public string SourceOwnerEmail { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string SheetId { get; set; } = "";
     public string BuildingGroupId { get; set; } = "";
@@ -586,6 +590,10 @@ internal sealed class StudioCloudApiError
 {
     public string Code { get; set; } = "";
     public string Message { get; set; } = "";
+    public string TraceId { get; set; } = "";
+    public string CurrentSourceId { get; set; } = "";
+    public string CurrentRevisionId { get; set; } = "";
+    public Dictionary<string, string[]>? FieldErrors { get; set; }
 }
 
 internal sealed class StudioCloudProjectCreateRequest
@@ -650,6 +658,9 @@ internal sealed class StudioCloudAlbum
     public string AlbumType { get; set; } = "";
     public string Title { get; set; } = "";
     public string CurrentRevisionId { get; set; } = "";
+    public int RequiredBuildingCompositionVersion { get; set; }
+    public bool CanonicalRebuildPending { get; set; }
+    public List<string> PendingComponentTombstoneCodes { get; set; } = [];
     public List<StudioCloudAlbumRevision> Revisions { get; set; } = [];
 }
 
@@ -663,6 +674,7 @@ internal sealed class StudioCloudAlbumRevision
     public string PageSizeSummary { get; set; } = "";
     public string Status { get; set; } = "";
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public int BuildingCompositionVersion { get; set; }
     public List<StudioCloudAlbumSection> SectionManifest { get; set; } = [];
 }
 
@@ -680,6 +692,8 @@ internal sealed class StudioCloudAlbumSection
 
 internal sealed class StudioCloudAlbumComponentManifestUpdateRequest
 {
+    public string ProjectConcurrencyToken { get; set; } = "";
+    public string ExpectedBaseRevisionId { get; set; } = "";
     public List<StudioCloudAlbumSection> Components { get; set; } = [];
 }
 
@@ -712,6 +726,9 @@ internal sealed class StudioCloudAlbumUploadStartRequest
     public string PageSizeSummary { get; set; } = "";
     public int ChunkSizeBytes { get; set; }
     public string ProjectConcurrencyToken { get; set; } = "";
+    public string? ExpectedBaseRevisionId { get; set; }
+    public bool InheritComponentManifest { get; set; }
+    public List<StudioCloudAlbumSection>? ComponentManifest { get; set; }
 }
 
 internal sealed class StudioCloudAlbumUploadSession
@@ -726,6 +743,7 @@ internal sealed class StudioCloudAlbumUploadSession
 
 internal sealed class StudioCloudSourcePackageCreateRequest
 {
+    public string ExpectedBaseSourceId { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string SourceApplication { get; set; } = "";
     public string SourceDocumentReference { get; set; } = "";
@@ -762,6 +780,8 @@ internal sealed class StudioCloudSourcePackage
 internal sealed class StudioCloudSourceCustodianAssignRequest
 {
     public string ParticipantId { get; set; } = "";
+    public string ProjectConcurrencyToken { get; set; } = "";
+    public string ExpectedSourceId { get; set; } = "";
 }
 
 internal sealed class StudioCloudDesignPackage

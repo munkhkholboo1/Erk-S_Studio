@@ -19,6 +19,8 @@ internal sealed class CloudSyncPreviewPlan
 {
     private readonly HashSet<string> authorizedSourceIdentities;
     private readonly HashSet<string> authorizedComponentCodes;
+    private readonly Dictionary<string, ProjectAlbumComponentClaimAcknowledgement>
+        authorizedComponentClaims;
 
     public CloudSyncPreviewPlan(
         string projectCode,
@@ -31,7 +33,8 @@ internal sealed class CloudSyncPreviewPlan
         bool authorizeBuildingComposition,
         bool authorizeCanonicalTitleBlock,
         IEnumerable<string> authorizedSourceIdentities,
-        IEnumerable<string> authorizedComponentCodes)
+        IEnumerable<string> authorizedComponentCodes,
+        IEnumerable<ProjectAlbumComponentClaimAcknowledgement> authorizedComponentClaims)
     {
         ProjectCode = projectCode;
         DeviceLabel = deviceLabel;
@@ -46,6 +49,12 @@ internal sealed class CloudSyncPreviewPlan
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         this.authorizedComponentCodes = authorizedComponentCodes
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        this.authorizedComponentClaims = authorizedComponentClaims
+            .GroupBy(claim => claim.ComponentCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Last(),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     public string ProjectCode { get; }
@@ -80,6 +89,46 @@ internal sealed class CloudSyncPreviewPlan
     public bool IsComponentAuthorized(string code) =>
         authorizedComponentCodes.Contains((code ?? "").Trim());
 
+    public bool HasCompatibleComponentClaim(
+        string code,
+        CloudSyncPreviewPlan current)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        string normalized = (code ?? "").Trim();
+        bool acceptedHasClaim =
+            authorizedComponentClaims.TryGetValue(
+                normalized,
+                out ProjectAlbumComponentClaimAcknowledgement? accepted);
+        bool currentHasClaim =
+            current.authorizedComponentClaims.TryGetValue(
+                normalized,
+                out ProjectAlbumComponentClaimAcknowledgement? latest);
+        return acceptedHasClaim == currentHasClaim &&
+            (!acceptedHasClaim ||
+             accepted!.OwnerEmail.Equals(
+                 latest!.OwnerEmail,
+                 StringComparison.OrdinalIgnoreCase) &&
+             accepted.DeviceFingerprint.Equals(
+                 latest.DeviceFingerprint,
+                 StringComparison.OrdinalIgnoreCase) &&
+             accepted.ClaimToken.Equals(
+                 latest.ClaimToken,
+                 StringComparison.OrdinalIgnoreCase));
+    }
+
+    public IReadOnlyList<ProjectAlbumComponentClaimAcknowledgement>
+        ComponentClaimAcknowledgements(IEnumerable<string> componentCodes)
+    {
+        HashSet<string> requested = (componentCodes ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return authorizedComponentClaims
+            .Where(pair => requested.Contains(pair.Key))
+            .Select(pair => pair.Value)
+            .ToList();
+    }
+
     public static string SourceIdentity(ProjectSourceSyncCandidate candidate) =>
         string.Join(
             "|",
@@ -95,23 +144,52 @@ internal static class CloudSyncPreviewPlanner
         ProjectWorkspace project,
         string? currentUserEmail,
         string deviceLabel,
-        StudioCloudProjectRefreshResult remote)
+        StudioCloudProjectRefreshResult remote,
+        string? currentDeviceFingerprint = null,
+        Func<ProjectDesignSource, bool>? hasVerifiedPayload = null,
+        Func<ProjectFileReference, bool>? hasVerifiedDocumentPayload = null,
+        Func<ProjectVisualizationImage, bool>? hasVerifiedVisualizationPayload = null)
     {
         ArgumentNullException.ThrowIfNull(project);
 
         string currentEmail = NormalizeEmail(currentUserEmail);
+        hasVerifiedPayload ??=
+            StudioLocalSourceBindingPolicy.HasVerifiedPayload;
+        hasVerifiedDocumentPayload ??= static _ => false;
+        hasVerifiedVisualizationPayload ??= static _ => false;
         bool canManageCanonical =
-            ProjectCloudSyncAuthority.CanManageCanonicalMetadata(project.Cloud);
+            ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+                project.Cloud,
+                currentEmail);
+        bool canEditBuildingComposition =
+            ProjectCloudSyncAuthority.CanEditBuildingComposition(
+                project.Cloud,
+                currentEmail);
+        bool canUploadProjectInformation =
+            canManageCanonical &&
+            StudioRefreshSyncOperationPolicy.CanUploadPersistedPayload(
+                StudioCloudSyncPayload.ProjectInformation);
+        bool canUploadCompanyAssignment =
+            canManageCanonical &&
+            StudioRefreshSyncOperationPolicy.CanUploadPersistedPayload(
+                StudioCloudSyncPayload.OrganizationAssignment);
+        bool pendingProjectInformation =
+            project.Cloud.PendingProjectInformation is not null;
+        bool canPublishCanonicalTitleBlock =
+            canManageCanonical && !pendingProjectInformation;
+        StudioCanonicalAlbumRebuildResolution remoteAlbumRebuild =
+            StudioCanonicalAlbumRebuildPolicy.Resolve(project, remote.Project);
         var uploads = new List<CloudSyncChangeItem>();
         var downloads = new List<CloudSyncChangeItem>();
         var blocked = new List<CloudSyncChangeItem>();
         var authorizedSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var authorizedComponents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var authorizedComponentClaims =
+            new List<ProjectAlbumComponentClaimAcknowledgement>();
 
-        bool pendingProjectInformation = project.Cloud.PendingProjectInformation is not null;
         AddCanonicalChange(
             pendingProjectInformation,
-            canManageCanonical,
+            canUploadProjectInformation,
             "project-information",
             "Төслийн мэдээлэл",
             "Төслийн нэр, хаяг, захиалагч болон суурь мэдээлэл",
@@ -123,7 +201,7 @@ internal static class CloudSyncPreviewPlanner
             StringComparison.OrdinalIgnoreCase);
         AddCanonicalChange(
             pendingCompany,
-            canManageCanonical,
+            canUploadCompanyAssignment,
             "company-assignment",
             "Зураг төслийн байгууллага",
             "Сонгосон байгууллага болон төслийн company snapshot",
@@ -132,7 +210,7 @@ internal static class CloudSyncPreviewPlanner
 
         AddCanonicalChange(
             project.Cloud.BuildingCompositionPending,
-            canManageCanonical,
+            canEditBuildingComposition,
             "building-composition",
             "Барилгын бүлэг ба дараалал",
             "Барилгын бүлэг, хуудасны харьяалал болон дэд нүүр",
@@ -141,7 +219,7 @@ internal static class CloudSyncPreviewPlanner
 
         AddCanonicalChange(
             project.Cloud.CanonicalTitleBlockPending,
-            canManageCanonical,
+            canPublishCanonicalTitleBlock,
             "canonical-title-block",
             "Булангийн хүснэгтийн мэдээлэл",
             "Төсөл, байгууллага, оролцогчдын каноник мэдээллийг бүх хуудсанд шинэчилнэ",
@@ -154,18 +232,48 @@ internal static class CloudSyncPreviewPlanner
             StringComparer.OrdinalIgnoreCase);
         foreach (ProjectSourceSyncCandidate source in pendingSources)
         {
+            // A durable retirement request supersedes ordinary package upload.
+            // The sync runner must retire the exact registry row and remove the
+            // local mirror before the album tombstone is merged.
+            if (StudioSourceRemovalOutbox.IsSourceStaged(
+                    project,
+                    source.Source,
+                    currentEmail,
+                    currentDeviceFingerprint))
+            {
+                continue;
+            }
+
             ProjectSourceEditAuthority authority =
                 ProjectCloudSyncAuthority.ResolveSource(project, source.Source, currentEmail);
-            sourceAuthorities[source.SourceKey] = authority;
+            bool hasLocalPayload =
+                StudioRuntimeSourceScope.IsAuthorizedLocal(
+                    project,
+                    source.Source,
+                    currentEmail,
+                    currentDeviceFingerprint,
+                    hasVerifiedPayload);
+            ProjectSourceEditAuthority effectiveAuthority =
+                authority.CanEdit && !hasLocalPayload
+                    ? new ProjectSourceEditAuthority(
+                        false,
+                        authority.SourceKey,
+                        authority.OwnerEmail,
+                        "Энэ source Cloud төлөвтэй: баталгаатай payload нь одоогийн бүртгэл/төхөөрөмжтэй холбогдоогүй. Эх файлыг зориуд дахин холбоно уу.")
+                    : authority;
+            sourceAuthorities[SourceComponentIdentity(source.Source)] =
+                effectiveAuthority;
             var item = new CloudSyncChangeItem(
-                authority.CanEdit ? CloudSyncChangeDirection.Upload : CloudSyncChangeDirection.Blocked,
+                effectiveAuthority.CanEdit
+                    ? CloudSyncChangeDirection.Upload
+                    : CloudSyncChangeDirection.Blocked,
                 "source:" + source.SourceKey,
                 $"Эх үүсвэр: {SourceLabel(source)}",
-                authority.CanEdit
-                    ? $"{OwnerLabel(authority.OwnerEmail)} · {source.SheetCount} хуудас · " +
+                effectiveAuthority.CanEdit
+                    ? $"{OwnerLabel(effectiveAuthority.OwnerEmail)} · {source.SheetCount} хуудас · " +
                       $"{source.SourceApplication} · SourceKey {source.SourceKey}; native файл илгээхгүй"
-                    : authority.Message);
-            if (authority.CanEdit)
+                    : effectiveAuthority.Message);
+            if (effectiveAuthority.CanEdit)
             {
                 authorizedSources.Add(CloudSyncPreviewPlan.SourceIdentity(source));
                 uploads.Add(item);
@@ -176,14 +284,22 @@ internal static class CloudSyncPreviewPlanner
             }
         }
 
-        foreach (string componentCode in ProjectCloudSyncMetadata.PendingAlbumComponents(project))
+        IEnumerable<string> pendingComponentCodes =
+            ProjectCloudSyncMetadata.PendingAlbumComponents(project)
+                .Concat(remoteAlbumRebuild.PendingComponentCodes)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (string componentCode in pendingComponentCodes)
         {
             ComponentAuthority authority = ResolveComponentAuthority(
                 project,
                 componentCode,
                 currentEmail,
                 canManageCanonical,
-                sourceAuthorities);
+                sourceAuthorities,
+                currentDeviceFingerprint,
+                hasVerifiedPayload,
+                hasVerifiedDocumentPayload,
+                hasVerifiedVisualizationPayload);
             var item = new CloudSyncChangeItem(
                 authority.CanEdit ? CloudSyncChangeDirection.Upload : CloudSyncChangeDirection.Blocked,
                 componentCode,
@@ -191,7 +307,24 @@ internal static class CloudSyncPreviewPlanner
                 authority.Message);
             if (authority.CanEdit)
             {
-                authorizedComponents.Add(componentCode.Trim());
+                string code = componentCode.Trim();
+                authorizedComponents.Add(code);
+                ProjectLocalAlbumComponentClaim? claim =
+                    ProjectCloudSyncMetadata.PendingAlbumComponentClaim(
+                        project,
+                        code,
+                        currentEmail,
+                        currentDeviceFingerprint);
+                if (claim is not null &&
+                    !string.IsNullOrWhiteSpace(claim.ClaimToken))
+                {
+                    authorizedComponentClaims.Add(
+                        new ProjectAlbumComponentClaimAcknowledgement(
+                            code,
+                            claim.OwnerEmail,
+                            claim.DeviceFingerprint,
+                            claim.ClaimToken));
+                }
                 uploads.Add(item);
             }
             else
@@ -231,6 +364,15 @@ internal static class CloudSyncPreviewPlanner
             if (detail is not null)
             {
                 AddRemoteSourceChanges(project, detail, downloads);
+                if (remoteAlbumRebuild.IsPending)
+                {
+                    downloads.Add(new CloudSyncChangeItem(
+                        CloudSyncChangeDirection.Download,
+                        "remote-album-rebuild-pending",
+                        "Canonical album rebuild pending",
+                        StudioCanonicalAlbumRebuildPolicy.Describe(
+                            remoteAlbumRebuild)));
+                }
             }
         }
 
@@ -240,12 +382,13 @@ internal static class CloudSyncPreviewPlanner
             uploads,
             downloads,
             blocked,
-            canManageCanonical,
-            canManageCanonical,
-            canManageCanonical,
-            canManageCanonical,
+            canUploadProjectInformation,
+            canUploadCompanyAssignment,
+            canEditBuildingComposition,
+            canPublishCanonicalTitleBlock,
             authorizedSources,
-            authorizedComponents);
+            authorizedComponents,
+            authorizedComponentClaims);
     }
 
     private static void AddCanonicalChange(
@@ -278,21 +421,71 @@ internal static class CloudSyncPreviewPlanner
         string componentCode,
         string currentEmail,
         bool canManageCanonical,
-        IReadOnlyDictionary<string, ProjectSourceEditAuthority> sourceAuthorities)
+        IReadOnlyDictionary<string, ProjectSourceEditAuthority> sourceAuthorities,
+        string? currentDeviceFingerprint,
+        Func<ProjectDesignSource, bool> hasVerifiedPayload,
+        Func<ProjectFileReference, bool> hasVerifiedDocumentPayload,
+        Func<ProjectVisualizationImage, bool> hasVerifiedVisualizationPayload)
     {
         string code = (componentCode ?? "").Trim();
+        if (StudioSourceRemovalOutbox.IsStaged(
+                project,
+                code,
+                currentEmail,
+                currentDeviceFingerprint))
+        {
+            return new ComponentAuthority(
+                true,
+                "Альбумын source component устгах",
+                "Яг энэ бүртгэл/төхөөрөмжийн хүсэлтээр Cloud registry row-г эхэлж retire хийгээд, дараа нь canonical album-аас component-ийг хасна.");
+        }
+
         if (code.Equals(
                 ProjectCloudSyncMetadata.SiteContextComponentCode,
                 StringComparison.OrdinalIgnoreCase))
         {
             ProjectSiteContextEditAuthority site =
                 ProjectSiteContextEditingPolicy.Resolve(project, currentEmail);
+            ProjectDesignSource? siteSource = string.IsNullOrWhiteSpace(site.SourceId)
+                ? null
+                : project.Sources.FirstOrDefault(source =>
+                    source.Id.Equals(
+                        site.SourceId,
+                        StringComparison.OrdinalIgnoreCase));
+            bool hasExactLocalSource =
+                siteSource is not null &&
+                StudioRuntimeSourceScope.IsAuthorizedLocal(
+                    project,
+                    siteSource,
+                    currentEmail,
+                    currentDeviceFingerprint,
+                    hasVerifiedPayload);
             return new ComponentAuthority(
-                site.CanEdit,
+                site.CanEdit && hasExactLocalSource,
                 "Байршлын схем / Орчны тойм",
-                site.CanEdit
+                site.CanEdit && hasExactLocalSource
                     ? "Ерөнхий төлөвлөгөөний source owner-ийн өөрчлөлтийг илгээнэ"
-                    : site.Message);
+                    : site.CanEdit
+                        ? "SiteContext source нь энэ бүртгэл/төхөөрөмжийн баталгаатай локал payload биш. Cloud хувилбар read-only."
+                        : site.Message);
+        }
+
+        if (IsAuxiliaryComponentCode(code))
+        {
+            bool hasExactLocalPayload =
+                StudioAuxiliarySourceLocalityPolicy.IsAlbumComponentAuthorized(
+                    project,
+                    code,
+                    currentEmail,
+                    currentDeviceFingerprint,
+                    hasVerifiedDocumentPayload,
+                    hasVerifiedVisualizationPayload);
+            return new ComponentAuthority(
+                hasExactLocalPayload,
+                ComponentTitle(code),
+                hasExactLocalPayload
+                    ? "Зөвхөн энэ бүртгэл/төхөөрөмжид баталгаажсан physical source component шинэчлэгдэнэ"
+                    : "ATD/visualization component нь энэ бүртгэл/төхөөрөмжийн баталгаатай локал payload биш. Cloud хувилбар read-only.");
         }
 
         ProjectDesignSource? source = ResolveComponentSource(project, code);
@@ -300,15 +493,27 @@ internal static class CloudSyncPreviewPlanner
         {
             string sourceKey = ProjectCloudSyncMetadata.CloudSourceKey(source);
             ProjectSourceEditAuthority authority =
-                sourceAuthorities.TryGetValue(sourceKey, out ProjectSourceEditAuthority? pending)
+                sourceAuthorities.TryGetValue(
+                    SourceComponentIdentity(source),
+                    out ProjectSourceEditAuthority? pending)
                     ? pending
                     : ProjectCloudSyncAuthority.ResolveSource(project, source, currentEmail);
+            bool hasExactLocalSource =
+                authority.CanEdit &&
+                StudioRuntimeSourceScope.IsAuthorizedLocal(
+                    project,
+                    source,
+                    currentEmail,
+                    currentDeviceFingerprint,
+                    hasVerifiedPayload);
             return new ComponentAuthority(
-                authority.CanEdit,
+                hasExactLocalSource,
                 $"Альбумын source component: {SourceLabel(source)}",
-                authority.CanEdit
+                hasExactLocalSource
                     ? $"SourceKey {sourceKey}-ийн зөвхөн энэ эзэмшигчийн component шинэчлэгдэнэ"
-                    : authority.Message);
+                    : authority.CanEdit
+                        ? "Source component нь энэ бүртгэл/төхөөрөмжийн баталгаатай локал payload биш. Cloud хувилбар read-only."
+                        : authority.Message);
         }
 
         ProjectCloudAlbumComponentReference? shared =
@@ -319,17 +524,23 @@ internal static class CloudSyncPreviewPlanner
                 StudioAlbumComponentIdentity.SourceComponentKind,
                 StringComparison.OrdinalIgnoreCase))
         {
-            bool ownsShared =
-                !string.IsNullOrWhiteSpace(currentEmail) &&
-                (shared.OwnerEmail ?? "").Trim().Equals(
-                    currentEmail,
-                    StringComparison.OrdinalIgnoreCase);
             return new ComponentAuthority(
-                ownsShared,
+                false,
                 $"Альбумын source component: {shared.Label}",
-                ownsShared
-                    ? $"SourceKey {shared.SourceKey}-ийн эзэмшигчийн өөрчлөлтийг илгээнэ"
-                    : $"Энэ component-ийг {shared.OwnerEmail} хэрэглэгч хариуцаж байна.");
+                $"SourceKey {shared.SourceKey} Cloud mirror дээр read-only. Энэ төхөөрөмжид баталгаатай локал source холбоогүй.");
+        }
+
+        string baseCode =
+            StudioAlbumComponentIdentity.BaseSourceCode(code);
+        if (StudioAlbumComponentIdentity.IsOwnedSourceCode(baseCode) ||
+            baseCode.StartsWith(
+                "source:",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new ComponentAuthority(
+                false,
+                "Альбумын source component",
+                "Локал source олдоогүй тул Cloud component read-only хэвээр үлдэнэ.");
         }
 
         return new ComponentAuthority(
@@ -347,23 +558,56 @@ internal static class CloudSyncPreviewPlanner
         string normalized = StudioAlbumComponentIdentity.BaseSourceCode(componentCode);
         if (StudioAlbumComponentIdentity.IsOwnedSourceCode(normalized))
         {
+            ProjectDesignSource? exact = project.Sources.FirstOrDefault(source =>
+            {
+                string owner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
+                return !string.IsNullOrWhiteSpace(owner) &&
+                    StudioAlbumComponentIdentity.SourceCode(
+                        owner,
+                        ProjectCloudSyncMetadata.CloudSourceKey(source))
+                    .Equals(normalized, StringComparison.OrdinalIgnoreCase);
+            });
+            if (exact is not null)
+                return exact;
+
             string[] parts = normalized.Split(':', 3);
             string sourceKey = parts.Length == 3 ? parts[2] : "";
-            return project.Sources.FirstOrDefault(source =>
-                ProjectCloudSyncMetadata.CloudSourceKey(source).Equals(
-                    sourceKey,
-                    StringComparison.OrdinalIgnoreCase));
+            return StudioLegacySourceResolver.ResolveUniqueSourceKey(
+                project,
+                sourceKey);
         }
 
         if (!normalized.StartsWith("source:", StringComparison.OrdinalIgnoreCase))
             return null;
 
         string identity = normalized["source:".Length..].Trim();
-        return project.Sources.FirstOrDefault(source =>
-            source.Id.Equals(identity, StringComparison.OrdinalIgnoreCase) ||
-            ProjectCloudSyncMetadata.CloudSourceKey(source).Equals(
-                identity,
-                StringComparison.OrdinalIgnoreCase));
+        return StudioLegacySourceResolver.Resolve(project, identity);
+    }
+
+    private static bool IsAuxiliaryComponentCode(string code)
+    {
+        string baseCode = StudioAlbumComponentIdentity.BaseSourceCode(code);
+        return code.Equals(
+                ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                StringComparison.OrdinalIgnoreCase) ||
+            code.Equals(
+                ProjectCloudSyncMetadata.VisualizationsComponentCode,
+                StringComparison.OrdinalIgnoreCase) ||
+            baseCode.EndsWith(
+                ":" + StudioAlbumComponentIdentity.AtdSourceKey,
+                StringComparison.OrdinalIgnoreCase) ||
+            baseCode.EndsWith(
+                ":" + StudioAlbumComponentIdentity.VisualizationSourceKey,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string SourceComponentIdentity(ProjectDesignSource source)
+    {
+        string owner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
+        string sourceKey = ProjectCloudSyncMetadata.CloudSourceKey(source);
+        return !string.IsNullOrWhiteSpace(owner)
+            ? StudioAlbumComponentIdentity.SourceCode(owner, sourceKey)
+            : "legacy-source:" + source.Id.Trim() + ":" + sourceKey.Trim();
     }
 
     private static string ComponentTitle(string code)

@@ -52,6 +52,14 @@ public sealed class ProjectVisualizationSource
             if (string.IsNullOrWhiteSpace(image.Id))
                 image.Id = Guid.NewGuid().ToString("N");
             image.OwnerProjectId = image.OwnerProjectId?.Trim() ?? "";
+            image.CloudOwnerEmail =
+                (image.CloudOwnerEmail ?? "").Trim().ToLowerInvariant();
+            image.LocalBindingAccountEmail =
+                (image.LocalBindingAccountEmail ?? "").Trim().ToLowerInvariant();
+            image.LocalBindingDeviceFingerprint =
+                (image.LocalBindingDeviceFingerprint ?? "").Trim().ToLowerInvariant();
+            image.CloudContributionId =
+                image.CloudContributionId?.Trim() ?? "";
             image.LinkedSourcePath = image.LinkedSourcePath?.Trim() ?? "";
             image.Version = Math.Max(1, image.Version);
             if (sourceBelongsToProject &&
@@ -148,6 +156,20 @@ public sealed class ProjectVisualizationImage
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string OwnerProjectId { get; set; } = "";
+    /// <summary>
+    /// Immutable Cloud contributor for this visualization asset. Empty values
+    /// are retained only for legacy/offline compatibility and are never
+    /// auto-adopted by a signed-in account.
+    /// </summary>
+    public string CloudOwnerEmail { get; set; } = "";
+    /// <summary>Account that explicitly added or relinked this payload locally.</summary>
+    public string LocalBindingAccountEmail { get; set; } = "";
+    /// <summary>Device fingerprint that holds the verified local payload.</summary>
+    public string LocalBindingDeviceFingerprint { get; set; } = "";
+    /// <summary>Stable Cloud contribution identity for future metadata projection.</summary>
+    public string CloudContributionId { get; set; } = "";
+    /// <summary>True when this device only knows the Cloud slot, not its payload.</summary>
+    public bool IsCloudPlaceholder { get; set; }
     public string RelativePath { get; set; } = "";
     public string OriginalFileName { get; set; } = "";
     /// <summary>Local image selected by the user and watched for revisions.</summary>
@@ -177,6 +199,11 @@ public sealed class ProjectVisualizationImage
     {
         Id = Id,
         OwnerProjectId = OwnerProjectId,
+        CloudOwnerEmail = CloudOwnerEmail,
+        LocalBindingAccountEmail = LocalBindingAccountEmail,
+        LocalBindingDeviceFingerprint = LocalBindingDeviceFingerprint,
+        CloudContributionId = CloudContributionId,
+        IsCloudPlaceholder = IsCloudPlaceholder,
         RelativePath = RelativePath,
         OriginalFileName = OriginalFileName,
         LinkedSourcePath = LinkedSourcePath,

@@ -68,8 +68,16 @@ public sealed class SheetLibrary
     private readonly object sync = new();
     private readonly Dictionary<string, SheetRecord> sheets = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SourceSnapshotState> sourceSnapshots = new(StringComparer.Ordinal);
+    private long version;
 
     public event Action? Changed;
+
+    /// <summary>
+    /// Monotonic identity of the in-memory source snapshot. A sync operation
+    /// can use this to prove that the package set it inspected is still the
+    /// package set used to build and publish an album.
+    /// </summary>
+    public long Version => Interlocked.Read(ref version);
 
     public IReadOnlyList<SheetRecord> Snapshot()
     {
@@ -228,6 +236,13 @@ public sealed class SheetLibrary
                 sheets[record.Key] = record;
                 updatedSheetCount++;
             }
+
+            if (updatedSheetCount > 0 ||
+                removedKeys.Count > 0 ||
+                fullSnapshotApplied)
+            {
+                Interlocked.Increment(ref version);
+            }
         }
 
         var change = new SheetLibraryChange
@@ -268,6 +283,7 @@ public sealed class SheetLibrary
         {
             sheets.Clear();
             sourceSnapshots.Clear();
+            Interlocked.Increment(ref version);
         }
 
         Changed?.Invoke();

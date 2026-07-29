@@ -9,18 +9,96 @@ public sealed class ProjectCloudSyncAuthorityTests
     {
         var cloud = new ProjectCloudLink
         {
+            PermissionSnapshotAccountEmail = "admin@example.com",
             CurrentUserRoles = ["Architect"],
             CurrentUserScopes = ["concept.write"],
         };
 
-        Assert.False(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(cloud));
+        Assert.False(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            "admin@example.com"));
 
         cloud.CurrentUserRoles.Add("DesignCompanyAdmin");
-        Assert.True(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(cloud));
+        Assert.True(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            "ADMIN@example.com"));
 
         cloud.CurrentUserRoles.Clear();
         cloud.CurrentUserScopes.Add("team.manage");
-        Assert.True(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(cloud));
+        Assert.True(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            " admin@example.com "));
+    }
+
+    [Fact]
+    public void BuildingCompositionCanBeEditedByEveryConceptContributor()
+    {
+        var cloud = new ProjectCloudLink
+        {
+            PermissionSnapshotAccountEmail = "engineer@example.com",
+            CurrentUserRoles = ["Engineer"],
+            CurrentUserScopes = ["concept.write"],
+        };
+
+        Assert.True(ProjectCloudSyncAuthority.CanEditBuildingComposition(
+            cloud,
+            "engineer@example.com"));
+        Assert.False(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            "engineer@example.com"));
+
+        cloud.CurrentUserScopes.Clear();
+        Assert.False(ProjectCloudSyncAuthority.CanEditBuildingComposition(
+            cloud,
+            "engineer@example.com"));
+    }
+
+    [Fact]
+    public void CachedPermissionSnapshotCannotBeInheritedByAnotherAccountOnSameDevice()
+    {
+        var cloud = new ProjectCloudLink
+        {
+            PermissionSnapshotAccountEmail = " account-a@example.com ",
+            CurrentUserRoles = ["ProjectAdmin"],
+            CurrentUserScopes = ["concept.write", "team.manage"],
+        };
+
+        Assert.True(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            "ACCOUNT-A@example.com"));
+        Assert.True(ProjectCloudSyncAuthority.CanEditBuildingComposition(
+            cloud,
+            "account-a@example.com"));
+
+        Assert.False(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            "account-b@example.com"));
+        Assert.False(ProjectCloudSyncAuthority.CanEditBuildingComposition(
+            cloud,
+            "account-b@example.com"));
+        Assert.False(cloud.HasScope("team.manage", "account-b@example.com"));
+
+        Assert.Equal(" account-a@example.com ", cloud.PermissionSnapshotAccountEmail);
+        Assert.Equal(["ProjectAdmin"], cloud.CurrentUserRoles);
+        Assert.Equal(["concept.write", "team.manage"], cloud.CurrentUserScopes);
+    }
+
+    [Fact]
+    public void LegacyUnboundPermissionSnapshotIsDeniedUntilCanonicalRefreshBindsIt()
+    {
+        var cloud = new ProjectCloudLink
+        {
+            CurrentUserRoles = ["ProjectAdmin"],
+            CurrentUserScopes = ["concept.write", "team.manage"],
+        };
+
+        Assert.False(ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+            cloud,
+            "admin@example.com"));
+        Assert.False(ProjectCloudSyncAuthority.CanEditBuildingComposition(
+            cloud,
+            "admin@example.com"));
+        Assert.False(cloud.HasScope("team.manage", "admin@example.com"));
     }
 
     [Fact]

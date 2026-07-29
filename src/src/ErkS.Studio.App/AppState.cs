@@ -13,11 +13,14 @@ public sealed record PackageRecordResult(string SourceId, int RemovedAlbumPageCo
 /// </summary>
 public sealed class AppState : IDisposable
 {
+    private long workspaceEpoch;
     private ProjectWorkspace? project;
     private StudioAlbumDocument? albumDocument;
     private readonly object assetWatcherGate = new();
     private readonly List<FileSystemWatcher> assetWatchers = [];
     private HashSet<string> watchedAssetPaths = new(StringComparer.OrdinalIgnoreCase);
+    private string runtimeAccountEmail = "";
+    private string runtimeDeviceFingerprint = "";
 
     public bool HasOpenProject => project is not null;
 
@@ -30,6 +33,8 @@ public sealed class AppState : IDisposable
     public AlbumDefinition Album => AlbumDocument.Definition;
 
     public string? ProjectPath { get; private set; }
+
+    public long WorkspaceEpoch => Interlocked.Read(ref workspaceEpoch);
 
     public string? AlbumPath { get; private set; }
 
@@ -48,6 +53,30 @@ public sealed class AppState : IDisposable
     {
         Intake = new SheetIntakeService(Library);
         Builder = new AlbumBuilder(new PdfSharpAlbumWriter());
+    }
+
+    public void ConfigureSourceRuntimeContext(
+        string? currentAccountEmail,
+        string? currentDeviceFingerprint)
+    {
+        string accountEmail =
+            (currentAccountEmail ?? "").Trim().ToLowerInvariant();
+        string deviceFingerprint =
+            (currentDeviceFingerprint ?? "").Trim().ToLowerInvariant();
+        if (accountEmail.Equals(
+                runtimeAccountEmail,
+                StringComparison.OrdinalIgnoreCase) &&
+            deviceFingerprint.Equals(
+                runtimeDeviceFingerprint,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        runtimeAccountEmail = accountEmail;
+        runtimeDeviceFingerprint = deviceFingerprint;
+        if (HasOpenProject)
+            ResetRuntimeServices(scanExistingPackages: false);
     }
 
     public void NewProject(string code, string name)
@@ -93,6 +122,7 @@ public sealed class AppState : IDisposable
         LastOpenMigratedLegacyProject = false;
         SaveProject();
         ResetRuntimeServices();
+        Interlocked.Increment(ref workspaceEpoch);
         ProjectReplaced?.Invoke();
     }
 
@@ -142,9 +172,6 @@ public sealed class AppState : IDisposable
         }
 
         bool removedUnownedSourcePages = RemoveSourcePagesFromSourceFreeProject() > 0;
-        ProjectAssetSourceReconciliationResult assetReconciliation =
-            ReconcileProjectAssetSourcesCore();
-        bool reconciledAssets = ApplyAssetReconciliation(assetReconciliation);
         CityGenProjectSiteReconciliationResult siteReconciliation =
             ReconcileCityGenProjectSiteCore();
         bool reconciledSite = ApplyCityGenProjectSiteReconciliation(siteReconciliation);
@@ -155,8 +182,7 @@ public sealed class AppState : IDisposable
                 [ProjectCloudSyncMetadata.SiteContextComponentCode]);
             InvalidateBuiltAlbum();
         }
-        if (EnsureUniqueSourceInboxes() ||
-            reconciledAssets ||
+        if (EnsureUniqueSourceInboxes(RuntimeSources()) ||
             reconciledSite ||
             removedUnownedSourcePages ||
             recoveredSiteContextSnapshots)
@@ -164,6 +190,7 @@ public sealed class AppState : IDisposable
             SaveProject();
         }
         ResetRuntimeServices(scanExistingPackages: false);
+        Interlocked.Increment(ref workspaceEpoch);
         ProjectReplaced?.Invoke();
     }
 
@@ -177,12 +204,14 @@ public sealed class AppState : IDisposable
         ProjectPath = null;
         AlbumPath = null;
         LastOpenMigratedLegacyProject = false;
+        Interlocked.Increment(ref workspaceEpoch);
         ProjectReplaced?.Invoke();
     }
 
     internal void LinkCurrentProjectToCloud(
         StudioCloudProjectDetail cloudProject,
         string serverUrl,
+        string permissionSnapshotAccountEmail,
         ProjectCreationRequest? creationRequest = null,
         bool preserveCreation = false,
         bool preserveSyncState = false)
@@ -199,6 +228,10 @@ public sealed class AppState : IDisposable
         Project.Cloud.ServerUrl = serverUrl.TrimEnd('/');
         if (!preserveSyncState)
             Project.Cloud.SyncStatus = ProjectSyncStatuses.Linked;
+        Project.Cloud.PermissionSnapshotAccountEmail =
+            (permissionSnapshotAccountEmail ?? "")
+                .Trim()
+                .ToLowerInvariant();
         Project.Cloud.CurrentUserRoles = (summary.CurrentUserRoles ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -273,6 +306,7 @@ public sealed class AppState : IDisposable
                 ComponentKind = component.ComponentKind ?? "",
             })
             .ToList();
+        _ = StudioCanonicalAlbumRebuildPolicy.Apply(Project, cloudProject);
 
         StudioCloudOrganizationRenderProfile? renderProfile = cloudProject.DesignOrganizationProfile;
         string cloudOrganizationId = cloudProject.ConceptAssignment?.OrganizationId ?? "";
@@ -302,7 +336,7 @@ public sealed class AppState : IDisposable
             .ToList();
         StudioCloudParticipant? client = activeParticipants.FirstOrDefault(item =>
             (item.Roles ?? []).Any(IsClientRole));
-        if (client is not null)
+        if (client is not null && cloudProject.Foundation is null)
         {
             Project.Foundation.InitiationBasis.ClientEmail = client.AccountEmail;
             if (string.IsNullOrWhiteSpace(Project.Foundation.InitiationBasis.ClientName))
@@ -332,6 +366,7 @@ public sealed class AppState : IDisposable
         }
 
         SaveProject();
+        RefreshSourceRuntimeWatchers();
         ProjectReplaced?.Invoke();
     }
 
@@ -488,12 +523,19 @@ public sealed class AppState : IDisposable
         }
 
         Directory.CreateDirectory(source.InboxFolder);
+        // Native paths are workstation-local and may remain on disk after a
+        // different account signs in. Never use path/name equality to adopt a
+        // Cloud mirror owned by another account or bound to another device.
+        // Reusing an existing row is safe only when that row is already an
+        // authorized, verified local source for the current runtime identity.
         var existingSource = Project.Sources.FirstOrDefault(existing =>
-            string.Equals(existing.Id, source.Id, StringComparison.OrdinalIgnoreCase) ||
-            (existing.Kind == source.Kind && PathsEqual(existing.NativeDocumentPath, source.NativeDocumentPath)) ||
-            (existing.Kind == source.Kind &&
-             string.IsNullOrWhiteSpace(existing.NativeDocumentPath) &&
-             string.Equals(existing.Name, source.Name, StringComparison.OrdinalIgnoreCase)));
+            IsRuntimeSource(existing) &&
+            (string.Equals(existing.Id, source.Id, StringComparison.OrdinalIgnoreCase) ||
+             (existing.Kind == source.Kind &&
+              PathsEqual(existing.NativeDocumentPath, source.NativeDocumentPath)) ||
+             (existing.Kind == source.Kind &&
+              string.IsNullOrWhiteSpace(existing.NativeDocumentPath) &&
+              string.Equals(existing.Name, source.Name, StringComparison.OrdinalIgnoreCase))));
         if (existingSource is null && Project.Sources.Any(existing =>
             PathsEqual(existing.InboxFolder, source.InboxFolder)))
         {
@@ -542,10 +584,13 @@ public sealed class AppState : IDisposable
             source = existingSource;
         }
         SaveProject();
-        Intake.WatchFolder(
-            source.InboxFolder,
-            source.UseLegacySheetKeys ? null : source.Id,
-            Project.ProjectId);
+        if (IsRuntimeSource(source))
+        {
+            Intake.WatchFolder(
+                source.InboxFolder,
+                source.UseLegacySheetKeys ? null : source.Id,
+                Project.ProjectId);
+        }
     }
 
     public int RemoveDesignSource(ProjectDesignSource source)
@@ -583,6 +628,9 @@ public sealed class AppState : IDisposable
     {
         List<ProjectBuildingGroup> normalizedGroups =
             ProjectBuildingComposition.NormalizeGroups(groups);
+        StudioBuildingCompositionSync.RecordLocalGroupSet(
+            Project,
+            normalizedGroups);
         Project.BuildingGroups = normalizedGroups;
         Project.SheetBuildingAssignments =
             ProjectBuildingComposition.NormalizeAssignments(
@@ -595,9 +643,21 @@ public sealed class AppState : IDisposable
 
     public PackageRecordResult? RecordPackageReceived(SheetPackageLoadResult result)
     {
+        ProjectDesignSource? admittedSource =
+            StudioRuntimeSourceScope.ResolvePackageSource(
+                Project,
+                result,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint);
+        if (admittedSource is null)
+            return null;
+
         ProjectPackageReconciliationResult? reconciled =
             ProjectPackageReconciliationService.Apply(Project, Album, Library, result);
-        if (reconciled is null)
+        if (reconciled is null ||
+            !reconciled.SourceId.Equals(
+                admittedSource.Id,
+                StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -676,15 +736,21 @@ public sealed class AppState : IDisposable
         return Path.Combine(ResolveProjectFolder(), "sources", SafePathSegment(sourceName), "deliveries");
     }
 
-    public AlbumProject CreateAlbumBuildProject()
+    public AlbumProject CreateAlbumBuildProject(
+        bool reconcileLinkedProjectAssets = true)
     {
-        ProjectAssetSourceReconciliationResult assetReconciliation =
-            ReconcileProjectAssetSourcesCore();
-        CityGenProjectSiteReconciliationResult siteReconciliation =
-            ReconcileCityGenProjectSiteCore();
-        if (ApplyAssetReconciliation(assetReconciliation) |
-            ApplyCityGenProjectSiteReconciliation(siteReconciliation))
-            SaveProject();
+        if (reconcileLinkedProjectAssets)
+        {
+            ProjectAssetSourceReconciliationResult assetReconciliation =
+                ReconcileProjectAssetSourcesCore();
+            CityGenProjectSiteReconciliationResult siteReconciliation =
+                ReconcileCityGenProjectSiteCore();
+            if (ApplyAssetReconciliation(assetReconciliation) |
+                ApplyCityGenProjectSiteReconciliation(siteReconciliation))
+            {
+                SaveProject();
+            }
+        }
 
         CompanyProfile company = Project.Foundation.DesignCompany.OrganizationSnapshot;
         ProjectServerSnapshot server = Project.Cloud.ServerSnapshot ?? new ProjectServerSnapshot();
@@ -741,7 +807,7 @@ public sealed class AppState : IDisposable
             DesignOrganizationName = designOrganizationName,
             CloudStatus = Project.Cloud.SyncStatus,
             InitiationBasis = initiationBasis,
-            PlanningTask = Project.Foundation.PlanningTask,
+            PlanningTask = CreateAlbumPlanningTaskSnapshot(),
             ApprovalWorkflow = Project.Foundation.ApprovalWorkflow.Clone(),
             Company = company,
             Participants = Project.Foundation.DesignCompany.Members
@@ -761,7 +827,7 @@ public sealed class AppState : IDisposable
             SheetBuildingAssignments = new Dictionary<string, string>(
                 Project.SheetBuildingAssignments,
                 StringComparer.OrdinalIgnoreCase),
-            Visualizations = Project.Visualizations.CreateProjectSnapshot(Project.ProjectId),
+            Visualizations = CreateAlbumVisualizationSnapshot(),
             SiteContext = Project.SiteContext.CreateProjectSnapshot(Project.ProjectId),
             SourceFolders = Project.Sources.Select(source => source.InboxFolder).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Album = Album,
@@ -789,6 +855,39 @@ public sealed class AppState : IDisposable
         Documents = source.Documents.Select(document => document.Clone()).ToList(),
     };
 
+    private PlanningTaskInformation CreateAlbumPlanningTaskSnapshot()
+    {
+        PlanningTaskInformation source = Project.Foundation.PlanningTask;
+        IReadOnlyList<ProjectFileReference> documents =
+            StudioAuxiliarySourceLocalityPolicy.LocalDocuments(
+                Project,
+                source.Documents,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint,
+                HasVerifiedPayload);
+        return new PlanningTaskInformation
+        {
+            AtdNumber = source.AtdNumber,
+            IssuedAtUtc = source.IssuedAtUtc,
+            IssuingAuthorityName = source.IssuingAuthorityName,
+            Status = source.Status,
+            Summary = source.Summary,
+            Requirements = source.Requirements.ToList(),
+            Documents = documents.Select(document => document.Clone()).ToList(),
+            ServerDocumentId = source.ServerDocumentId,
+            ServerDocumentVersion = source.ServerDocumentVersion,
+            DocumentCloudSyncStatus = source.DocumentCloudSyncStatus,
+            AuthorityMembers = source.AuthorityMembers.ToList(),
+        };
+    }
+
+    private ProjectVisualizationSource CreateAlbumVisualizationSnapshot() =>
+        StudioAuxiliarySourceLocalityPolicy.CreateLocalVisualizationSnapshot(
+            Project,
+            runtimeAccountEmail,
+            runtimeDeviceFingerprint,
+            HasVerifiedPayload);
+
     private static string FirstAlbumValue(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
 
@@ -808,6 +907,27 @@ public sealed class AppState : IDisposable
         return result;
     }
 
+    public CityGenProjectSiteReconciliationResult ReconcileCityGenProjectSite(
+        IEnumerable<ProjectDesignSource> sources)
+    {
+        HashSet<string> requestedSourceIds = (sources ?? [])
+            .Where(source => source is not null)
+            .Select(source => source.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<ProjectDesignSource> authorizedSources =
+            RuntimeSources()
+                .Where(source => requestedSourceIds.Contains(source.Id))
+                .ToList();
+        CityGenProjectSiteReconciliationResult result = HasOpenProject
+            ? CityGenProjectSiteReconciler.Reconcile(
+                Project,
+                authorizedSources)
+            : new CityGenProjectSiteReconciliationResult();
+        if (ApplyCityGenProjectSiteReconciliation(result))
+            SaveProject();
+        return result;
+    }
+
     public void MarkFoundationContentChanged()
     {
         if (!HasOpenProject)
@@ -820,7 +940,6 @@ public sealed class AppState : IDisposable
                 ProjectCloudSyncMetadata.CoverComponentCode,
                 ProjectCloudSyncMetadata.CompanyRegistrationComponentCode,
                 ProjectCloudSyncMetadata.CompanyLicenseComponentCode,
-                ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
             ]);
         ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(Project);
         InvalidateBuiltAlbum();
@@ -832,6 +951,30 @@ public sealed class AppState : IDisposable
         if (!HasOpenProject || string.IsNullOrWhiteSpace(componentCode))
             return;
         ProjectCloudSyncMetadata.MarkAlbumComponentsPending(Project, [componentCode]);
+    }
+
+    public void MarkAuxiliaryAlbumComponentChanged(
+        string componentCode,
+        string? ownerEmail,
+        string? deviceFingerprint,
+        bool isRemoval)
+    {
+        if (!HasOpenProject || string.IsNullOrWhiteSpace(componentCode))
+            return;
+        if (!StudioAuxiliarySourceLocalityPolicy.IsCloudLinked(Project))
+        {
+            ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+                Project,
+                [componentCode]);
+            return;
+        }
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentPendingForBinding(
+            Project,
+            componentCode,
+            ownerEmail ?? "",
+            deviceFingerprint ?? "",
+            isRemoval);
     }
 
     public void MarkSiteContextChanged()
@@ -857,20 +1000,87 @@ public sealed class AppState : IDisposable
     {
         if (!HasOpenProject || string.IsNullOrWhiteSpace(ProjectPath))
             return new ProjectAssetSourceReconciliationResult();
-        return ProjectAssetSourceReconciler.ReconcileProject(Project, ProjectPath);
+        return ProjectAssetSourceReconciler.ReconcileProject(
+            Project,
+            ProjectPath,
+            document => StudioAuxiliarySourceLocalityPolicy.BindingMatches(
+                Project,
+                document,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint),
+            image => StudioAuxiliarySourceLocalityPolicy.BindingMatches(
+                Project,
+                image,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint));
     }
 
     private CityGenProjectSiteReconciliationResult ReconcileCityGenProjectSiteCore()
     {
         if (!HasOpenProject)
             return new CityGenProjectSiteReconciliationResult();
-        return CityGenProjectSiteReconciler.Reconcile(Project);
+        return CityGenProjectSiteReconciler.Reconcile(
+            Project,
+            RuntimeSources());
     }
 
     private bool ApplyAssetReconciliation(ProjectAssetSourceReconciliationResult result)
     {
         if (!result.Changed)
             return false;
+        if (result.ChangedDocumentCategories.Contains(
+                ProjectDocumentCategories.ApprovedPlanningTask,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            bool hasLocalAtdPayload =
+                Project.Foundation.PlanningTask.Documents.Any(document =>
+                    document.Category.Equals(
+                        ProjectDocumentCategories.ApprovedPlanningTask,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    document.IsAvailable &&
+                    StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
+                        Project,
+                        document,
+                        runtimeAccountEmail,
+                        runtimeDeviceFingerprint,
+                        HasVerifiedPayload(document)));
+            MarkAuxiliaryAlbumComponentChanged(
+                ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint,
+                isRemoval: !hasLocalAtdPayload);
+        }
+
+        if (result.ChangedVisualizationIds.Count > 0)
+        {
+            HashSet<string> changedImageIds = result.ChangedVisualizationIds
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            bool includedImageChanged = Project.Visualizations
+                .ImagesForProject(Project.ProjectId)
+                .Any(image =>
+                    changedImageIds.Contains(image.Id) &&
+                    image.IsIncludedInAlbum);
+            if (includedImageChanged)
+            {
+                bool hasIncludedLocalPayload = Project.Visualizations
+                    .ImagesForProject(Project.ProjectId)
+                    .Any(image =>
+                        image.IsIncludedInAlbum &&
+                        image.IsAvailable &&
+                        StudioAuxiliarySourceLocalityPolicy.IsLocalVisualizationImage(
+                            Project,
+                            image,
+                            runtimeAccountEmail,
+                            runtimeDeviceFingerprint,
+                            HasVerifiedPayload(image)));
+                MarkAuxiliaryAlbumComponentChanged(
+                    ProjectCloudSyncMetadata.VisualizationsComponentCode,
+                    runtimeAccountEmail,
+                    runtimeDeviceFingerprint,
+                    isRemoval: !hasIncludedLocalPayload);
+            }
+        }
+
         Project.Foundation.Version = Math.Max(1, Project.Foundation.Version) + 1;
         AlbumDocument.FoundationVersion = Project.Foundation.Version;
         InvalidateBuiltAlbum();
@@ -917,10 +1127,16 @@ public sealed class AppState : IDisposable
 
     private void ResetRuntimeServices(bool scanExistingPackages = true)
     {
+        Library.Clear();
+        RefreshSourceRuntimeWatchers(scanExistingPackages);
+    }
+
+    public void RefreshSourceRuntimeWatchers(
+        bool scanExistingPackages = false)
+    {
         ClearWatchers();
         RefreshAssetSourceWatchers();
-        Library.Clear();
-        foreach (var source in Project.Sources)
+        foreach (ProjectDesignSource source in RuntimeSources())
         {
             try
             {
@@ -1017,15 +1233,33 @@ public sealed class AppState : IDisposable
                 .Concat(Project.Foundation.DesignCompany.OrganizationSnapshot.DesignLicenseDocuments);
         foreach (ProjectFileReference document in documents)
         {
-            if (!string.IsNullOrWhiteSpace(document.LinkedSourcePath))
+            if (!string.IsNullOrWhiteSpace(document.LinkedSourcePath) &&
+                StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
+                    Project,
+                    document,
+                    runtimeAccountEmail,
+                    runtimeDeviceFingerprint,
+                    HasVerifiedPayload(document)))
+            {
                 yield return document.LinkedSourcePath;
+            }
         }
         foreach (ProjectVisualizationImage image in Project.Visualizations.ImagesForProject(Project.ProjectId))
         {
-            if (!string.IsNullOrWhiteSpace(image.LinkedSourcePath))
+            if (!string.IsNullOrWhiteSpace(image.LinkedSourcePath) &&
+                StudioAuxiliarySourceLocalityPolicy.IsLocalVisualizationImage(
+                    Project,
+                    image,
+                    runtimeAccountEmail,
+                    runtimeDeviceFingerprint,
+                    HasVerifiedPayload(image)))
+            {
                 yield return image.LinkedSourcePath;
+            }
         }
-        foreach (string sidecarPath in CityGenProjectSiteReconciler.EnumerateSidecarPaths(Project.Sources))
+        foreach (string sidecarPath in
+                 CityGenProjectSiteReconciler.EnumerateSidecarPaths(
+                     RuntimeSources()))
             yield return sidecarPath;
     }
 
@@ -1154,11 +1388,12 @@ public sealed class AppState : IDisposable
         album.LastPageSizeSummary = "";
     }
 
-    private bool EnsureUniqueSourceInboxes()
+    private bool EnsureUniqueSourceInboxes(
+        IEnumerable<ProjectDesignSource> sources)
     {
         var usedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var changed = false;
-        foreach (var source in Project.Sources)
+        foreach (ProjectDesignSource source in sources)
         {
             if (string.IsNullOrWhiteSpace(source.InboxFolder))
             {
@@ -1184,6 +1419,42 @@ public sealed class AppState : IDisposable
         }
         return changed;
     }
+
+    internal IReadOnlySet<string> WatchedAssetPathsSnapshot()
+    {
+        lock (assetWatcherGate)
+        {
+            return watchedAssetPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private bool HasVerifiedPayload(ProjectFileReference document) =>
+        !string.IsNullOrWhiteSpace(ProjectPath) &&
+        StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+            ProjectPath,
+            document);
+
+    private bool HasVerifiedPayload(ProjectVisualizationImage image) =>
+        !string.IsNullOrWhiteSpace(ProjectPath) &&
+        StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+            ProjectPath,
+            image);
+
+    private IReadOnlyList<ProjectDesignSource> RuntimeSources() =>
+        HasOpenProject
+            ? StudioRuntimeSourceScope.AuthorizedSources(
+                Project,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint)
+            : [];
+
+    private bool IsRuntimeSource(ProjectDesignSource source) =>
+        HasOpenProject &&
+        StudioRuntimeSourceScope.IsAuthorizedLocal(
+            Project,
+            source,
+            runtimeAccountEmail,
+            runtimeDeviceFingerprint);
 
     private string ResolveUniqueSourceFolder(ProjectDesignSource source, IEnumerable<string> usedFolders)
     {

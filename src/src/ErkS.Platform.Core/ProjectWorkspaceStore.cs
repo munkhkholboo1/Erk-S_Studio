@@ -241,10 +241,47 @@ public static class ProjectWorkspaceStore
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        project.Cloud.PendingAlbumComponentClaims =
+            (project.Cloud.PendingAlbumComponentClaims ?? [])
+                .OfType<ProjectLocalAlbumComponentClaim>()
+                .Select(claim => new ProjectLocalAlbumComponentClaim
+                {
+                    ComponentCode = claim.ComponentCode?.Trim() ?? "",
+                    OwnerEmail = (claim.OwnerEmail ?? "").Trim().ToLowerInvariant(),
+                    DeviceFingerprint =
+                        (claim.DeviceFingerprint ?? "").Trim().ToLowerInvariant(),
+                    RegistrySourceId = claim.RegistrySourceId?.Trim() ?? "",
+                    ClaimToken = string.IsNullOrWhiteSpace(claim.ClaimToken)
+                        ? Guid.NewGuid().ToString("N")
+                        : claim.ClaimToken.Trim().ToLowerInvariant(),
+                    IsRemoval = claim.IsRemoval,
+                    ClaimedAtUtc = claim.ClaimedAtUtc,
+                })
+                .Where(claim =>
+                    !string.IsNullOrWhiteSpace(claim.ComponentCode) &&
+                    !string.IsNullOrWhiteSpace(claim.OwnerEmail) &&
+                    !string.IsNullOrWhiteSpace(claim.DeviceFingerprint))
+                .GroupBy(
+                    claim =>
+                        $"{claim.ComponentCode}\u001f{claim.OwnerEmail}\u001f{claim.DeviceFingerprint}",
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => group
+                    .OrderByDescending(claim => claim.ClaimedAtUtc)
+                    .First())
+                .ToList();
         project.Cloud.LastReceivedAlbumPdfPath =
             project.Cloud.LastReceivedAlbumPdfPath?.Trim() ?? "";
         project.Cloud.LastPublishedTitleBlockSignature =
             project.Cloud.LastPublishedTitleBlockSignature?.Trim().ToLowerInvariant() ?? "";
+        project.Cloud.CanonicalAlbumRequiredBuildingCompositionVersion =
+            Math.Max(0, project.Cloud.CanonicalAlbumRequiredBuildingCompositionVersion);
+        project.Cloud.CanonicalAlbumCurrentBuildingCompositionVersion =
+            Math.Max(0, project.Cloud.CanonicalAlbumCurrentBuildingCompositionVersion);
+        project.Cloud.CanonicalAlbumRebuildComponentCodes =
+            NormalizeComponentCodes(project.Cloud.CanonicalAlbumRebuildComponentCodes);
+        project.Cloud.CanonicalAlbumPendingComponentTombstoneCodes =
+            NormalizeComponentCodes(
+                project.Cloud.CanonicalAlbumPendingComponentTombstoneCodes);
         project.Cloud.SharedSources = (project.Cloud.SharedSources ?? [])
             .OfType<ProjectCloudSourceReference>()
             .ToList();
@@ -261,6 +298,41 @@ public static class ProjectWorkspaceStore
         }
         project.Cloud.SharedBuildingCompositionVersion =
             Math.Max(0, project.Cloud.SharedBuildingCompositionVersion);
+        project.Cloud.BuildingCompositionEditBaseVersion =
+            Math.Max(0, project.Cloud.BuildingCompositionEditBaseVersion);
+        if (project.Cloud.BuildingCompositionEditBaseCaptured)
+        {
+            List<ProjectBuildingGroup> editBaseGroups =
+                ProjectBuildingComposition.NormalizeGroups(
+                    (project.Cloud.BuildingCompositionEditBaseGroups ?? [])
+                        .OfType<ProjectCloudBuildingGroupReference>()
+                        .Select(group => new ProjectBuildingGroup
+                        {
+                            Id = group.Id,
+                            Name = group.Name,
+                            Order = group.Order,
+                        }));
+            project.Cloud.BuildingCompositionEditBaseGroups = editBaseGroups
+                .Select(group => new ProjectCloudBuildingGroupReference
+                {
+                    Id = group.Id,
+                    Name = group.Name,
+                    Order = group.Order,
+                })
+                .ToList();
+        }
+        else
+        {
+            project.Cloud.BuildingCompositionEditBaseVersion = 0;
+            project.Cloud.BuildingCompositionEditBaseGroups = [];
+        }
+        project.Cloud.PendingBuildingGroupDeletionIds =
+            (project.Cloud.PendingBuildingGroupDeletionIds ?? [])
+                .OfType<string>()
+                .Select(value => value.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         List<ProjectBuildingGroup> sharedBuildingGroups =
             ProjectBuildingComposition.NormalizeGroups(
                 (project.Cloud.SharedBuildingGroups ?? [])
@@ -287,6 +359,7 @@ public static class ProjectWorkspaceStore
                 .OfType<ProjectCloudBuildingSheetAssignmentReference>()
                 .Select(assignment => new ProjectCloudBuildingSheetAssignmentReference
                 {
+                    SourceOwnerEmail = assignment.SourceOwnerEmail?.Trim().ToLowerInvariant() ?? "",
                     SourceKey = assignment.SourceKey?.Trim() ?? "",
                     SheetId = assignment.SheetId?.Trim() ?? "",
                     BuildingGroupId = assignment.BuildingGroupId?.Trim() ?? "",
@@ -296,7 +369,8 @@ public static class ProjectWorkspaceStore
                     !string.IsNullOrWhiteSpace(assignment.SheetId) &&
                     sharedBuildingGroupIds.Contains(assignment.BuildingGroupId))
                 .GroupBy(
-                    assignment => $"{assignment.SourceKey}\u001f{assignment.SheetId}",
+                    assignment =>
+                        $"{assignment.SourceOwnerEmail}\u001f{assignment.SourceKey}\u001f{assignment.SheetId}",
                     StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.Last())
                 .ToList();
@@ -313,6 +387,10 @@ public static class ProjectWorkspaceStore
             component.SourceKey ??= "";
             component.ComponentKind ??= "";
         }
+        project.Cloud.PermissionSnapshotAccountEmail =
+            (project.Cloud.PermissionSnapshotAccountEmail ?? "")
+                .Trim()
+                .ToLowerInvariant();
         project.Cloud.CurrentUserRoles = (project.Cloud.CurrentUserRoles ?? [])
             .OfType<string>()
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -504,9 +582,18 @@ public static class ProjectWorkspaceStore
             member.FullName = MongolianPersonNameFormatter.ForDisplay(
                 member.FamilyName,
                 member.GivenName,
-                member.FullName);
+            member.FullName);
         }
     }
+
+    private static List<string> NormalizeComponentCodes(
+        IEnumerable<string>? componentCodes) =>
+        (componentCodes ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }
 
 public static class StudioAlbumDocumentStore

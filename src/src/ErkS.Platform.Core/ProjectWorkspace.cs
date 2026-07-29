@@ -144,6 +144,21 @@ public sealed class ProjectCloudLink
     /// complete Cloud album revision.
     /// </summary>
     public string LastPublishedTitleBlockSignature { get; set; } = "";
+    /// <summary>
+    /// Server-authoritative signal that the current canonical PDF predates the
+    /// accepted building composition or still contains deleted subcovers.
+    /// While true, the cached PDF must not be presented as canonical.
+    /// </summary>
+    public bool CanonicalAlbumRebuildPending { get; set; }
+    public int CanonicalAlbumRequiredBuildingCompositionVersion { get; set; }
+    public int CanonicalAlbumCurrentBuildingCompositionVersion { get; set; }
+    /// <summary>
+    /// Generated subcovers that an authorized Studio must render or remove to
+    /// acknowledge the server rebuild signal. Kept separate from local dirty
+    /// codes so a later server acknowledgement cannot erase local work.
+    /// </summary>
+    public List<string> CanonicalAlbumRebuildComponentCodes { get; set; } = [];
+    public List<string> CanonicalAlbumPendingComponentTombstoneCodes { get; set; } = [];
     public string LastServerConcurrencyToken { get; set; } = "";
     public string LastSyncError { get; set; } = "";
     public string LastSyncNote { get; set; } = "";
@@ -152,6 +167,14 @@ public sealed class ProjectCloudLink
     /// canonical Cloud revision. A failed merge remains retryable.
     /// </summary>
     public List<string> PendingAlbumComponentCodes { get; set; } = [];
+    /// <summary>
+    /// Device/account-scoped claims for physical auxiliary component changes.
+    /// These claims prevent a generic legacy component code left by account A
+    /// from being reinterpreted as account B's upload after an account switch.
+    /// Removal claims are tombstones and intentionally survive after the last
+    /// local payload reference is removed.
+    /// </summary>
+    public List<ProjectLocalAlbumComponentClaim> PendingAlbumComponentClaims { get; set; } = [];
     /// <summary>
     /// Metadata-only source registry received from Cloud ERA. Native authoring
     /// files are never downloaded through this list.
@@ -168,6 +191,21 @@ public sealed class ProjectCloudLink
     /// accepted by Cloud ERA.
     /// </summary>
     public bool BuildingCompositionPending { get; set; }
+    /// <summary>
+    /// True when the first local building-group edit captured the canonical
+    /// composition it was based on. This persisted three-way merge base keeps
+    /// a later Cloud refresh from turning the newest server snapshot into an
+    /// apparent base for an older local edit.
+    /// </summary>
+    public bool BuildingCompositionEditBaseCaptured { get; set; }
+    public int BuildingCompositionEditBaseVersion { get; set; }
+    public List<ProjectCloudBuildingGroupReference> BuildingCompositionEditBaseGroups { get; set; } = [];
+    /// <summary>
+    /// Explicit local deletion intent for canonical building groups. Groups
+    /// added remotely after this device began editing are still merged, while
+    /// IDs in this set must stay absent from the whole-state CAS update.
+    /// </summary>
+    public List<string> PendingBuildingGroupDeletionIds { get; set; } = [];
     public List<ProjectCloudBuildingGroupReference> SharedBuildingGroups { get; set; } = [];
     public List<ProjectCloudBuildingSheetAssignmentReference> SharedBuildingSheetAssignments { get; set; } = [];
     /// <summary>
@@ -175,13 +213,53 @@ public sealed class ProjectCloudLink
     /// this device unless their owner links a local source.
     /// </summary>
     public List<ProjectCloudAlbumComponentReference> SharedAlbumComponents { get; set; } = [];
+    /// <summary>
+    /// Normalized Cloud account email for which CurrentUserRoles and
+    /// CurrentUserScopes were issued. A different account on the same device
+    /// must refresh the canonical project before these permissions can be used.
+    /// </summary>
+    public string PermissionSnapshotAccountEmail { get; set; } = "";
     public List<string> CurrentUserRoles { get; set; } = [];
     public List<string> CurrentUserScopes { get; set; } = [];
     public ProjectServerSnapshot ServerSnapshot { get; set; } = new();
     public PendingProjectInformationUpdate? PendingProjectInformation { get; set; }
 
-    public bool HasScope(string scope) => CurrentUserScopes.Any(value =>
-        value.Equals(scope, StringComparison.OrdinalIgnoreCase));
+    public bool PermissionSnapshotBelongsTo(string? accountEmail)
+    {
+        string snapshotEmail = NormalizeEmail(PermissionSnapshotAccountEmail);
+        string currentEmail = NormalizeEmail(accountEmail);
+        return !string.IsNullOrWhiteSpace(snapshotEmail) &&
+            !string.IsNullOrWhiteSpace(currentEmail) &&
+            snapshotEmail.Equals(currentEmail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool HasScope(string scope, string? accountEmail) =>
+        PermissionSnapshotBelongsTo(accountEmail) &&
+        CurrentUserScopes.Any(value =>
+            value.Equals(scope, StringComparison.OrdinalIgnoreCase));
+
+    private static string NormalizeEmail(string? value) =>
+        (value ?? "").Trim().ToLowerInvariant();
+}
+
+public sealed class ProjectLocalAlbumComponentClaim
+{
+    public string ComponentCode { get; set; } = "";
+    public string OwnerEmail { get; set; } = "";
+    public string DeviceFingerprint { get; set; } = "";
+    /// <summary>
+    /// Immutable Cloud ERA registry row that must be retired before a source
+    /// component removal can be acknowledged. Empty for non-source and legacy
+    /// claims. Keeping this in the persisted claim makes removal crash-safe.
+    /// </summary>
+    public string RegistrySourceId { get; set; } = "";
+    /// <summary>
+    /// Opaque mutation token captured by a sync attempt. A successful upload
+    /// may acknowledge this claim only while the persisted token is unchanged.
+    /// </summary>
+    public string ClaimToken { get; set; } = "";
+    public bool IsRemoval { get; set; }
+    public DateTimeOffset ClaimedAtUtc { get; set; }
 }
 
 /// <summary>
@@ -190,6 +268,12 @@ public sealed class ProjectCloudLink
 /// </summary>
 public sealed class PendingProjectInformationUpdate
 {
+    /// <summary>
+    /// Canonical project token observed when this complete edit snapshot was
+    /// created. A pending snapshot must never be silently rebased onto a newer
+    /// server revision.
+    /// </summary>
+    public string BaseConcurrencyToken { get; set; } = "";
     public string Name { get; set; } = "";
     public string ClientName { get; set; } = "";
     public string PlanningAuthorityName { get; set; } = "";
@@ -567,6 +651,11 @@ public sealed class ProjectCloudBuildingGroupReference
 
 public sealed class ProjectCloudBuildingSheetAssignmentReference
 {
+    /// <summary>
+    /// Stable identity of the participant that originally registered the source.
+    /// Empty values are retained for legacy project mirrors.
+    /// </summary>
+    public string SourceOwnerEmail { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string SheetId { get; set; } = "";
     public string BuildingGroupId { get; set; } = "";
@@ -651,6 +740,18 @@ public sealed class ProjectFileReference
     public string CloudSyncStatus { get; set; } = ProjectDocumentCloudSyncStatuses.Local;
     /// <summary>Cloud contributor that owns this document source. Empty is a legacy local document.</summary>
     public string CloudOwnerEmail { get; set; } = "";
+    /// <summary>
+    /// Exact signed-in account that explicitly added or relinked the physical
+    /// payload on this device. Empty legacy values are never inferred for a
+    /// Cloud-linked project.
+    /// </summary>
+    public string LocalBindingAccountEmail { get; set; } = "";
+    /// <summary>
+    /// Exact Studio device fingerprint that holds the verified physical
+    /// payload. The same account on another device remains Cloud/read-only
+    /// until an explicit relink.
+    /// </summary>
+    public string LocalBindingDeviceFingerprint { get; set; } = "";
     /// <summary>Stable metadata-only contribution identity; the native source is never transferred.</summary>
     public string CloudContributionId { get; set; } = "";
     /// <summary>True when only the shared source slot is present on this device.</summary>
@@ -678,6 +779,8 @@ public sealed class ProjectFileReference
         ServerDocumentVersion = ServerDocumentVersion,
         CloudSyncStatus = CloudSyncStatus,
         CloudOwnerEmail = CloudOwnerEmail,
+        LocalBindingAccountEmail = LocalBindingAccountEmail,
+        LocalBindingDeviceFingerprint = LocalBindingDeviceFingerprint,
         CloudContributionId = CloudContributionId,
         IsCloudPlaceholder = IsCloudPlaceholder,
         Sha256 = Sha256,

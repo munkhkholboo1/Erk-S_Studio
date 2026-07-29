@@ -100,6 +100,53 @@ public sealed class AlbumComponentPdfComposerTests
     }
 
     [Fact]
+    public void TwoClientsAppendingEqualRankSourcesConvergeRegardlessOfArrivalOrder()
+    {
+        using TemporaryFolder folder = new();
+        string canonical = folder.PathFor("canonical.pdf");
+        string sourceA = folder.PathFor("source-a.pdf");
+        string sourceB = folder.PathFor("source-b.pdf");
+        WritePdfWithWidths(canonical, [100]);
+        WritePdfWithWidths(sourceA, [200]);
+        WritePdfWithWidths(sourceB, [300]);
+
+        (AlbumComponentPdfCompositionResult Result, string Path) afterA = Compose(
+            canonical,
+            [new("generated:cover", 0, [1])],
+            [new("source:owner-a:plans", 100, sourceA)],
+            folder.PathFor("after-a.pdf"));
+        (AlbumComponentPdfCompositionResult Result, string Path) afterAB = Compose(
+            afterA.Path,
+            afterA.Result.Components,
+            [new("source:owner-b:plans", 100, sourceB)],
+            folder.PathFor("after-a-b.pdf"));
+
+        (AlbumComponentPdfCompositionResult Result, string Path) afterB = Compose(
+            canonical,
+            [new("generated:cover", 0, [1])],
+            [new("source:owner-b:plans", 100, sourceB)],
+            folder.PathFor("after-b.pdf"));
+        (AlbumComponentPdfCompositionResult Result, string Path) afterBA = Compose(
+            afterB.Path,
+            afterB.Result.Components,
+            [new("source:owner-a:plans", 100, sourceA)],
+            folder.PathFor("after-b-a.pdf"));
+
+        string[] expectedCodes =
+        [
+            "generated:cover",
+            "source:owner-a:plans",
+            "source:owner-b:plans",
+        ];
+        Assert.Equal(expectedCodes, afterAB.Result.Components.Select(item => item.Code));
+        Assert.Equal(expectedCodes, afterBA.Result.Components.Select(item => item.Code));
+        Assert.Equal([100d, 200d, 300d], PageWidths(afterAB.Path));
+        Assert.Equal([100d, 200d, 300d], PageWidths(afterBA.Path));
+        Assert.Equal(3, afterAB.Result.PageCount);
+        Assert.Equal(3, afterBA.Result.PageCount);
+    }
+
+    [Fact]
     public void RemovingAnAliasDropsOnlyItsPhysicalPages()
     {
         using TemporaryFolder folder = new();
@@ -164,6 +211,29 @@ public sealed class AlbumComponentPdfComposerTests
             page.Height = PdfSharp.Drawing.XUnit.FromPoint(400);
         }
         document.Save(path);
+    }
+
+    private static (AlbumComponentPdfCompositionResult Result, string Path) Compose(
+        string canonicalPath,
+        IReadOnlyList<AlbumComponentPdfSlot> canonicalComponents,
+        IReadOnlyList<AlbumComponentPdfPatch> patches,
+        string outputPath) =>
+        (
+            AlbumComponentPdfComposer.Compose(
+                canonicalPath,
+                canonicalComponents.SelectMany(item => item.PageNumbers).Count(),
+                canonicalComponents,
+                patches,
+                outputPath),
+            outputPath
+        );
+
+    private static double[] PageWidths(string path)
+    {
+        using PdfDocument document = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+        return Enumerable.Range(0, document.PageCount)
+            .Select(index => document.Pages[index].Width.Point)
+            .ToArray();
     }
 
     private sealed class TemporaryFolder : IDisposable

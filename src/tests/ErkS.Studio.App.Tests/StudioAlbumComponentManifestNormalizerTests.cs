@@ -169,6 +169,142 @@ public sealed class StudioAlbumComponentManifestNormalizerTests
             second.TargetManifest.Select(ComponentSignature));
     }
 
+    [Fact]
+    public void RefreshSyncReopenCycle_PreservesContributorUnionAndCanonicalOrder()
+    {
+        const string sourceKey = "same-source-key";
+        const string planner = "planner@erks.local";
+        const string architect = "architect@erks.local";
+        const string buildingId = "building-2";
+        ProjectWorkspace project = new()
+        {
+            BuildingGroups =
+            [
+                new ProjectBuildingGroup
+                {
+                    Id = buildingId,
+                    Name = "Building 2",
+                    Order = 2,
+                },
+            ],
+            Cloud = new ProjectCloudLink
+            {
+                SharedSources =
+                [
+                    new ProjectCloudSourceReference
+                    {
+                        SourceKey = sourceKey,
+                        SourceApplication = "Erk-S CityGen for AutoCAD",
+                        RegisteredBy = planner,
+                        OwnerEmail = planner,
+                        Status = "Registered",
+                    },
+                    new ProjectCloudSourceReference
+                    {
+                        SourceKey = sourceKey,
+                        SourceApplication = "Revit",
+                        RegisteredBy = architect,
+                        OwnerEmail = architect,
+                        Status = "Registered",
+                    },
+                ],
+                SharedBuildingSheetAssignments =
+                [
+                    new ProjectCloudBuildingSheetAssignmentReference
+                    {
+                        SourceOwnerEmail = architect,
+                        SourceKey = sourceKey,
+                        SheetId = "sheet-1",
+                        BuildingGroupId = buildingId,
+                    },
+                ],
+            },
+        };
+        string generalPlan =
+            StudioAlbumComponentIdentity.SourceCode(planner, sourceKey);
+        string building =
+            StudioAlbumComponentIdentity.SourceSliceCode(
+                architect,
+                sourceKey,
+                "studio-building:" + buildingId,
+                "floor-plans");
+        string subCover =
+            "generated:building-sub-cover:studio-building:" + buildingId;
+        StudioCloudAlbumSection[] physicallyWrong =
+        [
+            SourceSection(building, architect, sourceKey, [1, 2]),
+            Section(subCover, 900_000, [3]),
+            SourceSection(generalPlan, planner, sourceKey, [4]),
+            Section(ProjectCloudSyncMetadata.CoverComponentCode, 0, [5]),
+        ];
+        var sourceOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            [StudioAlbumComponentIdentity.SourceCode(planner, sourceKey)] = 0,
+            [StudioAlbumComponentIdentity.SourceCode(architect, sourceKey)] = 1,
+        };
+
+        StudioAlbumComponentManifestNormalizationPlan afterRefresh =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                project,
+                physicallyWrong,
+                sourceOrder);
+        StudioAlbumComponentManifestNormalizationPlan afterSyncAndReopen =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                project,
+                afterRefresh.TargetManifest,
+                sourceOrder);
+
+        Assert.Equal(
+            [
+                ProjectCloudSyncMetadata.CoverComponentCode,
+                generalPlan,
+                subCover,
+                building,
+            ],
+            afterRefresh.TargetManifest.Select(component => component.Code));
+        Assert.Equal(
+            afterRefresh.TargetManifest.Select(ComponentSignature),
+            afterSyncAndReopen.TargetManifest.Select(ComponentSignature));
+        Assert.False(afterSyncAndReopen.RequiresPdfRewrite);
+        Assert.Equal(4, afterSyncAndReopen.TargetManifest.Count);
+
+        StudioCloudAlbumSection removed = Assert.Single(
+            StudioAlbumComponentRemovalPlanner.FindMissingSourceComponents(
+                afterSyncAndReopen.TargetManifest,
+                [StudioAlbumComponentIdentity.SourceCode(architect, sourceKey)]));
+        Assert.Equal(building, removed.Code);
+        Assert.DoesNotContain(
+            StudioAlbumComponentRemovalPlanner.FindMissingSourceComponents(
+                afterSyncAndReopen.TargetManifest,
+                [StudioAlbumComponentIdentity.SourceCode(architect, sourceKey)]),
+            component => component.Code.Equals(
+                generalPlan,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("architect-b@erks.local", "shared-source")]
+    [InlineData("architect-a@erks.local", "other-source")]
+    public void OwnedSourceCodeWithMismatchedMetadataIsRejected(
+        string metadataOwner,
+        string metadataSourceKey)
+    {
+        const string owner = "architect-a@erks.local";
+        const string sourceKey = "shared-source";
+        string code = StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+        StudioCloudAlbumSection source = SourceSection(
+            code,
+            metadataOwner,
+            metadataSourceKey,
+            [1]);
+
+        Assert.Throws<InvalidDataException>(() =>
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                ProjectWithBuilding(),
+                [source],
+                EmptySourceOrder()));
+    }
+
     private static StudioCloudAlbumSection Section(
         string code,
         int order,

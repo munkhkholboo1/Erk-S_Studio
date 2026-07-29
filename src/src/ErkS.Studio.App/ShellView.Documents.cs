@@ -239,11 +239,16 @@ internal sealed partial class ShellView
                     ProjectDocumentCategories.ApprovedPlanningTask,
                     "Батлагдсан архитектур төлөвлөлтийн даалгавар",
                     inspection);
-                document.CloudOwnerEmail = CurrentCloudOwnerEmail();
-                document.CloudContributionId = Guid.NewGuid().ToString("N");
+                StudioAuxiliarySourceLocalityPolicy.Bind(
+                    state.Project,
+                    document,
+                    account.Current?.Email,
+                    StudioDeviceIdentity.Fingerprint);
                 AddDocumentIfMissing(atdDocumentDrafts, document);
             }
-            catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+            catch (Exception exception) when (
+                exception is IOException or InvalidDataException or
+                    UnauthorizedAccessException or InvalidOperationException)
             {
                 SetStatus($"АТД-ийн хуулбар нэмсэнгүй: {exception.Message}");
             }
@@ -269,7 +274,7 @@ internal sealed partial class ShellView
     {
         if (!foundationEditMode || foundationSaveInProgress || state.ProjectPath is null ||
             atdDocumentsList.SelectedItem is not DocumentAssetRow selected ||
-            !CanEditAtdDocument(selected.Document))
+            !CanRelinkAtdDocument(selected.Document))
         {
             return;
         }
@@ -290,12 +295,18 @@ internal sealed partial class ShellView
                 ProjectDocumentCategories.ApprovedPlanningTask,
                 selected.Document.Title,
                 inspection));
+            StudioAuxiliarySourceLocalityPolicy.Bind(
+                state.Project,
+                selected.Document,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint);
             RefreshAtdDocumentList();
             RefreshFoundationEditUi();
             SetStatus("АТД-ийн эх файл дахин холбогдлоо. Төслийн мэдээллийг Хадгалах дарна уу.");
         }
         catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException)
+            exception is IOException or InvalidDataException or
+                UnauthorizedAccessException or InvalidOperationException)
         {
             SetStatus($"АТД-ийн эх файл холбогдсонгүй: {exception.Message}");
         }
@@ -318,6 +329,22 @@ internal sealed partial class ShellView
         {
             state.Project.Foundation.PlanningTask.DocumentCloudSyncStatus =
                 ProjectDocumentCloudSyncStatuses.PendingUpload;
+            bool hasCurrentLocalAtd =
+                state.ProjectPath is not null &&
+                materialized.Any(document =>
+                    StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
+                        state.Project,
+                        document,
+                        account.Current?.Email,
+                        StudioDeviceIdentity.Fingerprint,
+                        StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+                            state.ProjectPath,
+                            document)));
+            state.MarkAuxiliaryAlbumComponentChanged(
+                ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint,
+                isRemoval: !hasCurrentLocalAtd);
         }
     }
 
@@ -334,9 +361,11 @@ internal sealed partial class ShellView
         atdDocumentsList.ItemsSource = atdDocumentDrafts.Select(document => new DocumentAssetRow(document)).ToList();
         bool canEditSelected = atdDocumentsList.SelectedItem is DocumentAssetRow selected &&
             CanEditAtdDocument(selected.Document);
+        bool canRelinkSelected = atdDocumentsList.SelectedItem is DocumentAssetRow relinkSelected &&
+            CanRelinkAtdDocument(relinkSelected.Document);
         atdRelinkDocumentButton.IsEnabled = foundationEditMode &&
             !foundationSaveInProgress &&
-            canEditSelected;
+            canRelinkSelected;
         atdRemoveDocumentButton.IsEnabled = foundationEditMode &&
             !foundationSaveInProgress &&
             canEditSelected;
@@ -635,16 +664,25 @@ internal sealed partial class ShellView
         $"{document.Category}|{document.Sha256}|{document.PageCount}|{document.RelativePath}|" +
         $"{document.LinkedSourcePath}|{document.IsAvailable}|{document.Version}|" +
         $"{document.ServerFileRevisionId}|{document.CloudSyncStatus}|{document.CloudOwnerEmail}|" +
+        $"{document.LocalBindingAccountEmail}|{document.LocalBindingDeviceFingerprint}|" +
         $"{document.CloudContributionId}|{document.IsCloudPlaceholder}";
 
-    private bool CanEditAtdDocument(ProjectFileReference document)
-    {
-        if (document.IsCloudPlaceholder)
-            return false;
-        string owner = (document.CloudOwnerEmail ?? "").Trim();
-        return string.IsNullOrWhiteSpace(owner) ||
-            owner.Equals(CurrentCloudOwnerEmail(), StringComparison.OrdinalIgnoreCase);
-    }
+    private bool CanEditAtdDocument(ProjectFileReference document) =>
+        state.ProjectPath is not null &&
+        StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
+            state.Project,
+            document,
+            account.Current?.Email,
+            StudioDeviceIdentity.Fingerprint,
+            StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+                state.ProjectPath,
+                document));
+
+    private bool CanRelinkAtdDocument(ProjectFileReference document) =>
+        StudioAuxiliarySourceLocalityPolicy.CanExplicitlyBind(
+            state.Project,
+            document,
+            account.Current?.Email);
 
     private static bool SameDocumentOwner(ProjectFileReference left, ProjectFileReference right) =>
         (left.CloudOwnerEmail ?? "").Trim().Equals(

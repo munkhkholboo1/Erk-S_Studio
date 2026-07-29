@@ -30,6 +30,11 @@ internal static class CloudEraAlbumComponentUploader
             .ToList();
         if (uploads.Count == 0)
             throw new StudioAccountException("No album source component was selected for sync.");
+        if (uploads.Count > 32)
+        {
+            throw new StudioAccountException(
+                "Album component sync accepts between 1 and 32 components per request.");
+        }
         if (uploads.Any(item => !item.Remove && !File.Exists(item.PdfPath)))
             throw new StudioAccountException("One or more rendered album component PDFs are unavailable.");
 
@@ -38,16 +43,16 @@ internal static class CloudEraAlbumComponentUploader
         if (string.IsNullOrWhiteSpace(revisionId) || string.IsNullOrWhiteSpace(concurrencyToken))
             throw new StudioAccountException("Canonical album revision/version is missing. Refresh and try again.");
 
-        StudioCloudAlbumRevision? result = null;
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(revisionId), "expectedRevisionId");
+        content.Add(new StringContent(concurrencyToken), "projectConcurrencyToken");
+
+        List<StudioCloudAlbumComponentUploadDescriptor> descriptors = [];
         for (int index = 0; index < uploads.Count; index++)
         {
             StudioAlbumComponentUpload component = uploads[index];
-            using var content = new MultipartFormDataContent();
-            content.Add(new StringContent(revisionId), "expectedRevisionId");
-            content.Add(new StringContent(concurrencyToken), "projectConcurrencyToken");
-
-            const string fieldName = "component0";
-            var descriptor = new StudioCloudAlbumComponentUploadDescriptor
+            string fieldName = $"component{index}";
+            descriptors.Add(new StudioCloudAlbumComponentUploadDescriptor
             {
                 FieldName = fieldName,
                 Code = component.Code,
@@ -56,10 +61,7 @@ internal static class CloudEraAlbumComponentUploader
                 Remove = component.Remove,
                 SourceKey = component.SourceKey,
                 ComponentKind = component.ComponentKind,
-            };
-            content.Add(
-                new StringContent(JsonSerializer.Serialize(new[] { descriptor }, JsonOptions)),
-                "components");
+            });
 
             if (!component.Remove)
             {
@@ -72,43 +74,33 @@ internal static class CloudEraAlbumComponentUploader
                 file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
                 content.Add(file, fieldName, Path.GetFileName(component.PdfPath));
             }
-
-            string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
-                "/albums/" + Uri.EscapeDataString(albumId) + "/components";
-            using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(serverUrl, path))
-            {
-                Content = content,
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-            using HttpResponseMessage response = await httpClient.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken).ConfigureAwait(true);
-            result = await ReadResponseAsync(
-                response,
-                component,
-                cancellationToken).ConfigureAwait(true);
-            revisionId = result.RevisionId;
-
-            if (index >= uploads.Count - 1)
-                continue;
-
-            concurrencyToken = (response.Headers.ETag?.Tag ?? "").Trim().Trim('"');
-            if (string.IsNullOrWhiteSpace(concurrencyToken))
-            {
-                throw new StudioAccountException(
-                    "Cloud ERA server did not return the updated project version after component sync. " +
-                    "Update the server and refresh the project before retrying.");
-            }
         }
 
-        return result!;
+        content.Add(
+            new StringContent(JsonSerializer.Serialize(descriptors, JsonOptions)),
+            "components");
+
+        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/albums/" + Uri.EscapeDataString(albumId) + "/components";
+        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(serverUrl, path))
+        {
+            Content = content,
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync(
+            response,
+            uploads,
+            cancellationToken).ConfigureAwait(true);
     }
 
     private static async Task<StudioCloudAlbumRevision> ReadResponseAsync(
         HttpResponseMessage response,
-        StudioAlbumComponentUpload component,
+        IReadOnlyList<StudioAlbumComponentUpload> components,
         CancellationToken cancellationToken)
     {
         if (!response.IsSuccessStatusCode)
@@ -126,19 +118,40 @@ internal static class CloudEraAlbumComponentUploader
 
             if ((int)response.StatusCode == 413)
             {
-                string fileName = component.Remove
-                    ? component.Label
-                    : Path.GetFileName(component.PdfPath);
+                List<string> names = components
+                    .Where(component => !component.Remove)
+                    .Select(component => Path.GetFileName(component.PdfPath))
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .ToList();
+                if (names.Count == 0)
+                {
+                    names = components
+                        .Select(component => component.Label)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .ToList();
+                }
+
+                string subject = names.Count == 1
+                    ? $"album component '{names[0]}'"
+                    : $"album component batch containing {names.Count} files " +
+                      $"({string.Join(", ", names.Select(name => $"'{name}'"))})";
                 throw new StudioAccountException(
-                    $"Cloud ERA rejected album component '{fileName}' because the upload is too large (HTTP 413).",
+                    $"Cloud ERA rejected {subject} because the upload is too large (HTTP 413).",
                     response.StatusCode,
-                    "album_component_too_large");
+                    "album_component_too_large",
+                    StudioCloudTraceIdentifier.Resolve(response, error),
+                    error?.FieldErrors);
             }
 
             string message = string.IsNullOrWhiteSpace(error?.Message)
                 ? $"Cloud ERA server error: {(int)response.StatusCode} {response.ReasonPhrase}"
                 : error.Message;
-            throw new StudioAccountException(message, response.StatusCode, error?.Code ?? "");
+            throw new StudioAccountException(
+                message,
+                response.StatusCode,
+                error?.Code ?? "",
+                StudioCloudTraceIdentifier.Resolve(response, error),
+                error?.FieldErrors);
         }
 
         StudioCloudAlbumRevision? value =

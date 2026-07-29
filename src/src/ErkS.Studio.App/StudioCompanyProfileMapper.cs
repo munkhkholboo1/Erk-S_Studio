@@ -88,11 +88,18 @@ internal static class StudioCompanyProfileMapper
     }
 
     public static StudioCloudOrganizationUpsertRequest ToUpsertRequest(CompanyProfile profile)
+        => ToUpsertRequest(profile, "");
+
+    public static StudioCloudOrganizationUpsertRequest ToUpsertRequest(
+        CompanyProfile profile,
+        string? baseConcurrencyToken)
     {
         ArgumentNullException.ThrowIfNull(profile);
         profile.Normalize();
         return new StudioCloudOrganizationUpsertRequest
         {
+            BaseConcurrencyToken =
+                (baseConcurrencyToken ?? "").Trim(),
             RegistryFieldsIncluded = true,
             LegalName = profile.Name,
             DisplayName = profile.DisplayName,

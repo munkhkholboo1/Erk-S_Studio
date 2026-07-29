@@ -57,4 +57,24 @@ public sealed class StudioCompanyProfileMapperTests
         Assert.Equal("З.Төлөөлөгч", request.DesignRepresentativeName);
         Assert.Equal(request.DesignRepresentativeName, request.DirectorName);
     }
+
+    [Fact]
+    public void OrganizationEditCarriesTheOriginalCanonicalConcurrencyToken()
+    {
+        var profile = new CompanyProfile
+        {
+            OrganizationId = "org-1",
+            Name = "Canonical company",
+            Address = "",
+        };
+
+        StudioCloudOrganizationUpsertRequest request =
+            StudioCompanyProfileMapper.ToUpsertRequest(
+                profile,
+                "base-token-before-edit");
+
+        Assert.Equal(
+            "base-token-before-edit",
+            request.BaseConcurrencyToken);
+    }
 }

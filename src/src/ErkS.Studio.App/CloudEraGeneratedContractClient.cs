@@ -154,6 +154,10 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
     {
         string code = "";
         string message = exception.Message;
+        string traceId = "";
+        string currentSourceId = "";
+        string currentRevisionId = "";
+        IReadOnlyDictionary<string, string[]>? fieldErrors = null;
         if (!string.IsNullOrWhiteSpace(exception.Response))
         {
             try
@@ -164,6 +168,10 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 if (error is not null)
                 {
                     code = error.Code;
+                    traceId = error.TraceId;
+                    currentSourceId = error.CurrentSourceId;
+                    currentRevisionId = error.CurrentRevisionId;
+                    fieldErrors = error.FieldErrors;
                     if (!string.IsNullOrWhiteSpace(error.Message))
                         message = error.Message;
                 }
@@ -173,9 +181,17 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 // Preserve the generated client's controlled HTTP error when the body is not JSON.
             }
         }
+        traceId = StudioCloudTraceIdentifier.Resolve(exception.Headers, traceId);
 
         return exception.StatusCode is >= 100 and <= 599
-            ? new StudioAccountException(message, (HttpStatusCode)exception.StatusCode, code)
+            ? new StudioAccountException(
+                message,
+                (HttpStatusCode)exception.StatusCode,
+                code,
+                traceId,
+                fieldErrors,
+                currentSourceId,
+                currentRevisionId)
             : new StudioAccountException(message);
     }
 }

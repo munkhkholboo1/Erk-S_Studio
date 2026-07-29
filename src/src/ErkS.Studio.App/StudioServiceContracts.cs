@@ -96,6 +96,7 @@ internal interface IOrganizationsClient
     Task<StudioOrganizationRegistryImportResponse> BeginOrganizationRegistryImportAsync(
         string organizationId,
         string registrationNumber,
+        string baseConcurrencyToken,
         CancellationToken cancellationToken = default);
 
     Task<StudioOrganizationRegistryImportResponse> GetOrganizationRegistryImportAsync(
@@ -105,15 +106,18 @@ internal interface IOrganizationsClient
 
     Task DeleteOrganizationAsync(
         string organizationId,
+        string concurrencyToken,
         CancellationToken cancellationToken = default);
 
     Task<StudioCloudOrganization> UploadOrganizationLogoAsync(
         string organizationId,
         string logoPath,
+        string concurrencyToken,
         CancellationToken cancellationToken = default);
 
     Task<StudioCloudOrganization> DeleteOrganizationLogoAsync(
         string organizationId,
+        string concurrencyToken,
         CancellationToken cancellationToken = default);
 
     Task<StudioDownloadedImage?> GetOrganizationLogoAsync(
@@ -210,6 +214,8 @@ internal interface ISourcePackagesClient
         string projectId,
         string sourceId,
         string participantId,
+        string projectConcurrencyToken,
+        string expectedSourceId,
         CancellationToken cancellationToken = default);
 }
 
@@ -254,12 +260,17 @@ internal interface IAlbumsClient
         int pageCount,
         string pageSizeSummary,
         string projectConcurrencyToken,
+        string? expectedBaseRevisionId = null,
+        bool inheritComponentManifest = false,
+        IReadOnlyList<StudioCloudAlbumSection>? componentManifest = null,
         CancellationToken cancellationToken = default);
 
     Task<StudioCloudAlbumRevision> SetAlbumComponentManifestAsync(
         string projectId,
         string albumId,
         string revisionId,
+        string projectConcurrencyToken,
+        string expectedBaseRevisionId,
         IReadOnlyList<StudioCloudAlbumSection> components,
         CancellationToken cancellationToken = default);
 

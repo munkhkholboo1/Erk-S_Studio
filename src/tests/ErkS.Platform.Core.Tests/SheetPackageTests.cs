@@ -663,6 +663,79 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void Intake_SyncSnapshotSuspension_DefersPackageUntilPostSyncRescan()
+    {
+        string root = Path.Combine(workDirectory, "suspended-inbox");
+        WriteSourcePackage(
+            root,
+            "source-current",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        long emptyVersion = library.Version;
+
+        using (intake.SuspendProcessing())
+        {
+            intake.WatchFolder(
+                root,
+                "source-current",
+                "project-current",
+                scanExisting: true);
+
+            Assert.Empty(library.Snapshot());
+            Assert.Equal(emptyVersion, library.Version);
+        }
+
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Single(library.Snapshot());
+        Assert.True(library.Version > emptyVersion);
+    }
+
+    [Fact]
+    public void Intake_SelectedFolderRescan_DoesNotAbsorbForeignMirror()
+    {
+        string ownedFolder = Path.Combine(workDirectory, "owned-inbox");
+        string foreignFolder = Path.Combine(workDirectory, "foreign-inbox");
+        WriteSourcePackage(
+            ownedFolder,
+            "source-owned",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        WriteSourcePackage(
+            foreignFolder,
+            "source-foreign",
+            ["B1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(
+            ownedFolder,
+            "source-owned",
+            "project-current",
+            scanExisting: false);
+        intake.WatchFolder(
+            foreignFolder,
+            "source-foreign",
+            "project-current",
+            scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanFolders([ownedFolder]);
+
+        Assert.Equal(1, scan.ManifestCount);
+        SheetRecord record = Assert.Single(library.Snapshot());
+        Assert.Equal("source-owned", record.SourceId);
+    }
+
+    [Fact]
     public void Intake_CurrentSnapshotScan_SkipsSupersededFullSnapshotFiles()
     {
         var root = Path.Combine(workDirectory, "current-snapshot-inbox");

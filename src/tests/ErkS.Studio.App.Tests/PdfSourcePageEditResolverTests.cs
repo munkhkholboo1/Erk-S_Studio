@@ -117,6 +117,24 @@ public sealed class PdfSourcePageEditResolverTests
     }
 
     [Fact]
+    public void Resolve_DuplicateExactSheetKey_IsAmbiguousAndDisablesButton()
+    {
+        SheetRecord sheet = Sheet("pdf-source|page-1", "page-1");
+        var first = new AlbumPageDefinition { SheetKey = sheet.Key };
+        var second = new AlbumPageDefinition { SheetKey = sheet.Key };
+
+        PdfSourcePageEditResolution result = PdfSourcePageEditResolver.Resolve(
+            PdfSource(),
+            [sheet],
+            [first, second]);
+
+        Assert.Equal(PdfSourcePageEditState.AmbiguousAlbumPage, result.State);
+        Assert.False(result.IsButtonEnabled);
+        Assert.Same(sheet, result.Sheet);
+        Assert.Null(result.Page);
+    }
+
+    [Fact]
     public void Resolve_SheetKeyComparison_IsOrdinal()
     {
         SheetRecord sheet = Sheet("pdf-source|page-1", "page-1");

@@ -10,7 +10,8 @@ internal sealed partial class ShellView
 {
     private AlbumBuildResult BuildAlbumContributionSnapshot(string workFolder)
     {
-        AlbumProject buildProject = state.CreateAlbumBuildProject();
+        AlbumProject buildProject = state.CreateAlbumBuildProject(
+            reconcileLinkedProjectAssets: false);
         string ownerEmail = CurrentCloudOwnerEmail();
         PlanningTaskInformation planningTask = buildProject.PlanningTask;
         buildProject.PlanningTask = new PlanningTaskInformation
@@ -62,6 +63,148 @@ internal sealed partial class ShellView
             Path.Combine(workFolder, "contribution-snapshot.pdf"));
     }
 
+    private bool TryDeferSourceRefreshAlbumBuild(
+        StudioWorkspaceOperation operation,
+        AlbumBuildException buildException,
+        string? statusPrefix,
+        out Exception? localValidationFailure)
+    {
+        localValidationFailure = null;
+        IEnumerable<string> albumSheetKeys = state.Album.Pages.Count > 0
+            ? state.Album.Pages.Select(page => page.SheetKey)
+            : state.Album.Sections.SelectMany(section => section.SheetKeys);
+        IReadOnlyList<ProjectDesignSource> localSources =
+            StudioSourceRefreshScope.OwnedSources(
+                state.Project,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint);
+        IEnumerable<string> knownCloudSourceIdentities =
+            state.Project.Sources.Select(source => source.Id)
+                .Concat((state.Project.Cloud.SharedSources ?? [])
+                    .SelectMany(source => new[]
+                    {
+                        source.SourceKey,
+                        source.SourceId,
+                    }));
+        bool cloudLinked =
+            state.Project.Cloud.Origin.Equals(
+                ProjectOrigins.Cloud,
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId);
+        StudioSourceRefreshAlbumResolution resolution =
+            StudioSourceRefreshAlbumPolicy.Resolve(
+                operation,
+                cloudLinked,
+                HasCurrentCloudAlbumPreview(),
+                albumSheetKeys,
+                state.Library.VerifiedSnapshot().Select(sheet => sheet.Key),
+                localSources.Select(source => source.Id),
+                knownCloudSourceIdentities,
+                buildException.Issues);
+        if (!resolution.ShouldDefer)
+            return false;
+
+        if (!TryValidateLocalAlbumContribution(
+                "source-refresh-validation",
+                out AlbumBuildResult localBuild,
+                out localValidationFailure))
+        {
+            return false;
+        }
+
+        string? currentPreview = ResolveCurrentProjectAlbumPath();
+        string previewMessage =
+            !string.IsNullOrWhiteSpace(currentPreview) && File.Exists(currentPreview)
+                ? "Одоогийн canonical album preview хэвээр үлдлээ."
+                : "Canonical album preview энэ төхөөрөмжид хараахан татагдаагүй.";
+        string deferredMessage =
+            operation == StudioWorkspaceOperation.LocalPdfPageEdit
+                ? $"PDF хуудасны засвар болон локал component баталгаажиж хадгалагдлаа: {localBuild.SheetCount} sheet. " +
+                  $"{resolution.UnavailableCloudSheetKeys.Count} cloud-only sheet-ийн локал PDF байхгүй тул " +
+                  $"canonical merge Cloud Sync хүртэл pending хэвээр үлдлээ. {previewMessage} " +
+                  $"[reason: {resolution.ReasonCode}]"
+                : $"Локал contribution баталгаажиж хадгалагдлаа: {localBuild.SheetCount} sheet. " +
+                  $"{resolution.UnavailableCloudSheetKeys.Count} cloud-only sheet-ийн локал PDF байхгүй тул " +
+                  $"album rebuild Cloud Sync хүртэл хойшлогдлоо. {previewMessage} " +
+                  $"[reason: {resolution.ReasonCode}]";
+        SetStatus(string.IsNullOrWhiteSpace(statusPrefix)
+            ? deferredMessage
+            : $"{statusPrefix}. {deferredMessage}");
+        return true;
+    }
+
+    private bool TryDeferLocalPdfPageEditWithoutCanonical(
+        StudioPdfPageEditAlbumRouteDecision route,
+        string? statusPrefix,
+        out Exception? localValidationFailure)
+    {
+        if (!TryValidateLocalAlbumContribution(
+                "pdf-page-edit-validation",
+                out AlbumBuildResult localBuild,
+                out localValidationFailure))
+        {
+            return false;
+        }
+
+        string? currentPreview = ResolveCurrentProjectAlbumPath();
+        string previewMessage =
+            !string.IsNullOrWhiteSpace(currentPreview) && File.Exists(currentPreview)
+                ? "Одоогийн canonical album preview болон Cloud-only component-үүд хэвээр үлдлээ."
+                : "Canonical album preview энэ төхөөрөмжид хараахан татагдаагүй.";
+        string deferredMessage =
+            $"PDF хуудасны засвар болон локал component баталгаажиж хадгалагдлаа: {localBuild.SheetCount} sheet. " +
+            $"{route.CloudOnlyComponentCount} Cloud-only component локал payload-гүй, usable canonical manifest байхгүй тул " +
+            $"full-local partial album үүсгээгүй. {previewMessage} Cloud Sync canonical merge-ийг дуусгана. " +
+            "[reason: pdf_page_edit_cloud_album_deferred]";
+        SetStatus(string.IsNullOrWhiteSpace(statusPrefix)
+            ? deferredMessage
+            : $"{statusPrefix}. {deferredMessage}");
+        return true;
+    }
+
+    private bool TryValidateLocalAlbumContribution(
+        string validationPurpose,
+        out AlbumBuildResult localBuild,
+        out Exception? validationFailure)
+    {
+        string validationFolder = Path.Combine(
+            state.ResolveOutputFolder(),
+            "cloud-local",
+            validationPurpose,
+            Guid.NewGuid().ToString("N"));
+        localBuild = null!;
+        validationFailure = null;
+        try
+        {
+            // Build only locally verified pages so missing collaborator payloads
+            // cannot hide a corrupt local PDF or replace the canonical preview.
+            localBuild = BuildAlbumContributionSnapshot(validationFolder);
+            state.SaveProject();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            validationFailure = exception;
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(validationFolder))
+                    Directory.Delete(validationFolder, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Validation output is disposable cache; cleanup is best effort.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Validation succeeded, so cleanup must not turn it into failure.
+            }
+        }
+    }
+
     private List<StudioCloudAlbumSection> CreateCanonicalComponentManifest(
         AlbumBuildResult build,
         IReadOnlyList<StudioCloudSourcePackage> activeServerSources,
@@ -69,9 +212,7 @@ internal sealed partial class ShellView
     {
         string ownerEmail = CurrentCloudOwnerEmail();
         bool hasOwnedAtd = HasOwnedAtdDocuments(ownerEmail);
-        bool hasVisualizations = CurrentProjectVisualizationSource()
-            .ImagesForProject(state.Project.ProjectId)
-            .Any(image => image.IsAvailable && image.IsIncludedInAlbum);
+        bool hasVisualizations = HasLocalVisualizationImages();
         Dictionary<string, int> sourceOrder = activeServerSources
             .Where(source => !string.IsNullOrWhiteSpace(source.SourceKey) &&
                 !string.IsNullOrWhiteSpace(source.RegisteredBy))
@@ -232,9 +373,10 @@ internal sealed partial class ShellView
                 component.SequenceKey);
         }
 
-        ProjectDesignSource? source = state.Project.Sources.FirstOrDefault(item =>
-            item.Id.Equals(localIdentity, StringComparison.OrdinalIgnoreCase) ||
-            ProjectCloudSyncMetadata.CloudSourceKey(item).Equals(localIdentity, StringComparison.OrdinalIgnoreCase));
+        ProjectDesignSource? source =
+            StudioLegacySourceResolver.Resolve(
+                state.Project,
+                localIdentity);
         if (source is null)
             return AlbumComponentIdentity.Generated(normalized);
         string sourceOwner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
@@ -245,13 +387,16 @@ internal sealed partial class ShellView
             component.SequenceKey);
     }
 
-    private bool TryBuildCloudUnionAlbumPreview(out AlbumBuildResult result)
+    private bool TryBuildCloudUnionAlbumPreview(
+        out AlbumBuildResult result,
+        bool collectUi = true)
     {
         result = null!;
         if (!TryGetCachedCanonicalAlbum(out string canonicalPdfPath, out StudioCloudAlbumRevision revision))
             return false;
 
-        CollectUiToProject();
+        if (collectUi)
+            CollectUiToProject();
         if (!TryBuildCloudUnionAlbumPreview(
                 canonicalPdfPath,
                 revision,
@@ -283,10 +428,23 @@ internal sealed partial class ShellView
         }
 
         IReadOnlyList<string> rendererMigrationCodes = PrepareAlbumRendererMigration(revision);
+        StudioCloudUnionPendingScope pendingScope =
+            StudioCloudUnionPreviewScope.Resolve(
+                state.Project,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint,
+                hasVerifiedDocumentPayload: document =>
+                    StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+                        state.ProjectPath!,
+                        document),
+                hasVerifiedVisualizationPayload: image =>
+                    StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+                        state.ProjectPath!,
+                        image));
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources =
-            ProjectCloudSyncMetadata.PendingSourcePackages(state.Project);
+            pendingScope.Sources;
         IReadOnlyList<string> rawPendingComponents =
-            EditablePendingAlbumComponents();
+            pendingScope.ComponentCodes;
         string ownerEmail = CurrentCloudOwnerEmail();
         Dictionary<string, string> pendingCodeMap = rawPendingComponents
             .ToDictionary(
@@ -493,9 +651,7 @@ internal sealed partial class ShellView
                 ComponentKind = component.ComponentKind ?? "",
             })
             .ToList();
-        bool hasVisualizations = CurrentProjectVisualizationSource()
-            .ImagesForProject(state.Project.ProjectId)
-            .Any(image => image.IsAvailable && image.IsIncludedInAlbum);
+        bool hasVisualizations = HasLocalVisualizationImages();
         IReadOnlyList<string> rawCodes =
             StudioAlbumRendererMigration.SelectLocallyRenderableComponents(
                 state.Project,
@@ -536,6 +692,11 @@ internal sealed partial class ShellView
     {
         canonicalPdfPath = ResolveLastReceivedCloudAlbumPath() ?? "";
         ProjectCloudLink cloud = state.Project.Cloud;
+        if (cloud.CanonicalAlbumRebuildPending)
+        {
+            revision = new StudioCloudAlbumRevision();
+            return false;
+        }
         List<StudioCloudAlbumSection> components = (cloud.SharedAlbumComponents ?? [])
             .Where(component => !string.IsNullOrWhiteSpace(component.Code))
             .Select(component => new StudioCloudAlbumSection
@@ -748,22 +909,8 @@ internal sealed partial class ShellView
     }
 
     private List<StudioCloudSourcePackage> SharedCloudSources() =>
-        (state.Project.Cloud.SharedSources ?? [])
-            .Where(source => !string.IsNullOrWhiteSpace(source.SourceKey) &&
-                !string.IsNullOrWhiteSpace(source.OwnerEmail))
-            .Select(source => new StudioCloudSourcePackage
-            {
-                SourceId = source.SourceId,
-                SourceKey = source.SourceKey,
-                SourceApplication = source.SourceApplication,
-                SourceDocumentReference = source.SourceDocumentReference,
-                ManifestId = source.ManifestId,
-                ContentHash = source.ContentHash,
-                SheetCount = source.SheetCount,
-                Status = source.Status,
-                RegisteredBy = source.OwnerEmail,
-                RegisteredAtUtc = source.RegisteredAtUtc,
-            })
+        StudioSharedSourceProjection
+            .Create(state.Project.Cloud.SharedSources ?? [])
             .ToList();
 
     private AlbumBuildResult PointPrimaryAlbumAtCanonical(
@@ -808,7 +955,8 @@ internal sealed partial class ShellView
         string inputPdfPath,
         IReadOnlyList<AlbumComponentPdfSlot> components)
     {
-        AlbumProject canonicalProject = state.CreateAlbumBuildProject();
+        AlbumProject canonicalProject = state.CreateAlbumBuildProject(
+            reconcileLinkedProjectAssets: false);
         string inputSha256 = ComputeFileSha256(inputPdfPath);
         string signature =
             PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(canonicalProject);
@@ -892,6 +1040,7 @@ internal sealed partial class ShellView
                 state.LinkCurrentProjectToCloud(
                     canonical,
                     account.Current!.ServerUrl,
+                    account.Current.Email,
                     preserveCreation: true,
                     preserveSyncState: true);
                 await ApplyCloudProjectRenderProfileAsync(canonical);
@@ -912,7 +1061,8 @@ internal sealed partial class ShellView
                         "Its shared pages cannot be restamped safely.");
                 }
 
-                AlbumProject canonicalProject = state.CreateAlbumBuildProject();
+                AlbumProject canonicalProject = state.CreateAlbumBuildProject(
+                    reconcileLinkedProjectAssets: false);
                 string signature =
                     PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(
                         canonicalProject);
@@ -980,13 +1130,18 @@ internal sealed partial class ShellView
                 StudioCloudAlbumRevision uploaded;
                 try
                 {
+                    // The base revision check and manifest inheritance happen
+                    // inside revision creation, so no manifestless revision is
+                    // exposed between two requests.
                     uploaded = await account.UploadAlbumRevisionAsync(
                         projectId,
                         albumId,
                         outputPath,
                         candidate.PageCount,
                         candidate.PageSizeSummary,
-                        gate.Project.ConcurrencyToken);
+                        gate.Project.ConcurrencyToken,
+                        expectedBaseRevisionId: candidate.RevisionId,
+                        inheritComponentManifest: true);
                 }
                 catch (StudioAccountException exception) when (
                     exception.StatusCode is System.Net.HttpStatusCode.Conflict or
@@ -995,11 +1150,6 @@ internal sealed partial class ShellView
                     continue;
                 }
 
-                uploaded = await account.SetAlbumComponentManifestAsync(
-                    projectId,
-                    albumId,
-                    uploaded.RevisionId,
-                    candidate.SectionManifest);
                 IReadOnlyList<StudioCloudAlbum> confirmedAlbums =
                     await account.ListAlbumsAsync(projectId);
                 StudioCloudAlbum? confirmedAlbum = confirmedAlbums.FirstOrDefault(item =>
@@ -1220,12 +1370,41 @@ internal sealed partial class ShellView
                     SourceKey: current.SourceKey,
                     ComponentKind: current.ComponentKind));
             }
+            foreach (StudioCloudAlbumSection current in
+                     StudioAlbumComponentRemovalPlanner.FindMissingSourceComponents(
+                         currentByCode.Values,
+                         missing))
+            {
+                if (uploads.Any(upload => upload.Code.Equals(
+                        current.Code,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                uploads.Add(new StudioAlbumComponentUpload(
+                    current.Code,
+                    current.Label,
+                    current.Order,
+                    "",
+                    Remove: true,
+                    SourceKey: current.SourceKey,
+                    ComponentKind: current.ComponentKind));
+            }
             AddStaleSourceComponentRemovalUploads(
                 uploads,
                 selected,
                 currentByCode.Values,
                 pendingSources,
                 ownerEmail);
+            StudioCanonicalAlbumRebuildResolution canonicalRebuild =
+                StudioCanonicalAlbumRebuildPolicy.ResolvePersisted(
+                    state.Project);
+            uploads = StudioCanonicalAlbumRebuildPolicy.ApplyTombstoneUploads(
+                    canonicalRebuild,
+                    currentRevision.SectionManifest,
+                    uploads)
+                .ToList();
 
             StudioCloudAlbumRevision merged = uploads.Count == 0
                 ? currentRevision
@@ -1235,22 +1414,6 @@ internal sealed partial class ShellView
                     currentRevision.RevisionId,
                     projectConcurrencyToken,
                     uploads);
-            foreach (ProjectSourceSyncCandidate source in pendingSources)
-            {
-                ProjectCloudSyncMetadata.MarkSourceSynced(source);
-            }
-            if (pendingCodeMap.TryGetValue(
-                    ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
-                    out string? pendingAtdCode) &&
-                requestedCodes.Contains(pendingAtdCode))
-            {
-                MarkOwnedAtdDocumentsSynced(ownerEmail);
-            }
-            ProjectCloudSyncMetadata.MarkAlbumComponentsSynced(
-                state.Project,
-                rawPendingComponents);
-            if (rendererMigrationCodes.Count > 0)
-                MarkAlbumRendererCurrent();
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,
@@ -1295,6 +1458,8 @@ internal sealed partial class ShellView
                 projectId,
                 serverAlbum.AlbumId,
                 currentRevision.RevisionId,
+                state.Project.Cloud.ServerSnapshot.ConcurrencyToken,
+                currentRevision.RevisionId,
                 [
                     StudioAlbumComponentIdentity.CreateLegacySnapshotSection(
                         currentRevision.PageCount),
@@ -1321,6 +1486,8 @@ internal sealed partial class ShellView
                 projectId,
                 serverAlbum.AlbumId,
                 currentRevision.RevisionId,
+                state.Project.Cloud.ServerSnapshot.ConcurrencyToken,
+                currentRevision.RevisionId,
                 manifest);
         }
         finally
@@ -1342,7 +1509,7 @@ internal sealed partial class ShellView
     }
 
     private static bool HasCompleteComponentManifest(StudioCloudAlbumRevision revision)
-        => StudioAlbumComponentIdentity.HasCompletePageCoverage(
+        => StudioAlbumComponentIdentity.IsMergeReady(
             revision.SectionManifest ?? [],
             revision.PageCount);
 
@@ -1388,13 +1555,18 @@ internal sealed partial class ShellView
         if (normalized.StartsWith("source:", StringComparison.OrdinalIgnoreCase))
         {
             string identity = normalized["source:".Length..].Trim();
-            ProjectDesignSource? source = state.Project.Sources.FirstOrDefault(item =>
-                item.Id.Equals(identity, StringComparison.OrdinalIgnoreCase) ||
-                ProjectCloudSyncMetadata.CloudSourceKey(item).Equals(identity, StringComparison.OrdinalIgnoreCase));
+            ProjectDesignSource? source =
+                StudioLegacySourceResolver.Resolve(
+                    state.Project,
+                    identity);
             if (source is not null)
             {
+                string sourceOwner =
+                    ProjectCloudSyncMetadata.CloudOwnerEmail(source);
+                if (string.IsNullOrWhiteSpace(sourceOwner))
+                    sourceOwner = ownerEmail;
                 return StudioAlbumComponentIdentity.SourceCode(
-                    ownerEmail,
+                    sourceOwner,
                     ProjectCloudSyncMetadata.CloudSourceKey(source));
             }
         }
@@ -1462,10 +1634,7 @@ internal sealed partial class ShellView
     }
 
     private static bool IsSourceComponent(StudioCloudAlbumSection component) =>
-        component.ComponentKind.Equals(
-            StudioAlbumComponentIdentity.SourceComponentKind,
-            StringComparison.OrdinalIgnoreCase) ||
-        component.Code.StartsWith("source:", StringComparison.OrdinalIgnoreCase);
+        StudioAlbumComponentIdentity.IsSourceComponent(component);
 
     private static IEnumerable<StudioCloudAlbumSection> StaleSourceComponents(
         IReadOnlyList<StudioCloudAlbumSection> selected,
@@ -1561,31 +1730,6 @@ internal sealed partial class ShellView
         }
     }
 
-    private IReadOnlyList<string> EditablePendingAlbumComponents()
-    {
-        IReadOnlyList<string> pending =
-            ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project);
-        if (!pending.Contains(
-                ProjectCloudSyncMetadata.SiteContextComponentCode,
-                StringComparer.OrdinalIgnoreCase))
-        {
-            return pending;
-        }
-
-        ProjectSiteContextEditAuthority authority =
-            ProjectSiteContextEditingPolicy.Resolve(
-                state.Project,
-                account.Current?.Email);
-        if (authority.CanEdit)
-            return pending;
-
-        return pending
-            .Where(code => !code.Equals(
-                ProjectCloudSyncMetadata.SiteContextComponentCode,
-                StringComparison.OrdinalIgnoreCase))
-            .ToList();
-    }
-
     private static void AddLegacyComponentMigrationRemovals(
         ICollection<StudioAlbumComponentUpload> uploads,
         IReadOnlyList<StudioCloudAlbumSection> selected,
@@ -1658,9 +1802,16 @@ internal sealed partial class ShellView
             !document.IsCloudPlaceholder &&
             IsDocumentOwnedBy(document, ownerEmail));
 
-    private static bool IsDocumentOwnedBy(ProjectFileReference document, string ownerEmail) =>
-        string.IsNullOrWhiteSpace(document.CloudOwnerEmail) ||
-        document.CloudOwnerEmail.Equals(ownerEmail, StringComparison.OrdinalIgnoreCase);
+    private bool IsDocumentOwnedBy(ProjectFileReference document, string ownerEmail) =>
+        state.ProjectPath is not null &&
+        StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
+            state.Project,
+            document,
+            ownerEmail,
+            StudioDeviceIdentity.Fingerprint,
+            StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
+                state.ProjectPath,
+                document));
 
     private void MarkOwnedAtdDocumentsSynced(string ownerEmail)
     {
@@ -1669,7 +1820,6 @@ internal sealed partial class ShellView
                      IsDocumentOwnedBy(document, ownerEmail) &&
                      !document.IsCloudPlaceholder))
         {
-            document.CloudOwnerEmail = ownerEmail;
             if (string.IsNullOrWhiteSpace(document.CloudContributionId))
                 document.CloudContributionId = Guid.NewGuid().ToString("N");
             document.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Synced;

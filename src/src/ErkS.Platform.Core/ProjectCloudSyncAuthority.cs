@@ -13,17 +13,28 @@ public sealed record ProjectSourceEditAuthority(
 
 public static class ProjectCloudSyncAuthority
 {
-    public static bool CanManageCanonicalMetadata(ProjectCloudLink? cloud)
+    public static bool CanManageCanonicalMetadata(
+        ProjectCloudLink? cloud,
+        string? currentUserEmail)
     {
-        if (cloud is null)
+        if (cloud is null ||
+            !cloud.PermissionSnapshotBelongsTo(currentUserEmail))
             return false;
-        if (cloud.HasScope("team.manage"))
+        if (cloud.HasScope("project.metadata.write", currentUserEmail))
+            return true;
+        if (cloud.HasScope("team.manage", currentUserEmail))
             return true;
 
         return (cloud.CurrentUserRoles ?? []).Any(role =>
             role.Equals("ProjectAdmin", StringComparison.OrdinalIgnoreCase) ||
             role.Equals("DesignCompanyAdmin", StringComparison.OrdinalIgnoreCase));
     }
+
+    public static bool CanEditBuildingComposition(
+        ProjectCloudLink? cloud,
+        string? currentUserEmail) =>
+        cloud is not null &&
+        cloud.HasScope("concept.write", currentUserEmail);
 
     public static ProjectSourceEditAuthority ResolveSource(
         ProjectWorkspace project,
@@ -76,7 +87,8 @@ public static class ProjectCloudSyncAuthority
                 controller,
                 $"Энэ эх үүсвэрийг {controller} хэрэглэгч хариуцаж байна.");
         }
-        if (!string.IsNullOrWhiteSpace(localOwner) &&
+        if (shared is null &&
+            !string.IsNullOrWhiteSpace(localOwner) &&
             !localOwner.Equals(currentEmail, StringComparison.OrdinalIgnoreCase))
         {
             return Denied(

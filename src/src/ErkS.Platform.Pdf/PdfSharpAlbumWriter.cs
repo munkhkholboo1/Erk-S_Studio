@@ -578,12 +578,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumProject project,
         AlbumBuildPage buildPage)
     {
-        bool hasInformationHeader = BuildingArchitectureConceptPageLayout.UsesInformationHeader(
-            AlbumPageSourceMetadata.ResolveContentKind(
-                buildPage.Definition,
-                buildPage.Sheet.Entry),
-            buildPage.Sheet.Entry.Name,
-            buildPage.Definition.TemplateSlotId);
+        bool hasInformationHeader = PdfSourcePageStudioLayout.UsesInformationHeader(
+            buildPage.Definition,
+            buildPage.Sheet.Entry);
         BuildingArchitectureConceptPageRegions regions =
             BuildingArchitectureConceptPageLayout.ResolveRegions(
                 buildPage.Format,

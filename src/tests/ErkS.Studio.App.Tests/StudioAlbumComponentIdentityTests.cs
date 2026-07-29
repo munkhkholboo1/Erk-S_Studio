@@ -111,12 +111,74 @@ public sealed class StudioAlbumComponentIdentityTests
     {
         StudioCloudAlbumSection[] sections =
         [
-            new() { Code = "generated:cover", PageNumbers = [] },
-            new() { Code = "source:legacy", PageNumbers = [] },
+            new()
+            {
+                Code = "generated:cover",
+                PageNumbers = [],
+                Status = "Planned",
+            },
+            new()
+            {
+                Code = "source:legacy",
+                PageNumbers = [],
+                Status = "Planned",
+                ComponentKind =
+                    StudioAlbumComponentIdentity.SourceComponentKind,
+            },
         ];
 
         Assert.True(
             StudioAlbumComponentIdentity.HasNoAssignedPages(sections));
+        Assert.All(
+            sections,
+            section => Assert.False(
+                StudioAlbumComponentIdentity.IsSourceComponent(section)));
+    }
+
+    [Fact]
+    public void ZeroPageCurrentRevisionFindsSamePageCountMergeReadyPredecessor()
+    {
+        StudioCloudAlbumRevision prior = new()
+        {
+            RevisionId = "r49",
+            RevisionNumber = 49,
+            PageCount = 32,
+            SectionManifest =
+            [
+                new StudioCloudAlbumSection
+                {
+                    Code = "generated:album",
+                    PageNumbers = Enumerable.Range(1, 32).ToArray(),
+                    ComponentKind =
+                        StudioAlbumComponentIdentity.GeneratedComponentKind,
+                },
+            ],
+        };
+        StudioCloudAlbumRevision current = new()
+        {
+            RevisionId = "r50",
+            RevisionNumber = 50,
+            PageCount = 32,
+            SectionManifest = Enumerable.Range(1, 13)
+                .Select(index => new StudioCloudAlbumSection
+                {
+                    Code = $"template:{index}",
+                    PageNumbers = [],
+                    Status = "Planned",
+                })
+                .ToList(),
+        };
+
+        Assert.True(
+            StudioAlbumComponentIdentity.HasRecoverablePriorManifest(
+                current,
+                [prior, current]));
+
+        prior.PageCount = 31;
+        Assert.False(
+            StudioAlbumComponentIdentity.HasRecoverablePriorManifest(
+                current,
+                [prior, current]));
     }
 
     [Fact]

@@ -29,7 +29,10 @@ internal static class CloudEraChunkedAlbumUploader
         int pageCount,
         string pageSizeSummary,
         string projectConcurrencyToken,
-        CancellationToken cancellationToken)
+        string? expectedBaseRevisionId = null,
+        bool inheritComponentManifest = false,
+        IReadOnlyList<StudioCloudAlbumSection>? componentManifest = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         FileInfo file = new(pdfPath);
@@ -61,6 +64,11 @@ internal static class CloudEraChunkedAlbumUploader
                 PageSizeSummary = pageSizeSummary ?? "",
                 ChunkSizeBytes = PreferredChunkBytes,
                 ProjectConcurrencyToken = projectConcurrencyToken.Trim(),
+                ExpectedBaseRevisionId = string.IsNullOrWhiteSpace(expectedBaseRevisionId)
+                    ? null
+                    : expectedBaseRevisionId.Trim(),
+                InheritComponentManifest = inheritComponentManifest,
+                ComponentManifest = componentManifest?.ToList(),
             },
             cancellationToken).ConfigureAwait(true);
 
@@ -202,7 +210,12 @@ internal static class CloudEraChunkedAlbumUploader
             string message = string.IsNullOrWhiteSpace(error?.Message)
                 ? $"Cloud ERA server алдаа: {(int)response.StatusCode} {response.ReasonPhrase}"
                 : error.Message;
-            throw new StudioAccountException(message, response.StatusCode, error?.Code ?? "");
+            throw new StudioAccountException(
+                message,
+                response.StatusCode,
+                error?.Code ?? "",
+                StudioCloudTraceIdentifier.Resolve(response, error),
+                error?.FieldErrors);
         }
 
         TResponse? value = await response.Content.ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken)

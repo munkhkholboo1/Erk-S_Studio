@@ -10,6 +10,7 @@ internal enum PdfSourcePageEditState
     NotPdf,
     Inactive,
     AlbumPageMissing,
+    AmbiguousAlbumPage,
     Ready,
 }
 
@@ -62,11 +63,21 @@ internal static class PdfSourcePageEditResolver
                 sheet);
         }
 
-        AlbumPageDefinition? page = albumPages.FirstOrDefault(candidate =>
-            string.Equals(
+        List<AlbumPageDefinition> matchingPages = albumPages
+            .Where(candidate => string.Equals(
                 candidate.SheetKey,
                 sheet.Key,
-                StringComparison.Ordinal));
+                StringComparison.Ordinal))
+            .Take(2)
+            .ToList();
+        if (matchingPages.Count > 1)
+        {
+            return new PdfSourcePageEditResolution(
+                PdfSourcePageEditState.AmbiguousAlbumPage,
+                sheet);
+        }
+
+        AlbumPageDefinition? page = matchingPages.SingleOrDefault();
         return page is null
             ? new PdfSourcePageEditResolution(
                 PdfSourcePageEditState.AlbumPageMissing,

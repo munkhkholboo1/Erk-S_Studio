@@ -71,4 +71,29 @@ public sealed class PdfSourcePageStudioLayoutTests
         Assert.Equal(PagePlacementMode.PreservePhysicalSize, page.PlacementMode);
         Assert.False(page.FollowSourceFormat);
     }
+
+    [Theory]
+    [InlineData("Elevation", "Ordinary sheet", "", true)]
+    [InlineData("", "Ordinary sheet", "master-plan", true)]
+    [InlineData("", "Ordinary sheet", "floor-plans", false)]
+    public void UsesInformationHeader_IsTheSharedEditorAndWriterDecision(
+        string contentKind,
+        string sheetName,
+        string templateSlotId,
+        bool expected)
+    {
+        var page = new AlbumPageDefinition
+        {
+            ContentKindOverride = contentKind,
+            TemplateSlotId = templateSlotId,
+        };
+        var entry = new SheetPackageEntry
+        {
+            Name = sheetName,
+        };
+
+        Assert.Equal(
+            expected,
+            PdfSourcePageStudioLayout.UsesInformationHeader(page, entry));
+    }
 }

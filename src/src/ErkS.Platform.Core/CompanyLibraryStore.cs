@@ -15,6 +15,7 @@ public static class CompanySyncStatuses
 public sealed class CompanyCatalogEntry
 {
     public CompanyProfile Profile { get; set; } = new();
+    public string ConcurrencyToken { get; set; } = "";
     public bool CanManage { get; set; }
     public string CurrentUserRole { get; set; } = "";
     public string SyncStatus { get; set; } = CompanySyncStatuses.Cloud;

@@ -53,12 +53,21 @@ public static class CityGenProjectSiteReconciler
     public static CityGenProjectSiteReconciliationResult Reconcile(ProjectWorkspace project)
     {
         ArgumentNullException.ThrowIfNull(project);
+        return Reconcile(project, project.Sources);
+    }
+
+    public static CityGenProjectSiteReconciliationResult Reconcile(
+        ProjectWorkspace project,
+        IEnumerable<ProjectDesignSource> sources)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(sources);
         project.SiteContext ??= new ProjectSiteContextMap();
         project.SiteContext.Normalize(project.ProjectId);
 
         List<ManifestCandidate> candidates = [];
         var result = new CityGenProjectSiteReconciliationResult();
-        foreach ((ProjectDesignSource source, string path) in EnumerateCandidatePaths(project.Sources))
+        foreach ((ProjectDesignSource source, string path) in EnumerateCandidatePaths(sources))
         {
             if (!File.Exists(path))
                 continue;

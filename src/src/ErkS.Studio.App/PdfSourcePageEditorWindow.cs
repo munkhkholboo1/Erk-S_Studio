@@ -20,6 +20,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
     private readonly SheetRecord sheet;
     private readonly SourcePageCropDefinition working;
     private readonly PageFormatDefinition studioFormat;
+    private readonly bool includeInformationHeader;
     private readonly Grid previewSurface = new();
     private readonly Image pageImage = new() { Stretch = Stretch.Fill, IsHitTestVisible = false };
     private readonly Canvas overlay = new() { Background = Brushes.Transparent };
@@ -43,11 +44,11 @@ internal sealed class PdfSourcePageEditorWindow : Window
     };
     private readonly Button sourceViewButton = StudioWidgets.CreateButton("Эх PDF / crop");
     private readonly Button studioViewButton =
-        StudioWidgets.CreatePrimaryButton("Studio хуудсан дээр байрлуулах");
+        StudioWidgets.CreateButton("Studio хуудсан дээр байрлуулах");
     private readonly TextBlock statusText = StudioWidgets.CreateHint("");
     private readonly List<SourcePagePointDefinition> polygonPoints = [];
     private EditorTool activeTool;
-    private EditorView activeView = EditorView.Source;
+    private PdfEditorView activeView = PdfEditorView.Source;
     private Point? dragStart;
     private Point? dragCurrent;
     private Point? studioDragStart;
@@ -76,11 +77,13 @@ internal sealed class PdfSourcePageEditorWindow : Window
         SheetRecord sheet,
         SourcePageCropDefinition? current,
         PageFormatDefinition studioFormat,
+        bool includeInformationHeader,
         string? scaleTextOverride)
     {
         this.imageCache = imageCache;
         this.sheet = sheet;
         this.studioFormat = studioFormat;
+        this.includeInformationHeader = includeInformationHeader;
         working = current?.DeepClone() ?? new SourcePageCropDefinition();
         working.ScalePercent = 100;
         inheritTitleBlockScaleCheck.IsChecked = scaleTextOverride is null;
@@ -100,6 +103,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
         StudioTheme.Apply(this);
 
         Content = BuildContent();
+        SetEditorView(PdfEditorView.Source);
         Loaded += async (_, _) => await LoadPreviewAsync();
         PreviewKeyDown += HandlePreviewKeyDown;
     }
@@ -213,8 +217,8 @@ internal sealed class PdfSourcePageEditorWindow : Window
             "байрлуулах горимд орж тайрсан зургаа хараад чирж байрлуулна. Эх PDF өөрчлөгдөхгүй."));
 
         var views = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        sourceViewButton.Click += (_, _) => SetEditorView(EditorView.Source);
-        studioViewButton.Click += (_, _) => SetEditorView(EditorView.Studio);
+        sourceViewButton.Click += (_, _) => SetEditorView(PdfEditorView.Source);
+        studioViewButton.Click += (_, _) => SetEditorView(PdfEditorView.Studio);
         views.Children.Add(sourceViewButton);
         views.Children.Add(studioViewButton);
         area.Children.Add(views);
@@ -241,7 +245,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
         Button button = StudioWidgets.CreateButton(text);
         button.Click += (_, _) =>
         {
-            SetEditorView(EditorView.Source);
+            SetEditorView(PdfEditorView.Source);
             ActivateTool(tool);
         };
         return button;
@@ -261,7 +265,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
         {
             ApplyPropertyValues();
             RedrawOverlay();
-            SetEditorView(EditorView.Studio);
+            SetEditorView(PdfEditorView.Studio);
             ShowStatus("Crop баталгаажлаа. Studio хуудсан дээр тайрсан зургаа чирж байрлуулна уу.");
         };
         panel.Children.Add(applyCrop);
@@ -350,9 +354,9 @@ internal sealed class PdfSourcePageEditorWindow : Window
         }
     }
 
-    private void SetEditorView(EditorView view)
+    private void SetEditorView(PdfEditorView view)
     {
-        if (view == EditorView.Studio && !imageReady)
+        if (view == PdfEditorView.Studio && !imageReady)
         {
             ShowStatus("Studio preview нээгдэхийн тулд PDF preview ачаалагдахыг хүлээнэ үү.");
             return;
@@ -360,15 +364,14 @@ internal sealed class PdfSourcePageEditorWindow : Window
 
         activeView = view;
         sourcePreviewBorder.Visibility =
-            view == EditorView.Source ? Visibility.Visible : Visibility.Collapsed;
+            view == PdfEditorView.Source ? Visibility.Visible : Visibility.Collapsed;
         studioPreviewBorder.Visibility =
-            view == EditorView.Studio ? Visibility.Visible : Visibility.Collapsed;
-        sourceViewButton.FontWeight =
-            view == EditorView.Source ? FontWeights.SemiBold : FontWeights.Normal;
-        studioViewButton.FontWeight =
-            view == EditorView.Studio ? FontWeights.SemiBold : FontWeights.Normal;
+            view == PdfEditorView.Studio ? Visibility.Visible : Visibility.Collapsed;
+        PdfEditorViewSelection selection = PdfEditorViewSelectionPolicy.Resolve(view);
+        ApplyViewButtonVisual(sourceViewButton, selection.SourceActive);
+        ApplyViewButtonVisual(studioViewButton, selection.StudioActive);
 
-        if (view == EditorView.Studio)
+        if (view == PdfEditorView.Studio)
         {
             ApplyPropertyValues();
             ClampStudioOffsets();
@@ -383,6 +386,14 @@ internal sealed class PdfSourcePageEditorWindow : Window
         }
     }
 
+    private static void ApplyViewButtonVisual(Button button, bool isActive)
+    {
+        button.Background = isActive ? StudioTheme.AccentBrush : StudioTheme.ButtonBrush;
+        button.BorderBrush = isActive ? StudioTheme.AccentBrush : StudioTheme.BorderBrush;
+        button.Foreground = isActive ? Brushes.White : StudioTheme.TextBrush;
+        button.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal;
+    }
+
     private void RefreshTitleBlockScaleControls()
     {
         bool inheritsSource = inheritTitleBlockScaleCheck.IsChecked == true;
@@ -392,7 +403,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
 
     private void HandleStudioMouseDown(object sender, MouseButtonEventArgs eventArgs)
     {
-        if (!imageReady || activeView != EditorView.Studio)
+        if (!imageReady || activeView != PdfEditorView.Studio)
             return;
 
         Point point = eventArgs.GetPosition(studioSurface);
@@ -575,11 +586,26 @@ internal sealed class PdfSourcePageEditorWindow : Window
         BuildingArchitectureConceptPageRegions regions =
             BuildingArchitectureConceptPageLayout.ResolveRegions(
                 studioFormat,
-                includeInformationHeader: false);
+                includeInformationHeader);
         Rect frame = ToStudioRect(regions.Frame);
+        Rect information = ToStudioRect(regions.InformationArea);
         Rect header = ToStudioRect(regions.SheetTitleArea);
         Rect titleBlock = ToStudioRect(regions.TitleBlockArea);
 
+        if (includeInformationHeader &&
+            information.Width > 0 &&
+            information.Height > 0)
+        {
+            AddStudioRectangle(information, Brushes.White, Brushes.Black, 1.2);
+            double approvalDivider =
+                (regions.ApprovalNameArea.X + regions.ApprovalNameArea.Width) *
+                studioPixelsPerMillimeter;
+            AddStudioLine(
+                approvalDivider,
+                information.Top,
+                approvalDivider,
+                information.Bottom);
+        }
         AddStudioRectangle(header, Brushes.White, Brushes.Black, 1.2);
         AddStudioRectangle(titleBlock, Brushes.White, Brushes.Black, 1.2);
         AddStudioRectangle(frame, Brushes.Transparent, Brushes.Black, 1.6);
@@ -795,7 +821,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
         RedrawOverlay();
         if (completedCrop)
         {
-            SetEditorView(EditorView.Studio);
+            SetEditorView(PdfEditorView.Studio);
             ShowStatus(
                 "Crop баталгаажлаа. Studio хуудсан дээр тайрсан зургаа чирж байрлуулна уу.");
         }
@@ -920,7 +946,7 @@ internal sealed class PdfSourcePageEditorWindow : Window
         foreach (SourcePageMaskDefinition mask in working.Masks ?? [])
             DrawMask(mask);
         DrawWorkingGeometry();
-        if (activeView == EditorView.Studio)
+        if (activeView == PdfEditorView.Studio)
             RedrawStudioPreview();
     }
 
@@ -1164,9 +1190,4 @@ internal sealed class PdfSourcePageEditorWindow : Window
         PolygonMask,
     }
 
-    private enum EditorView
-    {
-        Source,
-        Studio,
-    }
 }

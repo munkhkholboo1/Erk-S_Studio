@@ -15,7 +15,11 @@ public sealed class ProjectInformationSaveReconcilerTests
         DateTimeOffset queuedAt = new(2026, 7, 18, 4, 30, 0, TimeSpan.Zero);
 
         ProjectInformationReconciliationResult result =
-            ProjectInformationSaveReconciler.Compare(request, response, queuedAt);
+            ProjectInformationSaveReconciler.Compare(
+                request,
+                response,
+                queuedAt,
+                "server-token-before-edit");
 
         Assert.False(result.AcceptedByServer);
         Assert.Equal(["ClientName", "PlanningAuthorityName"], result.Differences);
@@ -23,6 +27,53 @@ public sealed class ProjectInformationSaveReconcilerTests
         Assert.Equal(request.ClientName, result.PendingUpdate.ClientName);
         Assert.Equal(request.PlanningAuthorityName, result.PendingUpdate.PlanningAuthorityName);
         Assert.Equal(queuedAt, result.PendingUpdate.QueuedAtUtc);
+        Assert.Equal(
+            "server-token-before-edit",
+            result.PendingUpdate.BaseConcurrencyToken);
+    }
+
+    [Fact]
+    public void PendingRetryAlwaysUsesItsOriginalBaseToken()
+    {
+        PendingProjectInformationUpdate pending =
+            ProjectInformationSaveReconciler.CreatePendingUpdate(
+                CreateRequest(),
+                DateTimeOffset.UtcNow,
+                "server-token-before-edit");
+
+        string token = ProjectInformationSaveReconciler.RequireBaseConcurrencyToken(
+            pending);
+
+        Assert.Equal("server-token-before-edit", token);
+    }
+
+    [Fact]
+    public void LegacyPendingWithoutBaseTokenCannotBeSilentlyRebased()
+    {
+        var pending = new PendingProjectInformationUpdate
+        {
+            Name = "Old local snapshot",
+            QueuedAtUtc = DateTimeOffset.UtcNow.AddDays(-1),
+        };
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            ProjectInformationSaveReconciler.RequireBaseConcurrencyToken(pending));
+
+        Assert.Contains("base", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EditCannotStartFromMissingCanonicalBaseToken()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            ProjectInformationSaveReconciler
+                .RequireCanonicalEditBaseToken(""));
+
+        Assert.Equal(
+            "token-captured-before-edit",
+            ProjectInformationSaveReconciler
+                .RequireCanonicalEditBaseToken(
+                    " token-captured-before-edit "));
     }
 
     [Fact]
@@ -63,12 +114,15 @@ public sealed class ProjectInformationSaveReconcilerTests
     }
 
     [Fact]
-    public void Compare_UsesCanonicalSiteAddressWhenInformationLocationIsEmpty()
+    public void Compare_TreatsEmptyCanonicalLocationAsIntentionalDeletion()
     {
         StudioCloudProjectInformationUpdateRequest request = CreateRequest();
+        request.Location = "";
+        request.Foundation.SiteAddress = "";
         StudioCloudProjectDetail response = CreateResponse();
         response.ProjectInformation.Location = "";
-        response.SiteAndLand.Addresses = [request.Location];
+        response.Foundation!.InitiationBasis.SiteAddress = "";
+        response.SiteAndLand.Addresses = ["Stale parcel address"];
 
         ProjectInformationReconciliationResult result =
             ProjectInformationSaveReconciler.Compare(request, response, DateTimeOffset.UtcNow);

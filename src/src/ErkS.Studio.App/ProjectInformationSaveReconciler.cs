@@ -12,14 +12,14 @@ internal static class ProjectInformationSaveReconciler
     public static ProjectInformationReconciliationResult Compare(
         StudioCloudProjectInformationUpdateRequest request,
         StudioCloudProjectDetail response,
-        DateTimeOffset queuedAtUtc)
+        DateTimeOffset queuedAtUtc,
+        string baseConcurrencyToken = "")
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(response);
 
         StudioCloudProjectSummary project = response.Project ?? new();
         StudioCloudProjectInformation information = response.ProjectInformation ?? new();
-        StudioCloudSiteAndLand siteAndLand = response.SiteAndLand ?? new();
         StudioCloudProjectFoundation? foundation = response.Foundation;
         List<string> differences = [];
         string[] roles = project.CurrentUserRoles ?? [];
@@ -41,12 +41,12 @@ internal static class ProjectInformationSaveReconciler
 
         if (canEditCommon)
         {
-            AddDifference(differences, "Name", request.Name, First(project.Name, information.Name));
+            AddDifference(differences, "Name", request.Name, project.Name);
             AddDifference(
                 differences,
                 "Location",
                 request.Location,
-                First(information.Location, siteAndLand.Addresses?.FirstOrDefault()));
+                information.Location);
             AddDifference(
                 differences,
                 "BuildingPurpose",
@@ -126,14 +126,16 @@ internal static class ProjectInformationSaveReconciler
 
         return new ProjectInformationReconciliationResult(
             false,
-            CreatePendingUpdate(request, queuedAtUtc),
+            CreatePendingUpdate(request, queuedAtUtc, baseConcurrencyToken),
             differences);
     }
 
     public static PendingProjectInformationUpdate CreatePendingUpdate(
         StudioCloudProjectInformationUpdateRequest request,
-        DateTimeOffset queuedAtUtc) => new()
+        DateTimeOffset queuedAtUtc,
+        string baseConcurrencyToken = "") => new()
     {
+        BaseConcurrencyToken = Clean(baseConcurrencyToken),
         Name = Clean(request.Name),
         ClientName = Clean(request.ClientName),
         PlanningAuthorityName = Clean(request.PlanningAuthorityName),
@@ -161,6 +163,27 @@ internal static class ProjectInformationSaveReconciler
         },
         QueuedAtUtc = queuedAtUtc,
     };
+
+    public static string RequireBaseConcurrencyToken(
+        PendingProjectInformationUpdate pending)
+    {
+        ArgumentNullException.ThrowIfNull(pending);
+        string token = Clean(pending.BaseConcurrencyToken);
+        return !string.IsNullOrWhiteSpace(token)
+            ? token
+            : throw new InvalidOperationException(
+                "Pending project information has no canonical base concurrency token and cannot be safely rebased.");
+    }
+
+    public static string RequireCanonicalEditBaseToken(string? token)
+    {
+        string canonical = Clean(token);
+        return !string.IsNullOrWhiteSpace(canonical)
+            ? canonical
+            : throw new InvalidOperationException(
+                "Төслийн canonical concurrency token байхгүй тул хуучин " +
+                "mirror-ийг шинэ server snapshot дээр автоматаар rebase хийхгүй.");
+    }
 
     public static StudioCloudProjectInformationUpdateRequest CreateRequest(
         PendingProjectInformationUpdate pending) => new()
@@ -200,9 +223,6 @@ internal static class ProjectInformationSaveReconciler
         if (!string.Equals(Clean(requested), Clean(canonical), StringComparison.Ordinal))
             differences.Add(field);
     }
-
-    private static string First(string? primary, string? fallback) =>
-        !string.IsNullOrWhiteSpace(primary) ? primary.Trim() : Clean(fallback);
 
     private static bool HasInitiationFoundationValues(StudioCloudProjectFoundationUpdate foundation) =>
         !string.IsNullOrWhiteSpace(foundation.SourceType) ||

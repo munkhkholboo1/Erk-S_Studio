@@ -56,6 +56,7 @@ public static class CloudEraFeatures
     public const string ConceptArchitectAssignment = "concept-architect-assignment";
     public const string ParticipantRoleManagement = "participant-role-management";
     public const string SourcePackagesV4 = "source-packages-v4";
+    public const string SourcePackageCasV1 = "source-package-cas-v1";
     public const string AlbumRevisions = "album-revisions";
     public const string AlbumComponentMergeV1 = "album-component-merge-v1";
     public const string ContributorOwnedComponentsV1 = "contributor-owned-components-v1";

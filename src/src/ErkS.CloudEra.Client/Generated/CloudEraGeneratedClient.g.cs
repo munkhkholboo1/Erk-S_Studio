@@ -83,21 +83,21 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task OrganizationsPUTAsync(string organizationId, CloudEraOrganizationUpsertRequest body);
+        System.Threading.Tasks.Task<CloudEraOrganizationDto> UpdateCloudEraOrganizationAsync(string organizationId, CloudEraOrganizationUpsertRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task OrganizationsPUTAsync(string organizationId, CloudEraOrganizationUpsertRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraOrganizationDto> UpdateCloudEraOrganizationAsync(string organizationId, CloudEraOrganizationUpsertRequest body, System.Threading.CancellationToken cancellationToken);
 
-        /// <returns>OK</returns>
+        /// <returns>No Content</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId);
+        System.Threading.Tasks.Task DeleteCloudEraOrganizationAsync(string organizationId, string if_Match);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
+        /// <returns>No Content</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task DeleteCloudEraOrganizationAsync(string organizationId, string if_Match, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -119,30 +119,30 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoPOSTAsync(string organizationId);
+        System.Threading.Tasks.Task<CloudEraOrganizationDto> UploadCloudEraOrganizationLogoAsync(string organizationId, string if_Match);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoPOSTAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraOrganizationDto> UploadCloudEraOrganizationLogoAsync(string organizationId, string if_Match, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoGETAsync(string organizationId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoGETAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoDELETEAsync(string organizationId);
+        System.Threading.Tasks.Task LogoAsync(string organizationId);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoDELETEAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task LogoAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationDto> DeleteCloudEraOrganizationLogoAsync(string organizationId, string if_Match);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationDto> DeleteCloudEraOrganizationLogoAsync(string organizationId, string if_Match, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -170,6 +170,15 @@ namespace ErkS.CloudEra.Client.Generated
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task InformationAsync(string projectId, ProjectInformationInput body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -317,12 +326,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task CustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task CustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -362,12 +371,57 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoGET2Async(string projectId);
+        System.Threading.Tasks.Task Logo2Async(string projectId);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task LogoGET2Async(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task Logo2Async(string projectId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -497,12 +551,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -1044,15 +1098,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task OrganizationsPUTAsync(string organizationId, CloudEraOrganizationUpsertRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraOrganizationDto> UpdateCloudEraOrganizationAsync(string organizationId, CloudEraOrganizationUpsertRequest body)
         {
-            return OrganizationsPUTAsync(organizationId, body, System.Threading.CancellationToken.None);
+            return UpdateCloudEraOrganizationAsync(organizationId, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task OrganizationsPUTAsync(string organizationId, CloudEraOrganizationUpsertRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraOrganizationDto> UpdateCloudEraOrganizationAsync(string organizationId, CloudEraOrganizationUpsertRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (organizationId == null)
                 throw new System.ArgumentNullException("organizationId");
@@ -1071,6 +1125,7 @@ namespace ErkS.CloudEra.Client.Generated
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -1103,7 +1158,62 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraOrganizationDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -1125,17 +1235,17 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
-        /// <returns>OK</returns>
+        /// <returns>No Content</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId)
+        public virtual System.Threading.Tasks.Task DeleteCloudEraOrganizationAsync(string organizationId, string if_Match)
         {
-            return OrganizationsDELETEAsync(organizationId, System.Threading.CancellationToken.None);
+            return DeleteCloudEraOrganizationAsync(organizationId, if_Match, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
+        /// <returns>No Content</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task OrganizationsDELETEAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task DeleteCloudEraOrganizationAsync(string organizationId, string if_Match, System.Threading.CancellationToken cancellationToken)
         {
             if (organizationId == null)
                 throw new System.ArgumentNullException("organizationId");
@@ -1146,6 +1256,9 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (if_Match != null)
+                        request_.Headers.TryAddWithoutValidation("If-Match", ConvertToString(if_Match, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -1177,9 +1290,59 @@ namespace ErkS.CloudEra.Client.Generated
                         ProcessResponse(client_, response_);
 
                         var status_ = (int)response_.StatusCode;
-                        if (status_ == 200)
+                        if (status_ == 204)
                         {
                             return;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -1310,6 +1473,26 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             throw new ApiException<CloudEraApiError>("Not Found", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         if (status_ == 503)
@@ -1450,15 +1633,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task LogoPOSTAsync(string organizationId)
+        public virtual System.Threading.Tasks.Task<CloudEraOrganizationDto> UploadCloudEraOrganizationLogoAsync(string organizationId, string if_Match)
         {
-            return LogoPOSTAsync(organizationId, System.Threading.CancellationToken.None);
+            return UploadCloudEraOrganizationLogoAsync(organizationId, if_Match, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task LogoPOSTAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraOrganizationDto> UploadCloudEraOrganizationLogoAsync(string organizationId, string if_Match, System.Threading.CancellationToken cancellationToken)
         {
             if (organizationId == null)
                 throw new System.ArgumentNullException("organizationId");
@@ -1469,8 +1652,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (if_Match != null)
+                        request_.Headers.TryAddWithoutValidation("If-Match", ConvertToString(if_Match, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -1504,7 +1691,72 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraOrganizationDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 415)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unsupported Media Type", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -1528,15 +1780,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task LogoGETAsync(string organizationId)
+        public virtual System.Threading.Tasks.Task LogoAsync(string organizationId)
         {
-            return LogoGETAsync(organizationId, System.Threading.CancellationToken.None);
+            return LogoAsync(organizationId, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task LogoGETAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task LogoAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
         {
             if (organizationId == null)
                 throw new System.ArgumentNullException("organizationId");
@@ -1605,15 +1857,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task LogoDELETEAsync(string organizationId)
+        public virtual System.Threading.Tasks.Task<CloudEraOrganizationDto> DeleteCloudEraOrganizationLogoAsync(string organizationId, string if_Match)
         {
-            return LogoDELETEAsync(organizationId, System.Threading.CancellationToken.None);
+            return DeleteCloudEraOrganizationLogoAsync(organizationId, if_Match, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task LogoDELETEAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraOrganizationDto> DeleteCloudEraOrganizationLogoAsync(string organizationId, string if_Match, System.Threading.CancellationToken cancellationToken)
         {
             if (organizationId == null)
                 throw new System.ArgumentNullException("organizationId");
@@ -1624,7 +1876,11 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (if_Match != null)
+                        request_.Headers.TryAddWithoutValidation("If-Match", ConvertToString(if_Match, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -1658,7 +1914,72 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraOrganizationDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 404)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Not Found", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -1866,6 +2187,90 @@ namespace ErkS.CloudEra.Client.Generated
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
                     urlBuilder_.Append("/information");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body)
+        {
+            return BuildingCompositionAsync(projectId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("PUT");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/building-composition"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/building-composition");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 
@@ -3209,15 +3614,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task CustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body)
         {
-            return CustodianAsync(projectId, sourceKey, body, System.Threading.CancellationToken.None);
+            return AssignCloudEraSourceCustodianAsync(projectId, sourceKey, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task CustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3239,6 +3644,7 @@ namespace ErkS.CloudEra.Client.Generated
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -3274,7 +3680,42 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSourcePackageDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -3614,15 +4055,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task LogoGET2Async(string projectId)
+        public virtual System.Threading.Tasks.Task Logo2Async(string projectId)
         {
-            return LogoGET2Async(projectId, System.Threading.CancellationToken.None);
+            return Logo2Async(projectId, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task LogoGET2Async(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task Logo2Async(string projectId, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3641,6 +4082,446 @@ namespace ErkS.CloudEra.Client.Generated
                     urlBuilder_.Append("api/cloud-era/v1/projects/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
                     urlBuilder_.Append("/design-organization/logo");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail)
+        {
+            return GetCloudEraProjectChatAsync(projectId, take, peerEmail, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/chat"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/chat");
+                    urlBuilder_.Append('?');
+                    if (take != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("take")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(take, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (peerEmail != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("peerEmail")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(peerEmail, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ProjectChatResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body)
+        {
+            return SendCloudEraProjectChatMessageAsync(projectId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var content_ = new System.Net.Http.StreamContent(body);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("multipart/form-data");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/chat/messages"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/chat/messages");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ProjectChatResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body)
+        {
+            return ReactToCloudEraProjectChatMessageAsync(projectId, messageId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (messageId == null)
+                throw new System.ArgumentNullException("messageId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/chat/messages/{messageId}/reactions"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/chat/messages/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(messageId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/reactions");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ProjectChatResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId)
+        {
+            return DownloadCloudEraProjectChatAttachmentAsync(projectId, attachmentId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (attachmentId == null)
+                throw new System.ArgumentNullException("attachmentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/chat/attachments/{attachmentId}"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/chat/attachments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(attachmentId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail)
+        {
+            return GetCloudEraProjectChatParticipantPhotoAsync(projectId, participantEmail, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (participantEmail == null)
+                throw new System.ArgumentNullException("participantEmail");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/chat/participants/{participantEmail}/photo"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/chat/participants/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(participantEmail, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/photo");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 
@@ -4620,6 +5501,36 @@ namespace ErkS.CloudEra.Client.Generated
                             return objectResponse_.Object;
                         }
                         else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
                         {
                             var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
                             throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
@@ -4707,6 +5618,36 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -4875,6 +5816,16 @@ namespace ErkS.CloudEra.Client.Generated
                             return objectResponse_.Object;
                         }
                         else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
                         {
                             var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
                             throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
@@ -4896,15 +5847,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId)
+        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match)
         {
-            return RetireCloudEraSourcePackageAsync(projectId, sourceId, System.Threading.CancellationToken.None);
+            return RetireCloudEraSourcePackageAsync(projectId, sourceId, if_Match, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4918,6 +5869,9 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (if_Match != null)
+                        request_.Headers.TryAddWithoutValidation("If-Match", ConvertToString(if_Match, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -4960,6 +5914,26 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -5049,6 +6023,36 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -5144,6 +6148,36 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -5336,6 +6370,36 @@ namespace ErkS.CloudEra.Client.Generated
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
                             return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 412)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Failed", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 428)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Precondition Required", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         {
@@ -5569,6 +6633,12 @@ namespace ErkS.CloudEra.Client.Generated
     public partial class CloudEraAlbumComponentManifestUpdateRequest
     {
 
+        [System.Text.Json.Serialization.JsonPropertyName("projectConcurrencyToken")]
+        public string ProjectConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expectedBaseRevisionId")]
+        public string ExpectedBaseRevisionId { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("components")]
         public System.Collections.Generic.ICollection<CloudEraAlbumSectionDto> Components { get; set; }
 
@@ -5601,6 +6671,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("currentRevisionId")]
         public string CurrentRevisionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("requiredBuildingCompositionVersion")]
+        public int RequiredBuildingCompositionVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("canonicalRebuildPending")]
+        public bool CanonicalRebuildPending { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pendingComponentTombstoneCodes")]
+        public System.Collections.Generic.ICollection<string> PendingComponentTombstoneCodes { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("revisions")]
         public System.Collections.Generic.ICollection<CloudEraAlbumRevisionDto> Revisions { get; set; }
@@ -5637,6 +6716,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("pageSizeSummary")]
         public string PageSizeSummary { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("buildingCompositionVersion")]
+        public int BuildingCompositionVersion { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
         public string Status { get; set; }
@@ -5761,6 +6843,15 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("projectConcurrencyToken")]
         public string ProjectConcurrencyToken { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("expectedBaseRevisionId")]
+        public string ExpectedBaseRevisionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("inheritComponentManifest")]
+        public bool InheritComponentManifest { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("componentManifest")]
+        public System.Collections.Generic.ICollection<CloudEraAlbumSectionDto> ComponentManifest { get; set; }
+
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -5814,6 +6905,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("traceId")]
         public string TraceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentOrganizationConcurrencyToken")]
+        public string CurrentOrganizationConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentSourceId")]
+        public string CurrentSourceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentRevisionId")]
+        public string CurrentRevisionId { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("fieldErrors")]
         public System.Collections.Generic.IDictionary<string, System.Collections.Generic.ICollection<string>> FieldErrors { get; set; }
@@ -6012,6 +7112,102 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("files")]
         public System.Collections.Generic.ICollection<CloudEraFileDto2> Files { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBuildingCompositionDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("version")]
+        public int Version { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("groups")]
+        public System.Collections.Generic.ICollection<CloudEraBuildingGroupDto> Groups { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sheetAssignments")]
+        public System.Collections.Generic.ICollection<CloudEraBuildingSheetAssignmentDto> SheetAssignments { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBuildingCompositionUpdateDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("groups")]
+        public System.Collections.Generic.ICollection<CloudEraBuildingGroupDto> Groups { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sheetAssignments")]
+        public System.Collections.Generic.ICollection<CloudEraBuildingSheetAssignmentDto> SheetAssignments { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBuildingGroupDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public string Id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("order")]
+        public int Order { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBuildingSheetAssignmentDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceOwnerEmail")]
+        public string SourceOwnerEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceKey")]
+        public string SourceKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sheetId")]
+        public string SheetId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("buildingGroupId")]
+        public string BuildingGroupId { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -6274,6 +7470,129 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
         public string OrganizationId { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("concurrencyToken")]
+        public string ConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalName")]
+        public string LegalName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("shortName")]
+        public string ShortName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrationNumber")]
+        public string RegistrationNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalEntityType")]
+        public string LegalEntityType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legalForm")]
+        public string LegalForm { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activityDirections")]
+        public System.Collections.Generic.ICollection<string> ActivityDirections { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredAtUtc")]
+        public System.DateTimeOffset? RegisteredAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("officialRepresentativeName")]
+        public string OfficialRepresentativeName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrySource")]
+        public string RegistrySource { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrySourceUrl")]
+        public string RegistrySourceUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registryCheckedAtUtc")]
+        public System.DateTimeOffset? RegistryCheckedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationType")]
+        public string OrganizationType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("verificationStatus")]
+        public string VerificationStatus { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredCity")]
+        public string RegisteredCity { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("address")]
+        public string Address { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("phoneNumbers")]
+        public System.Collections.Generic.ICollection<string> PhoneNumbers { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("email")]
+        public string Email { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("website")]
+        public string Website { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseScope")]
+        public string LicenseScope { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseNumber")]
+        public string LicenseNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("directorTitle")]
+        public string DirectorTitle { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("directorName")]
+        public string DirectorName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeTitle")]
+        public string DesignRepresentativeTitle { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designRepresentativeName")]
+        public string DesignRepresentativeName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoUrl")]
+        public string LogoUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoScale")]
+        public double LogoScale { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoOffsetX")]
+        public double LogoOffsetX { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("logoOffsetY")]
+        public double LogoOffsetY { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("canManage")]
+        public bool CanManage { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentUserRole")]
+        public string CurrentUserRole { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("updatedAtUtc")]
+        public System.DateTimeOffset UpdatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOrganizationDto2
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("concurrencyToken")]
+        public string ConcurrencyToken { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("legalName")]
         public string LegalName { get; set; }
 
@@ -6388,6 +7707,9 @@ namespace ErkS.CloudEra.Client.Generated
     public partial class CloudEraOrganizationRegistryImportRequest
     {
 
+        [System.Text.Json.Serialization.JsonPropertyName("baseConcurrencyToken")]
+        public string BaseConcurrencyToken { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("registrationNumber")]
         public string RegistrationNumber { get; set; }
 
@@ -6425,7 +7747,7 @@ namespace ErkS.CloudEra.Client.Generated
         public bool ProviderConfigured { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("organization")]
-        public CloudEraOrganizationDto Organization { get; set; }
+        public CloudEraOrganizationDto2 Organization { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -6543,6 +7865,9 @@ namespace ErkS.CloudEra.Client.Generated
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraOrganizationUpsertRequest
     {
+
+        [System.Text.Json.Serialization.JsonPropertyName("baseConcurrencyToken")]
+        public string BaseConcurrencyToken { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("registryFieldsIncluded")]
         public bool RegistryFieldsIncluded { get; set; }
@@ -6858,6 +8183,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("designPackages")]
         public System.Collections.Generic.ICollection<CloudEraDesignPackageDto> DesignPackages { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("buildingComposition")]
+        public CloudEraBuildingCompositionDto BuildingComposition { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("albums")]
         public System.Collections.Generic.ICollection<CloudEraAlbumDto> Albums { get; set; }
@@ -7432,6 +8760,12 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("participantId")]
         public string ParticipantId { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("projectConcurrencyToken")]
+        public string ProjectConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expectedSourceId")]
+        public string ExpectedSourceId { get; set; }
+
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -7449,6 +8783,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("sourceKey")]
         public string SourceKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expectedBaseSourceId")]
+        public string ExpectedBaseSourceId { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("sourceApplication")]
         public string SourceApplication { get; set; }
@@ -7675,6 +9012,294 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatConversationDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("peerEmail")]
+        public string PeerEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("initials")]
+        public string Initials { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roleLabel")]
+        public string RoleLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("profileImageUrl")]
+        public string ProfileImageUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastMessagePreview")]
+        public string LastMessagePreview { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastMessageAtUtc")]
+        public System.DateTimeOffset LastMessageAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastMessageTime")]
+        public string LastMessageTime { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastMessageIsMine")]
+        public bool LastMessageIsMine { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("unreadCount")]
+        public int UnreadCount { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatMessageDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("messageId")]
+        public string MessageId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorEmail")]
+        public string AuthorEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorDisplayName")]
+        public string AuthorDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorInitials")]
+        public string AuthorInitials { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorRoleLabel")]
+        public string AuthorRoleLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorProfileImageUrl")]
+        public string AuthorProfileImageUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("isMine")]
+        public bool IsMine { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("readByPeer")]
+        public bool ReadByPeer { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("readLabel")]
+        public string ReadLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("body")]
+        public string Body { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
+        public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayTime")]
+        public string DisplayTime { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentId")]
+        public string AttachmentId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentFileName")]
+        public string AttachmentFileName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentUrl")]
+        public string AttachmentUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentContentType")]
+        public string AttachmentContentType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentSizeBytes")]
+        public long AttachmentSizeBytes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentExpiresAtUtc")]
+        public System.DateTimeOffset AttachmentExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentIsImage")]
+        public bool AttachmentIsImage { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("attachmentExpired")]
+        public bool AttachmentExpired { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("reactions")]
+        public System.Collections.Generic.ICollection<ProjectChatReactionDto> Reactions { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatParticipantDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("email")]
+        public string Email { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("initials")]
+        public string Initials { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roleLabel")]
+        public string RoleLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("profileImageUrl")]
+        public string ProfileImageUrl { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatParticipantDto2
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("email")]
+        public string Email { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("initials")]
+        public string Initials { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roleLabel")]
+        public string RoleLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("profileImageUrl")]
+        public string ProfileImageUrl { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatReactionDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("reaction")]
+        public string Reaction { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("count")]
+        public int Count { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("reactedByMe")]
+        public bool ReactedByMe { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatReactionRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("reaction")]
+        public string Reaction { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("peerEmail")]
+        public string PeerEmail { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ProjectChatResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("isValid")]
+        public bool IsValid { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectCode")]
+        public string ProjectCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectName")]
+        public string ProjectName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentUserEmail")]
+        public string CurrentUserEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("selectedPeerEmail")]
+        public string SelectedPeerEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("conversationKind")]
+        public string ConversationKind { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("unreadTotal")]
+        public int UnreadTotal { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("reactionChoices")]
+        public System.Collections.Generic.ICollection<string> ReactionChoices { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("participants")]
+        public System.Collections.Generic.ICollection<ProjectChatParticipantDto> Participants { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("conversations")]
+        public System.Collections.Generic.ICollection<ProjectChatConversationDto> Conversations { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("selectedPeer")]
+        public ProjectChatParticipantDto2 SelectedPeer { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("messages")]
+        public System.Collections.Generic.ICollection<ProjectChatMessageDto> Messages { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class ProjectInformationInput
     {
 
@@ -7711,6 +9336,33 @@ namespace ErkS.CloudEra.Client.Generated
             set { _additionalProperties = value; }
         }
 
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class FileParameter
+    {
+        public FileParameter(System.IO.Stream data)
+            : this (data, null, null)
+        {
+        }
+
+        public FileParameter(System.IO.Stream data, string fileName)
+            : this (data, fileName, null)
+        {
+        }
+
+        public FileParameter(System.IO.Stream data, string fileName, string contentType)
+        {
+            Data = data;
+            FileName = fileName;
+            ContentType = contentType;
+        }
+
+        public System.IO.Stream Data { get; private set; }
+
+        public string FileName { get; private set; }
+
+        public string ContentType { get; private set; }
     }
 
 

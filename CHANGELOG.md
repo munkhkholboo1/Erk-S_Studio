@@ -8,6 +8,15 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.20] - 2026-07-30
+
+- Crop or mask a PDF source non-destructively, preview and place the result on the real Studio sheet at its physical 1:1 size, and commit a title-block-only scale edit to that Studio format without resizing the drawing.
+- Treat only the current verified package or native payload owned by the current account on the current device as local; historical packages, account switches, absent payloads, foreign accounts, and other devices remain Cloud until an explicit relink.
+- Refresh only this device's local source contributions while retaining the current canonical preview when collaborator pages are Cloud-only, then receive the complete canonical union through Cloud Sync.
+- Merge participant-owned source components into one deterministic canonical album while preserving stable source and building order through refresh, add, remove, custody transfer, restart, and synchronization; overlapping building edits now use a fail-closed three-way conflict check.
+- Protect canonical project, organization, source-stream, and album changes with explicit concurrency tokens and base revisions, and expose a durable rebuild/tombstone signal whenever the canonical PDF lags the accepted building composition.
+- Record correlated Studio and server operation diagnostics with safe reason codes, trace IDs, progress, conflicts, and redacted context; production deployment also requires a clean origin commit with successful exact-commit CI.
+
 ## [0.1.0-dev.19] - 2026-07-29
 
 - Edit a selected PDF source page directly from Sources with non-destructive crop, rectangular or polygon masks, rotation, and Studio-sheet placement preview.

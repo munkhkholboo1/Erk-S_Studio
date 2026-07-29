@@ -49,6 +49,7 @@ internal sealed partial class ShellView
         "Сонгосон төслийг устгах эсвэл гарах хүсэлт илгээх");
     private StudioProjectMembershipInvitationListResponse notificationInvitations = new();
     private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
+    private long notificationAccountEpoch = -1;
     private bool refreshingNotifications;
     private bool refreshingCurrentProjectAccess;
     private bool updatingTeamMemberRoles;
@@ -148,7 +149,9 @@ internal sealed partial class ShellView
         string knownToken = !string.IsNullOrWhiteSpace(cloud.LastServerConcurrencyToken)
             ? cloud.LastServerConcurrencyToken
             : cloud.ServerSnapshot.ConcurrencyToken;
-        bool forceFullRefresh = CloudMirrorNeedsFullRefresh();
+        bool forceFullRefresh =
+            CloudMirrorNeedsFullRefresh() ||
+            !cloud.PermissionSnapshotBelongsTo(account.Current?.Email);
         return forceFullRefresh
             ? new StudioCloudProjectRefreshResult(true, await account.GetProjectAsync(projectId))
             : await account.GetProjectChangesAsync(projectId, knownToken);
@@ -170,6 +173,7 @@ internal sealed partial class ShellView
         }
 
         string projectId = state.Project.Cloud.ServerProjectId;
+        StudioOperationContext operationContext = CaptureOperationContext();
         refreshingCurrentProjectAccess = true;
         bool previousAlbumRebuildSuppression = suppressAutomaticAlbumRebuild;
         suppressAutomaticAlbumRebuild = true;
@@ -179,13 +183,14 @@ internal sealed partial class ShellView
         await Task.Yield();
         try
         {
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_start");
             StudioCloudProjectRefreshResult refresh = inspectedRefresh
                 ?? await InspectCurrentProjectCloudChangesAsync(projectId);
-            if (!state.HasOpenProject ||
-                !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_inspect");
 
             DateTimeOffset checkedAtUtc = DateTimeOffset.UtcNow;
             ProjectCloudSyncMetadata.MarkCloudChecked(state.Project, checkedAtUtc);
@@ -210,19 +215,35 @@ internal sealed partial class ShellView
                 state.LinkCurrentProjectToCloud(
                     latest,
                     account.Current!.ServerUrl,
+                    account.Current.Email,
                     preserveCreation: true,
                     preserveSyncState: true));
             await ApplyCloudProjectRenderProfileAsync(latest);
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_render_profile");
             ControlledDocumentSyncResult documentRefresh =
                 await ReconcileAtdControlledDocumentAsync(
                     projectId,
                     latest.Project.ConcurrencyToken,
                     allowUpload: false);
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_documents");
             await DrainSuppressedAlbumRebuildEventsAsync();
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_document_events");
             CloudAlbumCacheRefreshResult albumRefresh = await RefreshCloudAlbumPreviewAsync(
                 projectId,
                 latest.Albums);
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_album");
             await DrainSuppressedAlbumRebuildEventsAsync();
+            RequireOperationContext(
+                operationContext,
+                "project_access_refresh_album_events");
             ProjectCloudSyncMetadata.MarkCloudRefreshed(
                 state.Project,
                 latest.Project.ConcurrencyToken,
@@ -231,11 +252,14 @@ internal sealed partial class ShellView
             BindProjectToUi();
             if (reportResult)
             {
-                string albumStatus = albumRefresh.HasCurrentAlbum
-                    ? albumRefresh.Downloaded
-                        ? $"current album R{albumRefresh.RevisionNumber} татагдлаа"
-                        : $"current album R{albumRefresh.RevisionNumber} cache-д өөрчлөлтгүй байна"
-                    : "current album одоогоор алга";
+                string albumStatus = state.Project.Cloud.CanonicalAlbumRebuildPending
+                    ? "canonical album rebuild pending; хуучин PDF preview-ээс хасагдсан " +
+                      $"[reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}]"
+                    : albumRefresh.HasCurrentAlbum
+                        ? albumRefresh.Downloaded
+                            ? $"current album R{albumRefresh.RevisionNumber} татагдлаа"
+                            : $"current album R{albumRefresh.RevisionNumber} cache-д өөрчлөлтгүй байна"
+                        : "current album одоогоор алга";
                 string pendingNotice = state.Project.Cloud.PendingProjectInformation is null
                     ? ""
                     : " Илгээгдээгүй локал төслийн засварыг дарж бичээгүй, pending хэвээр хадгаллаа.";
@@ -248,6 +272,10 @@ internal sealed partial class ShellView
             }
             return true;
         }
+        catch (StudioOperationContextChangedException)
+        {
+            return false;
+        }
         catch (Exception exception) when (
             exception is StudioAccountException or
                 HttpRequestException or
@@ -255,6 +283,8 @@ internal sealed partial class ShellView
                 InvalidDataException or
                 TaskCanceledException)
         {
+            if (!IsOperationContextCurrent(operationContext))
+                return false;
             if (exception is StudioAccountException accountException &&
                 accountException.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
             {
@@ -290,19 +320,26 @@ internal sealed partial class ShellView
         }
 
         string projectId = state.Project.Cloud.ServerProjectId;
+        StudioOperationContext operationContext = CaptureOperationContext();
         try
         {
             await account.GetProjectAsync(projectId);
+            if (!IsOperationContextCurrent(operationContext))
+                return;
         }
         catch (StudioAccountException exception) when (
             exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
         {
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             CloseCurrentCloudProjectAfterAccessEnded(
                 "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
             await RefreshProjectsAsync(refreshNotifications: false);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             // Түр сүлжээ тасрах нь project access цуцлагдсан гэсэн үг биш.
         }
     }
@@ -311,30 +348,56 @@ internal sealed partial class ShellView
     {
         if (refreshingNotifications)
             return;
+        ResetAccountBoundNotificationState();
         if (!account.IsSignedIn)
         {
-            notificationInvitations = new StudioProjectMembershipInvitationListResponse();
-            notificationExitRequests = new StudioProjectMembershipExitRequestListResponse();
-            UpdateNotificationsButton();
             return;
         }
 
+        StudioOperationContext operationContext = CaptureOperationContext();
         refreshingNotifications = true;
         try
         {
-            notificationInvitations = await account.ListMembershipInvitationsAsync();
-            notificationExitRequests = await account.ListMembershipExitRequestsAsync();
+            StudioProjectMembershipInvitationListResponse invitations =
+                await account.ListMembershipInvitationsAsync();
+            if (!IsOperationContextCurrent(operationContext))
+                return;
+            StudioProjectMembershipExitRequestListResponse exitRequests =
+                await account.ListMembershipExitRequestsAsync();
+            if (!IsOperationContextCurrent(operationContext))
+                return;
+            notificationInvitations = invitations;
+            notificationExitRequests = exitRequests;
+            notificationAccountEpoch = account.SessionEpoch;
             UpdateNotificationsButton();
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            if (!silent)
+            if (IsOperationContextCurrent(operationContext) && !silent)
                 SetStatus("Мэдэгдэл шинэчлэгдсэнгүй: " + exception.Message);
         }
         finally
         {
             refreshingNotifications = false;
+            if (!IsOperationContextCurrent(operationContext) &&
+                Application.Current?.Dispatcher.HasShutdownStarted != true)
+            {
+                _ = RefreshNotificationsAsync();
+            }
         }
+    }
+
+    private void ResetAccountBoundNotificationState()
+    {
+        if (notificationAccountEpoch == account.SessionEpoch)
+            return;
+
+        notificationAccountEpoch = account.SessionEpoch;
+        notificationInvitations =
+            new StudioProjectMembershipInvitationListResponse();
+        notificationExitRequests =
+            new StudioProjectMembershipExitRequestListResponse();
+        UpdateNotificationsButton();
     }
 
     private void UpdateNotificationsButton()
@@ -381,7 +444,10 @@ internal sealed partial class ShellView
     {
         if (!await EnsureSignedInAsync())
             return;
+        StudioOperationContext operationContext = CaptureOperationContext();
         await RefreshNotificationsAsync(silent: false);
+        if (!IsOperationContextCurrent(operationContext))
+            return;
         var dialog = new StudioNotificationsDialog(
             account,
             notificationInvitations,
@@ -390,10 +456,16 @@ internal sealed partial class ShellView
             Owner = Window.GetWindow(Root),
         };
         dialog.ShowDialog();
+        if (!IsOperationContextCurrent(operationContext))
+            return;
         await RefreshNotificationsAsync();
+        if (!IsOperationContextCurrent(operationContext))
+            return;
         if (dialog.ProjectsChanged)
         {
             await RefreshProjectsAsync();
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             if (state.HasOpenProject &&
                 state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
@@ -401,12 +473,31 @@ internal sealed partial class ShellView
                 try
                 {
                     StudioCloudProjectDetail latest = await account.GetProjectAsync(state.Project.Cloud.ServerProjectId);
-                    state.LinkCurrentProjectToCloud(latest, account.Current!.ServerUrl, preserveCreation: true);
+                    RequireOperationContext(
+                        operationContext,
+                        "Notification project refresh");
+                    state.LinkCurrentProjectToCloud(
+                        latest,
+                        account.Current!.ServerUrl,
+                        account.Current.Email,
+                        preserveCreation: true);
                     await ApplyCloudProjectRenderProfileAsync(latest);
+                    RequireOperationContext(
+                        operationContext,
+                        "Notification project refresh");
                     await RefreshProjectTeamAsync();
+                    RequireOperationContext(
+                        operationContext,
+                        "Notification project refresh");
+                }
+                catch (StudioOperationContextChangedException)
+                {
+                    return;
                 }
                 catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
                 {
+                    if (!IsOperationContextCurrent(operationContext))
+                        return;
                     SetStatus("Төслийн баг шинэчлэгдсэн боловч нээлттэй төслийг дахин уншиж чадсангүй: " + exception.Message);
                     return;
                 }
@@ -582,6 +673,7 @@ internal sealed partial class ShellView
             state.LinkCurrentProjectToCloud(
                 latest,
                 account.Current!.ServerUrl,
+                account.Current.Email,
                 preserveCreation: true,
                 preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
@@ -615,7 +707,9 @@ internal sealed partial class ShellView
         state.HasOpenProject &&
         account.IsSignedIn &&
         state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
-        state.Project.Cloud.HasScope("team.manage");
+        state.Project.Cloud.HasScope(
+            "team.manage",
+            account.Current?.Email);
 
     private bool CanEditProjectContent()
     {
@@ -623,7 +717,10 @@ internal sealed partial class ShellView
             return false;
         if (!state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
             return true;
-        return state.Project.Cloud.HasScope("concept.write");
+        return account.IsSignedIn &&
+            state.Project.Cloud.HasScope(
+                "concept.write",
+                account.Current?.Email);
     }
 
     private bool CanEditProjectInformation()
@@ -633,13 +730,28 @@ internal sealed partial class ShellView
         if (!state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
             return true;
         return account.IsSignedIn &&
-            ProjectCloudSyncAuthority.CanManageCanonicalMetadata(state.Project.Cloud);
+            ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+                state.Project.Cloud,
+                account.Current?.Email);
     }
 
     private bool EnsureProjectContentPermission()
     {
         if (CanEditProjectContent())
             return true;
+        if (state.HasOpenProject &&
+            account.IsSignedIn &&
+            state.Project.Cloud.Origin.Equals(
+                ProjectOrigins.Cloud,
+                StringComparison.OrdinalIgnoreCase) &&
+            !state.Project.Cloud.PermissionSnapshotBelongsTo(
+                account.Current?.Email))
+        {
+            SetStatus(
+                "Энэ төслийн cached Cloud эрх өөр бүртгэлд хамаарч байна. " +
+                "Одоогийн бүртгэлийн эрхийг баталгаажуулахын тулд Cloud Sync хийнэ үү.");
+            return false;
+        }
         SetStatus("Таны project role эх үүсвэр болон альбум боловсруулах эрхгүй байна.");
         return false;
     }
@@ -722,6 +834,7 @@ internal sealed partial class ShellView
             state.LinkCurrentProjectToCloud(
                 latest,
                 account.Current!.ServerUrl,
+                account.Current.Email,
                 preserveCreation: true,
                 preserveSyncState: true);
             await ApplyCloudProjectRenderProfileAsync(latest);
@@ -748,6 +861,7 @@ internal sealed partial class ShellView
     {
         if (!CanManageProjectTeam() || participantsList.SelectedItem is not MemberRow row)
             return;
+        StudioOperationContext operationContext = CaptureOperationContext();
         if (row.IsInvitation)
         {
             MessageBoxResult confirmation = StudioMessageDialog.Show(
@@ -766,6 +880,8 @@ internal sealed partial class ShellView
         {
             return;
         }
+        if (!IsOperationContextCurrent(operationContext))
+            return;
 
         try
         {
@@ -773,19 +889,33 @@ internal sealed partial class ShellView
             if (row.IsInvitation)
             {
                 await account.RevokeMembershipInvitationAsync(projectId, row.Identifier);
+                RequireOperationContext(operationContext, "Team invitation revocation");
             }
             else
             {
                 await account.DeactivateParticipantAsync(projectId, row.Identifier);
+                RequireOperationContext(operationContext, "Team member removal");
                 StudioCloudProjectDetail latest = await account.GetProjectAsync(projectId);
-                state.LinkCurrentProjectToCloud(latest, account.Current!.ServerUrl, preserveCreation: true);
+                RequireOperationContext(operationContext, "Team member removal");
+                state.LinkCurrentProjectToCloud(
+                    latest,
+                    account.Current!.ServerUrl,
+                    account.Current.Email,
+                    preserveCreation: true);
                 await ApplyCloudProjectRenderProfileAsync(latest);
+                RequireOperationContext(operationContext, "Team member removal");
             }
             await RefreshProjectTeamAsync();
+            RequireOperationContext(operationContext, "Team member removal");
             SetStatus(row.IsInvitation ? "Хүлээгдэж байсан урилгыг цуцаллаа." : "Багийн гишүүнийг хаслаа.");
+        }
+        catch (StudioOperationContextChangedException)
+        {
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             SetStatus("Багийн өөрчлөлт хийгдсэнгүй: " + exception.Message);
         }
     }
@@ -826,6 +956,7 @@ internal sealed partial class ShellView
     {
         if (!state.HasOpenProject)
             return;
+        StudioOperationContext operationContext = CaptureOperationContext();
         string projectId = state.Project.Cloud.ServerProjectId;
         List<MemberRow> rows = ActiveProjectMemberRows();
         if (CanManageProjectTeam())
@@ -834,6 +965,8 @@ internal sealed partial class ShellView
             {
                 StudioProjectMembershipInvitationListResponse invitations =
                     await account.ListMembershipInvitationsAsync();
+                if (!IsOperationContextCurrent(operationContext))
+                    return;
                 rows.AddRange(invitations.Issued
                     .Where(item =>
                         item.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase) &&
@@ -851,14 +984,13 @@ internal sealed partial class ShellView
             }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
+                if (!IsOperationContextCurrent(operationContext))
+                    return;
                 SetStatus("Хүлээгдэж буй багийн урилга уншигдсангүй: " + exception.Message);
             }
         }
-        if (!state.HasOpenProject ||
-            !state.Project.Cloud.ServerProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
-        {
+        if (!IsOperationContextCurrent(operationContext))
             return;
-        }
         BindParticipantRows(rows);
         RefreshProjectArchitectUi();
         RefreshTeamActionUi();

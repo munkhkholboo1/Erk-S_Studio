@@ -32,67 +32,27 @@ public static class ProjectCanonicalSyncService
             project.Cloud.PendingProjectInformation = null;
             pending = null;
         }
-        ProjectServerFoundationUpdate? pendingFoundation = pending?.Foundation is { IsAvailable: true } value
-            ? value
-            : null;
-        bool applyFoundationDetails = serverFoundation.IsAvailable || pendingFoundation is not null;
+        bool applyFoundationDetails = serverFoundation.IsAvailable;
         string projectCode = FirstValue(snapshot.ProjectCode, information.ProjectCode);
-        string serverProjectName = FirstValue(snapshot.Name, information.Name);
-        string projectName = pending is null ? serverProjectName : Clean(pending.Name);
-        string serverSiteAddress = serverFoundation.IsAvailable
-            ? FirstValue(serverBasis.SiteAddress, information.Location)
-            : FirstValue(information.Location, siteAndLand.Addresses.FirstOrDefault());
-        string siteAddress = pending is null ? serverSiteAddress : Clean(pending.Location);
-        string serverLandReference = serverFoundation.IsAvailable
+        string serverProjectName = Clean(snapshot.Name);
+        string projectName = serverProjectName;
+        string siteAddress = Clean(information.Location);
+        string landReference = serverFoundation.IsAvailable
             ? Clean(serverBasis.LandReference)
             : string.Join(", ", CleanValues(siteAndLand.ParcelNumbers));
-        string landReference = pendingFoundation is null
-            ? serverLandReference
-            : Clean(pendingFoundation.LandReference);
-        string serverBuildingPurpose = serverFoundation.IsAvailable
-            ? FirstValue(serverBasis.Summary, information.BuildingPurpose)
-            : Clean(information.BuildingPurpose);
-        string buildingPurpose = pending is null ? serverBuildingPurpose : Clean(pending.BuildingPurpose);
-        string serverClientName = serverFoundation.IsAvailable
-            ? FirstValue(serverBasis.ClientName, snapshot.ClientName)
-            : Clean(snapshot.ClientName);
-        string clientName = pending is null ? serverClientName : Clean(pending.ClientName);
-        string serverPlanningAuthority = serverFoundation.IsAvailable
-            ? FirstValue(serverPlanningTask.IssuingAuthorityName, snapshot.PlanningAuthorityName)
-            : Clean(snapshot.PlanningAuthorityName);
-        string planningAuthorityName = pending is null
-            ? serverPlanningAuthority
-            : Clean(pending.PlanningAuthorityName);
-        string basisSourceType = pendingFoundation is null
-            ? Clean(serverBasis.SourceType)
-            : Clean(pendingFoundation.SourceType);
-        string requestNumber = pendingFoundation is null
-            ? Clean(serverBasis.RequestNumber)
-            : Clean(pendingFoundation.RequestNumber);
-        string clientType = pendingFoundation is null
-            ? ProjectClientTypes.Normalize(serverBasis.ClientType)
-            : ProjectClientTypes.Normalize(pendingFoundation.ClientType);
-        string clientEmail = pendingFoundation is null
-            ? Clean(serverBasis.ClientEmail)
-            : Clean(pendingFoundation.ClientEmail);
-        string clientRepresentativePosition = pendingFoundation is null
-            ? Clean(serverBasis.ClientRepresentativePosition)
-            : Clean(pendingFoundation.ClientRepresentativePosition);
-        string clientRepresentativeName = pendingFoundation is null
-            ? Clean(serverBasis.ClientRepresentativeName)
-            : Clean(pendingFoundation.ClientRepresentativeName);
-        string sourceOrganizationName = pendingFoundation is null
-            ? Clean(serverBasis.SourceOrganizationName)
-            : Clean(pendingFoundation.SourceOrganizationName);
-        string atdNumber = pendingFoundation is null
-            ? Clean(serverPlanningTask.AtdNumber)
-            : Clean(pendingFoundation.AtdNumber);
-        string atdStatus = pendingFoundation is null
-            ? Clean(serverPlanningTask.Status)
-            : Clean(pendingFoundation.AtdStatus);
-        string atdSummary = pendingFoundation is null
-            ? Clean(serverPlanningTask.Summary)
-            : Clean(pendingFoundation.AtdSummary);
+        string buildingPurpose = Clean(information.BuildingPurpose);
+        string clientName = Clean(snapshot.ClientName);
+        string planningAuthorityName = Clean(snapshot.PlanningAuthorityName);
+        string basisSourceType = Clean(serverBasis.SourceType);
+        string requestNumber = Clean(serverBasis.RequestNumber);
+        string clientType = ProjectClientTypes.Normalize(serverBasis.ClientType);
+        string clientEmail = Clean(serverBasis.ClientEmail);
+        string clientRepresentativePosition = Clean(serverBasis.ClientRepresentativePosition);
+        string clientRepresentativeName = Clean(serverBasis.ClientRepresentativeName);
+        string sourceOrganizationName = Clean(serverBasis.SourceOrganizationName);
+        string atdNumber = Clean(serverPlanningTask.AtdNumber);
+        string atdStatus = Clean(serverPlanningTask.Status);
+        string atdSummary = Clean(serverPlanningTask.Summary);
         string currentStage = Clean(snapshot.CurrentStage);
 
         ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
@@ -163,7 +123,7 @@ public static class ProjectCanonicalSyncService
             _ => "Citizen",
         };
 
-        if (serverFoundation.IsAvailable && pendingFoundation is null)
+        if (serverFoundation.IsAvailable)
         {
             project.Foundation.Version = Math.Max(1, serverFoundation.Version);
         }
@@ -205,7 +165,7 @@ public static class ProjectCanonicalSyncService
             {
                 ProjectId = FirstValue(information.ProjectId, projectId),
                 ProjectCode = FirstValue(information.ProjectCode, projectCode),
-                Name = FirstValue(information.Name, projectName),
+                Name = Clean(information.Name),
                 Location = Clean(information.Location),
                 BuildingPurpose = Clean(information.BuildingPurpose),
                 Capacity = information.Capacity,
@@ -292,7 +252,8 @@ public static class ProjectCanonicalSyncService
             string.IsNullOrWhiteSpace(foundation.ClientType) ||
             ProjectClientTypes.Normalize(foundation.ClientType)
                 .Equals(ProjectClientTypes.Citizen, StringComparison.OrdinalIgnoreCase);
-        return string.IsNullOrWhiteSpace(pending.Name) &&
+        return string.IsNullOrWhiteSpace(pending.BaseConcurrencyToken) &&
+            string.IsNullOrWhiteSpace(pending.Name) &&
             string.IsNullOrWhiteSpace(pending.ClientName) &&
             string.IsNullOrWhiteSpace(pending.PlanningAuthorityName) &&
             string.IsNullOrWhiteSpace(pending.DesignOrganizationName) &&

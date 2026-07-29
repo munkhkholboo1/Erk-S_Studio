@@ -82,7 +82,10 @@ internal static class StudioAlbumComponentOrderPolicy
             project,
             normalizedSourceKey,
             code);
-        ProjectDesignSource? source = ResolveSource(project, effectiveSourceKey);
+        ProjectDesignSource? source = ResolveSource(
+            project,
+            effectiveSourceKey,
+            code);
         if (source is not null)
         {
             if (ProjectDesignSourceClassification.IsGeneralPlan(source))
@@ -101,11 +104,21 @@ internal static class StudioAlbumComponentOrderPolicy
         }
         else
         {
-            if (IsSharedGeneralPlanSource(project, effectiveSourceKey))
+            if (IsSharedGeneralPlanSource(
+                    project,
+                    effectiveSourceKey,
+                    code))
                 return GeneralPlanBase + templateSlotOffset + sourceTieBreaker;
 
+            ProjectCloudSourceReference? sharedSource = ResolveSharedSource(
+                project,
+                effectiveSourceKey,
+                code);
             ProjectBuildingGroup? sharedBuilding =
-                ResolveSharedBuildingGroup(project, effectiveSourceKey);
+                ResolveSharedBuildingGroup(
+                    project,
+                    effectiveSourceKey,
+                    SharedSourceOwner(sharedSource));
             if (sharedBuilding is not null)
             {
                 return BuildingOrder(BuildingRank(project, sharedBuilding)) +
@@ -281,26 +294,40 @@ internal static class StudioAlbumComponentOrderPolicy
 
     private static ProjectDesignSource? ResolveSource(
         ProjectWorkspace project,
-        string sourceKey) =>
-        project.Sources.FirstOrDefault(source =>
-            source.Id.Equals(sourceKey, StringComparison.OrdinalIgnoreCase) ||
-            ProjectCloudSyncMetadata.CloudSourceKey(source).Equals(
-                sourceKey,
-                StringComparison.OrdinalIgnoreCase));
+        string sourceKey,
+        string componentCode)
+    {
+        ProjectDesignSource[] matches = project.Sources
+            .Where(source =>
+                source.Id.Equals(sourceKey, StringComparison.OrdinalIgnoreCase) ||
+                ProjectCloudSyncMetadata.CloudSourceKey(source).Equals(
+                    sourceKey,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        string baseCode = StudioAlbumComponentIdentity.BaseSourceCode(componentCode);
+        ProjectDesignSource? exact = matches.FirstOrDefault(source =>
+        {
+            string owner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
+            return !string.IsNullOrWhiteSpace(owner) &&
+                StudioAlbumComponentIdentity.SourceCode(
+                    owner,
+                    ProjectCloudSyncMetadata.CloudSourceKey(source))
+                .Equals(baseCode, StringComparison.OrdinalIgnoreCase);
+        });
+        return exact ?? (matches.Length == 1 ? matches[0] : null);
+    }
 
     private static bool IsSharedGeneralPlanSource(
         ProjectWorkspace project,
-        string sourceKey)
+        string sourceKey,
+        string componentCode)
     {
         ProjectCloudSourceReference[] sharedSources =
-            (project.Cloud.SharedSources ?? [])
-            .Where(source =>
-                !string.IsNullOrWhiteSpace(source.SourceKey) &&
-                (string.IsNullOrWhiteSpace(source.Status) ||
-                 source.Status.Equals("Registered", StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
-        ProjectCloudSourceReference? source = sharedSources.FirstOrDefault(item =>
-            item.SourceKey.Equals(sourceKey, StringComparison.OrdinalIgnoreCase));
+            ActiveSharedSources(project);
+        ProjectCloudSourceReference? source = ResolveSharedSource(
+            project,
+            sourceKey,
+            componentCode);
         if (source is null)
             return false;
 
@@ -313,7 +340,10 @@ internal static class StudioAlbumComponentOrderPolicy
             !source.SourceApplication.Contains(
                 "autocad",
                 StringComparison.OrdinalIgnoreCase) ||
-            ResolveSharedBuildingGroup(project, sourceKey) is not null)
+            ResolveSharedBuildingGroup(
+                project,
+                sourceKey,
+                SharedSourceOwner(source)) is not null)
         {
             return false;
         }
@@ -322,9 +352,49 @@ internal static class StudioAlbumComponentOrderPolicy
             item.SourceApplication.Contains(
                 "autocad",
                 StringComparison.OrdinalIgnoreCase) &&
-            ResolveSharedBuildingGroup(project, item.SourceKey) is null);
+            ResolveSharedBuildingGroup(
+                project,
+                item.SourceKey,
+                SharedSourceOwner(item)) is null);
         return unassignedAutoCadCount == 1;
     }
+
+    private static ProjectCloudSourceReference[] ActiveSharedSources(
+        ProjectWorkspace project) =>
+        (project.Cloud.SharedSources ?? [])
+        .Where(source =>
+            !string.IsNullOrWhiteSpace(source.SourceKey) &&
+            (string.IsNullOrWhiteSpace(source.Status) ||
+             source.Status.Equals("Registered", StringComparison.OrdinalIgnoreCase)))
+        .ToArray();
+
+    private static ProjectCloudSourceReference? ResolveSharedSource(
+        ProjectWorkspace project,
+        string sourceKey,
+        string componentCode)
+    {
+        ProjectCloudSourceReference[] matches = ActiveSharedSources(project)
+            .Where(source =>
+                source.SourceKey.Equals(
+                    sourceKey,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        string baseCode = StudioAlbumComponentIdentity.BaseSourceCode(componentCode);
+        ProjectCloudSourceReference? exact = matches.FirstOrDefault(source =>
+        {
+            string owner = SharedSourceOwner(source);
+            return !string.IsNullOrWhiteSpace(owner) &&
+                StudioAlbumComponentIdentity.SourceCode(owner, source.SourceKey)
+                .Equals(baseCode, StringComparison.OrdinalIgnoreCase);
+        });
+        return exact ?? (matches.Length == 1 ? matches[0] : null);
+    }
+
+    private static string SharedSourceOwner(
+        ProjectCloudSourceReference? source) =>
+        !string.IsNullOrWhiteSpace(source?.RegisteredBy)
+            ? source.RegisteredBy.Trim().ToLowerInvariant()
+            : (source?.OwnerEmail ?? "").Trim().ToLowerInvariant();
 
     private static bool IsGeneralPlanApplication(string? application)
     {
@@ -336,15 +406,32 @@ internal static class StudioAlbumComponentOrderPolicy
 
     private static ProjectBuildingGroup? ResolveSharedBuildingGroup(
         ProjectWorkspace project,
-        string sourceKey)
+        string sourceKey,
+        string sourceOwnerEmail)
     {
-        HashSet<string> assignedGroupIds =
+        ProjectCloudBuildingSheetAssignmentReference[] sourceAssignments =
             (project.Cloud.SharedBuildingSheetAssignments ?? [])
             .Where(assignment =>
                 assignment.SourceKey.Equals(
                     sourceKey,
                     StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(assignment.BuildingGroupId))
+            .ToArray();
+        ProjectCloudBuildingSheetAssignmentReference[] exactAssignments =
+            string.IsNullOrWhiteSpace(sourceOwnerEmail)
+                ? []
+                : sourceAssignments
+                    .Where(assignment =>
+                        assignment.SourceOwnerEmail.Equals(
+                            sourceOwnerEmail,
+                            StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+        IEnumerable<ProjectCloudBuildingSheetAssignmentReference> resolvedAssignments =
+            exactAssignments.Length > 0
+                ? exactAssignments
+                : sourceAssignments.Where(assignment =>
+                    string.IsNullOrWhiteSpace(assignment.SourceOwnerEmail));
+        HashSet<string> assignedGroupIds = resolvedAssignments
             .Select(assignment => assignment.BuildingGroupId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return project.BuildingGroups

@@ -62,6 +62,7 @@ public sealed class SheetIntakeService : IDisposable
     private readonly Dictionary<string, DateTime> recentManifests = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> rejectedSignatures = new(StringComparer.Ordinal);
     private readonly List<RejectedSheetPackage> rejectedPackages = [];
+    private int processingSuspensionCount;
     private static readonly JsonSerializerOptions AuditJsonOptions = new(SheetPackageJson.Options)
     {
         WriteIndented = false,
@@ -140,7 +141,7 @@ public sealed class SheetIntakeService : IDisposable
             watcher.Renamed += (_, args) => ProcessManifestSoon(args.FullPath, registration);
             watcher.Error += (_, args) => IntakeError?.Invoke($"Watcher error: {args.GetException().Message}");
             watchers[fullPath] = registration;
-            watcher.EnableRaisingEvents = true;
+            watcher.EnableRaisingEvents = processingSuspensionCount == 0;
         }
 
         if (scanExisting)
@@ -159,10 +160,57 @@ public sealed class SheetIntakeService : IDisposable
         registration?.StopAndWait();
     }
 
+    /// <summary>
+    /// Prevents package absorption while a cloud sync publishes one immutable
+    /// source snapshot. Existing processing is drained before this method
+    /// returns. Callers must rescan after the lease is released so filesystem
+    /// changes made during the suspension are not lost.
+    /// </summary>
+    public IDisposable SuspendProcessing()
+    {
+        List<WatcherRegistration> registrations;
+        bool firstSuspension;
+        lock (sync)
+        {
+            processingSuspensionCount++;
+            registrations = watchers.Values.ToList();
+            firstSuspension = processingSuspensionCount == 1;
+            if (firstSuspension)
+            {
+                foreach (WatcherRegistration registration in registrations)
+                {
+                    registration.Watcher.EnableRaisingEvents = false;
+                }
+            }
+        }
+
+        if (firstSuspension)
+        {
+            foreach (WatcherRegistration registration in registrations)
+                registration.WaitForIdle();
+        }
+
+        return new ProcessingSuspension(this);
+    }
+
     /// <summary>Re-scans every watched folder (manual refresh).</summary>
     public SheetIntakeScanResult Rescan()
     {
         return Rescan(currentSnapshotsOnly: false, []);
+    }
+
+    /// <summary>
+    /// Re-scans only explicitly selected source inboxes. This is used by a
+    /// collaborator mirror so a manual refresh cannot absorb another
+    /// participant's locally cached source folder.
+    /// </summary>
+    public SheetIntakeScanResult RescanFolders(IEnumerable<string> folders)
+    {
+        HashSet<string> selected = (folders ?? [])
+            .Where(folder => !string.IsNullOrWhiteSpace(folder))
+            .Select(Path.GetFullPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return Rescan(currentSnapshotsOnly: false, [], selected);
     }
 
     /// <summary>
@@ -183,12 +231,17 @@ public sealed class SheetIntakeService : IDisposable
 
     private SheetIntakeScanResult Rescan(
         bool currentSnapshotsOnly,
-        IReadOnlyCollection<SheetPackageCheckpoint> checkpoints)
+        IReadOnlyCollection<SheetPackageCheckpoint> checkpoints,
+        IReadOnlySet<string>? selectedFolders = null)
     {
         List<WatcherRegistration> registrations;
         lock (sync)
         {
-            registrations = watchers.Values.ToList();
+            registrations = watchers.Values
+                .Where(registration =>
+                    selectedFolders is null ||
+                    selectedFolders.Contains(registration.Folder))
+                .ToList();
         }
 
         var result = new SheetIntakeScanResult();
@@ -207,7 +260,7 @@ public sealed class SheetIntakeService : IDisposable
         var scan = new SheetIntakeScanResult();
         try
         {
-            if (registration.IsStopped)
+            if (registration.IsStopped || IsProcessingSuspended())
             {
                 return scan;
             }
@@ -377,7 +430,7 @@ public sealed class SheetIntakeService : IDisposable
         // collapse duplicate watcher events for the same file.
         lock (sync)
         {
-            if (registration.IsStopped)
+            if (registration.IsStopped || processingSuspensionCount > 0)
             {
                 return;
             }
@@ -416,7 +469,7 @@ public sealed class SheetIntakeService : IDisposable
 
     private bool TryProcessManifest(string manifestPath, WatcherRegistration registration)
     {
-        if (registration.IsStopped)
+        if (registration.IsStopped || IsProcessingSuspended())
         {
             return true;
         }
@@ -448,6 +501,9 @@ public sealed class SheetIntakeService : IDisposable
     {
         try
         {
+            if (registration.IsStopped || IsProcessingSuspended())
+                return null;
+
             var result = hydrationCheckpoint is null
                 ? SheetPackageReader.Load(manifestPath)
                 : SheetPackageReader.LoadForHydration(
@@ -464,20 +520,23 @@ public sealed class SheetIntakeService : IDisposable
             SheetLibraryChange change;
             lock (registration.ProcessingGate)
             {
-                if (registration.IsStopped)
+                if (registration.IsStopped || IsProcessingSuspended())
                 {
                     return null;
                 }
 
                 change = library.Absorb(result, effectiveSourceId, notifyChanged: publish);
+                if (publish && (change.HasChanges || !result.IsLossless))
+                {
+                    // Publishing is part of the drained intake transaction.
+                    // A sync suspension must not observe the updated library
+                    // before the matching project-metadata callback is queued.
+                    PackageProcessed?.Invoke(result);
+                }
             }
             if (change.Rejected)
             {
                 RecordRejectedPackage(result, registration.Folder);
-            }
-            if (publish && (change.HasChanges || !result.IsLossless))
-            {
-                PackageProcessed?.Invoke(result);
             }
             return change;
         }
@@ -665,6 +724,47 @@ public sealed class SheetIntakeService : IDisposable
         }
     }
 
+    private bool IsProcessingSuspended()
+    {
+        lock (sync)
+        {
+            return processingSuspensionCount > 0;
+        }
+    }
+
+    private void ResumeProcessing()
+    {
+        lock (sync)
+        {
+            if (processingSuspensionCount <= 0)
+                return;
+            processingSuspensionCount--;
+            if (processingSuspensionCount != 0)
+                return;
+
+            foreach (WatcherRegistration registration in watchers.Values)
+            {
+                if (!registration.IsStopped)
+                    registration.Watcher.EnableRaisingEvents = true;
+            }
+        }
+    }
+
+    private sealed class ProcessingSuspension : IDisposable
+    {
+        private SheetIntakeService? owner;
+
+        public ProcessingSuspension(SheetIntakeService owner)
+        {
+            this.owner = owner;
+        }
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref owner, null)?.ResumeProcessing();
+        }
+    }
+
     private sealed class WatcherRegistration
     {
         private readonly CancellationTokenSource lifetime = new();
@@ -691,6 +791,13 @@ public sealed class SheetIntakeService : IDisposable
         public CancellationToken Lifetime => lifetime.Token;
         public bool IsStopped => Volatile.Read(ref stopped) != 0;
 
+        public void WaitForIdle()
+        {
+            lock (ProcessingGate)
+            {
+            }
+        }
+
         public void StopAndWait()
         {
             if (Interlocked.Exchange(ref stopped, 1) == 0)
@@ -699,9 +806,7 @@ public sealed class SheetIntakeService : IDisposable
                 Watcher.Dispose();
             }
 
-            lock (ProcessingGate)
-            {
-            }
+            WaitForIdle();
         }
     }
 

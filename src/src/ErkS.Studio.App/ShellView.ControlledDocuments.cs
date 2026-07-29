@@ -123,13 +123,8 @@ internal sealed partial class ShellView
         string ownerEmail = CurrentCloudOwnerEmail();
         foreach (ProjectFileReference local in ApprovedAtdDocuments(planningTask.Documents))
         {
-            if (string.IsNullOrWhiteSpace(local.CloudOwnerEmail))
-            {
-                local.CloudOwnerEmail = ownerEmail;
-                if (string.IsNullOrWhiteSpace(local.CloudContributionId))
-                    local.CloudContributionId = Guid.NewGuid().ToString("N");
-                local.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.PendingUpload;
-            }
+            if (!IsDocumentOwnedBy(local, ownerEmail))
+                continue;
 
             StudioCloudFile? legacyCloudFile = cloudDocument?.CurrentFiles.FirstOrDefault(file =>
                 !string.IsNullOrWhiteSpace(local.Sha256) &&

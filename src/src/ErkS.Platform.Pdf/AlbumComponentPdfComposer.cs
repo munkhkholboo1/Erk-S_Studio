@@ -92,7 +92,6 @@ public static class AlbumComponentPdfComposer
 
         specs = specs
             .OrderBy(item => item.Order)
-            .ThenBy(item => item.ExistingPages.Count == 0 ? int.MaxValue : item.ExistingPages[0])
             .ThenBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

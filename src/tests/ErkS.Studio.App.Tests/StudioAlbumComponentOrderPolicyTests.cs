@@ -304,6 +304,84 @@ public sealed class StudioAlbumComponentOrderPolicyTests
     }
 
     [Fact]
+    public void Resolve_DoesNotCollapseDifferentOwnersThatShareASourceKey()
+    {
+        const string generalPlanOwner = "planner@example.com";
+        const string buildingOwner = "architect@example.com";
+        const string sourceKey = "shared-source-key";
+        ProjectWorkspace project = ProjectWorkspaceStore.Create(
+            "ORDER-SAME-KEY",
+            "Owner scoped building order");
+        var building = new ProjectBuildingGroup
+        {
+            Id = "building-one",
+            Name = "Building 1",
+            Order = 1,
+        };
+        project.BuildingGroups = [building];
+        project.Cloud.SharedSources =
+        [
+            new ProjectCloudSourceReference
+            {
+                SourceKey = sourceKey,
+                SourceApplication = "Erk-S CityGen for AutoCAD",
+                RegisteredBy = generalPlanOwner,
+                OwnerEmail = generalPlanOwner,
+                Status = "Registered",
+            },
+            new ProjectCloudSourceReference
+            {
+                SourceKey = sourceKey,
+                SourceApplication = "Revit",
+                RegisteredBy = buildingOwner,
+                OwnerEmail = buildingOwner,
+                Status = "Registered",
+            },
+        ];
+        project.Cloud.SharedBuildingSheetAssignments =
+        [
+            new ProjectCloudBuildingSheetAssignmentReference
+            {
+                SourceOwnerEmail = buildingOwner,
+                SourceKey = sourceKey,
+                SheetId = "sheet-1",
+                BuildingGroupId = building.Id,
+            },
+        ];
+        string generalPlanCode =
+            StudioAlbumComponentIdentity.SourceCode(generalPlanOwner, sourceKey);
+        string buildingCode =
+            StudioAlbumComponentIdentity.SourceCode(buildingOwner, sourceKey);
+        var registrationOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            [generalPlanCode] = 0,
+            [buildingCode] = 1,
+        };
+
+        int generalPlan = Resolve(
+            project,
+            generalPlanCode,
+            sourceKey,
+            0,
+            registrationOrder);
+        int subCover = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(building),
+            "",
+            0,
+            registrationOrder);
+        int buildingSource = Resolve(
+            project,
+            buildingCode,
+            sourceKey,
+            0,
+            registrationOrder);
+
+        Assert.True(generalPlan < subCover);
+        Assert.True(subCover < buildingSource);
+    }
+
+    [Fact]
     public void Resolve_WithoutGeneralPlan_KeepsSparseBuildingGroupsBesideTheirSubCovers()
     {
         const string owner = "architect@example.com";

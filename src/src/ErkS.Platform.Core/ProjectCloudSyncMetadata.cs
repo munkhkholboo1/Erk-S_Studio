@@ -81,6 +81,20 @@ public static class ProjectCloudSyncMetadata
         return Value(source.Metadata, SourceKeyKey, source.Id);
     }
 
+    public static string RecordedSourceManifestId(ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return Value(source.Metadata, ManifestIdKey);
+    }
+
+    public static string RecordedSourceContentHash(ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return Value(source.Metadata, ContentHashKey).ToLowerInvariant();
+    }
+
     public static void BindToCloudSource(
         ProjectWorkspace project,
         ProjectDesignSource source,
@@ -167,8 +181,15 @@ public static class ProjectCloudSyncMetadata
     {
         ArgumentNullException.ThrowIfNull(project);
         project.Cloud.PendingAlbumComponentCodes ??= [];
+        project.Cloud.CanonicalAlbumRebuildComponentCodes ??= [];
+        IEnumerable<string> serverRequiredComponents =
+            project.Cloud.CanonicalAlbumRebuildPending
+                ? project.Cloud.CanonicalAlbumRebuildComponentCodes
+                : [];
         return project.Cloud.PendingAlbumComponentCodes
+            .Concat(serverRequiredComponents)
             .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -194,6 +215,79 @@ public static class ProjectCloudSyncMetadata
         MarkPending(project);
     }
 
+    public static void MarkAlbumComponentPendingForBinding(
+        ProjectWorkspace project,
+        string componentCode,
+        string ownerEmail,
+        string deviceFingerprint,
+        bool isRemoval,
+        DateTimeOffset? claimedAtUtc = null,
+        string? registrySourceId = null)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        string code = componentCode?.Trim() ?? "";
+        string owner = (ownerEmail ?? "").Trim().ToLowerInvariant();
+        string device = (deviceFingerprint ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException(
+                "Album component code is required.",
+                nameof(componentCode));
+        if (string.IsNullOrWhiteSpace(owner))
+            throw new ArgumentException(
+                "Album component owner is required.",
+                nameof(ownerEmail));
+        if (string.IsNullOrWhiteSpace(device))
+            throw new ArgumentException(
+                "Album component device is required.",
+                nameof(deviceFingerprint));
+
+        project.Cloud.PendingAlbumComponentClaims ??= [];
+        ProjectLocalAlbumComponentClaim? claim =
+            project.Cloud.PendingAlbumComponentClaims.FirstOrDefault(candidate =>
+                candidate.ComponentCode.Equals(
+                    code,
+                    StringComparison.OrdinalIgnoreCase) &&
+                candidate.OwnerEmail.Equals(
+                    owner,
+                    StringComparison.OrdinalIgnoreCase) &&
+                candidate.DeviceFingerprint.Equals(
+                    device,
+                    StringComparison.OrdinalIgnoreCase));
+        if (claim is null)
+        {
+            claim = new ProjectLocalAlbumComponentClaim
+            {
+                ComponentCode = code,
+                OwnerEmail = owner,
+                DeviceFingerprint = device,
+            };
+            project.Cloud.PendingAlbumComponentClaims.Add(claim);
+        }
+        claim.ClaimToken = Guid.NewGuid().ToString("N");
+        claim.IsRemoval = isRemoval;
+        claim.ClaimedAtUtc = claimedAtUtc ?? DateTimeOffset.UtcNow;
+        if (registrySourceId is not null)
+            claim.RegistrySourceId = registrySourceId.Trim();
+        MarkAlbumComponentsPending(project, [code]);
+    }
+
+    public static ProjectLocalAlbumComponentClaim? PendingAlbumComponentClaim(
+        ProjectWorkspace project,
+        string componentCode,
+        string? ownerEmail,
+        string? deviceFingerprint)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        string code = componentCode?.Trim() ?? "";
+        string owner = (ownerEmail ?? "").Trim().ToLowerInvariant();
+        string device = (deviceFingerprint ?? "").Trim().ToLowerInvariant();
+        project.Cloud.PendingAlbumComponentClaims ??= [];
+        return project.Cloud.PendingAlbumComponentClaims.FirstOrDefault(claim =>
+            claim.ComponentCode.Equals(code, StringComparison.OrdinalIgnoreCase) &&
+            claim.OwnerEmail.Equals(owner, StringComparison.OrdinalIgnoreCase) &&
+            claim.DeviceFingerprint.Equals(device, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static void MarkAlbumComponentsSynced(
         ProjectWorkspace project,
         IEnumerable<string> componentCodes)
@@ -205,6 +299,64 @@ public static class ProjectCloudSyncMetadata
             .Select(code => code.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         project.Cloud.PendingAlbumComponentCodes.RemoveAll(completed.Contains);
+        project.Cloud.PendingAlbumComponentClaims ??= [];
+        project.Cloud.PendingAlbumComponentClaims.RemoveAll(claim =>
+            completed.Contains(claim.ComponentCode));
+    }
+
+    public static void MarkAlbumComponentsSyncedForBinding(
+        ProjectWorkspace project,
+        IEnumerable<string> componentCodes,
+        string? ownerEmail,
+        string? deviceFingerprint)
+    {
+        MarkAlbumComponentsSyncedForBinding(
+            project,
+            componentCodes,
+            ownerEmail,
+            deviceFingerprint,
+            acceptedClaims: null);
+    }
+
+    public static void MarkAlbumComponentsSyncedForBinding(
+        ProjectWorkspace project,
+        IEnumerable<string> componentCodes,
+        string? ownerEmail,
+        string? deviceFingerprint,
+        IEnumerable<ProjectAlbumComponentClaimAcknowledgement>? acceptedClaims)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        HashSet<string> completed = (componentCodes ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string owner = (ownerEmail ?? "").Trim().ToLowerInvariant();
+        string device = (deviceFingerprint ?? "").Trim().ToLowerInvariant();
+        Dictionary<string, string>? acceptedTokens = acceptedClaims?
+            .Where(claim =>
+                claim.OwnerEmail.Equals(owner, StringComparison.OrdinalIgnoreCase) &&
+                claim.DeviceFingerprint.Equals(device, StringComparison.OrdinalIgnoreCase) &&
+                completed.Contains(claim.ComponentCode) &&
+                !string.IsNullOrWhiteSpace(claim.ClaimToken))
+            .GroupBy(claim => claim.ComponentCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Last().ClaimToken,
+                StringComparer.OrdinalIgnoreCase);
+        project.Cloud.PendingAlbumComponentClaims ??= [];
+        project.Cloud.PendingAlbumComponentClaims.RemoveAll(claim =>
+            completed.Contains(claim.ComponentCode) &&
+            claim.OwnerEmail.Equals(owner, StringComparison.OrdinalIgnoreCase) &&
+            claim.DeviceFingerprint.Equals(device, StringComparison.OrdinalIgnoreCase) &&
+            (acceptedTokens is null ||
+             acceptedTokens.TryGetValue(claim.ComponentCode, out string? token) &&
+             claim.ClaimToken.Equals(token, StringComparison.OrdinalIgnoreCase)));
+
+        project.Cloud.PendingAlbumComponentCodes ??= [];
+        project.Cloud.PendingAlbumComponentCodes.RemoveAll(code =>
+            completed.Contains(code) &&
+            !project.Cloud.PendingAlbumComponentClaims.Any(claim =>
+                claim.ComponentCode.Equals(code, StringComparison.OrdinalIgnoreCase)));
     }
 
     public static void MarkCanonicalTitleBlockPending(ProjectWorkspace project)
@@ -224,9 +376,38 @@ public static class ProjectCloudSyncMetadata
             signature?.Trim().ToLowerInvariant() ?? "";
     }
 
+    public static void CaptureBuildingCompositionEditBase(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (project.Cloud.BuildingCompositionEditBaseCaptured)
+            return;
+
+        project.Cloud.BuildingCompositionEditBaseCaptured = true;
+        project.Cloud.BuildingCompositionEditBaseVersion =
+            Math.Max(0, project.Cloud.SharedBuildingCompositionVersion);
+        project.Cloud.BuildingCompositionEditBaseGroups =
+            ProjectBuildingComposition.NormalizeGroups(
+                    (project.Cloud.SharedBuildingGroups ?? [])
+                        .OfType<ProjectCloudBuildingGroupReference>()
+                        .Select(group => new ProjectBuildingGroup
+                        {
+                            Id = group.Id,
+                            Name = group.Name,
+                            Order = group.Order,
+                        }))
+                .Select(group => new ProjectCloudBuildingGroupReference
+                {
+                    Id = group.Id,
+                    Name = group.Name,
+                    Order = group.Order,
+                })
+                .ToList();
+    }
+
     public static void MarkBuildingCompositionPending(ProjectWorkspace project)
     {
         ArgumentNullException.ThrowIfNull(project);
+        CaptureBuildingCompositionEditBase(project);
         project.Cloud.BuildingCompositionPending = true;
         IEnumerable<string> currentCodes = ProjectBuildingComposition
             .NormalizeGroups(project.BuildingGroups)
@@ -253,6 +434,10 @@ public static class ProjectCloudSyncMetadata
     {
         ArgumentNullException.ThrowIfNull(project);
         project.Cloud.BuildingCompositionPending = false;
+        project.Cloud.BuildingCompositionEditBaseCaptured = false;
+        project.Cloud.BuildingCompositionEditBaseVersion = 0;
+        project.Cloud.BuildingCompositionEditBaseGroups = [];
+        project.Cloud.PendingBuildingGroupDeletionIds = [];
     }
 
     public static void ValidateSourceAcknowledgement(
@@ -456,3 +641,9 @@ public static class ProjectCloudSyncMetadata
             ? value.Trim()
             : fallback;
 }
+
+public sealed record ProjectAlbumComponentClaimAcknowledgement(
+    string ComponentCode,
+    string OwnerEmail,
+    string DeviceFingerprint,
+    string ClaimToken);

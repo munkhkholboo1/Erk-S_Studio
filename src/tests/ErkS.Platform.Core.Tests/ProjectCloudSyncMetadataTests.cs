@@ -43,6 +43,36 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void ContentHashMismatchRecoversPendingSourceWhenCoarseDirtyFlagWasMissed()
+    {
+        ProjectWorkspace project = Project();
+        ProjectDesignSource source = project.Sources.Single();
+        var manifest = new SheetPackageManifest
+        {
+            SchemaVersion = 4,
+            PackageId = Guid.Parse("d321526b-e797-4520-aa74-c5742b267eb8"),
+            ExportedAtUtc = new DateTimeOffset(2026, 7, 17, 5, 0, 0, TimeSpan.Zero),
+            Source = new SheetPackageSource
+            {
+                SourceId = source.Id,
+                Application = SheetSourceApplication.Revit,
+                DocumentTitle = "Concept model",
+            },
+            Sheets = [new SheetPackageEntry { SheetId = "A-01", Sha256 = "sheet-hash" }],
+        };
+        ProjectCloudSyncMetadata.RecordPackage(project, source, manifest, "hash-before");
+        ProjectCloudSyncMetadata.MarkSourceSynced(
+            Assert.Single(ProjectCloudSyncMetadata.PendingSourcePackages(project)));
+
+        ProjectCloudSyncMetadata.RecordPackage(project, source, manifest, "hash-after");
+        project.Cloud.SyncStatus = ProjectSyncStatuses.Synced;
+
+        ProjectSourceSyncCandidate recovered = Assert.Single(
+            ProjectCloudSyncMetadata.PendingSourcePackages(project));
+        Assert.Equal("hash-after", recovered.ContentHash);
+    }
+
+    [Fact]
     public void SourceLinkWithoutReceivedPackageRemainsAnEmptyTemplate()
     {
         ProjectWorkspace project = Project();
@@ -84,6 +114,72 @@ public sealed class ProjectCloudSyncMetadataTests
 
             Assert.Equal(
                 [ProjectCloudSyncMetadata.CoverComponentCode],
+                ProjectCloudSyncMetadata.PendingAlbumComponents(loaded));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CanonicalAlbumRebuildOverlay_RoundTripsSeparatelyFromLocalPendingWork()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "erks-canonical-rebuild-tests",
+            Guid.NewGuid().ToString("N"));
+        string projectPath = Path.Combine(root, ProjectWorkspace.DefaultFileName);
+        ProjectWorkspace project = Project();
+        string currentSubcover =
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCodePrefix +
+            "studio-building:building-a";
+        string deletedSubcover =
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCodePrefix +
+            "studio-building:deleted-a";
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            project,
+            [ProjectCloudSyncMetadata.CoverComponentCode]);
+        project.Cloud.CanonicalAlbumRebuildPending = true;
+        project.Cloud.CanonicalAlbumRequiredBuildingCompositionVersion = 4;
+        project.Cloud.CanonicalAlbumCurrentBuildingCompositionVersion = 3;
+        project.Cloud.CanonicalAlbumRebuildComponentCodes =
+        [
+            $" {deletedSubcover} ",
+            currentSubcover,
+            deletedSubcover,
+        ];
+        project.Cloud.CanonicalAlbumPendingComponentTombstoneCodes =
+        [
+            deletedSubcover,
+            deletedSubcover,
+        ];
+
+        try
+        {
+            ProjectWorkspaceStore.Save(project, projectPath);
+            ProjectWorkspace loaded = ProjectWorkspaceStore.Load(projectPath);
+
+            Assert.True(loaded.Cloud.CanonicalAlbumRebuildPending);
+            Assert.Equal(
+                4,
+                loaded.Cloud.CanonicalAlbumRequiredBuildingCompositionVersion);
+            Assert.Equal(
+                3,
+                loaded.Cloud.CanonicalAlbumCurrentBuildingCompositionVersion);
+            Assert.Equal(
+                [currentSubcover, deletedSubcover],
+                loaded.Cloud.CanonicalAlbumRebuildComponentCodes);
+            Assert.Equal(
+                [deletedSubcover],
+                loaded.Cloud.CanonicalAlbumPendingComponentTombstoneCodes);
+            Assert.Equal(
+                [
+                    ProjectCloudSyncMetadata.CoverComponentCode,
+                    currentSubcover,
+                    deletedSubcover,
+                ],
                 ProjectCloudSyncMetadata.PendingAlbumComponents(loaded));
         }
         finally
@@ -306,6 +402,7 @@ public sealed class ProjectCloudSyncMetadataTests
         string root = Path.Combine(Path.GetTempPath(), "erks-cloud-role-tests", Guid.NewGuid().ToString("N"));
         string projectPath = Path.Combine(root, ProjectWorkspace.DefaultFileName);
         ProjectWorkspace project = Project();
+        project.Cloud.PermissionSnapshotAccountEmail = " Architect@Example.COM ";
         project.Cloud.CurrentUserRoles = ["Architect", "Engineer"];
         project.Cloud.CurrentUserScopes = ["concept.write", "album.create"];
 
@@ -315,9 +412,21 @@ public sealed class ProjectCloudSyncMetadataTests
             ProjectWorkspace loaded = ProjectWorkspaceStore.Load(projectPath);
 
             Assert.Equal(["Architect", "Engineer"], loaded.Cloud.CurrentUserRoles);
-            Assert.True(loaded.Cloud.HasScope("CONCEPT.WRITE"));
-            Assert.True(loaded.Cloud.HasScope("album.create"));
-            Assert.False(loaded.Cloud.HasScope("team.manage"));
+            Assert.Equal(
+                "architect@example.com",
+                loaded.Cloud.PermissionSnapshotAccountEmail);
+            Assert.True(loaded.Cloud.HasScope(
+                "CONCEPT.WRITE",
+                "architect@example.com"));
+            Assert.True(loaded.Cloud.HasScope(
+                "album.create",
+                "ARCHITECT@example.com"));
+            Assert.False(loaded.Cloud.HasScope(
+                "team.manage",
+                "architect@example.com"));
+            Assert.False(loaded.Cloud.HasScope(
+                "concept.write",
+                "another@example.com"));
         }
         finally
         {

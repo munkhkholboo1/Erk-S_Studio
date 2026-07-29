@@ -186,6 +186,8 @@ public sealed class AppStateSourceIsolationTests : IDisposable
                 ProjectCode = "CLOUD-001",
                 Name = "Shared source project",
                 CurrentStage = "ConceptDesign",
+                CurrentUserRoles = ["Architect"],
+                CurrentUserScopes = ["concept.write"],
                 ConcurrencyToken = "token-1",
             },
             DesignPackages =
@@ -230,9 +232,21 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             ],
         };
 
-        state.LinkCurrentProjectToCloud(cloud, "https://erk-s.mn");
+        state.LinkCurrentProjectToCloud(
+            cloud,
+            "https://erk-s.mn",
+            " Architect-A@ERKS.Local ");
 
         Assert.Empty(state.Project.Sources);
+        Assert.Equal(
+            "architect-a@erks.local",
+            state.Project.Cloud.PermissionSnapshotAccountEmail);
+        Assert.True(state.Project.Cloud.HasScope(
+            "concept.write",
+            "architect-a@erks.local"));
+        Assert.False(state.Project.Cloud.HasScope(
+            "concept.write",
+            ownerB));
         Assert.Equal(2, state.Project.Cloud.SharedSources.Count);
         Assert.Equal([ownerA, ownerB], state.Project.Cloud.SharedSources
             .Select(source => source.OwnerEmail)
@@ -243,9 +257,66 @@ public sealed class AppStateSourceIsolationTests : IDisposable
                 StudioAlbumComponentIdentity.SourceComponentKind,
                 StringComparison.OrdinalIgnoreCase)));
         ProjectWorkspace persisted = ProjectWorkspaceStore.Load(projectPath);
+        Assert.Equal(
+            "architect-a@erks.local",
+            persisted.Cloud.PermissionSnapshotAccountEmail);
         Assert.Equal(2, persisted.Cloud.SharedSources.Count);
         Assert.Contains(persisted.Cloud.SharedAlbumComponents, component => component.Code == codeA);
         Assert.Contains(persisted.Cloud.SharedAlbumComponents, component => component.Code == codeB);
+    }
+
+    [Fact]
+    public void LinkCloudProject_ReplacesPermissionSnapshotForTheAuthenticatedAccount()
+    {
+        var (projectPath, _) = WriteProject(sources: [], pageKeys: [], lastPdfPath: "");
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+        var cloud = new StudioCloudProjectDetail
+        {
+            Project = new StudioCloudProjectSummary
+            {
+                ProjectId = "cloud-project-1",
+                ProjectCode = "CLOUD-001",
+                Name = "Account-bound permission project",
+                CurrentStage = "ConceptDesign",
+                CurrentUserRoles = ["Architect"],
+                CurrentUserScopes = ["concept.write"],
+                ConcurrencyToken = "token-1",
+            },
+        };
+
+        state.LinkCurrentProjectToCloud(
+            cloud,
+            "https://erk-s.mn",
+            "account-a@example.com");
+
+        cloud.Project.CurrentUserRoles = ["ProjectAdmin"];
+        cloud.Project.CurrentUserScopes = ["team.manage"];
+        cloud.Project.ConcurrencyToken = "token-2";
+        state.LinkCurrentProjectToCloud(
+            cloud,
+            "https://erk-s.mn",
+            "ACCOUNT-B@example.com",
+            preserveCreation: true,
+            preserveSyncState: true);
+
+        Assert.Equal(
+            "account-b@example.com",
+            state.Project.Cloud.PermissionSnapshotAccountEmail);
+        Assert.False(state.Project.Cloud.HasScope(
+            "concept.write",
+            "account-a@example.com"));
+        Assert.True(state.Project.Cloud.HasScope(
+            "team.manage",
+            "account-b@example.com"));
+        Assert.Equal(["ProjectAdmin"], state.Project.Cloud.CurrentUserRoles);
+        Assert.Equal(["team.manage"], state.Project.Cloud.CurrentUserScopes);
+
+        ProjectWorkspace persisted = ProjectWorkspaceStore.Load(projectPath);
+        Assert.Equal(
+            "account-b@example.com",
+            persisted.Cloud.PermissionSnapshotAccountEmail);
+        Assert.Equal(["team.manage"], persisted.Cloud.CurrentUserScopes);
     }
 
     [Fact]

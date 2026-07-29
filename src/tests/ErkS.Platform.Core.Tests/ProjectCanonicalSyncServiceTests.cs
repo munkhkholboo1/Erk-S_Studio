@@ -51,7 +51,7 @@ public sealed class ProjectCanonicalSyncServiceTests
     }
 
     [Fact]
-    public void PendingStudioInformationIsNotOverwrittenByAnOlderServerSnapshot()
+    public void CanonicalSnapshotReplacesMirrorWhilePendingDraftRemainsSeparate()
     {
         ProjectWorkspace project = Project();
         project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
@@ -61,25 +61,80 @@ public sealed class ProjectCanonicalSyncServiceTests
             PlanningAuthorityName = "Pending authority",
             Location = "Pending address",
             BuildingPurpose = "Pending purpose",
+            BaseConcurrencyToken = "server-token-before-edit",
             QueuedAtUtc = DateTimeOffset.UtcNow,
         };
 
         ProjectCanonicalSyncService.Apply(project, Snapshot());
 
-        Assert.Equal("Pending Studio name", project.Identity.Name);
-        Assert.Equal("Pending client", project.Foundation.InitiationBasis.ClientName);
-        Assert.Equal("Pending address", project.Foundation.InitiationBasis.SiteAddress);
-        Assert.Equal("Pending purpose", project.Foundation.InitiationBasis.Summary);
-        Assert.Equal("Pending authority", project.Foundation.PlanningTask.IssuingAuthorityName);
+        Assert.Equal("Canonical website name", project.Identity.Name);
+        Assert.Equal("Canonical client", project.Foundation.InitiationBasis.ClientName);
+        Assert.Equal("Ulaanbaatar, Khan-Uul", project.Foundation.InitiationBasis.SiteAddress);
+        Assert.Equal("Apartment and services", project.Foundation.InitiationBasis.Summary);
+        Assert.Equal("Planning authority", project.Foundation.PlanningTask.IssuingAuthorityName);
         Assert.Equal("Canonical website name", project.Cloud.ServerSnapshot.Name);
         Assert.Equal("Apartment and services", project.Cloud.ServerSnapshot.Information.BuildingPurpose);
         Assert.NotNull(project.Cloud.PendingProjectInformation);
+        Assert.Equal(
+            "Pending Studio name",
+            project.Cloud.PendingProjectInformation.Name);
+        Assert.Equal(
+            "server-token-before-edit",
+            project.Cloud.PendingProjectInformation.BaseConcurrencyToken);
 
         project.Cloud.PendingProjectInformation = null;
         ProjectCanonicalSyncService.Apply(project, Snapshot());
 
         Assert.Equal("Canonical website name", project.Identity.Name);
         Assert.Equal("Canonical client", project.Foundation.InitiationBasis.ClientName);
+    }
+
+    [Fact]
+    public void CanonicalEmptyValuesClearMirrorWithoutDiscardingConflictDraft()
+    {
+        ProjectWorkspace project = Project();
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
+        {
+            Name = "Stale partial name",
+            ClientName = "Stale client",
+            PlanningAuthorityName = "Stale authority",
+            Location = "Stale location",
+            BuildingPurpose = "Stale purpose",
+            BaseConcurrencyToken = "server-token-before-clear",
+            QueuedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+        };
+        ProjectServerSnapshot cleared = Snapshot();
+        cleared.Name = "";
+        cleared.ClientName = "";
+        cleared.PlanningAuthorityName = "";
+        cleared.Information.Name = "";
+        cleared.Information.Location = "";
+        cleared.Information.BuildingPurpose = "";
+        cleared.SiteAndLand.Addresses = ["Legacy address that must not return"];
+        cleared.Foundation = SnapshotFoundation();
+        cleared.Foundation.InitiationBasis.ClientName = "";
+        cleared.Foundation.InitiationBasis.SiteAddress = "";
+        cleared.Foundation.InitiationBasis.Summary = "";
+        cleared.Foundation.PlanningTask.IssuingAuthorityName = "";
+        cleared.ConcurrencyToken = "server-token-after-clear";
+
+        ProjectCanonicalSyncService.Apply(project, cleared);
+
+        Assert.Empty(project.Identity.Name);
+        Assert.Empty(project.Identity.Description);
+        Assert.Empty(project.Foundation.InitiationBasis.ClientName);
+        Assert.Empty(project.Foundation.InitiationBasis.SiteAddress);
+        Assert.Empty(project.Foundation.InitiationBasis.Summary);
+        Assert.Empty(project.Foundation.PlanningTask.IssuingAuthorityName);
+        Assert.Equal(
+            "server-token-after-clear",
+            project.Cloud.ServerSnapshot.ConcurrencyToken);
+        Assert.Equal(
+            "Stale partial name",
+            project.Cloud.PendingProjectInformation!.Name);
+        Assert.Equal(
+            "server-token-before-clear",
+            project.Cloud.PendingProjectInformation.BaseConcurrencyToken);
     }
 
     [Fact]
@@ -253,6 +308,40 @@ public sealed class ProjectCanonicalSyncServiceTests
             Assert.Equal(["parcel-1", "parcel-2"], loaded.Cloud.ServerSnapshot.SiteAndLand.ParcelNumbers);
             Assert.Equal("project-1", loaded.Cloud.ServerProjectId);
             Assert.Equal("project-1", loaded.ProjectId);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PendingDraftBaseConcurrencyTokenRoundTripsWithoutRebase()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "erks-pending-project-info-tests",
+            Guid.NewGuid().ToString("N"));
+        string projectPath = Path.Combine(root, ProjectWorkspace.DefaultFileName);
+        ProjectWorkspace project = Project();
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
+        {
+            Name = "Offline draft",
+            BaseConcurrencyToken = "server-token-at-edit",
+            QueuedAtUtc = new DateTimeOffset(2026, 7, 29, 3, 0, 0, TimeSpan.Zero),
+        };
+
+        try
+        {
+            ProjectWorkspaceStore.Save(project, projectPath);
+            ProjectWorkspace loaded = ProjectWorkspaceStore.Load(projectPath);
+
+            PendingProjectInformationUpdate pending =
+                Assert.IsType<PendingProjectInformationUpdate>(
+                    loaded.Cloud.PendingProjectInformation);
+            Assert.Equal("Offline draft", pending.Name);
+            Assert.Equal("server-token-at-edit", pending.BaseConcurrencyToken);
         }
         finally
         {

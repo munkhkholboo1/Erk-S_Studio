@@ -9,6 +9,19 @@ namespace ErkS.Platform.Core;
 /// </summary>
 public static class PdfSourcePageStudioLayout
 {
+    public static bool UsesInformationHeader(
+        AlbumPageDefinition page,
+        SheetPackageEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return BuildingArchitectureConceptPageLayout.UsesInformationHeader(
+            AlbumPageSourceMetadata.ResolveContentKind(page, entry),
+            entry.Name,
+            page.TemplateSlotId);
+    }
+
     public static PageFormatDefinition ResolvePreviewFormat(
         AlbumPageDefinition page,
         SheetPackageEntry entry)
@@ -23,10 +36,7 @@ public static class PdfSourcePageStudioLayout
 
         PageFormatDefinition inferred =
             PdfSourcePageFormatFactory.CreateForSource(entry.WidthMm, entry.HeightMm);
-        return BuildingArchitectureConceptPageLayout.UsesInformationHeader(
-            AlbumPageSourceMetadata.ResolveContentKind(page, entry),
-            entry.Name,
-            page.TemplateSlotId)
+        return UsesInformationHeader(page, entry)
             ? BuildingArchitectureConceptPageLayout.ApplyElevationGeometry(inferred)
             : inferred;
     }
