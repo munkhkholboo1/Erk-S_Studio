@@ -191,6 +191,133 @@ public sealed class StudioSourceRemovalOutboxTests
     }
 
     [Fact]
+    public async Task StageAndRemoveLocal_Offline_RemovesBeforeNetworkAndKeepsTombstone()
+    {
+        (ProjectWorkspace project, ProjectDesignSource source,
+            ProjectCloudSourceReference registry) = Fixture();
+        var operations = new List<string>();
+        bool networkCalled = false;
+
+        StudioSourceLocalRemovalCommit commit =
+            StudioSourceRemovalOutbox.StageAndRemoveLocal(
+                project,
+                source,
+                registry,
+                Owner,
+                Device,
+                hasVerifiedPayload: true,
+                persistStagedClaim: () => operations.Add("persist"),
+                removeLocalSource: local =>
+                {
+                    operations.Add("remove");
+                    Assert.True(project.Sources.Remove(local));
+                    return 3;
+                });
+        StudioSourceRemoteRetirementResult remote =
+            await StudioSourceRemovalOutbox.TryConfirmRegistryRetirementAsync(
+                project,
+                commit.Claim,
+                Owner,
+                Device,
+                canContactCloud: false,
+                _ =>
+                {
+                    networkCalled = true;
+                    return Task.CompletedTask;
+                });
+
+        Assert.Equal(["persist", "remove"], operations);
+        Assert.Equal(3, commit.RemovedAlbumPageCount);
+        Assert.Empty(project.Sources);
+        Assert.Contains(registry, project.Cloud.SharedSources);
+        Assert.False(networkCalled);
+        Assert.Equal(
+            StudioSourceRemoteRetirementStatus.DeferredOffline,
+            remote.Status);
+        Assert.Single(StudioSourceRemovalOutbox.Pending(
+            project,
+            Owner,
+            Device));
+    }
+
+    [Fact]
+    public async Task FailedRemoteRetire_AfterLocalRemoval_RetriesIdempotently()
+    {
+        (ProjectWorkspace project, ProjectDesignSource source,
+            ProjectCloudSourceReference registry) = Fixture();
+        StudioSourceLocalRemovalCommit commit =
+            StudioSourceRemovalOutbox.StageAndRemoveLocal(
+                project,
+                source,
+                registry,
+                Owner,
+                Device,
+                hasVerifiedPayload: true,
+                persistStagedClaim: () => { },
+                removeLocalSource: local =>
+                {
+                    Assert.True(project.Sources.Remove(local));
+                    return 1;
+                });
+
+        StudioSourceRemoteRetirementResult failed =
+            await StudioSourceRemovalOutbox.TryConfirmRegistryRetirementAsync(
+                project,
+                commit.Claim,
+                Owner,
+                Device,
+                canContactCloud: true,
+                _ => throw new HttpRequestException("offline"));
+
+        Assert.Equal(
+            StudioSourceRemoteRetirementStatus.DeferredFailure,
+            failed.Status);
+        Assert.IsType<HttpRequestException>(failed.Error);
+        Assert.Empty(project.Sources);
+        Assert.Contains(registry, project.Cloud.SharedSources);
+        Assert.Single(StudioSourceRemovalOutbox.Pending(
+            project,
+            Owner,
+            Device));
+
+        int successfulCalls = 0;
+        StudioSourceRemoteRetirementResult firstRetry =
+            await StudioSourceRemovalOutbox.TryConfirmRegistryRetirementAsync(
+                project,
+                commit.Claim,
+                Owner,
+                Device,
+                canContactCloud: true,
+                _ =>
+                {
+                    successfulCalls++;
+                    return Task.CompletedTask;
+                });
+        StudioSourceRemoteRetirementResult secondRetry =
+            await StudioSourceRemovalOutbox.TryConfirmRegistryRetirementAsync(
+                project,
+                commit.Claim,
+                Owner,
+                Device,
+                canContactCloud: true,
+                _ =>
+                {
+                    successfulCalls++;
+                    return Task.CompletedTask;
+                });
+
+        Assert.True(firstRetry.Confirmed);
+        Assert.True(secondRetry.Confirmed);
+        Assert.Equal(2, successfulCalls);
+        Assert.Empty(project.Sources);
+        Assert.DoesNotContain(registry, project.Cloud.SharedSources);
+        Assert.Single(StudioSourceRemovalOutbox.Pending(
+            project,
+            Owner,
+            Device));
+    }
+
+    [Fact]
     public async Task StaleOperationContext_DoesNotApplySuccessfulRetireToMirror()
     {
         (ProjectWorkspace project, ProjectDesignSource source,
@@ -274,6 +401,142 @@ public sealed class StudioSourceRemovalOutboxTests
             project,
             Owner,
             Device));
+    }
+
+    [Fact]
+    public void DuplicateOwnerAndSourceKey_FailsClosedBeforeWrongRegistryRetirement()
+    {
+        (ProjectWorkspace project, ProjectDesignSource source,
+            ProjectCloudSourceReference registry) = Fixture();
+        project.Cloud.SharedSources.Add(new ProjectCloudSourceReference
+        {
+            SourceId = "duplicate-registry-source-id",
+            SourceKey = SourceKey,
+            RegisteredBy = Owner,
+            OwnerEmail = Owner,
+            Status = "Active",
+        });
+
+        StudioSourceRegistryResolution resolution =
+            StudioSourceRemovalOutbox.ResolveRegistrySource(
+                project,
+                source);
+
+        Assert.Equal(
+            StudioSourceRegistryResolutionStatus.Ambiguous,
+            resolution.Status);
+        Assert.Null(resolution.Source);
+        Assert.Throws<InvalidOperationException>(() =>
+            StudioSourceRemovalOutbox.Stage(
+                project,
+                source,
+                registry,
+                Owner,
+                Device,
+                hasVerifiedPayload: true));
+        Assert.Contains(source, project.Sources);
+        Assert.Equal(2, project.Cloud.SharedSources.Count);
+        Assert.Empty(project.Cloud.PendingAlbumComponentClaims);
+    }
+
+    [Fact]
+    public async Task MissingMirror_FailsClosedThenExactRefreshCanRemoveWithoutResurrection()
+    {
+        (ProjectWorkspace project, ProjectDesignSource source,
+            ProjectCloudSourceReference registry) = Fixture();
+        project.Cloud.SharedSources.Clear();
+
+        StudioSourceRegistryResolution missing =
+            StudioSourceRemovalOutbox.ResolveRegistrySource(
+                project,
+                source);
+
+        Assert.Equal(
+            StudioSourceRegistryResolutionStatus.Missing,
+            missing.Status);
+        Assert.Throws<InvalidOperationException>(() =>
+            StudioSourceRemovalOutbox.Stage(
+                project,
+                source,
+                registry,
+                Owner,
+                Device,
+                hasVerifiedPayload: true));
+        Assert.Contains(source, project.Sources);
+        Assert.Empty(project.Cloud.PendingAlbumComponentClaims);
+
+        project.Cloud.SharedSources.Add(registry);
+        StudioSourceRegistryResolution refreshed =
+            StudioSourceRemovalOutbox.ResolveRegistrySource(
+                project,
+                source);
+        Assert.True(refreshed.IsExact);
+        Assert.Same(registry, refreshed.Source);
+
+        bool stagedClaimPersisted = false;
+        StudioSourceLocalRemovalCommit commit =
+            StudioSourceRemovalOutbox.StageAndRemoveLocal(
+                project,
+                source,
+                refreshed.Source!,
+                Owner,
+                Device,
+                hasVerifiedPayload: true,
+                persistStagedClaim: () => stagedClaimPersisted = true,
+                removeLocalSource: local =>
+                {
+                    Assert.True(project.Sources.Remove(local));
+                    return 2;
+                });
+
+        Assert.True(stagedClaimPersisted);
+        Assert.Empty(project.Sources);
+        Assert.Equal(2, commit.RemovedAlbumPageCount);
+        Assert.True(StudioSourceRemovalOutbox.IsRegistryMirrorStaged(
+            project,
+            registry,
+            Owner,
+            Device));
+
+        string retiredSourceId = "";
+        StudioSourceRemoteRetirementResult remote =
+            await StudioSourceRemovalOutbox.TryConfirmRegistryRetirementAsync(
+                project,
+                commit.Claim,
+                Owner,
+                Device,
+                canContactCloud: true,
+                sourceId =>
+                {
+                    retiredSourceId = sourceId;
+                    return Task.CompletedTask;
+                });
+
+        Assert.True(remote.Confirmed);
+        Assert.Equal(SourceId, retiredSourceId);
+        Assert.Empty(project.Sources);
+        Assert.Empty(project.Cloud.SharedSources);
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsSyncedForBinding(
+            project,
+            [commit.Claim.ComponentCode],
+            Owner,
+            Device,
+            [
+                new ProjectAlbumComponentClaimAcknowledgement(
+                    commit.Claim.ComponentCode,
+                    Owner,
+                    Device,
+                    commit.Claim.ClaimToken),
+            ]);
+
+        Assert.Empty(project.Cloud.PendingAlbumComponentClaims);
+        Assert.False(StudioSourceRemovalOutbox.IsRegistryMirrorStaged(
+            project,
+            registry,
+            Owner,
+            Device));
+        Assert.Empty(project.Sources);
     }
 
     private static (

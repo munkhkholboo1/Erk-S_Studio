@@ -77,4 +77,24 @@ internal static class StudioLegacySourceResolver
             ? matches[0]
             : null;
     }
+
+    public static bool CanRetireUnqualifiedComponent(
+        ProjectWorkspace project,
+        string? sourceKey,
+        string? selectedOwnerEmail)
+    {
+        ProjectDesignSource? source =
+            ResolveUniqueSourceKey(project, sourceKey);
+        if (source is null)
+            return false;
+
+        string owner =
+            StudioLocalSourceBindingPolicy.ResolveLegacyImmutableOwner(
+                project,
+                source);
+        return !string.IsNullOrWhiteSpace(owner) &&
+            owner.Equals(
+                (selectedOwnerEmail ?? "").Trim(),
+                StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -76,7 +76,10 @@ public sealed class AppState : IDisposable
         runtimeAccountEmail = accountEmail;
         runtimeDeviceFingerprint = deviceFingerprint;
         if (HasOpenProject)
+        {
+            _ = UpgradeSourceMetadata();
             ResetRuntimeServices(scanExistingPackages: false);
+        }
     }
 
     public void NewProject(string code, string name)
@@ -171,6 +174,8 @@ public sealed class AppState : IDisposable
             throw new InvalidDataException("Album document belongs to a different project workspace.");
         }
 
+        StudioSourceMetadataUpgradeReport sourceMetadataUpgrade =
+            UpgradeSourceMetadata(persistChanges: false);
         bool removedUnownedSourcePages = RemoveSourcePagesFromSourceFreeProject() > 0;
         CityGenProjectSiteReconciliationResult siteReconciliation =
             ReconcileCityGenProjectSiteCore();
@@ -185,7 +190,8 @@ public sealed class AppState : IDisposable
         if (EnsureUniqueSourceInboxes(RuntimeSources()) ||
             reconciledSite ||
             removedUnownedSourcePages ||
-            recoveredSiteContextSnapshots)
+            recoveredSiteContextSnapshots ||
+            sourceMetadataUpgrade.ChangedCount > 0)
         {
             SaveProject();
         }
@@ -504,6 +510,22 @@ public sealed class AppState : IDisposable
         RefreshAssetSourceWatchers();
     }
 
+    internal StudioSourceMetadataUpgradeReport UpgradeSourceMetadata(
+        bool persistChanges = true)
+    {
+        StudioSourceMetadataUpgradeReport report =
+            StudioSourceMetadataUpgradePolicy.Apply(
+                Project,
+                runtimeAccountEmail,
+                runtimeDeviceFingerprint,
+                source =>
+                    StudioLocalSourceBindingPolicy
+                        .HasVerifiedLegacyUpgradePayload(Project, source));
+        if (persistChanges && report.ChangedCount > 0)
+            SaveProject();
+        return report;
+    }
+
     public void AddDesignSource(ProjectDesignSource source)
     {
         if (string.IsNullOrWhiteSpace(source.Id))
@@ -611,9 +633,8 @@ public sealed class AppState : IDisposable
             string.Equals(existing.Id, source.Id, StringComparison.OrdinalIgnoreCase));
         Intake.UnwatchFolder(source.InboxFolder);
 
-        int removedPageCount = Project.Sources.Count == 0
-            ? RemoveSourcePagesFromSourceFreeProject()
-            : RemoveAlbumPagesForSource(source, knownSourceKeys);
+        int removedPageCount =
+            RemoveAlbumPagesForSource(source, knownSourceKeys);
         if (removedBuildingAssignments)
             ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
         InvalidateBuiltAlbum();

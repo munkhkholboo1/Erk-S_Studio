@@ -170,6 +170,84 @@ public sealed class StudioSourceBoundaryTests
     }
 
     [Fact]
+    public void CloudUnionPreviewScope_LocalSourceShadowsCloudAfterSourceWasSynced()
+    {
+        ProjectWorkspace project = ProjectWithPendingSource();
+        ProjectDesignSource source = Assert.Single(project.Sources);
+        StudioLocalSourceBindingPolicy.Bind(source, OwnerA, DeviceA);
+        ProjectSourceSyncCandidate candidate =
+            Assert.Single(ProjectCloudSyncMetadata.SourcePackages(project));
+        ProjectCloudSyncMetadata.MarkSourceSynced(candidate);
+
+        Assert.Empty(ProjectCloudSyncMetadata.PendingSourcePackages(project));
+
+        StudioCloudUnionPendingScope local =
+            StudioCloudUnionPreviewScope.Resolve(
+                project,
+                OwnerA,
+                DeviceA,
+                _ => true);
+        StudioCloudUnionPendingScope copiedMirror =
+            StudioCloudUnionPreviewScope.Resolve(
+                project,
+                OwnerA,
+                DeviceB,
+                _ => true);
+
+        Assert.Same(candidate.Source, Assert.Single(local.Sources).Source);
+        Assert.Empty(copiedMirror.Sources);
+    }
+
+    [Fact]
+    public void CloudUnionPreviewScope_SameSourceKeyShadowsOnlyExactOwnerAndDevice()
+    {
+        ProjectWorkspace project = CloudProject();
+        ProjectDesignSource sourceA =
+            Source("source-a", SourceKey, OwnerA);
+        ProjectDesignSource sourceB =
+            Source("source-b", SourceKey, OwnerB);
+        project.Sources = [sourceA, sourceB];
+        project.Cloud.SharedSources =
+        [
+            SharedSource("cloud-a", OwnerA),
+            SharedSource("cloud-b", OwnerB),
+        ];
+        StudioLocalSourceBindingPolicy.Bind(sourceA, OwnerA, DeviceA);
+        StudioLocalSourceBindingPolicy.Bind(sourceB, OwnerB, DeviceB);
+        RecordPackage(
+            project,
+            sourceA,
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            "manifest-hash-a");
+        RecordPackage(
+            project,
+            sourceB,
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            "manifest-hash-b");
+        foreach (ProjectSourceSyncCandidate candidate in
+                 ProjectCloudSyncMetadata.SourcePackages(project))
+        {
+            ProjectCloudSyncMetadata.MarkSourceSynced(candidate);
+        }
+
+        StudioCloudUnionPendingScope ownerA =
+            StudioCloudUnionPreviewScope.Resolve(
+                project,
+                OwnerA,
+                DeviceA,
+                _ => true);
+        StudioCloudUnionPendingScope ownerB =
+            StudioCloudUnionPreviewScope.Resolve(
+                project,
+                OwnerB,
+                DeviceB,
+                _ => true);
+
+        Assert.Same(sourceA, Assert.Single(ownerA.Sources).Source);
+        Assert.Same(sourceB, Assert.Single(ownerB.Sources).Source);
+    }
+
+    [Fact]
     public void LegacySourceIdentity_RejectsAmbiguousSourceKeyAcrossImmutableOwners()
     {
         ProjectWorkspace project = CloudProject();
@@ -184,6 +262,11 @@ public sealed class StudioSourceBoundaryTests
             StudioLegacySourceResolver.Resolve(project, sourceA.Id));
         Assert.Null(
             StudioLegacySourceResolver.Resolve(project, SourceKey));
+        Assert.False(
+            StudioLegacySourceResolver.CanRetireUnqualifiedComponent(
+                project,
+                SourceKey,
+                OwnerA));
     }
 
     [Fact]
@@ -228,6 +311,11 @@ public sealed class StudioSourceBoundaryTests
         Assert.Same(
             source,
             StudioLegacySourceResolver.Resolve(project, SourceKey));
+        Assert.True(
+            StudioLegacySourceResolver.CanRetireUnqualifiedComponent(
+                project,
+                SourceKey,
+                OwnerA));
     }
 
     [Fact]
@@ -270,14 +358,27 @@ public sealed class StudioSourceBoundaryTests
                 CustodianEmail = OwnerA,
             },
         ];
+        RecordPackage(
+            project,
+            source,
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            "manifest-hash-a");
+        return project;
+    }
+
+    private static void RecordPackage(
+        ProjectWorkspace project,
+        ProjectDesignSource source,
+        Guid packageId,
+        string manifestHash)
+    {
         ProjectCloudSyncMetadata.RecordPackage(
             project,
             source,
             new SheetPackageManifest
             {
                 SchemaVersion = 4,
-                PackageId =
-                    Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                PackageId = packageId,
                 Source = new SheetPackageSource
                 {
                     SourceId = source.Id,
@@ -293,8 +394,7 @@ public sealed class StudioSourceBoundaryTests
                     },
                 ],
             },
-            "manifest-hash-a");
-        return project;
+            manifestHash);
     }
 
     private static ProjectWorkspace CloudProject() => new()

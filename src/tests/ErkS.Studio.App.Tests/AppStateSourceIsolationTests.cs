@@ -149,6 +149,50 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     }
 
     [Fact]
+    public void RemoveDesignSource_LastLocalSourceInCloudMirror_PreservesCollaboratorPages()
+    {
+        var localSource = CreateSource("local-source", "Local building.rvt");
+        var (projectPath, albumPath) = WriteProject(
+            sources: [localSource],
+            pageKeys:
+            [
+                "local-source|sheet-01",
+                "remote-source|sheet-01",
+            ],
+            lastPdfPath: "albums/cloud/current.pdf",
+            cloudMirror: true);
+        StudioAlbumDocument seededAlbum = StudioAlbumDocumentStore.Load(albumPath);
+        AlbumSection sourceSection = seededAlbum.Definition.Sections.First();
+        sourceSection.SheetKeys.Add("local-source|sheet-01");
+        sourceSection.SheetKeys.Add("remote-source|sheet-01");
+        StudioAlbumDocumentStore.Save(seededAlbum, albumPath);
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+
+        int removed = state.RemoveDesignSource(
+            Assert.Single(state.Project.Sources));
+
+        Assert.Equal(1, removed);
+        Assert.Empty(state.Project.Sources);
+        Assert.Equal(
+            "remote-source|sheet-01",
+            Assert.Single(state.Album.Pages).SheetKey);
+        Assert.Equal(
+            "remote-source|sheet-01",
+            Assert.Single(state.Album.Sections.First().SheetKeys));
+        Assert.Empty(state.Project.PrimaryAlbum.LastPdfPath);
+
+        StudioAlbumDocument persisted =
+            StudioAlbumDocumentStore.Load(state.AlbumPath!);
+        Assert.Equal(
+            "remote-source|sheet-01",
+            Assert.Single(persisted.Definition.Pages).SheetKey);
+        Assert.Equal(
+            "remote-source|sheet-01",
+            Assert.Single(persisted.Definition.Sections.First().SheetKeys));
+    }
+
+    [Fact]
     public void AddDesignSource_SameFileNameInDifferentLocationsRemainsDistinct()
     {
         var (projectPath, _) = WriteProject(sources: [], pageKeys: [], lastPdfPath: "");
