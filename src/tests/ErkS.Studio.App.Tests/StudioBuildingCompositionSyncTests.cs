@@ -210,6 +210,61 @@ public sealed class StudioBuildingCompositionSyncTests
     }
 
     [Fact]
+    public void ApplyCanonicalBeforeLibraryHydrationPreservesValidPersistedAssignment()
+    {
+        var project = new ProjectWorkspace
+        {
+            BuildingGroups =
+            [
+                new ProjectBuildingGroup
+                {
+                    Id = "school",
+                    Name = "Сургууль",
+                    Order = 3,
+                },
+            ],
+            SheetBuildingAssignments = new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ["local-autocad|sheet-1"] = "school",
+            },
+        };
+        var canonical = new StudioCloudBuildingComposition
+        {
+            Version = 6,
+            Groups =
+            [
+                new StudioCloudBuildingGroup
+                {
+                    Id = "school",
+                    Name = "Сургууль",
+                    Order = 3,
+                },
+            ],
+            SheetAssignments =
+            [
+                new StudioCloudBuildingSheetAssignment
+                {
+                    SourceOwnerEmail = "architect@example.com",
+                    SourceKey = "school-autocad",
+                    SheetId = "sheet-1",
+                    BuildingGroupId = "school",
+                },
+            ],
+        };
+
+        _ = StudioBuildingCompositionSync.ApplyCanonical(
+            project,
+            new SheetLibrary(),
+            canonical,
+            preserveLocalEdits: false);
+
+        Assert.Equal(
+            "school",
+            project.SheetBuildingAssignments["local-autocad|sheet-1"]);
+    }
+
+    [Fact]
     public void SamePortableSheetForDifferentOwnersSurvivesAndOnlyLocalOwnerMaterializes()
     {
         string workDirectory = Path.Combine(

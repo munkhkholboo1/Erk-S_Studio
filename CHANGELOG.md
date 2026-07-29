@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.22] - 2026-07-30
+
+- Preserve each source page's building identity and deterministic album order across restart, partial local hydration, source refresh, and Cloud synchronization.
+- Carry AutoCAD building-group identity through Studio package reconciliation so collaborator-owned School and other building sheets remain assigned without requiring the native DWG on every device.
+- Require and merge exactly the active building sub-covers for each canonical source slice, while ignoring empty groups and stale inactive assignments.
+- Map canonical Cloud PDF preview pages through the shared manifest so Studio opens the exact generated, source, visualization, and title-block page after canonical merges.
+- Keep canonical component acknowledgement pending until the requested source, removal, and required sub-cover changes are verifiably present.
+
 ## [0.1.0-dev.21] - 2026-07-30
 
 - Recover verified local sources created before device-binding metadata was introduced, using a versioned one-time upgrade that never adopts an ambiguous, foreign, or unverified source.

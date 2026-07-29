@@ -44,7 +44,26 @@ public static class BuildingArchitectureConceptAlbumSequencer
         IReadOnlyList<ProjectDesignSource> sources,
         int generatedPageCount = -1,
         IReadOnlyList<ProjectBuildingGroup>? buildingGroups = null,
-        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null)
+        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null) =>
+        Create(
+            definition,
+            pages,
+            library,
+            sources,
+            generatedPageCount,
+            buildingGroups,
+            sheetBuildingAssignments,
+            SourceSheetOrderMode.PersistedAlbumOrder);
+
+    private static IReadOnlyList<ConceptAlbumSourcePage> Create(
+        AlbumDefinition definition,
+        IEnumerable<AlbumPageDefinition> pages,
+        SheetLibrary library,
+        IReadOnlyList<ProjectDesignSource> sources,
+        int generatedPageCount,
+        IReadOnlyList<ProjectBuildingGroup>? buildingGroups,
+        IReadOnlyDictionary<string, string>? sheetBuildingAssignments,
+        SourceSheetOrderMode sourceSheetOrderMode)
     {
         List<ProjectBuildingGroup> normalizedBuildingGroups =
             ProjectBuildingComposition.NormalizeGroups(buildingGroups);
@@ -74,7 +93,8 @@ public static class BuildingArchitectureConceptAlbumSequencer
                 sources,
                 sourceOrder,
                 buildingGroupsById,
-                normalizedAssignments))
+                normalizedAssignments,
+                sourceSheetOrderMode))
             .ToList();
 
         var automaticBuildingSourceCounts = candidates
@@ -170,16 +190,28 @@ public static class BuildingArchitectureConceptAlbumSequencer
         SheetLibrary library,
         IReadOnlyList<ProjectDesignSource> sources,
         IReadOnlyList<ProjectBuildingGroup>? buildingGroups = null,
-        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null) =>
-        Create(
+        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null)
+    {
+        List<AlbumPageDefinition> pageList = pages.ToList();
+        bool hasCompleteHydration = pageList
+            .Where(page => BuildingArchitectureConceptAlbumTemplate.FindSlot(
                 definition,
-                pages,
+                page.TemplateSlotId)?.Kind != AlbumCompositionKind.Generated)
+            .All(page => library.FindVerified(page.SheetKey) is not null);
+        return Create(
+                definition,
+                pageList,
                 library,
                 sources,
+                generatedPageCount: -1,
                 buildingGroups: buildingGroups,
-                sheetBuildingAssignments: sheetBuildingAssignments)
+                sheetBuildingAssignments: sheetBuildingAssignments,
+                sourceSheetOrderMode: hasCompleteHydration
+                    ? SourceSheetOrderMode.AuthoritativePackageOrder
+                    : SourceSheetOrderMode.PersistedAlbumOrder)
             .Select(item => item.Page)
             .ToList();
+    }
 
     public static int NextAutomaticNumber(
         AlbumDefinition definition,
@@ -224,15 +256,24 @@ public static class BuildingArchitectureConceptAlbumSequencer
         IReadOnlyList<ProjectDesignSource> sources,
         IReadOnlyDictionary<string, int> sourceOrder,
         IReadOnlyDictionary<string, ProjectBuildingGroup> buildingGroupsById,
-        IReadOnlyDictionary<string, string> sheetBuildingAssignments)
+        IReadOnlyDictionary<string, string> sheetBuildingAssignments,
+        SourceSheetOrderMode sourceSheetOrderMode)
     {
         var sheet = library.FindVerified(page.SheetKey);
         var slot = BuildingArchitectureConceptAlbumTemplate.FindSlot(definition, page.TemplateSlotId);
-        var sourceId = sheet?.SourceId ?? ExtractSourceIdentity(page.SheetKey);
+        bool useHydratedPackageMetadata =
+            sourceSheetOrderMode == SourceSheetOrderMode.AuthoritativePackageOrder;
+        var sourceId = useHydratedPackageMetadata
+            ? sheet?.SourceId ?? ExtractSourceIdentity(page.SheetKey)
+            : ExtractSourceIdentity(page.SheetKey);
         var source = sources.FirstOrDefault(item =>
             string.Equals(item.Id, sourceId, StringComparison.OrdinalIgnoreCase));
-        var sourceTitle = ResolveSourceTitle(source, sheet);
-        var buildingIdentity = ResolveBuildingIdentity(sheet);
+        var sourceTitle = ResolveSourceTitle(
+            source,
+            useHydratedPackageMetadata ? sheet : null);
+        var buildingIdentity = ResolveBuildingIdentity(
+            page,
+            useHydratedPackageMetadata ? sheet : null);
         ProjectBuildingGroup? assignedGroup = null;
         var hasExplicitAssignment =
             sheetBuildingAssignments.TryGetValue(page.SheetKey, out var assignedGroupId) &&
@@ -260,7 +301,10 @@ public static class BuildingArchitectureConceptAlbumSequencer
             Source = source,
             OriginalIndex = originalIndex,
             SourceOrder = sourceOrder.TryGetValue(sourceId, out var index) ? index : int.MaxValue,
-            SourceSheetOrder = ResolveSourceSheetOrder(sheet, originalIndex),
+            SourceSheetOrder = ResolveSourceSheetOrder(
+                sheet,
+                originalIndex,
+                sourceSheetOrderMode),
             SourceId = sourceId,
             SourceSortName = sourceTitle,
             SourceGroupKey = groupKey,
@@ -280,7 +324,8 @@ public static class BuildingArchitectureConceptAlbumSequencer
             SlotOrder = slot?.Order ?? int.MaxValue,
             IsPdfSource =
                 source?.Kind == DesignSourceKind.Pdf ||
-                sheet?.Source.Application == SheetSourceApplication.Pdf,
+                (useHydratedPackageMetadata &&
+                 sheet?.Source.Application == SheetSourceApplication.Pdf),
             IsFixedTemplatePage = slot is
             {
                 Kind: AlbumCompositionKind.SourceSlot,
@@ -289,11 +334,20 @@ public static class BuildingArchitectureConceptAlbumSequencer
         };
     }
 
-    private static int ResolveSourceSheetOrder(SheetRecord? sheet, int fallbackOrder)
+    private static int ResolveSourceSheetOrder(
+        SheetRecord? sheet,
+        int persistedOrder,
+        SourceSheetOrderMode mode)
     {
-        if (sheet is null)
+        // The library is an asynchronously hydrated runtime cache. Normal
+        // preview/build ordering must therefore use the project-owned page
+        // order, or merely opening a project can reshuffle equal-rank pages.
+        // Reconciliation explicitly opts into package/PDF order before saving
+        // newly inserted or updated pages back to the album document.
+        if (mode == SourceSheetOrderMode.PersistedAlbumOrder ||
+            sheet is null)
         {
-            return fallbackOrder;
+            return persistedOrder;
         }
 
         return sheet.Entry.PdfPageNumber > 0
@@ -301,20 +355,29 @@ public static class BuildingArchitectureConceptAlbumSequencer
             : sheet.SourceSheetIndex;
     }
 
-    private static (string Key, string Title) ResolveBuildingIdentity(SheetRecord? sheet)
+    private static (string Key, string Title) ResolveBuildingIdentity(
+        AlbumPageDefinition page,
+        SheetRecord? sheet)
     {
-        if (!string.IsNullOrWhiteSpace(sheet?.Entry.BuildingId))
+        string buildingId = !string.IsNullOrWhiteSpace(
+                page.SourceBuildingIdSnapshot)
+            ? page.SourceBuildingIdSnapshot.Trim()
+            : sheet?.Entry.BuildingId?.Trim() ?? "";
+        string buildingName = !string.IsNullOrWhiteSpace(
+                page.SourceBuildingNameSnapshot)
+            ? page.SourceBuildingNameSnapshot.Trim()
+            : sheet?.Entry.BuildingName?.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(buildingId))
         {
-            var title = string.IsNullOrWhiteSpace(sheet.Entry.BuildingName)
-                ? sheet.Entry.BuildingId.Trim()
-                : sheet.Entry.BuildingName.Trim();
-            return ($"id:{sheet.Entry.BuildingId.Trim()}", title);
+            string title = string.IsNullOrWhiteSpace(buildingName)
+                ? buildingId
+                : buildingName;
+            return ($"id:{buildingId}", title);
         }
 
-        if (!string.IsNullOrWhiteSpace(sheet?.Entry.BuildingName))
+        if (!string.IsNullOrWhiteSpace(buildingName))
         {
-            var title = sheet.Entry.BuildingName.Trim();
-            return ($"name:{title}", title);
+            return ($"name:{buildingName}", buildingName);
         }
 
         // Until a producer supplies building metadata, one native source is one
@@ -394,5 +457,11 @@ public static class BuildingArchitectureConceptAlbumSequencer
             SourceGroupTitle = SourceGroupTitle,
             IsFixedTemplatePage = IsFixedTemplatePage,
         };
+    }
+
+    private enum SourceSheetOrderMode
+    {
+        PersistedAlbumOrder,
+        AuthoritativePackageOrder,
     }
 }

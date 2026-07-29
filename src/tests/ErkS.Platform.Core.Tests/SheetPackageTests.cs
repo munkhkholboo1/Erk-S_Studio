@@ -1518,6 +1518,219 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void ConceptAlbumSequence_StartupHydrationDoesNotChangePersistedPageOrder()
+    {
+        ConceptOrderHydrationScenario scenario =
+            CreateConceptOrderHydrationScenario("startup-hydration-order");
+        var emptyLibrary = new SheetLibrary();
+
+        string[] beforeHydration =
+            BuildingArchitectureConceptAlbumSequencer.Create(
+                    scenario.Definition,
+                    scenario.Definition.Pages,
+                    emptyLibrary,
+                    scenario.Sources,
+                    generatedPageCount: 0,
+                    scenario.BuildingGroups,
+                    scenario.Assignments)
+                .Select(item => item.Page.SheetKey)
+                .ToArray();
+
+        var hydratedLibrary = new SheetLibrary();
+        hydratedLibrary.Absorb(
+            scenario.Package,
+            scenario.Sources.Single().Id);
+        string[] afterHydration =
+            BuildingArchitectureConceptAlbumSequencer.Create(
+                    scenario.Definition,
+                    scenario.Definition.Pages,
+                    hydratedLibrary,
+                    scenario.Sources,
+                    generatedPageCount: 0,
+                    scenario.BuildingGroups,
+                    scenario.Assignments)
+                .Select(item => item.Page.SheetKey)
+                .ToArray();
+
+        Assert.Equal(
+            [scenario.SheetAKey, scenario.SheetBKey],
+            beforeHydration);
+        Assert.Equal(beforeHydration, afterHydration);
+    }
+
+    [Fact]
+    public void ConceptAlbumSequence_UnassignedPackageHydrationDoesNotChangePersistedGrouping()
+    {
+        ConceptOrderHydrationScenario scenario =
+            CreateConceptOrderHydrationScenario("startup-hydration-grouping");
+        var emptyLibrary = new SheetLibrary();
+        IReadOnlyDictionary<string, string> noAssignments =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        ConceptAlbumSourcePage[] beforeHydration =
+            BuildingArchitectureConceptAlbumSequencer.Create(
+                    scenario.Definition,
+                    scenario.Definition.Pages,
+                    emptyLibrary,
+                    scenario.Sources,
+                    generatedPageCount: 0,
+                    scenario.BuildingGroups,
+                    noAssignments)
+                .ToArray();
+
+        var hydratedLibrary = new SheetLibrary();
+        hydratedLibrary.Absorb(
+            scenario.Package,
+            scenario.Sources.Single().Id);
+        ConceptAlbumSourcePage[] afterHydration =
+            BuildingArchitectureConceptAlbumSequencer.Create(
+                    scenario.Definition,
+                    scenario.Definition.Pages,
+                    hydratedLibrary,
+                    scenario.Sources,
+                    generatedPageCount: 0,
+                    scenario.BuildingGroups,
+                    noAssignments)
+                .ToArray();
+
+        Assert.Equal(
+            beforeHydration.Select(page => page.Page.SheetKey),
+            afterHydration.Select(page => page.Page.SheetKey));
+        Assert.Equal(
+            beforeHydration.Select(page => page.SourceGroupKey),
+            afterHydration.Select(page => page.SourceGroupKey));
+        Assert.All(
+            afterHydration,
+            page => Assert.Equal(
+                "package-building:id:building-1",
+                page.SourceGroupKey));
+    }
+
+    [Fact]
+    public void ConceptAlbumOrderPages_NewlyReconciledPackageUsesAuthoritativeSheetOrder()
+    {
+        ConceptOrderHydrationScenario scenario =
+            CreateConceptOrderHydrationScenario("reconciliation-package-order");
+        var library = new SheetLibrary();
+        library.Absorb(
+            scenario.Package,
+            scenario.Sources.Single().Id);
+
+        IReadOnlyList<AlbumPageDefinition> ordered =
+            BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                scenario.Definition,
+                scenario.Definition.Pages,
+                library,
+                scenario.Sources,
+                scenario.BuildingGroups,
+                scenario.Assignments);
+
+        Assert.Equal(
+            [scenario.SheetBKey, scenario.SheetAKey],
+            ordered.Select(page => page.SheetKey));
+    }
+
+    [Fact]
+    public void ConceptPackageReconciliation_PersistsBuildingIdentityOnAlbumPages()
+    {
+        ConceptOrderHydrationScenario scenario =
+            CreateConceptOrderHydrationScenario("reconciliation-building-snapshot");
+        var library = new SheetLibrary();
+        library.Absorb(
+            scenario.Package,
+            scenario.Sources.Single().Id);
+        var project = new ProjectWorkspace
+        {
+            Sources = scenario.Sources.ToList(),
+            BuildingGroups = scenario.BuildingGroups.ToList(),
+        };
+        AlbumDefinition album =
+            BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+
+        ProjectPackageReconciliationResult? result =
+            ProjectPackageReconciliationService.Apply(
+                project,
+                album,
+                library,
+                scenario.Package);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, album.Pages.Count);
+        Assert.All(album.Pages, page =>
+        {
+            Assert.Equal("building-1", page.SourceBuildingIdSnapshot);
+            Assert.Equal("Building 1", page.SourceBuildingNameSnapshot);
+        });
+    }
+
+    [Fact]
+    public void ConceptAlbumOrderPages_PartialHydrationPreservesWholeAlbumOrder()
+    {
+        const string localSourceId = "partial-local-source";
+        const string remoteSourceId = "partial-remote-source";
+        string manifestPath = WriteConceptSourcePackage(
+            Path.Combine(workDirectory, "partial-hydration-order"),
+            localSourceId,
+            "Local.rvt",
+            [
+                (
+                    "local-sheet",
+                    "01",
+                    "Local package sheet",
+                    "Р”Р°РІС…СЂС‹РЅ Р±Р°Р№РіСѓСѓР»Р°Р»С‚",
+                    "local-building",
+                    "Local building"),
+            ]);
+        SheetPackageLoadResult package = SheetPackageReader.Load(manifestPath);
+        Assert.True(package.IsLossless, string.Join("; ", package.Issues));
+        string localSheetKey = SheetRecord.MakeKey(
+            package.Manifest!.Source,
+            package.Manifest.Sheets.Single(),
+            localSourceId);
+        string remoteSheetKey = $"{remoteSourceId}|remote-sheet";
+        AlbumDefinition definition =
+            BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        definition.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = remoteSheetKey,
+            TemplateSlotId = "floor-plans",
+        });
+        definition.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = localSheetKey,
+            TemplateSlotId = "floor-plans",
+        });
+        ProjectDesignSource[] sources =
+        [
+            new()
+            {
+                Id = remoteSourceId,
+                Kind = DesignSourceKind.Revit,
+                NativeDocumentTitle = "Remote.rvt",
+            },
+            new()
+            {
+                Id = localSourceId,
+                Kind = DesignSourceKind.Revit,
+                NativeDocumentTitle = "Local.rvt",
+            },
+        ];
+        var partialLibrary = new SheetLibrary();
+        partialLibrary.Absorb(package, localSourceId);
+
+        IReadOnlyList<AlbumPageDefinition> ordered =
+            BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                definition,
+                definition.Pages,
+                partialLibrary,
+                sources);
+
+        Assert.Equal(
+            [remoteSheetKey, localSheetKey],
+            ordered.Select(page => page.SheetKey));
+    }
+
+    [Fact]
     public void ConceptAlbumSequence_GroupsSourceThenBuildingAndOwnsPageNumbers()
     {
         var officeManifestPath = WriteConceptSourcePackage(
@@ -1562,6 +1775,8 @@ public sealed class SheetPackageTests : IDisposable
                 SheetKey = record.Key,
                 TemplateSlotId = slot?.Id ?? "",
                 SectionId = BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(definition, slot),
+                SourceBuildingIdSnapshot = record.Entry.BuildingId,
+                SourceBuildingNameSnapshot = record.Entry.BuildingName,
             });
         }
 
@@ -2434,6 +2649,103 @@ public sealed class SheetPackageTests : IDisposable
 
         return SheetPackageWriter.Write(manifest, directory, "concept-source-package");
     }
+
+    private ConceptOrderHydrationScenario CreateConceptOrderHydrationScenario(
+        string folderName)
+    {
+        const string sourceId = "hydration-source";
+        const string buildingId = "building-1";
+        string manifestPath = WriteConceptSourcePackage(
+            Path.Combine(workDirectory, folderName),
+            sourceId,
+            "HydrationOrder.rvt",
+            [
+                (
+                    "sheet-b",
+                    "02",
+                    "Second package sheet",
+                    "Давхрын байгуулалт",
+                    buildingId,
+                    "Building 1"),
+                (
+                    "sheet-a",
+                    "01",
+                    "First persisted page",
+                    "Давхрын байгуулалт",
+                    buildingId,
+                    "Building 1"),
+            ]);
+        SheetPackageLoadResult package = SheetPackageReader.Load(manifestPath);
+        Assert.True(package.IsLossless, string.Join("; ", package.Issues));
+        SheetPackageManifest manifest = package.Manifest!;
+        string sheetAKey = SheetRecord.MakeKey(
+            manifest.Source,
+            manifest.Sheets.Single(entry => entry.SheetId == "sheet-a"),
+            sourceId);
+        string sheetBKey = SheetRecord.MakeKey(
+            manifest.Source,
+            manifest.Sheets.Single(entry => entry.SheetId == "sheet-b"),
+            sourceId);
+
+        AlbumDefinition definition =
+            BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        definition.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = sheetAKey,
+            TemplateSlotId = "floor-plans",
+            SourceBuildingIdSnapshot = buildingId,
+            SourceBuildingNameSnapshot = "Building 1",
+        });
+        definition.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = sheetBKey,
+            TemplateSlotId = "floor-plans",
+            SourceBuildingIdSnapshot = buildingId,
+            SourceBuildingNameSnapshot = "Building 1",
+        });
+        var sources = new List<ProjectDesignSource>
+        {
+            new()
+            {
+                Id = sourceId,
+                Kind = DesignSourceKind.Revit,
+                NativeDocumentTitle = "HydrationOrder.rvt",
+            },
+        };
+        var buildingGroups = new List<ProjectBuildingGroup>
+        {
+            new()
+            {
+                Id = buildingId,
+                Name = "Building 1",
+                Order = 1,
+            },
+        };
+        var assignments = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [sheetAKey] = buildingId,
+            [sheetBKey] = buildingId,
+        };
+
+        return new ConceptOrderHydrationScenario(
+            definition,
+            package,
+            sources,
+            buildingGroups,
+            assignments,
+            sheetAKey,
+            sheetBKey);
+    }
+
+    private sealed record ConceptOrderHydrationScenario(
+        AlbumDefinition Definition,
+        SheetPackageLoadResult Package,
+        IReadOnlyList<ProjectDesignSource> Sources,
+        IReadOnlyList<ProjectBuildingGroup> BuildingGroups,
+        IReadOnlyDictionary<string, string> Assignments,
+        string SheetAKey,
+        string SheetBKey);
 
     private static PageFormatSpec CreateConceptFormat()
     {

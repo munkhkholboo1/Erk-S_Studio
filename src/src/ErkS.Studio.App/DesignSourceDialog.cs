@@ -144,15 +144,11 @@ internal sealed class DesignSourceDialog : Window
         inboxBox.Text = defaultFolderResolver(defaultName);
         documentTitleBox.Clear();
         documentPathBox.Clear();
-        ProjectDesignSourcePurpose defaultPurpose = kind switch
-        {
-            DesignSourceKind.Revit => ProjectDesignSourcePurpose.Building,
-            DesignSourceKind.CityGen => ProjectDesignSourcePurpose.GeneralPlan,
-            _ => ProjectDesignSourcePurpose.Unspecified,
-        };
+        ProjectDesignSourcePurpose defaultPurpose =
+            ProjectDesignSourceClassification.DefaultPurpose(kind);
         purposeBox.SelectedItem = PurposeChoices.First(choice =>
             choice.Value == defaultPurpose);
-        if (kind == DesignSourceKind.Revit &&
+        if (defaultPurpose == ProjectDesignSourcePurpose.Building &&
             buildingGroupBox.SelectedItem is null &&
             string.IsNullOrWhiteSpace(buildingGroupBox.Text))
         {

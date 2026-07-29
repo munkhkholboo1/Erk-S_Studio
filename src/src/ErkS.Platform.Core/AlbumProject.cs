@@ -420,6 +420,15 @@ public sealed class AlbumPageDefinition
     public string ContentKindOverride { get; set; } = "";
 
     /// <summary>
+    /// Immutable source building identity captured during package
+    /// reconciliation. Keeping it on the album page makes grouping independent
+    /// of the asynchronously hydrated runtime sheet cache.
+    /// </summary>
+    public string SourceBuildingIdSnapshot { get; set; } = "";
+
+    public string SourceBuildingNameSnapshot { get; set; } = "";
+
+    /// <summary>
     /// Non-destructive crop applied while the source PDF is composed. This is
     /// intended for legacy PDFs that already contain another project's frame
     /// or title block; the original PDF remains untouched and vector content

@@ -2903,6 +2903,11 @@ internal sealed partial class ShellView
             {
                 GeneratedPageIndex = plan.OutputIndex,
                 GeneratedNavigationKey = plan.NavigationKey,
+                CanonicalComponentCode =
+                    StudioAlbumPreviewPageMap.GeneratedComponentCode(
+                        plan.Component,
+                        plan.DocumentKind),
+                CanonicalComponentPageOffset = Math.Max(0, plan.BatchNumber - 1),
             }));
         }
         root.Children.Add(studioPages);
@@ -3093,6 +3098,9 @@ internal sealed partial class ShellView
         {
             GeneratedNavigationKey = plan.NavigationKey,
             VisualizationPlan = plan,
+            CanonicalComponentCode =
+                ProjectCloudSyncMetadata.VisualizationsComponentCode,
+            CanonicalComponentPageOffset = Math.Max(0, plan.PageIndex),
         };
 
     private static string ResolveAlbumWorkspaceSourceKey(ConceptAlbumSourcePage item)
@@ -3959,18 +3967,37 @@ internal sealed partial class ShellView
 
     private int? ResolveBuiltAlbumPage(AlbumPageWorkspaceItem selected)
     {
-        if (selected.Component?.GeneratedPageKind == AlbumGeneratedPageKind.SiteContext)
-        {
-            int? sharedPage = ResolveSharedAlbumComponentPage(
-                ProjectCloudSyncMetadata.SiteContextComponentCode);
-            if (sharedPage.HasValue)
-                return sharedPage;
-        }
-
+        string? previewPath = ResolveAlbumPreviewPath();
+        bool usesSharedManifest =
+            StudioAlbumPreviewPageMap.UsesSharedManifest(previewPath);
         var project = state.CreateAlbumBuildProject(
             reconcileLinkedProjectAssets: false);
         List<ConceptGeneratedPagePlan> generated =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(project).ToList();
+
+        if (usesSharedManifest)
+        {
+            IReadOnlyList<ProjectCloudAlbumComponentReference> manifest =
+                state.Project.Cloud.SharedAlbumComponents ?? [];
+            if (!string.IsNullOrWhiteSpace(selected.CanonicalComponentCode))
+            {
+                return StudioAlbumPreviewPageMap.ResolveCanonicalGeneratedPage(
+                    manifest,
+                    selected.CanonicalComponentCode,
+                    selected.CanonicalComponentPageOffset);
+            }
+
+            if (selected.Page is not AlbumPageDefinition canonicalSourcePage)
+                return null;
+
+            AlbumBuildRequest canonicalRequest =
+                AlbumBuilder.CreateRequest(project, state.Library);
+            return StudioAlbumPreviewPageMap.ResolveCanonicalSourcePage(
+                state.Project,
+                canonicalRequest,
+                canonicalSourcePage.Id,
+                manifest);
+        }
 
         if (selected.Component?.Kind == AlbumCompositionKind.Generated)
         {
@@ -3985,18 +4012,12 @@ internal sealed partial class ShellView
 
         if (selected.VisualizationPlan is VisualizationAlbumPagePlan visualizationPlan)
         {
-            int visualizationPageOffset = generated.Count;
-            if (generated.Count == 0 && project.Album.IncludeCover)
-                visualizationPageOffset++;
-            if (project.Album.IncludeTableOfContents)
-                visualizationPageOffset++;
-
             AlbumBuildRequest visualizationRequest = AlbumBuilder.CreateRequest(project, state.Library);
-            visualizationPageOffset += visualizationRequest.Sections
-                .SelectMany(section => section.Pages)
-                .Where(buildPage => File.Exists(buildPage.Sheet.PdfPath))
-                .Sum(buildPage => Math.Max(1, buildPage.Sheet.Entry.PageCount));
-            return visualizationPageOffset + visualizationPlan.PageIndex + 1;
+            return StudioAlbumPreviewPageMap.ResolveLocalVisualizationPage(
+                visualizationRequest,
+                visualizationPlan.PageIndex,
+                ResolveLocalAlbumLeadingPageCount(project, generated.Count),
+                buildPage => File.Exists(buildPage.Sheet.PdfPath));
         }
 
         if (selected.Page is not AlbumPageDefinition selectedPage)
@@ -4004,58 +4025,35 @@ internal sealed partial class ShellView
             return null;
         }
 
-        var pageNumber = generated.Count;
-        if (generated.Count == 0 && project.Album.IncludeCover)
-        {
-            pageNumber++;
-        }
-        if (project.Album.IncludeTableOfContents)
-        {
-            pageNumber++;
-        }
-
         var request = AlbumBuilder.CreateRequest(project, state.Library);
-        foreach (var buildPage in request.Sections.SelectMany(section => section.Pages))
-        {
-            if (buildPage.Definition.Id == selectedPage.Id)
-            {
-                return File.Exists(buildPage.Sheet.PdfPath) ? pageNumber + 1 : null;
-            }
+        return StudioAlbumPreviewPageMap.ResolveLocalSourcePage(
+            request,
+            selectedPage.Id,
+            ResolveLocalAlbumLeadingPageCount(project, generated.Count),
+            buildPage => File.Exists(buildPage.Sheet.PdfPath));
+    }
 
-            if (File.Exists(buildPage.Sheet.PdfPath))
-            {
-                pageNumber += Math.Max(1, buildPage.Sheet.Entry.PageCount);
-            }
-        }
-
-        return null;
+    private static int ResolveLocalAlbumLeadingPageCount(
+        AlbumProject project,
+        int generatedPageCount)
+    {
+        int count = Math.Max(0, generatedPageCount);
+        if (generatedPageCount == 0 && project.Album.IncludeCover)
+            count++;
+        if (project.Album.IncludeTableOfContents)
+            count++;
+        return count;
     }
 
     private int? ResolveSharedAlbumComponentPage(string componentCode)
     {
         string? previewPath = ResolveAlbumPreviewPath();
-        if (string.IsNullOrWhiteSpace(previewPath))
+        if (!StudioAlbumPreviewPageMap.UsesSharedManifest(previewPath))
             return null;
 
-        string albumPath = Path.GetFullPath(previewPath);
-        string albumFolderName = Path.GetFileName(
-            Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(albumPath) ?? ""));
-        bool usesSharedManifest =
-            albumFolderName.Equals("cloud", StringComparison.OrdinalIgnoreCase) ||
-            albumFolderName.Equals("cloud-local", StringComparison.OrdinalIgnoreCase);
-        if (!usesSharedManifest)
-            return null;
-
-        ProjectCloudAlbumComponentReference? component =
-            (state.Project.Cloud.SharedAlbumComponents ?? [])
-            .FirstOrDefault(item => item.Code.Equals(
-                componentCode,
-                StringComparison.OrdinalIgnoreCase));
-        return component?.PageNumbers
-            .Where(pageNumber => pageNumber > 0)
-            .OrderBy(pageNumber => pageNumber)
-            .Cast<int?>()
-            .FirstOrDefault();
+        return StudioAlbumPreviewPageMap.ResolveCanonicalComponentPage(
+            state.Project.Cloud.SharedAlbumComponents,
+            componentCode);
     }
 
     private string? ResolveAlbumPreviewPath()
@@ -5244,6 +5242,8 @@ internal sealed partial class ShellView
         public int? GeneratedPageIndex { get; init; }
         public string GeneratedNavigationKey { get; init; } = "";
         public VisualizationAlbumPagePlan? VisualizationPlan { get; init; }
+        public string CanonicalComponentCode { get; init; } = "";
+        public int CanonicalComponentPageOffset { get; init; }
         public ImageSource? ThumbnailSource => thumbnailSource;
         public string ThumbnailMessage => thumbnailMessage;
 

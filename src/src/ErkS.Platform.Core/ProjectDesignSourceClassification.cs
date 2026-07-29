@@ -19,6 +19,17 @@ public static class ProjectDesignSourceClassification
     private const string DetectedPurposeKey = "source.detectedPurpose";
     private const string BuildingGroupIdKey = "source.buildingGroupId";
 
+    public static ProjectDesignSourcePurpose DefaultPurpose(
+        DesignSourceKind kind) =>
+        kind switch
+        {
+            DesignSourceKind.Revit or DesignSourceKind.AutoCad =>
+                ProjectDesignSourcePurpose.Building,
+            DesignSourceKind.CityGen =>
+                ProjectDesignSourcePurpose.GeneralPlan,
+            _ => ProjectDesignSourcePurpose.Unspecified,
+        };
+
     public static ProjectDesignSourcePurpose ExplicitPurpose(ProjectDesignSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -140,6 +151,48 @@ public static class ProjectDesignSourceClassification
             if (project.SheetBuildingAssignments.ContainsKey(sheetKey))
                 continue;
             project.SheetBuildingAssignments[sheetKey] = groupId;
+            changed = true;
+        }
+        return changed;
+    }
+
+    public static bool ApplyPackageBuildingGroupAssignments(
+        ProjectWorkspace project,
+        ProjectDesignSource source,
+        SheetPackageSource packageSource,
+        IEnumerable<SheetPackageEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(packageSource);
+        ArgumentNullException.ThrowIfNull(entries);
+        if (EffectivePurpose(source) == ProjectDesignSourcePurpose.GeneralPlan)
+            return false;
+
+        project.SheetBuildingAssignments ??=
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        bool changed = false;
+        foreach (SheetPackageEntry entry in entries)
+        {
+            string key = SheetRecord.MakeKey(packageSource, entry, source.Id);
+            if (project.SheetBuildingAssignments.ContainsKey(key))
+                continue;
+
+            string buildingId = (entry.BuildingId ?? "").Trim();
+            string buildingName = (entry.BuildingName ?? "").Trim();
+            ProjectBuildingGroup? group = project.BuildingGroups.FirstOrDefault(candidate =>
+                (!string.IsNullOrWhiteSpace(buildingId) &&
+                 candidate.Id.Equals(
+                     buildingId,
+                     StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(buildingName) &&
+                 candidate.Name.Equals(
+                     buildingName,
+                     StringComparison.OrdinalIgnoreCase)));
+            if (group is null)
+                continue;
+
+            project.SheetBuildingAssignments[key] = group.Id;
             changed = true;
         }
         return changed;

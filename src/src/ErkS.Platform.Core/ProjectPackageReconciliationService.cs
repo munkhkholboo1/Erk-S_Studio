@@ -161,6 +161,12 @@ public static class ProjectPackageReconciliationService
                 source,
                 manifest.Sheets.Select(entry =>
                     SheetRecord.MakeKey(packageSource, entry, source.Id)));
+        addedBuildingAssignments |=
+            ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
+                project,
+                source,
+                packageSource,
+                manifest.Sheets);
         if (addedBuildingAssignments)
             ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
 
@@ -310,6 +316,8 @@ public static class ProjectPackageReconciliationService
 
         foreach (AlbumPageDefinition page in pages)
         {
+            page.SourceBuildingIdSnapshot = (entry.BuildingId ?? "").Trim();
+            page.SourceBuildingNameSnapshot = (entry.BuildingName ?? "").Trim();
             if (usesConceptTemplate)
             {
                 AlbumCompositionItem? slot =

@@ -69,7 +69,7 @@ internal static class StudioCanonicalAlbumRebuildPolicy
                 rejected);
         }
 
-        IEnumerable<ProjectBuildingGroup> groups =
+        IEnumerable<ProjectBuildingGroup> candidateGroups =
             composition?.Groups is { Count: > 0 }
                 ? composition.Groups
                     .Where(group => !string.IsNullOrWhiteSpace(group.Id))
@@ -80,24 +80,17 @@ internal static class StudioCanonicalAlbumRebuildPolicy
                         Order = group.Order,
                     })
                 : localProject.BuildingGroups ?? [];
-        IEnumerable<string> groupCodes = ProjectBuildingComposition
-            .NormalizeGroups(groups)
+        List<ProjectBuildingGroup> groups = ProjectBuildingComposition
+            .NormalizeGroups(candidateGroups);
+        HashSet<string> referencedGroupIds = ResolveReferencedBuildingGroupIds(
+            localProject,
+            composition,
+            revision,
+            groups);
+        IEnumerable<string> groupCodes = groups
+            .Where(group => referencedGroupIds.Contains(group.Id))
             .Select(ProjectCloudSyncMetadata.BuildingSubCoverComponentCode);
-        IEnumerable<string> currentManifestCodes =
-            (revision?.SectionManifest ?? [])
-                .Where(component =>
-                    ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(
-                        component.Code))
-                .Select(component => component.Code.Trim());
-        IEnumerable<string> cachedManifestCodes =
-            (localProject.Cloud.SharedAlbumComponents ?? [])
-                .Where(component =>
-                    ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(
-                        component.Code))
-                .Select(component => component.Code.Trim());
         string[] pendingCodes = groupCodes
-            .Concat(currentManifestCodes)
-            .Concat(cachedManifestCodes)
             .Concat(tombstones)
             .Where(code => !string.IsNullOrWhiteSpace(code))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -112,6 +105,142 @@ internal static class StudioCanonicalAlbumRebuildPolicy
             tombstones,
             rejected);
     }
+
+    private static HashSet<string> ResolveReferencedBuildingGroupIds(
+        ProjectWorkspace localProject,
+        StudioCloudBuildingComposition? composition,
+        StudioCloudAlbumRevision? revision,
+        IReadOnlyList<ProjectBuildingGroup> groups)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var resolutionProject = new ProjectWorkspace
+        {
+            BuildingGroups = groups.ToList(),
+        };
+        IReadOnlyList<BuildingAssignment> assignments =
+            ResolveAssignments(localProject, composition);
+        IEnumerable<SourceComponent> components = revision is not null
+            ? (revision.SectionManifest ?? [])
+                .Where(IsActiveSourceComponent)
+                .Select(component => new SourceComponent(
+                    component.Code,
+                    component.OwnerEmail,
+                    component.SourceKey))
+            : (localProject.Cloud.SharedAlbumComponents ?? [])
+                .Where(IsActiveSourceComponent)
+                .Select(component => new SourceComponent(
+                    component.Code,
+                    component.OwnerEmail,
+                    component.SourceKey));
+
+        foreach (SourceComponent component in components.Distinct())
+        {
+            if (StudioAlbumComponentIdentity.TryGetBuildingSectionKey(
+                    component.Code,
+                    out string sectionKey))
+            {
+                if (StudioAlbumComponentIdentity.TryResolveBuildingGroup(
+                        resolutionProject,
+                        sectionKey,
+                        out ProjectBuildingGroup slicedGroup))
+                {
+                    result.Add(slicedGroup.Id);
+                }
+                continue;
+            }
+
+            string owner = NormalizeOwner(component.OwnerEmail);
+            string sourceKey = component.SourceKey?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(sourceKey))
+                continue;
+            foreach (BuildingAssignment assignment in assignments.Where(assignment =>
+                         assignment.SourceKey.Equals(
+                             sourceKey,
+                             StringComparison.OrdinalIgnoreCase) &&
+                         OwnersMatch(
+                             owner,
+                             NormalizeOwner(assignment.OwnerEmail))))
+            {
+                result.Add(assignment.BuildingGroupId);
+            }
+        }
+
+        result.IntersectWith(groups.Select(group => group.Id));
+        return result;
+    }
+
+    private static IReadOnlyList<BuildingAssignment> ResolveAssignments(
+        ProjectWorkspace localProject,
+        StudioCloudBuildingComposition? composition)
+    {
+        if (composition is not null)
+        {
+            return (composition.SheetAssignments ?? [])
+                .Where(assignment =>
+                    !string.IsNullOrWhiteSpace(assignment.SourceKey) &&
+                    !string.IsNullOrWhiteSpace(assignment.BuildingGroupId))
+                .Select(assignment => new BuildingAssignment(
+                    assignment.SourceOwnerEmail,
+                    assignment.SourceKey.Trim(),
+                    assignment.BuildingGroupId.Trim()))
+                .ToList();
+        }
+
+        return (localProject.Cloud.SharedBuildingSheetAssignments ?? [])
+            .Where(assignment =>
+                !string.IsNullOrWhiteSpace(assignment.SourceKey) &&
+                !string.IsNullOrWhiteSpace(assignment.BuildingGroupId))
+            .Select(assignment => new BuildingAssignment(
+                assignment.SourceOwnerEmail,
+                assignment.SourceKey.Trim(),
+                assignment.BuildingGroupId.Trim()))
+            .ToList();
+    }
+
+    private static bool IsActiveSourceComponent(
+        StudioCloudAlbumSection component) =>
+        component is not null &&
+        (component.PageNumbers?.Length ?? 0) > 0 &&
+        !IsInactiveStatus(component.Status) &&
+        StudioAlbumComponentIdentity.IsSourceComponent(component);
+
+    private static bool IsActiveSourceComponent(
+        ProjectCloudAlbumComponentReference component) =>
+        component is not null &&
+        (component.PageNumbers?.Count ?? 0) > 0 &&
+        !IsInactiveStatus(component.Status) &&
+        ((component.ComponentKind ?? "").Equals(
+             StudioAlbumComponentIdentity.SourceComponentKind,
+             StringComparison.OrdinalIgnoreCase) ||
+         (component.Code ?? "").StartsWith(
+             "source:",
+             StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsInactiveStatus(string? status)
+    {
+        string normalized = (status ?? "").Trim();
+        return normalized.Equals("Removed", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("Deleted", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("Retired", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool OwnersMatch(string left, string right) =>
+        string.IsNullOrWhiteSpace(left) ||
+        string.IsNullOrWhiteSpace(right) ||
+        left.Equals(right, StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeOwner(string? value) =>
+        (value ?? "").Trim().ToLowerInvariant();
+
+    private sealed record SourceComponent(
+        string Code,
+        string OwnerEmail,
+        string SourceKey);
+
+    private sealed record BuildingAssignment(
+        string OwnerEmail,
+        string SourceKey,
+        string BuildingGroupId);
 
     public static StudioCanonicalAlbumRebuildResolution Apply(
         ProjectWorkspace localProject,

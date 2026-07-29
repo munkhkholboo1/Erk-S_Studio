@@ -23,6 +23,11 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
                 "GENERATED:BUILDING-SUB-COVER:STUDIO-BUILDING:deleted-b",
                 "generated:building-sub-cover:studio-building:deleted-a",
                 "generated:building-sub-cover:studio-building:deleted-a",
+            ],
+            manifest:
+            [
+                SourceSlice("building-a"),
+                SourceSlice("building-b"),
             ]);
 
         StudioCanonicalAlbumRebuildResolution resolution =
@@ -93,7 +98,8 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
             tombstones:
             [
                 "generated:building-sub-cover:studio-building:deleted-a",
-            ]);
+            ],
+            manifest: [SourceSlice("building-a")]);
 
         StudioCanonicalAlbumRebuildPolicy.Apply(project, pending);
 
@@ -182,6 +188,50 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
             });
     }
 
+    [Fact]
+    public void PendingPlan_ExcludesEmptyGroupAndIncludesMissingReferencedSchoolCover()
+    {
+        ProjectWorkspace project = ProjectWithLocalPendingCover();
+        project.Cloud.SharedAlbumComponents =
+        [
+            new ProjectCloudAlbumComponentReference
+            {
+                Code = StudioAlbumComponentIdentity.SourceSliceCode(
+                    "architect@example.com",
+                    "stale-source",
+                    "studio-building:empty-apartment",
+                    "floor-plans"),
+                PageNumbers = [99],
+                Status = "Available",
+                OwnerEmail = "architect@example.com",
+                SourceKey = "stale-source",
+                ComponentKind =
+                    StudioAlbumComponentIdentity.SourceComponentKind,
+            },
+        ];
+        StudioCloudProjectDetail cloud = CloudProject(
+            pending: true,
+            requiredVersion: 5,
+            revisionVersion: 4,
+            groups:
+            [
+                Group("empty-apartment", "Empty apartment", 1),
+                Group("school", "School", 2),
+            ],
+            tombstones: [],
+            manifest: [SourceSlice("school")]);
+
+        StudioCanonicalAlbumRebuildResolution resolution =
+            StudioCanonicalAlbumRebuildPolicy.Resolve(project, cloud);
+
+        Assert.Equal(
+            ["generated:building-sub-cover:studio-building:school"],
+            resolution.PendingComponentCodes);
+        Assert.DoesNotContain(
+            "generated:building-sub-cover:studio-building:empty-apartment",
+            resolution.PendingComponentCodes);
+    }
+
     private static ProjectWorkspace ProjectWithLocalPendingCover()
     {
         var project = new ProjectWorkspace();
@@ -196,7 +246,8 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
         int requiredVersion,
         int revisionVersion,
         IReadOnlyList<StudioCloudBuildingGroup> groups,
-        IReadOnlyList<string> tombstones)
+        IReadOnlyList<string> tombstones,
+        IReadOnlyList<StudioCloudAlbumSection>? manifest = null)
     {
         const string revisionId = "revision-current";
         return new StudioCloudProjectDetail
@@ -224,6 +275,7 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
                             RevisionNumber = 7,
                             BuildingCompositionVersion = revisionVersion,
                             PageCount = 3,
+                            SectionManifest = manifest?.ToList() ?? [],
                         },
                     ],
                 },
@@ -239,5 +291,22 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
         Id = id,
         Name = name,
         Order = order,
+    };
+
+    private static StudioCloudAlbumSection SourceSlice(
+        string buildingGroupId) => new()
+    {
+        Code = StudioAlbumComponentIdentity.SourceSliceCode(
+            "architect@example.com",
+            "autocad-source",
+            $"studio-building:{buildingGroupId}",
+            "floor-plans"),
+        Label = buildingGroupId,
+        Order = 10,
+        PageNumbers = [1],
+        Status = "Available",
+        OwnerEmail = "architect@example.com",
+        SourceKey = "autocad-source",
+        ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
     };
 }

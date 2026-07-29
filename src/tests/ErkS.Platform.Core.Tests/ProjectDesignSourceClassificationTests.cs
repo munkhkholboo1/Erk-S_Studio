@@ -5,6 +5,64 @@ namespace ErkS.Platform.Core.Tests;
 
 public sealed class ProjectDesignSourceClassificationTests
 {
+    [Theory]
+    [InlineData(DesignSourceKind.Revit)]
+    [InlineData(DesignSourceKind.AutoCad)]
+    public void NativeBuildingSourcesDefaultToBuildingPurpose(
+        DesignSourceKind kind)
+    {
+        Assert.Equal(
+            ProjectDesignSourcePurpose.Building,
+            ProjectDesignSourceClassification.DefaultPurpose(kind));
+    }
+
+    [Fact]
+    public void PackageBuildingIdentityMapsAutoCadSheetsToCanonicalStudioGroup()
+    {
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-source",
+            Kind = DesignSourceKind.AutoCad,
+        };
+        var project = new ProjectWorkspace
+        {
+            Sources = [source],
+            BuildingGroups =
+            [
+                new ProjectBuildingGroup
+                {
+                    Id = "school",
+                    Name = "Сургууль",
+                    Order = 3,
+                },
+            ],
+        };
+        var packageSource = new SheetPackageSource
+        {
+            SourceId = source.Id,
+            Application = SheetSourceApplication.AutoCad,
+        };
+        var entry = new SheetPackageEntry
+        {
+            SheetId = "layout-1",
+            BuildingId = "school",
+            BuildingName = "Сургууль",
+        };
+
+        bool changed =
+            ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
+                project,
+                source,
+                packageSource,
+                [entry]);
+
+        Assert.True(changed);
+        Assert.Equal(
+            "school",
+            project.SheetBuildingAssignments[
+                SheetRecord.MakeKey(packageSource, entry, source.Id)]);
+    }
+
     [Fact]
     public void PackageMetadata_DetectsGeneralPlanWithoutOverridingExplicitPurpose()
     {

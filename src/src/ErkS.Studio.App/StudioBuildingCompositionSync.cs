@@ -487,14 +487,27 @@ internal static class StudioBuildingCompositionSync
                     record,
                     out string sourceOwnerEmail,
                     out string sourceKey,
-                    out string sheetId) ||
-                !TryGetAssignment(
+                    out string sheetId))
+            {
+                continue;
+            }
+
+            if (!TryGetAssignment(
                     shared,
                     sourceOwnerEmail,
                     sourceKey,
                     sheetId,
                     out string groupId))
             {
+                // Once this sheet is hydrated its portable identity is known.
+                // A non-pending canonical composition is then authoritative
+                // for both assignment and removal. Before hydration, however,
+                // the persisted local assignment must remain intact.
+                if (!onlyUnassigned &&
+                    project.SheetBuildingAssignments.Remove(record.Key))
+                {
+                    changed = true;
+                }
                 continue;
             }
 
@@ -563,6 +576,8 @@ internal static class StudioBuildingCompositionSync
                 group => group.Last().BuildingGroupId,
                 StringComparer.OrdinalIgnoreCase);
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var authoritativeLocalKeys =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (SheetRecord record in library.Snapshot())
         {
             if (TryPortableIdentity(
@@ -570,15 +585,34 @@ internal static class StudioBuildingCompositionSync
                     record,
                     out string sourceOwnerEmail,
                     out string sourceKey,
-                    out string sheetId) &&
-                TryGetAssignment(
+                    out string sheetId))
+            {
+                authoritativeLocalKeys.Add(record.Key);
+                if (TryGetAssignment(
                     portableAssignments,
                     sourceOwnerEmail,
                     sourceKey,
                     sheetId,
                     out string groupId))
+                {
+                    result[record.Key] = groupId;
+                }
+            }
+        }
+
+        // Project open and cloud refresh run before every local package has
+        // necessarily hydrated SheetLibrary. Keep valid persisted assignments
+        // for those unavailable sheets. A hydrated sheet is deliberately not
+        // copied: the canonical portable assignment above is authoritative
+        // and may intentionally remove or move it.
+        foreach (KeyValuePair<string, string> existing in
+                 project.SheetBuildingAssignments ??
+                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!authoritativeLocalKeys.Contains(existing.Key) &&
+                validGroupIds.Contains(existing.Value))
             {
-                result[record.Key] = groupId;
+                result[existing.Key] = existing.Value;
             }
         }
         return result;

@@ -488,6 +488,33 @@ internal static class CloudSyncPreviewPlanner
                     : "ATD/visualization component нь энэ бүртгэл/төхөөрөмжийн баталгаатай локал payload биш. Cloud хувилбар read-only.");
         }
 
+        if (ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(code))
+        {
+            string identity = code[
+                ProjectCloudSyncMetadata.BuildingSubCoverComponentCodePrefix.Length..]
+                .Trim();
+            bool referencesKnownBuilding =
+                StudioAlbumComponentIdentity.TryResolveBuildingGroup(
+                    project,
+                    identity,
+                    out _);
+            bool canEditComposition =
+                ProjectCloudSyncAuthority.CanEditBuildingComposition(
+                    project.Cloud,
+                    currentEmail);
+            bool canPublishSubCover =
+                canManageCanonical ||
+                (referencesKnownBuilding && canEditComposition);
+            return new ComponentAuthority(
+                canPublishSubCover,
+                ComponentTitle(code),
+                canPublishSubCover
+                    ? "Барилгын иж бүрдлийг засах эрхээр тухайн барилгын canonical дэд нүүрийг шинэчилнэ"
+                    : !referencesKnownBuilding
+                        ? "Дэд нүүрний component нь одоогийн canonical барилгын төрөлтэй таарахгүй тул хаалаа."
+                        : "Барилгын иж бүрдэл болон дэд нүүр шинэчлэх concept.write эрх шаардлагатай.");
+        }
+
         ProjectDesignSource? source = ResolveComponentSource(project, code);
         if (source is not null)
         {

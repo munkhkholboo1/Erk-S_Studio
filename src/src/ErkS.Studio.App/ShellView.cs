@@ -3641,10 +3641,7 @@ internal sealed partial class ShellView : IDisposable
                             code,
                             currentAuthority))
                     .ToList();
-            IReadOnlyList<ProjectAlbumComponentClaimAcknowledgement>
-                authorizedPendingAlbumComponentClaims =
-                    currentAuthority.ComponentClaimAcknowledgements(
-                        authorizedPendingAlbumComponents);
+            IReadOnlyList<string> confirmedPendingAlbumComponents = [];
             bool hasUnauthorizedPendingChanges =
                 allPendingSourcePackages.Count != sourcePackages.Count ||
                 allPendingAlbumComponents.Count != authorizedPendingAlbumComponents.Count ||
@@ -3882,10 +3879,11 @@ internal sealed partial class ShellView : IDisposable
                         sourceSnapshotVersion,
                         "cloud_sync_component_merge");
                     currentRevision = outcome.Revision;
+                    confirmedPendingAlbumComponents = outcome.ComponentCodes;
                     syncedAlbumHash = outcome.Revision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = outcome.Revision.RevisionId;
                     markOwnedAtdDocumentsAfterVerification =
-                        authorizedPendingAlbumComponents.Contains(
+                        confirmedPendingAlbumComponents.Contains(
                             ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
                             StringComparer.OrdinalIgnoreCase);
                     markAlbumRendererAfterVerification =
@@ -3966,6 +3964,8 @@ internal sealed partial class ShellView : IDisposable
                         syncedRevision.PdfSha256,
                         syncedRevision.RevisionId);
                     currentRevision = syncedRevision;
+                    confirmedPendingAlbumComponents =
+                        authorizedPendingAlbumComponents;
                     syncedAlbumHash = syncedRevision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = syncedRevision.RevisionId;
                     syncNote = localSources.Count == 0
@@ -4063,10 +4063,11 @@ internal sealed partial class ShellView : IDisposable
                 ProjectCloudSyncMetadata.MarkSourceSynced(source);
             ProjectCloudSyncMetadata.MarkAlbumComponentsSyncedForBinding(
                 state.Project,
-                authorizedPendingAlbumComponents,
+                confirmedPendingAlbumComponents,
                 account.Current?.Email,
                 StudioDeviceIdentity.Fingerprint,
-                authorizedPendingAlbumComponentClaims);
+                currentAuthority.ComponentClaimAcknowledgements(
+                    confirmedPendingAlbumComponents));
             if (markOwnedAtdDocumentsAfterVerification)
                 MarkOwnedAtdDocumentsSynced(CurrentCloudOwnerEmail());
             if (markAlbumRendererAfterVerification)

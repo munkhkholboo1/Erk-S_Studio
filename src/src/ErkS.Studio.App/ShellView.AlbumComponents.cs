@@ -479,6 +479,19 @@ internal sealed partial class ShellView
                     requestedCodes.Any(code =>
                         MatchesRequestedComponentCode(component, code)))
                 .ToList();
+            StudioBuildingSubCoverSelection coverSelection =
+                StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
+                    state.Project,
+                    rendered,
+                    selected);
+            if (coverSelection.MissingRequiredCoverCodes.Count > 0)
+            {
+                throw new InvalidDataException(
+                    "Барилгын source хуудас render хийгдсэн боловч шаардлагатай дэд нүүр үүссэнгүй: " +
+                    string.Join(", ", coverSelection.MissingRequiredCoverCodes) +
+                    " [reason: building_subcover_render_missing]");
+            }
+            selected = coverSelection.Components.ToList();
             string[] missing = requestedCodes
                 .Where(code => selected.All(component =>
                     !MatchesRequestedComponentCode(component, code)))
@@ -496,6 +509,17 @@ internal sealed partial class ShellView
                 throw new InvalidDataException(
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
+            }
+            string[] missingLiveBuildingCovers = missing
+                .Where(IsCurrentBuildingSubCover)
+                .ToArray();
+            if (missingLiveBuildingCovers.Length > 0)
+            {
+                throw new InvalidDataException(
+                    "Canonical барилгын дэд нүүр pending боловч локал build-д render хийгдсэнгүй. " +
+                    "Барилгын оноолтыг pending хэвээр хадгаллаа: " +
+                    string.Join(", ", missingLiveBuildingCovers) +
+                    " [reason: building_subcover_pending_unrendered]");
             }
             string[] unrenderedRendererMigrations = missing
                 .Where(code => rendererMigrationCodes.Contains(
@@ -1309,6 +1333,19 @@ internal sealed partial class ShellView
                     requestedCodes.Any(code =>
                         MatchesRequestedComponentCode(component, code)))
                 .ToList();
+            StudioBuildingSubCoverSelection coverSelection =
+                StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
+                    state.Project,
+                    rendered,
+                    selected);
+            if (coverSelection.MissingRequiredCoverCodes.Count > 0)
+            {
+                throw new InvalidDataException(
+                    "Барилгын source хуудас render хийгдсэн боловч шаардлагатай дэд нүүр үүссэнгүй: " +
+                    string.Join(", ", coverSelection.MissingRequiredCoverCodes) +
+                    " [reason: building_subcover_render_missing]");
+            }
+            selected = coverSelection.Components.ToList();
             string[] missing = requestedCodes
                 .Where(code => selected.All(component =>
                     !MatchesRequestedComponentCode(component, code)))
@@ -1326,6 +1363,17 @@ internal sealed partial class ShellView
                 throw new InvalidDataException(
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
+            }
+            string[] missingLiveBuildingCovers = missing
+                .Where(IsCurrentBuildingSubCover)
+                .ToArray();
+            if (missingLiveBuildingCovers.Length > 0)
+            {
+                throw new InvalidDataException(
+                    "Canonical барилгын дэд нүүр pending боловч локал build-д render хийгдсэнгүй. " +
+                    "Барилгын оноолтыг pending хэвээр хадгаллаа: " +
+                    string.Join(", ", missingLiveBuildingCovers) +
+                    " [reason: building_subcover_pending_unrendered]");
             }
             string[] unrenderedRendererMigrations = missing
                 .Where(code => rendererMigrationCodes.Contains(
@@ -1429,14 +1477,15 @@ internal sealed partial class ShellView
                     currentRevision.RevisionId,
                     projectConcurrencyToken,
                     uploads);
+            IReadOnlyList<string> confirmedPendingCodes =
+                StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
+                    pendingCodeMap,
+                    merged.SectionManifest,
+                    uploads);
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,
-                selected
-                    .Select(component => component.Code)
-                    .Concat(requestedCodes)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray());
+                confirmedPendingCodes);
         }
         finally
         {
@@ -1586,6 +1635,16 @@ internal sealed partial class ShellView
             }
         }
         return normalized;
+    }
+
+    private bool IsCurrentBuildingSubCover(string componentCode)
+    {
+        string code = StudioAlbumComponentIdentity.CanonicalBuildingSubCoverCode(
+            state.Project,
+            componentCode);
+        return state.Project.BuildingGroups.Any(group =>
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(group)
+                .Equals(code, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool MatchesRequestedComponentCode(

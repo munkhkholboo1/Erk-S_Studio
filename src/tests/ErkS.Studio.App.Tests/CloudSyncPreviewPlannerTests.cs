@@ -104,6 +104,60 @@ public sealed class CloudSyncPreviewPlannerTests
     }
 
     [Fact]
+    public void ConceptContributorCanPublishKnownBuildingSubCoverWithoutAdminMetadataRights()
+    {
+        ProjectWorkspace project = CloudProject("Architect");
+        project.Cloud.CurrentUserScopes = ["concept.read", "concept.write"];
+        project.BuildingGroups =
+        [
+            new ProjectBuildingGroup
+            {
+                Id = "school",
+                Name = "Сургууль",
+                Order = 3,
+            },
+        ];
+        string schoolSubCover =
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(
+                project.BuildingGroups[0]);
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            project,
+            [schoolSubCover, "generated:cover"]);
+
+        CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
+            project,
+            "architect@example.com",
+            "LAPTOP · school",
+            new StudioCloudProjectRefreshResult(false, null));
+
+        Assert.True(plan.IsComponentAuthorized(schoolSubCover));
+        Assert.Contains(plan.Uploads, item => item.Code == schoolSubCover);
+        Assert.False(plan.IsComponentAuthorized("generated:cover"));
+        Assert.Contains(plan.Blocked, item => item.Code == "generated:cover");
+    }
+
+    [Fact]
+    public void ConceptContributorCannotPublishSubCoverForUnknownBuilding()
+    {
+        ProjectWorkspace project = CloudProject("Architect");
+        project.Cloud.CurrentUserScopes = ["concept.read", "concept.write"];
+        const string unknownSubCover =
+            "generated:building-sub-cover:studio-building:not-canonical";
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            project,
+            [unknownSubCover]);
+
+        CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
+            project,
+            "architect@example.com",
+            "LAPTOP · unknown-building",
+            new StudioCloudProjectRefreshResult(false, null));
+
+        Assert.False(plan.IsComponentAuthorized(unknownSubCover));
+        Assert.Contains(plan.Blocked, item => item.Code == unknownSubCover);
+    }
+
+    [Fact]
     public void ModifiedCloudProjectIsShownAsDownloadWithoutCreatingUpload()
     {
         ProjectWorkspace project = CloudProject("Architect");
@@ -161,6 +215,24 @@ public sealed class CloudSyncPreviewPlannerTests
                             RevisionNumber = 4,
                             BuildingCompositionVersion = 2,
                             PageCount = 2,
+                            SectionManifest =
+                            [
+                                new StudioCloudAlbumSection
+                                {
+                                    Code =
+                                        StudioAlbumComponentIdentity.SourceSliceCode(
+                                            "architect@example.com",
+                                            "new-building-source",
+                                            "studio-building:building-new",
+                                            "floor-plans"),
+                                    PageNumbers = [1],
+                                    Status = "Available",
+                                    OwnerEmail = "architect@example.com",
+                                    SourceKey = "new-building-source",
+                                    ComponentKind =
+                                        StudioAlbumComponentIdentity.SourceComponentKind,
+                                },
+                            ],
                         },
                     ],
                 },
