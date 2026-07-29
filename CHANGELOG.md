@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.21] - 2026-07-30
+
+- Recover verified local sources created before device-binding metadata was introduced, using a versioned one-time upgrade that never adopts an ambiguous, foreign, or unverified source.
+- Keep the exact immutable owner and device's local source authoritative in the working album after Cloud acknowledgement, while other members continue to receive that stream through Cloud.
+- Remove a local source and only its album pages immediately, retain collaborator pages, and queue an idempotent Cloud retirement without modifying the native source file.
+- Preserve owner-ambiguous legacy album components instead of retiring another contributor's same-key stream, and release the Source Refresh busy state after preparation or scan failures.
+
 ## [0.1.0-dev.20] - 2026-07-30
 
 - Crop or mask a PDF source non-destructively, preview and place the result on the real Studio sheet at its physical 1:1 size, and commit a title-block-only scale edit to that Studio format without resizing the drawing.

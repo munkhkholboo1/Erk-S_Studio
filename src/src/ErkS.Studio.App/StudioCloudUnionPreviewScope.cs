@@ -23,10 +23,14 @@ internal static class StudioCloudUnionPreviewScope
     {
         ArgumentNullException.ThrowIfNull(project);
 
-        IReadOnlyList<ProjectSourceSyncCandidate> pendingSources =
+        // A verified source on this exact account/device remains the working
+        // authority even after its latest package was acknowledged by Cloud.
+        // The canonical component is used only when this device has no local
+        // source payload for that immutable owner + SourceKey.
+        IReadOnlyList<ProjectSourceSyncCandidate> localSources =
             StudioSourceUploadScope.AuthorizedLocal(
                 project,
-                ProjectCloudSyncMetadata.PendingSourcePackages(project),
+                ProjectCloudSyncMetadata.SourcePackages(project),
                 currentAccountEmail,
                 currentDeviceFingerprint,
                 hasVerifiedPayload);
@@ -53,7 +57,7 @@ internal static class StudioCloudUnionPreviewScope
                 .ToList();
 
         return new StudioCloudUnionPendingScope(
-            pendingSources,
+            localSources,
             componentCodes);
     }
 }

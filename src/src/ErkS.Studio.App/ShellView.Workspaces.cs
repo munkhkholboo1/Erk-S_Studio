@@ -323,17 +323,33 @@ internal sealed partial class ShellView
         StudioOperationContext operationContext = CaptureOperationContext();
         sourceRefreshInProgress = true;
         RefreshSyncUi();
-        IReadOnlyList<ProjectDesignSource> ownedSources =
-            StudioSourceRefreshScope.OwnedSources(
-                state.Project,
-                account.Current?.Email,
-                StudioDeviceIdentity.Fingerprint);
         var selectedSourceId = (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
         SheetIntakeScanResult scan;
         ProjectAssetSourceReconciliationResult assetScan;
         CityGenProjectSiteReconciliationResult siteScan;
+        StudioSourceMetadataUpgradeReport metadataUpgrade;
+        IReadOnlyList<ProjectDesignSource> ownedSources;
         try
         {
+            metadataUpgrade = state.UpgradeSourceMetadata();
+            if (metadataUpgrade.ChangedCount > 0)
+                state.RefreshSourceRuntimeWatchers();
+            foreach (StudioSourceMetadataUpgradeDecision decision in
+                     metadataUpgrade.Decisions.Where(item =>
+                         item.Reason !=
+                         StudioSourceMetadataUpgradeReason.SchemaCurrent))
+            {
+                RecordDiagnosticOperation(
+                    operationId,
+                    "source_refresh",
+                    "progress",
+                    decision.ReasonCode,
+                    $"Source '{decision.SourceId}': {decision.Detail}");
+            }
+            ownedSources = StudioSourceRefreshScope.OwnedSources(
+                state.Project,
+                account.Current?.Email,
+                StudioDeviceIdentity.Fingerprint);
             if (ownedSources.Count == 0)
             {
                 SetOperationStatus(
@@ -393,7 +409,11 @@ internal sealed partial class ShellView
                 RefreshAlbumWorkspace();
                 bool updated = UpdateAlbum(
                     silent: false,
-                    statusPrefix: BuildSourceRefreshSummary(scan, assetScan, siteScan),
+                    statusPrefix: BuildSourceRefreshSummary(
+                        scan,
+                        assetScan,
+                        siteScan,
+                        metadataUpgrade),
                     origin: StudioWorkspaceOperation.SourceRefresh);
                 if (updated)
                 {
@@ -447,12 +467,25 @@ internal sealed partial class ShellView
     private static string BuildSourceRefreshSummary(
         SheetIntakeScanResult scan,
         ProjectAssetSourceReconciliationResult assets,
-        CityGenProjectSiteReconciliationResult site)
+        CityGenProjectSiteReconciliationResult site,
+        StudioSourceMetadataUpgradeReport metadataUpgrade)
     {
         var summary = scan.ChangedPackageCount == 0
             ? $"{scan.ManifestCount} package шалгав, шинэ source өөрчлөлтгүй"
             : $"{scan.ChangedPackageCount} package шинэчлэгдэж, " +
               $"{scan.UpdatedSheetCount} sheet шинэчлэгдэн, {scan.RemovedSheetCount} sheet хасагдав";
+        if (metadataUpgrade.BoundCount > 0)
+        {
+            summary +=
+                $", хуучин локал эх үүсвэрийн binding сэргэсэн: " +
+                $"{metadataUpgrade.BoundCount}";
+        }
+        else if (metadataUpgrade.ChangedCount > 0)
+        {
+            summary +=
+                $", source metadata шинэчлэгдсэн: " +
+                $"{metadataUpgrade.ChangedCount}";
+        }
         if (scan.RejectedPackageCount > 0)
             summary += $", Rejected package: {scan.RejectedPackageCount}";
         int updatedAssets = assets.UpdatedDocumentCount + assets.UpdatedVisualizationCount;
@@ -779,41 +812,61 @@ internal sealed partial class ShellView
         }
 
         string currentOwner = (account.Current?.Email ?? "").Trim().ToLowerInvariant();
-        string sourceOwner = ProjectCloudSyncMetadata.CloudOwnerEmail(source);
-        if (string.IsNullOrWhiteSpace(sourceOwner))
-            sourceOwner = currentOwner;
-        string sourceKey = ProjectCloudSyncMetadata.CloudSourceKey(source);
-        ProjectCloudSourceReference? sharedSource = state.Project.Cloud.SharedSources
-            .OfType<ProjectCloudSourceReference>()
-            .FirstOrDefault(item =>
-                string.Equals(item.SourceKey, sourceKey, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(
-                    StudioSharedSourceProjection.ImmutableOwner(item),
-                    sourceOwner,
-                    StringComparison.OrdinalIgnoreCase));
         bool cloudLinked =
             state.Project.Cloud.Origin.Equals(
                 ProjectOrigins.Cloud,
                 StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(
                 state.Project.Cloud.ServerProjectId);
-        ProjectLocalAlbumComponentClaim? removalClaim = null;
-        if (sharedSource is not null && cloudLinked)
+        StudioSourceRegistryResolution registryResolution =
+            StudioSourceRemovalOutbox.ResolveRegistrySource(
+                state.Project,
+                source);
+        if (cloudLinked && !registryResolution.IsExact)
         {
-            removalClaim = StudioSourceRemovalOutbox.Stage(
+            string reason =
+                registryResolution.Status ==
+                StudioSourceRegistryResolutionStatus.Ambiguous
+                    ? "ижил owner + SourceKey-тэй хэд хэдэн идэвхтэй registry мөр байна"
+                    : "яг тохирох идэвхтэй registry мөр локал mirror-т алга";
+            SetStatus(
+                $"Эх үүсвэр хасагдсангүй: {reason}. " +
+                "Cloud Sync хийж registry mirror-оо шинэчлээд дахин оролдоно уу. " +
+                "Локал бүртгэл, альбумын хуудас болон эх файл өөрчлөгдөөгүй. " +
+                "[reason: source_removal_registry_not_exact]");
+            return;
+        }
+
+        if (cloudLinked)
+        {
+            ProjectCloudSourceReference sharedSource =
+                registryResolution.Source!;
+            StudioSourceLocalRemovalCommit localCommit =
+                StudioSourceRemovalOutbox.StageAndRemoveLocal(
                 state.Project,
                 source,
                 sharedSource,
                 currentOwner,
                 StudioDeviceIdentity.Fingerprint,
-                StudioLocalSourceBindingPolicy.HasVerifiedPayload(source));
-            // Persist before the remote call. A timeout after a committed
-            // retire must not resurrect the source after restart.
-            state.SaveProject();
+                StudioLocalSourceBindingPolicy.HasVerifiedPayload(source),
+                state.SaveProject,
+                state.RemoveDesignSource);
+            ProjectLocalAlbumComponentClaim removalClaim =
+                localCommit.Claim;
+            int cloudRemovedPageCount =
+                localCommit.RemovedAlbumPageCount;
+            RefreshSourceWorkspace();
+            RefreshAlbumWorkspace();
+            UpdateAlbum(
+                silent: true,
+                statusPrefix:
+                    "Эх үүсвэр локалаас хасагдсан альбум шинэчлэгдлээ");
             if (!account.IsSignedIn)
             {
                 SetStatus(
-                    "Эх үүсвэрийг салгах хүсэлт pending боллоо. Cloud Sync хийхэд registry row-г retire хийсний дараа локал холбоос болон альбумын component хасагдана.");
+                    $"Эх үүсвэр болон {cloudRemovedPageCount} локал альбумын хуудас хасагдлаа. " +
+                    "Cloud retire хүсэлт pending хэвээр; дараагийн Sync серверт дамжуулна. " +
+                    "Эх файл, хүлээн авсан PDF-үүд хэвээр үлдсэн.");
                 return;
             }
 
@@ -822,45 +875,53 @@ internal sealed partial class ShellView
             sourceRemovalInProgress = true;
             try
             {
-                await account.RetireSourcePackageAsync(
-                    removalContext.ServerProjectId,
-                    sharedSource.SourceId);
-                if (!IsOperationContextCurrent(removalContext))
+                StudioSourceRemoteRetirementResult remoteResult =
+                    await StudioSourceRemovalOutbox
+                        .TryConfirmRegistryRetirementAsync(
+                            state.Project,
+                            removalClaim,
+                            currentOwner,
+                            StudioDeviceIdentity.Fingerprint,
+                            canContactCloud: true,
+                            sourceId => account.RetireSourcePackageAsync(
+                                removalContext.ServerProjectId,
+                                sourceId),
+                            () =>
+                            {
+                                if (!IsOperationContextCurrent(removalContext))
+                                {
+                                    throw new
+                                        StudioOperationContextChangedException(
+                                            "source_retire");
+                                }
+                            });
+                if (remoteResult.Confirmed)
                 {
+                    state.SaveProject();
                     SetStatus(
-                        "Source retire сервер дээр баталгаажсан боловч нээлттэй төсөл/бүртгэл солигдсон тул шинэ workspace-д локал өөрчлөлт хийгээгүй. Анхны төсөл дээр Sync хийхэд pending хүсэлт дуусна. [reason: source_removal_context_changed]");
+                        $"Эх үүсвэр болон {cloudRemovedPageCount} локал альбумын хуудас хасагдаж, " +
+                        "Cloud registry retire баталгаажлаа. Эх файл, хүлээн авсан PDF-үүд хэвээр үлдсэн.");
                     return;
                 }
-                StudioSourceRemovalOutbox.ApplyRegistryRetirement(
-                    state.Project,
-                    removalClaim);
+
+                SetStatus(
+                    $"Эх үүсвэр болон {cloudRemovedPageCount} локал альбумын хуудас хасагдлаа. " +
+                    "Cloud retire баталгаажаагүй тул хүсэлт pending хэвээр; дараагийн Sync idempotent байдлаар дахин оролдоно: " +
+                    remoteResult.Error?.Message);
+                return;
             }
-            catch (Exception exception) when (
-                exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+            catch (StudioOperationContextChangedException)
             {
                 SetStatus(
-                    "Cloud source retire баталгаажаагүй тул локал эх үүсвэрийг хасаагүй. Хүсэлт pending хэвээр; дараагийн Sync idempotent байдлаар дахин оролдоно: " +
-                    exception.Message);
+                    "Source retire сервер дээр баталгаажсан байж болох боловч нээлттэй төсөл/бүртгэл солигдсон. " +
+                    "Локал эх үүсвэр аль хэдийн хасагдсан бөгөөд анхны төсөл дээр Sync хийхэд pending хүсэлт idempotent байдлаар дуусна. " +
+                    "[reason: source_removal_context_changed]");
                 return;
             }
             finally
             {
                 sourceRemovalInProgress = false;
             }
-        }
-
-        if (removalClaim is null &&
-            !string.IsNullOrWhiteSpace(sourceOwner) &&
-            !string.IsNullOrWhiteSpace(sourceKey))
-        {
-            ProjectCloudSyncMetadata.MarkAlbumComponentPendingForBinding(
-                state.Project,
-                StudioAlbumComponentIdentity.SourceCode(
-                    sourceOwner,
-                    sourceKey),
-                currentOwner,
-                StudioDeviceIdentity.Fingerprint,
-                isRemoval: true);
         }
 
         int removedPageCount = state.RemoveDesignSource(source);
@@ -1348,6 +1409,14 @@ internal sealed partial class ShellView
         foreach (ProjectCloudSourceReference cloudSource in
                  (state.Project.Cloud.SharedSources ?? []).OfType<ProjectCloudSourceReference>())
         {
+            if (StudioSourceRemovalOutbox.IsRegistryMirrorStaged(
+                    state.Project,
+                    cloudSource,
+                    currentOwner,
+                    StudioDeviceIdentity.Fingerprint))
+            {
+                continue;
+            }
             string identity = CloudSourceIdentity(
                 StudioSharedSourceProjection.ImmutableOwner(cloudSource),
                 cloudSource.SourceKey);
@@ -1373,6 +1442,14 @@ internal sealed partial class ShellView
         foreach (ProjectCloudAlbumComponentReference component in
                  sharedComponents)
         {
+            if (StudioSourceRemovalOutbox.IsStaged(
+                    state.Project,
+                    component.Code,
+                    currentOwner,
+                    StudioDeviceIdentity.Fingerprint))
+            {
+                continue;
+            }
             string identity = CloudSourceIdentity(component.OwnerEmail, component.SourceKey);
             if (!representedCloudSources.Add(identity))
                 continue;

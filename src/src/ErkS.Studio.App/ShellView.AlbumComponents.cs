@@ -1192,7 +1192,7 @@ internal sealed partial class ShellView
         }
     }
 
-    private static void AddLegacyComponentMigrationPatches(
+    private void AddLegacyComponentMigrationPatches(
         ICollection<AlbumComponentPdfPatch> patches,
         IReadOnlyList<StudioCloudAlbumSection> selected,
         IReadOnlyDictionary<string, StudioCloudAlbumSection> currentByCode)
@@ -1211,6 +1211,21 @@ internal sealed partial class ShellView
             if (!currentByCode.TryGetValue(legacyCode, out StudioCloudAlbumSection? legacy) ||
                 patches.Any(item => item.Code.Equals(legacyCode, StringComparison.OrdinalIgnoreCase)))
             {
+                continue;
+            }
+            if (!component.SourceKey.Equals(
+                    StudioAlbumComponentIdentity.AtdSourceKey,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !component.SourceKey.Equals(
+                    StudioAlbumComponentIdentity.VisualizationSourceKey,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !StudioLegacySourceResolver.CanRetireUnqualifiedComponent(
+                    state.Project,
+                    component.SourceKey,
+                    component.OwnerEmail))
+            {
+                // source:<SourceKey> did not encode an immutable owner.
+                // Preserve it when more than one contributor can own the key.
                 continue;
             }
             patches.Add(new AlbumComponentPdfPatch(
@@ -1730,7 +1745,7 @@ internal sealed partial class ShellView
         }
     }
 
-    private static void AddLegacyComponentMigrationRemovals(
+    private void AddLegacyComponentMigrationRemovals(
         ICollection<StudioAlbumComponentUpload> uploads,
         IReadOnlyList<StudioCloudAlbumSection> selected,
         IReadOnlyDictionary<string, StudioCloudAlbumSection> currentByCode)
@@ -1748,6 +1763,19 @@ internal sealed partial class ShellView
             };
             if (!currentByCode.TryGetValue(legacyCode, out StudioCloudAlbumSection? legacy) ||
                 uploads.Any(item => item.Code.Equals(legacyCode, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+            if (!component.SourceKey.Equals(
+                    StudioAlbumComponentIdentity.AtdSourceKey,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !component.SourceKey.Equals(
+                    StudioAlbumComponentIdentity.VisualizationSourceKey,
+                    StringComparison.OrdinalIgnoreCase) &&
+                !StudioLegacySourceResolver.CanRetireUnqualifiedComponent(
+                    state.Project,
+                    component.SourceKey,
+                    component.OwnerEmail))
             {
                 continue;
             }

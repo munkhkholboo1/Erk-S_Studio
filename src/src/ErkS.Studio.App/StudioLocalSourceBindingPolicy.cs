@@ -62,6 +62,28 @@ internal static class StudioLocalSourceBindingPolicy
                 StringComparison.Ordinal);
     }
 
+    internal static bool HasAnyBinding(ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return !string.IsNullOrWhiteSpace(BindingAccountEmail(source)) ||
+            !string.IsNullOrWhiteSpace(
+                BindingDeviceFingerprint(source));
+    }
+
+    internal static string BindingAccountEmail(
+        ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Value(source, AccountKey);
+    }
+
+    internal static string BindingDeviceFingerprint(
+        ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Value(source, DeviceKey);
+    }
+
     public static bool TryExplicitRelink(
         ProjectDesignSource source,
         string? authorizedControllerEmail,
@@ -169,6 +191,94 @@ internal static class StudioLocalSourceBindingPolicy
         }
     }
 
+    /// <summary>
+    /// Stronger evidence used only by the automatic legacy metadata upgrade.
+    /// An existing native path alone is sufficient for a user-confirmed
+    /// relink, but never for implicit adoption. Automatic backfill additionally
+    /// requires the exact current, lossless package recorded for this source,
+    /// project, and native document path.
+    /// </summary>
+    internal static bool HasVerifiedLegacyUpgradePayload(
+        ProjectWorkspace project,
+        ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(source);
+        try
+        {
+            if (string.IsNullOrWhiteSpace(source.NativeDocumentPath) ||
+                !File.Exists(source.NativeDocumentPath) ||
+                string.IsNullOrWhiteSpace(source.Id) ||
+                string.IsNullOrWhiteSpace(project.ProjectId))
+            {
+                return false;
+            }
+
+            string expectedManifestId =
+                ProjectCloudSyncMetadata.RecordedSourceManifestId(source);
+            string expectedContentHash =
+                ProjectCloudSyncMetadata.RecordedSourceContentHash(source);
+            if (string.IsNullOrWhiteSpace(expectedManifestId) ||
+                string.IsNullOrWhiteSpace(expectedContentHash))
+            {
+                return false;
+            }
+
+            IEnumerable<string> inboxes = [source.InboxFolder];
+            if (source.Metadata is not null &&
+                source.Metadata.TryGetValue(
+                    "LegacyInboxFolder",
+                    out string? legacyInbox))
+            {
+                inboxes = inboxes.Append(legacyInbox);
+            }
+
+            foreach (string inbox in inboxes
+                         .Where(path => !string.IsNullOrWhiteSpace(path))
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(inbox))
+                    continue;
+                foreach (string manifestPath in Directory.EnumerateFiles(
+                             inbox,
+                             "*" + SheetPackageManifest.ManifestSuffix,
+                             SearchOption.AllDirectories))
+                {
+                    SheetPackageLoadResult package =
+                        SheetPackageReader.Load(manifestPath);
+                    SheetPackageManifest? manifest = package.Manifest;
+                    if (package.IsLossless &&
+                        manifest is not null &&
+                        manifest.Source.SourceId.Equals(
+                            source.Id,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        manifest.ProjectId.Equals(
+                            project.ProjectId,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        PathsEqual(
+                            manifest.Source.DocumentPath,
+                            source.NativeDocumentPath) &&
+                        MatchesCurrentRecordedPackage(
+                            package,
+                            expectedManifestId,
+                            expectedContentHash))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException or
+                InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     private static bool MatchesCurrentRecordedPackage(
         SheetPackageLoadResult package,
         string expectedManifestId,
@@ -186,6 +296,24 @@ internal static class StudioLocalSourceBindingPolicy
         return string.IsNullOrWhiteSpace(expectedContentHash) ||
             package.ManifestSha256.Equals(
                 expectedContentHash,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool PathsEqual(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) ||
+            string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        return Path.GetFullPath(left.Trim())
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(
+                Path.GetFullPath(right.Trim())
+                    .TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar),
                 StringComparison.OrdinalIgnoreCase);
     }
 
