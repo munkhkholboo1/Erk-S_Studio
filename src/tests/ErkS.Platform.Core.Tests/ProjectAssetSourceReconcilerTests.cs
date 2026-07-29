@@ -263,11 +263,18 @@ public sealed class ProjectAssetSourceReconcilerTests : IDisposable
             page.Width = XUnit.FromMillimeter(210);
             page.Height = XUnit.FromMillimeter(297);
             using XGraphics graphics = XGraphics.FromPdfPage(page);
-            graphics.DrawString(
-                $"Page {index + 1} of {pageCount}",
-                new XFont("Arial", 12),
-                XBrushes.Black,
-                new XPoint(20, 30));
+            graphics.DrawRectangle(
+                new XPen(XColors.Black, 0.5),
+                20,
+                20,
+                100 + index,
+                40);
+            graphics.DrawLine(
+                new XPen(XColors.Black, 0.25),
+                20,
+                20 + index,
+                120 + index,
+                60);
         }
         document.Save(path);
     }
