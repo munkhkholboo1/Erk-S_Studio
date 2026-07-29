@@ -299,3 +299,143 @@ public static class PageFormatResolver
         ? new PageRectMm()
         : new PageRectMm { X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height };
 }
+
+public static class PdfSourcePageFormatFactory
+{
+    public const string SourceCode = "SOURCE";
+    public const string CustomCode = "CUSTOM";
+
+    private static readonly IReadOnlyDictionary<string, (double Width, double Height)> StandardSizes =
+        new Dictionary<string, (double Width, double Height)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A4"] = (210, 297),
+            ["A3"] = (297, 420),
+            ["A2"] = (420, 594),
+            ["A1"] = (594, 841),
+            ["A0"] = (841, 1189),
+        };
+
+    public static IReadOnlyList<string> StandardCodes { get; } =
+        ["A4", "A3", "A2", "A1", "A0"];
+
+    public static PageFormatDefinition Create(
+        string? code,
+        string? orientation,
+        string? bindEdge,
+        double customWidthMm = 0,
+        double customHeightMm = 0)
+    {
+        string normalizedCode = NormalizeCode(code);
+        string normalizedOrientation = NormalizeOrientation(orientation);
+        string normalizedBindEdge = NormalizeBindEdge(bindEdge);
+        (double width, double height) = ResolveDimensions(
+            normalizedCode,
+            normalizedOrientation,
+            customWidthMm,
+            customHeightMm);
+        BuildingArchitectureConceptPageRegions regions =
+            BuildingArchitectureConceptPageLayout.Calculate(
+                width,
+                height,
+                normalizedBindEdge);
+        string dimensionKey =
+            $"{width:0.###}x{height:0.###}".Replace('.', '-');
+
+        return new PageFormatDefinition
+        {
+            Id = $"pdf-source-{normalizedCode.ToLowerInvariant()}-" +
+                 $"{normalizedOrientation.ToLowerInvariant()}-" +
+                 $"{normalizedBindEdge.ToLowerInvariant()}-{dimensionKey}",
+            Name = normalizedCode == CustomCode
+                ? $"PDF custom - {width:0.##} x {height:0.##} mm"
+                : $"PDF - {normalizedCode} {normalizedOrientation.ToLowerInvariant()}",
+            Kind = PageFormatKind.Concept,
+            Code = normalizedCode,
+            Orientation = normalizedOrientation,
+            BindEdge = normalizedBindEdge,
+            WidthMm = width,
+            HeightMm = height,
+            DrawingArea = regions.DrawingArea,
+            SheetTitleArea = regions.SheetTitleArea,
+            TitleBlockArea = regions.TitleBlockArea,
+            ShowBorder = true,
+            ShowGrid = false,
+            Revision = 1,
+        };
+    }
+
+    /// <summary>
+    /// Creates the Studio frame that best matches a PDF source page. Standard
+    /// ISO sizes retain their familiar name; other page sizes remain exact as
+    /// a custom Studio format rather than being silently resized.
+    /// </summary>
+    public static PageFormatDefinition CreateForSource(
+        double widthMm,
+        double heightMm,
+        string? bindEdge = "LEFT")
+    {
+        double width = IsUsableDimension(widthMm) ? widthMm : 420;
+        double height = IsUsableDimension(heightMm) ? heightMm : 297;
+        string orientation = height > width ? "PORTRAIT" : "LANDSCAPE";
+        double shortEdge = Math.Min(width, height);
+        double longEdge = Math.Max(width, height);
+
+        foreach ((string code, (double standardWidth, double standardHeight)) in StandardSizes)
+        {
+            if (Math.Abs(shortEdge - Math.Min(standardWidth, standardHeight)) <= 5 &&
+                Math.Abs(longEdge - Math.Max(standardWidth, standardHeight)) <= 5)
+            {
+                return Create(code, orientation, bindEdge);
+            }
+        }
+
+        return Create(CustomCode, orientation, bindEdge, width, height);
+    }
+
+    public static bool IsPdfSourceFormat(PageFormatDefinition? format) =>
+        format is not null &&
+        format.Id.StartsWith("pdf-source-", StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeCode(string? code)
+    {
+        string value = (code ?? "").Trim().ToUpperInvariant();
+        if (string.Equals(value, CustomCode, StringComparison.OrdinalIgnoreCase))
+            return CustomCode;
+        return StandardSizes.ContainsKey(value) ? value : "A3";
+    }
+
+    private static string NormalizeOrientation(string? orientation) =>
+        string.Equals(
+            orientation?.Trim(),
+            "PORTRAIT",
+            StringComparison.OrdinalIgnoreCase)
+            ? "PORTRAIT"
+            : "LANDSCAPE";
+
+    private static string NormalizeBindEdge(string? bindEdge)
+    {
+        string value = (bindEdge ?? "").Trim().ToUpperInvariant();
+        return value is "TOP" or "RIGHT" or "BOTTOM" ? value : "LEFT";
+    }
+
+    private static (double Width, double Height) ResolveDimensions(
+        string code,
+        string orientation,
+        double customWidthMm,
+        double customHeightMm)
+    {
+        (double width, double height) = code == CustomCode
+            ? (
+                Math.Clamp(customWidthMm, 100, 3000),
+                Math.Clamp(customHeightMm, 100, 3000))
+            : StandardSizes[code];
+        double shortEdge = Math.Min(width, height);
+        double longEdge = Math.Max(width, height);
+        return orientation == "PORTRAIT"
+            ? (shortEdge, longEdge)
+            : (longEdge, shortEdge);
+    }
+
+    private static bool IsUsableDimension(double value) =>
+        double.IsFinite(value) && value is >= 100 and <= 3000;
+}

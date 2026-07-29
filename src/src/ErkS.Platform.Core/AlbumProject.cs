@@ -407,6 +407,13 @@ public sealed class AlbumPageDefinition
     public string TitleOverride { get; set; } = "";
 
     /// <summary>
+    /// Studio-owned semantic drawing scale printed in the title block. Null
+    /// inherits source metadata; an empty value deliberately leaves the cell
+    /// blank. This value never changes the source PDF geometry.
+    /// </summary>
+    public string? ScaleTextOverride { get; set; }
+
+    /// <summary>
     /// Optional Studio-owned page classification. Empty values inherit the
     /// source manifest so existing album files keep their current behavior.
     /// </summary>
@@ -438,6 +445,78 @@ public sealed class SourcePageCropDefinition
     public double RightMm { get; set; }
 
     public double BottomMm { get; set; }
+
+    /// <summary>
+    /// Placement adjustments applied after the non-destructive crop.
+    /// Missing values in older project files retain the identity transform.
+    /// </summary>
+    public double OffsetXmm { get; set; }
+
+    public double OffsetYmm { get; set; }
+
+    public double ScalePercent { get; set; } = 100;
+
+    public double RotationDegrees { get; set; }
+
+    /// <summary>
+    /// Whiteout regions stored in original-page normalized coordinates.
+    /// They remove legacy borders, title blocks, notes, or other unwanted
+    /// regions without modifying or rasterizing the source PDF.
+    /// </summary>
+    public List<SourcePageMaskDefinition> Masks { get; set; } = [];
+
+    public SourcePageCropDefinition DeepClone() => new()
+    {
+        Enabled = Enabled,
+        LeftMm = LeftMm,
+        TopMm = TopMm,
+        RightMm = RightMm,
+        BottomMm = BottomMm,
+        OffsetXmm = OffsetXmm,
+        OffsetYmm = OffsetYmm,
+        ScalePercent = ScalePercent,
+        RotationDegrees = RotationDegrees,
+        Masks = (Masks ?? [])
+            .Where(mask => mask is not null)
+            .Select(mask => mask.DeepClone())
+            .ToList(),
+    };
+}
+
+public enum SourcePageMaskShape
+{
+    Rectangle,
+    Polygon,
+}
+
+public sealed class SourcePagePointDefinition
+{
+    public double X { get; set; }
+
+    public double Y { get; set; }
+}
+
+public sealed class SourcePageMaskDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    public SourcePageMaskShape Shape { get; set; }
+
+    public List<SourcePagePointDefinition> Points { get; set; } = [];
+
+    public SourcePageMaskDefinition DeepClone() => new()
+    {
+        Id = Id,
+        Shape = Shape,
+        Points = (Points ?? [])
+            .Where(point => point is not null)
+            .Select(point => new SourcePagePointDefinition
+            {
+                X = point.X,
+                Y = point.Y,
+            })
+            .ToList(),
+    };
 }
 
 public static class AlbumPageSourceMetadata
@@ -450,10 +529,42 @@ public static class AlbumPageSourceMetadata
             : page.ContentKindOverride.Trim();
 }
 
+public static class DrawingScaleText
+{
+    public static string Resolve(
+        AlbumPageDefinition page,
+        ErkS.Platform.Contracts.SheetPackageEntry? entry) =>
+        Normalize(page.ScaleTextOverride is null
+            ? entry?.ScaleText
+            : page.ScaleTextOverride);
+
+    public static string Normalize(string? value)
+    {
+        string text = string.Concat(
+            (value ?? "").Trim().Where(character => !char.IsWhiteSpace(character)));
+        if (text.Length == 0)
+            return "";
+
+        if (text.All(char.IsDigit))
+            return $"1:{text}";
+
+        if (text.Length > 2 &&
+            (text.StartsWith("1:", StringComparison.Ordinal) ||
+             text.StartsWith("1/", StringComparison.Ordinal)) &&
+            text[2..].All(char.IsDigit))
+        {
+            return $"1:{text[2..]}";
+        }
+
+        return text;
+    }
+}
+
 public enum PagePlacementMode
 {
     FitDrawingArea,
     FullPage,
     FillCrop,
     PreserveDrawingSpace,
+    PreservePhysicalSize,
 }

@@ -59,6 +59,8 @@ public sealed class AlbumBuildPage
     public string Title => string.IsNullOrWhiteSpace(Definition.TitleOverride)
         ? Sheet.Entry.Name
         : Definition.TitleOverride;
+
+    public string ScaleText => DrawingScaleText.Resolve(Definition, Sheet.Entry);
 }
 
 public sealed class AlbumBuildResult
@@ -296,17 +298,9 @@ public sealed class AlbumBuilder
                 PlacementMode = PagePlacementMode.FullPage,
                 NumberOverride = item.Page.NumberOverride,
                 TitleOverride = item.Page.TitleOverride,
+                ScaleTextOverride = item.Page.ScaleTextOverride,
                 ContentKindOverride = item.Page.ContentKindOverride,
-                SourceCrop = item.Page.SourceCrop is null
-                    ? null
-                    : new SourcePageCropDefinition
-                    {
-                        Enabled = item.Page.SourceCrop.Enabled,
-                        LeftMm = item.Page.SourceCrop.LeftMm,
-                        TopMm = item.Page.SourceCrop.TopMm,
-                        RightMm = item.Page.SourceCrop.RightMm,
-                        BottomMm = item.Page.SourceCrop.BottomMm,
-                    },
+                SourceCrop = item.Page.SourceCrop?.DeepClone(),
                 ElevationDescriptionOverride = item.Page.ElevationDescriptionOverride,
             };
             configured = BuildingArchitectureConceptPageLayout.UsesInformationHeader(

@@ -14,7 +14,6 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 {
     private const string FontName = BuildingArchitectureConceptPageLayout.FontFamilyName;
     private const double PointsPerMillimeter = 72.0 / 25.4;
-    private const double PreserveSizeToleranceMm = 0.75;
 
     public AlbumBuildResult Compose(AlbumBuildRequest request, string outputPath)
     {
@@ -117,7 +116,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
                 int firstPageIndex = document.PageCount;
                 if (buildPage.Format.Kind == PageFormatKind.SourceAsIs &&
-                    buildPage.Definition.SourceCrop is not { Enabled: true })
+                    !HasSourcePageEdits(buildPage.Definition.SourceCrop))
                 {
                     ImportSourceAsIs(document, sheet);
                 }
@@ -266,64 +265,233 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static void DrawSource(XGraphics gfx, XPdfForm form, AlbumBuildPage buildPage)
     {
         var format = buildPage.Format;
-        var sourceRect = ResolveSourceRectangle(form, buildPage.Definition.SourceCrop);
+        // PDF source pages now use the placement selected by Studio. This is
+        // essential after a crop: FitDrawingArea supplies the Studio canvas
+        // and offset records the position the user chose in its preview.
+        PagePlacementMode placementMode = buildPage.Definition.PlacementMode;
         var target = format.Kind == PageFormatKind.SourceAsIs
-            ? new XRect(0, 0, sourceRect.Width, sourceRect.Height)
-            : buildPage.Definition.PlacementMode == PagePlacementMode.FullPage
+            ? new XRect(
+                0,
+                0,
+                ResolveSourceRectangle(form, buildPage.Definition.SourceCrop).Width,
+                ResolveSourceRectangle(form, buildPage.Definition.SourceCrop).Height)
+            : placementMode == PagePlacementMode.FullPage
                 ? new XRect(0, 0, Mm(format.WidthMm), Mm(format.HeightMm))
                 : ToPoints(format.DrawingArea);
-        var sourceWidth = sourceRect.Width;
-        var sourceHeight = sourceRect.Height;
-        if (buildPage.Definition.PlacementMode == PagePlacementMode.PreserveDrawingSpace)
-        {
-            var widthDifferenceMm = Math.Abs(target.Width - sourceWidth) / PointsPerMillimeter;
-            var heightDifferenceMm = Math.Abs(target.Height - sourceHeight) / PointsPerMillimeter;
-            if (widthDifferenceMm > PreserveSizeToleranceMm || heightDifferenceMm > PreserveSizeToleranceMm)
-            {
-                throw new InvalidDataException(
-                    $"Clean drawing-space PDF is {sourceWidth / PointsPerMillimeter:0.##} x " +
-                    $"{sourceHeight / PointsPerMillimeter:0.##} mm, but format '{format.Id}' requires " +
-                    $"{format.DrawingArea.Width:0.##} x {format.DrawingArea.Height:0.##} mm. " +
-                    "The source was not resized.");
-            }
-
-            var preserveState = gfx.Save();
-            gfx.IntersectClip(target);
-            gfx.DrawImage(
-                form,
-                new XRect(target.X, target.Y, sourceWidth, sourceHeight),
-                sourceRect,
-                XGraphicsUnit.Point);
-            gfx.Restore(preserveState);
-            return;
-        }
-
-        var scaleX = target.Width / sourceWidth;
-        var scaleY = target.Height / sourceHeight;
-        var scale = buildPage.Definition.PlacementMode == PagePlacementMode.FillCrop
-            ? Math.Max(scaleX, scaleY)
-            : Math.Min(scaleX, scaleY);
-        var width = sourceWidth * scale;
-        var height = sourceHeight * scale;
-        var x = target.X + (target.Width - width) / 2;
-        var y = target.Y + (target.Height - height) / 2;
+        PdfSourcePlacement placement = CalculateSourcePlacement(
+            Math.Max(1, form.PointWidth),
+            Math.Max(1, form.PointHeight),
+            target,
+            placementMode,
+            buildPage.Definition.SourceCrop,
+            format.Id);
 
         var state = gfx.Save();
         gfx.IntersectClip(target);
-        gfx.DrawImage(
-            form,
-            new XRect(x, y, width, height),
-            sourceRect,
-            XGraphicsUnit.Point);
+        if (Math.Abs(placement.RotationDegrees) > 0.0001)
+        {
+            double centerX =
+                placement.DestinationRectangle.X + placement.DestinationRectangle.Width / 2;
+            double centerY =
+                placement.DestinationRectangle.Y + placement.DestinationRectangle.Height / 2;
+            gfx.TranslateTransform(centerX, centerY);
+            gfx.RotateTransform(placement.RotationDegrees);
+            gfx.TranslateTransform(-centerX, -centerY);
+        }
+        // XPdfForm does not consistently honor DrawImage's source rectangle
+        // overload. Draw the full vector form through an explicit destination
+        // clip instead, so a Studio crop removes the legacy page frame rather
+        // than merely moving/scaling the complete source page.
+        gfx.IntersectClip(placement.DestinationRectangle);
+        DrawCroppedPdfForm(gfx, form, placement);
+        foreach (XPoint[] polygon in placement.MaskPolygons)
+        {
+            gfx.DrawPolygon(XBrushes.White, polygon, XFillMode.Winding);
+        }
         gfx.Restore(state);
     }
 
-    private static XRect ResolveSourceRectangle(
+    private static void DrawCroppedPdfForm(
+        XGraphics gfx,
         XPdfForm form,
+        PdfSourcePlacement placement)
+    {
+        XRect desiredSourceDestination = CalculateCompleteSourceDestination(
+            Math.Max(1, form.PointWidth),
+            Math.Max(1, form.PointHeight),
+            placement);
+        PdfRectangle mediaBox = form.Page?.MediaBox ??
+                                new PdfRectangle(
+                                    new XPoint(0, 0),
+                                    new XPoint(
+                                        Math.Max(1, form.PointWidth),
+                                        Math.Max(1, form.PointHeight)));
+        XRect pdfSharpDrawRectangle = CalculatePdfSharpFormDrawRectangle(
+            desiredSourceDestination,
+            Math.Max(1, form.PointWidth),
+            Math.Max(1, form.PointHeight),
+            mediaBox.X1,
+            mediaBox.Y1);
+        gfx.DrawImage(form, pdfSharpDrawRectangle);
+    }
+
+    internal static XRect CalculateCompleteSourceDestination(
+        double formWidth,
+        double formHeight,
+        PdfSourcePlacement placement)
+    {
+        double scaleX = placement.DestinationRectangle.Width /
+                        Math.Max(1, placement.SourceRectangle.Width);
+        double scaleY = placement.DestinationRectangle.Height /
+                        Math.Max(1, placement.SourceRectangle.Height);
+        return new XRect(
+            placement.DestinationRectangle.X - placement.SourceRectangle.X * scaleX,
+            placement.DestinationRectangle.Y - placement.SourceRectangle.Y * scaleY,
+            Math.Max(1, formWidth) * scaleX,
+            Math.Max(1, formHeight) * scaleY);
+    }
+
+    /// <summary>
+    /// PDFsharp 6.2 offsets an imported form by the unscaled MediaBox origin.
+    /// That is correct at scale 1, but a centered/non-zero MediaBox drifts as
+    /// soon as a crop is fitted to a different size. Pre-compensating the
+    /// rectangle makes the effective full-page destination equal the preview's
+    /// zero-origin, top-left geometry.
+    /// </summary>
+    internal static XRect CalculatePdfSharpFormDrawRectangle(
+        XRect desiredSourceDestination,
+        double formWidth,
+        double formHeight,
+        double mediaBoxX1,
+        double mediaBoxY1)
+    {
+        double scaleX = desiredSourceDestination.Width / Math.Max(1, formWidth);
+        double scaleY = desiredSourceDestination.Height / Math.Max(1, formHeight);
+        return new XRect(
+            desiredSourceDestination.X - mediaBoxX1 * (scaleX - 1),
+            desiredSourceDestination.Y + mediaBoxY1 * (scaleY - 1),
+            desiredSourceDestination.Width,
+            desiredSourceDestination.Height);
+    }
+
+    internal static PdfSourcePlacement CalculateSourcePlacement(
+        double formWidth,
+        double formHeight,
+        XRect target,
+        PagePlacementMode placementMode,
+        SourcePageCropDefinition? crop,
+        string formatId = "")
+    {
+        PdfSourcePagePlacementMm geometry = PdfSourcePagePlacementGeometry.Calculate(
+            Math.Max(1, formWidth) / PointsPerMillimeter,
+            Math.Max(1, formHeight) / PointsPerMillimeter,
+            new PageRectMm
+            {
+                X = target.X / PointsPerMillimeter,
+                Y = target.Y / PointsPerMillimeter,
+                Width = target.Width / PointsPerMillimeter,
+                Height = target.Height / PointsPerMillimeter,
+            },
+            placementMode,
+            crop,
+            formatId);
+        XRect sourceRect = ToPoints(geometry.SourceRectangle);
+        XRect destination = ToPoints(geometry.DestinationRectangle);
+        IReadOnlyList<XPoint[]> masks = ResolveMaskPolygons(
+            Math.Max(1, formWidth),
+            Math.Max(1, formHeight),
+            sourceRect,
+            destination,
+            crop);
+
+        return new PdfSourcePlacement(
+            sourceRect,
+            destination,
+            geometry.RotationDegrees,
+            masks);
+    }
+
+    internal static bool HasSourcePageEdits(SourcePageCropDefinition? crop) =>
+        PdfSourcePagePlacementGeometry.HasCompositionEdits(crop);
+
+    private static IReadOnlyList<XPoint[]> ResolveMaskPolygons(
+        double formWidth,
+        double formHeight,
+        XRect sourceRect,
+        XRect destination,
         SourcePageCropDefinition? crop)
     {
-        double formWidth = Math.Max(1, form.PointWidth);
-        double formHeight = Math.Max(1, form.PointHeight);
+        if (crop?.Masks is null || crop.Masks.Count == 0)
+            return [];
+
+        var result = new List<XPoint[]>();
+        foreach (SourcePageMaskDefinition mask in crop.Masks.Where(IsUsableMask))
+        {
+            IReadOnlyList<SourcePagePointDefinition> normalizedPoints =
+                mask.Shape == SourcePageMaskShape.Rectangle
+                    ? CreateRectangleMaskPoints(mask.Points)
+                    : mask.Points;
+            XPoint[] points = normalizedPoints
+                .Select(point =>
+                {
+                    double sourceX = formWidth * Math.Clamp(ResolveFinite(point.X), 0, 1);
+                    double sourceY = formHeight * Math.Clamp(ResolveFinite(point.Y), 0, 1);
+                    return new XPoint(
+                        destination.X +
+                        (sourceX - sourceRect.X) / sourceRect.Width * destination.Width,
+                        destination.Y +
+                        (sourceY - sourceRect.Y) / sourceRect.Height * destination.Height);
+                })
+                .ToArray();
+            if (points.Length >= 3)
+                result.Add(points);
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<SourcePagePointDefinition> CreateRectangleMaskPoints(
+        IReadOnlyList<SourcePagePointDefinition> points)
+    {
+        SourcePagePointDefinition first = points[0];
+        SourcePagePointDefinition second = points[1];
+        double left = Math.Min(first.X, second.X);
+        double top = Math.Min(first.Y, second.Y);
+        double right = Math.Max(first.X, second.X);
+        double bottom = Math.Max(first.Y, second.Y);
+        return
+        [
+            new SourcePagePointDefinition { X = left, Y = top },
+            new SourcePagePointDefinition { X = right, Y = top },
+            new SourcePagePointDefinition { X = right, Y = bottom },
+            new SourcePagePointDefinition { X = left, Y = bottom },
+        ];
+    }
+
+    private static bool IsUsableMask(SourcePageMaskDefinition? mask) =>
+        mask is not null &&
+        mask.Points is not null &&
+        mask.Points.Count >= (mask.Shape == SourcePageMaskShape.Rectangle ? 2 : 3);
+
+    private static double ResolveFinite(double? value, double fallback = 0) =>
+        value is double number && !double.IsNaN(number) && !double.IsInfinity(number)
+            ? number
+            : fallback;
+
+    private static XRect ResolveSourceRectangle(
+        XPdfForm form,
+        SourcePageCropDefinition? crop) =>
+        ResolveSourceRectangle(
+            Math.Max(1, form.PointWidth),
+            Math.Max(1, form.PointHeight),
+            crop);
+
+    private static XRect ResolveSourceRectangle(
+        double formWidth,
+        double formHeight,
+        SourcePageCropDefinition? crop)
+    {
+        formWidth = Math.Max(1, formWidth);
+        formHeight = Math.Max(1, formHeight);
         if (crop is not { Enabled: true })
         {
             return new XRect(0, 0, formWidth, formHeight);
@@ -343,6 +511,12 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         return new XRect(left, top, width, height);
     }
+
+    internal sealed record PdfSourcePlacement(
+        XRect SourceRectangle,
+        XRect DestinationRectangle,
+        double RotationDegrees,
+        IReadOnlyList<XPoint[]> MaskPolygons);
 
     private static void DrawPageFormat(
         XGraphics gfx,
@@ -461,7 +635,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             gfx,
             project,
             buildPage.Number,
-            buildPage.Sheet.Entry.ScaleText,
+            buildPage.ScaleText,
             regions.TitleBlockArea,
             borderPen,
             finePen);

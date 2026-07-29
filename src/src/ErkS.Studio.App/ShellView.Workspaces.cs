@@ -34,6 +34,8 @@ internal sealed partial class ShellView
         StudioWidgets.CreateButton("Альбумд оруулах");
     private readonly Button excludeSelectedSourceSheetsButton =
         StudioWidgets.CreateButton("Альбумаас хасах");
+    private readonly Button editSelectedSourcePdfPageButton =
+        StudioWidgets.CreatePrimaryButton("PDF хэсэг засах");
     private readonly TextBlock sourceSheetSummaryText = new()
     {
         VerticalAlignment = VerticalAlignment.Center,
@@ -84,6 +86,18 @@ internal sealed partial class ShellView
     private readonly Button albumCropFromDrawingAreaButton =
         StudioWidgets.CreateButton("Форматын цэвэр талбайгаар");
     private readonly StackPanel albumSourceCropPanel = new();
+    private readonly ComboBox albumPdfPageSizeBox = new();
+    private readonly ComboBox albumPdfOrientationBox = new();
+    private readonly ComboBox albumPdfBindEdgeBox = new();
+    private readonly TextBox albumPdfDrawingScaleBox = new();
+    private readonly TextBox albumPdfCustomWidthBox = new();
+    private readonly TextBox albumPdfCustomHeightBox = new();
+    private readonly Button albumPdfApplyFormatButton =
+        StudioWidgets.CreateButton("Формат хэрэглэх");
+    private readonly Button albumPdfEditPageButton =
+        StudioWidgets.CreatePrimaryButton("PDF хэсэг засах");
+    private readonly StackPanel albumPdfFormatPanel = new();
+    private readonly StackPanel albumPdfCustomSizePanel = new();
     private readonly CheckBox includeCoverCheck = new() { Content = "Нүүр хуудас" };
     private readonly CheckBox includeTocCheck = new() { Content = "Зургийн жагсаалт" };
     private bool bindingAlbumPage;
@@ -325,6 +339,91 @@ internal sealed partial class ShellView
         itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
         itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
         itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(5, 4, 5, 4)));
+        itemStyle.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+
+        var itemTemplate = new ControlTemplate(typeof(ListViewItem));
+        var rowBackground = new FrameworkElementFactory(typeof(Border), "RowBackground");
+        rowBackground.SetBinding(
+            Border.BackgroundProperty,
+            new Binding(nameof(Control.Background))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            });
+        rowBackground.SetBinding(
+            Border.PaddingProperty,
+            new Binding(nameof(Control.Padding))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            });
+        rowBackground.SetBinding(
+            System.Windows.Documents.TextElement.ForegroundProperty,
+            new Binding(nameof(Control.Foreground))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            });
+        rowBackground.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
+
+        var rowPresenter = new FrameworkElementFactory(typeof(GridViewRowPresenter));
+        rowPresenter.SetBinding(
+            GridViewRowPresenter.ContentProperty,
+            new Binding(nameof(ContentControl.Content))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            });
+        rowPresenter.SetBinding(
+            GridViewRowPresenter.ColumnsProperty,
+            new Binding($"{nameof(ListView.View)}.{nameof(GridView.Columns)}")
+            {
+                RelativeSource = new RelativeSource(
+                    RelativeSourceMode.FindAncestor,
+                    typeof(ListView),
+                    1),
+            });
+        rowPresenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
+        rowPresenter.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        rowPresenter.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
+        rowBackground.AppendChild(rowPresenter);
+        itemTemplate.VisualTree = rowBackground;
+
+        var hoverTrigger = new Trigger
+        {
+            Property = UIElement.IsMouseOverProperty,
+            Value = true,
+        };
+        hoverTrigger.Setters.Add(new Setter(
+            Border.BackgroundProperty,
+            new SolidColorBrush(Color.FromRgb(29, 40, 54)),
+            "RowBackground"));
+        hoverTrigger.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
+        itemTemplate.Triggers.Add(hoverTrigger);
+
+        var focusedSelectionTrigger = new MultiTrigger();
+        focusedSelectionTrigger.Conditions.Add(
+            new System.Windows.Condition(ListBoxItem.IsSelectedProperty, true));
+        focusedSelectionTrigger.Conditions.Add(
+            new System.Windows.Condition(Selector.IsSelectionActiveProperty, true));
+        focusedSelectionTrigger.Setters.Add(new Setter(
+            Border.BackgroundProperty,
+            new SolidColorBrush(Color.FromRgb(25, 79, 132)),
+            "RowBackground"));
+        focusedSelectionTrigger.Setters.Add(
+            new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
+        itemTemplate.Triggers.Add(focusedSelectionTrigger);
+
+        var unfocusedSelectionTrigger = new MultiTrigger();
+        unfocusedSelectionTrigger.Conditions.Add(
+            new System.Windows.Condition(ListBoxItem.IsSelectedProperty, true));
+        unfocusedSelectionTrigger.Conditions.Add(
+            new System.Windows.Condition(Selector.IsSelectionActiveProperty, false));
+        unfocusedSelectionTrigger.Setters.Add(new Setter(
+            Border.BackgroundProperty,
+            new SolidColorBrush(Color.FromRgb(35, 57, 82)),
+            "RowBackground"));
+        unfocusedSelectionTrigger.Setters.Add(
+            new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
+        itemTemplate.Triggers.Add(unfocusedSelectionTrigger);
+        itemStyle.Setters.Add(new Setter(Control.TemplateProperty, itemTemplate));
+
         var inactiveTrigger = new DataTrigger
         {
             Binding = new Binding(nameof(SheetWorkspaceItem.IsActive)),
@@ -372,12 +471,17 @@ internal sealed partial class ShellView
             "Идэвхгүй болгосон PDF хуудсыг энэ төслийн альбумд буцаан оруулна.";
         includeSelectedSourceSheetsButton.Click += (_, _) =>
             SetSelectedSourceSheetsActive(active: true);
+        editSelectedSourcePdfPageButton.Click += (_, _) =>
+            EditSelectedSourcePdfPage();
+        ToolTipService.SetShowOnDisabled(editSelectedSourcePdfPageButton, true);
         excludeSelectedSourceSheetsButton.Margin = new Thickness(0, 0, 6, 0);
         includeSelectedSourceSheetsButton.Margin = new Thickness(0, 0, 6, 0);
+        editSelectedSourcePdfPageButton.Margin = new Thickness(0, 0, 6, 0);
         sourceSheetSummaryText.Foreground = StudioTheme.MutedTextBrush;
 
         sourceSheetActionsPanel.Children.Add(excludeSelectedSourceSheetsButton);
         sourceSheetActionsPanel.Children.Add(includeSelectedSourceSheetsButton);
+        sourceSheetActionsPanel.Children.Add(editSelectedSourcePdfPageButton);
         sourceSheetActionsPanel.Children.Add(sourceSheetSummaryText);
         receivedSheetsWorkspaceHost.Children.Add(sourceSheetActionsPanel);
         Grid.SetRow(receivedSheetsWorkspaceList, 1);
@@ -891,7 +995,7 @@ internal sealed partial class ShellView
         RefreshSourceDetails();
     }
 
-    private void RefreshReceivedSheetWorkspace()
+    private void RefreshReceivedSheetWorkspace(string? selectSheetKey = null)
     {
         if (designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem { IsCloudPlaceholder: true })
         {
@@ -946,6 +1050,19 @@ internal sealed partial class ShellView
                     : record.IsVerified ? "OK" : "Алдаа"))
             .ToList();
         receivedSheetsWorkspaceList.ItemsSource = items;
+        if (!string.IsNullOrWhiteSpace(selectSheetKey))
+        {
+            SheetWorkspaceItem? selectedItem = items.FirstOrDefault(item =>
+                string.Equals(
+                    item.Record.Key,
+                    selectSheetKey,
+                    StringComparison.Ordinal));
+            if (selectedItem is not null)
+            {
+                receivedSheetsWorkspaceList.SelectedItem = selectedItem;
+                receivedSheetsWorkspaceList.ScrollIntoView(selectedItem);
+            }
+        }
 
         bool isPdfSource = selectedSource?.Kind == DesignSourceKind.Pdf;
         sourceSheetActionsPanel.Visibility = isPdfSource ? Visibility.Visible : Visibility.Collapsed;
@@ -969,18 +1086,88 @@ internal sealed partial class ShellView
 
     private void RefreshSourceSheetActionState()
     {
-        bool isPdfSource =
-            designSourcesWorkspaceList.SelectedItem is SourceWorkspaceItem
-            {
-                Source.Kind: DesignSourceKind.Pdf,
-            };
+        ProjectDesignSource? source =
+            (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.Source;
         var selected = receivedSheetsWorkspaceList.SelectedItems
             .OfType<SheetWorkspaceItem>()
             .ToList();
+        PdfSourcePageEditResolution editResolution =
+            PdfSourcePageEditResolver.Resolve(
+                source,
+                selected.Select(item => item.Record).ToList(),
+                state.HasOpenProject
+                    ? state.Album.Pages
+                    : Array.Empty<AlbumPageDefinition>());
+        bool isPdfSource = source?.Kind == DesignSourceKind.Pdf;
         excludeSelectedSourceSheetsButton.IsEnabled =
             isPdfSource && selected.Any(item => item.IsActive);
         includeSelectedSourceSheetsButton.IsEnabled =
             isPdfSource && selected.Any(item => !item.IsActive);
+        editSelectedSourcePdfPageButton.IsEnabled = editResolution.IsButtonEnabled;
+        editSelectedSourcePdfPageButton.ToolTip =
+            PdfSourcePageEditToolTip(editResolution.State);
+    }
+
+    private static string PdfSourcePageEditToolTip(PdfSourcePageEditState state) =>
+        state switch
+        {
+            PdfSourcePageEditState.NoSelection =>
+                "Засах нэг PDF хуудсаа сонгоно уу.",
+            PdfSourcePageEditState.MultipleSelection =>
+                "PDF хэсгийг засахдаа зөвхөн нэг хуудас сонгоно уу.",
+            PdfSourcePageEditState.NotPdf =>
+                "PDF хэсэг засах багаж зөвхөн PDF эх үүсвэрийн нэг хуудсанд ажиллана.",
+            PdfSourcePageEditState.Inactive =>
+                "Энэ PDF хуудас альбумд идэвхгүй байна. Эхлээд “Альбумд оруулах” товчийг дарна уу.",
+            PdfSourcePageEditState.AlbumPageMissing =>
+                "Энэ PDF хуудасны альбумын тохиргоо олдсонгүй.",
+            PdfSourcePageEditState.Ready =>
+                "Сонгосон PDF хуудасны crop, mask, offset болон rotation-ийг засна.",
+            _ => "Засах нэг PDF хуудсаа сонгоно уу.",
+        };
+
+    private void EditSelectedSourcePdfPage()
+    {
+        ProjectDesignSource? source =
+            (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.Source;
+        PdfSourcePageEditResolution resolution =
+            PdfSourcePageEditResolver.Resolve(
+                source,
+                receivedSheetsWorkspaceList.SelectedItems
+                    .OfType<SheetWorkspaceItem>()
+                    .Select(item => item.Record)
+                    .ToList(),
+                state.HasOpenProject
+                    ? state.Album.Pages
+                    : Array.Empty<AlbumPageDefinition>());
+
+        switch (resolution.State)
+        {
+            case PdfSourcePageEditState.NoSelection:
+                SetStatus("Засах нэг PDF хуудсаа сонгоно уу.");
+                return;
+            case PdfSourcePageEditState.MultipleSelection:
+                SetStatus("PDF хэсгийг засахдаа зөвхөн нэг хуудас сонгоно уу.");
+                return;
+            case PdfSourcePageEditState.NotPdf:
+                SetStatus("PDF хэсэг засах багаж зөвхөн PDF эх үүсвэрийн хуудсанд ажиллана.");
+                return;
+            case PdfSourcePageEditState.Inactive:
+                SetStatus(
+                    "Сонгосон PDF хуудас альбумд идэвхгүй байна. " +
+                    "Эхлээд “Альбумд оруулах” товчийг дарна уу.");
+                return;
+            case PdfSourcePageEditState.AlbumPageMissing:
+                SetStatus(
+                    "Сонгосон PDF хуудасны альбумын тохиргоо олдсонгүй. " +
+                    "“Эх үүсвэр шалгах” үйлдлээр альбумын хуудсыг сэргээнэ үү.");
+                return;
+            case PdfSourcePageEditState.Ready:
+                EditPdfSourcePage(resolution.Sheet!, resolution.Page!);
+                return;
+            default:
+                return;
+        }
     }
 
     private void SetSelectedSourceSheetsActive(bool active)
@@ -1867,9 +2054,32 @@ internal sealed partial class ShellView
         albumPlacementBox.ItemsSource = new[]
         {
             new PlacementChoice(PagePlacementMode.PreserveDrawingSpace, "1:1 цэвэр зургийн талбай"),
+            new PlacementChoice(PagePlacementMode.PreservePhysicalSize, "PDF бодит хэмжээ (1:1)"),
             new PlacementChoice(PagePlacementMode.FitDrawingArea, "Зургийн талбайд багтаах"),
             new PlacementChoice(PagePlacementMode.FillCrop, "Талбайг дүүргэж тайрах"),
             new PlacementChoice(PagePlacementMode.FullPage, "Хуудсыг бүтэн дүүргэх"),
+        };
+        albumPdfPageSizeBox.ItemsSource = new[]
+        {
+            new PdfPageSizeChoice(PdfSourcePageFormatFactory.SourceCode, "Эх PDF хэмжээгээр"),
+            new PdfPageSizeChoice("A4", "A4"),
+            new PdfPageSizeChoice("A3", "A3"),
+            new PdfPageSizeChoice("A2", "A2"),
+            new PdfPageSizeChoice("A1", "A1"),
+            new PdfPageSizeChoice("A0", "A0"),
+            new PdfPageSizeChoice(PdfSourcePageFormatFactory.CustomCode, "Тусгай хэмжээ"),
+        };
+        albumPdfOrientationBox.ItemsSource = new[]
+        {
+            new PdfFormatValueChoice("LANDSCAPE", "Хөндлөн"),
+            new PdfFormatValueChoice("PORTRAIT", "Босоо"),
+        };
+        albumPdfBindEdgeBox.ItemsSource = new[]
+        {
+            new PdfFormatValueChoice("LEFT", "Зүүн"),
+            new PdfFormatValueChoice("TOP", "Дээд"),
+            new PdfFormatValueChoice("RIGHT", "Баруун"),
+            new PdfFormatValueChoice("BOTTOM", "Доод"),
         };
 
         albumPageFormatBox.SelectionChanged += (_, _) => ApplyAlbumPageProperties();
@@ -1878,6 +2088,9 @@ internal sealed partial class ShellView
         albumContentKindBox.SelectionChanged += (_, _) => ApplyAlbumPageProperties();
         albumPageNumberBox.TextChanged += (_, _) => ApplyAlbumPageProperties();
         albumPageTitleBox.TextChanged += (_, _) => ApplyAlbumPageProperties();
+        albumPdfPageSizeBox.SelectionChanged += (_, _) => RefreshPdfFormatControls();
+        albumPdfApplyFormatButton.Click += (_, _) => ApplyPdfPageFormat();
+        albumPdfEditPageButton.Click += (_, _) => EditPdfSourcePage();
         albumSourceCropCheck.Checked += (_, _) =>
         {
             RefreshAlbumSourceCropControls();
@@ -1901,12 +2114,39 @@ internal sealed partial class ShellView
         var panel = new StackPanel { Margin = new Thickness(0, 0, 2, 0) };
         panel.Children.Add(StudioWidgets.CreateFormRow("Дугаар", albumPageNumberBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Нэр", albumPageTitleBox, 76));
-        panel.Children.Add(StudioWidgets.CreateFormRow("Format", albumPageFormatBox, 76));
-        panel.Children.Add(StudioWidgets.CreateFormRow("Placement", albumPlacementBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Зургийн төрөл", albumContentKindBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Бүлэг", albumSectionBox, 76));
-        panel.Children.Add(StudioWidgets.CreateSectionHeader("PDF эх хуудасны цэвэрлэгээ"));
-        panel.Children.Add(albumSourceCropCheck);
+
+        albumPdfFormatPanel.Children.Add(
+            StudioWidgets.CreateSectionHeader("PDF хуудасны формат"));
+        albumPdfFormatPanel.Children.Add(
+            StudioWidgets.CreateFormRow("Хэмжээ", albumPdfPageSizeBox, 76));
+        albumPdfFormatPanel.Children.Add(
+            StudioWidgets.CreateFormRow("Чиглэл", albumPdfOrientationBox, 76));
+        albumPdfFormatPanel.Children.Add(
+            StudioWidgets.CreateFormRow("Нуруулдах", albumPdfBindEdgeBox, 76));
+        albumPdfFormatPanel.Children.Add(
+            StudioWidgets.CreateFormRow("Зургийн масштаб", albumPdfDrawingScaleBox, 76));
+        albumPdfCustomSizePanel.Children.Add(
+            StudioWidgets.CreateFormRow("Өргөн (мм)", albumPdfCustomWidthBox, 76));
+        albumPdfCustomSizePanel.Children.Add(
+            StudioWidgets.CreateFormRow("Өндөр (мм)", albumPdfCustomHeightBox, 76));
+        albumPdfFormatPanel.Children.Add(albumPdfCustomSizePanel);
+        albumPdfApplyFormatButton.Margin = new Thickness(0, 5, 0, 8);
+        albumPdfFormatPanel.Children.Add(albumPdfApplyFormatButton);
+        albumPdfFormatPanel.Children.Add(StudioWidgets.CreateHint(
+            "PDF зураг crop хийсний дараах мм хэмжээгээр 1:1 байрлана. " +
+            "100 гэж оруулбал булангийн хүснэгтэд 1:100 гэж бичигдэх бөгөөд " +
+            "зураг өөрөө жижигрэхгүй, томрохгүй."));
+
+        albumPdfFormatPanel.Children.Add(
+            StudioWidgets.CreateSectionHeader("PDF эх хуудасны хэсэг"));
+        albumPdfEditPageButton.Margin = new Thickness(0, 0, 0, 8);
+        albumPdfFormatPanel.Children.Add(albumPdfEditPageButton);
+        albumPdfFormatPanel.Children.Add(StudioWidgets.CreateHint(
+            "Бодит хуудсан дээр хэрэгтэй хүрээг сонгож, хуучин хүрээ болон " +
+            "булангийн хүснэгтийг олон тэгш өнцөгт эсвэл чөлөөт маскаар халхална."));
+        albumPdfFormatPanel.Children.Add(albumSourceCropCheck);
         albumSourceCropPanel.Margin = new Thickness(0, 5, 0, 8);
         albumSourceCropPanel.Children.Add(
             StudioWidgets.CreateFormRow("Зүүн (мм)", albumCropLeftBox, 76));
@@ -1918,7 +2158,9 @@ internal sealed partial class ShellView
             StudioWidgets.CreateFormRow("Доод (мм)", albumCropBottomBox, 76));
         albumCropFromDrawingAreaButton.Margin = new Thickness(0, 5, 0, 0);
         albumSourceCropPanel.Children.Add(albumCropFromDrawingAreaButton);
-        panel.Children.Add(albumSourceCropPanel);
+        albumPdfFormatPanel.Children.Add(albumSourceCropPanel);
+        albumPdfFormatPanel.Visibility = Visibility.Collapsed;
+        panel.Children.Add(albumPdfFormatPanel);
         panel.Children.Add(StudioWidgets.CreateSectionHeader("Альбум"));
         panel.Children.Add(includeCoverCheck);
         panel.Children.Add(includeTocCheck);
@@ -2424,6 +2666,7 @@ internal sealed partial class ShellView
                 .FirstOrDefault(choice => choice.Id == page.SectionId);
             bool canCrop = sheet?.Source.Application == SheetSourceApplication.Pdf;
             SourcePageCropDefinition crop = page.SourceCrop ?? new SourcePageCropDefinition();
+            albumPdfFormatPanel.Visibility = canCrop ? Visibility.Visible : Visibility.Collapsed;
             albumSourceCropCheck.Visibility = canCrop ? Visibility.Visible : Visibility.Collapsed;
             albumSourceCropPanel.Visibility = canCrop ? Visibility.Visible : Visibility.Collapsed;
             albumSourceCropCheck.IsEnabled = canCrop;
@@ -2432,6 +2675,15 @@ internal sealed partial class ShellView
             albumCropTopBox.Text = FormatCropMillimeters(crop.TopMm);
             albumCropRightBox.Text = FormatCropMillimeters(crop.RightMm);
             albumCropBottomBox.Text = FormatCropMillimeters(crop.BottomMm);
+            BindPdfFormatControls(page, sheet);
+            if (canCrop)
+            {
+                albumPlacementBox.SelectedItem = albumPlacementBox.Items
+                    .Cast<PlacementChoice>()
+                    .FirstOrDefault(choice =>
+                        choice.Value == PagePlacementMode.PreservePhysicalSize);
+            }
+            albumPlacementBox.IsEnabled = !canCrop;
             RefreshAlbumSourceCropControls();
         }
         else if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem
@@ -2498,6 +2750,7 @@ internal sealed partial class ShellView
         albumSectionBox.IsEnabled = enabled;
         if (!enabled)
         {
+            albumPdfFormatPanel.Visibility = Visibility.Collapsed;
             albumSourceCropCheck.Visibility = Visibility.Collapsed;
             albumSourceCropPanel.Visibility = Visibility.Collapsed;
         }
@@ -2523,31 +2776,6 @@ internal sealed partial class ShellView
         page.TitleOverride = string.Equals(albumPageTitleBox.Text.Trim(), sheet?.Entry.Name, StringComparison.Ordinal)
             ? ""
             : albumPageTitleBox.Text.Trim();
-        if (albumPageFormatBox.SelectedItem is PageFormatDefinition format)
-        {
-            var selectedSourceSnapshot = page.PageFormatSnapshot is not null &&
-                string.Equals(page.PageFormatSnapshot.Id, format.Id, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(
-                    page.PageFormatSnapshot.GeometryHash,
-                    format.GeometryHash,
-                    StringComparison.OrdinalIgnoreCase);
-            page.PageFormatId = format.Id;
-            if (!selectedSourceSnapshot)
-            {
-                page.PageFormatSnapshot = null;
-                page.FollowSourceFormat = false;
-            }
-        }
-
-        if (albumPlacementBox.SelectedItem is PlacementChoice placement)
-        {
-            if (page.PlacementMode != placement.Value)
-            {
-                page.FollowSourceFormat = false;
-            }
-            page.PlacementMode = placement.Value;
-        }
-
         page.ContentKindOverride =
             (albumContentKindBox.SelectedItem as ContentKindChoice)?.Value?.Trim() ?? "";
         bool classificationChanged = !string.Equals(
@@ -2581,7 +2809,9 @@ internal sealed partial class ShellView
             crop.TopMm = ParseCropMillimeters(albumCropTopBox.Text, crop.TopMm);
             crop.RightMm = ParseCropMillimeters(albumCropRightBox.Text, crop.RightMm);
             crop.BottomMm = ParseCropMillimeters(albumCropBottomBox.Text, crop.BottomMm);
+            crop.ScalePercent = 100;
             page.SourceCrop = crop;
+            page.PlacementMode = PagePlacementMode.PreservePhysicalSize;
         }
 
         if (classificationChanged)
@@ -2634,6 +2864,217 @@ internal sealed partial class ShellView
         return choices;
     }
 
+    private void BindPdfFormatControls(AlbumPageDefinition page, SheetRecord? sheet)
+    {
+        PageFormatDefinition? configured = page.PageFormatSnapshot;
+        bool hasConfiguredFormat = PdfSourcePageFormatFactory.IsPdfSourceFormat(configured);
+        string sizeCode = hasConfiguredFormat
+            ? configured!.Code
+            : PdfSourcePageFormatFactory.SourceCode;
+        string orientation = hasConfiguredFormat
+            ? configured!.Orientation
+            : sheet?.Entry.WidthMm >= sheet?.Entry.HeightMm
+                ? "LANDSCAPE"
+                : "PORTRAIT";
+        string bindEdge = hasConfiguredFormat && !string.IsNullOrWhiteSpace(configured!.BindEdge)
+            ? configured.BindEdge
+            : "LEFT";
+
+        albumPdfPageSizeBox.SelectedItem = albumPdfPageSizeBox.Items
+            .Cast<PdfPageSizeChoice>()
+            .FirstOrDefault(choice => string.Equals(
+                choice.Code,
+                sizeCode,
+                StringComparison.OrdinalIgnoreCase));
+        albumPdfOrientationBox.SelectedItem = albumPdfOrientationBox.Items
+            .Cast<PdfFormatValueChoice>()
+            .FirstOrDefault(choice => string.Equals(
+                choice.Value,
+                orientation,
+                StringComparison.OrdinalIgnoreCase));
+        albumPdfBindEdgeBox.SelectedItem = albumPdfBindEdgeBox.Items
+            .Cast<PdfFormatValueChoice>()
+            .FirstOrDefault(choice => string.Equals(
+                choice.Value,
+                bindEdge,
+                StringComparison.OrdinalIgnoreCase));
+
+        double width = hasConfiguredFormat
+            ? configured!.WidthMm
+            : sheet?.Entry.WidthMm > 0
+                ? sheet.Entry.WidthMm
+                : 420;
+        double height = hasConfiguredFormat
+            ? configured!.HeightMm
+            : sheet?.Entry.HeightMm > 0
+                ? sheet.Entry.HeightMm
+                : 297;
+        albumPdfCustomWidthBox.Text = FormatCropMillimeters(width);
+        albumPdfCustomHeightBox.Text = FormatCropMillimeters(height);
+        albumPdfDrawingScaleBox.Text = DrawingScaleText.Resolve(page, sheet?.Entry);
+        RefreshPdfFormatControls();
+    }
+
+    private void RefreshPdfFormatControls()
+    {
+        string code = (albumPdfPageSizeBox.SelectedItem as PdfPageSizeChoice)?.Code ??
+                      PdfSourcePageFormatFactory.SourceCode;
+        bool sourceAsIs = string.Equals(
+            code,
+            PdfSourcePageFormatFactory.SourceCode,
+            StringComparison.OrdinalIgnoreCase);
+        bool custom = string.Equals(
+            code,
+            PdfSourcePageFormatFactory.CustomCode,
+            StringComparison.OrdinalIgnoreCase);
+
+        albumPdfOrientationBox.IsEnabled = !sourceAsIs;
+        albumPdfBindEdgeBox.IsEnabled = !sourceAsIs;
+        albumPdfCustomSizePanel.Visibility = custom
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        albumPdfApplyFormatButton.IsEnabled =
+            albumPdfFormatPanel.Visibility == Visibility.Visible;
+        albumPdfEditPageButton.IsEnabled =
+            albumPdfFormatPanel.Visibility == Visibility.Visible;
+    }
+
+    private void ApplyPdfPageFormat()
+    {
+        if (bindingAlbumPage ||
+            albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
+            selected.Page is not AlbumPageDefinition page)
+        {
+            return;
+        }
+
+        SheetRecord? sheet = state.Library.Find(page.SheetKey);
+        if (sheet?.Source.Application != SheetSourceApplication.Pdf)
+        {
+            SetStatus("Форматыг Studio дээр зөвхөн PDF эх үүсвэрийн хуудсанд тохируулна.");
+            return;
+        }
+
+        page.ScaleTextOverride = DrawingScaleText.Normalize(albumPdfDrawingScaleBox.Text);
+        SourcePageCropDefinition crop =
+            page.SourceCrop ?? new SourcePageCropDefinition();
+        crop.ScalePercent = 100;
+        page.SourceCrop = crop;
+
+        string code = (albumPdfPageSizeBox.SelectedItem as PdfPageSizeChoice)?.Code ??
+                      PdfSourcePageFormatFactory.SourceCode;
+        if (string.Equals(
+                code,
+                PdfSourcePageFormatFactory.SourceCode,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            page.PageFormatId = PageFormatCatalog.SourceAsIsId;
+            page.PageFormatSnapshot = null;
+            page.FollowSourceFormat = false;
+            page.PlacementMode = PagePlacementMode.PreservePhysicalSize;
+        }
+        else
+        {
+            string orientation =
+                (albumPdfOrientationBox.SelectedItem as PdfFormatValueChoice)?.Value ??
+                "LANDSCAPE";
+            string bindEdge =
+                (albumPdfBindEdgeBox.SelectedItem as PdfFormatValueChoice)?.Value ??
+                "LEFT";
+            double width = 420;
+            double height = 297;
+            if (string.Equals(
+                    code,
+                    PdfSourcePageFormatFactory.CustomCode,
+                    StringComparison.OrdinalIgnoreCase) &&
+                (!TryParsePdfDimension(albumPdfCustomWidthBox.Text, out width) ||
+                 !TryParsePdfDimension(albumPdfCustomHeightBox.Text, out height)))
+            {
+                SetStatus("Тусгай PDF формат 100-3000 мм-ийн өргөн, өндөртэй байна.");
+                return;
+            }
+
+            PageFormatDefinition format = PdfSourcePageFormatFactory.Create(
+                code,
+                orientation,
+                bindEdge,
+                width,
+                height);
+            page.PageFormatId = format.Id;
+            page.PageFormatSnapshot = format;
+            page.FollowSourceFormat = false;
+            page.PlacementMode = PagePlacementMode.PreservePhysicalSize;
+        }
+
+        state.SaveProject();
+        RefreshAlbumWorkspace(selectPageId: page.Id);
+        UpdateAlbum(silent: false, statusPrefix: "PDF хуудасны формат шинэчлэгдлээ");
+    }
+
+    private void EditPdfSourcePage()
+    {
+        if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
+            selected.Page is not AlbumPageDefinition page)
+        {
+            return;
+        }
+
+        SheetRecord? sheet = state.Library.Find(page.SheetKey);
+        if (sheet is null)
+        {
+            SetStatus("Сонгосон альбумын хуудасны эх үүсвэр олдсонгүй.");
+            return;
+        }
+
+        EditPdfSourcePage(sheet, page);
+    }
+
+    private void EditPdfSourcePage(
+        SheetRecord sheet,
+        AlbumPageDefinition page)
+    {
+        if (!state.HasOpenProject || !EnsureProjectContentPermission())
+        {
+            return;
+        }
+
+        if (sheet.Source.Application != SheetSourceApplication.Pdf)
+        {
+            SetStatus("PDF хэсэг засах багаж зөвхөн PDF эх үүсвэрт ажиллана.");
+            return;
+        }
+
+        PageFormatDefinition studioFormat =
+            PdfSourcePageStudioLayout.ResolvePreviewFormat(page, sheet.Entry);
+        var dialog = new PdfSourcePageEditorWindow(
+            sourceSheetPageImages,
+            sheet,
+            page.SourceCrop,
+            studioFormat,
+            page.ScaleTextOverride)
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        SourcePageCropDefinition result = dialog.Result;
+        result.ScalePercent = 100;
+        page.SourceCrop = result;
+        page.ScaleTextOverride = dialog.ScaleTextOverride;
+        if (PdfSourcePagePlacementGeometry.HasCompositionEdits(result))
+            PdfSourcePageStudioLayout.ApplyConfirmedCrop(page, sheet.Entry);
+        state.SaveProject();
+        RefreshReceivedSheetWorkspace(selectSheetKey: sheet.Key);
+        RefreshAlbumWorkspace(selectPageId: page.Id);
+        UpdateAlbum(
+            silent: false,
+            statusPrefix:
+                "PDF crop, Studio байрлал болон булангийн масштаб хадгалагдлаа");
+    }
+
     private void RefreshAlbumSourceCropControls()
     {
         bool enabled =
@@ -2650,8 +3091,24 @@ internal sealed partial class ShellView
     private void ApplyDrawingAreaCropPreset()
     {
         if (bindingAlbumPage ||
-            albumPageFormatBox.SelectedItem is not PageFormatDefinition format)
+            albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
+            selected.Page is not AlbumPageDefinition page)
         {
+            return;
+        }
+
+        SheetRecord? sheet = state.Library.Find(page.SheetKey);
+        if (sheet?.Source.Application != SheetSourceApplication.Pdf)
+        {
+            return;
+        }
+
+        PageFormatDefinition format = PageFormatCatalog.Resolve(page);
+        if (format.Kind == PageFormatKind.SourceAsIs ||
+            format.WidthMm <= 0 ||
+            format.HeightMm <= 0)
+        {
+            SetStatus("Эх PDF хэмжээгээр горимд форматын цэвэр талбай байхгүй.");
             return;
         }
 
@@ -2663,9 +3120,7 @@ internal sealed partial class ShellView
         albumCropBottomBox.Text = FormatCropMillimeters(Math.Max(
             0,
             format.HeightMm - format.DrawingArea.Y - format.DrawingArea.Height));
-        albumPlacementBox.SelectedItem = albumPlacementBox.Items
-            .Cast<PlacementChoice>()
-            .FirstOrDefault(choice => choice.Value == PagePlacementMode.FitDrawingArea);
+        page.PlacementMode = PagePlacementMode.PreservePhysicalSize;
         ApplyAlbumPageProperties();
     }
 
@@ -2693,6 +3148,25 @@ internal sealed partial class ShellView
             return Math.Max(0, value);
         }
         return Math.Max(0, fallback);
+    }
+
+    private static bool TryParsePdfDimension(string text, out double value)
+    {
+        const System.Globalization.NumberStyles styles =
+            System.Globalization.NumberStyles.Float |
+            System.Globalization.NumberStyles.AllowThousands;
+        bool parsed =
+            double.TryParse(
+                text.Trim(),
+                styles,
+                System.Globalization.CultureInfo.CurrentCulture,
+                out value) ||
+            double.TryParse(
+                text.Trim(),
+                styles,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+        return parsed && value is >= 100 and <= 3000;
     }
 
     private void ApplyAlbumOptions()
@@ -3298,7 +3772,15 @@ internal sealed partial class ShellView
         AddPreviewCornerCell(canvas, "Загвар", x4, y0, x5, y1);
         AddPreviewCornerCell(canvas, companyRole, x1, y1, x2, y2, TextAlignment.Left);
         AddPreviewCornerCell(canvas, representative?.FullName ?? "", x2, y1, x3, y2);
-        AddPreviewCornerCell(canvas, entry?.ScaleText ?? "", x4, y1, x5, y2);
+        AddPreviewCornerCell(
+            canvas,
+            page is null
+                ? DrawingScaleText.Normalize(entry?.ScaleText)
+                : DrawingScaleText.Resolve(page, entry),
+            x4,
+            y1,
+            x5,
+            y2);
         AddPreviewCornerCell(canvas, "Архитектор", x1, y2, x2, y3, TextAlignment.Left);
         AddPreviewCornerCell(canvas, architect, x2, y2, x3, y3);
         AddPreviewCornerCell(canvas, $"Хуудас-{ValueOrDash(number)}", x4, y2, x5, y3);
@@ -4168,6 +4650,16 @@ internal sealed partial class ShellView
     }
 
     private sealed record PlacementChoice(PagePlacementMode Value, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    private sealed record PdfPageSizeChoice(string Code, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    private sealed record PdfFormatValueChoice(string Value, string Label)
     {
         public override string ToString() => Label;
     }

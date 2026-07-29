@@ -8,6 +8,13 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.19] - 2026-07-29
+
+- Edit a selected PDF source page directly from Sources with non-destructive crop, rectangular or polygon masks, rotation, and Studio-sheet placement preview.
+- Preserve the cropped PDF at its exact 1:1 physical size and keep the editor preview aligned with the generated vector PDF, including centered MediaBox and CropBox origins.
+- Store the title-block drawing scale as independent metadata so values such as `1:100` never resize the source drawing.
+- Keep PDF source selection readable in the dark theme and distinguish legacy album snapshots without discarding current source contributions.
+
 ## [0.1.0-dev.18] - 2026-07-28
 
 - Merge collaborator-owned album components by canonical source identity without replacing another device's source contribution or duplicating Studio-generated pages.

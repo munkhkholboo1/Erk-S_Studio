@@ -78,6 +78,430 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.True(page.HasPathPaintingOperators);
         Assert.Equal(0, page.ImageXObjectCount);
         Assert.Contains(page.XObjects, item => item.Kind == PdfVectorXObjectKind.Form);
+        Assert.True(
+            page.Operators.Count(operation => operation is "W" or "W*") >= 2,
+            "A cropped PDF form must have both target-area and crop-region clips.");
+    }
+
+    [Fact]
+    public void SourceCrop_CenteredMediaBoxEmitsThePreviewPlacementMatrix()
+    {
+        string sourcePath = Path.Combine(workDirectory, "centered-media-box.pdf");
+        WriteVectorPdf(
+            sourcePath,
+            [(420d, 297d, "Centered MediaBox")],
+            applyCropBox: false);
+        using (PdfDocument source = PdfSharp.Pdf.IO.PdfReader.Open(
+                   sourcePath,
+                   PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify))
+        {
+            PdfPage page = source.Pages[0];
+            double width = page.MediaBox.Width;
+            double height = page.MediaBox.Height;
+            page.MediaBox = new PdfRectangle(
+                new XPoint(-width / 2, -height / 2),
+                new XPoint(width / 2, height / 2));
+            source.Save(sourcePath);
+        }
+
+        SheetRecord sheet = Intake(sourcePath, 420, 297, pageCount: 1, cleanDrawing: false);
+        PageFormatDefinition format = PdfSourcePageFormatFactory.Create(
+            "A3",
+            "LANDSCAPE",
+            "LEFT");
+        var crop = new SourcePageCropDefinition
+        {
+            Enabled = true,
+            LeftMm = 94.74,
+            TopMm = 25.68,
+            RightMm = 90.64,
+            BottomMm = 67.94,
+            OffsetXmm = -55.78,
+            OffsetYmm = 0,
+            ScalePercent = 100,
+        };
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            format.Id,
+            PagePlacementMode.FitDrawingArea,
+            configure: project =>
+            {
+                AlbumPageDefinition page = project.Album.Pages.Single();
+                page.PageFormatSnapshot = format;
+                page.FollowSourceFormat = false;
+                page.SourceCrop = crop.DeepClone();
+            });
+        PdfSourcePagePlacementMm placement = PdfSourcePagePlacementGeometry.Calculate(
+            420,
+            297,
+            format.DrawingArea,
+            PagePlacementMode.FitDrawingArea,
+            crop,
+            format.Id);
+        double scale =
+            placement.CompleteSourceDestination.Width / 420;
+        PdfVectorPageProfile output =
+            Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
+        PdfVectorOperatorProfile formMatrix = Assert.Single(
+            output.OperatorDetails,
+            operation =>
+                operation.Name == "cm" &&
+                operation.NumericOperands.Count == 6 &&
+                Math.Abs(operation.NumericOperands[0] - scale) < 0.001 &&
+                Math.Abs(operation.NumericOperands[3] - scale) < 0.001);
+        double mediaBoxX1 = XUnit.FromMillimeter(-210).Point;
+        double mediaBoxY1 = XUnit.FromMillimeter(-148.5).Point;
+        double expectedX =
+            XUnit.FromMillimeter(placement.CompleteSourceDestination.X).Point -
+            mediaBoxX1 * scale;
+        double expectedY =
+            XUnit.FromMillimeter(
+                format.HeightMm -
+                placement.CompleteSourceDestination.Y -
+                placement.CompleteSourceDestination.Height).Point -
+            mediaBoxY1 * scale;
+
+        Assert.Equal(expectedX, formMatrix.NumericOperands[4], 3);
+        Assert.Equal(expectedY, formMatrix.NumericOperands[5], 3);
+    }
+
+    [Fact]
+    public void PdfSourceFormat_CreatesStandardAndCustomStudioPageGeometry()
+    {
+        PageFormatDefinition a2Landscape = PdfSourcePageFormatFactory.Create(
+            "A2",
+            "LANDSCAPE",
+            "LEFT");
+        PageFormatDefinition customPortrait = PdfSourcePageFormatFactory.Create(
+            PdfSourcePageFormatFactory.CustomCode,
+            "PORTRAIT",
+            "RIGHT",
+            customWidthMm: 360,
+            customHeightMm: 510);
+
+        Assert.Equal(PageFormatKind.Concept, a2Landscape.Kind);
+        Assert.Equal(594, a2Landscape.WidthMm);
+        Assert.Equal(420, a2Landscape.HeightMm);
+        Assert.Equal("LEFT", a2Landscape.BindEdge);
+        Assert.True(a2Landscape.DrawingArea.Width > 0);
+        Assert.True(a2Landscape.TitleBlockArea.Width > 0);
+
+        Assert.Equal(PageFormatKind.Concept, customPortrait.Kind);
+        Assert.Equal(360, customPortrait.WidthMm);
+        Assert.Equal(510, customPortrait.HeightMm);
+        Assert.Equal("RIGHT", customPortrait.BindEdge);
+        Assert.True(customPortrait.DrawingArea.Width > 0);
+        Assert.True(customPortrait.DrawingArea.Height > 0);
+    }
+
+    [Fact]
+    public void PdfSourceMasksAndTransform_StayVectorOnConfiguredStudioPage()
+    {
+        string sourcePath = Path.Combine(workDirectory, "legacy-composed-sheet.pdf");
+        WriteVectorPdf(
+            sourcePath,
+            [(430d, 305d, "Legacy frame and title block")],
+            applyCropBox: false);
+        SheetRecord sheet = Intake(sourcePath, 430, 305, pageCount: 1, cleanDrawing: false);
+        PageFormatDefinition format = PdfSourcePageFormatFactory.Create(
+            "A3",
+            "LANDSCAPE",
+            "LEFT");
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            format.Id,
+            PagePlacementMode.FitDrawingArea,
+            configure: project =>
+            {
+                AlbumPageDefinition page = project.Album.Pages.Single();
+                page.PageFormatSnapshot = format;
+                page.FollowSourceFormat = false;
+                page.SourceCrop = new SourcePageCropDefinition
+                {
+                    Enabled = true,
+                    LeftMm = 8,
+                    TopMm = 6,
+                    RightMm = 12,
+                    BottomMm = 18,
+                    OffsetXmm = 2,
+                    OffsetYmm = -1,
+                    ScalePercent = 96,
+                    RotationDegrees = 1.5,
+                    Masks =
+                    [
+                        new SourcePageMaskDefinition
+                        {
+                            Shape = SourcePageMaskShape.Rectangle,
+                            Points =
+                            [
+                                new SourcePagePointDefinition { X = 0.72, Y = 0.82 },
+                                new SourcePagePointDefinition { X = 0.98, Y = 0.98 },
+                            ],
+                        },
+                        new SourcePageMaskDefinition
+                        {
+                            Shape = SourcePageMaskShape.Polygon,
+                            Points =
+                            [
+                                new SourcePagePointDefinition { X = 0.02, Y = 0.02 },
+                                new SourcePagePointDefinition { X = 0.30, Y = 0.02 },
+                                new SourcePagePointDefinition { X = 0.24, Y = 0.11 },
+                                new SourcePagePointDefinition { X = 0.02, Y = 0.09 },
+                            ],
+                        },
+                    ],
+                };
+            });
+
+        PdfVectorPageProfile pageProfile =
+            Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
+
+        Assert.InRange(pageProfile.WidthMm, 419.99, 420.01);
+        Assert.InRange(pageProfile.HeightMm, 296.99, 297.01);
+        Assert.Equal(0, pageProfile.ImageXObjectCount);
+        Assert.Contains(pageProfile.XObjects, item => item.Kind == PdfVectorXObjectKind.Form);
+        Assert.True(pageProfile.HasPathPaintingOperators);
+    }
+
+    [Fact]
+    public void PdfSourcePlacement_AppliesCropTransformAndIndependentMasks()
+    {
+        const double pointsPerMillimeter = 72d / 25.4d;
+        var crop = new SourcePageCropDefinition
+        {
+            Enabled = true,
+            LeftMm = 10,
+            TopMm = 5,
+            RightMm = 20,
+            BottomMm = 15,
+            OffsetXmm = 2,
+            OffsetYmm = -3,
+            ScalePercent = 50,
+            RotationDegrees = 12,
+            Masks =
+            [
+                new SourcePageMaskDefinition
+                {
+                    Shape = SourcePageMaskShape.Rectangle,
+                    Points =
+                    [
+                        new SourcePagePointDefinition { X = 0.25, Y = 0.25 },
+                        new SourcePagePointDefinition { X = 0.5, Y = 0.5 },
+                    ],
+                },
+                new SourcePageMaskDefinition
+                {
+                    Shape = SourcePageMaskShape.Polygon,
+                    Points =
+                    [
+                        new SourcePagePointDefinition { X = 0.6, Y = 0.1 },
+                        new SourcePagePointDefinition { X = 0.8, Y = 0.2 },
+                        new SourcePagePointDefinition { X = 0.7, Y = 0.4 },
+                    ],
+                },
+            ],
+        };
+        var target = new XRect(0, 0, 420, 297);
+
+        PdfSharpAlbumWriter.PdfSourcePlacement placement =
+            PdfSharpAlbumWriter.CalculateSourcePlacement(
+                430,
+                305,
+                target,
+                PagePlacementMode.FitDrawingArea,
+                crop,
+                "test");
+
+        Assert.Equal(10 * pointsPerMillimeter, placement.SourceRectangle.X, 6);
+        Assert.Equal(5 * pointsPerMillimeter, placement.SourceRectangle.Y, 6);
+        Assert.Equal(
+            430 - 30 * pointsPerMillimeter,
+            placement.SourceRectangle.Width,
+            6);
+        Assert.Equal(
+            305 - 20 * pointsPerMillimeter,
+            placement.SourceRectangle.Height,
+            6);
+        Assert.Equal(12, placement.RotationDegrees);
+        Assert.Equal(2, placement.MaskPolygons.Count);
+        Assert.Equal(4, placement.MaskPolygons[0].Length);
+        Assert.Equal(3, placement.MaskPolygons[1].Length);
+
+        double fitScale = Math.Min(
+            target.Width / placement.SourceRectangle.Width,
+            target.Height / placement.SourceRectangle.Height);
+        Assert.Equal(
+            placement.SourceRectangle.Width * fitScale * 0.5,
+            placement.DestinationRectangle.Width,
+            6);
+        Assert.Equal(
+            placement.SourceRectangle.Height * fitScale * 0.5,
+            placement.DestinationRectangle.Height,
+            6);
+        Assert.Equal(
+            (target.Width - placement.DestinationRectangle.Width) / 2 +
+            2 * pointsPerMillimeter,
+            placement.DestinationRectangle.X,
+            6);
+        Assert.Equal(
+            (target.Height - placement.DestinationRectangle.Height) / 2 -
+            3 * pointsPerMillimeter,
+            placement.DestinationRectangle.Y,
+            6);
+    }
+
+    [Fact]
+    public void PreservePhysicalSize_KeepsCroppedPdfAtOneToOneAndIgnoresLegacyScalePercent()
+    {
+        const double pointsPerMillimeter = 72d / 25.4d;
+        var crop = new SourcePageCropDefinition
+        {
+            Enabled = true,
+            LeftMm = 10,
+            TopMm = 5,
+            RightMm = 20,
+            BottomMm = 15,
+            OffsetXmm = 2,
+            OffsetYmm = -3,
+            ScalePercent = 50,
+        };
+        var target = new XRect(
+            0,
+            0,
+            420 * pointsPerMillimeter,
+            297 * pointsPerMillimeter);
+
+        PdfSharpAlbumWriter.PdfSourcePlacement placement =
+            PdfSharpAlbumWriter.CalculateSourcePlacement(
+                300 * pointsPerMillimeter,
+                200 * pointsPerMillimeter,
+                target,
+                PagePlacementMode.PreservePhysicalSize,
+                crop,
+                "pdf-a3");
+
+        Assert.Equal(270 * pointsPerMillimeter, placement.SourceRectangle.Width, 6);
+        Assert.Equal(180 * pointsPerMillimeter, placement.SourceRectangle.Height, 6);
+        Assert.Equal(placement.SourceRectangle.Width, placement.DestinationRectangle.Width, 6);
+        Assert.Equal(placement.SourceRectangle.Height, placement.DestinationRectangle.Height, 6);
+        Assert.Equal(
+            (target.Width - placement.SourceRectangle.Width) / 2 +
+            2 * pointsPerMillimeter,
+            placement.DestinationRectangle.X,
+            6);
+        Assert.Equal(
+            (target.Height - placement.SourceRectangle.Height) / 2 -
+            3 * pointsPerMillimeter,
+            placement.DestinationRectangle.Y,
+            6);
+    }
+
+    [Fact]
+    public void CroppedPdfForm_MapsOnlyTheSelectedSourceRegionIntoItsDestination()
+    {
+        const double pointsPerMillimeter = 72d / 25.4d;
+        var crop = new SourcePageCropDefinition
+        {
+            Enabled = true,
+            LeftMm = 15,
+            TopMm = 5,
+            RightMm = 35,
+            BottomMm = 20,
+        };
+        var destination = new XRect(30, 40, 740, 544);
+        PdfSharpAlbumWriter.PdfSourcePlacement placement =
+            PdfSharpAlbumWriter.CalculateSourcePlacement(
+                420 * pointsPerMillimeter,
+                297 * pointsPerMillimeter,
+                destination,
+                PagePlacementMode.FullPage,
+                crop);
+
+        XRect completeSourceDestination =
+            PdfSharpAlbumWriter.CalculateCompleteSourceDestination(
+                420 * pointsPerMillimeter,
+                297 * pointsPerMillimeter,
+                placement);
+        double scaleX = placement.DestinationRectangle.Width /
+                        placement.SourceRectangle.Width;
+        double scaleY = placement.DestinationRectangle.Height /
+                        placement.SourceRectangle.Height;
+
+        Assert.Equal(
+            placement.DestinationRectangle.X,
+            completeSourceDestination.X + placement.SourceRectangle.X * scaleX,
+            6);
+        Assert.Equal(
+            placement.DestinationRectangle.Y,
+            completeSourceDestination.Y + placement.SourceRectangle.Y * scaleY,
+            6);
+        Assert.True(completeSourceDestination.X < placement.DestinationRectangle.X);
+        Assert.True(completeSourceDestination.Y < placement.DestinationRectangle.Y);
+        Assert.True(
+            completeSourceDestination.Width > placement.DestinationRectangle.Width);
+        Assert.True(
+            completeSourceDestination.Height > placement.DestinationRectangle.Height);
+    }
+
+    [Fact]
+    public void CroppedPdfForm_CompensatesCenteredMediaBoxWhenScaled()
+    {
+        var desired = new XRect(-302.7, -42.0, 1476.2, 1043.8);
+        const double formWidth = 1190.52;
+        const double formHeight = 841.8;
+        const double mediaBoxX1 = -595.26;
+        const double mediaBoxY1 = -420.9;
+
+        XRect drawRectangle =
+            PdfSharpAlbumWriter.CalculatePdfSharpFormDrawRectangle(
+                desired,
+                formWidth,
+                formHeight,
+                mediaBoxX1,
+                mediaBoxY1);
+        double scaleX = drawRectangle.Width / formWidth;
+        double scaleY = drawRectangle.Height / formHeight;
+
+        // PDFsharp applies the MediaBox origin before emitting the form matrix.
+        // XGraphics uses a top-left Y axis while PDF forms use bottom-left Y,
+        // so the Y compensation has the opposite sign from X.
+        double effectiveX =
+            drawRectangle.X - mediaBoxX1 + mediaBoxX1 * scaleX;
+        double effectiveY =
+            drawRectangle.Y + mediaBoxY1 - mediaBoxY1 * scaleY;
+        Assert.Equal(desired.X, effectiveX, 6);
+        Assert.Equal(desired.Y, effectiveY, 6);
+        Assert.NotEqual(desired.X, drawRectangle.X);
+        Assert.NotEqual(desired.Y, drawRectangle.Y);
+    }
+
+    [Theory]
+    [InlineData(null, "")]
+    [InlineData("", "")]
+    [InlineData("100", "1:100")]
+    [InlineData(" 1 : 500 ", "1:500")]
+    [InlineData("1 / 1000", "1:1000")]
+    [InlineData("NTS", "NTS")]
+    public void DrawingScaleText_NormalizesTitleBlockMetadataWithoutGeometryMeaning(
+        string? input,
+        string expected)
+    {
+        Assert.Equal(expected, DrawingScaleText.Normalize(input));
+    }
+
+    [Fact]
+    public void DrawingScaleText_OverrideCanInheritBlankOrReplaceSourceMetadata()
+    {
+        var entry = new SheetPackageEntry { ScaleText = "1:100" };
+        var page = new AlbumPageDefinition();
+
+        Assert.Equal("1:100", DrawingScaleText.Resolve(page, entry));
+
+        page.ScaleTextOverride = "";
+        Assert.Equal("", DrawingScaleText.Resolve(page, entry));
+
+        page.ScaleTextOverride = "500";
+        Assert.Equal("1:500", DrawingScaleText.Resolve(page, entry));
     }
 
     [Fact]

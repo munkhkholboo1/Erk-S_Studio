@@ -15,4 +15,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ErkS.Platform.Core.Tests" />
+  </ItemGroup>
+
 </Project>
