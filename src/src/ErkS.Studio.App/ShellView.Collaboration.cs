@@ -253,8 +253,11 @@ internal sealed partial class ShellView
             if (reportResult)
             {
                 string albumStatus = state.Project.Cloud.CanonicalAlbumRebuildPending
-                    ? "canonical album rebuild pending; хуучин PDF preview-ээс хасагдсан " +
-                      $"[reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}]"
+                    ? albumRefresh.HasCurrentAlbum
+                        ? "canonical album rebuild pending; хамгийн сүүлийн баталгаатай PDF харагдаж байна " +
+                          $"[reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}]"
+                        : "canonical album rebuild pending; баталгаатай PDF одоогоор алга " +
+                          $"[reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}]"
                     : albumRefresh.HasCurrentAlbum
                         ? albumRefresh.Downloaded
                             ? $"current album R{albumRefresh.RevisionNumber} татагдлаа"

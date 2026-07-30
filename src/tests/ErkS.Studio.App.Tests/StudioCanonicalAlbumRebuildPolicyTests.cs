@@ -232,6 +232,65 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
             resolution.PendingComponentCodes);
     }
 
+    [Fact]
+    public void PendingSameCompositionVersion_RequestsOnlyMissingReferencedSubcovers()
+    {
+        ProjectWorkspace project = ProjectWithLocalPendingCover();
+        StudioCloudProjectDetail cloud = CloudProject(
+            pending: true,
+            requiredVersion: 7,
+            revisionVersion: 7,
+            groups:
+            [
+                Group("apartment", "Apartment", 1),
+                Group("service", "Service", 2),
+                Group("school", "School", 3),
+            ],
+            tombstones: [],
+            manifest:
+            [
+                SourceSlice("apartment"),
+                SourceSlice("service"),
+                SourceSlice("school"),
+                Subcover("apartment"),
+                Subcover("service"),
+            ]);
+
+        StudioCanonicalAlbumRebuildResolution resolution =
+            StudioCanonicalAlbumRebuildPolicy.Resolve(project, cloud);
+
+        Assert.Equal(
+            ["generated:building-sub-cover:studio-building:school"],
+            resolution.PendingComponentCodes);
+    }
+
+    [Fact]
+    public void PendingSameCompositionVersion_DoesNotTreatInactiveSubcoverAsCurrent()
+    {
+        ProjectWorkspace project = ProjectWithLocalPendingCover();
+        StudioCloudAlbumSection inactive = Subcover("school");
+        inactive.Status = "Removed";
+        inactive.PageNumbers = [];
+        StudioCloudProjectDetail cloud = CloudProject(
+            pending: true,
+            requiredVersion: 7,
+            revisionVersion: 7,
+            groups: [Group("school", "School", 1)],
+            tombstones: [],
+            manifest:
+            [
+                SourceSlice("school"),
+                inactive,
+            ]);
+
+        StudioCanonicalAlbumRebuildResolution resolution =
+            StudioCanonicalAlbumRebuildPolicy.Resolve(project, cloud);
+
+        Assert.Equal(
+            ["generated:building-sub-cover:studio-building:school"],
+            resolution.PendingComponentCodes);
+    }
+
     private static ProjectWorkspace ProjectWithLocalPendingCover()
     {
         var project = new ProjectWorkspace();
@@ -308,5 +367,17 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
         OwnerEmail = "architect@example.com",
         SourceKey = "autocad-source",
         ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
+    };
+
+    private static StudioCloudAlbumSection Subcover(
+        string buildingGroupId) => new()
+    {
+        Code =
+            $"generated:building-sub-cover:studio-building:{buildingGroupId}",
+        Label = buildingGroupId,
+        Order = 10,
+        PageNumbers = [1],
+        Status = "Available",
+        ComponentKind = StudioAlbumComponentIdentity.GeneratedComponentKind,
     };
 }

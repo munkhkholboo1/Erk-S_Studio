@@ -345,6 +345,8 @@ internal sealed partial class ShellView
                 IReadOnlyList<StudioCloudOrganization> cloudItems = await account.ListOrganizationsAsync();
                 if (!IsOperationContextCurrent(operationContext))
                     return;
+                string? previousOpenProjectAlbumRenderIdentity =
+                    CaptureOpenProjectCompanyAlbumRenderIdentity();
                 companyCatalogCloudVerified = true;
                 var merged = new List<CompanyCatalogEntry>();
                 foreach (StudioCloudOrganization cloud in cloudItems)
@@ -404,7 +406,10 @@ internal sealed partial class ShellView
                     merged.All(remote => !remote.Profile.OrganizationId.Equals(item.Profile.OrganizationId, StringComparison.OrdinalIgnoreCase))));
                 companyEntries = merged.OrderBy(item => CompanyDisplayName(item.Profile), StringComparer.CurrentCultureIgnoreCase).ToList();
                 store.Save(companyEntries);
-                RefreshOpenProjectCompanyFromCatalog(companyEntries);
+                RefreshOpenProjectCompanyFromCatalog(
+                    companyEntries,
+                    previousAlbumRenderIdentity:
+                        previousOpenProjectAlbumRenderIdentity);
                 companyLibraryStatus.Text = $"{companyEntries.Count} байгууллага · Cloud ERA";
             }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
@@ -1293,7 +1298,11 @@ internal sealed partial class ShellView
         }
     }
 
-    private void RefreshOpenProjectCompanyFromCatalog(IEnumerable<CompanyCatalogEntry> entries)
+    private void RefreshOpenProjectCompanyFromCatalog(
+        IEnumerable<CompanyCatalogEntry> entries,
+        StudioCompanySnapshotRefreshOrigin origin =
+            StudioCompanySnapshotRefreshOrigin.PassiveCatalogHydration,
+        string? previousAlbumRenderIdentity = null)
     {
         if (!state.HasOpenProject)
             return;
@@ -1305,11 +1314,66 @@ internal sealed partial class ShellView
             .FirstOrDefault(profile => profile.OrganizationId.Equals(
                 assignment.OrganizationId,
                 StringComparison.OrdinalIgnoreCase));
+        CompanyProfile previousSnapshot =
+            assignment.OrganizationSnapshot.Clone();
         if (current is null || !ProjectCompanyAssignmentService.RefreshAssignedSnapshot(state.Project, current))
             return;
-        state.MarkFoundationContentChanged();
+        bool albumRenderChanged = previousAlbumRenderIdentity is null
+            ? StudioCompanySnapshotRefreshPolicy.HasAlbumRenderChanges(
+                previousSnapshot,
+                assignment.OrganizationSnapshot,
+                ResolveCompanyAssetContentIdentity)
+            : StudioCompanySnapshotRefreshPolicy.HasAlbumRenderChanges(
+                previousAlbumRenderIdentity,
+                assignment.OrganizationSnapshot,
+                ResolveCompanyAssetContentIdentity);
+        if (StudioCompanySnapshotRefreshPolicy.ShouldMarkAlbumDirty(
+                snapshotChanged: true,
+                origin,
+                albumRenderChanged))
+        {
+            state.MarkFoundationContentChanged();
+        }
+        else
+        {
+            // Cloud/catalog hydration can rewrite cache paths and locality
+            // metadata without changing anything rendered in the album.
+            // Persist the refreshed snapshot, but never turn that passive
+            // transport normalization into a new outgoing edit.
+            state.SaveProject();
+        }
         if (projectWorkspaceOpen)
             BindProjectToUi();
+    }
+
+    private string? CaptureOpenProjectCompanyAlbumRenderIdentity()
+    {
+        if (!state.HasOpenProject)
+            return null;
+
+        return StudioCompanySnapshotRefreshPolicy.CaptureAlbumRenderIdentity(
+            state.Project.Foundation.DesignCompany.OrganizationSnapshot,
+            ResolveCompanyAssetContentIdentity);
+    }
+
+    private string ResolveCompanyAssetContentIdentity(string storedPath)
+    {
+        string fullPath = ResolveClientLogoPath(storedPath);
+        if (string.IsNullOrWhiteSpace(fullPath) ||
+            !File.Exists(fullPath))
+        {
+            return "";
+        }
+
+        try
+        {
+            return ComputeFileSha256(fullPath);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            return "";
+        }
     }
 
     private ProjectAssetSourceReconciliationResult ReconcileCompanyAssetSources()
@@ -1340,7 +1404,9 @@ internal sealed partial class ShellView
             return total;
 
         store.Save(cached);
-        RefreshOpenProjectCompanyFromCatalog(cached);
+        RefreshOpenProjectCompanyFromCatalog(
+            cached,
+            StudioCompanySnapshotRefreshOrigin.LocalAssetReconciliation);
         if (companyEntries.Count > 0)
         {
             foreach (CompanyCatalogEntry current in companyEntries)

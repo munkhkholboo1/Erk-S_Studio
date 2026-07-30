@@ -496,6 +496,10 @@ internal sealed partial class ShellView
                 .Where(code => selected.All(component =>
                     !MatchesRequestedComponentCode(component, code)))
                 .ToArray();
+            StudioMissingAlbumComponentResolution missingResolution =
+                StudioAlbumComponentAcknowledgementPolicy.ResolveMissingComponents(
+                    missing,
+                    IsCurrentBuildingSubCover);
             string[] unrenderedSourcesWithSheets = pendingSources
                 .Where(source =>
                     source.SheetCount > 0 &&
@@ -509,17 +513,6 @@ internal sealed partial class ShellView
                 throw new InvalidDataException(
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
-            }
-            string[] missingLiveBuildingCovers = missing
-                .Where(IsCurrentBuildingSubCover)
-                .ToArray();
-            if (missingLiveBuildingCovers.Length > 0)
-            {
-                throw new InvalidDataException(
-                    "Canonical барилгын дэд нүүр pending боловч локал build-д render хийгдсэнгүй. " +
-                    "Барилгын оноолтыг pending хэвээр хадгаллаа: " +
-                    string.Join(", ", missingLiveBuildingCovers) +
-                    " [reason: building_subcover_pending_unrendered]");
             }
             string[] unrenderedRendererMigrations = missing
                 .Where(code => rendererMigrationCodes.Contains(
@@ -563,7 +556,7 @@ internal sealed partial class ShellView
                 patches,
                 selected,
                 revision.SectionManifest);
-            foreach (string code in missing)
+            foreach (string code in missingResolution.RemovalCodes)
             {
                 if (!currentByCode.TryGetValue(code, out StudioCloudAlbumSection? current))
                     continue;
@@ -613,6 +606,13 @@ internal sealed partial class ShellView
                 PageCount = canonicalPreview.PageCount,
             };
             result.Warnings.AddRange(localBuild.Warnings);
+            if (missingResolution.DeferredCodes.Count > 0)
+            {
+                result.Warnings.Add(
+                    "Энэ төхөөрөмж дээр render хийгдээгүй барилгын дэд нүүрийг " +
+                    "Cloud хувилбараас устгалгүй, pending хэвээр хадгаллаа: " +
+                    string.Join(", ", missingResolution.DeferredCodes));
+            }
             Dictionary<string, StudioCloudAlbumSection> renderedByCode = rendered
                 .ToDictionary(component => component.Code, StringComparer.OrdinalIgnoreCase);
             foreach (AlbumComponentPdfSlot component in composition.Components)
@@ -716,11 +716,6 @@ internal sealed partial class ShellView
     {
         canonicalPdfPath = ResolveLastReceivedCloudAlbumPath() ?? "";
         ProjectCloudLink cloud = state.Project.Cloud;
-        if (cloud.CanonicalAlbumRebuildPending)
-        {
-            revision = new StudioCloudAlbumRevision();
-            return false;
-        }
         List<StudioCloudAlbumSection> components = (cloud.SharedAlbumComponents ?? [])
             .Where(component => !string.IsNullOrWhiteSpace(component.Code))
             .Select(component => new StudioCloudAlbumSection
@@ -748,9 +743,15 @@ internal sealed partial class ShellView
             PageSizeSummary = state.Project.PrimaryAlbum.LastPageSizeSummary,
             SectionManifest = components,
         };
-        if (string.IsNullOrWhiteSpace(canonicalPdfPath) ||
-            !File.Exists(canonicalPdfPath) ||
-            !HasCompleteComponentManifest(revision))
+        bool hasVerifiedServerRevision =
+            !string.IsNullOrWhiteSpace(canonicalPdfPath) &&
+            File.Exists(canonicalPdfPath) &&
+            HasCompleteComponentManifest(revision);
+        StudioCanonicalAlbumPreviewDecision previewDecision =
+            StudioCanonicalAlbumPreviewPolicy.Resolve(
+                StudioCanonicalAlbumRebuildPolicy.ResolvePersisted(state.Project),
+                hasVerifiedServerRevision);
+        if (!previewDecision.CanDisplay)
         {
             return false;
         }
@@ -1316,7 +1317,7 @@ internal sealed partial class ShellView
         HashSet<string> requestedCodes = pendingCodeMap.Values
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (pendingSources.Count == 0 && requestedCodes.Count == 0)
-            return new AlbumComponentMergeOutcome(currentRevision, 0, []);
+            return new AlbumComponentMergeOutcome(currentRevision, 0, [], []);
 
         string root = Path.Combine(state.ResolveOutputFolder(), "cloud", "component-sync");
         string workFolder = Path.Combine(root, Guid.NewGuid().ToString("N"));
@@ -1350,6 +1351,10 @@ internal sealed partial class ShellView
                 .Where(code => selected.All(component =>
                     !MatchesRequestedComponentCode(component, code)))
                 .ToArray();
+            StudioMissingAlbumComponentResolution missingResolution =
+                StudioAlbumComponentAcknowledgementPolicy.ResolveMissingComponents(
+                    missing,
+                    IsCurrentBuildingSubCover);
             string[] unrenderedSourcesWithSheets = pendingSources
                 .Where(source =>
                     source.SheetCount > 0 &&
@@ -1363,17 +1368,6 @@ internal sealed partial class ShellView
                 throw new InvalidDataException(
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
-            }
-            string[] missingLiveBuildingCovers = missing
-                .Where(IsCurrentBuildingSubCover)
-                .ToArray();
-            if (missingLiveBuildingCovers.Length > 0)
-            {
-                throw new InvalidDataException(
-                    "Canonical барилгын дэд нүүр pending боловч локал build-д render хийгдсэнгүй. " +
-                    "Барилгын оноолтыг pending хэвээр хадгаллаа: " +
-                    string.Join(", ", missingLiveBuildingCovers) +
-                    " [reason: building_subcover_pending_unrendered]");
             }
             string[] unrenderedRendererMigrations = missing
                 .Where(code => rendererMigrationCodes.Contains(
@@ -1420,7 +1414,7 @@ internal sealed partial class ShellView
                 uploads,
                 selected,
                 currentRevision.SectionManifest);
-            foreach (string code in missing)
+            foreach (string code in missingResolution.RemovalCodes)
             {
                 if (!currentByCode.TryGetValue(code, out StudioCloudAlbumSection? current))
                     continue;
@@ -1436,7 +1430,7 @@ internal sealed partial class ShellView
             foreach (StudioCloudAlbumSection current in
                      StudioAlbumComponentRemovalPlanner.FindMissingSourceComponents(
                          currentByCode.Values,
-                         missing))
+                         missingResolution.RemovalCodes))
             {
                 if (uploads.Any(upload => upload.Code.Equals(
                         current.Code,
@@ -1481,11 +1475,13 @@ internal sealed partial class ShellView
                 StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
                     pendingCodeMap,
                     merged.SectionManifest,
-                    uploads);
+                    uploads,
+                    missingResolution.DeferredCodes);
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,
-                confirmedPendingCodes);
+                confirmedPendingCodes,
+                missingResolution.DeferredCodes);
         }
         finally
         {
@@ -1961,7 +1957,8 @@ internal sealed partial class ShellView
     private sealed record AlbumComponentMergeOutcome(
         StudioCloudAlbumRevision Revision,
         int ComponentCount,
-        IReadOnlyList<string> ComponentCodes);
+        IReadOnlyList<string> ComponentCodes,
+        IReadOnlyList<string> DeferredComponentCodes);
 
     private sealed record CanonicalTitleBlockPreview(
         string Path,

@@ -8,6 +8,14 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.23] - 2026-07-30
+
+- Keep the latest verified canonical album visible while a collaborator-owned building sub-cover remains pending, instead of clearing or hiding the 41-page preview.
+- Defer an unrenderable remote-only sub-cover to its source-owning Studio without aborting unrelated Cloud uploads, deleting the existing component, or acknowledging unfinished work.
+- Reconcile canonical rebuild state against the verified component manifest so only genuinely missing building sub-covers repeat in the next sync.
+- Prevent company-cache path and locality normalization from repeatedly dirtying unchanged cover, certificate, license, and title-block components while preserving real company, document, and logo changes.
+- Explain deferred rebuild state in the UI and operation log while retaining local sources, collaborator sources, organization documents, and deterministic album order.
+
 ## [0.1.0-dev.22] - 2026-07-30
 
 - Preserve each source page's building identity and deterministic album order across restart, partial local hydration, source refresh, and Cloud synchronization.

@@ -1658,10 +1658,15 @@ internal sealed partial class ShellView : IDisposable
             state.SaveProject();
             BindProjectToUi();
             SetStatus(state.Project.Cloud.CanonicalAlbumRebuildPending
-                ? "Cloud ERA төслийн локал mirror нээгдлээ; canonical album rebuild " +
-                  "pending тул хуучин PDF-г preview-ээс нуусан. Эрхтэй Studio Cloud Sync " +
-                  $"хийж rebuild-ийг дуусгана. [reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}] " +
-                  state.ProjectPath
+                ? albumCached
+                    ? "Cloud ERA төслийн локал mirror нээгдлээ. Canonical rebuild pending боловч " +
+                      "хамгийн сүүлийн баталгаатай PDF харагдаж байна; source эзэмшигч Studio " +
+                      $"үлдсэн бүрдлийг sync хийнэ. [reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}] " +
+                      state.ProjectPath
+                    : "Cloud ERA төслийн локал mirror нээгдлээ. Canonical rebuild pending бөгөөд " +
+                      "баталгаатай PDF одоогоор алга; source эзэмшигч Studio үлдсэн бүрдлийг sync хийнэ. " +
+                      $"[reason: {StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode}] " +
+                      state.ProjectPath
                 : albumCached
                     ? $"Cloud ERA төслийн локал mirror болон current album PDF нээгдлээ: {state.ProjectPath}"
                     : $"Cloud ERA төслийн локал mirror нээгдлээ; current album PDF одоогоор алга: {state.ProjectPath}");
@@ -3199,14 +3204,30 @@ internal sealed partial class ShellView : IDisposable
                 state.SaveProject();
                 if (rebuild.IsPending)
                 {
-                    ClearCloudAlbumPreviewCache();
+                    bool hasVerifiedCachedRevision =
+                        TryGetCachedCanonicalAlbum(
+                            out _,
+                            out _);
+                    StudioCanonicalAlbumPreviewDecision previewDecision =
+                        StudioCanonicalAlbumPreviewPolicy.Resolve(
+                            rebuild,
+                            hasVerifiedCachedRevision);
+                    if (!previewDecision.CanDisplay)
+                        ClearCloudAlbumPreviewCache();
                     RecordDiagnosticOperation(
                         operationId,
                         "cloud_sync",
-                        "progress",
-                        StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode,
+                        previewDecision.CanDisplay
+                            ? "deferred"
+                            : "progress",
+                        previewDecision.CanDisplay
+                            ? "cloud_album_rebuild_pending_preview_available"
+                            : StudioCanonicalAlbumRebuildPolicy
+                                .DiagnosticReasonCode,
                         StudioCanonicalAlbumRebuildPolicy.Describe(rebuild) +
-                        " Stale cached PDF was removed from the canonical preview.");
+                        (previewDecision.CanDisplay
+                            ? " Latest verified Cloud revision remains visible if the upload is cancelled."
+                            : " No verified cached revision is available; the stale preview was removed."));
                 }
             }
 
@@ -3642,6 +3663,7 @@ internal sealed partial class ShellView : IDisposable
                             currentAuthority))
                     .ToList();
             IReadOnlyList<string> confirmedPendingAlbumComponents = [];
+            IReadOnlyList<string> deferredPendingAlbumComponents = [];
             bool hasUnauthorizedPendingChanges =
                 allPendingSourcePackages.Count != sourcePackages.Count ||
                 allPendingAlbumComponents.Count != authorizedPendingAlbumComponents.Count ||
@@ -3880,6 +3902,8 @@ internal sealed partial class ShellView : IDisposable
                         "cloud_sync_component_merge");
                     currentRevision = outcome.Revision;
                     confirmedPendingAlbumComponents = outcome.ComponentCodes;
+                    deferredPendingAlbumComponents =
+                        outcome.DeferredComponentCodes;
                     syncedAlbumHash = outcome.Revision.PdfSha256.Trim().ToLowerInvariant();
                     syncedRevisionId = outcome.Revision.RevisionId;
                     markOwnedAtdDocumentsAfterVerification =
@@ -3892,6 +3916,12 @@ internal sealed partial class ShellView : IDisposable
                         ? $"{missingRemoteSources.Count} remote source хадгалагдсан; component өөрчлөлт байгаагүй."
                         : $"{outcome.ComponentCount} component Cloud album R{outcome.Revision.RevisionNumber}-д merge хийгдлээ. " +
                           $"Бусад {missingRemoteSources.Count} remote source хэвээр хадгалагдсан.";
+                    if (outcome.DeferredComponentCodes.Count > 0)
+                    {
+                        syncNote +=
+                            $" Энэ төхөөрөмж дээр render хийх боломжгүй {outcome.DeferredComponentCodes.Count} " +
+                            "барилгын дэд нүүрийг Cloud хувилбараас устгалгүй pending хэвээр үлдээлээ.";
+                    }
                 }
             }
             else if (hasUnauthorizedPendingChanges)
@@ -4037,6 +4067,27 @@ internal sealed partial class ShellView : IDisposable
                     serverAlbum.AlbumId,
                     syncedRevisionId,
                     syncedAlbumHash);
+            Dictionary<string, string> verifiedPendingCodeMap =
+                authorizedPendingAlbumComponents
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        code => code,
+                        code => CanonicalPendingComponentCode(
+                            code,
+                            CurrentCloudOwnerEmail()),
+                        StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<string> verifiedPresentPendingComponents =
+                StudioAlbumComponentAcknowledgementPolicy
+                    .ConfirmedPendingCodes(
+                        verifiedPendingCodeMap,
+                        verifiedRevision.SectionManifest,
+                        [],
+                        deferredPendingAlbumComponents);
+            confirmedPendingAlbumComponents =
+                confirmedPendingAlbumComponents
+                    .Concat(verifiedPresentPendingComponents)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
             syncedRevisionId = verifiedRevision.RevisionId.Trim();
             syncedAlbumHash = verifiedRevision.PdfSha256.Trim().ToLowerInvariant();
             CloudAlbumCacheRefreshResult verifiedAlbumRefresh =
@@ -4552,24 +4603,33 @@ internal sealed partial class ShellView : IDisposable
             StudioCanonicalAlbumRebuildResolution canonicalRebuild =
                 StudioCanonicalAlbumRebuildPolicy.ResolvePersisted(
                     state.Project);
-            if (canonicalRebuild.IsPending)
+            bool hasCurrentServerRevision =
+                album is not null &&
+                revision is not null &&
+                !string.IsNullOrWhiteSpace(revision.PdfFileId) &&
+                revision.PageCount > 0;
+            StudioCanonicalAlbumPreviewDecision previewDecision =
+                StudioCanonicalAlbumPreviewPolicy.Resolve(
+                    canonicalRebuild,
+                    hasCurrentServerRevision);
+            if (previewDecision.IsRebuildPending &&
+                previewDecision.CanDisplay)
             {
-                ClearCloudAlbumPreviewCache();
                 string message =
                     StudioCanonicalAlbumRebuildPolicy.Describe(
                         canonicalRebuild) +
-                    " Stale PDF is not presented as canonical; an authorized " +
-                    "Studio must complete Cloud Sync.";
+                    " Latest verified Cloud revision remains visible while " +
+                    "the source-owning Studio completes the pending component.";
                 SetStatus(message);
                 RecordDiagnosticOperation(
                     StudioOperationDiagnosticLog.CreateOperationId(),
                     "cloud_album_refresh",
-                    "blocked",
-                    StudioCanonicalAlbumRebuildPolicy.DiagnosticReasonCode,
+                    "deferred",
+                    "cloud_album_rebuild_pending_preview_available",
                     message);
-                return CloudAlbumCacheRefreshResult.None;
             }
-            if (album is null ||
+            if (!previewDecision.CanDisplay ||
+                album is null ||
                 revision is null ||
                 string.IsNullOrWhiteSpace(revision.PdfFileId) ||
                 revision.PageCount < 1)

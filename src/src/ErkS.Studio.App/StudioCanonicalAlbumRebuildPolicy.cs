@@ -87,9 +87,22 @@ internal static class StudioCanonicalAlbumRebuildPolicy
             composition,
             revision,
             groups);
+        HashSet<string> currentCoverCodes =
+            currentVersion >= requiredVersion && revision is not null
+                ? (revision.SectionManifest ?? [])
+                    .Where(component =>
+                        component is not null &&
+                        (component.PageNumbers?.Length ?? 0) > 0 &&
+                        !IsInactiveStatus(component.Status) &&
+                        ProjectCloudSyncMetadata
+                            .IsBuildingSubCoverComponentCode(component.Code))
+                    .Select(component => component.Code.Trim())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : [];
         IEnumerable<string> groupCodes = groups
             .Where(group => referencedGroupIds.Contains(group.Id))
-            .Select(ProjectCloudSyncMetadata.BuildingSubCoverComponentCode);
+            .Select(ProjectCloudSyncMetadata.BuildingSubCoverComponentCode)
+            .Where(code => !currentCoverCodes.Contains(code));
         string[] pendingCodes = groupCodes
             .Concat(tombstones)
             .Where(code => !string.IsNullOrWhiteSpace(code))
