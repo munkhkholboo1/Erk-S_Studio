@@ -81,6 +81,18 @@ public sealed class AlbumBuildComponent
     public string SectionKey { get; init; } = "";
     public string SequenceKey { get; init; } = "";
     public List<int> PageNumbers { get; init; } = [];
+    public List<AlbumBuildComponentPage> Pages { get; init; } = [];
+}
+
+public sealed class AlbumBuildComponentPage
+{
+    public required int PageNumber { get; init; }
+    public string PageKey { get; init; } = "";
+    public string NativeSheetId { get; init; } = "";
+    public int NativePageNumber { get; init; }
+    public string SortKey { get; init; } = "";
+    public string SectionKey { get; init; } = "";
+    public string SequenceKey { get; init; } = "";
 }
 
 public interface IAlbumPdfWriter
@@ -135,6 +147,17 @@ public sealed class AlbumBuilder
                 SectionKey = component.SectionKey,
                 SequenceKey = component.SequenceKey,
                 PageNumbers = component.PageNumbers.ToList(),
+                Pages = component.Pages.Select(page =>
+                    new AlbumBuildComponentPage
+                    {
+                        PageNumber = page.PageNumber,
+                        PageKey = page.PageKey,
+                        NativeSheetId = page.NativeSheetId,
+                        NativePageNumber = page.NativePageNumber,
+                        SortKey = page.SortKey,
+                        SectionKey = page.SectionKey,
+                        SequenceKey = page.SequenceKey,
+                    }).ToList(),
             }));
             return result;
         }

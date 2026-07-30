@@ -256,6 +256,8 @@ public sealed class AppState : IDisposable
                 SourceId = source.SourceId ?? "",
                 SourceKey = source.SourceKey ?? "",
                 SourceApplication = source.SourceApplication ?? "",
+                SourcePurpose = StudioSourcePurpose.Normalize(
+                    source.SourcePurpose),
                 SourceDocumentReference = source.SourceDocumentReference ?? "",
                 ManifestId = source.ManifestId ?? "",
                 ContentHash = source.ContentHash ?? "",
@@ -269,12 +271,14 @@ public sealed class AppState : IDisposable
                 RegisteredAtUtc = source.RegisteredAtUtc,
             })
             .ToList();
-        bool buildingCompositionChanged = StudioBuildingCompositionSync.ApplyCanonical(
-            Project,
-            Library,
-            cloudProject.BuildingComposition,
-            preserveBuildingComposition);
-        if (buildingCompositionChanged && !preserveBuildingComposition)
+        StudioBuildingCompositionApplyResult buildingCompositionApply =
+            StudioBuildingCompositionSync.ApplyCanonicalWithResult(
+                Project,
+                Library,
+                cloudProject.BuildingComposition,
+                preserveBuildingComposition);
+        if (buildingCompositionApply.LocalCompositionChanged &&
+            !preserveBuildingComposition)
         {
             IReadOnlyList<AlbumPageDefinition> orderedPages =
                 BuildingArchitectureConceptAlbumSequencer.OrderPages(
@@ -310,6 +314,19 @@ public sealed class AppState : IDisposable
                 OwnerEmail = (component.OwnerEmail ?? "").Trim().ToLowerInvariant(),
                 SourceKey = component.SourceKey ?? "",
                 ComponentKind = component.ComponentKind ?? "",
+                SectionKey = component.SectionKey ?? "",
+                SequenceKey = component.SequenceKey ?? "",
+                Pages = (component.Pages ?? [])
+                    .Select(page =>
+                        new ProjectCloudAlbumComponentPageReference
+                        {
+                            PageNumber = page.PageNumber,
+                            PageKey = page.PageKey ?? "",
+                            SortKey = page.SortKey ?? "",
+                            SectionKey = page.SectionKey ?? "",
+                            SequenceKey = page.SequenceKey ?? "",
+                        })
+                    .ToList(),
             })
             .ToList();
         _ = StudioCanonicalAlbumRebuildPolicy.Apply(Project, cloudProject);

@@ -11,6 +11,32 @@ namespace ErkS.Studio.App.Tests;
 public sealed class CloudEraAlbumComponentUploaderTests
 {
     [Fact]
+    public async Task MergeAsync_AllowsMetadataOnlyCanonicalReflowWithCas()
+    {
+        RecordingComponentHandler handler = new();
+        using HttpClient client = new(handler);
+
+        StudioCloudAlbumRevision revision =
+            await CloudEraAlbumComponentUploader.MergeAsync(
+                client,
+                "https://erk-s.mn",
+                "access-token",
+                "project1",
+                "album1",
+                "revision1",
+                "token1",
+                [],
+                CancellationToken.None);
+
+        Assert.Equal("revision2", revision.RevisionId);
+        RecordedRequest request = Assert.Single(handler.Requests);
+        Assert.Equal("revision1", request.ExpectedRevisionId);
+        Assert.Equal("token1", request.ProjectConcurrencyToken);
+        Assert.Empty(request.Descriptors);
+        Assert.Empty(request.Files);
+    }
+
+    [Fact]
     public async Task MergeAsync_UploadsAllComponentsInSingleAtomicRequest()
     {
         string firstPath = await WritePdfAsync("first-component");
@@ -35,7 +61,20 @@ public sealed class CloudEraAlbumComponentUploaderTests
                         10,
                         firstPath,
                         SourceKey: "source1",
-                        ComponentKind: "document"),
+                        ComponentKind: "document",
+                        SectionKey: "fixed:Ерөнхий төлөвлөгөө",
+                        SequenceKey: "traffic-scheme",
+                        Pages:
+                        [
+                            new StudioCloudAlbumComponentPage
+                            {
+                                PageNumber = 1,
+                                PageKey = "album-page:stable",
+                                SortKey = "GP-2",
+                                SectionKey = "source-building:general-plan",
+                                SequenceKey = "traffic-scheme",
+                            },
+                        ]),
                     new StudioAlbumComponentUpload(
                         "sheets",
                         "Sheets",
@@ -61,6 +100,19 @@ public sealed class CloudEraAlbumComponentUploaderTests
                     Assert.False(descriptor.Remove);
                     Assert.Equal("source1", descriptor.SourceKey);
                     Assert.Equal("document", descriptor.ComponentKind);
+                    Assert.Equal(
+                        "fixed:Ерөнхий төлөвлөгөө",
+                        descriptor.SectionKey);
+                    Assert.Equal("traffic-scheme", descriptor.SequenceKey);
+                    StudioCloudAlbumComponentPage page =
+                        Assert.Single(descriptor.Pages);
+                    Assert.Equal(1, page.PageNumber);
+                    Assert.Equal("album-page:stable", page.PageKey);
+                    Assert.Equal("GP-2", page.SortKey);
+                    Assert.Equal(
+                        "source-building:general-plan",
+                        page.SectionKey);
+                    Assert.Equal("traffic-scheme", page.SequenceKey);
                 },
                 descriptor =>
                 {

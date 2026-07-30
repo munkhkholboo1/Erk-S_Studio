@@ -8,6 +8,15 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.24] - 2026-07-30
+
+- Make the Cloud ERA server the sole authority for canonical album component and physical page order, and consume its manifest unchanged on every Studio device.
+- Publish stable owner/source, section, sequence, sort, and page identities so reopen, Source Refresh, and Cloud Sync converge across admins, collaborators, and devices.
+- Preserve each device's verified local source payload in its server-assigned slot while receiving every other contributor's source pages from the canonical Cloud album.
+- Canonicalize full and component uploads on the server, request metadata-only reflow when local content is unchanged, and verify upload acknowledgement separately from the canonical download hash.
+- Remove explicitly retired source components through server-authoritative CAS maintenance, including sliced sources beyond the client upload limit, without touching another owner's same-key source.
+- Reject stale or descriptorless replacements that could erase page identity, while retaining safe legacy snapshots and one-time source-purpose metadata backfill.
+
 ## [0.1.0-dev.23] - 2026-07-30
 
 - Keep the latest verified canonical album visible while a collaborator-owned building sub-cover remains pending, instead of clearing or hiding the 41-page preview.

@@ -133,6 +133,144 @@ public sealed class StudioAlbumComponentManifestNormalizerTests
     }
 
     [Fact]
+    public void SourceSliceNormalizationPreservesPortableSectionAndSequenceMetadata()
+    {
+        const string owner = "planner@erks.local";
+        const string sourceKey = "general-plan-source";
+        string code = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "fixed:Ерөнхий төлөвлөгөө",
+            "traffic-scheme");
+        StudioCloudAlbumSection source = SourceSection(
+            code,
+            owner,
+            sourceKey,
+            [1]);
+        source.SectionKey = "fixed:Ерөнхий төлөвлөгөө";
+        source.SequenceKey = "traffic-scheme";
+
+        StudioAlbumComponentManifestNormalizationPlan plan =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                new ProjectWorkspace(),
+                [source],
+                EmptySourceOrder());
+
+        StudioCloudAlbumSection actual = Assert.Single(plan.TargetManifest);
+        Assert.Equal("fixed:Ерөнхий төлөвлөгөө", actual.SectionKey);
+        Assert.Equal("traffic-scheme", actual.SequenceKey);
+    }
+
+    [Fact]
+    public void LegacyEncodedSourceSliceBackfillsPortableSemanticMetadata()
+    {
+        const string owner = "planner@erks.local";
+        const string sourceKey = "general-plan-source";
+        string code = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "fixed:Ерөнхий төлөвлөгөө",
+            "solar-study");
+        StudioCloudAlbumSection source = SourceSection(
+            code,
+            owner,
+            sourceKey,
+            [1]);
+
+        StudioAlbumComponentManifestNormalizationPlan plan =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                new ProjectWorkspace(),
+                [source],
+                EmptySourceOrder());
+
+        StudioCloudAlbumSection actual = Assert.Single(plan.TargetManifest);
+        Assert.Equal("fixed:Ерөнхий төлөвлөгөө", actual.SectionKey);
+        Assert.Equal("solar-study", actual.SequenceKey);
+    }
+
+    [Fact]
+    public void CanonicalServerManifestIsDeviceIndependentAndKeepsServerSlot()
+    {
+        const string owner = "planner@erks.local";
+        const string sourceKey = "legacy-autocad";
+        string code = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "fixed:Ерөнхий төлөвлөгөө",
+            "master-plan");
+        StudioCloudAlbumSection serverComponent = SourceSection(
+            code,
+            owner,
+            sourceKey,
+            [1]);
+        serverComponent.Order = 123_456;
+        serverComponent.SectionKey = "fixed:Ерөнхий төлөвлөгөө";
+        serverComponent.SequenceKey = "master-plan";
+
+        ProjectWorkspace localDevice = new()
+        {
+            Sources =
+            [
+                new ProjectDesignSource
+                {
+                    Id = sourceKey,
+                    Kind = DesignSourceKind.AutoCad,
+                },
+            ],
+            Cloud = new ProjectCloudLink
+            {
+                SharedSources =
+                [
+                    new ProjectCloudSourceReference
+                    {
+                        SourceKey = sourceKey,
+                        SourceApplication = "AutoCAD",
+                        SourcePurpose = "GeneralPlan",
+                        RegisteredBy = owner,
+                        OwnerEmail = owner,
+                        Status = "Registered",
+                    },
+                ],
+            },
+        };
+        ProjectWorkspace cloudOnlyDevice = new()
+        {
+            Cloud = new ProjectCloudLink
+            {
+                SharedSources = localDevice.Cloud.SharedSources
+                    .Select(source => new ProjectCloudSourceReference
+                    {
+                        SourceKey = source.SourceKey,
+                        SourceApplication = source.SourceApplication,
+                        SourcePurpose = source.SourcePurpose,
+                        RegisteredBy = source.RegisteredBy,
+                        OwnerEmail = source.OwnerEmail,
+                        Status = source.Status,
+                    })
+                    .ToList(),
+            },
+        };
+
+        StudioAlbumComponentManifestNormalizationPlan localPlan =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                localDevice,
+                [serverComponent],
+                EmptySourceOrder());
+        StudioAlbumComponentManifestNormalizationPlan cloudPlan =
+            StudioAlbumComponentManifestNormalizer.CreatePlan(
+                cloudOnlyDevice,
+                [serverComponent],
+                EmptySourceOrder());
+
+        Assert.Equal(
+            localPlan.TargetManifest.Select(ComponentSignature),
+            cloudPlan.TargetManifest.Select(ComponentSignature));
+        Assert.Equal(123_456, Assert.Single(localPlan.TargetManifest).Order);
+        Assert.Equal(localPlan.RequiresPdfRewrite, cloudPlan.RequiresPdfRewrite);
+        Assert.False(localPlan.RequiresPdfRewrite);
+    }
+
+    [Fact]
     public void InputRowOrder_DoesNotChangeCanonicalManifest()
     {
         ProjectWorkspace project = ProjectWithBuilding();
@@ -170,7 +308,7 @@ public sealed class StudioAlbumComponentManifestNormalizerTests
     }
 
     [Fact]
-    public void RefreshSyncReopenCycle_PreservesContributorUnionAndCanonicalOrder()
+    public void RefreshSyncReopenCycle_PreservesContributorUnionAndServerOrder()
     {
         const string sourceKey = "same-source-key";
         const string planner = "planner@erks.local";
@@ -230,7 +368,7 @@ public sealed class StudioAlbumComponentManifestNormalizerTests
                 "floor-plans");
         string subCover =
             "generated:building-sub-cover:studio-building:" + buildingId;
-        StudioCloudAlbumSection[] physicallyWrong =
+        StudioCloudAlbumSection[] serverAuthoritative =
         [
             SourceSection(building, architect, sourceKey, [1, 2]),
             Section(subCover, 900_000, [3]),
@@ -246,7 +384,7 @@ public sealed class StudioAlbumComponentManifestNormalizerTests
         StudioAlbumComponentManifestNormalizationPlan afterRefresh =
             StudioAlbumComponentManifestNormalizer.CreatePlan(
                 project,
-                physicallyWrong,
+                serverAuthoritative,
                 sourceOrder);
         StudioAlbumComponentManifestNormalizationPlan afterSyncAndReopen =
             StudioAlbumComponentManifestNormalizer.CreatePlan(
@@ -256,16 +394,17 @@ public sealed class StudioAlbumComponentManifestNormalizerTests
 
         Assert.Equal(
             [
-                ProjectCloudSyncMetadata.CoverComponentCode,
-                generalPlan,
-                subCover,
                 building,
+                subCover,
+                generalPlan,
+                ProjectCloudSyncMetadata.CoverComponentCode,
             ],
             afterRefresh.TargetManifest.Select(component => component.Code));
         Assert.Equal(
             afterRefresh.TargetManifest.Select(ComponentSignature),
             afterSyncAndReopen.TargetManifest.Select(ComponentSignature));
         Assert.False(afterSyncAndReopen.RequiresPdfRewrite);
+        Assert.False(afterRefresh.RequiresPdfRewrite);
         Assert.Equal(4, afterSyncAndReopen.TargetManifest.Count);
 
         StudioCloudAlbumSection removed = Assert.Single(

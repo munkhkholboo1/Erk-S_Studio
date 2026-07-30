@@ -73,6 +73,52 @@ public sealed class ProjectCloudSyncMetadataTests
     }
 
     [Fact]
+    public void PreviouslySyncedSourceWithoutSemanticVersionIsAcknowledgedExactlyOnce()
+    {
+        ProjectWorkspace project = Project();
+        ProjectDesignSource source = project.Sources.Single();
+        var manifest = new SheetPackageManifest
+        {
+            SchemaVersion = 4,
+            PackageId = Guid.Parse("d321526b-e797-4520-aa74-c5742b267eb8"),
+            ExportedAtUtc = new DateTimeOffset(2026, 7, 17, 5, 0, 0, TimeSpan.Zero),
+            Source = new SheetPackageSource
+            {
+                SourceId = source.Id,
+                Application = SheetSourceApplication.AutoCad,
+                DocumentTitle = "General plan",
+            },
+            Sheets = [new SheetPackageEntry { SheetId = "GP-01", Sha256 = "sheet-hash" }],
+        };
+        ProjectDesignSourceClassification.SetExplicitPurpose(
+            source,
+            ProjectDesignSourcePurpose.GeneralPlan);
+        ProjectCloudSyncMetadata.RecordPackage(project, source, manifest, "semantic-hash");
+        source.Metadata["cloud.syncedManifestId"] = manifest.PackageId.ToString("N");
+        source.Metadata["cloud.syncedContentHash"] = "semantic-hash";
+
+        ProjectSourceSyncCandidate pending = Assert.Single(
+            ProjectCloudSyncMetadata.PendingSourcePackages(project));
+        Assert.Equal("GeneralPlan", pending.SourcePurpose);
+
+        ProjectCloudSyncMetadata.MarkSourceSynced(pending);
+
+        Assert.Empty(ProjectCloudSyncMetadata.PendingSourcePackages(project));
+        Assert.Equal(
+            ProjectCloudSyncMetadata.CurrentSourceSemanticSyncVersion,
+            source.Metadata["cloud.syncedSemanticVersion"]);
+
+        ProjectDesignSourceClassification.SetExplicitPurpose(
+            source,
+            ProjectDesignSourcePurpose.Building);
+        ProjectSourceSyncCandidate changedPurpose = Assert.Single(
+            ProjectCloudSyncMetadata.PendingSourcePackages(project));
+        Assert.Equal("Building", changedPurpose.SourcePurpose);
+        ProjectCloudSyncMetadata.MarkSourceSynced(changedPurpose);
+        Assert.Empty(ProjectCloudSyncMetadata.PendingSourcePackages(project));
+    }
+
+    [Fact]
     public void SourceLinkWithoutReceivedPackageRemainsAnEmptyTemplate()
     {
         ProjectWorkspace project = Project();

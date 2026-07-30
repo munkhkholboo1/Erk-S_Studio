@@ -173,11 +173,13 @@ public static class ProjectPackageReconciliationService
         if (usesConceptTemplate)
         {
             IReadOnlyList<AlbumPageDefinition> orderedPages =
-                BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                BuildingArchitectureConceptAlbumSequencer
+                    .OrderPagesAfterSourceReconciliation(
                     album,
                     album.Pages,
                     library,
                     project.Sources,
+                    source.Id,
                     project.BuildingGroups,
                     project.SheetBuildingAssignments);
             album.Pages.Clear();
@@ -284,11 +286,13 @@ public static class ProjectPackageReconciliationService
         if (usesConceptTemplate)
         {
             IReadOnlyList<AlbumPageDefinition> orderedPages =
-                BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                BuildingArchitectureConceptAlbumSequencer
+                    .OrderPagesAfterSourceReconciliation(
                     album,
                     album.Pages,
                     library,
                     project.Sources,
+                    source.Id,
                     project.BuildingGroups,
                     project.SheetBuildingAssignments);
             album.Pages.Clear();

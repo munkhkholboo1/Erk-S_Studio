@@ -2521,6 +2521,27 @@
           }
         }
       },
+      "CloudEraAlbumComponentPageDto": {
+        "type": "object",
+        "properties": {
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageKey": {
+            "type": "string"
+          },
+          "sortKey": {
+            "type": "string"
+          },
+          "sectionKey": {
+            "type": "string"
+          },
+          "sequenceKey": {
+            "type": "string"
+          }
+        }
+      },
       "CloudEraAlbumDto": {
         "type": "object",
         "properties": {
@@ -2544,6 +2565,9 @@
             "format": "int32"
           },
           "canonicalRebuildPending": {
+            "type": "boolean"
+          },
+          "canonicalReflowRequired": {
             "type": "boolean"
           },
           "pendingComponentTombstoneCodes": {
@@ -2574,6 +2598,9 @@
             "type": "string"
           },
           "pdfSha256": {
+            "type": "string"
+          },
+          "sourceUploadSha256": {
             "type": "string"
           },
           "pageCount": {
@@ -2639,6 +2666,18 @@
           },
           "componentKind": {
             "type": "string"
+          },
+          "sectionKey": {
+            "type": "string"
+          },
+          "sequenceKey": {
+            "type": "string"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAlbumComponentPageDto"
+            }
           }
         }
       },
@@ -4390,6 +4429,9 @@
           "sourceApplication": {
             "type": "string"
           },
+          "sourcePurpose": {
+            "type": "string"
+          },
           "sourceDocumentReference": {
             "type": "string"
           },
@@ -4425,6 +4467,9 @@
             "type": "string"
           },
           "sourceApplication": {
+            "type": "string"
+          },
+          "sourcePurpose": {
             "type": "string"
           },
           "sourceDocumentReference": {

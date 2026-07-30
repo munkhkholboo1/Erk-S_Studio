@@ -290,6 +290,12 @@ public static class ProjectWorkspaceStore
             source.SourceId ??= "";
             source.SourceKey ??= "";
             source.SourceApplication ??= "";
+            source.SourcePurpose = Enum.TryParse(
+                source.SourcePurpose?.Trim(),
+                ignoreCase: true,
+                out ProjectDesignSourcePurpose purpose)
+                ? purpose.ToString()
+                : "";
             source.SourceDocumentReference ??= "";
             source.ManifestId ??= "";
             source.ContentHash ??= "";
@@ -386,6 +392,18 @@ public static class ProjectWorkspaceStore
             component.OwnerEmail ??= "";
             component.SourceKey ??= "";
             component.ComponentKind ??= "";
+            component.SectionKey ??= "";
+            component.SequenceKey ??= "";
+            component.Pages = (component.Pages ?? [])
+                .OfType<ProjectCloudAlbumComponentPageReference>()
+                .ToList();
+            foreach (ProjectCloudAlbumComponentPageReference page in component.Pages)
+            {
+                page.PageKey ??= "";
+                page.SortKey ??= "";
+                page.SectionKey ??= "";
+                page.SequenceKey ??= "";
+            }
         }
         project.Cloud.PermissionSnapshotAccountEmail =
             (project.Cloud.PermissionSnapshotAccountEmail ?? "")

@@ -53,7 +53,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
             generatedPageCount,
             buildingGroups,
             sheetBuildingAssignments,
-            SourceSheetOrderMode.PersistedAlbumOrder);
+            authoritativeSourceId: null);
 
     private static IReadOnlyList<ConceptAlbumSourcePage> Create(
         AlbumDefinition definition,
@@ -63,7 +63,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
         int generatedPageCount,
         IReadOnlyList<ProjectBuildingGroup>? buildingGroups,
         IReadOnlyDictionary<string, string>? sheetBuildingAssignments,
-        SourceSheetOrderMode sourceSheetOrderMode)
+        string? authoritativeSourceId)
     {
         List<ProjectBuildingGroup> normalizedBuildingGroups =
             ProjectBuildingComposition.NormalizeGroups(buildingGroups);
@@ -75,13 +75,21 @@ public static class BuildingArchitectureConceptAlbumSequencer
             ProjectBuildingComposition.NormalizeAssignments(
                 sheetBuildingAssignments,
                 normalizedBuildingGroups);
-        var sourceOrder = sources
-            .Select((source, index) => new { source.Id, Index = index })
-            .Where(item => !string.IsNullOrWhiteSpace(item.Id))
-            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First().Index, StringComparer.OrdinalIgnoreCase);
+        List<AlbumPageDefinition> pageList = pages.ToList();
+        Dictionary<string, int> sourceOrder = pageList
+            .Select((page, index) => new
+            {
+                SourceId = ExtractSourceIdentity(page.SheetKey),
+                Index = index,
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.SourceId))
+            .GroupBy(item => item.SourceId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Min(item => item.Index),
+                StringComparer.OrdinalIgnoreCase);
 
-        var candidates = pages
+        var candidates = pageList
             .Where(page => BuildingArchitectureConceptAlbumTemplate.FindSlot(
                 definition,
                 page.TemplateSlotId)?.Kind != AlbumCompositionKind.Generated)
@@ -94,7 +102,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
                 sourceOrder,
                 buildingGroupsById,
                 normalizedAssignments,
-                sourceSheetOrderMode))
+                authoritativeSourceId))
             .ToList();
 
         var automaticBuildingSourceCounts = candidates
@@ -192,23 +200,43 @@ public static class BuildingArchitectureConceptAlbumSequencer
         IReadOnlyList<ProjectBuildingGroup>? buildingGroups = null,
         IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null)
     {
-        List<AlbumPageDefinition> pageList = pages.ToList();
-        bool hasCompleteHydration = pageList
-            .Where(page => BuildingArchitectureConceptAlbumTemplate.FindSlot(
-                definition,
-                page.TemplateSlotId)?.Kind != AlbumCompositionKind.Generated)
-            .All(page => library.FindVerified(page.SheetKey) is not null);
         return Create(
                 definition,
-                pageList,
+                pages,
                 library,
                 sources,
                 generatedPageCount: -1,
                 buildingGroups: buildingGroups,
                 sheetBuildingAssignments: sheetBuildingAssignments,
-                sourceSheetOrderMode: hasCompleteHydration
-                    ? SourceSheetOrderMode.AuthoritativePackageOrder
-                    : SourceSheetOrderMode.PersistedAlbumOrder)
+                authoritativeSourceId: null)
+            .Select(item => item.Page)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Applies authoritative package/PDF order only to the source whose package
+    /// is currently being reconciled. Other sources retain their project-owned
+    /// order so a runtime cache hydration cannot reshuffle unrelated pages.
+    /// </summary>
+    public static IReadOnlyList<AlbumPageDefinition> OrderPagesAfterSourceReconciliation(
+        AlbumDefinition definition,
+        IEnumerable<AlbumPageDefinition> pages,
+        SheetLibrary library,
+        IReadOnlyList<ProjectDesignSource> sources,
+        string authoritativeSourceId,
+        IReadOnlyList<ProjectBuildingGroup>? buildingGroups = null,
+        IReadOnlyDictionary<string, string>? sheetBuildingAssignments = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(authoritativeSourceId);
+        return Create(
+                definition,
+                pages,
+                library,
+                sources,
+                generatedPageCount: -1,
+                buildingGroups: buildingGroups,
+                sheetBuildingAssignments: sheetBuildingAssignments,
+                authoritativeSourceId: authoritativeSourceId.Trim())
             .Select(item => item.Page)
             .ToList();
     }
@@ -257,15 +285,23 @@ public static class BuildingArchitectureConceptAlbumSequencer
         IReadOnlyDictionary<string, int> sourceOrder,
         IReadOnlyDictionary<string, ProjectBuildingGroup> buildingGroupsById,
         IReadOnlyDictionary<string, string> sheetBuildingAssignments,
-        SourceSheetOrderMode sourceSheetOrderMode)
+        string? authoritativeSourceId)
     {
         var sheet = library.FindVerified(page.SheetKey);
         var slot = BuildingArchitectureConceptAlbumTemplate.FindSlot(definition, page.TemplateSlotId);
+        string persistedSourceId = ExtractSourceIdentity(page.SheetKey);
         bool useHydratedPackageMetadata =
-            sourceSheetOrderMode == SourceSheetOrderMode.AuthoritativePackageOrder;
+            !string.IsNullOrWhiteSpace(authoritativeSourceId) &&
+            (persistedSourceId.Equals(
+                 authoritativeSourceId,
+                 StringComparison.OrdinalIgnoreCase) ||
+             (sheet is not null &&
+              sheet.SourceId.Equals(
+                  authoritativeSourceId,
+                  StringComparison.OrdinalIgnoreCase)));
         var sourceId = useHydratedPackageMetadata
-            ? sheet?.SourceId ?? ExtractSourceIdentity(page.SheetKey)
-            : ExtractSourceIdentity(page.SheetKey);
+            ? sheet?.SourceId ?? persistedSourceId
+            : persistedSourceId;
         var source = sources.FirstOrDefault(item =>
             string.Equals(item.Id, sourceId, StringComparison.OrdinalIgnoreCase));
         var sourceTitle = ResolveSourceTitle(
@@ -300,11 +336,17 @@ public static class BuildingArchitectureConceptAlbumSequencer
             Sheet = sheet,
             Source = source,
             OriginalIndex = originalIndex,
-            SourceOrder = sourceOrder.TryGetValue(sourceId, out var index) ? index : int.MaxValue,
+            SourceOrder =
+                sourceOrder.TryGetValue(persistedSourceId, out int index) ||
+                sourceOrder.TryGetValue(sourceId, out index)
+                    ? index
+                    : originalIndex,
             SourceSheetOrder = ResolveSourceSheetOrder(
                 sheet,
                 originalIndex,
-                sourceSheetOrderMode),
+                useHydratedPackageMetadata
+                    ? SourceSheetOrderMode.AuthoritativePackageOrder
+                    : SourceSheetOrderMode.PersistedAlbumOrder),
             SourceId = sourceId,
             SourceSortName = sourceTitle,
             SourceGroupKey = groupKey,

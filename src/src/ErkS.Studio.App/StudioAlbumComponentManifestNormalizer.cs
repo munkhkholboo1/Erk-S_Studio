@@ -100,16 +100,17 @@ internal static class StudioAlbumComponentManifestNormalizer
             target.ComponentKind = FirstNonEmpty(
                 selected.ComponentKind,
                 candidates.Select(component => component.ComponentKind));
+            target.SectionKey = FirstNonEmpty(
+                selected.SectionKey,
+                candidates.Select(component => component.SectionKey));
+            target.SequenceKey = FirstNonEmpty(
+                selected.SequenceKey,
+                candidates.Select(component => component.SequenceKey));
+            PopulateSemanticKeys(project, target);
             target.Status = FirstNonEmpty(
                 selected.Status,
                 candidates.Select(component => component.Status),
                 "Available");
-            target.Order = StudioAlbumComponentOrderPolicy.Resolve(
-                project,
-                target.Code,
-                target.SourceKey,
-                target.Order,
-                sourceOrder);
             retained.Add(new RetainedComponent(selected.Code, target));
             removedCodes.AddRange(candidates
                 .Skip(1)
@@ -117,8 +118,7 @@ internal static class StudioAlbumComponentManifestNormalizer
         }
 
         retained = retained
-            .OrderBy(component => component.Target.Order)
-            .ThenBy(component =>
+            .OrderBy(component =>
                 component.Target.PageNumbers.DefaultIfEmpty(int.MaxValue).Min())
             .ThenBy(component => component.Target.Code, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -127,9 +127,41 @@ internal static class StudioAlbumComponentManifestNormalizer
         foreach (RetainedComponent component in retained)
         {
             int pageCount = component.Target.PageNumbers.Length;
+            int[] originalComponentPages = component.Target.PageNumbers
+                .Distinct()
+                .Order()
+                .ToArray();
             component.Target.PageNumbers = Enumerable
                 .Range(nextPage, pageCount)
                 .ToArray();
+            if (component.Target.Pages.Count > 0)
+            {
+                Dictionary<int, int> remap = originalComponentPages
+                    .Select((pageNumber, index) => new
+                    {
+                        pageNumber,
+                        NewPageNumber = nextPage + index,
+                    })
+                    .ToDictionary(item => item.pageNumber, item => item.NewPageNumber);
+                if (component.Target.Pages.Count != originalComponentPages.Length ||
+                    component.Target.Pages.Any(page =>
+                        !remap.ContainsKey(page.PageNumber)))
+                {
+                    throw new InvalidDataException(
+                        $"Album component '{component.Target.Code}' has inconsistent stable page metadata.");
+                }
+                component.Target.Pages = component.Target.Pages
+                    .OrderBy(page => page.PageNumber)
+                    .Select(page => new StudioCloudAlbumComponentPage
+                    {
+                        PageNumber = remap[page.PageNumber],
+                        PageKey = page.PageKey,
+                        SortKey = page.SortKey,
+                        SectionKey = page.SectionKey,
+                        SequenceKey = page.SequenceKey,
+                    })
+                    .ToList();
+            }
             nextPage += pageCount;
         }
 
@@ -196,6 +228,12 @@ internal static class StudioAlbumComponentManifestNormalizer
             slot.ComponentKind = FirstNonEmpty(
                 slot.ComponentKind,
                 candidates.Select(component => component.ComponentKind));
+            slot.SectionKey = FirstNonEmpty(
+                slot.SectionKey,
+                candidates.Select(component => component.SectionKey));
+            slot.SequenceKey = FirstNonEmpty(
+                slot.SequenceKey,
+                candidates.Select(component => component.SequenceKey));
             slot.Status = FirstNonEmpty(
                 slot.Status,
                 candidates.Select(component => component.Status),
@@ -219,6 +257,17 @@ internal static class StudioAlbumComponentManifestNormalizer
         OwnerEmail = component.OwnerEmail ?? "",
         SourceKey = component.SourceKey ?? "",
         ComponentKind = component.ComponentKind ?? "",
+        SectionKey = component.SectionKey ?? "",
+        SequenceKey = component.SequenceKey ?? "",
+        Pages = (component.Pages ?? []).Select(page =>
+            new StudioCloudAlbumComponentPage
+            {
+                PageNumber = page.PageNumber,
+                PageKey = page.PageKey ?? "",
+                SortKey = page.SortKey ?? "",
+                SectionKey = page.SectionKey ?? "",
+                SequenceKey = page.SequenceKey ?? "",
+            }).ToList(),
     };
 
     private static string FirstNonEmpty(
@@ -232,6 +281,51 @@ internal static class StudioAlbumComponentManifestNormalizer
             .Select(value => value?.Trim() ?? "")
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ??
             fallback;
+    }
+
+    private static void PopulateSemanticKeys(
+        ProjectWorkspace project,
+        StudioCloudAlbumSection component)
+    {
+        if (StudioAlbumComponentIdentity.TryGetSourceSlice(
+                component.Code,
+                out string decodedSectionKey,
+                out string decodedSequenceKey))
+        {
+            if (string.IsNullOrWhiteSpace(component.SectionKey))
+                component.SectionKey = decodedSectionKey.Trim();
+            if (string.IsNullOrWhiteSpace(component.SequenceKey))
+                component.SequenceKey = decodedSequenceKey.Trim();
+        }
+        else if (ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode(
+                     component.Code) &&
+                 string.IsNullOrWhiteSpace(component.SectionKey))
+        {
+            component.SectionKey = component.Code[
+                ProjectCloudSyncMetadata
+                    .BuildingSubCoverComponentCodePrefix.Length..].Trim();
+        }
+
+        component.SectionKey =
+            StudioAlbumComponentIdentity.CanonicalBuildingSectionKey(
+                project,
+                component.SectionKey);
+        component.SequenceKey = component.SequenceKey?.Trim() ?? "";
+        foreach (StudioCloudAlbumComponentPage page in component.Pages ?? [])
+        {
+            string pageSection = string.IsNullOrWhiteSpace(page.SectionKey)
+                ? component.SectionKey
+                : page.SectionKey;
+            page.SectionKey =
+                StudioAlbumComponentIdentity.CanonicalBuildingSectionKey(
+                    project,
+                    pageSection);
+            page.SequenceKey = string.IsNullOrWhiteSpace(page.SequenceKey)
+                ? component.SequenceKey
+                : page.SequenceKey.Trim();
+            page.PageKey = page.PageKey?.Trim() ?? "";
+            page.SortKey = page.SortKey?.Trim() ?? "";
+        }
     }
 
     private static void ValidateSourceIdentities(

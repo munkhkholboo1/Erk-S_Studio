@@ -87,6 +87,47 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
     }
 
     [Fact]
+    public void SourceTombstoneRemainsServerAuthoritativeAndIsNotSynthesizedByStudio()
+    {
+        StudioCloudAlbumSection source = SourceSlice("school");
+        ProjectWorkspace project = new();
+        StudioCloudProjectDetail cloud = CloudProject(
+            pending: true,
+            requiredVersion: 2,
+            revisionVersion: 2,
+            groups: [Group("school", "School", 1)],
+            tombstones: [source.Code],
+            manifest: [source]);
+
+        StudioCanonicalAlbumRebuildResolution received =
+            StudioCanonicalAlbumRebuildPolicy.Apply(project, cloud);
+        StudioCanonicalAlbumRebuildResolution resolution =
+            StudioCanonicalAlbumRebuildPolicy.ResolvePersisted(project);
+        IReadOnlyList<StudioAlbumComponentUpload> uploads =
+            StudioCanonicalAlbumRebuildPolicy.ApplyTombstoneUploads(
+                resolution,
+                [source],
+                [
+                    new StudioAlbumComponentUpload(
+                        source.Code,
+                        source.Label,
+                        source.Order,
+                        "",
+                        Remove: true,
+                        SourceKey: source.SourceKey,
+                        ComponentKind: source.ComponentKind,
+                        SectionKey: source.SectionKey,
+                        SequenceKey: source.SequenceKey),
+                ]);
+
+        Assert.Empty(received.TombstoneCodes);
+        Assert.Equal([source.Code], received.RejectedTombstoneCodes);
+        Assert.Empty(resolution.TombstoneCodes);
+        Assert.Equal([source.Code], resolution.RejectedTombstoneCodes);
+        Assert.Empty(uploads);
+    }
+
+    [Fact]
     public void ApplyAndClearSignal_PreservesIndependentLocalPendingWork()
     {
         ProjectWorkspace project = ProjectWithLocalPendingCover();
@@ -131,7 +172,7 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
     }
 
     [Fact]
-    public void TombstoneUploads_AreRemoveOnlyDistinctAndSorted()
+    public void BuildingTombstones_DoNotProduceClientRemovalDescriptors()
     {
         StudioCanonicalAlbumRebuildResolution resolution = new(
             IsPending: true,
@@ -157,35 +198,73 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
             StudioCanonicalAlbumRebuildPolicy.ApplyTombstoneUploads(
                 resolution,
                 [current],
-                existingUploads:
+                existingUploads: []);
+
+        Assert.Empty(uploads);
+    }
+
+    [Fact]
+    public void BuildingTombstone_DropsExistingStaleReplacement()
+    {
+        const string tombstoneCode =
+            "generated:building-sub-cover:studio-building:building-a";
+        StudioCanonicalAlbumRebuildResolution resolution = new(
+            IsPending: true,
+            RequiredBuildingCompositionVersion: 3,
+            CurrentBuildingCompositionVersion: 2,
+            PendingComponentCodes: [],
+            TombstoneCodes: [tombstoneCode],
+            RejectedTombstoneCodes: []);
+
+        IReadOnlyList<StudioAlbumComponentUpload> uploads =
+            StudioCanonicalAlbumRebuildPolicy.ApplyTombstoneUploads(
+                resolution,
+                [],
                 [
                     new StudioAlbumComponentUpload(
-                        "generated:building-sub-cover:studio-building:building-a",
+                        tombstoneCode,
                         "Stale local render",
                         10,
                         "stale.pdf"),
                 ]);
 
-        Assert.Collection(
-            uploads,
-            upload =>
-            {
-                Assert.Equal(
-                    "generated:building-sub-cover:studio-building:building-a",
-                    upload.Code);
-                Assert.True(upload.Remove);
-                Assert.Empty(upload.PdfPath);
-            },
-            upload =>
-            {
-                Assert.Equal(
-                    "generated:building-sub-cover:studio-building:building-b",
-                    upload.Code);
-                Assert.Equal("Building B", upload.Label);
-                Assert.Equal(20, upload.Order);
-                Assert.True(upload.Remove);
-                Assert.Empty(upload.PdfPath);
-            });
+        Assert.Empty(uploads);
+    }
+
+    [Fact]
+    public void FortyServerTombstones_LeaveOnlyOneRealClientUpload()
+    {
+        string[] tombstones = Enumerable.Range(1, 40)
+            .Select(index =>
+                "generated:building-sub-cover:studio-building:deleted-" +
+                index.ToString("D2"))
+            .ToArray();
+        StudioCanonicalAlbumRebuildResolution resolution = new(
+            IsPending: true,
+            RequiredBuildingCompositionVersion: 3,
+            CurrentBuildingCompositionVersion: 2,
+            PendingComponentCodes: [],
+            TombstoneCodes: tombstones,
+            RejectedTombstoneCodes: []);
+        StudioAlbumComponentUpload realUpload = new(
+            "generated:building-sub-cover:studio-building:school",
+            "School",
+            10,
+            "school.pdf");
+        StudioAlbumComponentUpload staleUpload = new(
+            tombstones[0],
+            "Deleted",
+            20,
+            "deleted.pdf");
+
+        IReadOnlyList<StudioAlbumComponentUpload> uploads =
+            StudioCanonicalAlbumRebuildPolicy.ApplyTombstoneUploads(
+                resolution,
+                [],
+                [staleUpload, realUpload]);
+
+        StudioAlbumComponentUpload upload = Assert.Single(uploads);
+        Assert.Same(realUpload, upload);
     }
 
     [Fact]

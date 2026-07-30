@@ -628,6 +628,7 @@ public sealed class ProjectCloudSourceReference
     public string SourceId { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string SourceApplication { get; set; } = "";
+    public string SourcePurpose { get; set; } = "";
     public string SourceDocumentReference { get; set; } = "";
     public string ManifestId { get; set; } = "";
     public string ContentHash { get; set; } = "";
@@ -671,6 +672,18 @@ public sealed class ProjectCloudAlbumComponentReference
     public string OwnerEmail { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string ComponentKind { get; set; } = "";
+    public string SectionKey { get; set; } = "";
+    public string SequenceKey { get; set; } = "";
+    public List<ProjectCloudAlbumComponentPageReference> Pages { get; set; } = [];
+}
+
+public sealed class ProjectCloudAlbumComponentPageReference
+{
+    public int PageNumber { get; set; }
+    public string PageKey { get; set; } = "";
+    public string SortKey { get; set; } = "";
+    public string SectionKey { get; set; } = "";
+    public string SequenceKey { get; set; } = "";
 }
 
 /// <summary>

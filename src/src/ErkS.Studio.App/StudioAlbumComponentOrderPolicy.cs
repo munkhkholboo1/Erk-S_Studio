@@ -1,4 +1,6 @@
 using ErkS.Platform.Core;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ErkS.Studio;
 
@@ -18,6 +20,34 @@ internal static class StudioAlbumComponentOrderPolicy
     private const int UnassignedSourceBase = 800_000;
     private const int VisualizationBase = 900_000;
 
+    public static IReadOnlyDictionary<string, int> CreateStableSourceOrder(
+        IEnumerable<StudioCloudSourcePackage> sources) =>
+        (sources ?? [])
+            .Where(source =>
+                !string.IsNullOrWhiteSpace(source.SourceKey) &&
+                !string.IsNullOrWhiteSpace(source.RegisteredBy) &&
+                (string.IsNullOrWhiteSpace(source.Status) ||
+                 source.Status.Equals(
+                     "Registered",
+                     StringComparison.OrdinalIgnoreCase)))
+            .Select(source => new
+            {
+                Code = StudioAlbumComponentIdentity.SourceCode(
+                    source.RegisteredBy,
+                    source.SourceKey),
+                SourceId = (source.SourceId ?? "").Trim(),
+            })
+            .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(item => item.SourceId, StringComparer.OrdinalIgnoreCase)
+                .First())
+            .OrderBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .Select((item, index) => new { item.Code, Index = index })
+            .ToDictionary(
+                item => item.Code,
+                item => item.Index,
+                StringComparer.OrdinalIgnoreCase);
+
     public static int Resolve(
         ProjectWorkspace project,
         string componentCode,
@@ -28,7 +58,6 @@ internal static class StudioAlbumComponentOrderPolicy
         ArgumentNullException.ThrowIfNull(project);
         string code = (componentCode ?? "").Trim();
         string normalizedSourceKey = (sourceKey ?? "").Trim();
-        int safeLocalOrder = Math.Max(0, localOrder);
 
         if (TryResolveFixedComponentOrder(
                 code,
@@ -60,7 +89,7 @@ internal static class StudioAlbumComponentOrderPolicy
                 ? sourceIndex
                 : sourceOrder.TryGetValue(code, out sourceIndex)
                     ? sourceIndex
-                    : safeLocalOrder,
+                    : StableIdentityTieBreaker(baseSourceCode),
             0,
             TemplateSlotStride - 1);
         bool hasSourceSlice = StudioAlbumComponentIdentity.TryGetSourceSlice(
@@ -69,6 +98,11 @@ internal static class StudioAlbumComponentOrderPolicy
             out string sequenceKey);
         int templateSlotOffset = ResolveTemplateSlotOrder(sequenceKey) *
             TemplateSlotStride;
+        if (hasSourceSlice &&
+            IsGeneralPlanSectionIdentity(sectionKey))
+        {
+            return GeneralPlanBase + templateSlotOffset + sourceTieBreaker;
+        }
         if (hasSourceSlice &&
             TryResolveBuildingSectionGroup(project, sectionKey, out ProjectBuildingGroup sliceGroup))
         {
@@ -86,9 +120,19 @@ internal static class StudioAlbumComponentOrderPolicy
             project,
             effectiveSourceKey,
             code);
+        ProjectCloudSourceReference? sharedSource = ResolveSharedSource(
+            project,
+            effectiveSourceKey,
+            code);
+        ProjectDesignSourcePurpose sharedPurpose =
+            SharedSourcePurpose(sharedSource);
+        if (sharedPurpose == ProjectDesignSourcePurpose.GeneralPlan)
+            return GeneralPlanBase + templateSlotOffset + sourceTieBreaker;
+
         if (source is not null)
         {
-            if (ProjectDesignSourceClassification.IsGeneralPlan(source))
+            if (sharedPurpose != ProjectDesignSourcePurpose.Building &&
+                ProjectDesignSourceClassification.IsGeneralPlan(source))
                 return GeneralPlanBase + templateSlotOffset + sourceTieBreaker;
 
             string buildingGroupId = ResolveBuildingGroupId(project, source);
@@ -97,6 +141,19 @@ internal static class StudioAlbumComponentOrderPolicy
             if (buildingGroup is not null)
             {
                 return BuildingOrder(BuildingRank(project, buildingGroup)) +
+                    BuildingSourceOffset +
+                    templateSlotOffset +
+                    sourceTieBreaker;
+            }
+
+            ProjectBuildingGroup? sharedBuilding =
+                ResolveSharedBuildingGroup(
+                    project,
+                    effectiveSourceKey,
+                    SharedSourceOwner(sharedSource));
+            if (sharedBuilding is not null)
+            {
+                return BuildingOrder(BuildingRank(project, sharedBuilding)) +
                     BuildingSourceOffset +
                     templateSlotOffset +
                     sourceTieBreaker;
@@ -110,10 +167,6 @@ internal static class StudioAlbumComponentOrderPolicy
                     code))
                 return GeneralPlanBase + templateSlotOffset + sourceTieBreaker;
 
-            ProjectCloudSourceReference? sharedSource = ResolveSharedSource(
-                project,
-                effectiveSourceKey,
-                code);
             ProjectBuildingGroup? sharedBuilding =
                 ResolveSharedBuildingGroup(
                     project,
@@ -131,11 +184,15 @@ internal static class StudioAlbumComponentOrderPolicy
         if (hasSourceSlice &&
             IsBuildingSectionIdentity(sectionKey))
         {
-            return FallbackBuildingBase + safeLocalOrder;
+            return FallbackBuildingBase +
+                templateSlotOffset +
+                sourceTieBreaker;
         }
 
         if (code.StartsWith("source:", StringComparison.OrdinalIgnoreCase))
-            return UnassignedSourceBase + safeLocalOrder;
+            return UnassignedSourceBase +
+                templateSlotOffset +
+                sourceTieBreaker;
 
         return 50_000;
     }
@@ -225,6 +282,15 @@ internal static class StudioAlbumComponentOrderPolicy
             "visualizations" => 12,
             _ => 79,
         };
+    }
+
+    private static int StableIdentityTieBreaker(string identity)
+    {
+        byte[] hash = SHA256.HashData(
+            Encoding.UTF8.GetBytes((identity ?? "").Trim().ToLowerInvariant()));
+        return (int)(
+            BitConverter.ToUInt32(hash, 0) %
+            (uint)TemplateSlotStride);
     }
 
     private static int BuildingRank(
@@ -404,6 +470,15 @@ internal static class StudioAlbumComponentOrderPolicy
                value.Contains("master plan", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static ProjectDesignSourcePurpose SharedSourcePurpose(
+        ProjectCloudSourceReference? source) =>
+        Enum.TryParse(
+            source?.SourcePurpose?.Trim(),
+            ignoreCase: true,
+            out ProjectDesignSourcePurpose purpose)
+            ? purpose
+            : ProjectDesignSourcePurpose.Unspecified;
+
     private static ProjectBuildingGroup? ResolveSharedBuildingGroup(
         ProjectWorkspace project,
         string sourceKey,
@@ -487,4 +562,20 @@ internal static class StudioAlbumComponentOrderPolicy
     private static bool IsBuildingSectionIdentity(string sectionKey) =>
         sectionKey.StartsWith("studio-building:", StringComparison.OrdinalIgnoreCase) ||
         sectionKey.StartsWith("package-building:", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsGeneralPlanSectionIdentity(string sectionKey)
+    {
+        string value = (sectionKey ?? "").Trim();
+        if (value.StartsWith("fixed:", StringComparison.OrdinalIgnoreCase))
+            value = value["fixed:".Length..].Trim();
+        return value.Equals(
+                   "Ерөнхий төлөвлөгөө",
+                   StringComparison.OrdinalIgnoreCase) ||
+               value.Equals(
+                   "general-plan",
+                   StringComparison.OrdinalIgnoreCase) ||
+               value.Equals(
+                   "general plan",
+                   StringComparison.OrdinalIgnoreCase);
+    }
 }

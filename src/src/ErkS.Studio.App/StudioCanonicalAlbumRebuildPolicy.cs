@@ -270,7 +270,13 @@ internal static class StudioCanonicalAlbumRebuildPolicy
         cloud.CanonicalAlbumRebuildComponentCodes =
             resolution.PendingComponentCodes.ToList();
         cloud.CanonicalAlbumPendingComponentTombstoneCodes =
-            resolution.TombstoneCodes.ToList();
+            resolution.TombstoneCodes
+                .Concat(resolution.RejectedTombstoneCodes)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
         if (resolution.IsPending)
         {
@@ -294,6 +300,10 @@ internal static class StudioCanonicalAlbumRebuildPolicy
         ArgumentNullException.ThrowIfNull(localProject);
         ProjectCloudLink cloud = localProject.Cloud;
         bool pending = cloud.CanonicalAlbumRebuildPending;
+        string[] announcedCodes = pending
+            ? NormalizeCodes(
+                cloud.CanonicalAlbumPendingComponentTombstoneCodes)
+            : [];
         return new StudioCanonicalAlbumRebuildResolution(
             pending,
             Math.Max(
@@ -306,11 +316,17 @@ internal static class StudioCanonicalAlbumRebuildPolicy
                 ? NormalizeCodes(cloud.CanonicalAlbumRebuildComponentCodes)
                 : [],
             pending
-                ? NormalizeCodes(
-                    cloud.CanonicalAlbumPendingComponentTombstoneCodes,
-                    lowerCase: true)
+                ? announcedCodes
+                    .Where(ProjectCloudSyncMetadata
+                        .IsBuildingSubCoverComponentCode)
+                    .ToArray()
                 : [],
-            []);
+            pending
+                ? announcedCodes
+                    .Where(code => !ProjectCloudSyncMetadata
+                        .IsBuildingSubCoverComponentCode(code))
+                    .ToArray()
+                : []);
     }
 
     public static IReadOnlyList<StudioAlbumComponentUpload> ApplyTombstoneUploads(
@@ -319,49 +335,22 @@ internal static class StudioCanonicalAlbumRebuildPolicy
         IEnumerable<StudioAlbumComponentUpload> existingUploads)
     {
         ArgumentNullException.ThrowIfNull(resolution);
-        Dictionary<string, StudioCloudAlbumSection> currentByCode =
-            (currentComponents ?? [])
-                .Where(component => !string.IsNullOrWhiteSpace(component.Code))
-                .GroupBy(component => component.Code.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .OrderBy(component => component.Order)
-                        .ThenBy(component =>
-                            (component.PageNumbers ?? []).FirstOrDefault())
-                        .First(),
-                    StringComparer.OrdinalIgnoreCase);
-        HashSet<string> tombstoneCodes = resolution.TombstoneCodes
-            .Where(ProjectCloudSyncMetadata.IsBuildingSubCoverComponentCode)
+        _ = currentComponents;
+        HashSet<string> serverAnnouncedCodes = resolution.TombstoneCodes
+            .Concat(resolution.RejectedTombstoneCodes)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
             .Select(code => code.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // The server tombstone is authoritative for the accepted building
-        // composition. Drop a stale local render of the same code and replace
-        // it with one remove-only descriptor.
-        var uploads = (existingUploads ?? [])
+        // Server-side canonical cleanup owns every announced tombstone. Studio
+        // must neither authorize nor echo a removal descriptor; it only drops
+        // stale local work for the same code and lets the empty/remaining merge
+        // request trigger the server's mandatory union.
+        return (existingUploads ?? [])
             .Where(upload =>
                 !string.IsNullOrWhiteSpace(upload.Code) &&
-                !tombstoneCodes.Contains(upload.Code.Trim()))
+                !serverAnnouncedCodes.Contains(upload.Code.Trim()))
             .ToList();
-        foreach (string code in tombstoneCodes
-                     .OrderBy(code => code, StringComparer.OrdinalIgnoreCase))
-        {
-            currentByCode.TryGetValue(
-                code,
-                out StudioCloudAlbumSection? current);
-            uploads.Add(new StudioAlbumComponentUpload(
-                code,
-                current?.Label ?? code,
-                current?.Order ?? 0,
-                "",
-                Remove: true,
-                SourceKey: current?.SourceKey ?? "",
-                ComponentKind: string.IsNullOrWhiteSpace(current?.ComponentKind)
-                    ? StudioAlbumComponentIdentity.GeneratedComponentKind
-                    : current.ComponentKind));
-        }
-        return uploads;
     }
 
     public static string Describe(

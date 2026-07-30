@@ -47,13 +47,41 @@ internal static class StudioAlbumComponentAcknowledgementPolicy
                 MatchesRequestedComponent(component, pending.Value));
             bool removalSubmitted = submittedUploads.Any(upload =>
                 upload.Remove &&
-                upload.Code.Equals(
-                    pending.Value,
-                    StringComparison.OrdinalIgnoreCase));
+                MatchesSubmittedRemoval(
+                    upload.Code,
+                    pending.Value));
             if (removalSubmitted ? !present : present)
                 confirmed.Add(pending.Key);
         }
         return confirmed;
+    }
+
+    private static bool MatchesSubmittedRemoval(
+        string submittedCode,
+        string requestedCode)
+    {
+        string submitted = (submittedCode ?? "").Trim();
+        string requested = (requestedCode ?? "").Trim();
+        if (submitted.Equals(
+                requested,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        if (!StudioAlbumComponentIdentity.IsOwnedSourceCode(requested) ||
+            StudioAlbumComponentIdentity.TryGetSourceSlice(
+                requested,
+                out _,
+                out _) ||
+            !StudioAlbumComponentIdentity.IsOwnedSourceCode(submitted))
+        {
+            return false;
+        }
+
+        return StudioAlbumComponentIdentity.BaseSourceCode(submitted)
+            .Equals(
+                StudioAlbumComponentIdentity.BaseSourceCode(requested),
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool MatchesRequestedComponent(

@@ -87,6 +87,7 @@ public sealed class GeneratedCloudEraClientRuntimeTests
                 "currentRevisionId": "revision-7",
                 "requiredBuildingCompositionVersion": 4,
                 "canonicalRebuildPending": true,
+                "canonicalReflowRequired": true,
                 "pendingComponentTombstoneCodes": [
                   "generated:building-sub-cover:studio-building:deleted-a"
                 ],
@@ -96,6 +97,7 @@ public sealed class GeneratedCloudEraClientRuntimeTests
                     "revisionNumber": 7,
                     "pdfFileId": "file-7",
                     "pdfSha256": "hash-7",
+                    "sourceUploadSha256": "source-hash-7",
                     "pageCount": 3,
                     "pageSizeSummary": "A3",
                     "buildingCompositionVersion": 3,
@@ -103,7 +105,29 @@ public sealed class GeneratedCloudEraClientRuntimeTests
                     "projectSnapshotId": "project-snapshot-7",
                     "organizationSnapshotId": "organization-snapshot-7",
                     "createdAtUtc": "2026-07-30T00:00:00Z",
-                    "sectionManifest": []
+                    "sectionManifest": [
+                      {
+                        "code": "source:owner:general-plan",
+                        "label": "General plan",
+                        "order": 100500,
+                        "pageNumbers": [1, 2, 3],
+                        "status": "Available",
+                        "ownerEmail": "owner@example.com",
+                        "sourceKey": "general-plan",
+                        "componentKind": "Source",
+                        "sectionKey": "fixed:Ерөнхий төлөвлөгөө",
+                        "sequenceKey": "traffic-scheme",
+                        "pages": [
+                          {
+                            "pageNumber": 1,
+                            "pageKey": "album-page:stable",
+                            "sortKey": "GP-2",
+                            "sectionKey": "source-building:general-plan",
+                            "sequenceKey": "traffic-scheme"
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               }
@@ -120,10 +144,19 @@ public sealed class GeneratedCloudEraClientRuntimeTests
 
         StudioCloudAlbum album = Assert.Single(albums);
         Assert.True(album.CanonicalRebuildPending);
+        Assert.True(album.CanonicalReflowRequired);
         Assert.Equal(4, album.RequiredBuildingCompositionVersion);
         Assert.Equal([tombstone], album.PendingComponentTombstoneCodes);
         StudioCloudAlbumRevision revision = Assert.Single(album.Revisions);
         Assert.Equal(3, revision.BuildingCompositionVersion);
+        Assert.Equal("source-hash-7", revision.SourceUploadSha256);
+        StudioCloudAlbumSection component =
+            Assert.Single(revision.SectionManifest);
+        Assert.Equal("fixed:Ерөнхий төлөвлөгөө", component.SectionKey);
+        Assert.Equal("traffic-scheme", component.SequenceKey);
+        StudioCloudAlbumComponentPage page = Assert.Single(component.Pages);
+        Assert.Equal("album-page:stable", page.PageKey);
+        Assert.Equal("GP-2", page.SortKey);
     }
 
     [Fact]
@@ -166,6 +199,7 @@ public sealed class GeneratedCloudEraClientRuntimeTests
             {
               "sourceId": "source-new",
               "sourceKey": "source-key",
+              "sourcePurpose": "Building",
               "registeredBy": "owner@erks.local",
               "contentHash": "hash-new"
             }
@@ -174,7 +208,7 @@ public sealed class GeneratedCloudEraClientRuntimeTests
         using var httpClient = new HttpClient(handler);
         var client = new CloudEraGeneratedContractClient(httpClient);
 
-        await client.RegisterSourcePackageAsync(
+        StudioCloudSourcePackage registered = await client.RegisterSourcePackageAsync(
             new CloudEraClientContext("https://erk-s.mn", "access-token"),
             "project-1",
             new StudioCloudSourcePackageCreateRequest
@@ -182,6 +216,7 @@ public sealed class GeneratedCloudEraClientRuntimeTests
                 ExpectedBaseSourceId = "source-current",
                 SourceKey = "source-key",
                 SourceApplication = "Revit",
+                SourcePurpose = "Building",
                 ManifestId = "manifest-2",
                 ContentHash = "hash-new",
             },
@@ -194,6 +229,12 @@ public sealed class GeneratedCloudEraClientRuntimeTests
             body.RootElement
                 .GetProperty("expectedBaseSourceId")
                 .GetString());
+        Assert.Equal(
+            "Building",
+            body.RootElement
+                .GetProperty("sourcePurpose")
+                .GetString());
+        Assert.Equal("Building", registered.SourcePurpose);
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

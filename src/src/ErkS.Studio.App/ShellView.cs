@@ -3690,6 +3690,7 @@ internal sealed partial class ShellView : IDisposable
                                 source),
                     SourceKey = source.SourceKey,
                     SourceApplication = source.SourceApplication,
+                    SourcePurpose = source.SourcePurpose,
                     SourceDocumentReference = source.SourceDocumentReference,
                     ManifestId = source.ManifestId,
                     ManifestSchemaVersion = source.ManifestSchemaVersion,
@@ -3829,7 +3830,8 @@ internal sealed partial class ShellView : IDisposable
             if (currentRevision is not null &&
                 (canPatchCurrentRevision ||
                  canRecoverHistoricalManifest ||
-                 missingRemoteSources.Count > 0))
+                 missingRemoteSources.Count > 0 ||
+                 serverAlbum.CanonicalReflowRequired))
             {
                 bool manifestBootstrapped = false;
                 if (currentRevision is not null && !HasCompleteComponentManifest(currentRevision))
@@ -3867,7 +3869,12 @@ internal sealed partial class ShellView : IDisposable
                     ? []
                     : PrepareAlbumRendererMigration(currentRevision);
                 int pendingComponentCount = authorizedPendingAlbumComponents.Count;
-                if (sourcePackages.Count == 0 && pendingComponentCount == 0)
+                bool shouldDispatchComponentMerge =
+                    StudioCanonicalAlbumReflowPolicy.ShouldDispatchComponentMerge(
+                        serverAlbum,
+                        sourcePackages.Count,
+                        pendingComponentCount);
+                if (!shouldDispatchComponentMerge)
                 {
                     syncNote = manifestBootstrapped
                         ? "Одоогийн Cloud album-ийн component manifest SHA-256 тулгалтаар баталгаажлаа. " +
@@ -3884,9 +3891,12 @@ internal sealed partial class ShellView : IDisposable
                             "Бүх source-той төхөөрөмжөөс нэг удаа бүтэн Sync хийнэ үү.");
                     }
 
-                    SetStatus(
-                        $"{missingRemoteSources.Count} remote source локалд байхгүй. " +
-                        "Зөвхөн энэ төхөөрөмжийн өөрчлөгдсөн бүрдлийг Cloud album-д merge хийж байна...");
+                    SetStatus(serverAlbum.CanonicalReflowRequired &&
+                        sourcePackages.Count == 0 &&
+                        pendingComponentCount == 0
+                            ? "Серверийн canonical хуудасны дарааллыг metadata-only reflow-оор сэргээж байна..."
+                            : $"{missingRemoteSources.Count} remote source локалд байхгүй. " +
+                              "Зөвхөн энэ төхөөрөмжийн өөрчлөгдсөн бүрдлийг Cloud album-д merge хийж байна...");
                     AlbumComponentMergeOutcome outcome = await MergePendingAlbumComponentsAsync(
                         projectId,
                         serverAlbum,
@@ -3912,7 +3922,10 @@ internal sealed partial class ShellView : IDisposable
                             StringComparer.OrdinalIgnoreCase);
                     markAlbumRendererAfterVerification =
                         rendererMigrationCodes.Count > 0;
-                    syncNote = outcome.ComponentCount == 0
+                    syncNote = outcome.ComponentCount == 0 &&
+                        serverAlbum.CanonicalReflowRequired
+                        ? $"Сервер canonical дарааллыг R{outcome.Revision.RevisionNumber}-д metadata-only reflow хийж баталгаажууллаа."
+                        : outcome.ComponentCount == 0
                         ? $"{missingRemoteSources.Count} remote source хадгалагдсан; component өөрчлөлт байгаагүй."
                         : $"{outcome.ComponentCount} component Cloud album R{outcome.Revision.RevisionNumber}-д merge хийгдлээ. " +
                           $"Бусад {missingRemoteSources.Count} remote source хэвээр хадгалагдсан.";
@@ -3962,7 +3975,9 @@ internal sealed partial class ShellView : IDisposable
                     List<StudioCloudAlbumSection> componentManifest =
                         CreateCanonicalComponentManifest(build, activeServerSources);
                     if (currentRevision != null &&
-                        currentRevision.PdfSha256.Equals(
+                        StudioAlbumRevisionAcknowledgementPolicy
+                            .SourceUploadSha256(currentRevision)
+                            .Equals(
                             localHash,
                             StringComparison.OrdinalIgnoreCase) &&
                         ComponentManifestsEqual(
@@ -3991,7 +4006,8 @@ internal sealed partial class ShellView : IDisposable
                     }
                     ProjectCloudSyncMetadata.ValidateAlbumAcknowledgement(
                         localHash,
-                        syncedRevision.PdfSha256,
+                        StudioAlbumRevisionAcknowledgementPolicy
+                            .SourceUploadSha256(syncedRevision),
                         syncedRevision.RevisionId);
                     currentRevision = syncedRevision;
                     confirmedPendingAlbumComponents =

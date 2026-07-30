@@ -20,6 +20,8 @@ internal static class StudioSharedSourceProjection
             SourceId = source.SourceId,
             SourceKey = source.SourceKey,
             SourceApplication = source.SourceApplication,
+            SourcePurpose = StudioSourcePurpose.Normalize(
+                source.SourcePurpose),
             SourceDocumentReference = source.SourceDocumentReference,
             ManifestId = source.ManifestId,
             ContentHash = source.ContentHash,

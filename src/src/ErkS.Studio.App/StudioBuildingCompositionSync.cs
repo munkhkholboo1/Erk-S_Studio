@@ -38,6 +38,13 @@ internal sealed class StudioBuildingCompositionConflictException :
             .ToList();
 }
 
+internal sealed record StudioBuildingCompositionApplyResult(
+    bool MirrorChanged,
+    bool LocalCompositionChanged)
+{
+    public bool Changed => MirrorChanged || LocalCompositionChanged;
+}
+
 /// <summary>
 /// Translates Studio's device-local sheet keys to the portable Cloud ERA
 /// identity (immutable source owner + source key + native sheet id). Native
@@ -77,12 +84,27 @@ internal static class StudioBuildingCompositionSync
         ProjectWorkspace project,
         SheetLibrary library,
         StudioCloudBuildingComposition? canonical,
+        bool preserveLocalEdits) =>
+        ApplyCanonicalWithResult(
+            project,
+            library,
+            canonical,
+            preserveLocalEdits).Changed;
+
+    public static StudioBuildingCompositionApplyResult ApplyCanonicalWithResult(
+        ProjectWorkspace project,
+        SheetLibrary library,
+        StudioCloudBuildingComposition? canonical,
         bool preserveLocalEdits)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(library);
         if (canonical is null)
-            return false;
+        {
+            return new StudioBuildingCompositionApplyResult(
+                MirrorChanged: false,
+                LocalCompositionChanged: false);
+        }
 
         List<ProjectBuildingGroup> groups = ProjectBuildingComposition.NormalizeGroups(
             (canonical.Groups ?? [])
@@ -96,7 +118,7 @@ internal static class StudioBuildingCompositionSync
         List<ProjectCloudBuildingSheetAssignmentReference> assignments =
             NormalizeAssignments(canonical.SheetAssignments, groups);
 
-        bool changed =
+        bool mirrorChanged =
             project.Cloud.SharedBuildingCompositionVersion != Math.Max(1, canonical.Version) ||
             !GroupsEqual(project.Cloud.SharedBuildingGroups, groups) ||
             !AssignmentsEqual(project.Cloud.SharedBuildingSheetAssignments, assignments);
@@ -112,16 +134,23 @@ internal static class StudioBuildingCompositionSync
         project.Cloud.SharedBuildingSheetAssignments = assignments;
 
         if (preserveLocalEdits)
-            return changed;
+        {
+            return new StudioBuildingCompositionApplyResult(
+                mirrorChanged,
+                LocalCompositionChanged: false);
+        }
 
         project.Cloud.PendingBuildingGroupDeletionIds = [];
         Dictionary<string, string> localAssignments =
             MaterializeAssignments(project, library, groups, assignments);
-        changed |= !LocalGroupsEqual(project.BuildingGroups, groups) ||
+        bool localCompositionChanged =
+            !LocalGroupsEqual(project.BuildingGroups, groups) ||
             !DictionaryEqual(project.SheetBuildingAssignments, localAssignments);
         project.BuildingGroups = groups.Select(group => group.Clone()).ToList();
         project.SheetBuildingAssignments = localAssignments;
-        return changed;
+        return new StudioBuildingCompositionApplyResult(
+            mirrorChanged,
+            localCompositionChanged);
     }
 
     public static StudioCloudBuildingCompositionUpdateRequest CreateUpdate(

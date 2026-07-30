@@ -660,6 +660,7 @@ internal sealed class StudioCloudAlbum
     public string CurrentRevisionId { get; set; } = "";
     public int RequiredBuildingCompositionVersion { get; set; }
     public bool CanonicalRebuildPending { get; set; }
+    public bool CanonicalReflowRequired { get; set; }
     public List<string> PendingComponentTombstoneCodes { get; set; } = [];
     public List<StudioCloudAlbumRevision> Revisions { get; set; } = [];
 }
@@ -670,6 +671,7 @@ internal sealed class StudioCloudAlbumRevision
     public int RevisionNumber { get; set; }
     public string PdfFileId { get; set; } = "";
     public string PdfSha256 { get; set; } = "";
+    public string SourceUploadSha256 { get; set; } = "";
     public int PageCount { get; set; }
     public string PageSizeSummary { get; set; } = "";
     public string Status { get; set; } = "";
@@ -688,6 +690,18 @@ internal sealed class StudioCloudAlbumSection
     public string OwnerEmail { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string ComponentKind { get; set; } = "";
+    public string SectionKey { get; set; } = "";
+    public string SequenceKey { get; set; } = "";
+    public List<StudioCloudAlbumComponentPage> Pages { get; set; } = [];
+}
+
+internal sealed class StudioCloudAlbumComponentPage
+{
+    public int PageNumber { get; set; }
+    public string PageKey { get; set; } = "";
+    public string SortKey { get; set; } = "";
+    public string SectionKey { get; set; } = "";
+    public string SequenceKey { get; set; } = "";
 }
 
 internal sealed class StudioCloudAlbumComponentManifestUpdateRequest
@@ -706,6 +720,9 @@ internal sealed class StudioCloudAlbumComponentUploadDescriptor
     public bool Remove { get; set; }
     public string SourceKey { get; set; } = "";
     public string ComponentKind { get; set; } = "";
+    public string SectionKey { get; set; } = "";
+    public string SequenceKey { get; set; } = "";
+    public List<StudioCloudAlbumComponentPage> Pages { get; set; } = [];
 }
 
 internal sealed record StudioAlbumComponentUpload(
@@ -715,7 +732,10 @@ internal sealed record StudioAlbumComponentUpload(
     string PdfPath,
     bool Remove = false,
     string SourceKey = "",
-    string ComponentKind = "");
+    string ComponentKind = "",
+    string SectionKey = "",
+    string SequenceKey = "",
+    IReadOnlyList<StudioCloudAlbumComponentPage>? Pages = null);
 
 internal sealed class StudioCloudAlbumUploadStartRequest
 {
@@ -746,6 +766,7 @@ internal sealed class StudioCloudSourcePackageCreateRequest
     public string ExpectedBaseSourceId { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string SourceApplication { get; set; } = "";
+    public string SourcePurpose { get; set; } = "";
     public string SourceDocumentReference { get; set; } = "";
     public string ManifestId { get; set; } = "";
     public string ManifestSchemaVersion { get; set; } = "1";
@@ -760,6 +781,7 @@ internal sealed class StudioCloudSourcePackage
     public string SourceId { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string SourceApplication { get; set; } = "";
+    public string SourcePurpose { get; set; } = "";
     public string SourceDocumentReference { get; set; } = "";
     public string ManifestId { get; set; } = "";
     public string ManifestSchemaVersion { get; set; } = "";

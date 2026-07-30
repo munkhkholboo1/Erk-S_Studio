@@ -86,6 +86,52 @@ public sealed class CloudEraChunkedAlbumUploaderTests
     }
 
     [Fact]
+    public async Task UploadAsync_AcknowledgesSourceHashWhenServerCanonicalizesPdf()
+    {
+        byte[] pdf = Encoding.ASCII.GetBytes(
+            "%PDF-1.4\n% source-before-server-reorder\n%%EOF");
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString("N") + ".pdf");
+        await File.WriteAllBytesAsync(path, pdf);
+        try
+        {
+            RecordingHandler handler = new(
+                chunkSize: 7,
+                expectedFile: pdf,
+                expectedBaseRevisionId: "revision0",
+                canonicalRewrite: true);
+            using HttpClient client = new(handler);
+
+            StudioCloudAlbumRevision revision =
+                await CloudEraChunkedAlbumUploader.UploadAsync(
+                    client,
+                    "http://127.0.0.1:5055",
+                    "token-value",
+                    "project1",
+                    "album1",
+                    path,
+                    pageCount: 4,
+                    pageSizeSummary: "A3",
+                    projectConcurrencyToken: "project-token-1",
+                    expectedBaseRevisionId: "revision0",
+                    inheritComponentManifest: false,
+                    componentManifest: null,
+                    CancellationToken.None);
+
+            string sourceHash = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(pdf))
+                .ToLowerInvariant();
+            Assert.Equal(sourceHash, revision.SourceUploadSha256);
+            Assert.NotEqual(sourceHash, revision.PdfSha256);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task UploadAsync_SendsSuppliedComponentManifestInStartRequest()
     {
         byte[] pdf = Encoding.ASCII.GetBytes("%PDF-1.4\n% vector-content\n%%EOF");
@@ -121,6 +167,16 @@ public sealed class CloudEraChunkedAlbumUploaderTests
                         Order = 0,
                         PageNumbers = [1],
                         Status = "Available",
+                        Pages =
+                        [
+                            new StudioCloudAlbumComponentPage
+                            {
+                                PageNumber = 1,
+                                PageKey = "album-page:cover",
+                                SortKey = "C-1",
+                                SequenceKey = "cover",
+                            },
+                        ],
                     },
                 ],
                 CancellationToken.None);
@@ -138,7 +194,8 @@ public sealed class CloudEraChunkedAlbumUploaderTests
         byte[] expectedFile,
         string? expectedBaseRevisionId = null,
         bool inheritComponentManifest = false,
-        bool expectComponentManifest = false) : HttpMessageHandler
+        bool expectComponentManifest = false,
+        bool canonicalRewrite = false) : HttpMessageHandler
     {
         private readonly List<byte[]> chunks = [];
         private readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
@@ -171,6 +228,10 @@ public sealed class CloudEraChunkedAlbumUploaderTests
                     StudioCloudAlbumSection component = Assert.Single(start.ComponentManifest);
                     Assert.Equal("generated:cover", component.Code);
                     Assert.Equal([1], component.PageNumbers);
+                    StudioCloudAlbumComponentPage page =
+                        Assert.Single(component.Pages);
+                    Assert.Equal("album-page:cover", page.PageKey);
+                    Assert.Equal("C-1", page.SortKey);
                 }
                 else
                 {
@@ -211,7 +272,16 @@ public sealed class CloudEraChunkedAlbumUploaderTests
                 {
                     RevisionId = "revision1",
                     RevisionNumber = 1,
-                    PdfSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(expectedFile)).ToLowerInvariant(),
+                    PdfSha256 = canonicalRewrite
+                        ? new string('a', 64)
+                        : Convert.ToHexString(
+                            System.Security.Cryptography.SHA256.HashData(
+                                expectedFile)).ToLowerInvariant(),
+                    SourceUploadSha256 = canonicalRewrite
+                        ? Convert.ToHexString(
+                            System.Security.Cryptography.SHA256.HashData(
+                                expectedFile)).ToLowerInvariant()
+                        : "",
                     PageCount = 4,
                     PageSizeSummary = "A3",
                     Status = "Draft",

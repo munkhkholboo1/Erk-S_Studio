@@ -6654,6 +6654,36 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAlbumComponentPageDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageNumber")]
+        public int PageNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageKey")]
+        public string PageKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sortKey")]
+        public string SortKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sectionKey")]
+        public string SectionKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sequenceKey")]
+        public string SequenceKey { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraAlbumDto
     {
 
@@ -6677,6 +6707,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("canonicalRebuildPending")]
         public bool CanonicalRebuildPending { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("canonicalReflowRequired")]
+        public bool CanonicalReflowRequired { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("pendingComponentTombstoneCodes")]
         public System.Collections.Generic.ICollection<string> PendingComponentTombstoneCodes { get; set; }
@@ -6710,6 +6743,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("pdfSha256")]
         public string PdfSha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceUploadSha256")]
+        public string SourceUploadSha256 { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("pageCount")]
         public int PageCount { get; set; }
@@ -6773,6 +6809,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("componentKind")]
         public string ComponentKind { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sectionKey")]
+        public string SectionKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sequenceKey")]
+        public string SequenceKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pages")]
+        public System.Collections.Generic.ICollection<CloudEraAlbumComponentPageDto> Pages { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -8790,6 +8835,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("sourceApplication")]
         public string SourceApplication { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("sourcePurpose")]
+        public string SourcePurpose { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("sourceDocumentReference")]
         public string SourceDocumentReference { get; set; }
 
@@ -8834,6 +8882,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("sourceApplication")]
         public string SourceApplication { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourcePurpose")]
+        public string SourcePurpose { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("sourceDocumentReference")]
         public string SourceDocumentReference { get; set; }

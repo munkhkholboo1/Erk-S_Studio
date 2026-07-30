@@ -123,6 +123,79 @@ public sealed class StudioAlbumComponentAcknowledgementPolicyTests
                 [removal]));
     }
 
+    [Fact]
+    public void OwnedBaseRemovalIsAcknowledgedWhenEverySubmittedSliceIsAbsent()
+    {
+        const string owner = "architect@erks.local";
+        const string sourceKey = "school-source";
+        string baseCode =
+            StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+        string floorPlans = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:school",
+            "floor-plans");
+        string sections = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:school",
+            "sections");
+        var pending = new Dictionary<string, string>
+        {
+            ["source-removal"] = baseCode,
+        };
+
+        IReadOnlyList<string> confirmed =
+            StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
+                pending,
+                [],
+                [
+                    Removal(floorPlans),
+                    Removal(sections),
+                ]);
+
+        Assert.Equal(["source-removal"], confirmed);
+    }
+
+    [Fact]
+    public void OwnedBaseRemovalStaysPendingWhileAnySiblingSliceRemains()
+    {
+        const string owner = "architect@erks.local";
+        const string sourceKey = "school-source";
+        string baseCode =
+            StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
+        string floorPlans = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:school",
+            "floor-plans");
+        string sections = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "studio-building:school",
+            "sections");
+        var pending = new Dictionary<string, string>
+        {
+            ["source-removal"] = baseCode,
+        };
+
+        IReadOnlyList<string> confirmed =
+            StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
+                pending,
+                [Component(sections, "Source")],
+                [Removal(floorPlans)]);
+
+        Assert.Empty(confirmed);
+    }
+
+    private static StudioAlbumComponentUpload Removal(string code) =>
+        new(
+            code,
+            "Removed source slice",
+            0,
+            "",
+            Remove: true);
+
     private static StudioCloudAlbumSection Component(
         string code,
         string kind) => new()

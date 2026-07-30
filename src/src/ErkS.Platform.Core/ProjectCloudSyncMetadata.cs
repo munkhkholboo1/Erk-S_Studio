@@ -8,6 +8,7 @@ public sealed record ProjectSourceSyncCandidate(
     ProjectDesignSource Source,
     string SourceKey,
     string SourceApplication,
+    string SourcePurpose,
     string SourceDocumentReference,
     string ManifestId,
     string ManifestSchemaVersion,
@@ -23,6 +24,7 @@ public sealed record ProjectSourceSyncCandidate(
 /// </summary>
 public static class ProjectCloudSyncMetadata
 {
+    public const string CurrentSourceSemanticSyncVersion = "1";
     public const string CoverComponentCode = "generated:cover:Cover";
     public const string CompanyRegistrationComponentCode =
         "generated:design-organization:CompanyRegistrationCertificate";
@@ -46,6 +48,8 @@ public static class ProjectCloudSyncMetadata
     private const string ContentHashKey = "cloud.contentHash";
     private const string SyncedManifestIdKey = "cloud.syncedManifestId";
     private const string SyncedContentHashKey = "cloud.syncedContentHash";
+    private const string SyncedSemanticVersionKey = "cloud.syncedSemanticVersion";
+    private const string SyncedSourcePurposeKey = "cloud.syncedSourcePurpose";
     private const string OwnerEmailKey = "cloud.ownerEmail";
 
     public static void RecordPackage(
@@ -151,6 +155,7 @@ public static class ProjectCloudSyncMetadata
                 source,
                 Value(metadata, SourceKeyKey, source.Id),
                 Value(metadata, SourceApplicationKey, "Studio"),
+                ProjectDesignSourceClassification.EffectivePurpose(source).ToString(),
                 Value(metadata, SourceDocumentReferenceKey),
                 manifestId,
                 Value(metadata, ManifestSchemaVersionKey, "1"),
@@ -175,6 +180,10 @@ public static class ProjectCloudSyncMetadata
         candidate.Source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         candidate.Source.Metadata[SyncedManifestIdKey] = candidate.ManifestId;
         candidate.Source.Metadata[SyncedContentHashKey] = candidate.ContentHash;
+        candidate.Source.Metadata[SyncedSemanticVersionKey] =
+            CurrentSourceSemanticSyncVersion;
+        candidate.Source.Metadata[SyncedSourcePurposeKey] =
+            candidate.SourcePurpose;
     }
 
     public static IReadOnlyList<string> PendingAlbumComponents(ProjectWorkspace project)
@@ -624,7 +633,13 @@ public static class ProjectCloudSyncMetadata
     {
         Dictionary<string, string> metadata = candidate.Source.Metadata ?? new(StringComparer.OrdinalIgnoreCase);
         return candidate.ManifestId.Equals(Value(metadata, SyncedManifestIdKey), StringComparison.OrdinalIgnoreCase) &&
-            candidate.ContentHash.Equals(Value(metadata, SyncedContentHashKey), StringComparison.OrdinalIgnoreCase);
+            candidate.ContentHash.Equals(Value(metadata, SyncedContentHashKey), StringComparison.OrdinalIgnoreCase) &&
+            CurrentSourceSemanticSyncVersion.Equals(
+                Value(metadata, SyncedSemanticVersionKey),
+                StringComparison.Ordinal) &&
+            candidate.SourcePurpose.Equals(
+                Value(metadata, SyncedSourcePurposeKey),
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private static string SourceApplication(SheetSourceApplication application) => application switch

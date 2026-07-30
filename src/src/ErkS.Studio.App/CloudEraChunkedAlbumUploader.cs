@@ -119,7 +119,9 @@ internal static class CloudEraChunkedAlbumUploader
         StudioCloudAlbumRevision revision = await ReadResponseAsync<StudioCloudAlbumRevision>(
             completeResponse,
             cancellationToken).ConfigureAwait(true);
-        if (!revision.PdfSha256.Equals(sha256, StringComparison.OrdinalIgnoreCase))
+        if (!StudioAlbumRevisionAcknowledgementPolicy
+                .SourceUploadSha256(revision)
+                .Equals(sha256, StringComparison.OrdinalIgnoreCase))
             throw new StudioAccountException("Cloud ERA server хүлээн авсан альбумын SHA-256 локал PDF-тэй тохирохгүй байна.");
         return revision;
     }

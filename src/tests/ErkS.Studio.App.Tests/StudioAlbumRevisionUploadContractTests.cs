@@ -46,13 +46,26 @@ public sealed class StudioAlbumRevisionUploadContractTests
             componentManifest:
             [
                 new StudioCloudAlbumSection
-                {
-                    Code = "generated:cover",
-                    Label = "Cover",
-                    Order = 0,
-                    PageNumbers = [1],
-                    Status = "Available",
-                },
+                    {
+                        Code = "generated:cover",
+                        Label = "Cover",
+                        Order = 0,
+                        PageNumbers = [1],
+                        Status = "Available",
+                        SectionKey = "fixed:Ерөнхий хэсэг",
+                        SequenceKey = "cover",
+                        Pages =
+                        [
+                            new StudioCloudAlbumComponentPage
+                            {
+                                PageNumber = 1,
+                                PageKey = "album-page:cover",
+                                SortKey = "C-1",
+                                SectionKey = "fixed:cover",
+                                SequenceKey = "cover",
+                            },
+                        ],
+                    },
             ]);
 
         Dictionary<string, string> fields = await ReadFieldsAsync(content);
@@ -64,6 +77,11 @@ public sealed class StudioAlbumRevisionUploadContractTests
         StudioCloudAlbumSection component = Assert.Single(manifest!);
         Assert.Equal("generated:cover", component.Code);
         Assert.Equal([1], component.PageNumbers);
+        Assert.Equal("fixed:Ерөнхий хэсэг", component.SectionKey);
+        Assert.Equal("cover", component.SequenceKey);
+        StudioCloudAlbumComponentPage page = Assert.Single(component.Pages);
+        Assert.Equal("album-page:cover", page.PageKey);
+        Assert.Equal("C-1", page.SortKey);
     }
 
     [Fact]

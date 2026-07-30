@@ -28,12 +28,10 @@ internal static class CloudEraAlbumComponentUploader
         List<StudioAlbumComponentUpload> uploads = (components ?? [])
             .Where(item => item is not null)
             .ToList();
-        if (uploads.Count == 0)
-            throw new StudioAccountException("No album source component was selected for sync.");
         if (uploads.Count > 32)
         {
             throw new StudioAccountException(
-                "Album component sync accepts between 1 and 32 components per request.");
+                "Album component sync accepts at most 32 components per request.");
         }
         if (uploads.Any(item => !item.Remove && !File.Exists(item.PdfPath)))
             throw new StudioAccountException("One or more rendered album component PDFs are unavailable.");
@@ -61,6 +59,18 @@ internal static class CloudEraAlbumComponentUploader
                 Remove = component.Remove,
                 SourceKey = component.SourceKey,
                 ComponentKind = component.ComponentKind,
+                SectionKey = component.SectionKey,
+                SequenceKey = component.SequenceKey,
+                Pages = (component.Pages ?? [])
+                    .Select(page => new StudioCloudAlbumComponentPage
+                    {
+                        PageNumber = page.PageNumber,
+                        PageKey = page.PageKey,
+                        SortKey = page.SortKey,
+                        SectionKey = page.SectionKey,
+                        SequenceKey = page.SequenceKey,
+                    })
+                    .ToList(),
             });
 
             if (!component.Remove)

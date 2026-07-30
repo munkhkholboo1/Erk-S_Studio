@@ -625,6 +625,179 @@ public sealed class StudioAlbumComponentOrderPolicyTests
         Assert.True(section < elevation);
     }
 
+    [Fact]
+    public void Resolve_FixedGeneralPlanSliceWinsOverDeviceLocalLegacyClassification()
+    {
+        const string owner = "planner@example.com";
+        const string sourceKey = "legacy-autocad";
+        string code = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            sourceKey,
+            "fixed:Ерөнхий төлөвлөгөө",
+            "traffic-scheme");
+        var sourceOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            [StudioAlbumComponentIdentity.BaseSourceCode(code)] = 0,
+        };
+        ProjectWorkspace localDevice = new()
+        {
+            Sources =
+            [
+                new ProjectDesignSource
+                {
+                    Id = sourceKey,
+                    Kind = DesignSourceKind.AutoCad,
+                },
+            ],
+        };
+        ProjectWorkspace cloudOnlyDevice = new()
+        {
+            Cloud = new ProjectCloudLink
+            {
+                SharedSources =
+                [
+                    new ProjectCloudSourceReference
+                    {
+                        SourceKey = sourceKey,
+                        SourceApplication = "AutoCAD",
+                        SourcePurpose = "GeneralPlan",
+                        RegisteredBy = owner,
+                        OwnerEmail = owner,
+                        Status = "Registered",
+                    },
+                ],
+            },
+        };
+
+        int localOrder = Resolve(localDevice, code, sourceKey, 999_999, sourceOrder);
+        int cloudOrder = Resolve(cloudOnlyDevice, code, sourceKey, 1, sourceOrder);
+
+        Assert.Equal(cloudOrder, localOrder);
+        Assert.InRange(localOrder, 100_000, 199_999);
+    }
+
+    [Fact]
+    public void Resolve_TwoAutoCadSourcesUsePurposeSequenceAndBuildingGroupOrder()
+    {
+        const string owner = "architect@example.com";
+        const string generalPlanKey = "autocad-general";
+        const string buildingKey = "autocad-building";
+        var building = new ProjectBuildingGroup
+        {
+            Id = "school",
+            Name = "School",
+            Order = 2,
+        };
+        ProjectWorkspace project = new()
+        {
+            BuildingGroups = [building],
+            Cloud = new ProjectCloudLink
+            {
+                SharedSources =
+                [
+                    new ProjectCloudSourceReference
+                    {
+                        SourceKey = generalPlanKey,
+                        SourceApplication = "AutoCAD",
+                        SourcePurpose = "GeneralPlan",
+                        RegisteredBy = owner,
+                        OwnerEmail = owner,
+                        Status = "Registered",
+                    },
+                    new ProjectCloudSourceReference
+                    {
+                        SourceKey = buildingKey,
+                        SourceApplication = "AutoCAD",
+                        SourcePurpose = "Building",
+                        RegisteredBy = owner,
+                        OwnerEmail = owner,
+                        Status = "Registered",
+                    },
+                ],
+                SharedBuildingSheetAssignments =
+                [
+                    new ProjectCloudBuildingSheetAssignmentReference
+                    {
+                        SourceOwnerEmail = owner,
+                        SourceKey = buildingKey,
+                        SheetId = "A-01",
+                        BuildingGroupId = building.Id,
+                    },
+                ],
+            },
+        };
+        string traffic = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            generalPlanKey,
+            "fixed:Ерөнхий төлөвлөгөө",
+            "traffic-scheme");
+        string masterPlan = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            generalPlanKey,
+            "fixed:Ерөнхий төлөвлөгөө",
+            "master-plan");
+        string buildingPlan = StudioAlbumComponentIdentity.SourceSliceCode(
+            owner,
+            buildingKey,
+            "studio-building:" + building.Id,
+            "floor-plans");
+        var sourceOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            [StudioAlbumComponentIdentity.BaseSourceCode(traffic)] = 0,
+            [StudioAlbumComponentIdentity.BaseSourceCode(buildingPlan)] = 1,
+        };
+
+        int trafficOrder = Resolve(project, traffic, generalPlanKey, 8, sourceOrder);
+        int masterOrder = Resolve(project, masterPlan, generalPlanKey, 7, sourceOrder);
+        int coverOrder = Resolve(
+            project,
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(building),
+            "",
+            6,
+            sourceOrder);
+        int buildingOrder = Resolve(project, buildingPlan, buildingKey, 5, sourceOrder);
+
+        Assert.True(trafficOrder < masterOrder);
+        Assert.True(masterOrder < coverOrder);
+        Assert.True(coverOrder < buildingOrder);
+    }
+
+    [Fact]
+    public void StableSourceOrderIgnoresRegistrationTimestampAndInputOrder()
+    {
+        StudioCloudSourcePackage[] first =
+        [
+            CloudSource("source-b", "b@example.com", new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+            CloudSource("source-a", "a@example.com", new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+        ];
+        StudioCloudSourcePackage[] second =
+        [
+            CloudSource("source-a", "a@example.com", new DateTimeOffset(2040, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+            CloudSource("source-b", "b@example.com", new DateTimeOffset(2010, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+        ];
+
+        IReadOnlyDictionary<string, int> firstOrder =
+            StudioAlbumComponentOrderPolicy.CreateStableSourceOrder(first);
+        IReadOnlyDictionary<string, int> secondOrder =
+            StudioAlbumComponentOrderPolicy.CreateStableSourceOrder(second);
+
+        Assert.Equal(
+            firstOrder.OrderBy(item => item.Key),
+            secondOrder.OrderBy(item => item.Key));
+    }
+
+    private static StudioCloudSourcePackage CloudSource(
+        string sourceKey,
+        string owner,
+        DateTimeOffset registeredAtUtc) => new()
+    {
+        SourceId = sourceKey + "-id",
+        SourceKey = sourceKey,
+        RegisteredBy = owner,
+        RegisteredAtUtc = registeredAtUtc,
+        Status = "Registered",
+    };
+
     private static int Resolve(
         ProjectWorkspace project,
         string componentCode,

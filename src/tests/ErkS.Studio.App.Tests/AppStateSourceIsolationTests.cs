@@ -300,6 +300,13 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             component.ComponentKind.Equals(
                 StudioAlbumComponentIdentity.SourceComponentKind,
                 StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal(
+            ["album-page:" + ownerA, "album-page:" + ownerB],
+            state.Project.Cloud.SharedAlbumComponents
+                .Where(component => component.Pages.Count > 0)
+                .Select(component => Assert.Single(component.Pages).PageKey)
+                .Order()
+                .ToArray());
         ProjectWorkspace persisted = ProjectWorkspaceStore.Load(projectPath);
         Assert.Equal(
             "architect-a@erks.local",
@@ -307,6 +314,13 @@ public sealed class AppStateSourceIsolationTests : IDisposable
         Assert.Equal(2, persisted.Cloud.SharedSources.Count);
         Assert.Contains(persisted.Cloud.SharedAlbumComponents, component => component.Code == codeA);
         Assert.Contains(persisted.Cloud.SharedAlbumComponents, component => component.Code == codeB);
+        Assert.Equal(
+            ["album-page:" + ownerA, "album-page:" + ownerB],
+            persisted.Cloud.SharedAlbumComponents
+                .Where(component => component.Pages.Count > 0)
+                .Select(component => Assert.Single(component.Pages).PageKey)
+                .Order()
+                .ToArray());
     }
 
     [Fact]
@@ -361,6 +375,71 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             "account-b@example.com",
             persisted.Cloud.PermissionSnapshotAccountEmail);
         Assert.Equal(["team.manage"], persisted.Cloud.CurrentUserScopes);
+    }
+
+    [Fact]
+    public void LinkCloudProject_MirrorVersionOnlyChangeDoesNotReorderLocalAlbumPages()
+    {
+        const string sourceId = "general-plan";
+        var source = new ProjectDesignSource
+        {
+            Id = sourceId,
+            Kind = DesignSourceKind.CityGen,
+            Name = "General plan",
+            NativeDocumentTitle = "GeneralPlan.dwg",
+            InboxFolder = Path.Combine(
+                workDirectory,
+                "sources",
+                sourceId,
+                "deliveries"),
+        };
+        var (projectPath, albumPath) = WriteProject(
+            sources: [source],
+            pageKeys: [sourceId + "|master", sourceId + "|traffic"],
+            lastPdfPath: "",
+            cloudMirror: true);
+        ProjectWorkspace project = ProjectWorkspaceStore.Load(projectPath);
+        project.Cloud.SharedBuildingCompositionVersion = 1;
+        ProjectWorkspaceStore.Save(project, projectPath);
+        StudioAlbumDocument album = StudioAlbumDocumentStore.Load(albumPath);
+        album.Definition.Pages[0].TemplateSlotId = "master-plan";
+        album.Definition.Pages[1].TemplateSlotId = "traffic-scheme";
+        StudioAlbumDocumentStore.Save(album, albumPath);
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+        var cloud = new StudioCloudProjectDetail
+        {
+            Project = new StudioCloudProjectSummary
+            {
+                ProjectId = "cloud-project-1",
+                ProjectCode = "TEST-001",
+                Name = "Source isolation test",
+                CurrentStage = "ConceptDesign",
+                ConcurrencyToken = "token-2",
+            },
+            BuildingComposition = new StudioCloudBuildingComposition
+            {
+                Version = 2,
+                Groups = [],
+                SheetAssignments = [],
+            },
+        };
+
+        state.LinkCurrentProjectToCloud(
+            cloud,
+            "https://erk-s.mn",
+            "architect@example.com",
+            preserveCreation: true,
+            preserveSyncState: true);
+
+        Assert.Equal(
+            [sourceId + "|master", sourceId + "|traffic"],
+            state.Album.Pages.Select(page => page.SheetKey));
+        StudioAlbumDocument persisted =
+            StudioAlbumDocumentStore.Load(state.AlbumPath!);
+        Assert.Equal(
+            [sourceId + "|master", sourceId + "|traffic"],
+            persisted.Definition.Pages.Select(page => page.SheetKey));
     }
 
     [Fact]
@@ -504,5 +583,15 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             OwnerEmail = ownerEmail,
             SourceKey = sourceKey,
             ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
+            Pages =
+            [
+                new StudioCloudAlbumComponentPage
+                {
+                    PageNumber = page,
+                    PageKey = "album-page:" + ownerEmail,
+                    SortKey = "A-" + page,
+                    SequenceKey = "floor-plans",
+                },
+            ],
         };
 }

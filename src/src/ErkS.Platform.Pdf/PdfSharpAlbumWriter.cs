@@ -1,4 +1,5 @@
 using ErkS.Platform.Core;
+using ErkS.Platform.Contracts;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
@@ -34,7 +35,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             int firstPageIndex,
             string sourceIdentity = "",
             string sectionKey = "",
-            string sequenceKey = "")
+            string sequenceKey = "",
+            AlbumBuildPage? sourcePage = null)
         {
             int lastPageIndex = document.PageCount;
             if (lastPageIndex <= firstPageIndex)
@@ -56,6 +58,30 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             {
                 if (!component.PageNumbers.Contains(page))
                     component.PageNumbers.Add(page);
+                if (sourcePage is null ||
+                    component.Pages.Any(item => item.PageNumber == page))
+                {
+                    continue;
+                }
+
+                int componentPageOffset = page - firstPageIndex - 1;
+                int nativePageNumber = sourcePage.Sheet.Entry.PdfPageNumber > 0
+                    ? sourcePage.Sheet.Entry.PdfPageNumber + componentPageOffset
+                    : componentPageOffset + 1;
+                string nativeSheetId =
+                    FirstStableNativeIdentity(sourcePage.Sheet.Entry);
+                component.Pages.Add(new AlbumBuildComponentPage
+                {
+                    PageNumber = page,
+                    NativeSheetId = nativeSheetId,
+                    NativePageNumber = nativePageNumber,
+                    SortKey = StablePageSortKey(
+                        sourcePage.Sheet.Entry,
+                        nativeSheetId,
+                        nativePageNumber),
+                    SectionKey = sectionKey,
+                    SequenceKey = sequenceKey,
+                });
             }
         }
 
@@ -143,7 +169,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                     firstPageIndex,
                     sourceIdentity,
                     sectionKey,
-                    sequenceKey);
+                    sequenceKey,
+                    buildPage);
 
                 sheetCount++;
             }
@@ -195,6 +222,32 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         result.Components.AddRange(components.Values
             .OrderBy(item => item.Order));
         return result;
+    }
+
+    private static string FirstStableNativeIdentity(SheetPackageEntry entry)
+    {
+        string value = (entry.SheetId ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(value))
+            return value;
+        value = (entry.DrawingAssetId ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(value))
+            return value;
+        value = (entry.Number ?? "").Trim();
+        return string.IsNullOrWhiteSpace(value)
+            ? "native-page"
+            : value;
+    }
+
+    private static string StablePageSortKey(
+        SheetPackageEntry entry,
+        string nativeSheetId,
+        int nativePageNumber)
+    {
+        string sheetNumber = (entry.Number ?? "").Trim();
+        string prefix = string.IsNullOrWhiteSpace(sheetNumber)
+            ? nativeSheetId
+            : sheetNumber;
+        return $"{prefix}|{nativeSheetId}|{nativePageNumber:D8}";
     }
 
     private static void ImportSourceAsIs(PdfDocument document, SheetRecord sheet)

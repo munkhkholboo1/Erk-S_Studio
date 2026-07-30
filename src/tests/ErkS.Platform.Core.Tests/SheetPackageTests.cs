@@ -1617,6 +1617,32 @@ public sealed class SheetPackageTests : IDisposable
             scenario.Sources.Single().Id);
 
         IReadOnlyList<AlbumPageDefinition> ordered =
+            BuildingArchitectureConceptAlbumSequencer
+                .OrderPagesAfterSourceReconciliation(
+                scenario.Definition,
+                scenario.Definition.Pages,
+                library,
+                scenario.Sources,
+                scenario.Sources.Single().Id,
+                scenario.BuildingGroups,
+                scenario.Assignments);
+
+        Assert.Equal(
+            [scenario.SheetBKey, scenario.SheetAKey],
+            ordered.Select(page => page.SheetKey));
+    }
+
+    [Fact]
+    public void ConceptAlbumOrderPages_FullHydrationDoesNotChangePersistedOrderOutsideReconciliation()
+    {
+        ConceptOrderHydrationScenario scenario =
+            CreateConceptOrderHydrationScenario("full-hydration-persisted-order");
+        var library = new SheetLibrary();
+        library.Absorb(
+            scenario.Package,
+            scenario.Sources.Single().Id);
+
+        IReadOnlyList<AlbumPageDefinition> ordered =
             BuildingArchitectureConceptAlbumSequencer.OrderPages(
                 scenario.Definition,
                 scenario.Definition.Pages,
@@ -1626,8 +1652,188 @@ public sealed class SheetPackageTests : IDisposable
                 scenario.Assignments);
 
         Assert.Equal(
-            [scenario.SheetBKey, scenario.SheetAKey],
+            [scenario.SheetAKey, scenario.SheetBKey],
             ordered.Select(page => page.SheetKey));
+    }
+
+    [Fact]
+    public void ConceptAlbumOrderPages_SourceInsertionOrderDoesNotChangePersistedTies()
+    {
+        const string sourceAId = "source-a";
+        const string sourceBId = "source-b";
+        const string buildingId = "building";
+        const string sourceAKey = sourceAId + "|sheet-a";
+        const string sourceBKey = sourceBId + "|sheet-b";
+        AlbumDefinition definition =
+            BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        definition.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = sourceBKey,
+            TemplateSlotId = "floor-plans",
+            SourceBuildingIdSnapshot = buildingId,
+            SourceBuildingNameSnapshot = "Building",
+        });
+        definition.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = sourceAKey,
+            TemplateSlotId = "floor-plans",
+            SourceBuildingIdSnapshot = buildingId,
+            SourceBuildingNameSnapshot = "Building",
+        });
+        var sourceA = new ProjectDesignSource
+        {
+            Id = sourceAId,
+            Kind = DesignSourceKind.Revit,
+            NativeDocumentTitle = "A.rvt",
+        };
+        var sourceB = new ProjectDesignSource
+        {
+            Id = sourceBId,
+            Kind = DesignSourceKind.Revit,
+            NativeDocumentTitle = "B.rvt",
+        };
+        ProjectBuildingGroup[] buildingGroups =
+        [
+            new()
+            {
+                Id = buildingId,
+                Name = "Building",
+                Order = 1,
+            },
+        ];
+        var assignments = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [sourceAKey] = buildingId,
+            [sourceBKey] = buildingId,
+        };
+        var library = new SheetLibrary();
+
+        string[] aFirst =
+            BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                    definition,
+                    definition.Pages,
+                    library,
+                    [sourceA, sourceB],
+                    buildingGroups,
+                    assignments)
+                .Select(page => page.SheetKey)
+                .ToArray();
+        string[] bFirst =
+            BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                    definition,
+                    definition.Pages,
+                    library,
+                    [sourceB, sourceA],
+                    buildingGroups,
+                    assignments)
+                .Select(page => page.SheetKey)
+                .ToArray();
+
+        Assert.Equal([sourceBKey, sourceAKey], aFirst);
+        Assert.Equal(aFirst, bFirst);
+    }
+
+    [Fact]
+    public void ConceptPackageReconciliation_ReordersOnlyTheRefreshedSource()
+    {
+        const string sourceAId = "refreshed-source";
+        const string sourceBId = "unchanged-source";
+        const string buildingId = "building";
+        string sourceAManifestPath = WriteConceptSourcePackage(
+            Path.Combine(workDirectory, "source-scoped-reconciliation-a"),
+            sourceAId,
+            "Refreshed.rvt",
+            [
+                ("a-1", "01", "A first", "Давхрын байгуулалт", buildingId, "Building"),
+                ("a-2", "02", "A second", "Давхрын байгуулалт", buildingId, "Building"),
+            ]);
+        string sourceBManifestPath = WriteConceptSourcePackage(
+            Path.Combine(workDirectory, "source-scoped-reconciliation-b"),
+            sourceBId,
+            "Unchanged.rvt",
+            [
+                ("b-1", "01", "B first", "Давхрын байгуулалт", buildingId, "Building"),
+                ("b-2", "02", "B second", "Давхрын байгуулалт", buildingId, "Building"),
+            ]);
+        SheetPackageLoadResult sourceAPackage =
+            SheetPackageReader.Load(sourceAManifestPath);
+        SheetPackageLoadResult sourceBPackage =
+            SheetPackageReader.Load(sourceBManifestPath);
+        Assert.True(sourceAPackage.IsLossless, string.Join("; ", sourceAPackage.Issues));
+        Assert.True(sourceBPackage.IsLossless, string.Join("; ", sourceBPackage.Issues));
+        var library = new SheetLibrary();
+        library.Absorb(sourceAPackage, sourceAId);
+        library.Absorb(sourceBPackage, sourceBId);
+
+        static string SheetKey(
+            SheetPackageLoadResult package,
+            string sourceId,
+            string sheetId)
+        {
+            SheetPackageManifest manifest = package.Manifest!;
+            return SheetRecord.MakeKey(
+                manifest.Source,
+                manifest.Sheets.Single(entry => entry.SheetId == sheetId),
+                sourceId);
+        }
+
+        string sourceAFirst = SheetKey(sourceAPackage, sourceAId, "a-1");
+        string sourceASecond = SheetKey(sourceAPackage, sourceAId, "a-2");
+        string sourceBFirst = SheetKey(sourceBPackage, sourceBId, "b-1");
+        string sourceBSecond = SheetKey(sourceBPackage, sourceBId, "b-2");
+        var project = new ProjectWorkspace
+        {
+            Sources =
+            [
+                new ProjectDesignSource
+                {
+                    Id = sourceAId,
+                    Kind = DesignSourceKind.Revit,
+                    NativeDocumentTitle = "Refreshed.rvt",
+                },
+                new ProjectDesignSource
+                {
+                    Id = sourceBId,
+                    Kind = DesignSourceKind.Revit,
+                    NativeDocumentTitle = "Unchanged.rvt",
+                },
+            ],
+            BuildingGroups =
+            [
+                new ProjectBuildingGroup
+                {
+                    Id = buildingId,
+                    Name = "Building",
+                    Order = 1,
+                },
+            ],
+        };
+        var album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        foreach (string key in
+                 new[] { sourceBSecond, sourceBFirst, sourceASecond, sourceAFirst })
+        {
+            album.Pages.Add(new AlbumPageDefinition
+            {
+                SheetKey = key,
+                TemplateSlotId = "floor-plans",
+                SourceBuildingIdSnapshot = buildingId,
+                SourceBuildingNameSnapshot = "Building",
+            });
+            project.SheetBuildingAssignments[key] = buildingId;
+        }
+
+        ProjectPackageReconciliationResult? result =
+            ProjectPackageReconciliationService.Apply(
+                project,
+                album,
+                library,
+                sourceAPackage);
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            [sourceBSecond, sourceBFirst, sourceAFirst, sourceASecond],
+            album.Pages.Select(page => page.SheetKey));
     }
 
     [Fact]
@@ -1957,6 +2163,19 @@ public sealed class SheetPackageTests : IDisposable
 
         Assert.Equal(2, buildingCovers.Length);
         Assert.All(buildingCovers, component => Assert.Single(component.PageNumbers));
+        Assert.All(
+            buildingSequence.Where(component =>
+                !string.IsNullOrWhiteSpace(component.SourceIdentity)),
+            component =>
+            {
+                AlbumBuildComponentPage page = Assert.Single(component.Pages);
+                Assert.Equal(Assert.Single(component.PageNumbers), page.PageNumber);
+                Assert.False(string.IsNullOrWhiteSpace(page.NativeSheetId));
+                Assert.True(page.NativePageNumber >= 1);
+                Assert.False(string.IsNullOrWhiteSpace(page.SortKey));
+                Assert.Equal(component.SectionKey, page.SectionKey);
+                Assert.Equal(component.SequenceKey, page.SequenceKey);
+            });
         Assert.Collection(
             buildingSequence,
             component => Assert.Equal(
