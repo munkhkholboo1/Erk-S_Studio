@@ -12,7 +12,7 @@ RVT / DWG (local; never uploaded)
         |
         v
 Erk-S Revit / CityGen AutoCAD
-        |  vector PDFs + schema-v4 manifest + SHA-256
+        |  vector PDFs + schema-v4/v5 manifest + SHA-256
         v
 project/sources/<source>/deliveries/<package>/
         |
@@ -57,7 +57,7 @@ different project models.
 
 ### Connector input
 
-Every manifest and path is untrusted. Schema-v4 intake validates identifiers, package scope,
+Every manifest and path is untrusted. Schema-v4/v5 intake validates identifiers, package scope,
 relative paths, reparse points, SHA-256, PDF structure, page count, physical dimensions,
 inline format geometry, and clean drawing-space dimensions. The package is accepted as a whole
 or rejected as a whole. Rejection cannot delete or replace verified state.
@@ -81,8 +81,11 @@ and an exact publisher match. Development builds may use loopback HTTP; producti
 
 ## Package and format model
 
-The current sheet package schema is version 4. One delivery folder contains one or more PDF
-files and a final `*.erks-sheets.json` manifest. `Delta` packages update selected sheets only;
+The highest sheet package schema is version 5; current schema-4 producers remain valid. One
+delivery folder contains one or more PDF files and a final `*.erks-sheets.json` manifest.
+Schema-5 logical sheet entries can reference individual pages of a shared multi-page PDF and
+retain producer-selected print color metadata.
+`Delta` packages update selected sheets only;
 `FullSnapshot` packages describe the complete current set for one stable source and may remove
 only that source's omitted sheets.
 

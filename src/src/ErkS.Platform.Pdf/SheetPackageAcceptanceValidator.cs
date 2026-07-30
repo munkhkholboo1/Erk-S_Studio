@@ -17,6 +17,8 @@ public sealed class SheetPackageAcceptancePage
 {
     public required string SheetId { get; init; }
 
+    public required SheetPrintColorMode PrintColorMode { get; init; }
+
     public required string PdfPath { get; init; }
 
     public required int PdfPageNumber { get; init; }
@@ -86,6 +88,7 @@ public static class SheetPackageAcceptanceValidator
                     report.Pages.Add(new SheetPackageAcceptancePage
                     {
                         SheetId = sheet.SheetId,
+                        PrintColorMode = sheet.PrintColorMode,
                         PdfPath = pdfPath,
                         PdfPageNumber = index + 1,
                         WidthMm = page.WidthMm,

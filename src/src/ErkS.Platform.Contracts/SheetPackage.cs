@@ -88,6 +88,17 @@ public enum SheetSourceApplication
     Pdf,
 }
 
+/// <summary>
+/// Producer-selected print color treatment already baked into the exported
+/// vector PDF. Studio records this value for audit and must not recolor the PDF.
+/// </summary>
+public enum SheetPrintColorMode
+{
+    Original = 0,
+    BlackAndWhite,
+    Grayscale,
+}
+
 public sealed class SheetPackageEntry
 {
     /// <summary>Source-side stable id (layout handle, Revit sheet unique id).</summary>
@@ -105,6 +116,14 @@ public sealed class SheetPackageEntry
 
     /// <summary>Source sheet scale label, for example "1:100", "VARIES" or "NTS".</summary>
     public string ScaleText { get; set; } = "";
+
+    /// <summary>
+    /// Color treatment selected in the producer for this logical sheet.
+    /// Missing values from older manifests default to <see cref="SheetPrintColorMode.Original"/>.
+    /// The referenced PDF already contains the selected output; this field does
+    /// not instruct Studio to transform or rasterize its vector content.
+    /// </summary>
+    public SheetPrintColorMode PrintColorMode { get; set; } = SheetPrintColorMode.Original;
 
     public double WidthMm { get; set; }
 

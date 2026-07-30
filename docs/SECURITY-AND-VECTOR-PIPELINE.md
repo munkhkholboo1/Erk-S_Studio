@@ -2,7 +2,7 @@
 
 This document defines the Studio trust boundary for Revit, AutoCAD, CityGen,
 and manual PDF deliveries. It supplements `ARCHITECTURE.md` and applies to
-sheet package schema 4. Schema 1-3 remains readable for compatibility.
+sheet package schemas 4 and 5. Schemas 1-3 remain readable for compatibility.
 
 ## Trust boundary
 
@@ -15,7 +15,9 @@ Studio accepts a package only when the whole package passes all checks:
 - no absolute path, URI, UNC path, traversal, symlink, or reparse-point escape;
 - every PDF exists and its SHA-256 matches;
 - declared page count matches the PDF;
-- schema 4 physical dimensions match the first PDF page;
+- schema 4+ physical dimensions match the referenced PDF page;
+- schema 5 page references are positive, unique, and inside the PDF;
+- print color mode is a defined contract value;
 - inline format geometry and geometry hash are valid;
 - clean drawing-space dimensions match the format drawing area.
 
@@ -69,6 +71,10 @@ resize the page, or change page order. Mixed page sizes are retained.
 drawing-space dimensions must equal the target drawing area within 0.75 mm.
 The placement matrix uses 1:1 scale; only translation is allowed. A mismatch
 stops the build instead of stretching or shrinking the drawing.
+
+The producer applies `Original`, `BlackAndWhite`, or `Grayscale` during vector
+PDF export. Studio validates and retains that per-sheet metadata but never uses
+it to recolor or rasterize the verified PDF.
 
 ## Golden test framework
 

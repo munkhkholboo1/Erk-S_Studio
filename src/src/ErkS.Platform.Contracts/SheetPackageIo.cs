@@ -10,8 +10,53 @@ public static class SheetPackageJson
     public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() },
+        Converters =
+        {
+            new SheetPrintColorModeJsonConverter(),
+            new JsonStringEnumConverter(),
+        },
     };
+}
+
+internal sealed class SheetPrintColorModeJsonConverter : JsonConverter<SheetPrintColorMode>
+{
+    public override SheetPrintColorMode Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException(
+                "Print color mode must be an Original, BlackAndWhite, or Grayscale JSON string.");
+        }
+
+        return reader.GetString() switch
+        {
+            nameof(SheetPrintColorMode.Original) => SheetPrintColorMode.Original,
+            nameof(SheetPrintColorMode.BlackAndWhite) => SheetPrintColorMode.BlackAndWhite,
+            nameof(SheetPrintColorMode.Grayscale) => SheetPrintColorMode.Grayscale,
+            string value => throw new JsonException(
+                $"Print color mode '{value}' is unsupported."),
+            _ => throw new JsonException("Print color mode cannot be null."),
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        SheetPrintColorMode value,
+        JsonSerializerOptions options)
+    {
+        string contractValue = value switch
+        {
+            SheetPrintColorMode.Original => nameof(SheetPrintColorMode.Original),
+            SheetPrintColorMode.BlackAndWhite => nameof(SheetPrintColorMode.BlackAndWhite),
+            SheetPrintColorMode.Grayscale => nameof(SheetPrintColorMode.Grayscale),
+            _ => throw new JsonException(
+                $"Print color mode '{(int)value}' is unsupported."),
+        };
+        writer.WriteStringValue(contractValue);
+    }
 }
 
 /// <summary>Result of loading a manifest and verifying every referenced PDF.</summary>
@@ -450,6 +495,11 @@ public static class SheetPackageReader
         if (manifest.SchemaVersion >= 5 && sheet.PdfPageNumber <= 0)
         {
             issues.Add($"Sheet '{sheet.Number}': PDF page number must be positive for schema version 5 or newer.");
+        }
+        if (!Enum.IsDefined(sheet.PrintColorMode))
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': print color mode '{sheet.PrintColorMode}' is unsupported.");
         }
         if (manifest.SchemaVersion >= 4 && (!IsPositiveFinite(sheet.WidthMm) || !IsPositiveFinite(sheet.HeightMm)))
         {

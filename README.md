@@ -21,7 +21,8 @@ storage. Studio and Erk-S Cloud do not upload, transfer, or take custody of them
 2. Open a cloud mirror or create a local project workspace.
 3. Confirm project foundation, planning task, design organization snapshot, and team.
 4. Add project-owned sources and bind each source to its local authoring file.
-5. Export sheets from Revit/AutoCAD as schema-v4 sheet packages.
+5. Export sheets from Revit/AutoCAD as schema-v4 or schema-v5 sheet packages;
+   page-reference producers such as the current AutoCAD exporter use schema v5.
 6. Studio validates the complete package, hash, path, page size, and format geometry.
 7. Build the album only from verified source sheets and Studio-generated pages.
 8. Create a Draft revision, review/approve/release it, then synchronize it to Erk-S Cloud.
@@ -31,7 +32,7 @@ Released and archived revisions are immutable; a later change creates a new revi
 
 ## Repository layout
 
-- `src/src/ErkS.Platform.Contracts` - schema-v4 sheet package and page-format contract.
+- `src/src/ErkS.Platform.Contracts` - sheet package schemas 1-5 and page-format contract.
 - `src/src/ErkS.Platform.Core` - project workspace, intake, reconciliation, album build,
   revision lifecycle, security policy, and performance policy.
 - `src/src/ErkS.Platform.Pdf` - vector PDF composition and structural quality inspection.

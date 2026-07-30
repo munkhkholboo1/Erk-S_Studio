@@ -3,6 +3,10 @@ using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
+using PdfSharp.Pdf.Content;
+using PdfSharp.Pdf.Content.Objects;
+using PdfSharp.Pdf.IO;
 using System.IO.MemoryMappedFiles;
 
 namespace ErkS.Platform.Core.Tests;
@@ -46,6 +50,40 @@ public sealed class PdfVectorPipelineTests : IDisposable
             PdfVectorQualityInspector.Inspect(outputPath).ToGoldenText());
     }
 
+    [Theory]
+    [InlineData(SheetPrintColorMode.Original)]
+    [InlineData(SheetPrintColorMode.BlackAndWhite)]
+    [InlineData(SheetPrintColorMode.Grayscale)]
+    public void PrintColorModeMetadata_DoesNotRecolorBakedVectorPdf(
+        SheetPrintColorMode printColorMode)
+    {
+        string sourcePath = Path.Combine(
+            workDirectory,
+            $"baked-{printColorMode}.pdf");
+        WriteVectorPdf(sourcePath, [(420d, 297d, printColorMode.ToString())]);
+        SheetRecord sheet = Intake(
+            sourcePath,
+            420,
+            297,
+            pageCount: 1,
+            cleanDrawing: false,
+            printColorMode: printColorMode);
+
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            PageFormatCatalog.SourceAsIsId,
+            PagePlacementMode.FullPage);
+
+        PdfVectorPageProfile source =
+            Assert.Single(PdfVectorQualityInspector.Inspect(sourcePath).Pages);
+        PdfVectorPageProfile output =
+            Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
+        Assert.Equal(printColorMode, sheet.Entry.PrintColorMode);
+        Assert.Equal(source.OperatorSignature, output.OperatorSignature);
+        Assert.Equal(source.ContentSha256, output.ContentSha256);
+        Assert.Equal(0, output.ImageXObjectCount);
+    }
+
     [Fact]
     public void SourceCrop_ProducesCroppedVectorPageWithoutRasterFallback()
     {
@@ -81,6 +119,56 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.True(
             page.Operators.Count(operation => operation is "W" or "W*") >= 2,
             "A cropped PDF form must have both target-area and crop-region clips.");
+    }
+
+    [Theory]
+    [InlineData(SheetPrintColorMode.Original)]
+    [InlineData(SheetPrintColorMode.BlackAndWhite)]
+    [InlineData(SheetPrintColorMode.Grayscale)]
+    public void PrintColorModeMetadata_CroppedFormPreservesBakedColorOperators(
+        SheetPrintColorMode printColorMode)
+    {
+        string sourcePath = Path.Combine(
+            workDirectory,
+            $"cropped-color-{printColorMode}.pdf");
+        WriteVectorPdf(sourcePath, [(420d, 297d, printColorMode.ToString())]);
+        SheetRecord sheet = Intake(
+            sourcePath,
+            420,
+            297,
+            pageCount: 1,
+            cleanDrawing: false,
+            printColorMode: printColorMode);
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            PageFormatCatalog.SourceAsIsId,
+            PagePlacementMode.FullPage,
+            configure: project =>
+            {
+                project.Album.Pages.Single().SourceCrop = new SourcePageCropDefinition
+                {
+                    Enabled = true,
+                    LeftMm = 10,
+                    TopMm = 10,
+                    RightMm = 10,
+                    BottomMm = 10,
+                };
+            });
+
+        using PdfDocument source = PdfReader.Open(sourcePath, PdfDocumentOpenMode.Import);
+        using PdfDocument output = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
+        CSequence sourceContent = ContentReader.ReadContent(source.Pages[0]);
+        PdfDictionary form = FindSingleFormXObject(output.Pages[0]);
+        CSequence formContent = ContentReader.ReadContent(form.Stream!.UnfilteredValue);
+        IReadOnlyList<string> sourceColors = ColorOperatorSignature(sourceContent);
+        IReadOnlyList<string> formColors = ColorOperatorSignature(formContent);
+
+        Assert.Equal(printColorMode, sheet.Entry.PrintColorMode);
+        Assert.NotEmpty(sourceColors);
+        Assert.Equal(sourceColors, formColors);
+        Assert.Equal(
+            0,
+            Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages).ImageXObjectCount);
     }
 
     [Fact]
@@ -918,7 +1006,8 @@ public sealed class PdfVectorPipelineTests : IDisposable
         string contentKind = "",
         string sheetDescription = "",
         bool portrait = false,
-        bool includeFormatForFullSheet = false)
+        bool includeFormatForFullSheet = false,
+        SheetPrintColorMode printColorMode = SheetPrintColorMode.Original)
     {
         PageFormatSpec? format = null;
         if (cleanDrawing || includeFormatForFullSheet)
@@ -952,6 +1041,7 @@ public sealed class PdfVectorPipelineTests : IDisposable
                     ContentHeightMm = cleanDrawing ? contentHeightMm : heightMm,
                     ContentKind = contentKind,
                     SheetDescription = sheetDescription,
+                    PrintColorMode = printColorMode,
                     PdfFileName = Path.GetFileName(pdfPath),
                     PageCount = pageCount,
                 },
@@ -1002,6 +1092,64 @@ public sealed class PdfVectorPipelineTests : IDisposable
         left.X + left.Width > right.X &&
         left.Y < right.Y + right.Height &&
         left.Y + left.Height > right.Y;
+
+    private static PdfDictionary FindSingleFormXObject(PdfPage page)
+    {
+        PdfDictionary resources = page.Elements.GetDictionary("/Resources")
+            ?? throw new InvalidDataException("Output page has no resources.");
+        PdfDictionary xObjects = resources.Elements.GetDictionary("/XObject")
+            ?? throw new InvalidDataException("Output page has no XObjects.");
+        List<PdfDictionary> forms = [];
+        foreach (string key in xObjects.Elements.Keys)
+        {
+            PdfItem? item = xObjects.Elements[key];
+            if (item is PdfReference reference)
+                item = reference.Value;
+            if (item is PdfDictionary dictionary &&
+                dictionary.Elements.GetName("/Subtype").Equals(
+                    "/Form",
+                    StringComparison.Ordinal))
+            {
+                forms.Add(dictionary);
+            }
+        }
+
+        return Assert.Single(forms);
+    }
+
+    private static IReadOnlyList<string> ColorOperatorSignature(CSequence sequence) =>
+        EnumerateOperators(sequence)
+            .Where(operation => operation.Name is
+                "G" or "g" or "RG" or "rg" or "K" or "k" or "SC" or "sc" or "SCN" or "scn")
+            .Select(operation =>
+                operation.Name + ":" + string.Join(
+                    ",",
+                    operation.Operands.Select(operand => operand switch
+                    {
+                        CInteger integer => integer.Value.ToString(
+                            System.Globalization.CultureInfo.InvariantCulture),
+                        CReal real => real.Value.ToString(
+                            "R",
+                            System.Globalization.CultureInfo.InvariantCulture),
+                        _ => operand.ToString(),
+                    })))
+            .ToList();
+
+    private static IEnumerable<COperator> EnumerateOperators(CSequence sequence)
+    {
+        foreach (CObject item in sequence)
+        {
+            if (item is COperator operation)
+            {
+                yield return operation;
+            }
+            else if (item is CSequence nested)
+            {
+                foreach (COperator nestedOperation in EnumerateOperators(nested))
+                    yield return nestedOperation;
+            }
+        }
+    }
 
     private static PageFormatSpec CreateConceptFormat(bool elevation = false, bool portrait = false)
     {

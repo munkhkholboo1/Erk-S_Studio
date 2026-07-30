@@ -2,7 +2,7 @@
 
 Status: normative connector contract
 
-Current schema: `4`
+Current schema: `5`
 
 ## Purpose
 
@@ -29,7 +29,7 @@ package root.
 
 | Field | Rule |
 | --- | --- |
-| `schemaVersion` | MUST be `4` for current producers. Studio reads versions 1-3 only for compatibility. |
+| `schemaVersion` | MUST be `5` when a producer uses per-sheet PDF page references. Existing schema-4 producers remain current and valid; Studio reads versions 1-3 for legacy compatibility. |
 | `packageId` | Non-empty UUID unique to one export run and used for idempotency. |
 | `source.sourceId` | Stable Studio source-registry ID; required in v4. |
 | `source.application` | `Revit`, `AutoCad`, `CityGen`, `Manual`, or `Pdf`. |
@@ -44,7 +44,24 @@ package root.
 
 Every sheet entry MUST have a stable `sheetId`, relative `.pdf` filename, positive page count,
 lower-case SHA-256, and positive finite `widthMm`/`heightMm`. Current producers also provide
-page-format identity and inline geometry.
+the one-based `pdfPageNumber`, page-format identity, inline geometry, and `printColorMode`.
+
+## Per-sheet print color
+
+`printColorMode` is exactly one of these JSON strings:
+
+- `Original` — preserve the drawing's authored colors;
+- `BlackAndWhite` — producer-exported black-and-white output;
+- `Grayscale` — producer-exported grayscale output.
+
+The producing application applies the selected treatment while exporting each logical sheet.
+The vector PDF bytes are authoritative. Studio records the mode for audit but MUST NOT recolor,
+rasterize, or infer a different mode from the PDF. Manifests written before this optional field
+was introduced deserialize as `Original`.
+
+Schema 5 permits several logical sheet entries to reference distinct `pdfPageNumber` values in
+one multi-page PDF. Consequently every page can retain its own `printColorMode` even when the
+entries share the same PDF file and SHA-256.
 
 ## Package scope
 
@@ -115,7 +132,7 @@ Connector release acceptance MUST use this validator, not a connector-specific r
 
 ## Compatibility and change policy
 
-- Adding optional fields is backward compatible within schema v4.
+- Adding optional fields is backward compatible within schema v4 or v5 when their defaults preserve prior behavior.
 - Changing field meaning, trust semantics, hash semantics, coordinate origin, or deletion behavior
   requires a new schema version.
 - A schema change starts with reader/writer/host acceptance tests and a migration note.

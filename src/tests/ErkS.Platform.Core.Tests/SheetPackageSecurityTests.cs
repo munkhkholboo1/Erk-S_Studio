@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
@@ -259,6 +260,43 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.False(result.IsLossless);
         Assert.Contains(result.Issues, issue =>
             issue.Contains("outside", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void UnknownNumericPrintColorMode_IsRejected()
+    {
+        PackageFiles package = WritePackage(
+            "unknown-print-color",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow);
+        SetRawPrintColorMode(package.ManifestPath, 999);
+
+        SheetPackageLoadResult result = SheetPackageReader.Load(package.ManifestPath);
+
+        Assert.False(result.IsLossless);
+        Assert.Contains(result.Issues, issue =>
+            issue.Contains("print color mode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DefinedNumericPrintColorMode_IsRejectedBecauseContractRequiresString()
+    {
+        PackageFiles package = WritePackage(
+            "numeric-print-color",
+            ["A1"],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow);
+        SetRawPrintColorMode(
+            package.ManifestPath,
+            (int)SheetPrintColorMode.BlackAndWhite);
+
+        SheetPackageLoadResult result = SheetPackageReader.Load(package.ManifestPath);
+
+        Assert.False(result.IsLossless);
+        Assert.Contains(result.Issues, issue =>
+            issue.Contains("print color mode", StringComparison.OrdinalIgnoreCase) &&
+            issue.Contains("string", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -1264,6 +1302,13 @@ public sealed class SheetPackageSecurityTests : IDisposable
         File.WriteAllText(
             manifestPath,
             JsonSerializer.Serialize(manifest, SheetPackageJson.Options));
+
+    private static void SetRawPrintColorMode(string manifestPath, int value)
+    {
+        JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        manifest["sheets"]!.AsArray()[0]!["printColorMode"] = value;
+        File.WriteAllText(manifestPath, manifest.ToJsonString(SheetPackageJson.Options));
+    }
 
     private static bool IsUnsafePathIssue(string issue) =>
         issue.Contains("unsafe PDF path", StringComparison.OrdinalIgnoreCase);

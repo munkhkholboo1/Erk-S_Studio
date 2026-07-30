@@ -8,6 +8,11 @@ Older implementation work predates this repository and is not represented as fab
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 
+## [0.1.0-dev.25] - 2026-07-30
+
+- Accept and validate AutoCAD sheet-package schema 5 with a per-page print-color mode while keeping older packages backward-compatible as Original.
+- Preserve vector PDF delivery for Original, Black & White, and Gray output and expose the selected print mode to package acceptance diagnostics.
+
 ## [0.1.0-dev.24] - 2026-07-30
 
 - Make the Cloud ERA server the sole authority for canonical album component and physical page order, and consume its manifest unchanged on every Studio device.

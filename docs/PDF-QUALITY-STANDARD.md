@@ -17,6 +17,18 @@ Lossless means:
 - a full-page JPEG/PNG fallback is not introduced;
 - project data, frame, grid, title, and title block are independent Studio vector overlays.
 
+## Producer-selected print color
+
+AutoCAD and other authoring connectors may export each logical sheet as `Original`,
+`BlackAndWhite`, or `Grayscale`. The producer applies that selection to the vector PDF before
+publishing the package and records it as `printColorMode` on the matching sheet entry.
+
+Studio treats the verified PDF as the visual authority. It preserves the baked color operators
+when importing the page directly or as a Form XObject and does not perform a second color
+conversion. The verified source PDF bytes remain immutable, while album composition preserves
+their vector/color operators and appearance across source refresh, rebuild, and cloud
+synchronization.
+
 ## Placement modes
 
 ### SourceAsIs

@@ -271,13 +271,14 @@ and exporters are updated.
 1. Freeze this RFC as the initial boundary.
 2. Add Studio domain models for project, organization, participant, role,
    document set, and sheet format template.
-3. Maintain schema v4 and its backward-compatible reader.
+3. Maintain current schema v4/v5 producers and the backward-compatible reader.
 4. Maintain tests for manifest round-trip, security, and sheet format validation.
-5. Extend the Sheet Format Engine without changing the v4 trust boundary.
+5. Extend the Sheet Format Engine without changing the v4/v5 trust boundary.
 6. Add Studio UI pages for Project Info, Organizations, Roles, and Sheet
    Formats.
 7. Add License Manager sign-in boundary and project binding state.
-8. Keep Revit/AutoCAD exporters aligned with clean sheet PDFs plus v4 manifests.
+8. Keep Revit schema-v4 and page-reference AutoCAD schema-v5 exporters aligned
+   with clean vector sheet PDFs.
 9. Add Studio renderers for corner table, cover page, drawing list, and
    explanation note.
 10. Add website `/project/` workspace and backend APIs used by both Studio and

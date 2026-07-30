@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Pdf;
 using PdfSharp.Drawing;
@@ -79,6 +80,8 @@ public sealed class SheetPackageAcceptanceValidatorTests : IDisposable
                 CreateSharedPageEntry("layout-2", "02", 2),
             ],
         };
+        manifest.Sheets[0].PrintColorMode = SheetPrintColorMode.BlackAndWhite;
+        manifest.Sheets[1].PrintColorMode = SheetPrintColorMode.Grayscale;
         string manifestPath = SheetPackageWriter.Write(manifest, directory, "multi-sheet");
 
         SheetPackageAcceptanceReport report = SheetPackageAcceptanceValidator.Validate(manifestPath);
@@ -87,6 +90,12 @@ public sealed class SheetPackageAcceptanceValidatorTests : IDisposable
         Assert.Equal(2, report.Pages.Count);
         Assert.Equal([1, 2], report.Pages.Select(page => page.PdfPageNumber));
         Assert.Equal(["layout-1", "layout-2"], report.Pages.Select(page => page.SheetId));
+        Assert.Equal(
+            [SheetPrintColorMode.BlackAndWhite, SheetPrintColorMode.Grayscale],
+            report.Pages.Select(page => page.PrintColorMode));
+        string reportJson = JsonSerializer.Serialize(report, SheetPackageJson.Options);
+        Assert.Contains("\"printColorMode\": \"BlackAndWhite\"", reportJson, StringComparison.Ordinal);
+        Assert.Contains("\"printColorMode\": \"Grayscale\"", reportJson, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ErkS.Platform.Contracts;
 using ErkS.Platform.Pdf;
 
 if (args.Length != 1)
@@ -10,7 +11,7 @@ if (args.Length != 1)
 try
 {
     SheetPackageAcceptanceReport report = SheetPackageAcceptanceValidator.Validate(args[0]);
-    Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine(JsonSerializer.Serialize(report, SheetPackageJson.Options));
     return report.IsAccepted ? 0 : 2;
 }
 catch (Exception exception) when (

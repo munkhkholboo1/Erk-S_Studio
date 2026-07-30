@@ -33,16 +33,40 @@ public sealed class SheetPackageTests : IDisposable
     [Fact]
     public void ManifestRoundTrip_VerifiesLossless()
     {
-        var manifestPath = WriteSamplePackage(workDirectory, sheetCount: 2);
+        var manifestPath = WriteSamplePackage(workDirectory, sheetCount: 3);
 
         var result = SheetPackageReader.Load(manifestPath);
 
         Assert.True(result.IsLossless, string.Join("; ", result.Issues));
         Assert.NotNull(result.Manifest);
-        Assert.Equal(2, result.Manifest!.Sheets.Count);
+        Assert.Equal(3, result.Manifest!.Sheets.Count);
         Assert.Equal("Description 1", result.Manifest.Sheets[0].SheetDescription);
         Assert.Equal("1:100", result.Manifest.Sheets[0].ScaleText);
+        Assert.Equal(
+            [
+                SheetPrintColorMode.Original,
+                SheetPrintColorMode.BlackAndWhite,
+                SheetPrintColorMode.Grayscale,
+            ],
+            result.Manifest.Sheets.Select(sheet => sheet.PrintColorMode));
         Assert.All(result.Manifest.Sheets, sheet => Assert.NotEmpty(sheet.Sha256));
+    }
+
+    [Fact]
+    public void LegacyManifestWithoutPrintColorMode_DefaultsToOriginal()
+    {
+        string manifestPath = WriteSamplePackage(workDirectory, sheetCount: 1);
+        JsonObject manifestJson = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        JsonObject sheetJson = manifestJson["sheets"]!.AsArray()[0]!.AsObject();
+        Assert.True(sheetJson.Remove("printColorMode"));
+        File.WriteAllText(manifestPath, manifestJson.ToJsonString(SheetPackageJson.Options));
+
+        SheetPackageLoadResult result = SheetPackageReader.Load(manifestPath);
+
+        Assert.True(result.IsLossless, string.Join("; ", result.Issues));
+        Assert.Equal(
+            SheetPrintColorMode.Original,
+            Assert.Single(result.Manifest!.Sheets).PrintColorMode);
     }
 
     [Fact]
@@ -2755,6 +2779,7 @@ public sealed class SheetPackageTests : IDisposable
                 Name = $"Test sheet {index}",
                 SheetDescription = $"Description {index}",
                 ScaleText = index == 1 ? "1:100" : "",
+                PrintColorMode = (SheetPrintColorMode)(index - 1),
                 WidthMm = 210,
                 HeightMm = 297,
                 PdfFileName = fileName,
