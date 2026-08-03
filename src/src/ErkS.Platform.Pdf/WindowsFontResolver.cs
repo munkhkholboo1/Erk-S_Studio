@@ -10,6 +10,8 @@ namespace ErkS.Platform.Pdf;
 public sealed class WindowsFontResolver : IFontResolver
 {
     private static readonly object Sync = new();
+    private static readonly Dictionary<string, byte[]> FontData =
+        new(StringComparer.OrdinalIgnoreCase);
     private static bool registered;
 
     private static readonly string FontsDirectory =
@@ -25,6 +27,10 @@ public sealed class WindowsFontResolver : IFontResolver
         ["segoe ui#b"] = "segoeuib.ttf",
         ["segoe ui#i"] = "segoeuii.ttf",
         ["segoe ui#bi"] = "segoeuiz.ttf",
+        ["isocpeur mon#"] = "Fonts/isocpeu_mon_3.ttf",
+        ["isocpeur mon#b"] = "Fonts/isocpeu_mon_3.ttf",
+        ["isocpeur mon#i"] = "Fonts/isocpeui_mon_3.ttf",
+        ["isocpeur mon#bi"] = "Fonts/isocpeui_mon_3.ttf",
     };
 
     public static void Register()
@@ -83,8 +89,36 @@ public sealed class WindowsFontResolver : IFontResolver
             return null;
         }
 
-        var path = Path.Combine(FontsDirectory, fileName);
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
+        lock (Sync)
+        {
+            if (FontData.TryGetValue(faceName, out byte[]? cached))
+                return cached;
+
+            string? fontPath = ResolveFontPath(fileName);
+            if (fontPath is null)
+            {
+                throw new FileNotFoundException(
+                    $"PDF font asset '{fileName}' was not found next to the loaded PDF renderer or in the Windows fonts folder.");
+            }
+
+            byte[] data = File.ReadAllBytes(fontPath);
+            FontData[faceName] = data;
+            return data;
+        }
+    }
+
+    internal static string? ResolveFontPath(string fileName)
+    {
+        string normalized = fileName.Replace('/', Path.DirectorySeparatorChar);
+        string assemblyDirectory = Path.GetDirectoryName(
+            typeof(WindowsFontResolver).Assembly.Location) ?? "";
+        string[] candidates =
+        [
+            Path.Combine(assemblyDirectory, normalized),
+            Path.Combine(AppContext.BaseDirectory, normalized),
+            Path.Combine(FontsDirectory, normalized),
+        ];
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     private static string MakeFaceKey(string familyName, bool bold, bool italic)

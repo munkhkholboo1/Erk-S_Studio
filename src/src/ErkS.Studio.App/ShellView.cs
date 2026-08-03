@@ -11,6 +11,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
+using ErkS.Platform.Core.ProjectTypes.Building.WorkingDrawings;
+using ErkS.Platform.Core.ProjectTypes;
 using ErkS.Platform.Pdf;
 using Microsoft.Win32;
 
@@ -124,6 +126,8 @@ internal sealed partial class ShellView : IDisposable
     // Foundation: initiation basis
     private readonly TextBox projectNameBox = new();
     private readonly TextBox projectCodeBox = new();
+    private readonly ComboBox projectTypeBox = new();
+    private readonly ComboBox projectStageBox = new();
     private readonly TextBox basisSourceBox = new();
     private readonly TextBox requestNumberBox = new();
     private readonly ComboBox clientTypeBox = new();
@@ -244,6 +248,7 @@ internal sealed partial class ShellView : IDisposable
     private bool assetSourceChangePendingDuringSync;
     private readonly List<SheetPackageLoadResult> deferredPackageResults = [];
     private string? lastAlbumPath;
+    private Exception? lastAlbumUpdateException;
 
     public UIElement Root { get; }
 
@@ -1527,6 +1532,11 @@ internal sealed partial class ShellView : IDisposable
                 Name = request.Name,
                 Location = request.SiteAddress,
                 Description = request.Description,
+                TemplateId = StudioProjectCreationClassification.ResolveTemplateId(
+                    request.ProjectType,
+                    request.InitialStageType),
+                ProjectType = request.ProjectType,
+                InitialStageType = request.InitialStageType,
                 ClientName = request.ClientName,
                 ClientEmail = request.ClientEmail,
                 InitiatorType = request.InitiatorType,
@@ -1638,6 +1648,11 @@ internal sealed partial class ShellView : IDisposable
                 ClientName = cloud.Project.ClientName,
                 ClientEmail = clientEmail,
                 SiteAddress = cloud.ProjectInformation.Location,
+                ProjectType = StudioProjectCreationClassification.ResolveCloudProjectType(cloud),
+                InitialStageType = StudioProjectCreationClassification.ResolveCloudStageType(cloud),
+                InitialStageName = StudioProjectCreationClassification.ResolveStageName(
+                    StudioProjectCreationClassification.ResolveCloudProjectType(cloud),
+                    StudioProjectCreationClassification.ResolveCloudStageType(cloud)),
             });
             state.LinkCurrentProjectToCloud(
                 cloud,
@@ -2082,9 +2097,14 @@ internal sealed partial class ShellView : IDisposable
 
     private UIElement BuildInitiationBasisTab()
     {
+        projectTypeBox.ItemsSource = StudioProjectTypeRegistry.All;
+        projectTypeBox.DisplayMemberPath = nameof(IStudioProjectTypeDefinition.Label);
+        projectTypeBox.SelectionChanged += (_, _) => RefreshExistingProjectStageOptions();
         var form = FoundationForm();
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн код", projectCodeBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн нэр", projectNameBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Төслийн төрөл", projectTypeBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Үе шат", projectStageBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Үндэслэлийн төрөл", basisSourceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Хүсэлтийн дугаар", requestNumberBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
@@ -2568,6 +2588,10 @@ internal sealed partial class ShellView : IDisposable
                 StudioCloudProjectInformationUpdateRequest request = draft.CreateCloudRequest(
                     state.Project.DesignOrganizationName,
                     state.Project.Cloud.ServerSnapshot.Information.CapacityUnit);
+                request.ProjectType = (projectTypeBox.SelectedItem as IStudioProjectTypeDefinition)?.Id
+                    ?? state.Project.Identity.ProjectType;
+                request.StageType = (projectStageBox.SelectedItem as StudioProjectStageDefinition)?.Id
+                    ?? state.Project.Identity.StageCode;
                 try
                 {
                     StudioCloudProjectDetail updated = await account.UpdateProjectInformationAsync(
@@ -2742,6 +2766,7 @@ internal sealed partial class ShellView : IDisposable
                     ]);
                 ProjectCloudSyncMetadata.MarkCanonicalTitleBlockPending(state.Project);
             }
+            ApplySelectedProjectClassification();
             state.SaveProject();
             foundationEditMode = false;
             foundationEditBaseConcurrencyToken = "";
@@ -2813,7 +2838,8 @@ internal sealed partial class ShellView : IDisposable
             atdStatusBox.Text,
             atdSummaryBox.Text,
             atdDocumentDrafts,
-            CaptureConceptDesignApprovalDraft());
+            CaptureConceptDesignApprovalDraft(),
+            projectCodeBox.Text);
     }
 
     private bool FoundationDraftDiffersFromProject(ProjectFoundationEditDraft draft)
@@ -2821,7 +2847,8 @@ internal sealed partial class ShellView : IDisposable
         ProjectWorkspace project = state.Project;
         ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
         PlanningTaskInformation atd = project.Foundation.PlanningTask;
-        return !string.Equals(project.Identity.Name, draft.Name, StringComparison.Ordinal) ||
+        return !string.Equals(project.Identity.Code, draft.ProjectCode, StringComparison.Ordinal) ||
+            !string.Equals(project.Identity.Name, draft.Name, StringComparison.Ordinal) ||
             !string.Equals(basis.SourceType, draft.BasisSourceType, StringComparison.Ordinal) ||
             !string.Equals(basis.RequestNumber, draft.RequestNumber, StringComparison.Ordinal) ||
             !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
@@ -2891,6 +2918,7 @@ internal sealed partial class ShellView : IDisposable
     private void ApplyCanonicalFoundation(ProjectFoundationEditDraft draft)
     {
         ProjectInitiationBasis basis = state.Project.Foundation.InitiationBasis;
+        state.Project.Identity.Code = draft.ProjectCode;
         state.Project.Identity.Name = draft.Name;
         state.Project.Identity.Description = draft.BasisSummary.Trim();
         basis.ClientName = draft.ClientName;
@@ -2953,6 +2981,7 @@ internal sealed partial class ShellView : IDisposable
         string? statusPrefix = null,
         StudioWorkspaceOperation origin = StudioWorkspaceOperation.ExplicitAlbumEdit)
     {
+        lastAlbumUpdateException = null;
         if (!state.HasOpenProject)
         {
             return false;
@@ -2970,9 +2999,28 @@ internal sealed partial class ShellView : IDisposable
                 StudioRefreshSyncOperationPolicy.ShouldReconcileLinkedProjectAssets(
                     origin);
             AlbumBuildResult result;
-            if (TryBuildCloudUnionAlbumPreview(
-                    out AlbumBuildResult cloudUnion,
-                    collectUi))
+            AlbumBuildResult cloudUnion = null!;
+            bool cloudUnionBuilt = false;
+            if (StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(origin))
+            {
+                try
+                {
+                    cloudUnionBuilt = TryBuildCloudUnionAlbumPreview(
+                        out cloudUnion,
+                        collectUi);
+                }
+                catch (Exception exception) when (
+                    StudioRefreshSyncOperationPolicy.ShouldFallbackToLocalAlbumBuild(
+                        origin,
+                        exception))
+                {
+                    // A stale or partially migrated canonical preview must not block
+                    // generation of the current device's valid working-drawing album.
+                    cloudUnionBuilt = false;
+                }
+            }
+
+            if (cloudUnionBuilt)
             {
                 result = cloudUnion;
             }
@@ -3015,6 +3063,7 @@ internal sealed partial class ShellView : IDisposable
         }
         catch (Exception exception)
         {
+            lastAlbumUpdateException = exception;
             Exception visibleException = exception;
             if (origin is
                     StudioWorkspaceOperation.SourceRefresh or
@@ -3049,6 +3098,12 @@ internal sealed partial class ShellView : IDisposable
             CollectUiToProject();
         string outputFolder = state.ResolveOutputFolder();
         Directory.CreateDirectory(outputFolder);
+        if (BuildingWorkingDrawingAlbumTemplate.Supports(
+                state.Project.Identity.ProjectType,
+                state.Project.Identity.StageCode))
+        {
+            return BuildWorkingDrawingAlbums(outputFolder, reconcileLinkedProjectAssets);
+        }
         string outputPath = Path.Combine(outputFolder, $"{SafeFileName(state.Album.Title)}.pdf");
         AlbumBuildResult result = state.Builder.Build(
             state.CreateAlbumBuildProject(reconcileLinkedProjectAssets),
@@ -3065,6 +3120,56 @@ internal sealed partial class ShellView : IDisposable
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
         RefreshSyncUi();
         return result;
+    }
+
+    private AlbumBuildResult BuildWorkingDrawingAlbums(
+        string outputFolder,
+        bool reconcileLinkedProjectAssets)
+    {
+        BuildingWorkingDrawingAlbumCatalog.EnsureAlbums(state.Project);
+        AlbumProject project = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets);
+        List<AlbumPageDefinition> allPages = project.Album.Pages.ToList();
+        AlbumBuildResult? primaryResult = null;
+        foreach (IBuildingWorkingDrawingDiscipline discipline in BuildingWorkingDrawingAlbumCatalog.All)
+        {
+            List<AlbumPageDefinition> pages = allPages.Where(page =>
+            {
+                SheetRecord? source = state.Library.Find(page.SheetKey);
+                string mark = source?.Entry.Discipline ?? source?.Entry.Number?.Split('-').FirstOrDefault() ?? "";
+                if (discipline.Mark == "БА" && mark is "ЕХ" or "ЕТ" or "ТХ")
+                    return true;
+                return BuildingWorkingDrawingAlbumCatalog.MatchesMark(discipline, mark);
+            }).ToList();
+
+            // Do not publish an empty specialist album before that discipline
+            // has supplied sheets. The records still exist in Studio and become
+            // live automatically as soon as a package arrives.
+            if (pages.Count == 0 && discipline.Mark != "БА")
+                continue;
+
+            project.Album.Pages = pages;
+            project.Album.Title = discipline.Title;
+            string outputPath = Path.Combine(outputFolder, $"{SafeFileName(discipline.Title)}.pdf");
+            AlbumBuildResult result = state.Builder.Build(project, state.Library, outputPath);
+            ProjectAlbumRecord album = state.Project.Deliverables.Albums.Single(x => x.Id == discipline.Id);
+            album.LastPdfPath = Path.GetRelativePath(state.ResolveProjectFolder(), result.OutputPath);
+            album.LastPageCount = result.PageCount;
+            album.LastPageSizeSummary = "Studio generated working drawing album";
+            album.LastPdfSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(result.OutputPath))).ToLowerInvariant();
+            album.RendererRevision = StudioAlbumRendererMigration.CurrentRevision;
+            if (discipline.Mark == "БА")
+            {
+                primaryResult = result;
+                lastAlbumPath = result.OutputPath;
+                state.RecordBuiltAlbum(result.OutputPath, result.PageCount, "Studio generated working drawing album", account.Current?.Email ?? Environment.UserName);
+            }
+        }
+        project.Album.Pages = allPages;
+        state.SaveProject();
+        if (activePage == StudioPage.Albums)
+            RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
+        RefreshSyncUi();
+        return primaryResult ?? throw new InvalidDataException("БА ажлын зургийн альбум үүсгэх хуудас олдсонгүй.");
     }
 
     private async Task SynchronizeCurrentProjectAsync()
@@ -4891,6 +4996,9 @@ internal sealed partial class ShellView : IDisposable
         PlanningTaskInformation atd = project.Foundation.PlanningTask;
         projectNameBox.Text = project.Name;
         projectCodeBox.Text = project.Code;
+        IStudioProjectTypeDefinition selectedType = StudioProjectTypeRegistry.Resolve(project.Identity.ProjectType);
+        projectTypeBox.SelectedItem = selectedType;
+        RefreshExistingProjectStageOptions(project.Identity.StageCode);
         basisSourceBox.Text = basis.SourceType;
         requestNumberBox.Text = basis.RequestNumber;
         SelectClientType(ProjectClientTypes.ResolveStoredType(
@@ -4915,12 +5023,25 @@ internal sealed partial class ShellView : IDisposable
         BindConceptApprovalEditor();
     }
 
+    private void RefreshExistingProjectStageOptions(string? preferredStage = null)
+    {
+        IStudioProjectTypeDefinition type = projectTypeBox.SelectedItem as IStudioProjectTypeDefinition
+            ?? StudioProjectTypeRegistry.All[0];
+        StudioProjectStageDefinition[] stages = type.Stages.Where(item => item.EnabledForNewProject).ToArray();
+        projectStageBox.ItemsSource = stages;
+        projectStageBox.DisplayMemberPath = nameof(StudioProjectStageDefinition.Label);
+        projectStageBox.SelectedItem = stages.FirstOrDefault(item =>
+                item.Id.Equals(preferredStage ?? "", StringComparison.OrdinalIgnoreCase))
+            ?? stages.FirstOrDefault();
+    }
+
     private void CollectUiToProject()
     {
         var project = state.Project;
         project.Identity.Name = projectNameBox.Text.Trim();
         project.Identity.Code = projectCodeBox.Text.Trim();
         project.Identity.Description = basisSummaryBox.Text;
+        ApplySelectedProjectClassification();
         var basis = project.Foundation.InitiationBasis;
         basis.SourceType = basisSourceBox.Text.Trim();
         basis.RequestNumber = requestNumberBox.Text.Trim();
@@ -4958,6 +5079,10 @@ internal sealed partial class ShellView : IDisposable
         bool canEdit = hasProject && CanEditProjectInformation();
         bool editing = foundationEditMode && canEdit;
         bool fieldsEditable = editing && !foundationSaveInProgress;
+        // Keep a first-stage project repairable even when a wrong initial
+        // classification already caused source/building metadata to be added.
+        bool classificationEditable = fieldsEditable &&
+            state.Project.Stages.Count <= 1;
         bool linked = hasProject && state.Project.Cloud.Origin.Equals(
             ProjectOrigins.Cloud,
             StringComparison.OrdinalIgnoreCase);
@@ -4988,6 +5113,7 @@ internal sealed partial class ShellView : IDisposable
         foreach (var box in new[]
                  {
                      projectNameBox,
+                     projectCodeBox,
                      basisSourceBox,
                      requestNumberBox,
                      clientNameBox,
@@ -5005,8 +5131,16 @@ internal sealed partial class ShellView : IDisposable
             box.IsReadOnly = !fieldsEditable;
         }
 
-        projectCodeBox.IsReadOnly = true;
-        projectCodeBox.ToolTip = "Төслийн код нь төслийн тогтвортой таних тэмдэг тул эндээс солигдохгүй.";
+        projectCodeBox.ToolTip = fieldsEditable
+            ? "Энэ утга ажлын зургийн булангийн хүснэгтийн ЕГ шифрт хэрэглэгдэнэ."
+            : null;
+        projectTypeBox.IsEnabled = classificationEditable;
+        projectStageBox.IsEnabled = classificationEditable;
+        string classificationTip = classificationEditable
+            ? "Эх үүсвэргүй, эхний үе шатандаа байгаа төслийн төрөл болон үе шатыг сольж болно."
+            : "Эх үүсвэр нэмэгдсэн эсвэл дараагийн үе шат үүссэн тул төслийн төрлийг солих боломжгүй.";
+        projectTypeBox.ToolTip = classificationTip;
+        projectStageBox.ToolTip = classificationTip;
         landReferenceBox.IsReadOnly = !fieldsEditable || linked;
         landReferenceBox.ToolTip = linked
             ? "Газрын мэдээлэл Cloud ERA дахь эрх бүхий эх сурвалжаас шинэчлэгдэнэ."
@@ -5046,6 +5180,21 @@ internal sealed partial class ShellView : IDisposable
         designParticipantsSummaryText.Text =
             $"Зураг төсөл боловсруулагч байгууллага · {ValueOrDash(CompanyDisplayName(company))}\n" +
             ProjectCompanyAssignmentDescription(state.Project);
+    }
+
+    private void ApplySelectedProjectClassification()
+    {
+        if (projectTypeBox.SelectedItem is not IStudioProjectTypeDefinition type ||
+            projectStageBox.SelectedItem is not StudioProjectStageDefinition stage)
+            return;
+        ProjectWorkspace project = state.Project;
+        project.Identity.ProjectType = type.Id;
+        project.Identity.StageCode = stage.Id;
+        project.Identity.StageName = stage.Label;
+        ProjectStageInstance current = ProjectStageLifecycle.EnsureLegacyStage(project);
+        current.StageType = stage.Id;
+        current.StageName = stage.Label;
+        state.RefreshAlbumTemplateForProjectClassification();
     }
 
     private void RefreshParticipantsList(bool refreshCloud = false)
@@ -5339,6 +5488,8 @@ internal sealed partial class ShellView : IDisposable
         Exception? exception = null)
     {
         StudioAccountException? accountException = exception as StudioAccountException;
+        IReadOnlyDictionary<string, string[]>? diagnosticDetails =
+            BuildOperationExceptionDetails(exception, accountException?.FieldErrors);
         StudioOperationDiagnosticIdentity identity =
             operationDiagnosticIdentities.TryGetValue(operationId, out StudioOperationDiagnosticIdentity? existing)
                 ? existing
@@ -5361,9 +5512,33 @@ internal sealed partial class ShellView : IDisposable
                 identity.Account,
                 identity.Device,
                 accountException?.TraceId ?? "",
-                accountException?.FieldErrors));
+                diagnosticDetails));
         if (outcome is "blocked" or "conflict" or "error" or "cancelled" or "completed")
             operationDiagnosticIdentities.Remove(operationId);
+    }
+
+    private static IReadOnlyDictionary<string, string[]>? BuildOperationExceptionDetails(
+        Exception? exception,
+        IReadOnlyDictionary<string, string[]>? fieldErrors)
+    {
+        var details = fieldErrors is null
+            ? new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            : fieldErrors.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value,
+                StringComparer.OrdinalIgnoreCase);
+        if (exception is null)
+            return details.Count == 0 ? null : details;
+
+        Exception root = exception;
+        while (root.InnerException is not null)
+            root = root.InnerException;
+        details["exceptionType"] = [exception.GetType().FullName ?? exception.GetType().Name];
+        details["innerExceptionType"] = [root.GetType().FullName ?? root.GetType().Name];
+        details["targetSite"] = [exception.TargetSite?.ToString() ?? ""];
+        details["innerTargetSite"] = [root.TargetSite?.ToString() ?? ""];
+        details["stackTrace"] = [exception.ToString()];
+        return details;
     }
 
     private static string AppendSafeCloudErrorDetails(

@@ -1,4 +1,5 @@
 using ErkS.Platform.Core;
+using ErkS.Platform.Core.ProjectTypes;
 using ErkS.Platform.Pdf;
 using ErkS.Studio;
 
@@ -375,6 +376,64 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             "account-b@example.com",
             persisted.Cloud.PermissionSnapshotAccountEmail);
         Assert.Equal(["team.manage"], persisted.Cloud.CurrentUserScopes);
+    }
+
+    [Fact]
+    public void LinkCloudProject_PreserveCreationKeepsTheLocallySelectedStage()
+    {
+        var (projectPath, albumPath) = WriteProject(
+            sources: [],
+            pageKeys: [],
+            lastPdfPath: "");
+        ProjectWorkspace project = ProjectWorkspaceStore.Load(projectPath);
+        project.Identity.ProjectType = BuildingDesignProjectType.TypeId;
+        project.Identity.StageCode = "working-drawings";
+        project.Identity.StageName = "Ажлын зураг";
+        ProjectWorkspaceStore.Save(project, projectPath);
+        StudioAlbumDocumentStore.Save(new StudioAlbumDocument
+        {
+            ProjectId = project.ProjectId,
+            AlbumId = project.PrimaryAlbum.Id,
+            PackageType = BuildingDesignProjectType.TypeId,
+            StageCode = "working-drawings",
+            Definition = BuildingWorkingDrawingAlbumTemplate.CreateDefinition(
+                "Барилга архитектурын загвар зургийн альбум"),
+        }, albumPath);
+        using var state = new AppState();
+        state.OpenProject(projectPath);
+        var staleCloud = new StudioCloudProjectDetail
+        {
+            Project = new StudioCloudProjectSummary
+            {
+                ProjectId = "cloud-project-1",
+                ProjectCode = "TEST-001",
+                Name = "Source isolation test",
+                ProjectDomain = BuildingDesignProjectType.TypeId,
+                StageType = "model-design",
+                CurrentStage = "model-design",
+                ConcurrencyToken = "token-1",
+            },
+            ProjectInformation = new StudioCloudProjectInformation
+            {
+                ProjectId = "cloud-project-1",
+                ProjectDomain = BuildingDesignProjectType.TypeId,
+                StageType = "model-design",
+            },
+        };
+
+        state.LinkCurrentProjectToCloud(
+            staleCloud,
+            "https://erk-s.mn",
+            "architect@example.com",
+            preserveCreation: true,
+            preserveSyncState: true);
+
+        Assert.Equal(BuildingDesignProjectType.TypeId, state.Project.Identity.ProjectType);
+        Assert.Equal("working-drawings", state.Project.Identity.StageCode);
+        Assert.Equal("Ажлын зураг", state.Project.Identity.StageName);
+        Assert.Equal("working-drawings", state.AlbumDocument.StageCode);
+        Assert.Equal(BuildingWorkingDrawingAlbumTemplate.TemplateId, state.Album.TemplateId);
+        Assert.Equal(BuildingWorkingDrawingAlbumTemplate.DefaultTitle, state.Album.Title);
     }
 
     [Fact]

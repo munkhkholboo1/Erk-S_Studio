@@ -85,8 +85,8 @@ public sealed class SheetLibrary
         {
             return sheets.Values
                 .OrderBy(record => record.Source.Application)
-                .ThenBy(record => record.Entry.Discipline, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(record => record.Entry.Number, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(record => record.SourceIdentity, StringComparer.Ordinal)
+                .ThenBy(record => record.SourceSheetIndex)
                 .ToList();
         }
     }
@@ -106,8 +106,8 @@ public sealed class SheetLibrary
             return sheets.Values
                 .Where(record => record.IsVerified)
                 .OrderBy(record => record.Source.Application)
-                .ThenBy(record => record.Entry.Discipline, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(record => record.Entry.Number, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(record => record.SourceIdentity, StringComparer.Ordinal)
+                .ThenBy(record => record.SourceSheetIndex)
                 .ToList();
         }
     }

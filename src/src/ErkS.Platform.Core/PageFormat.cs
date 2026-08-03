@@ -73,8 +73,11 @@ public static class PageFormatCatalog
             Kind = PageFormatKind.WorkingDrawing,
             WidthMm = 420,
             HeightMm = 297,
-            DrawingArea = new PageRectMm { X = 10, Y = 10, Width = 340, Height = 277 },
-            TitleBlockArea = new PageRectMm { X = 350, Y = 187, Width = 60, Height = 100 },
+            // Left binding margin is 15 mm; the other paper margins are 5 mm.
+            // The drawing frame sits another 5 mm inside the etalon band.
+            DrawingArea = new PageRectMm { X = 20, Y = 10, Width = 390, Height = 277 },
+            SheetTitleArea = new PageRectMm { X = 20, Y = 10, Width = 390, Height = 9 },
+            TitleBlockArea = new PageRectMm { X = 230, Y = 251, Width = 180, Height = 36 },
             ShowGrid = true,
         },
         new()
@@ -182,7 +185,10 @@ public static class PageFormatCatalog
 
 public static class PageFormatResolver
 {
-    public static bool ApplySourceFormat(AlbumPageDefinition page, SheetPackageEntry entry)
+    public static bool ApplySourceFormat(
+        AlbumPageDefinition page,
+        SheetPackageEntry entry,
+        bool forceStudioChrome = false)
     {
         if (page.FollowSourceFormat == false || entry.Format is null ||
             !TryResolveSourceFormat(entry, out var format))
@@ -190,7 +196,7 @@ public static class PageFormatResolver
             return false;
         }
 
-        if (!entry.IsCleanDrawingSpace)
+        if (!entry.IsCleanDrawingSpace && !forceStudioChrome)
         {
             var asIsChanged = page.PageFormatSnapshot is not null ||
                 !string.Equals(
@@ -207,18 +213,21 @@ public static class PageFormatResolver
             return asIsChanged;
         }
 
+        PagePlacementMode targetPlacement = forceStudioChrome && !entry.IsCleanDrawingSpace
+            ? PagePlacementMode.FullPage
+            : PagePlacementMode.PreserveDrawingSpace;
         var changed = page.PageFormatSnapshot is null ||
             !string.Equals(page.PageFormatId, format.Id, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(
                 page.PageFormatSnapshot.GeometryHash,
                 format.GeometryHash,
                 StringComparison.OrdinalIgnoreCase) ||
-            page.PlacementMode != PagePlacementMode.PreserveDrawingSpace ||
+            page.PlacementMode != targetPlacement ||
             page.FollowSourceFormat != true;
 
         page.PageFormatId = format.Id;
         page.PageFormatSnapshot = format;
-        page.PlacementMode = PagePlacementMode.PreserveDrawingSpace;
+        page.PlacementMode = targetPlacement;
         page.FollowSourceFormat = true;
         return changed;
     }

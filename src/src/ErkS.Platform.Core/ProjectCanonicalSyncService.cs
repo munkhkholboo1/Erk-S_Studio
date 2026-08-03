@@ -33,7 +33,10 @@ public static class ProjectCanonicalSyncService
             pending = null;
         }
         bool applyFoundationDetails = serverFoundation.IsAvailable;
-        string projectCode = FirstValue(snapshot.ProjectCode, information.ProjectCode);
+        string serverProjectCode = FirstValue(snapshot.ProjectCode, information.ProjectCode);
+        string projectCode = pending is not null && !string.IsNullOrWhiteSpace(pending.ProjectCode)
+            ? Clean(pending.ProjectCode)
+            : serverProjectCode;
         string serverProjectName = Clean(snapshot.Name);
         string projectName = serverProjectName;
         string siteAddress = Clean(information.Location);
@@ -89,8 +92,8 @@ public static class ProjectCanonicalSyncService
 
         project.Cloud.Origin = ProjectOrigins.Cloud;
         project.Cloud.ServerProjectId = serverProjectId;
-        project.Cloud.CloudProjectCode = projectCode;
-        project.Cloud.ServerSnapshot = Clone(snapshot, serverProjectId, projectCode, serverProjectName);
+        project.Cloud.CloudProjectCode = serverProjectCode;
+        project.Cloud.ServerSnapshot = Clone(snapshot, serverProjectId, serverProjectCode, serverProjectName);
 
         basis.ClientName = clientName;
         basis.SiteAddress = siteAddress;

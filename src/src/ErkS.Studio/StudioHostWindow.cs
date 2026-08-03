@@ -451,6 +451,13 @@ internal sealed class StudioHostWindow : Window
             return;
         }
 
+        if (HasVisibleOwnedWindow())
+        {
+            SetDevStatus("Dialog хаасны дараа reload хийнэ");
+            QueueAutoReload();
+            return;
+        }
+
         reloadInProgress = true;
         try
         {
@@ -528,7 +535,15 @@ internal sealed class StudioHostWindow : Window
                 devReloadTimer.Stop();
                 if (autoReloadCheck.IsChecked == true && !reloadInProgress)
                 {
-                    LoadAppModule();
+                    if (HasVisibleOwnedWindow())
+                    {
+                        SetDevStatus("Dialog нээлттэй · reload хүлээж байна");
+                        devReloadTimer.Start();
+                    }
+                    else
+                    {
+                        LoadAppModule();
+                    }
                 }
             };
 
@@ -556,6 +571,9 @@ internal sealed class StudioHostWindow : Window
             devReloadTimer?.Start();
         }));
     }
+
+    private bool HasVisibleOwnedWindow() =>
+        OwnedWindows.Cast<Window>().Any(window => window.IsVisible);
 
     private void ShowLoadError(string message)
     {

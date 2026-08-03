@@ -452,6 +452,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -4825,6 +4834,96 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body)
+        {
+            return AdvanceCloudEraProjectStageAsync(projectId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/stages"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/stages");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraStageAdvanceResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId)
         {
             return ListCloudEraBasisSourcesAsync(projectId, System.Threading.CancellationToken.None);
@@ -7485,6 +7584,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("assignmentId")]
         public string AssignmentId { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("stageInstanceId")]
+        public string StageInstanceId { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
         public string OrganizationId { get; set; }
 
@@ -7496,6 +7598,63 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
         public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("role")]
+        public string Role { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("acceptedAtUtc")]
+        public System.DateTimeOffset? AcceptedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("endedAtUtc")]
+        public System.DateTimeOffset? EndedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationProfile")]
+        public CloudEraOrganizationRenderProfileDto OrganizationProfile { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOrganizationAssignmentDto2
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignmentId")]
+        public string AssignmentId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("stageInstanceId")]
+        public string StageInstanceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationSnapshotId")]
+        public string OrganizationSnapshotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("scope")]
+        public string Scope { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("role")]
+        public string Role { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("acceptedAtUtc")]
+        public System.DateTimeOffset? AcceptedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("endedAtUtc")]
+        public System.DateTimeOffset? EndedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationProfile")]
+        public object OrganizationProfile { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -8142,6 +8301,12 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("templateId")]
         public string TemplateId { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("projectType")]
+        public string ProjectType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("initialStageType")]
+        public string InitialStageType { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("clientName")]
         public string ClientName { get; set; }
 
@@ -8216,6 +8381,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("designOrganizationProfile")]
         public CloudEraOrganizationRenderProfileDto DesignOrganizationProfile { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("stages")]
+        public System.Collections.Generic.ICollection<CloudEraStageInstanceDto> Stages { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationAssignments")]
+        public System.Collections.Generic.ICollection<CloudEraOrganizationAssignmentDto2> OrganizationAssignments { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("participants")]
         public System.Collections.Generic.ICollection<CloudEraParticipantDto> Participants { get; set; }
@@ -8360,6 +8531,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("name")]
         public string Name { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectDomain")]
+        public string ProjectDomain { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("stageType")]
+        public string StageType { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("location")]
         public string Location { get; set; }
@@ -8537,6 +8714,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("name")]
         public string Name { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectDomain")]
+        public string ProjectDomain { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("stageType")]
+        public string StageType { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
         public string Status { get; set; }
@@ -8930,6 +9113,99 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("custodyStatus")]
         public string CustodyStatus { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraStageAdvanceRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentStageInstanceId")]
+        public string CurrentStageInstanceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nextStageType")]
+        public string NextStageType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("basisAlbumRevisionId")]
+        public string BasisAlbumRevisionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("targetOrganizationEmail")]
+        public string TargetOrganizationEmail { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraStageAdvanceResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("project")]
+        public CloudEraProjectDetailDto Project { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("invitationId")]
+        public string InvitationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("invitationCode")]
+        public string InvitationCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("invitationExpiresAtUtc")]
+        public System.DateTimeOffset? InvitationExpiresAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraStageInstanceDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("stageInstanceId")]
+        public string StageInstanceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("stageType")]
+        public string StageType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sequence")]
+        public int Sequence { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("previousStageInstanceId")]
+        public string PreviousStageInstanceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("basisAlbumRevisionId")]
+        public string BasisAlbumRevisionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
+        public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("completedAtUtc")]
+        public System.DateTimeOffset? CompletedAtUtc { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -9354,8 +9630,17 @@ namespace ErkS.CloudEra.Client.Generated
     public partial class ProjectInformationInput
     {
 
+        [System.Text.Json.Serialization.JsonPropertyName("projectCode")]
+        public string ProjectCode { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("name")]
         public string Name { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectType")]
+        public string ProjectType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("stageType")]
+        public string StageType { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("clientName")]
         public string ClientName { get; set; }

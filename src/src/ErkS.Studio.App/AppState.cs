@@ -1,6 +1,7 @@
 using System.IO;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
+using ErkS.Platform.Core.ProjectTypes;
 using ErkS.Platform.Pdf;
 
 namespace ErkS.Studio;
@@ -144,6 +145,7 @@ public sealed class AppState : IDisposable
             if (File.Exists(AlbumPath))
             {
                 albumDocument = StudioAlbumDocumentStore.Load(AlbumPath);
+                ProjectAlbumTemplateResolver.Apply(project, albumDocument);
             }
             else
             {
@@ -223,6 +225,7 @@ public sealed class AppState : IDisposable
         bool preserveSyncState = false)
     {
         ArgumentNullException.ThrowIfNull(cloudProject);
+        StudioProjectCloudIsolation.ValidateEnvelope(cloudProject);
         StudioCloudProjectSummary summary = cloudProject.Project;
         if (string.IsNullOrWhiteSpace(summary.ProjectId))
         {
@@ -230,7 +233,46 @@ public sealed class AppState : IDisposable
         }
 
         bool preserveBuildingComposition = Project.Cloud.BuildingCompositionPending;
+        string localProjectType = Project.Identity.ProjectType;
+        string localStageCode = Project.Identity.StageCode;
+        string localStageName = Project.Identity.StageName;
         ProjectCanonicalSyncService.Apply(Project, ToServerSnapshot(cloudProject));
+        StudioCloudProjectInformation cloudInformation = cloudProject.ProjectInformation ?? new();
+        // During creation the user's explicit classification is authoritative.
+        // Never let a stale/default Cloud template response silently turn an
+        // urban-planning project into a building concept project.
+        if (creationRequest is not null)
+        {
+            Project.Identity.ProjectType = creationRequest.ProjectType.Trim();
+            Project.Identity.StageCode = creationRequest.InitialStageType.Trim();
+            Project.Identity.StageName = creationRequest.InitialStageName.Trim();
+        }
+        else if (preserveCreation)
+        {
+            // A local project edit or creation request remains authoritative until
+            // Cloud has accepted that classification. Several refresh paths use
+            // preserveCreation while reconciling the returned canonical snapshot;
+            // without restoring these values an older/default Cloud stage changes
+            // working drawings back to model design on every refresh.
+            Project.Identity.ProjectType = localProjectType;
+            Project.Identity.StageCode = localStageCode;
+            Project.Identity.StageName = localStageName;
+        }
+        else
+        {
+            string cloudProjectType = StudioProjectCreationClassification.ResolveCloudProjectType(cloudProject);
+            string cloudStageType = StudioProjectCreationClassification.ResolveCloudStageType(cloudProject);
+            if (!string.IsNullOrWhiteSpace(cloudProjectType))
+                Project.Identity.ProjectType = cloudProjectType;
+            if (!string.IsNullOrWhiteSpace(cloudStageType))
+            {
+                Project.Identity.StageCode = cloudStageType;
+                Project.Identity.StageName = StudioProjectCreationClassification.ResolveStageName(
+                    cloudProjectType,
+                    cloudStageType);
+            }
+        }
+        ProjectAlbumTemplateResolver.Apply(Project, AlbumDocument);
         Project.Cloud.ServerUrl = serverUrl.TrimEnd('/');
         if (!preserveSyncState)
             Project.Cloud.SyncStatus = ProjectSyncStatuses.Linked;
@@ -271,12 +313,21 @@ public sealed class AppState : IDisposable
                 RegisteredAtUtc = source.RegisteredAtUtc,
             })
             .ToList();
-        StudioBuildingCompositionApplyResult buildingCompositionApply =
-            StudioBuildingCompositionSync.ApplyCanonicalWithResult(
+        bool usesBuildingComposition = Project.Identity.ProjectType.Equals(
+            BuildingDesignProjectType.TypeId,
+            StringComparison.OrdinalIgnoreCase);
+        StudioBuildingCompositionApplyResult buildingCompositionApply = usesBuildingComposition
+            ? StudioBuildingCompositionSync.ApplyCanonicalWithResult(
                 Project,
                 Library,
                 cloudProject.BuildingComposition,
-                preserveBuildingComposition);
+                preserveBuildingComposition)
+            : new StudioBuildingCompositionApplyResult(false, false);
+        if (!usesBuildingComposition)
+        {
+            Project.BuildingGroups.Clear();
+            Project.SheetBuildingAssignments.Clear();
+        }
         if (buildingCompositionApply.LocalCompositionChanged &&
             !preserveBuildingComposition)
         {
@@ -343,6 +394,53 @@ public sealed class AppState : IDisposable
             cloudOrganizationId,
             summary.DesignOrganizationName,
             cloudCompany);
+
+        Dictionary<string, ProjectStageOrganizationAssignment> existingAssignments =
+            (Project.StageAssignments ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item.AssignmentId))
+            .ToDictionary(item => item.AssignmentId, StringComparer.OrdinalIgnoreCase);
+        IStudioProjectTypeDefinition projectType = StudioProjectTypeRegistry.Resolve(Project.Identity.ProjectType);
+        Project.Stages = (cloudProject.Stages ?? [])
+            .OrderBy(item => item.Sequence)
+            .Select(item => new ProjectStageInstance
+            {
+                StageInstanceId = item.StageInstanceId,
+                StageType = item.StageType,
+                StageName = projectType.Stages.FirstOrDefault(stage =>
+                    stage.Id.Equals(item.StageType, StringComparison.OrdinalIgnoreCase))?.Label ?? item.StageType,
+                Sequence = item.Sequence,
+                PreviousStageInstanceId = item.PreviousStageInstanceId,
+                BasisAlbumRevisionId = item.BasisAlbumRevisionId,
+                Status = item.Status,
+                CreatedAtUtc = item.CreatedAtUtc,
+                CompletedAtUtc = item.CompletedAtUtc,
+            })
+            .ToList();
+        Project.StageAssignments = (cloudProject.OrganizationAssignments ?? [])
+            .Select(item =>
+            {
+                CompanyProfile snapshot = item.OrganizationProfile is not null
+                    ? StudioCompanyProfileMapper.FromRenderProfile(item.OrganizationProfile)
+                    : existingAssignments.TryGetValue(item.AssignmentId, out ProjectStageOrganizationAssignment? existing)
+                        ? existing.OrganizationSnapshot.Clone()
+                    : item.OrganizationId.Equals(cloudOrganizationId, StringComparison.OrdinalIgnoreCase) && cloudCompany is not null
+                        ? cloudCompany.Clone()
+                        : new CompanyProfile { OrganizationId = item.OrganizationId };
+                return new ProjectStageOrganizationAssignment
+                {
+                    AssignmentId = item.AssignmentId,
+                    StageInstanceId = item.StageInstanceId,
+                    OrganizationId = item.OrganizationId,
+                    OrganizationSnapshot = snapshot,
+                    Role = item.Role,
+                    Status = item.Status,
+                    AcceptedAtUtc = item.AcceptedAtUtc,
+                    EndedAtUtc = item.EndedAtUtc,
+                };
+            })
+            .ToList();
+        if (Project.Stages.Count == 0)
+            ProjectStageLifecycle.EnsureLegacyStage(Project);
 
         List<StudioCloudParticipant> activeParticipants = (cloudProject.Participants ?? [])
             .OfType<StudioCloudParticipant>()
@@ -526,6 +624,9 @@ public sealed class AppState : IDisposable
         ProjectWorkspaceStore.Save(Project, ProjectPath);
         RefreshAssetSourceWatchers();
     }
+
+    public bool RefreshAlbumTemplateForProjectClassification() =>
+        ProjectAlbumTemplateResolver.Apply(Project, AlbumDocument);
 
     internal StudioSourceMetadataUpgradeReport UpgradeSourceMetadata(
         bool persistChanges = true)
@@ -1152,15 +1253,18 @@ public sealed class AppState : IDisposable
 
     private static StudioAlbumDocument CreateDefaultAlbum(ProjectWorkspace workspace)
     {
-        return new StudioAlbumDocument
+        var album = new StudioAlbumDocument
         {
             ProjectId = workspace.ProjectId,
             AlbumId = workspace.PrimaryAlbum.Id,
             PackageType = workspace.PrimaryAlbum.Type,
             Status = workspace.PrimaryAlbum.Status,
             FoundationVersion = workspace.Foundation.Version,
-            Definition = BuildingArchitectureConceptAlbumTemplate.CreateDefinition(workspace.PrimaryAlbum.Title),
+            StageCode = workspace.Identity.StageCode,
+            Definition = ProjectAlbumTemplateResolver.CreateDefinition(workspace),
         };
+        ProjectAlbumTemplateResolver.Apply(workspace, album);
+        return album;
     }
 
     private void ResetRuntimeServices(bool scanExistingPackages = true)

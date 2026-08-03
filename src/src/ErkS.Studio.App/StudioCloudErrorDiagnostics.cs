@@ -61,6 +61,11 @@ internal static class StudioCloudErrorDetails
         "revisionId",
         "currentSourceId",
         "currentRevisionId",
+        "exceptionType",
+        "innerExceptionType",
+        "targetSite",
+        "innerTargetSite",
+        "stackTrace",
     ];
 
     public static Dictionary<string, string[]>? ForDiagnosticLog(

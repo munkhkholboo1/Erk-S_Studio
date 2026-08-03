@@ -171,6 +171,9 @@ public static class ProjectWorkspaceStore
                 Code = request.Code.Trim(),
                 Name = request.Name.Trim(),
                 Description = request.Description.Trim(),
+                ProjectType = request.ProjectType.Trim(),
+                StageCode = request.InitialStageType.Trim(),
+                StageName = request.InitialStageName.Trim(),
             },
             Creation = new ProjectCreationInfo
             {
@@ -436,6 +439,8 @@ public static class ProjectWorkspaceStore
             pendingInformation.Foundation ??= new ProjectServerFoundationUpdate();
         project.Creation ??= new ProjectCreationInfo();
         project.Foundation ??= new ProjectFoundation();
+        project.Stages ??= [];
+        project.StageAssignments ??= [];
         project.Foundation.InitiationBasis ??= new ProjectInitiationBasis();
         project.Foundation.InitiationBasis.Documents ??= [];
         project.Foundation.InitiationBasis.ClientOrganizationSnapshot ??= new CompanyProfile();
@@ -462,6 +467,7 @@ public static class ProjectWorkspaceStore
         project.Foundation.ApprovalWorkflow.Normalize();
         project.Foundation.DesignCompany ??= new ProjectCompanyAssignment();
         project.Foundation.DesignCompany.OrganizationSnapshot ??= new CompanyProfile();
+        ProjectStageLifecycle.EnsureLegacyStage(project);
         project.Foundation.DesignCompany.OrganizationSnapshot.Normalize();
         project.Foundation.DesignCompany.OrganizationSnapshot.Signers ??= [];
         project.Foundation.DesignCompany.Members ??= [];
@@ -535,6 +541,7 @@ public static class ProjectWorkspaceStore
         {
             project.Deliverables.Albums[0].IsPrimary = true;
         }
+        ProjectTypes.Building.WorkingDrawings.BuildingWorkingDrawingAlbumCatalog.EnsureAlbums(project);
         foreach (ProjectAlbumRecord album in project.Deliverables.Albums)
         {
             album.RendererRevision = Math.Max(0, album.RendererRevision);
@@ -691,7 +698,12 @@ public static class StudioAlbumDocumentStore
         {
             album.AlbumId = "building-architecture-concept";
         }
-        BuildingArchitectureConceptAlbumTemplate.Ensure(album);
+        if (album.Definition.TemplateId.Equals(
+                BuildingArchitectureConceptAlbumTemplate.TemplateId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            BuildingArchitectureConceptAlbumTemplate.Ensure(album);
+        }
     }
 }
 

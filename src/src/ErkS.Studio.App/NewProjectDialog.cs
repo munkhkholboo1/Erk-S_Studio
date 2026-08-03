@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using ErkS.Platform.Core;
+using ErkS.Platform.Core.ProjectTypes;
 
 namespace ErkS.Studio;
 
@@ -16,6 +17,8 @@ internal sealed class NewProjectDialog : Window
     };
     private readonly TextBox codeBox = new();
     private readonly TextBox nameBox = new();
+    private readonly ComboBox projectTypeBox = new();
+    private readonly ComboBox stageBox = new();
     private readonly ComboBox clientTypeBox = new();
     private readonly TextBox clientNameBox = new();
     private Grid? clientNameRow;
@@ -32,6 +35,8 @@ internal sealed class NewProjectDialog : Window
     private readonly Button createButton;
 
     private OrganizationOption? SelectedOption => organizationBox.SelectedItem as OrganizationOption;
+    private IStudioProjectTypeDefinition? SelectedProjectType => projectTypeBox.SelectedItem as IStudioProjectTypeDefinition;
+    private StudioProjectStageDefinition? SelectedStage => stageBox.SelectedItem as StudioProjectStageDefinition;
     public StudioCloudOrganization? SelectedOrganization => SelectedOption?.Organization;
 
     public ProjectCreationRequest CreationRequest
@@ -44,6 +49,9 @@ internal sealed class NewProjectDialog : Window
                 Code = codeBox.Text.Trim(),
                 Name = nameBox.Text.Trim(),
                 Description = descriptionBox.Text.Trim(),
+                ProjectType = SelectedProjectType?.Id ?? BuildingDesignProjectType.TypeId,
+                InitialStageType = SelectedStage?.Id ?? "model-design",
+                InitialStageName = SelectedStage?.Label ?? "Загвар зураг",
                 Channel = ProjectCreationChannels.Studio,
                 InitiatorType = ProjectInitiatorTypes.DesignOrganization,
                 InitiatorOrganizationId = organization?.OrganizationId ?? "",
@@ -74,6 +82,10 @@ internal sealed class NewProjectDialog : Window
         ResizeMode = ResizeMode.CanResize;
         codeBox.Text = $"STUDIO-{DateTime.Now:yyyyMMdd-HHmm}";
         organizationBox.SelectionChanged += (_, _) => RefreshOrganizationDetails();
+        projectTypeBox.ItemsSource = StudioProjectTypeRegistry.All;
+        projectTypeBox.DisplayMemberPath = nameof(IStudioProjectTypeDefinition.Label);
+        projectTypeBox.SelectionChanged += (_, _) => RefreshStageOptions();
+        projectTypeBox.SelectedItem = StudioProjectTypeRegistry.Resolve(BuildingDesignProjectType.TypeId);
         clientTypeBox.ItemsSource = new[]
         {
             new ClientTypeOption("Иргэн", ProjectClientTypes.Citizen),
@@ -118,10 +130,8 @@ internal sealed class NewProjectDialog : Window
         form.Children.Add(StudioWidgets.CreateFormRow("Эрхийн мэдээлэл", BuildOrganizationDetails()));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн код", codeBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн нэр", nameBox));
-        form.Children.Add(StudioWidgets.CreateFormRow(
-            "Төслийн төрөл",
-            ReadOnlyValue("Барилга архитектурын загвар зураг")));
-        form.Children.Add(StudioWidgets.CreateFormRow("Үе шат", ReadOnlyValue("Загвар зураг")));
+        form.Children.Add(StudioWidgets.CreateFormRow("Төслийн төрөл", projectTypeBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Үе шат", stageBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Захиалагчийн төрөл", clientTypeBox));
         clientNameRow = StudioWidgets.CreateFormRow("Захиалагчийн нэр", clientNameBox);
         clientNameLabel = clientNameRow.Children.OfType<TextBlock>().FirstOrDefault();
@@ -142,6 +152,22 @@ internal sealed class NewProjectDialog : Window
         MinHeight = 58,
         Child = organizationDetails,
     };
+
+    private void RefreshStageOptions()
+    {
+        IStudioProjectTypeDefinition type = SelectedProjectType ??
+            StudioProjectTypeRegistry.Resolve(BuildingDesignProjectType.TypeId);
+        StudioProjectStageDefinition[] stages = type.Stages
+            .Where(item => item.EnabledForNewProject)
+            .ToArray();
+        stageBox.ItemsSource = stages;
+        stageBox.DisplayMemberPath = nameof(StudioProjectStageDefinition.Label);
+        stageBox.SelectedItem = type.Id.Equals(BuildingDesignProjectType.TypeId, StringComparison.OrdinalIgnoreCase)
+            ? stages.FirstOrDefault(item => item.Id.Equals("model-design", StringComparison.OrdinalIgnoreCase))
+            : stages.FirstOrDefault();
+        if (stageBox.SelectedIndex < 0)
+            stageBox.SelectedIndex = 0;
+    }
 
     private void RefreshClientNameEditor()
     {

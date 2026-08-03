@@ -184,6 +184,34 @@ public sealed class AlbumBuildIntegrityTests : IDisposable
     }
 
     [Fact]
+    public void ProducerWorkingDrawingFormat_UsesStudioChromeDespiteStaleAlbumTemplate()
+    {
+        PackageContext package = CreatePackage("working-drawing-stale-template");
+        SheetPackageLoadResult load = SheetPackageReader.Load(package.ManifestPath);
+        SheetPackageEntry entry = Assert.Single(load.Manifest!.Sheets);
+        entry.PageFormatId = PageFormatCatalog.WorkingDrawingA3LandscapeId;
+        entry.IsCleanDrawingSpace = false;
+        var library = new SheetLibrary();
+        library.Absorb(load);
+        SheetRecord record = Assert.Single(library.Snapshot());
+        var project = new AlbumProject { Name = "Stale concept classification" };
+        project.Album.TemplateId = BuildingArchitectureConceptAlbumTemplate.TemplateId;
+        project.Album.Pages.Add(new AlbumPageDefinition
+        {
+            SheetKey = record.Key,
+            PageFormatId = PageFormatCatalog.SourceAsIsId,
+            PlacementMode = PagePlacementMode.FullPage,
+        });
+
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(project, library);
+
+        AlbumBuildPage page = Assert.Single(Assert.Single(request.Sections).Pages);
+        Assert.Equal(PageFormatKind.WorkingDrawing, page.Format.Kind);
+        Assert.True(page.Format.ShowGrid);
+        Assert.Equal(PagePlacementMode.FullPage, page.Definition.PlacementMode);
+    }
+
+    [Fact]
     public void LegacyConfiguredSectionResolvesVerifiedSheet()
     {
         PackageContext package = CreatePackage("legacy-section");
@@ -203,6 +231,33 @@ public sealed class AlbumBuildIntegrityTests : IDisposable
         AlbumBuildPage page = Assert.Single(Assert.Single(request.Sections).Pages);
         Assert.Equal(record.Key, page.Sheet.Key);
         Assert.Equal(PageFormatCatalog.SourceAsIsId, page.Definition.PageFormatId);
+    }
+
+    [Fact]
+    public void LegacyAlbumPath_PreservesProducerWorkingDrawingChrome()
+    {
+        PackageContext package = CreatePackage("legacy-working-drawing");
+        SheetPackageLoadResult load = SheetPackageReader.Load(package.ManifestPath);
+        SheetPackageEntry entry = Assert.Single(load.Manifest!.Sheets);
+        entry.PageFormatId = PageFormatCatalog.WorkingDrawingA3LandscapeId;
+        entry.IsCleanDrawingSpace = false;
+        var library = new SheetLibrary();
+        library.Absorb(load);
+        SheetRecord record = Assert.Single(library.Snapshot());
+        var project = new AlbumProject { Name = "Working legacy album" };
+        project.Album.Pages.Clear();
+        project.Album.Sections.Add(new AlbumSection
+        {
+            Title = "Working drawings",
+            SheetKeys = [record.Key],
+        });
+
+        AlbumBuildPage page = Assert.Single(
+            Assert.Single(AlbumBuilder.CreateRequest(project, library).Sections).Pages);
+
+        Assert.Equal(PageFormatKind.WorkingDrawing, page.Format.Kind);
+        Assert.True(page.Format.ShowGrid);
+        Assert.Equal(PagePlacementMode.FullPage, page.Definition.PlacementMode);
     }
 
     public void Dispose()

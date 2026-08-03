@@ -221,6 +221,8 @@ internal sealed class StudioCloudProjectSummary
     public string ProjectId { get; set; } = "";
     public string ProjectCode { get; set; } = "";
     public string Name { get; set; } = "";
+    public string ProjectDomain { get; set; } = "";
+    public string StageType { get; set; } = "";
     public string Status { get; set; } = "";
     public string CurrentStage { get; set; } = "";
     public string TemplateId { get; set; } = "";
@@ -251,6 +253,8 @@ internal sealed class StudioCloudProjectDetail
     public StudioCloudBuildingComposition? BuildingComposition { get; set; }
     public StudioCloudOrganizationAssignment? ConceptAssignment { get; set; }
     public StudioCloudOrganizationRenderProfile? DesignOrganizationProfile { get; set; }
+    public List<StudioCloudStageInstance> Stages { get; set; } = [];
+    public List<StudioCloudOrganizationAssignment> OrganizationAssignments { get; set; } = [];
     public List<StudioCloudParticipant> Participants { get; set; } = [];
     public List<StudioCloudDesignPackage> DesignPackages { get; set; } = [];
     public List<StudioCloudAlbum> Albums { get; set; } = [];
@@ -371,6 +375,8 @@ internal sealed class StudioCloudProjectInformation
     public string ProjectId { get; set; } = "";
     public string ProjectCode { get; set; } = "";
     public string Name { get; set; } = "";
+    public string ProjectDomain { get; set; } = "";
+    public string StageType { get; set; } = "";
     public string Location { get; set; } = "";
     public string BuildingPurpose { get; set; } = "";
     public decimal? Capacity { get; set; }
@@ -384,7 +390,10 @@ internal sealed class StudioCloudProjectInformation
 
 internal sealed class StudioCloudProjectInformationUpdateRequest
 {
+    public string ProjectCode { get; set; } = "";
     public string Name { get; set; } = "";
+    public string ProjectType { get; set; } = "";
+    public string StageType { get; set; } = "";
     public string ClientName { get; set; } = "";
     public string PlanningAuthorityName { get; set; } = "";
     public string DesignOrganizationName { get; set; } = "";
@@ -449,9 +458,28 @@ internal sealed class StudioCloudSiteAndLand
 
 internal sealed class StudioCloudOrganizationAssignment
 {
+    public string AssignmentId { get; set; } = "";
+    public string StageInstanceId { get; set; } = "";
     public string OrganizationId { get; set; } = "";
+    public string OrganizationSnapshotId { get; set; } = "";
     public string Scope { get; set; } = "";
     public string Status { get; set; } = "";
+    public string Role { get; set; } = "";
+    public DateTimeOffset? AcceptedAtUtc { get; set; }
+    public DateTimeOffset? EndedAtUtc { get; set; }
+    public StudioCloudOrganizationRenderProfile? OrganizationProfile { get; set; }
+}
+
+internal sealed class StudioCloudStageInstance
+{
+    public string StageInstanceId { get; set; } = "";
+    public string StageType { get; set; } = "";
+    public int Sequence { get; set; }
+    public string PreviousStageInstanceId { get; set; } = "";
+    public string BasisAlbumRevisionId { get; set; } = "";
+    public string Status { get; set; } = "";
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
 }
 
 internal sealed class StudioCloudParticipant
@@ -602,7 +630,9 @@ internal sealed class StudioCloudProjectCreateRequest
     public string Name { get; set; } = "";
     public string Location { get; set; } = "";
     public string Description { get; set; } = "";
-    public string TemplateId { get; set; } = StudioCloudTemplateIds.BuildingArchitectureConcept;
+    public string TemplateId { get; set; } = "";
+    public string ProjectType { get; set; } = "";
+    public string InitialStageType { get; set; } = "";
     public string ClientName { get; set; } = "";
     public string ClientEmail { get; set; } = "";
     public string InitiatorType { get; set; } = "";
@@ -613,6 +643,22 @@ internal sealed class StudioCloudProjectCreateRequest
 internal sealed class StudioCloudDesignOrganizationAssignmentRequest
 {
     public string OrganizationId { get; set; } = "";
+}
+
+internal sealed class StudioCloudStageAdvanceRequest
+{
+    public string CurrentStageInstanceId { get; set; } = "";
+    public string NextStageType { get; set; } = "";
+    public string BasisAlbumRevisionId { get; set; } = "";
+    public string TargetOrganizationEmail { get; set; } = "";
+}
+
+internal sealed class StudioCloudStageAdvanceResponse
+{
+    public StudioCloudProjectDetail Project { get; set; } = new();
+    public string InvitationId { get; set; } = "";
+    public string InvitationCode { get; set; } = "";
+    public DateTimeOffset? InvitationExpiresAtUtc { get; set; }
 }
 
 internal static class StudioCloudTemplateIds

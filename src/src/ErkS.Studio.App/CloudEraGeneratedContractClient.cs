@@ -49,6 +49,18 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 Convert<CloudEraDesignOrganizationAssignmentRequest>(request),
                 cancellationToken));
 
+    public Task<StudioCloudStageAdvanceResponse> AdvanceProjectStageAsync(
+        CloudEraClientContext context,
+        string projectId,
+        StudioCloudStageAdvanceRequest request,
+        CancellationToken cancellationToken = default) =>
+        ExecuteAsync<CloudEraStageAdvanceResponse, StudioCloudStageAdvanceResponse>(
+            context,
+            client => client.AdvanceCloudEraProjectStageAsync(
+                projectId,
+                Convert<CloudEraStageAdvanceRequest>(request),
+                cancellationToken));
+
     public Task<StudioCloudProjectDetail> UpdateParticipantRolesAsync(
         CloudEraClientContext context,
         string projectId,

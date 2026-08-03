@@ -19,4 +19,15 @@
     <InternalsVisibleTo Include="ErkS.Platform.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\..\..\Erk-S Platform For Autocad\src\autocad\2026-dev\source\Fonts\isocpeu_mon_3.ttf"
+             Link="Fonts\isocpeu_mon_3.ttf"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\..\Erk-S Platform For Autocad\src\autocad\2026-dev\source\Fonts\isocpeui_mon_3.ttf"
+             Link="Fonts\isocpeui_mon_3.ttf"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

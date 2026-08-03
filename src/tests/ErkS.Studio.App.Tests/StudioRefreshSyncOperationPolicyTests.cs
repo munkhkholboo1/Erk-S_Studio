@@ -6,6 +6,53 @@ namespace ErkS.Studio.App.Tests;
 public sealed class StudioRefreshSyncOperationPolicyTests
 {
     [Fact]
+    public void SourceRefresh_BuildsVerifiedLocalAlbumWithoutMutatingCloudUnionPreview()
+    {
+        Assert.False(StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(
+            StudioWorkspaceOperation.SourceRefresh));
+        Assert.True(StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(
+            StudioWorkspaceOperation.ExplicitAlbumEdit));
+    }
+
+    [Fact]
+    public void CloudUnionPreviewFailure_FallsBackToLocalBuildForLocalOperations()
+    {
+        var failure = new NullReferenceException();
+        Assert.True(StudioRefreshSyncOperationPolicy.ShouldFallbackToLocalAlbumBuild(
+            StudioWorkspaceOperation.SourceRefresh,
+            failure));
+        Assert.True(StudioRefreshSyncOperationPolicy.ShouldFallbackToLocalAlbumBuild(
+            StudioWorkspaceOperation.ExplicitAlbumEdit,
+            failure));
+        Assert.False(StudioRefreshSyncOperationPolicy.ShouldFallbackToLocalAlbumBuild(
+            StudioWorkspaceOperation.CloudSync,
+            failure));
+    }
+
+    [Fact]
+    public void WrappedCloudUnionPreviewFailure_FallsBackToValidLocalBuild()
+    {
+        var failure = new AlbumBuildException(
+            ["Object reference not set to an instance of an object."],
+            new NullReferenceException());
+
+        Assert.True(StudioRefreshSyncOperationPolicy.ShouldFallbackToLocalAlbumBuild(
+            StudioWorkspaceOperation.SourceRefresh,
+            failure));
+    }
+
+    [Fact]
+    public void CloudUnionBuildRejectionWithoutInnerException_FallsBackToLocalBuild()
+    {
+        var failure = new AlbumBuildException(
+            ["Object reference not set to an instance of an object."]);
+
+        Assert.True(StudioRefreshSyncOperationPolicy.ShouldFallbackToLocalAlbumBuild(
+            StudioWorkspaceOperation.SourceRefresh,
+            failure));
+    }
+
+    [Fact]
     public void SourceRefreshAndCloudSync_AreMutuallyExclusive()
     {
         Assert.False(StudioRefreshSyncOperationPolicy.CanStartSourceRefresh(

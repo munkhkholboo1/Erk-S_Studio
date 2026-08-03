@@ -431,7 +431,8 @@ internal sealed partial class ShellView
                         "source_refresh",
                         "error",
                         "source_refresh_album_rebuild_failed",
-                        statusText.Text);
+                        statusText.Text,
+                        lastAlbumUpdateException);
                 }
             }
             catch (Exception exception)

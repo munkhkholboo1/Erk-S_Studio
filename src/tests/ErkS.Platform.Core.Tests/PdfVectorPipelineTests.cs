@@ -24,6 +24,17 @@ public sealed class PdfVectorPipelineTests : IDisposable
     }
 
     [Fact]
+    public void WindowsFontResolver_LoadsWorkingDrawingFontBesideRendererAssembly()
+    {
+        var resolver = new WindowsFontResolver();
+
+        byte[]? font = resolver.GetFont("isocpeur mon#");
+
+        Assert.NotNull(font);
+        Assert.True(font.Length > 1000);
+    }
+
+    [Fact]
     public void SourceAsIs_PreservesOriginalPageDimensionsAndVectorGoldenProfile()
     {
         string sourcePath = Path.Combine(workDirectory, "a3-vector.pdf");
@@ -944,6 +955,34 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.Equal(reference.Pages.Select(page => page.OperatorSignature),
             actual.Pages.Select(page => page.OperatorSignature));
         Assert.All(actual.Pages, page => Assert.Equal(0, page.ImageXObjectCount));
+    }
+
+    [Fact]
+    public void WorkingDrawingTitleBlock_UsesProjectCompanyLogo()
+    {
+        string logoPath = Path.Combine(workDirectory, "working-company-logo.png");
+        File.WriteAllBytes(
+            logoPath,
+            Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+        string sourcePath = Path.Combine(workDirectory, "working-title-block-source.pdf");
+        WriteVectorPdf(sourcePath, [(390d, 277d, "Working drawing")]);
+        SheetRecord sheet = Intake(sourcePath, 390, 277, pageCount: 1, cleanDrawing: false);
+
+        string outputPath = BuildSingleSheetAlbum(
+            sheet,
+            PageFormatCatalog.WorkingDrawingA3LandscapeId,
+            PagePlacementMode.PreserveDrawingSpace,
+            configure: project =>
+            {
+                project.ProjectFolder = workDirectory;
+                project.Name = "Project name";
+                project.InitiationBasis.SiteAddress = "Project address";
+                project.Company = new CompanyProfile { Name = "Company", LogoPath = logoPath };
+            });
+
+        PdfVectorPageProfile page = Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
+        Assert.Equal(1, page.ImageXObjectCount);
     }
 
     [Fact]

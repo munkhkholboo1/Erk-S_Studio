@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using ErkS.Platform.Contracts;
+using ErkS.Platform.Core.ProjectTypes.UrbanPlanning;
 
 namespace ErkS.Platform.Core;
 
@@ -99,6 +100,12 @@ public static class ProjectPackageReconciliationService
             album.TemplateId,
             BuildingArchitectureConceptAlbumTemplate.TemplateId,
             StringComparison.OrdinalIgnoreCase);
+        bool usesUrbanPlanningTemplate = UrbanPlanningAlbumTemplate.Supports(
+            project.Identity.ProjectType,
+            project.Identity.StageCode);
+        bool usesWorkingDrawingTemplate = BuildingWorkingDrawingAlbumTemplate.Supports(
+            project.Identity.ProjectType,
+            project.Identity.StageCode);
         int removedAlbumPageCount = 0;
         if (manifest.PackageScope == SheetPackageScope.FullSnapshot &&
             library.IsCurrentAuthoritativeSnapshot(manifest, source.Id))
@@ -152,7 +159,13 @@ public static class ProjectPackageReconciliationService
                 continue;
             }
 
-            SynchronizeActiveSheet(album, entry, key, usesConceptTemplate);
+            SynchronizeActiveSheet(
+                album,
+                entry,
+                key,
+                usesConceptTemplate,
+                usesUrbanPlanningTemplate,
+                usesWorkingDrawingTemplate);
         }
 
         bool addedBuildingAssignments =
@@ -184,6 +197,10 @@ public static class ProjectPackageReconciliationService
                     project.SheetBuildingAssignments);
             album.Pages.Clear();
             album.Pages.AddRange(orderedPages);
+        }
+        else if (usesUrbanPlanningTemplate)
+        {
+            OrderUrbanPlanningPages(album, manifest, packageSource, source.Id);
         }
 
         return new ProjectPackageReconciliationResult(source.Id, removedAlbumPageCount);
@@ -222,6 +239,12 @@ public static class ProjectPackageReconciliationService
             album.TemplateId,
             BuildingArchitectureConceptAlbumTemplate.TemplateId,
             StringComparison.OrdinalIgnoreCase);
+        bool usesUrbanPlanningTemplate = UrbanPlanningAlbumTemplate.Supports(
+            project.Identity.ProjectType,
+            project.Identity.StageCode);
+        bool usesWorkingDrawingTemplate = BuildingWorkingDrawingAlbumTemplate.Supports(
+            project.Identity.ProjectType,
+            project.Identity.StageCode);
         List<SheetRecord> targetRecords = library.Snapshot()
             .Where(record =>
                 record.IsVerified &&
@@ -260,7 +283,9 @@ public static class ProjectPackageReconciliationService
                         album,
                         record.Entry,
                         record.Key,
-                        usesConceptTemplate);
+                        usesConceptTemplate,
+                        usesUrbanPlanningTemplate,
+                        usesWorkingDrawingTemplate);
                 }
             }
             else
@@ -298,6 +323,14 @@ public static class ProjectPackageReconciliationService
             album.Pages.Clear();
             album.Pages.AddRange(orderedPages);
         }
+        else if (usesUrbanPlanningTemplate)
+        {
+            OrderUrbanPlanningPages(
+                album,
+                targetRecords.Select(record => new KeyValuePair<string, int>(
+                    record.Key,
+                    record.SourceSheetIndex)));
+        }
 
         return removedPageCount;
     }
@@ -306,12 +339,14 @@ public static class ProjectPackageReconciliationService
         AlbumDefinition album,
         SheetPackageEntry entry,
         string key,
-        bool usesConceptTemplate)
+        bool usesConceptTemplate,
+        bool usesUrbanPlanningTemplate,
+        bool usesWorkingDrawingTemplate)
     {
         List<AlbumPageDefinition> pages = album.Pages
             .Where(page => string.Equals(page.SheetKey, key, StringComparison.Ordinal))
             .ToList();
-        if (usesConceptTemplate && pages.Count == 0)
+        if ((usesConceptTemplate || usesUrbanPlanningTemplate || usesWorkingDrawingTemplate) && pages.Count == 0)
         {
             var newPage = new AlbumPageDefinition { SheetKey = key };
             album.Pages.Add(newPage);
@@ -337,8 +372,77 @@ public static class ProjectPackageReconciliationService
                         BuildingArchitectureConceptAlbumTemplate.ResolveSectionId(album, slot);
                 }
             }
-            PageFormatResolver.ApplySourceFormat(page, entry);
+            else if (usesUrbanPlanningTemplate)
+            {
+                AlbumCompositionItem? slot = album.Composition
+                    .Where(item => item.Kind == AlbumCompositionKind.SourceSlot)
+                    .FirstOrDefault(item =>
+                        item.Number.Equals(entry.Number, StringComparison.OrdinalIgnoreCase));
+                if (slot is not null)
+                {
+                    page.TemplateSlotId = slot.Id;
+                    page.SectionId = album.Sections
+                        .FirstOrDefault(section =>
+                            section.Title.Equals(slot.SectionTitle, StringComparison.OrdinalIgnoreCase))
+                        ?.Id;
+                }
+            }
+            else if (usesWorkingDrawingTemplate)
+            {
+                AlbumCompositionItem? slot =
+                    BuildingWorkingDrawingAlbumTemplate.FindSourceSlot(album);
+                if (slot is not null)
+                {
+                    page.TemplateSlotId = slot.Id;
+                    page.SectionId = album.Sections
+                        .FirstOrDefault(section => section.Title.Equals(
+                            slot.SectionTitle,
+                            StringComparison.OrdinalIgnoreCase))
+                        ?.Id;
+                }
+            }
+            PageFormatResolver.ApplySourceFormat(
+                page,
+                entry,
+                forceStudioChrome: usesWorkingDrawingTemplate);
         }
+    }
+
+    private static void OrderUrbanPlanningPages(
+        AlbumDefinition album,
+        SheetPackageManifest manifest,
+        SheetPackageSource packageSource,
+        string projectSourceId)
+    {
+        OrderUrbanPlanningPages(
+            album,
+            manifest.Sheets
+            .Select((entry, index) => new
+            {
+                Key = SheetRecord.MakeKey(packageSource, entry, projectSourceId),
+                Index = index,
+            })
+            .Select(item => new KeyValuePair<string, int>(item.Key, item.Index)));
+    }
+
+    private static void OrderUrbanPlanningPages(
+        AlbumDefinition album,
+        IEnumerable<KeyValuePair<string, int>> orderedSourceSheets)
+    {
+        Dictionary<string, int> sourceOrder = orderedSourceSheets
+            .GroupBy(item => item.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Min(item => item.Value), StringComparer.Ordinal);
+        Dictionary<string, int> originalOrder = album.Pages
+            .Select((page, index) => new { page.Id, Index = index })
+            .ToDictionary(item => item.Id.ToString("N"), item => item.Index, StringComparer.Ordinal);
+
+        List<AlbumPageDefinition> ordered = album.Pages
+            .OrderBy(page => sourceOrder.ContainsKey(page.SheetKey) ? 0 : 1)
+            .ThenBy(page => sourceOrder.TryGetValue(page.SheetKey, out int order) ? order : int.MaxValue)
+            .ThenBy(page => originalOrder[page.Id.ToString("N")])
+            .ToList();
+        album.Pages.Clear();
+        album.Pages.AddRange(ordered);
     }
 
     private static ProjectInactiveSourceSheetState? CaptureInactiveSheetState(

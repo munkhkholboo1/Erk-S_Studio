@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using ErkS.Platform.Core;
 using ErkS.Platform.Contracts;
 using PdfSharp.Drawing;
@@ -14,7 +15,11 @@ namespace ErkS.Platform.Pdf;
 public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 {
     private const string FontName = BuildingArchitectureConceptPageLayout.FontFamilyName;
+    private const string WorkingDrawingFontName = "ISOCPEUR MON";
     private const double PointsPerMillimeter = 72.0 / 25.4;
+    private static readonly ConditionalWeakTable<XGraphics, CoverFontContext> CoverFontContexts = new();
+
+    private sealed record CoverFontContext(string FontName);
 
     public AlbumBuildResult Compose(AlbumBuildRequest request, string outputPath)
     {
@@ -589,6 +594,12 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             return;
         }
 
+        if (format.Kind == PageFormatKind.WorkingDrawing)
+        {
+            DrawWorkingDrawingSheetChrome(gfx, page, project, buildPage);
+            return;
+        }
+
         var borderPen = new XPen(XColors.Black, 0.65);
         var finePen = new XPen(XColor.FromArgb(115, 125, 136), 0.35);
         var pageRect = new XRect(0, 0, page.Width.Point, page.Height.Point);
@@ -624,6 +635,143 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawSheetTitle(gfx, sheetTitleRect, buildPage, borderPen);
         DrawTitleBlock(gfx, titleRect, project, buildPage, borderPen, finePen);
         gfx.DrawRectangle(new XPen(XColor.FromArgb(185, 190, 196), 0.25), pageRect);
+    }
+
+    private static void DrawWorkingDrawingSheetChrome(
+        XGraphics gfx,
+        PdfPage page,
+        AlbumProject project,
+        AlbumBuildPage buildPage)
+    {
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(buildPage.Format);
+        var borderPen = new XPen(XColors.Black, Mm(0.35));
+        var finePen = new XPen(XColors.Black, Mm(0.10));
+        var paperBrush = new XSolidBrush(XColor.FromArgb(254, 254, 254));
+        XRect corner = ToPoints(regions.TitleBlockArea);
+        XRect sheetHeader = ToPoints(regions.SheetTitleArea);
+
+        // Text and the real standard table belong to Studio. The host-side
+        // rectangles only reserve these zones and are covered here.
+        gfx.DrawRectangle(paperBrush, sheetHeader);
+        gfx.DrawRectangle(paperBrush, corner);
+        DrawEtalonGrid(gfx, regions, borderPen, finePen);
+        DrawRevitWorkingSheetHeader(gfx, sheetHeader, buildPage, borderPen);
+        gfx.DrawRectangle(borderPen, corner);
+        DrawRevitWorkingTitleBlock(gfx, corner, project, buildPage, borderPen, finePen);
+        gfx.DrawRectangle(
+            new XPen(XColor.FromArgb(185, 190, 196), 0.25),
+            new XRect(0, 0, page.Width.Point, page.Height.Point));
+    }
+
+    private static void DrawRevitWorkingSheetHeader(
+        XGraphics gfx,
+        XRect rect,
+        AlbumBuildPage buildPage,
+        XPen borderPen)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0)
+            return;
+
+        // Mirrors Revit BlueprintSheetHeader: one 9 mm strip containing the
+        // sheet name and the resolved sheet scale. Sheet number stays in the
+        // corner table family.
+        gfx.DrawRectangle(borderPen, rect);
+        string scale = string.IsNullOrWhiteSpace(buildPage.Sheet.Entry.ScaleText)
+            ? "1:100"
+            : buildPage.Sheet.Entry.ScaleText.Trim();
+        if (!scale.StartsWith("M", StringComparison.OrdinalIgnoreCase) &&
+            !scale.StartsWith("М", StringComparison.OrdinalIgnoreCase))
+        {
+            scale = $"M {scale}";
+        }
+
+        double padding = Mm(1.5);
+        DrawWrappedCoverText(
+            gfx,
+            buildPage.Title,
+            new XRect(rect.Left + padding, rect.Top + padding, rect.Width - padding * 2, rect.Height - padding * 2),
+            2.5,
+            false,
+            XStringFormats.TopRight,
+            WorkingDrawingFontName);
+    }
+
+    private static void DrawEtalonGrid(
+        XGraphics gfx,
+        WorkingDrawingPageRegions regions,
+        XPen borderPen,
+        XPen finePen)
+    {
+        XRect outer = ToPoints(regions.EtalonOuterFrame);
+        XRect inner = ToPoints(regions.EtalonInnerFrame);
+        gfx.DrawRectangle(borderPen, outer);
+        gfx.DrawRectangle(borderPen, inner);
+
+        for (int column = 1; column < regions.GridColumns; column++)
+        {
+            double x = inner.Left + inner.Width * column / regions.GridColumns;
+            gfx.DrawLine(finePen, x, outer.Top, x, inner.Top);
+            gfx.DrawLine(finePen, x, inner.Bottom, x, outer.Bottom);
+        }
+        for (int row = 1; row < regions.GridRows; row++)
+        {
+            double y = inner.Top + inner.Height * row / regions.GridRows;
+            gfx.DrawLine(finePen, outer.Left, y, inner.Left, y);
+            gfx.DrawLine(finePen, inner.Right, y, outer.Right, y);
+        }
+
+        DrawEtalonLabels(gfx, outer, inner, regions.GridColumns, regions.GridRows);
+        double centerX = inner.Left + inner.Width * 0.5;
+        double centerY = inner.Top + inner.Height * 0.5;
+        gfx.DrawLine(borderPen, centerX, outer.Top, centerX, inner.Top);
+        gfx.DrawLine(borderPen, centerX, inner.Bottom, centerX, outer.Bottom);
+        gfx.DrawLine(borderPen, outer.Left, centerY, inner.Left, centerY);
+        gfx.DrawLine(borderPen, inner.Right, centerY, outer.Right, centerY);
+    }
+
+    private static void DrawEtalonLabels(
+        XGraphics gfx,
+        XRect outer,
+        XRect inner,
+        int columns,
+        int rows)
+    {
+        // The canonical printed text height is 2.5 mm throughout the working
+        // drawing sheet, including etalon coordinates.
+        XFont font = CreateCoverFont(2.5, false, WorkingDrawingFontName);
+        double bandWidth = Math.Max(1, inner.Left - outer.Left);
+        double bandHeight = Math.Max(1, inner.Top - outer.Top);
+        for (int column = 0; column < columns; column++)
+        {
+            double width = inner.Width / columns;
+            var top = new XRect(inner.Left + width * column, outer.Top, width, bandHeight);
+            var bottom = new XRect(inner.Left + width * column, inner.Bottom, width, outer.Bottom - inner.Bottom);
+            string label = (column + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            gfx.DrawString(label, font, XBrushes.Black, top, XStringFormats.Center);
+            gfx.DrawString(label, font, XBrushes.Black, bottom, XStringFormats.Center);
+        }
+        for (int row = 0; row < rows; row++)
+        {
+            double height = inner.Height / rows;
+            var left = new XRect(outer.Left, inner.Top + height * row, bandWidth, height);
+            var right = new XRect(inner.Right, inner.Top + height * row, outer.Right - inner.Right, height);
+            string label = GridRowLabel(row);
+            gfx.DrawString(label, font, XBrushes.Black, left, XStringFormats.Center);
+            gfx.DrawString(label, font, XBrushes.Black, right, XStringFormats.Center);
+        }
+    }
+
+    private static string GridRowLabel(int index)
+    {
+        index = Math.Max(0, index);
+        string label = "";
+        do
+        {
+            label = (char)('A' + index % 26) + label;
+            index = index / 26 - 1;
+        }
+        while (index >= 0);
+        return label;
     }
 
     private static void DrawConceptSheetChrome(
@@ -1334,17 +1482,24 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static void DrawGridMarks(XGraphics gfx, XRect rect, XPen pen)
     {
+        double band = Mm(5);
+        var outer = new XRect(
+            Math.Max(0, rect.Left - band),
+            Math.Max(0, rect.Top - band),
+            rect.Width + band * 2,
+            rect.Height + band * 2);
+        gfx.DrawRectangle(pen, outer);
         var step = Mm(50);
         for (var x = rect.Left + step; x < rect.Right; x += step)
         {
-            gfx.DrawLine(pen, x, rect.Top, x, rect.Top + Mm(2.5));
-            gfx.DrawLine(pen, x, rect.Bottom - Mm(2.5), x, rect.Bottom);
+            gfx.DrawLine(pen, x, outer.Top, x, rect.Top);
+            gfx.DrawLine(pen, x, rect.Bottom, x, outer.Bottom);
         }
 
         for (var y = rect.Top + step; y < rect.Bottom; y += step)
         {
-            gfx.DrawLine(pen, rect.Left, y, rect.Left + Mm(2.5), y);
-            gfx.DrawLine(pen, rect.Right - Mm(2.5), y, rect.Right, y);
+            gfx.DrawLine(pen, outer.Left, y, rect.Left, y);
+            gfx.DrawLine(pen, rect.Right, y, outer.Right, y);
         }
     }
 
@@ -1361,13 +1516,14 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             return;
         }
 
-        var firstLine = rect.Top + rect.Height * 0.34;
+        bool vertical = rect.Height > rect.Width;
+        var firstLine = rect.Top + rect.Height * (vertical ? 0.24 : 0.34);
         var secondLine = rect.Top + rect.Height * 0.66;
         gfx.DrawLine(finePen, rect.Left, firstLine, rect.Right, firstLine);
         gfx.DrawLine(finePen, rect.Left, secondLine, rect.Right, secondLine);
 
-        var bottomLeftWidth = rect.Width * 0.46;
-        var bottomRightWidth = rect.Width * 0.28;
+        var bottomLeftWidth = rect.Width * (vertical ? 0.55 : 0.46);
+        var bottomRightWidth = rect.Width * (vertical ? 0.22 : 0.28);
         gfx.DrawLine(borderPen, rect.Left + bottomLeftWidth, secondLine, rect.Left + bottomLeftWidth, rect.Bottom);
         gfx.DrawLine(borderPen, rect.Right - bottomRightWidth, secondLine, rect.Right - bottomRightWidth, rect.Bottom);
 
@@ -1393,11 +1549,206 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             7,
             false);
 
-        if (rect.Width > rect.Height * 3)
+        if (!vertical && rect.Width > rect.Height * 3)
         {
             DrawFittedText(gfx, buildPage.Title, rect.Left + rect.Width * 0.52, firstLine + padding,
                 rect.Width * 0.46 - padding * 2, secondLine - firstLine - padding * 2, 8, true);
         }
+        else if (vertical)
+        {
+            DrawFittedText(
+                gfx,
+                buildPage.Title,
+                rect.Left + padding,
+                firstLine + padding,
+                rect.Width - padding * 2,
+                secondLine - firstLine - padding * 2,
+                8,
+                true,
+                XStringFormats.Center);
+        }
+    }
+
+    private static void DrawRevitWorkingTitleBlock(
+        XGraphics gfx,
+        XRect rect,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        XPen borderPen,
+        XPen finePen)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0)
+            return;
+
+        bool vertical = rect.Height > rect.Width;
+        if (vertical)
+        {
+            DrawVerticalRevitWorkingTitleBlock(gfx, rect, project, buildPage, borderPen, finePen);
+            return;
+        }
+
+        if (rect.Height <= Mm(40))
+        {
+            DrawCanonicalHorizontalWorkingTitleBlockV2(gfx, rect, project, buildPage, borderPen, finePen);
+            return;
+        }
+
+        // Canonical Revit horizontal corner table: 180 x 55 mm.  The title is
+        // a cell in this table; working drawings never receive a second title
+        // strip across the top of the drawing field.
+        double x60 = rect.Left + rect.Width / 3d;
+        double x150 = rect.Left + rect.Width * 5d / 6d;
+        double x165 = rect.Left + rect.Width * 11d / 12d;
+        double y8 = rect.Top + rect.Height * 8d / 55d;
+        double y18 = rect.Top + rect.Height * 18d / 55d;
+        double y42 = rect.Top + rect.Height * 42d / 55d;
+        double y49 = rect.Top + rect.Height * 49d / 55d;
+
+        foreach (double y in new[] { y8, y18, y42, y49 })
+            gfx.DrawLine(finePen, rect.Left, y, rect.Right, y);
+        gfx.DrawLine(borderPen, x60, rect.Top, x60, rect.Bottom);
+        gfx.DrawLine(borderPen, x150, rect.Top, x150, rect.Bottom);
+        gfx.DrawLine(finePen, x165, y42, x165, rect.Bottom);
+        gfx.DrawLine(finePen, rect.Left + rect.Width * 19d / 36d, y49, rect.Left + rect.Width * 19d / 36d, rect.Bottom);
+        gfx.DrawLine(finePen, rect.Left + rect.Width * 25d / 36d, y49, rect.Left + rect.Width * 25d / 36d, rect.Bottom);
+
+        double pad = Mm(1.5);
+        DrawFittedText(gfx, CompanyDisplayName(project.Company, project.DesignOrganizationName),
+            rect.Left + pad, rect.Top + pad, x60 - rect.Left - pad * 2, y18 - rect.Top - pad * 2, 7.5, true, XStringFormats.Center);
+        DrawFittedText(gfx, ProjectDisplayName(project),
+            x60 + pad, rect.Top + pad, x150 - x60 - pad * 2, y18 - rect.Top - pad * 2, 7.5, true, XStringFormats.Center);
+        DrawFittedText(gfx, buildPage.Title,
+            x60 + pad, y18 + pad, x150 - x60 - pad * 2, y42 - y18 - pad * 2, 9, true, XStringFormats.Center);
+        DrawFittedText(gfx, "ҮЕ ШАТ", x150 + pad, rect.Top + pad, rect.Right - x150 - pad * 2, y8 - rect.Top - pad * 2, 5.5, false, XStringFormats.Center);
+        DrawFittedText(gfx, "АЖЛЫН ЗУРАГ", x150 + pad, y8 + pad, rect.Right - x150 - pad * 2, y18 - y8 - pad * 2, 6.5, true, XStringFormats.Center);
+        DrawFittedText(gfx, "МАСШТАБ", x150 + pad, y18 + pad, rect.Right - x150 - pad * 2, y42 - y18 - pad * 2, 5.5, false, XStringFormats.Center);
+        DrawFittedText(gfx, buildPage.Sheet.Entry.ScaleText, x150 + pad, y18 + Mm(8), rect.Right - x150 - pad * 2, y42 - y18 - Mm(9), 7, true, XStringFormats.Center);
+        DrawFittedText(gfx, project.Code, rect.Left + pad, y49 + pad, rect.Width * 19d / 36d - pad * 2, rect.Bottom - y49 - pad * 2, 5.5, false);
+        DrawFittedText(gfx, buildPage.Number, rect.Left + rect.Width * 19d / 36d + pad, y49 + pad, rect.Width / 6d - pad * 2, rect.Bottom - y49 - pad * 2, 7, true, XStringFormats.Center);
+        DrawFittedText(gfx, string.IsNullOrWhiteSpace(buildPage.Sheet.Entry.Revision) ? "R0" : buildPage.Sheet.Entry.Revision,
+            x165 + pad, y42 + pad, rect.Right - x165 - pad * 2, rect.Bottom - y42 - pad * 2, 6, false, XStringFormats.Center);
+    }
+
+    private static void DrawCanonicalHorizontalWorkingTitleBlock(
+        XGraphics gfx,
+        XRect rect,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        XPen borderPen,
+        XPen finePen)
+    {
+        double X(double mm) => rect.Left + Mm(mm);
+        double Y(double mm) => rect.Top + Mm(mm);
+        double pad = Mm(0.8);
+        double[] xs = [25, 45, 75, 105, 125, 145, 165];
+        double[] ys = [8, 15, 22, 29];
+
+        gfx.DrawLine(borderPen, X(25), rect.Top, X(25), rect.Bottom);
+        gfx.DrawLine(finePen, X(25), Y(8), rect.Right, Y(8));
+        foreach (double y in ys.Skip(1))
+            gfx.DrawLine(finePen, X(25), Y(y), rect.Right, Y(y));
+        foreach (double x in xs.Skip(1))
+            gfx.DrawLine(finePen, X(x), Y(8), X(x), rect.Bottom);
+
+        DrawFittedText(gfx, "R standard", rect.Left + pad, rect.Top + pad, Mm(25) - pad * 2, rect.Height - pad * 2, 8, true, XStringFormats.Center);
+        DrawFittedText(gfx, buildPage.Title, X(25) + pad, rect.Top + pad, rect.Right - X(25) - pad * 2, Mm(8) - pad * 2, 6.5, true);
+        DrawFittedText(gfx, "Архитектор", X(25) + pad, Y(8) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5.2, false);
+        DrawFittedText(gfx, "Гүйцэтгэсэн", X(25) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5.2, false);
+        DrawFittedText(gfx, "Шалгасан", X(25) + pad, Y(22) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5.2, false);
+        DrawFittedText(gfx, ProjectDisplayName(project), X(45) + pad, Y(8) + pad, Mm(60) - pad * 2, Mm(21) - pad * 2, 6, true, XStringFormats.Center);
+        DrawFittedText(gfx, "ЕГ шифр:", X(105) + pad, Y(8) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        DrawFittedText(gfx, "Масштаб:", X(145) + pad, Y(8) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        DrawFittedText(gfx, "Огноо:", X(165) + pad, Y(8) + pad, rect.Right - X(165) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        DrawFittedText(gfx, "ТГ шифр:", X(105) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        DrawFittedText(gfx, "Зургийн марк:", X(125) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        DrawFittedText(gfx, "Хуудас:", X(145) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        DrawFittedText(gfx, buildPage.Sheet.Entry.ScaleText, X(145) + pad, Y(22) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5.5, true, XStringFormats.Center);
+        DrawFittedText(gfx, project.Code, X(105) + pad, Y(29) + pad, Mm(40) - pad * 2, rect.Bottom - Y(29) - pad * 2, 5, false);
+        DrawFittedText(gfx, buildPage.Sheet.Entry.Discipline, X(145) + pad, Y(29) + pad, Mm(20) - pad * 2, rect.Bottom - Y(29) - pad * 2, 5.2, true, XStringFormats.Center);
+        DrawFittedText(gfx, buildPage.Number, X(165) + pad, Y(29) + pad, rect.Right - X(165) - pad * 2, rect.Bottom - Y(29) - pad * 2, 5.5, true, XStringFormats.Center);
+    }
+
+    private static void DrawCanonicalHorizontalWorkingTitleBlockV2(
+        XGraphics gfx,
+        XRect rect,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        XPen borderPen,
+        XPen finePen)
+    {
+        double X(double mm) => rect.Left + Mm(mm);
+        double Y(double mm) => rect.Top + Mm(mm);
+        double pad = Mm(0.65);
+        double standardTextSize = Mm(CoverFontEmSizeMm(2.5));
+        double[] columns = [27, 48, 74, 101, 127, 153];
+
+        gfx.DrawLine(borderPen, X(27), rect.Top, X(27), rect.Bottom);
+        gfx.DrawLine(finePen, X(27), Y(11), rect.Right, Y(11));
+        gfx.DrawLine(finePen, X(27), Y(17), rect.Right, Y(17));
+        // Signature area has three rows; the metadata area on the right has
+        // exactly two rows in the canonical horizontal family.
+        gfx.DrawLine(finePen, X(27), Y(23), X(101), Y(23));
+        gfx.DrawLine(finePen, X(27), Y(30), X(101), Y(30));
+        gfx.DrawLine(finePen, X(101), Y(26.5), rect.Right, Y(26.5));
+        foreach (double x in columns.Skip(1))
+            gfx.DrawLine(finePen, X(x), Y(17), X(x), rect.Bottom);
+
+        var logoCell = new XRect(rect.Left, Y(2), Mm(27), Mm(27));
+        gfx.DrawRectangle(finePen, logoCell);
+        CompanyProfile company = project.Company.Clone();
+        company.LogoPath = ResolveAlbumAssetPath(project.ProjectFolder, company.LogoPath);
+        DrawCompanyLogoOnly(gfx, company, logoCell);
+        DrawWrappedCoverText(gfx, ProjectDisplayName(project),
+            new XRect(X(27) + pad, rect.Top + pad, rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
+            2.5, false, XStringFormats.Center, WorkingDrawingFontName);
+        DrawWrappedCoverText(gfx, project.InitiationBasis.SiteAddress,
+            new XRect(X(27) + pad, Y(5.5), rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
+            2.5, false, XStringFormats.Center, WorkingDrawingFontName);
+        DrawWrappedCoverText(gfx, buildPage.Title,
+            new XRect(X(27) + pad, Y(11) + pad, rect.Right - X(27) - pad * 2, Mm(6) - pad * 2),
+            2.5, false, XStringFormats.CenterLeft, WorkingDrawingFontName);
+
+        DrawFittedText(gfx, "\u0410\u0440\u0445\u0438\u0442\u0435\u043a\u0442\u043e\u0440", X(27) + pad, Y(17) + pad, Mm(21) - pad * 2, Mm(6) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, "\u0413\u04af\u0439\u0446\u044d\u0442\u0433\u044d\u0441\u044d\u043d", X(27) + pad, Y(23) + pad, Mm(21) - pad * 2, Mm(7) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, "\u0428\u0430\u043b\u0433\u0430\u0441\u0430\u043d", X(27) + pad, Y(30) + pad, Mm(21) - pad * 2, rect.Bottom - Y(30) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
+        var signers = project.Company.Signers.Take(3).ToList();
+        for (int row = 0; row < signers.Count; row++)
+        {
+            double top = row == 0 ? 17 : row == 1 ? 23 : 30;
+            double bottom = row == 0 ? 23 : row == 1 ? 30 : 36;
+            DrawFittedText(gfx, signers[row].FullName, X(48) + pad, Y(top) + pad,
+                Mm(26) - pad * 2, Mm(bottom - top) - pad * 2, standardTextSize, false, XStringFormats.Center, WorkingDrawingFontName);
+        }
+
+        double metadataFont = standardTextSize;
+        DrawFittedText(gfx, $"\u0415\u0413 \u0448\u0438\u0444\u0440: {project.Code}", X(101) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, $"\u041c\u0430\u0441\u0448\u0442\u0430\u0431: {buildPage.ScaleText}", X(127) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, $"\u041e\u0433\u043d\u043e\u043e: {DateTime.Now:yyyy.MM}", X(153) + pad, Y(17) + pad, rect.Right - X(153) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, "\u0422\u0413 \u0448\u0438\u0444\u0440:", X(101) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, $"\u0417\u0443\u0440\u0433\u0438\u0439\u043d \u043c\u0430\u0440\u043a: {buildPage.Sheet.Entry.Discipline}", X(127) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, $"\u0425\u0443\u0443\u0434\u0430\u0441: {buildPage.Number}", X(153) + pad, Y(26.5) + pad, rect.Right - X(153) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+    }
+
+    private static void DrawVerticalRevitWorkingTitleBlock(
+        XGraphics gfx,
+        XRect rect,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        XPen borderPen,
+        XPen finePen)
+    {
+        double y60 = rect.Top + rect.Height / 3d;
+        double y150 = rect.Top + rect.Height * 5d / 6d;
+        double x8 = rect.Left + rect.Width * 8d / 55d;
+        double x47 = rect.Right - rect.Width * 8d / 55d;
+        gfx.DrawLine(borderPen, rect.Left, y60, rect.Right, y60);
+        gfx.DrawLine(borderPen, rect.Left, y150, rect.Right, y150);
+        gfx.DrawLine(finePen, x8, rect.Top, x8, rect.Bottom);
+        gfx.DrawLine(finePen, x47, rect.Top, x47, rect.Bottom);
+        double pad = Mm(1.5);
+        DrawFittedText(gfx, CompanyDisplayName(project.Company, project.DesignOrganizationName), x8 + pad, rect.Top + pad, x47 - x8 - pad * 2, y60 - rect.Top - pad * 2, 7, true, XStringFormats.Center);
+        DrawFittedText(gfx, buildPage.Title, x8 + pad, y60 + pad, x47 - x8 - pad * 2, y150 - y60 - pad * 2, 8, true, XStringFormats.Center);
+        DrawFittedText(gfx, buildPage.Number, x8 + pad, y150 + pad, x47 - x8 - pad * 2, rect.Bottom - y150 - pad * 2, 8, true, XStringFormats.Center);
     }
 
     private static void DrawFittedText(
@@ -1409,7 +1760,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         double height,
         double preferredSize,
         bool bold,
-        XStringFormat? format = null)
+        XStringFormat? format = null,
+        string fontName = FontName)
     {
         if (string.IsNullOrWhiteSpace(text) || width <= 2 || height <= 2)
         {
@@ -1420,7 +1772,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XFont font;
         do
         {
-            font = new XFont(FontName, size, bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
+            font = new XFont(fontName, size, bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
             if (gfx.MeasureString(text, font).Width <= width || size <= 5.5)
             {
                 break;
@@ -1451,7 +1803,22 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         switch (plan.Component.GeneratedPageKind)
         {
             case AlbumGeneratedPageKind.Cover:
-                DrawConceptCoverPage(document, request, plan.Component);
+                if (request.Project.Album.TemplateId.Equals(
+                        BuildingArchitectureConceptAlbumTemplate.TemplateId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    DrawConceptCoverPage(document, request, plan.Component);
+                }
+                else if (request.Project.Album.TemplateId.Equals(
+                             BuildingWorkingDrawingAlbumTemplate.TemplateId,
+                             StringComparison.OrdinalIgnoreCase))
+                {
+                    DrawWorkingDrawingCoverPage(document, request, plan.Component);
+                }
+                else
+                {
+                    DrawCoverPage(document, request);
+                }
                 break;
             case AlbumGeneratedPageKind.DesignOrganization:
                 DrawDesignOrganizationPage(document, request, plan);
@@ -1461,6 +1828,20 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 break;
             case AlbumGeneratedPageKind.SiteContext:
                 DrawSiteContextPage(document, request, plan);
+                break;
+            case AlbumGeneratedPageKind.None:
+                // Non-building templates use a Studio-owned drawing list and
+                // explanatory-notes front-matter page after the cover.
+                if (request.Project.Album.TemplateId.Equals(
+                        BuildingWorkingDrawingAlbumTemplate.TemplateId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    DrawWorkingDrawingTableOfContents(document, request, plan.Component);
+                }
+                else
+                {
+                    DrawTableOfContents(document, request);
+                }
                 break;
         }
     }
@@ -1545,13 +1926,17 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     private const double CoverCompanyNameRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedNameRightMm;
     private const double CoverTableRightMm = BuildingArchitectureConceptPageLayout.CoverTableRightMm;
 
-    private static void DrawConceptCoverPage(
+    private static void DrawCanonicalA3ApprovalCoverPage(
         PdfDocument document,
         AlbumBuildRequest request,
-        AlbumCompositionItem item)
+        AlbumCompositionItem item,
+        bool drawWorkingDrawingEtalon = false)
     {
         var page = AddA3LandscapePage(document);
         using var gfx = XGraphics.FromPdfPage(page);
+        CoverFontContexts.Add(
+            gfx,
+            new CoverFontContext(drawWorkingDrawingEtalon ? WorkingDrawingFontName : FontName));
         var border = new XPen(XColors.Black, Mm(0.25));
         var fine = new XPen(XColors.Black, Mm(0.10));
         var company = request.Project.Company;
@@ -1597,7 +1982,16 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         var tableBottomMm = Math.Min(reviewTableBottomMm, processedColumn.BottomMm);
 
         gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
-        gfx.DrawRectangle(border, ToPoints(BuildingArchitectureConceptPageLayout.Frame));
+        if (drawWorkingDrawingEtalon)
+        {
+            WorkingDrawingPageRegions coverRegions = WorkingDrawingPageLayout.Resolve(
+                PageFormatCatalog.DefaultWorkingDrawing);
+            DrawEtalonGrid(gfx, coverRegions, border, fine);
+        }
+        else
+        {
+            gfx.DrawRectangle(border, ToPoints(BuildingArchitectureConceptPageLayout.Frame));
+        }
 
         DrawCoverText(gfx, "БАТЛАВ:", CoverCenteredRect(210.0, 281.205, 50.0, 8.0), bodyTextHeightMm, false, XStringFormats.Center);
         foreach (CoverApprovedRow row in approvedRows)
@@ -1632,9 +2026,12 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             projectNameTextHeightMm,
             false,
             XStringFormats.Center);
+        string coverTypeTitle = drawWorkingDrawingEtalon
+            ? "БАРИЛГА АРХИТЕКТУРЫН ХЭСЭГ-БА"
+            : "/ЗАГВАР ЗУРАГ/";
         DrawCoverText(
             gfx,
-            "/ЗАГВАР ЗУРАГ/",
+            coverTypeTitle,
             CoverCenteredRect(210.0, 186.760, 110.0, 8.0),
             bodyTextHeightMm,
             false,
@@ -1694,6 +2091,33 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         DrawCoverText(gfx, "Улаанбаатар хот", CoverCenteredRect(210.0, 26.125, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
         DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, 15.625, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
+    }
+
+    private static void DrawConceptCoverPage(
+        PdfDocument document,
+        AlbumBuildRequest request,
+        AlbumCompositionItem item)
+    {
+        DrawCanonicalA3ApprovalCoverPage(
+            document,
+            request,
+            item,
+            drawWorkingDrawingEtalon: false);
+    }
+
+    private static void DrawWorkingDrawingCoverPage(
+        PdfDocument document,
+        AlbumBuildRequest request,
+        AlbumCompositionItem item)
+    {
+        // The working cover has its own semantic identity and title. It shares
+        // only the approval-table geometry with the concept cover and uses the
+        // same etalon-grid generator as every working-drawing sheet.
+        DrawCanonicalA3ApprovalCoverPage(
+            document,
+            request,
+            item,
+            drawWorkingDrawingEtalon: true);
     }
 
     private static void DrawSketchCoverApprovalTable(
@@ -1762,7 +2186,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         double printedTextHeightMm,
         bool bold,
         XStringFormat format,
-        double horizontalInsetMm = 1.2)
+        double horizontalInsetMm = 1.2,
+        string? fontName = null)
     {
         var rect = CoverRect(x0Mm, y0Mm, x1Mm, y1Mm);
         DrawWrappedCoverText(
@@ -1775,7 +2200,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 rect.Height - Mm(1.2)),
             printedTextHeightMm,
             bold,
-            format);
+            format,
+            fontName);
     }
 
     private static void DrawCoverText(
@@ -1784,8 +2210,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XRect rect,
         double printedTextHeightMm,
         bool bold,
-        XStringFormat format) =>
-        DrawWrappedCoverText(gfx, text, rect, printedTextHeightMm, bold, format);
+        XStringFormat format,
+        string? fontName = null) =>
+        DrawWrappedCoverText(gfx, text, rect, printedTextHeightMm, bold, format, fontName);
 
     private static void DrawWrappedCoverText(
         XGraphics gfx,
@@ -1793,19 +2220,25 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XRect rect,
         double printedTextHeightMm,
         bool bold,
-        XStringFormat format)
+        XStringFormat format,
+        string? fontName = null)
     {
         if (string.IsNullOrWhiteSpace(text) || rect.Width <= 0 || rect.Height <= 0)
         {
             return;
         }
 
+        string resolvedFontName = fontName ??
+            (CoverFontContexts.TryGetValue(gfx, out CoverFontContext? context)
+                ? context.FontName
+                : FontName);
         (XFont font, double fittedTextHeightMm) = CreateCoverFontToFitLongestWord(
             gfx,
             text,
             rect.Width,
             printedTextHeightMm,
-            bold);
+            bold,
+            resolvedFontName);
         var lines = WrapCoverText(gfx, text, font, rect.Width);
         var lineHeight = Mm(CoverLineHeightMm(fittedTextHeightMm));
         var totalHeight = lines.Count * lineHeight;
@@ -1823,8 +2256,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     }
 
     private static XFont CreateCoverFont(double printedTextHeightMm, bool bold) =>
+        CreateCoverFont(printedTextHeightMm, bold, FontName);
+
+    private static XFont CreateCoverFont(double printedTextHeightMm, bool bold, string fontName) =>
         new(
-            FontName,
+            fontName,
             Mm(CoverFontEmSizeMm(printedTextHeightMm)),
             bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
 
@@ -1833,9 +2269,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         string text,
         double maxWidth,
         double printedTextHeightMm,
-        bool bold)
+        bool bold,
+        string fontName = FontName)
     {
-        XFont font = CreateCoverFont(printedTextHeightMm, bold);
+        XFont font = CreateCoverFont(printedTextHeightMm, bold, fontName);
         string longestWord = text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
@@ -1856,7 +2293,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         double fittedTextHeightMm = Math.Max(
             1.5,
             printedTextHeightMm * maxWidth / measuredWidth * 0.98);
-        return (CreateCoverFont(fittedTextHeightMm, bold), fittedTextHeightMm);
+        return (CreateCoverFont(fittedTextHeightMm, bold, fontName), fittedTextHeightMm);
     }
 
     private static double CoverFontEmSizeMm(double printedTextHeightMm) =>
@@ -2761,6 +3198,119 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         gfx.DrawString(DateTime.Now.ToString("yyyy-MM-dd"), labelFont, mutedBrush,
             new XRect(0, height - 70, width, 16), XStringFormats.Center);
+    }
+
+    private static void DrawWorkingDrawingTableOfContents(
+        PdfDocument document,
+        AlbumBuildRequest request,
+        AlbumCompositionItem item)
+    {
+        PageFormatDefinition format = PageFormatCatalog.DefaultWorkingDrawing;
+        PdfPage page = AddA3LandscapePage(document);
+        using var gfx = XGraphics.FromPdfPage(page);
+        gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
+
+        AlbumBuildPage generatedPage = CreateWorkingGeneratedPage(
+            format,
+            item.Number,
+            "ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ");
+        DrawWorkingDrawingSheetChrome(gfx, page, request.Project, generatedPage);
+
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
+        double left = Mm(regions.EtalonInnerFrame.X + 4);
+        double right = Mm(regions.EtalonInnerFrame.X + regions.EtalonInnerFrame.Width - 4);
+        double y = Mm(regions.SheetTitleArea.Y + regions.SheetTitleArea.Height + 5);
+        double rowHeight = Mm(7);
+        double numberWidth = Mm(18);
+        double sheetNumberWidth = Mm(30);
+        double applicationWidth = Mm(34);
+        XFont font = CreateCoverFont(2.5, false, WorkingDrawingFontName);
+        XFont boldFont = CreateCoverFont(2.5, true, WorkingDrawingFontName);
+        var linePen = new XPen(XColors.Black, Mm(0.10));
+
+        void DrawRow(string index, string number, string title, string application, bool bold)
+        {
+            XFont rowFont = bold ? boldFont : font;
+            double x1 = left + numberWidth;
+            double x2 = x1 + sheetNumberWidth;
+            double x3 = right - applicationWidth;
+            gfx.DrawLine(linePen, left, y + rowHeight, right, y + rowHeight);
+            gfx.DrawLine(linePen, left, y, left, y + rowHeight);
+            gfx.DrawLine(linePen, x1, y, x1, y + rowHeight);
+            gfx.DrawLine(linePen, x2, y, x2, y + rowHeight);
+            gfx.DrawLine(linePen, x3, y, x3, y + rowHeight);
+            gfx.DrawLine(linePen, right, y, right, y + rowHeight);
+            gfx.DrawString(index, rowFont, XBrushes.Black, new XRect(left, y, numberWidth, rowHeight), XStringFormats.Center);
+            gfx.DrawString(number, rowFont, XBrushes.Black, new XRect(x1, y, sheetNumberWidth, rowHeight), XStringFormats.Center);
+            gfx.DrawString(title, rowFont, XBrushes.Black, new XRect(x2 + Mm(1), y, x3 - x2 - Mm(2), rowHeight), XStringFormats.CenterLeft);
+            gfx.DrawString(application, rowFont, XBrushes.Black, new XRect(x3, y, applicationWidth, rowHeight), XStringFormats.Center);
+            y += rowHeight;
+        }
+
+        gfx.DrawLine(linePen, left, y, right, y);
+        DrawRow("Д/д", "Дугаар", "Хуудсны нэр", "Эх үүсвэр", true);
+        int index = 1;
+        foreach (AlbumBuildPage buildPage in request.Sections.SelectMany(section => section.Pages))
+        {
+            DrawRow(
+                index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                buildPage.Number,
+                buildPage.Title,
+                buildPage.Sheet.Source.Application.ToString(),
+                false);
+            index++;
+        }
+    }
+
+    private static AlbumBuildPage CreateWorkingGeneratedPage(
+        PageFormatDefinition format,
+        string number,
+        string title)
+    {
+        var entry = new SheetPackageEntry
+        {
+            SheetId = $"studio-generated-{number}",
+            Number = number,
+            Name = title,
+            Discipline = "ЕХ",
+            ScaleText = "-",
+            WidthMm = format.WidthMm,
+            HeightMm = format.HeightMm,
+            PageFormatId = format.Id,
+            IsCleanDrawingSpace = true,
+        };
+        var source = new SheetPackageSource
+        {
+            Application = SheetSourceApplication.Manual,
+            DocumentTitle = "Erk-S Studio",
+        };
+        var sheet = new SheetRecord
+        {
+            Key = entry.SheetId,
+            SourceId = "studio-generated",
+            SourceIdentity = "studio-generated",
+            Entry = entry,
+            Source = source,
+            PackageId = Guid.Empty,
+            ManifestPath = "",
+            PdfPath = "",
+            SourceSheetIndex = 0,
+            ExportedAtUtc = DateTimeOffset.UtcNow,
+            IsVerified = true,
+        };
+        return new AlbumBuildPage
+        {
+            Sheet = sheet,
+            Definition = new AlbumPageDefinition
+            {
+                NumberOverride = number,
+                TitleOverride = title,
+                PageFormatId = format.Id,
+                PlacementMode = PagePlacementMode.PreserveDrawingSpace,
+            },
+            Format = format,
+            StudioNumber = number,
+        };
     }
 
     private static void DrawTableOfContents(PdfDocument document, AlbumBuildRequest request)

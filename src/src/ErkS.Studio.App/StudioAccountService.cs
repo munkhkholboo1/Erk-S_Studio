@@ -1545,6 +1545,21 @@ internal sealed class StudioAccountService :
         return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task<StudioCloudStageAdvanceResponse> AdvanceProjectStageAsync(
+        string projectId,
+        StudioCloudStageAdvanceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioCloudStageAdvanceResponse response = await cloudEraClient.AdvanceProjectStageAsync(
+            CurrentCloudEraContext(),
+            projectId,
+            request,
+            cancellationToken).ConfigureAwait(true);
+        response.Project = await ResolveProjectParticipantNamesAsync(response.Project, cancellationToken).ConfigureAwait(true);
+        return response;
+    }
+
     public void OpenAccountRegistration()
     {
         string server = Current?.ServerUrl ?? SuggestedServerUrl;

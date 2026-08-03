@@ -8,7 +8,7 @@ namespace ErkS.Platform.Core;
 /// </summary>
 public sealed class ProjectWorkspace
 {
-    public const int CurrentFormatVersion = 2;
+    public const int CurrentFormatVersion = 3;
     public const string FileExtension = ".erksproject";
     public const string DefaultFileName = "project.erksproject";
     public const string BuildingArchitectureConcept = "BuildingArchitectureConcept";
@@ -31,6 +31,14 @@ public sealed class ProjectWorkspace
     public ProjectCreationInfo Creation { get; set; } = new();
 
     public ProjectFoundation Foundation { get; set; } = new();
+
+    /// <summary>
+    /// Ordered, immutable stage chain. The legacy Identity.Stage* projection is
+    /// retained for older clients but is no longer the source of assignment history.
+    /// </summary>
+    public List<ProjectStageInstance> Stages { get; set; } = [];
+
+    public List<ProjectStageOrganizationAssignment> StageAssignments { get; set; } = [];
 
     /// <summary>
     /// Project-owned working inputs. Native RVT/DWG files remain at source;
@@ -274,7 +282,10 @@ public sealed class PendingProjectInformationUpdate
     /// server revision.
     /// </summary>
     public string BaseConcurrencyToken { get; set; } = "";
+    public string ProjectCode { get; set; } = "";
     public string Name { get; set; } = "";
+    public string ProjectType { get; set; } = "";
+    public string StageType { get; set; } = "";
     public string ClientName { get; set; } = "";
     public string PlanningAuthorityName { get; set; } = "";
     public string DesignOrganizationName { get; set; } = "";
@@ -417,6 +428,9 @@ public sealed class ProjectCreationRequest
     public string Code { get; init; } = "";
     public string Name { get; init; } = "";
     public string Description { get; init; } = "";
+    public string ProjectType { get; init; } = ProjectWorkspace.BuildingArchitectureConcept;
+    public string InitialStageType { get; init; } = ProjectWorkspace.ConceptDesignStage;
+    public string InitialStageName { get; init; } = "Загвар зураг";
     public string Channel { get; init; } = ProjectCreationChannels.Studio;
     public string InitiatorType { get; init; } = ProjectInitiatorTypes.Unknown;
     public string InitiatorOrganizationId { get; init; } = "";

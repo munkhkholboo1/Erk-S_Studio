@@ -41,6 +41,9 @@ internal static class ProjectInformationSaveReconciler
 
         if (canEditCommon)
         {
+            AddDifference(differences, "ProjectCode", request.ProjectCode, project.ProjectCode);
+            AddDifference(differences, "ProjectType", request.ProjectType, information.ProjectDomain);
+            AddDifference(differences, "StageType", request.StageType, information.StageType);
             AddDifference(differences, "Name", request.Name, project.Name);
             AddDifference(
                 differences,
@@ -136,7 +139,10 @@ internal static class ProjectInformationSaveReconciler
         string baseConcurrencyToken = "") => new()
     {
         BaseConcurrencyToken = Clean(baseConcurrencyToken),
+        ProjectCode = Clean(request.ProjectCode),
         Name = Clean(request.Name),
+        ProjectType = Clean(request.ProjectType),
+        StageType = Clean(request.StageType),
         ClientName = Clean(request.ClientName),
         PlanningAuthorityName = Clean(request.PlanningAuthorityName),
         DesignOrganizationName = Clean(request.DesignOrganizationName),
@@ -188,7 +194,10 @@ internal static class ProjectInformationSaveReconciler
     public static StudioCloudProjectInformationUpdateRequest CreateRequest(
         PendingProjectInformationUpdate pending) => new()
     {
+        ProjectCode = pending.ProjectCode,
         Name = pending.Name,
+        ProjectType = pending.ProjectType,
+        StageType = pending.StageType,
         ClientName = pending.ClientName,
         PlanningAuthorityName = pending.PlanningAuthorityName,
         DesignOrganizationName = pending.DesignOrganizationName,
@@ -270,8 +279,10 @@ internal sealed class ProjectFoundationEditDraft
         string atdStatus,
         string atdSummary,
         IEnumerable<ProjectFileReference> atdDocuments,
-        ConceptDesignApprovalRoster conceptDesignApproval)
+        ConceptDesignApprovalRoster conceptDesignApproval,
+        string projectCode = "")
     {
+        ProjectCode = Clean(projectCode);
         Name = Clean(name);
         BasisSourceType = Clean(basisSourceType);
         RequestNumber = Clean(requestNumber);
@@ -294,6 +305,7 @@ internal sealed class ProjectFoundationEditDraft
         ConceptDesignApproval = conceptDesignApproval.Clone();
     }
 
+    public string ProjectCode { get; }
     public string Name { get; }
     public string BasisSourceType { get; }
     public string RequestNumber { get; }
@@ -319,6 +331,7 @@ internal sealed class ProjectFoundationEditDraft
         string designOrganizationName,
         string capacityUnit) => new()
     {
+        ProjectCode = ProjectCode,
         Name = Name,
         ClientName = ClientName,
         PlanningAuthorityName = AtdAuthorityName,

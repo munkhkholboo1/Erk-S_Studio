@@ -72,6 +72,11 @@ internal interface IProjectsClient
         string organizationId,
         CancellationToken cancellationToken = default);
 
+    Task<StudioCloudStageAdvanceResponse> AdvanceProjectStageAsync(
+        string projectId,
+        StudioCloudStageAdvanceRequest request,
+        CancellationToken cancellationToken = default);
+
     Task DeleteProjectAsync(
         string projectId,
         string confirmProjectCode,
@@ -364,6 +369,12 @@ internal interface ICloudEraContractClient
         CloudEraClientContext context,
         string projectId,
         StudioCloudDesignOrganizationAssignmentRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<StudioCloudStageAdvanceResponse> AdvanceProjectStageAsync(
+        CloudEraClientContext context,
+        string projectId,
+        StudioCloudStageAdvanceRequest request,
         CancellationToken cancellationToken = default);
 
     Task<StudioCloudProjectDetail> UpdateParticipantRolesAsync(

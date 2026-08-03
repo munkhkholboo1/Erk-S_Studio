@@ -304,8 +304,16 @@ public sealed class AlbumBuilder
         var sheet = item.Sheet ?? throw new InvalidOperationException("Concept album source page is unresolved.");
         var definition = item.Page;
         var configured = PageFormatCatalog.ResolveForConceptPage(definition, sheet.Entry);
-        if (configured.Kind == PageFormatKind.SourceAsIs &&
-            PageFormatResolver.TryResolveSourceFormat(sheet.Entry, out var sourceFormat))
+        if (PageFormatResolver.TryResolveSourceFormat(sheet.Entry, out var sourceFormat) &&
+            sourceFormat.Kind == PageFormatKind.WorkingDrawing)
+        {
+            // A stale concept album/page snapshot must not suppress the chrome
+            // explicitly requested by an AutoCAD/Revit working-drawing sheet.
+            definition = CloneForStudioChrome(item.Page);
+            configured = sourceFormat;
+        }
+        else if (configured.Kind == PageFormatKind.SourceAsIs &&
+            PageFormatResolver.TryResolveSourceFormat(sheet.Entry, out sourceFormat))
         {
             // During migration Revit/AutoCAD may still send the complete sheet.
             // Keep it full-size and let Studio cover only its header/corner zones.
@@ -356,16 +364,48 @@ public sealed class AlbumBuilder
                 continue;
             }
 
+            AlbumPageDefinition buildDefinition = definition;
+            PageFormatDefinition format = PageFormatCatalog.ResolveForConceptPage(definition, sheet.Entry);
+            // A producer-declared working-drawing format is authoritative. The
+            // Studio-owned grid, sheet title and title block must not disappear
+            // merely because an older project retained a stale album template.
+            if (PageFormatResolver.TryResolveSourceFormat(sheet.Entry, out PageFormatDefinition sourceFormat) &&
+                sourceFormat.Kind == PageFormatKind.WorkingDrawing)
+            {
+                buildDefinition = CloneForStudioChrome(definition);
+                format = sourceFormat;
+            }
+
             result.Add(new AlbumBuildPage
             {
                 Sheet = sheet,
-                Definition = definition,
-                Format = PageFormatCatalog.ResolveForConceptPage(definition, sheet.Entry),
+                Definition = buildDefinition,
+                Format = format,
             });
         }
 
         return result;
     }
+
+    private static AlbumPageDefinition CloneForStudioChrome(AlbumPageDefinition page) => new()
+    {
+        Id = page.Id,
+        SheetKey = page.SheetKey,
+        TemplateSlotId = page.TemplateSlotId,
+        SectionId = page.SectionId,
+        PageFormatId = page.PageFormatId,
+        PageFormatSnapshot = page.PageFormatSnapshot,
+        FollowSourceFormat = page.FollowSourceFormat,
+        PlacementMode = PagePlacementMode.FullPage,
+        NumberOverride = page.NumberOverride,
+        TitleOverride = page.TitleOverride,
+        ScaleTextOverride = page.ScaleTextOverride,
+        ContentKindOverride = page.ContentKindOverride,
+        SourceCrop = page.SourceCrop?.DeepClone(),
+        ElevationDescriptionOverride = page.ElevationDescriptionOverride,
+        SourceBuildingIdSnapshot = page.SourceBuildingIdSnapshot,
+        SourceBuildingNameSnapshot = page.SourceBuildingNameSnapshot,
+    };
 
     private static AlbumBuildRequest CreateLegacyRequest(AlbumProject project, SheetLibrary library)
     {
@@ -415,11 +455,18 @@ public sealed class AlbumBuilder
             PageFormatId = PageFormatCatalog.SourceAsIsId,
             PlacementMode = PagePlacementMode.FullPage,
         };
+        PageFormatDefinition format = PageFormatCatalog.Resolve(definition.PageFormatId);
+        if (PageFormatResolver.TryResolveSourceFormat(sheet.Entry, out PageFormatDefinition sourceFormat) &&
+            sourceFormat.Kind == PageFormatKind.WorkingDrawing)
+        {
+            definition = CloneForStudioChrome(definition);
+            format = sourceFormat;
+        }
         return new AlbumBuildPage
         {
             Sheet = sheet,
             Definition = definition,
-            Format = PageFormatCatalog.Resolve(definition.PageFormatId),
+            Format = format,
         };
     }
 

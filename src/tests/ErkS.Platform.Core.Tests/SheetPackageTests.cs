@@ -543,6 +543,24 @@ public sealed class SheetPackageTests : IDisposable
     }
 
     [Fact]
+    public void Library_PreservesProducerSheetSequence()
+    {
+        string manifestPath = WriteSourcePackage(
+            Path.Combine(workDirectory, "canonical-order"),
+            "autocad-source",
+            ["EX-01", "ET-01", "ET-02", "BA-01", "TX-01"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow);
+        var library = new SheetLibrary();
+
+        library.Absorb(SheetPackageReader.Load(manifestPath));
+
+        Assert.Equal(
+            ["EX-01", "ET-01", "ET-02", "BA-01", "TX-01"],
+            library.VerifiedSnapshot().Select(record => record.Entry.SheetId));
+    }
+
+    [Fact]
     public void Library_FullSnapshotRemovesDeletedSheetWithoutTouchingOtherSource()
     {
         var now = DateTimeOffset.UtcNow;
@@ -2187,6 +2205,23 @@ public sealed class SheetPackageTests : IDisposable
 
         Assert.Equal(2, buildingCovers.Length);
         Assert.All(buildingCovers, component => Assert.Single(component.PageNumbers));
+        Assert.Equal(
+            2,
+            buildingCovers
+                .SelectMany(component => component.PageNumbers)
+                .Distinct()
+                .Count());
+        foreach (AlbumBuildComponent cover in buildingCovers)
+        {
+            AlbumBuildComponent firstBuildingSource = Assert.Single(
+                buildingSequence
+                    .SkipWhile(component => !ReferenceEquals(component, cover))
+                    .Skip(1)
+                    .Take(1));
+            Assert.Equal(
+                Assert.Single(cover.PageNumbers) + 1,
+                firstBuildingSource.PageNumbers.Min());
+        }
         Assert.All(
             buildingSequence.Where(component =>
                 !string.IsNullOrWhiteSpace(component.SourceIdentity)),
@@ -2695,6 +2730,29 @@ public sealed class SheetPackageTests : IDisposable
         Assert.Equal(format.GeometryHash, page.PageFormatSnapshot!.GeometryHash);
         Assert.Equal(PagePlacementMode.PreserveDrawingSpace, page.PlacementMode);
         Assert.True(page.FollowSourceFormat);
+    }
+
+    [Fact]
+    public void WorkingDrawingSourceFormat_ForcesStudioChromeEvenWhenHostPdfContainsReserveLines()
+    {
+        PageFormatSpec format = CreateConceptFormat();
+        format.Mode = "WorkingDrawing";
+        format.GeometryHash = PageFormatSpecGeometry.ComputeHash(format);
+        var entry = new SheetPackageEntry
+        {
+            PageFormatId = format.Id,
+            Format = format,
+            IsCleanDrawingSpace = false,
+            ContentWidthMm = format.WidthMm,
+            ContentHeightMm = format.HeightMm,
+        };
+        var page = new AlbumPageDefinition { SheetKey = "autocad|sheet" };
+
+        Assert.True(PageFormatResolver.ApplySourceFormat(page, entry, forceStudioChrome: true));
+
+        Assert.NotEqual(PageFormatCatalog.SourceAsIsId, page.PageFormatId);
+        Assert.Equal(PageFormatKind.WorkingDrawing, page.PageFormatSnapshot!.Kind);
+        Assert.Equal(PagePlacementMode.FullPage, page.PlacementMode);
     }
 
     [Fact]

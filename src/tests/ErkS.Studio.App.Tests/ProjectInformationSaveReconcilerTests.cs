@@ -169,7 +169,8 @@ public sealed class ProjectInformationSaveReconcilerTests
                     new ProjectApprovalEntry { PositionTitle = "Хэлтсийн дарга", PersonName = "Х.Чимэг" },
                     new ProjectApprovalEntry { PositionTitle = "Мэргэжилтэн", PersonName = "Х.Туяа" },
                 ],
-            });
+            },
+            projectCode: "EG-2026-001");
 
         sourceDocument.Title = "Changed after capture";
         StudioCloudProjectInformationUpdateRequest request =
@@ -181,6 +182,7 @@ public sealed class ProjectInformationSaveReconcilerTests
         Assert.Equal("client-logo.png", draft.ClientLogoOriginalFileName);
         Assert.Equal("А.Даш", Assert.Single(draft.ConceptDesignApproval.ApprovedBy).PersonName);
         Assert.Equal("Edited project", request.Name);
+        Assert.Equal("EG-2026-001", request.ProjectCode);
         Assert.Equal("Edited client", request.ClientName);
         Assert.Equal("Edited authority", request.PlanningAuthorityName);
         Assert.Equal("Edited address", request.Location);
@@ -212,6 +214,7 @@ public sealed class ProjectInformationSaveReconcilerTests
 
     private static StudioCloudProjectInformationUpdateRequest CreateRequest() => new()
     {
+        ProjectCode = "EG-2026-001",
         Name = "Edited project",
         ClientName = "Edited client",
         PlanningAuthorityName = "Edited authority",
@@ -242,6 +245,7 @@ public sealed class ProjectInformationSaveReconcilerTests
     {
         Project = new StudioCloudProjectSummary
         {
+            ProjectCode = "EG-2026-001",
             Name = "Edited project",
             ClientName = "Edited client",
             PlanningAuthorityName = "Edited authority",

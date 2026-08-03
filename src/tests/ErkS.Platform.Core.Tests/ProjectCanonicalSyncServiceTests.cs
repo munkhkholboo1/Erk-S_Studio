@@ -5,6 +5,24 @@ namespace ErkS.Platform.Core.Tests;
 public sealed class ProjectCanonicalSyncServiceTests
 {
     [Fact]
+    public void Apply_PreservesPendingProjectCodeWhileKeepingServerCodeInCloudSnapshot()
+    {
+        ProjectWorkspace project = Project();
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
+        {
+            ProjectCode = "EG-2026-001",
+            Name = "Pending project",
+            BaseConcurrencyToken = "server-token-before-edit",
+        };
+
+        ProjectCanonicalSyncService.Apply(project, Snapshot());
+
+        Assert.Equal("EG-2026-001", project.Identity.Code);
+        Assert.Equal("ATD-2026-002", project.Cloud.CloudProjectCode);
+        Assert.Equal("ATD-2026-002", project.Cloud.ServerSnapshot.ProjectCode);
+    }
+
+    [Fact]
     public void WebsiteCanonicalFieldsReplaceStudioMirrorWithoutReplacingDeliverables()
     {
         ProjectWorkspace project = Project();
