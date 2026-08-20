@@ -5,15 +5,23 @@ namespace ErkS.Platform.Core.Tests;
 
 public sealed class ProjectDesignSourceClassificationTests
 {
-    [Theory]
-    [InlineData(DesignSourceKind.Revit)]
-    [InlineData(DesignSourceKind.AutoCad)]
-    public void NativeBuildingSourcesDefaultToBuildingPurpose(
-        DesignSourceKind kind)
+    [Fact]
+    public void RevitSourcesDefaultToBuildingPurpose()
     {
         Assert.Equal(
             ProjectDesignSourcePurpose.Building,
-            ProjectDesignSourceClassification.DefaultPurpose(kind));
+            ProjectDesignSourceClassification.DefaultPurpose(DesignSourceKind.Revit));
+    }
+
+    [Fact]
+    public void AutoCadSourcesHaveNoAssumedPurpose()
+    {
+        // AutoCAD delivers both a building.s sheets and the project.s general plan, so the
+        // package.s own content decides. Assuming a building put every general-plan DWG into
+        // a building group.
+        Assert.Equal(
+            ProjectDesignSourcePurpose.Unspecified,
+            ProjectDesignSourceClassification.DefaultPurpose(DesignSourceKind.AutoCad));
     }
 
     [Fact]
@@ -269,4 +277,80 @@ public sealed class ProjectDesignSourceClassificationTests
         project.Sources.Add(source);
         return source;
     }
+
+    [Theory]
+    [InlineData("ЕТ")]
+    [InlineData("ет")]
+    [InlineData("ИДБ")]
+    public void AutoCadGeneralPlanDrawingMarkIsDetectedAsGeneralPlan(string discipline)
+    {
+        // AutoCAD sends the drawing mark as the discipline; the general-plan album marks its
+        // sheets ЕТ and ИДБ, which spell out neither "ерөнхий төлөвлөгөө" nor "general plan".
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-general-plan",
+            Kind = DesignSourceKind.AutoCad,
+        };
+
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: discipline, contentKind: "traffic-scheme"));
+
+        Assert.Equal(
+            ProjectDesignSourcePurpose.GeneralPlan,
+            ProjectDesignSourceClassification.EffectivePurpose(source));
+    }
+
+    [Fact]
+    public void HyphenatedGeneralPlanSlotIdIsDetectedAsGeneralPlan()
+    {
+        // Content kinds arrive as template slot ids, hyphenated.
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-zoning",
+            Kind = DesignSourceKind.AutoCad,
+        };
+
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: "AR", contentKind: "general-plan-zoning"));
+
+        Assert.Equal(
+            ProjectDesignSourcePurpose.GeneralPlan,
+            ProjectDesignSourceClassification.EffectivePurpose(source));
+    }
+
+    [Fact]
+    public void OrdinaryBuildingSheetsStayABuilding()
+    {
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-building",
+            Kind = DesignSourceKind.AutoCad,
+        };
+
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: "AR", contentKind: "floor-plan"));
+
+        Assert.Equal(
+            ProjectDesignSourcePurpose.Building,
+            ProjectDesignSourceClassification.EffectivePurpose(source));
+    }
+
+    private static SheetPackageManifest GeneralPlanManifest(
+        string discipline,
+        string contentKind) => new()
+    {
+        PackageScope = SheetPackageScope.FullSnapshot,
+        Sheets =
+        [
+            new SheetPackageEntry
+            {
+                SheetId = "sheet-1",
+                Discipline = discipline,
+                ContentKind = contentKind,
+            },
+        ],
+    };
 }

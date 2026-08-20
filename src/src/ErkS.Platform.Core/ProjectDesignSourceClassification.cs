@@ -19,12 +19,20 @@ public static class ProjectDesignSourceClassification
     private const string DetectedPurposeKey = "source.detectedPurpose";
     private const string BuildingGroupIdKey = "source.buildingGroupId";
 
+    /// <summary>
+    /// What a newly added source is assumed to be before its package is read.
+    ///
+    /// AutoCAD carries both kinds of drawing - a building's sheets and the project's general
+    /// plan - so it has no default worth guessing. Treating it as a building assigned every
+    /// general-plan DWG to a building group, which later required a building sub-cover the
+    /// album does not draw and stopped the project syncing. It is left unspecified so the
+    /// package's own content decides, or the person adding it says.
+    /// </summary>
     public static ProjectDesignSourcePurpose DefaultPurpose(
         DesignSourceKind kind) =>
         kind switch
         {
-            DesignSourceKind.Revit or DesignSourceKind.AutoCad =>
-                ProjectDesignSourcePurpose.Building,
+            DesignSourceKind.Revit => ProjectDesignSourcePurpose.Building,
             DesignSourceKind.CityGen =>
                 ProjectDesignSourcePurpose.GeneralPlan,
             _ => ProjectDesignSourcePurpose.Unspecified,
@@ -219,10 +227,22 @@ public static class ProjectDesignSourceClassification
     private static bool IsGeneralPlanText(string? value)
     {
         string normalized = (value ?? "").Trim().ToLowerInvariant();
-        return normalized.Contains("ерөнхий төлөвлөгөө", StringComparison.Ordinal) ||
-               normalized.Contains("general plan", StringComparison.Ordinal) ||
-               normalized.Contains("site plan", StringComparison.Ordinal) ||
-               normalized.Contains("master plan", StringComparison.Ordinal);
+        if (normalized.Length == 0)
+            return false;
+
+        // AutoCAD sends the drawing mark as the sheet's discipline, and the general-plan album
+        // marks its sheets ЕТ and ИДБ. Neither spells out "ерөнхий төлөвлөгөө", so every
+        // general-plan DWG was classified as a building. Marks are codes, so match them whole.
+        if (normalized is "ет" or "идб" or "et" or "idb")
+            return true;
+
+        // Content kinds arrive as template slot ids such as "general-plan-zoning", where the
+        // separator is a hyphen rather than the space these phrases were written with.
+        string spaced = normalized.Replace('-', ' ').Replace('_', ' ');
+        return spaced.Contains("ерөнхий төлөвлөгөө", StringComparison.Ordinal) ||
+               spaced.Contains("general plan", StringComparison.Ordinal) ||
+               spaced.Contains("site plan", StringComparison.Ordinal) ||
+               spaced.Contains("master plan", StringComparison.Ordinal);
     }
 
     private static ProjectDesignSourcePurpose ReadPurpose(

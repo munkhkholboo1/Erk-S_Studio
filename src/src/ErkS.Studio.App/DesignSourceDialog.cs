@@ -148,7 +148,12 @@ internal sealed class DesignSourceDialog : Window
             ProjectDesignSourceClassification.DefaultPurpose(kind);
         purposeBox.SelectedItem = PurposeChoices.First(choice =>
             choice.Value == defaultPurpose);
+        // Only pre-fill a building for a kind that is a building by definition. An AutoCAD
+        // package is just as likely to be the general plan, and filling in "Барилга 1" behind
+        // the dropdown turned every general-plan DWG into a building - which then demanded a
+        // building sub-cover the album never draws, and blocked the project's sync.
         if (defaultPurpose == ProjectDesignSourcePurpose.Building &&
+            kind != DesignSourceKind.AutoCad &&
             buildingGroupBox.SelectedItem is null &&
             string.IsNullOrWhiteSpace(buildingGroupBox.Text))
         {
