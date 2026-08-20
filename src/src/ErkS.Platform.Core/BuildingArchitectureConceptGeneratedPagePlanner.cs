@@ -117,6 +117,7 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
             AlbumGeneratedPageKind.Cover => 0,
             AlbumGeneratedPageKind.DesignOrganization => 10,
             AlbumGeneratedPageKind.PlanningTask => 20,
+            AlbumGeneratedPageKind.None => 25 + Math.Max(0, component.Order),
             AlbumGeneratedPageKind.SiteContext => 30,
             _ => 100 + Math.Max(0, component.Order),
         };

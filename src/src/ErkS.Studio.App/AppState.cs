@@ -952,6 +952,7 @@ public sealed class AppState : IDisposable
             Participants = Project.Foundation.DesignCompany.Members
                 .SelectMany(member => member.Roles.DefaultIfEmpty("").Select(role => new ProjectParticipant
                 {
+                    ParticipantId = member.Id,
                     FamilyName = member.FamilyName,
                     GivenName = member.GivenName,
                     FullName = member.FullName,

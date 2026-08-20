@@ -6,5 +6,5 @@ public sealed class MasterPlanDrawingSequence : IUrbanPlanningDrawingSequence
     public const string StageType = "master-plan";
     public string ProjectStageType => StageType;
     public IReadOnlyList<UrbanPlanningDrawingSlot> Drawings { get; } =
-        UrbanPlanningDrawingSequenceFactory.CreateInitialSequence();
+        UrbanPlanningDrawingSequenceFactory.CreateMasterPlanSequence();
 }

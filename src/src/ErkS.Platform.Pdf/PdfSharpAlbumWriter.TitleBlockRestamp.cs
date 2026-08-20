@@ -14,7 +14,7 @@ public sealed record AlbumTitleBlockRestampResult(
 
 public sealed partial class PdfSharpAlbumWriter
 {
-    private const int CanonicalTitleBlockRevision = 1;
+    private const int CanonicalTitleBlockRevision = 4;
     private const string CanonicalTitleBlockKeywordPrefix = "ErkSCanonicalTitleBlock=";
 
     /// <summary>
@@ -153,6 +153,7 @@ public sealed partial class PdfSharpAlbumWriter
                 : $"\"{companyName}\" {representative.Role}".Trim(),
             RepresentativeName = representative.Name?.Trim() ?? "",
             Architect = ResolveArchitect(project),
+            PageRoles = ResolvePageRoleSignature(project),
             ClientName = clientName?.Trim() ?? "",
             CompanyShortName = company.ShortName?.Trim() ?? "",
             LogoSha256 = logoSha256,
@@ -163,6 +164,27 @@ public sealed partial class PdfSharpAlbumWriter
         });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)))
             .ToLowerInvariant();
+    }
+
+    private static IReadOnlyList<string> ResolvePageRoleSignature(AlbumProject project)
+    {
+        IEnumerable<(string Owner, IAlbumPageRoleOwner Roles)> owners =
+            project.Album.Pages.Select(page => ($"page:{page.Id:N}", (IAlbumPageRoleOwner)page))
+                .Concat(project.Album.Composition.Select(component =>
+                    ($"component:{component.Id}", (IAlbumPageRoleOwner)component)));
+        return owners
+            .SelectMany(owner => owner.Roles.RoleAssignments.Select(assignment =>
+                string.Join(
+                    "|",
+                    owner.Owner,
+                    AlbumPageRoleCodes.Normalize(assignment.RoleCode),
+                    assignment.ParticipantId?.Trim() ?? "",
+                    AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                        owner.Roles.RoleAssignments,
+                        assignment.RoleCode,
+                        project.Participants) ?? "")))
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToList();
     }
 
     private static bool ShouldRestampCanonicalTitleBlock(string? componentCode)

@@ -1,5 +1,6 @@
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
+using ErkS.Platform.Core.ProjectTypes.UrbanPlanning;
 using ErkS.Platform.Pdf;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
@@ -21,6 +22,58 @@ public sealed class PdfVectorPipelineTests : IDisposable
     {
         WindowsFontResolver.Register();
         Directory.CreateDirectory(workDirectory);
+    }
+
+    [Fact]
+    public void UrbanPlanningGeneratedPages_UseOneSelectedAlbumFormatAndWorkingDrawingChrome()
+    {
+        AlbumDefinition album = UrbanPlanningAlbumTemplate.CreateDefinition(
+            PartialMasterPlanDrawingSequence.StageType);
+        album.GeneratedPageFormat = WorkingDrawingAlbumFormatFactory.Create(2, 1);
+        album.Composition =
+        [
+            album.Composition.Single(item => item.Id == "cover"),
+            album.Composition.Single(item => item.Id == "drawing-list-and-notes"),
+            new AlbumCompositionItem
+            {
+                Id = "site-context",
+                Order = 3,
+                Number = "ЕТ-02А",
+                Title = "БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ",
+                SectionTitle = "Ерөнхий төлөвлөгөө / ЕТ",
+                Kind = AlbumCompositionKind.Generated,
+                GeneratedPageKind = AlbumGeneratedPageKind.SiteContext,
+            },
+        ];
+        var project = new AlbumProject
+        {
+            Name = "Хэсэгчилсэн ерөнхий төлөвлөгөө",
+            Album = album,
+        };
+        string outputPath = Path.Combine(workDirectory, "urban-generated-b1.pdf");
+
+        AlbumBuildResult result = new AlbumBuilder(new PdfSharpAlbumWriter())
+            .Build(project, new SheetLibrary(), outputPath);
+
+        Assert.Equal(3, result.PageCount);
+        Assert.Equal(
+            [
+                "generated:cover:Cover",
+                "generated:drawing-list-and-notes:None",
+                "generated:site-context:SiteContext",
+            ],
+            result.Components.Select(component => component.Code));
+        IReadOnlyList<PdfVectorPageProfile> pages =
+            PdfVectorQualityInspector.Inspect(outputPath).Pages;
+        Assert.Equal(3, pages.Count);
+        Assert.All(pages, page => Assert.Equal(1, page.ImageXObjectCount));
+        Assert.All(pages, page =>
+        {
+            Assert.InRange(page.WidthMm, 827.99, 828.01);
+            Assert.InRange(page.HeightMm, 296.99, 297.01);
+            Assert.True(page.HasTextOperators);
+            Assert.True(page.HasPathPaintingOperators);
+        });
     }
 
     [Fact]
@@ -357,7 +410,7 @@ public sealed class PdfVectorPipelineTests : IDisposable
 
         Assert.InRange(pageProfile.WidthMm, 419.99, 420.01);
         Assert.InRange(pageProfile.HeightMm, 296.99, 297.01);
-        Assert.Equal(0, pageProfile.ImageXObjectCount);
+        Assert.Equal(1, pageProfile.ImageXObjectCount);
         Assert.Contains(pageProfile.XObjects, item => item.Kind == PdfVectorXObjectKind.Form);
         Assert.True(pageProfile.HasPathPaintingOperators);
     }
@@ -630,7 +683,7 @@ public sealed class PdfVectorPipelineTests : IDisposable
             Math.Abs(item.WidthMm - drawingWidthMm) < 0.01 &&
             Math.Abs(item.HeightMm - drawingHeightMm) < 0.01);
         Assert.NotNull(form);
-        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Equal(1, page.ImageXObjectCount);
 
         IReadOnlyList<PdfVectorOperatorProfile> matrices = page.OperatorDetails
             .Where(operation => operation.Name == "cm")
@@ -751,7 +804,7 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.InRange(page.HeightMm, 296.99, 297.01);
         Assert.True(page.HasTextOperators);
         Assert.True(page.HasPathPaintingOperators);
-        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Equal(1, page.ImageXObjectCount);
         Assert.Contains(page.XObjects, item =>
             item.Kind == PdfVectorXObjectKind.Form &&
             Math.Abs(item.WidthMm - drawingWidthMm) < 0.01 &&
@@ -788,7 +841,7 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.InRange(page.HeightMm, 419.99, 420.01);
         Assert.True(page.HasTextOperators);
         Assert.True(page.HasPathPaintingOperators);
-        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Equal(1, page.ImageXObjectCount);
         Assert.Contains(page.XObjects, item =>
             item.Kind == PdfVectorXObjectKind.Form &&
             Math.Abs(item.WidthMm - drawing.Width) < 0.01 &&
@@ -843,7 +896,7 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.InRange(page.HeightMm, 419.99, 420.01);
         Assert.True(page.HasTextOperators);
         Assert.True(page.HasPathPaintingOperators);
-        Assert.Equal(0, page.ImageXObjectCount);
+        Assert.Equal(1, page.ImageXObjectCount);
         Assert.Contains(page.XObjects, item =>
             item.Kind == PdfVectorXObjectKind.Form &&
             Math.Abs(item.WidthMm - 297) < 0.01 &&
@@ -893,10 +946,12 @@ public sealed class PdfVectorPipelineTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ProjectClientTypes.Citizen, 0)]
-    [InlineData(ProjectClientTypes.Organization, 1)]
-    [InlineData(ProjectClientTypes.GovernmentAuthority, 1)]
-    public void ConceptCover_ClientLogoFollowsClientType(string clientType, int expectedImageCount)
+    [InlineData(ProjectClientTypes.Citizen, 1)]
+    [InlineData(ProjectClientTypes.Organization, 2)]
+    [InlineData(ProjectClientTypes.GovernmentAuthority, 2)]
+    public void ConceptCover_UsesDesignFallbackAndClientLogoFollowsClientType(
+        string clientType,
+        int expectedImageCount)
     {
         string logoPath = Path.Combine(workDirectory, $"client-{clientType}.png");
         File.WriteAllBytes(
@@ -983,6 +1038,83 @@ public sealed class PdfVectorPipelineTests : IDisposable
 
         PdfVectorPageProfile page = Assert.Single(PdfVectorQualityInspector.Inspect(outputPath).Pages);
         Assert.Equal(1, page.ImageXObjectCount);
+    }
+
+    [Fact]
+    public void WorkingDrawingTitleBlock_UsesAppointedArchitectInsteadOfCompanyDirector()
+    {
+        var project = new AlbumProject
+        {
+            Company = new CompanyProfile
+            {
+                Signers =
+                [
+                    new CompanySigner
+                    {
+                        Role = "Захирал",
+                        FullName = "С.Очир-Эрдэнэ",
+                    },
+                ],
+            },
+            Participants =
+            [
+                new ProjectParticipant
+                {
+                    Role = "MajorArchitect",
+                    FamilyName = "Энхбаатар",
+                    GivenName = "Мөнххолбоо",
+                    FullName = "Энхбаатар Мөнххолбоо",
+                },
+            ],
+        };
+
+        IReadOnlyList<string> names =
+            PdfSharpAlbumWriter.ResolveCanonicalHorizontalWorkingTitleBlockNames(project);
+
+        Assert.Equal("Э.Мөнххолбоо", names[0]);
+        Assert.DoesNotContain("С.Очир-Эрдэнэ", names);
+    }
+
+    [Fact]
+    public void WorkingDrawingTitleBlock_PageRoleUsesSelectedProjectTeamMember()
+    {
+        var project = new AlbumProject
+        {
+            Participants =
+            [
+                new ProjectParticipant
+                {
+                    ParticipantId = "major-architect",
+                    Role = "MajorArchitect",
+                    FullName = "Д.Үндсэн",
+                },
+                new ProjectParticipant
+                {
+                    ParticipantId = "selected-architect",
+                    Role = "Architect",
+                    FamilyName = "Энхбаатар",
+                    GivenName = "Мөнххолбоо",
+                    FullName = "Энхбаатар Мөнххолбоо",
+                },
+            ],
+        };
+        AlbumPageRoleAssignment[] assignments =
+        [
+            new()
+            {
+                RoleCode = AlbumPageRoleCodes.Architect,
+                ParticipantId = "selected-architect",
+                FullName = "Хуучин snapshot",
+            },
+        ];
+
+        IReadOnlyList<string> names =
+            PdfSharpAlbumWriter.ResolveCanonicalHorizontalWorkingTitleBlockNames(
+                project,
+                assignments);
+
+        Assert.Equal("Э.Мөнххолбоо", names[0]);
+        Assert.DoesNotContain("Д.Үндсэн", names);
     }
 
     [Fact]

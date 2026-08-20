@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Net.Http;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 
 namespace ErkS.Studio;
@@ -11,8 +12,15 @@ internal sealed class StudioLoginDialog : Window
     private readonly TextBox serverBox = new();
     private readonly TextBox emailBox = new();
     private readonly PasswordBox passwordBox = new();
+    private readonly TextBox visiblePasswordBox = new()
+    {
+        Visibility = Visibility.Collapsed,
+    };
     private readonly TextBlock statusText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button loginButton;
+    private readonly Button passwordVisibilityButton;
+    private StudioPasswordVisibilityState passwordVisibility =
+        StudioPasswordVisibilityPolicy.Initial;
 
     public StudioLoginDialog(StudioAccountService account)
     {
@@ -27,6 +35,12 @@ internal sealed class StudioLoginDialog : Window
         serverBox.Text = account.SuggestedServerUrl;
         emailBox.Text = account.SuggestedEmail;
         loginButton = StudioWidgets.CreatePrimaryButton("Нэвтрэх");
+        passwordVisibilityButton = StudioWidgets.CreateInlineButton(
+            passwordVisibility.ToggleLabel);
+        passwordVisibilityButton.MinWidth = 68;
+        passwordVisibilityButton.Margin = new Thickness(8, 0, 0, 0);
+        passwordVisibilityButton.Click += (_, _) => TogglePasswordVisibility();
+        UpdatePasswordVisibilityButton();
         StudioTheme.Apply(this);
         Content = BuildContent();
         Loaded += (_, _) =>
@@ -72,7 +86,9 @@ internal sealed class StudioLoginDialog : Window
         if (StudioReleaseInfo.IsDevelopmentBuild)
             form.Children.Add(StudioWidgets.CreateFormRow("Server", serverBox));
         form.Children.Add(StudioWidgets.CreateFormRow("И-мэйл", emailBox));
-        form.Children.Add(StudioWidgets.CreateFormRow("Нууц үг", passwordBox));
+        form.Children.Add(StudioWidgets.CreateFormRow(
+            "Нууц үг",
+            BuildPasswordEditor()));
         form.Children.Add(new Border
         {
             Margin = new Thickness(0, 14, 0, 0),
@@ -87,15 +103,99 @@ internal sealed class StudioLoginDialog : Window
         return root;
     }
 
+    private UIElement BuildPasswordEditor()
+    {
+        var editor = new Grid();
+        editor.ColumnDefinitions.Add(new ColumnDefinition
+        {
+            Width = new GridLength(1, GridUnitType.Star),
+        });
+        editor.ColumnDefinitions.Add(new ColumnDefinition
+        {
+            Width = GridLength.Auto,
+        });
+
+        Grid.SetColumn(passwordBox, 0);
+        editor.Children.Add(passwordBox);
+        Grid.SetColumn(visiblePasswordBox, 0);
+        editor.Children.Add(visiblePasswordBox);
+        Grid.SetColumn(passwordVisibilityButton, 1);
+        editor.Children.Add(passwordVisibilityButton);
+        return editor;
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        StudioPasswordVisibilityState next =
+            StudioPasswordVisibilityPolicy.Toggle(passwordVisibility);
+        if (next.IsVisible)
+        {
+            visiblePasswordBox.Text = passwordBox.Password;
+            passwordBox.Visibility = Visibility.Collapsed;
+            visiblePasswordBox.Visibility = Visibility.Visible;
+            visiblePasswordBox.Focus();
+            visiblePasswordBox.CaretIndex = visiblePasswordBox.Text.Length;
+        }
+        else
+        {
+            passwordBox.Password = visiblePasswordBox.Text;
+            visiblePasswordBox.Clear();
+            visiblePasswordBox.Visibility = Visibility.Collapsed;
+            passwordBox.Visibility = Visibility.Visible;
+            passwordBox.Focus();
+        }
+
+        passwordVisibility = next;
+        UpdatePasswordVisibilityButton();
+    }
+
+    private void UpdatePasswordVisibilityButton()
+    {
+        passwordVisibilityButton.Content = passwordVisibility.ToggleLabel;
+        passwordVisibilityButton.ToolTip = passwordVisibility.ToggleTooltip;
+        AutomationProperties.SetName(
+            passwordVisibilityButton,
+            passwordVisibility.ToggleTooltip);
+    }
+
+    private string CurrentPassword =>
+        StudioPasswordVisibilityPolicy.CurrentPassword(
+            passwordVisibility,
+            passwordBox.Password,
+            visiblePasswordBox.Text);
+
+    private void SelectAndFocusPassword()
+    {
+        if (passwordVisibility.IsVisible)
+        {
+            visiblePasswordBox.SelectAll();
+            visiblePasswordBox.Focus();
+            return;
+        }
+
+        passwordBox.SelectAll();
+        passwordBox.Focus();
+    }
+
+    private void ClearPassword()
+    {
+        passwordBox.Clear();
+        visiblePasswordBox.Clear();
+    }
+
     private async Task SignInAsync()
     {
         loginButton.IsEnabled = false;
+        passwordVisibilityButton.IsEnabled = false;
         statusText.Foreground = StudioTheme.MutedTextBrush;
         statusText.Text = "Лиценз болон бүртгэлийг шалгаж байна...";
         try
         {
-            await account.SignInAsync(serverBox.Text, emailBox.Text, passwordBox.Password);
-            passwordBox.Clear();
+            await account.SignInAsync(
+                serverBox.Text,
+                emailBox.Text,
+                CurrentPassword);
+            ClearPassword();
             DialogResult = true;
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException or Win32Exception)
@@ -104,12 +204,12 @@ internal sealed class StudioLoginDialog : Window
             statusText.Text = exception is TaskCanceledException
                 ? "Cloud ERA үйлчилгээ хариу өгөх хугацаа хэтэрлээ."
                 : exception.Message;
-            passwordBox.SelectAll();
-            passwordBox.Focus();
+            SelectAndFocusPassword();
         }
         finally
         {
             loginButton.IsEnabled = true;
+            passwordVisibilityButton.IsEnabled = true;
         }
     }
 }

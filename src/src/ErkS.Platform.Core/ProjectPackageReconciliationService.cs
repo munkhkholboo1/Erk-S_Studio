@@ -374,10 +374,11 @@ public static class ProjectPackageReconciliationService
             }
             else if (usesUrbanPlanningTemplate)
             {
-                AlbumCompositionItem? slot = album.Composition
-                    .Where(item => item.Kind == AlbumCompositionKind.SourceSlot)
-                    .FirstOrDefault(item =>
-                        item.Number.Equals(entry.Number, StringComparison.OrdinalIgnoreCase));
+                AlbumCompositionItem? slot = UrbanPlanningAlbumTemplate.FindSourceSlot(
+                    album,
+                    entry.Number,
+                    AlbumPageSourceMetadata.ResolveContentKind(page, entry),
+                    entry.Name);
                 if (slot is not null)
                 {
                     page.TemplateSlotId = slot.Id;

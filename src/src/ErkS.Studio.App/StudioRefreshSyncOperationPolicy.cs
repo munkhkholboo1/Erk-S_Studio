@@ -86,7 +86,17 @@ internal static class StudioRefreshSyncOperationPolicy
 
     public static bool ShouldAttemptCloudUnionPreview(
         StudioWorkspaceOperation operation) =>
-        operation != StudioWorkspaceOperation.SourceRefresh;
+        operation != StudioWorkspaceOperation.CloudSync;
+
+    public static bool ShouldDeferLocalAlbumReplacement(
+        StudioWorkspaceOperation operation,
+        bool isCloudLinked,
+        bool cloudUnionBuilt,
+        int cloudOnlySourceComponentCount) =>
+        operation == StudioWorkspaceOperation.SourceRefresh &&
+        isCloudLinked &&
+        !cloudUnionBuilt &&
+        cloudOnlySourceComponentCount > 0;
 
     public static bool ShouldFallbackToLocalAlbumBuild(
         StudioWorkspaceOperation operation,

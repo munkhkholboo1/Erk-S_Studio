@@ -331,6 +331,7 @@ public sealed class AlbumBuilder
                 TitleOverride = item.Page.TitleOverride,
                 ScaleTextOverride = item.Page.ScaleTextOverride,
                 ContentKindOverride = item.Page.ContentKindOverride,
+                RoleAssignments = item.Page.RoleAssignments.Select(assignment => assignment.Clone()).ToList(),
                 SourceCrop = item.Page.SourceCrop?.DeepClone(),
                 ElevationDescriptionOverride = item.Page.ElevationDescriptionOverride,
             };
@@ -401,6 +402,7 @@ public sealed class AlbumBuilder
         TitleOverride = page.TitleOverride,
         ScaleTextOverride = page.ScaleTextOverride,
         ContentKindOverride = page.ContentKindOverride,
+        RoleAssignments = page.RoleAssignments.Select(assignment => assignment.Clone()).ToList(),
         SourceCrop = page.SourceCrop?.DeepClone(),
         ElevationDescriptionOverride = page.ElevationDescriptionOverride,
         SourceBuildingIdSnapshot = page.SourceBuildingIdSnapshot,

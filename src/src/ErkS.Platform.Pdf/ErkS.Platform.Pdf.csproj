@@ -28,6 +28,9 @@
              Link="Fonts\isocpeui_mon_3.ttf"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="..\ErkS.Studio\Assets\logo-erks-source.png"
+                      Link="Assets\logo-erks-source.png"
+                      LogicalName="ErkS.Platform.Pdf.Assets.logo-erks-source.png" />
   </ItemGroup>
 
 </Project>

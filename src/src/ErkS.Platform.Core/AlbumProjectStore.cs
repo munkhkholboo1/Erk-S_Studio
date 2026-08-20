@@ -65,6 +65,7 @@ public static class AlbumProjectStore
         project.Participants ??= [];
         foreach (ProjectParticipant participant in project.Participants)
         {
+            participant.ParticipantId ??= "";
             participant.FamilyName ??= "";
             participant.GivenName ??= "";
             participant.FullName ??= "";
@@ -100,6 +101,11 @@ public static class AlbumProjectStore
         project.Album ??= new AlbumDefinition();
         project.Album.Sections ??= [];
         project.Album.Pages ??= [];
+        project.Album.Composition ??= [];
+        foreach (AlbumPageDefinition page in project.Album.Pages)
+            AlbumPageRoleAssignmentService.Normalize(page);
+        foreach (AlbumCompositionItem item in project.Album.Composition)
+            AlbumPageRoleAssignmentService.Normalize(item);
 
         // Version 1 projects only knew watched folders. Surface them as
         // structured sources while retaining legacy sheet keys and fields.

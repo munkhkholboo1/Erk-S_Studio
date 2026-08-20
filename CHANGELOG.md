@@ -5,6 +5,30 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.37] - 2026-08-20
+
+- Report why a post-sync album verification failed instead of the generic "Canonical album PDF could not be downloaded and verified after sync": the refresh caught the real exception, wrote it to the status line, and returned an empty result, so the message named the outcome and never the cause.
+
+## [0.1.0-dev.28] - 2026-08-17
+
+- Keep Studio in the background while navigating album PDF preview pages by removing foreground-window activation, UI Automation focus, and synthetic keyboard input from the preview workflow.
+
+## [0.1.0-dev.27] - 2026-08-17
+
+- Preserve every collaborator-owned Cloud album component during Source Refresh by patching only the current account/device's verified local contribution, and defer local-only replacement until Cloud Sync when no usable canonical manifest is available.
+- Rebuild the local working album only after an AutoCAD package has been fully reconciled, so newly received A2 and other format pages appear without requiring a manual Cloud Sync.
+- Map cloud-local working previews through their actual merged component manifest instead of the previous server manifest, preventing received source pages from remaining in a false "waiting for source" state.
+- Add an accessible Show/Hide control to the Studio sign-in password field while preserving the entered value, focus, validation, and secure clearing behavior.
+
+## [0.1.0-dev.26] - 2026-08-16
+
+- Align the partial general-plan album with BD 30-103-21 section 8.10: 20 required drawings, two optional risk/operations drawings, deterministic ET/IDB marks, robust CityGen metadata matching, and lossless v1-to-v2 migration.
+- Show required and optional album completion separately so an intentionally omitted optional drawing no longer makes the project appear incomplete.
+- Add an album-wide 1–4 by 1–4 joined-A3 format selector for partial general plans, keep the 12 mm module overlap, use frame-only cover pages, and retain the horizontal working-drawing title block on drawing-list/notes, location-scheme, surroundings-overview, and future generated sheets.
+- Use the selected design organization logo consistently across Studio album covers and title blocks; when it is missing or unreadable, show the bundled Erk-S logo with a "Лого байршуул" prompt without substituting for a client logo.
+- Fill the horizontal working-drawing title block's architect row from the project's appointed major architect instead of the design-company director signer.
+- Let partial general-plan albums assign Architect, Prepared By, and Checked By per page from project-team members, including Ctrl/Shift multi-page updates across the ET and IDB sections.
+- Treat the partial general-plan drawing composition as ordering and table-of-contents metadata, and omit unpopulated composition slots from the Album Pages navigator.
 - Continue the Cloud ERA project, document, album, and collaboration workflows.
 - Continue Revit, AutoCAD, and CityGen source-package integration.
 

@@ -1172,7 +1172,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 gfx.DrawLine(finePen, Mm(x1), Mm(y), Mm(x3), Mm(y));
         }
 
-        var company = project.Company;
+        CompanyProfile company = ResolveDesignCompanyProfile(project);
         var companyName = CompanyDisplayName(company, project.DesignOrganizationName);
         var companyRepresentative = ResolveCompanyRepresentative(project);
         var architect = ResolveArchitect(project);
@@ -1358,22 +1358,68 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XRect rect,
         double? printedTextHeightMm = null)
     {
-        var inner = new XRect(rect.X + Mm(1.5), rect.Y + Mm(1.5), rect.Width - Mm(3), rect.Height - Mm(3));
+        DrawDesignCompanyLogo(gfx, company, rect, printedTextHeightMm);
+    }
+
+    private const string StudioFallbackLogoResourceName =
+        "ErkS.Platform.Pdf.Assets.logo-erks-source.png";
+    private const string StudioFallbackLogoPrompt = "\u041b\u043e\u0433\u043e \u0431\u0430\u0439\u0440\u0448\u0443\u0443\u043b";
+
+    private static CompanyProfile ResolveDesignCompanyProfile(AlbumProject project)
+    {
+        CompanyProfile company = project.Company.Clone();
+        company.LogoPath = ResolveAlbumAssetPath(project.ProjectFolder, company.LogoPath);
+        return company;
+    }
+
+    private static void DrawDesignCompanyLogo(
+        XGraphics gfx,
+        CompanyProfile company,
+        XRect rect,
+        double? printedTextHeightMm = null)
+    {
+        var inner = new XRect(
+            rect.X + Mm(1.5),
+            rect.Y + Mm(1.5),
+            Math.Max(0, rect.Width - Mm(3)),
+            Math.Max(0, rect.Height - Mm(3)));
         if (TryDrawCompanyLogo(gfx, company, inner))
         {
             return;
         }
 
-        var mark = string.IsNullOrWhiteSpace(company.ShortName)
-            ? CompanyDisplayName(company)
-            : company.ShortName;
-        if (printedTextHeightMm is double textHeightMm)
+        double availableHeightMm = inner.Height / PointsPerMillimeter;
+        double promptHeightMm = printedTextHeightMm is > 0
+            ? Math.Clamp(printedTextHeightMm.Value, 1.8, 3.0)
+            : Math.Clamp(availableHeightMm * 0.12, 1.8, 3.0);
+        double promptHeight = Mm(promptHeightMm * 1.35);
+        double gap = Mm(0.8);
+        var logoRect = new XRect(
+            inner.X,
+            inner.Y,
+            inner.Width,
+            Math.Max(0, inner.Height - promptHeight - gap));
+        if (!TryDrawStudioFallbackLogo(gfx, logoRect))
         {
-            DrawWrappedCoverText(gfx, ValueOrDash(mark), inner, textHeightMm, true, XStringFormats.Center);
-            return;
+            DrawFittedText(
+                gfx,
+                "Erk-S",
+                logoRect.X,
+                logoRect.Y,
+                logoRect.Width,
+                logoRect.Height,
+                9,
+                true,
+                XStringFormats.Center);
         }
-
-        DrawFittedText(gfx, ValueOrDash(mark), inner.X, inner.Y, inner.Width, inner.Height, 8, true, XStringFormats.Center);
+        DrawWrappedCoverText(
+            gfx,
+            StudioFallbackLogoPrompt,
+            new XRect(inner.X, logoRect.Bottom + gap, inner.Width, promptHeight),
+            promptHeightMm,
+            false,
+            XStringFormats.Center,
+            WorkingDrawingFontName);
     }
 
     private static void DrawCompanyLogoOnly(
@@ -1438,6 +1484,42 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         catch
         {
             // An optional logo must never prevent the album from building.
+            return false;
+        }
+    }
+
+    private static bool TryDrawStudioFallbackLogo(XGraphics gfx, XRect rect)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            using Stream? stream = typeof(PdfSharpAlbumWriter).Assembly
+                .GetManifestResourceStream(StudioFallbackLogoResourceName);
+            if (stream is null)
+            {
+                return false;
+            }
+
+            using XImage image = XImage.FromStream(stream);
+            double containScale = Math.Min(
+                rect.Width / image.PointWidth,
+                rect.Height / image.PointHeight);
+            double width = image.PointWidth * containScale;
+            double height = image.PointHeight * containScale;
+            gfx.DrawImage(
+                image,
+                rect.Left + (rect.Width - width) * 0.5,
+                rect.Top + (rect.Height - height) * 0.5,
+                width,
+                height);
+            return true;
+        }
+        catch
+        {
             return false;
         }
     }
@@ -1695,9 +1777,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         var logoCell = new XRect(rect.Left, Y(2), Mm(27), Mm(27));
         gfx.DrawRectangle(finePen, logoCell);
-        CompanyProfile company = project.Company.Clone();
-        company.LogoPath = ResolveAlbumAssetPath(project.ProjectFolder, company.LogoPath);
-        DrawCompanyLogoOnly(gfx, company, logoCell);
+        CompanyProfile company = ResolveDesignCompanyProfile(project);
+        DrawDesignCompanyLogo(gfx, company, logoCell);
         DrawWrappedCoverText(gfx, ProjectDisplayName(project),
             new XRect(X(27) + pad, rect.Top + pad, rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
             2.5, false, XStringFormats.Center, WorkingDrawingFontName);
@@ -1711,12 +1792,14 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawFittedText(gfx, "\u0410\u0440\u0445\u0438\u0442\u0435\u043a\u0442\u043e\u0440", X(27) + pad, Y(17) + pad, Mm(21) - pad * 2, Mm(6) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, "\u0413\u04af\u0439\u0446\u044d\u0442\u0433\u044d\u0441\u044d\u043d", X(27) + pad, Y(23) + pad, Mm(21) - pad * 2, Mm(7) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, "\u0428\u0430\u043b\u0433\u0430\u0441\u0430\u043d", X(27) + pad, Y(30) + pad, Mm(21) - pad * 2, rect.Bottom - Y(30) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
-        var signers = project.Company.Signers.Take(3).ToList();
-        for (int row = 0; row < signers.Count; row++)
+        IReadOnlyList<string> names = ResolveCanonicalHorizontalWorkingTitleBlockNames(
+            project,
+            buildPage.Definition.RoleAssignments);
+        for (int row = 0; row < names.Count; row++)
         {
             double top = row == 0 ? 17 : row == 1 ? 23 : 30;
             double bottom = row == 0 ? 23 : row == 1 ? 30 : 36;
-            DrawFittedText(gfx, signers[row].FullName, X(48) + pad, Y(top) + pad,
+            DrawFittedText(gfx, names[row], X(48) + pad, Y(top) + pad,
                 Mm(26) - pad * 2, Mm(bottom - top) - pad * 2, standardTextSize, false, XStringFormats.Center, WorkingDrawingFontName);
         }
 
@@ -1727,6 +1810,48 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawFittedText(gfx, "\u0422\u0413 \u0448\u0438\u0444\u0440:", X(101) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, $"\u0417\u0443\u0440\u0433\u0438\u0439\u043d \u043c\u0430\u0440\u043a: {buildPage.Sheet.Entry.Discipline}", X(127) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, $"\u0425\u0443\u0443\u0434\u0430\u0441: {buildPage.Number}", X(153) + pad, Y(26.5) + pad, rect.Right - X(153) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+    }
+
+    internal static IReadOnlyList<string> ResolveCanonicalHorizontalWorkingTitleBlockNames(
+        AlbumProject project,
+        IEnumerable<AlbumPageRoleAssignment>? roleAssignments = null)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return
+        [
+            AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                roleAssignments,
+                AlbumPageRoleCodes.Architect,
+                project.Participants) ?? ResolveArchitect(project),
+            AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                roleAssignments,
+                AlbumPageRoleCodes.PreparedBy,
+                project.Participants) ?? ResolveWorkingDrawingSigner(
+                    project.Company.Signers,
+                    "Гүйцэтгэсэн",
+                    "Боловсруулсан",
+                    "Prepared",
+                    "Drawn"),
+            AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                roleAssignments,
+                AlbumPageRoleCodes.CheckedBy,
+                project.Participants) ?? ResolveWorkingDrawingSigner(
+                    project.Company.Signers,
+                    "Шалгасан",
+                    "Хянасан",
+                    "Checked",
+                    "Reviewed"),
+        ];
+    }
+
+    private static string ResolveWorkingDrawingSigner(
+        IEnumerable<CompanySigner>? signers,
+        params string[] roleMarkers)
+    {
+        CompanySigner? signer = (signers ?? Array.Empty<CompanySigner>())
+            .FirstOrDefault(candidate => roleMarkers.Any(marker =>
+                candidate.Role?.Contains(marker, StringComparison.OrdinalIgnoreCase) == true));
+        return signer?.FullName?.Trim() ?? "";
     }
 
     private static void DrawVerticalRevitWorkingTitleBlock(
@@ -1803,7 +1928,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         switch (plan.Component.GeneratedPageKind)
         {
             case AlbumGeneratedPageKind.Cover:
-                if (request.Project.Album.TemplateId.Equals(
+                if (UsesGeneratedWorkingDrawingFormat(request.Project.Album))
+                {
+                    DrawAlbumFormatCoverPage(document, request, plan);
+                }
+                else if (request.Project.Album.TemplateId.Equals(
                         BuildingArchitectureConceptAlbumTemplate.TemplateId,
                         StringComparison.OrdinalIgnoreCase))
                 {
@@ -1832,7 +1961,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             case AlbumGeneratedPageKind.None:
                 // Non-building templates use a Studio-owned drawing list and
                 // explanatory-notes front-matter page after the cover.
-                if (request.Project.Album.TemplateId.Equals(
+                if (UsesGeneratedWorkingDrawingFormat(request.Project.Album) ||
+                    request.Project.Album.TemplateId.Equals(
                         BuildingWorkingDrawingAlbumTemplate.TemplateId,
                         StringComparison.OrdinalIgnoreCase))
                 {
@@ -1854,6 +1984,24 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         return page;
     }
 
+    private static PdfPage AddGeneratedPage(PdfDocument document, AlbumDefinition album)
+    {
+        if (!UsesGeneratedWorkingDrawingFormat(album))
+        {
+            return AddA3LandscapePage(document);
+        }
+
+        PageFormatDefinition format = WorkingDrawingAlbumFormatFactory.Resolve(album);
+        PdfPage page = document.AddPage();
+        page.Width = XUnit.FromMillimeter(format.WidthMm);
+        page.Height = XUnit.FromMillimeter(format.HeightMm);
+        return page;
+    }
+
+    private static bool UsesGeneratedWorkingDrawingFormat(AlbumDefinition album) =>
+        PageFormatCatalog.IsUsable(album.GeneratedPageFormat) &&
+        album.GeneratedPageFormat!.Kind == PageFormatKind.WorkingDrawing;
+
     private static void DrawBuildingSubCoverPage(
         PdfDocument document,
         AlbumProject project,
@@ -1862,14 +2010,13 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         PdfPage page = AddA3LandscapePage(document);
         using var gfx = XGraphics.FromPdfPage(page);
         var border = new XPen(XColors.Black, Mm(0.25));
-        CompanyProfile company = project.Company.Clone();
-        company.LogoPath = ResolveAlbumAssetPath(project.ProjectFolder, company.LogoPath);
+        CompanyProfile company = ResolveDesignCompanyProfile(project);
         string companyName = CompanyLegalDisplayName(company, project.DesignOrganizationName);
 
         gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
         gfx.DrawRectangle(border, ToPoints(BuildingArchitectureConceptPageLayout.Frame));
 
-        DrawCompanyLogoOnly(
+        DrawDesignCompanyLogo(
             gfx,
             company,
             CoverCenteredRect(210.0, 245.0, 58.0, 42.0));
@@ -1939,7 +2086,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             new CoverFontContext(drawWorkingDrawingEtalon ? WorkingDrawingFontName : FontName));
         var border = new XPen(XColors.Black, Mm(0.25));
         var fine = new XPen(XColors.Black, Mm(0.10));
-        var company = request.Project.Company;
+        CompanyProfile company = ResolveDesignCompanyProfile(request.Project);
         ConceptCoverApprovalSnapshot approvalSnapshot = ConceptCoverApprovalResolver.Resolve(
             request.Project.ApprovalWorkflow,
             request.Project.PlanningTask);
@@ -2118,6 +2265,122 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             request,
             item,
             drawWorkingDrawingEtalon: true);
+    }
+
+    private static void DrawAlbumFormatCoverPage(
+        PdfDocument document,
+        AlbumBuildRequest request,
+        ConceptGeneratedPagePlan plan)
+    {
+        PageFormatDefinition format = WorkingDrawingAlbumFormatFactory.Resolve(
+            request.Project.Album);
+        PdfPage page = AddGeneratedPage(document, request.Project.Album);
+        using XGraphics gfx = XGraphics.FromPdfPage(page);
+        gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
+        WorkingDrawingGeneratedPageChrome chrome =
+            WorkingDrawingGeneratedPageChromePolicy.Resolve(
+                AlbumGeneratedPageKind.Cover);
+        var borderPen = new XPen(XColors.Black, Mm(0.35));
+        var finePen = new XPen(XColors.Black, Mm(0.10));
+        DrawEtalonGrid(gfx, regions, borderPen, finePen);
+        if (chrome.ShowSheetHeader || chrome.ShowTitleBlock)
+        {
+            AlbumBuildPage generatedPage = CreateWorkingGeneratedPage(
+                format,
+                plan.Number,
+                plan.Title,
+                plan.Component.RoleAssignments);
+            if (chrome.ShowSheetHeader)
+            {
+                DrawRevitWorkingSheetHeader(
+                    gfx,
+                    ToPoints(regions.SheetTitleArea),
+                    generatedPage,
+                    borderPen);
+            }
+            if (chrome.ShowTitleBlock)
+            {
+                XRect corner = ToPoints(regions.TitleBlockArea);
+                gfx.DrawRectangle(borderPen, corner);
+                DrawRevitWorkingTitleBlock(
+                    gfx,
+                    corner,
+                    request.Project,
+                    generatedPage,
+                    borderPen,
+                    finePen);
+            }
+        }
+        gfx.DrawRectangle(
+            new XPen(XColor.FromArgb(185, 190, 196), 0.25),
+            new XRect(0, 0, page.Width.Point, page.Height.Point));
+
+        double left = Mm(regions.EtalonInnerFrame.X + 18d);
+        double right = Mm(
+            regions.EtalonInnerFrame.X + regions.EtalonInnerFrame.Width - 18d);
+        double top = Mm(regions.EtalonInnerFrame.Y + 18d);
+        double bottom = Mm(
+            regions.EtalonInnerFrame.Y + regions.EtalonInnerFrame.Height - 18d);
+        double width = Math.Max(Mm(40d), right - left);
+        double height = Math.Max(Mm(70d), bottom - top);
+        double centerY = top + height * 0.5;
+
+        CompanyProfile company = ResolveDesignCompanyProfile(request.Project);
+        DrawDesignCompanyLogo(
+            gfx,
+            company,
+            new XRect(left + width * 0.4, top + height * 0.03, width * 0.2, height * 0.16));
+        DrawFittedText(
+            gfx,
+            CompanyLegalDisplayName(company, request.Project.DesignOrganizationName),
+            left,
+            top + height * 0.20,
+            width,
+            height * 0.08,
+            15,
+            true,
+            XStringFormats.Center);
+        DrawFittedText(
+            gfx,
+            ValueOrDash(request.Project.InitiationBasis.SiteAddress),
+            left,
+            top + height * 0.33,
+            width,
+            height * 0.07,
+            12,
+            false,
+            XStringFormats.Center);
+        DrawFittedText(
+            gfx,
+            ProjectDisplayName(request.Project),
+            left,
+            centerY - height * 0.08,
+            width,
+            height * 0.12,
+            25,
+            true,
+            XStringFormats.Center);
+        DrawFittedText(
+            gfx,
+            request.Project.Album.Title,
+            left,
+            centerY + height * 0.06,
+            width,
+            height * 0.10,
+            18,
+            true,
+            XStringFormats.Center);
+        DrawFittedText(
+            gfx,
+            $"{DateTime.Now:yyyy} ОН",
+            left,
+            bottom - height * 0.08,
+            width,
+            height * 0.06,
+            11,
+            false,
+            XStringFormats.Center);
     }
 
     private static void DrawSketchCoverApprovalTable(
@@ -2527,9 +2790,15 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildRequest request,
         ConceptGeneratedPagePlan plan)
     {
-        var page = AddA3LandscapePage(document);
+        var page = AddGeneratedPage(document, request.Project.Album);
         using var gfx = XGraphics.FromPdfPage(page);
-        DrawGeneratedPageChrome(gfx, page, request.Project, plan.Title, plan.Number);
+        DrawGeneratedPageChrome(
+            gfx,
+            page,
+            request.Project,
+            plan.Title,
+            plan.Number,
+            plan.Component.RoleAssignments);
         DrawGeneratedDocumentContent(gfx, request.Project, plan);
     }
 
@@ -2538,9 +2807,15 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildRequest request,
         ConceptGeneratedPagePlan plan)
     {
-        var page = AddA3LandscapePage(document);
+        var page = AddGeneratedPage(document, request.Project.Album);
         using var gfx = XGraphics.FromPdfPage(page);
-        DrawGeneratedPageChrome(gfx, page, request.Project, plan.Title, plan.Number);
+        DrawGeneratedPageChrome(
+            gfx,
+            page,
+            request.Project,
+            plan.Title,
+            plan.Number,
+            plan.Component.RoleAssignments);
 
         if (plan.DocumentPages.Count > 0)
         {
@@ -2607,25 +2882,91 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildRequest request,
         ConceptGeneratedPagePlan plan)
     {
-        PdfPage page = AddA3LandscapePage(document);
+        PdfPage page = AddGeneratedPage(document, request.Project.Album);
         using XGraphics gfx = XGraphics.FromPdfPage(page);
-        DrawGeneratedPageChrome(gfx, page, request.Project, plan.Title, plan.Number);
+        DrawGeneratedPageChrome(
+            gfx,
+            page,
+            request.Project,
+            plan.Title,
+            plan.Number,
+            plan.Component.RoleAssignments);
+
+        (PageRectMm locationPanel,
+            PageRectMm locationMap,
+            PageRectMm overviewPanel,
+            PageRectMm overviewMap) = ResolveSiteContextRegions(request.Project.Album);
 
         DrawSiteContextMapPanel(
             gfx,
             request.Project,
             request.Project.SiteContext.LocationScheme,
-            BuildingArchitectureConceptPageLayout.SiteContextLocationPanel,
-            BuildingArchitectureConceptPageLayout.SiteContextLocationMapArea,
+            locationPanel,
+            locationMap,
             "БАЙРШЛЫН СХЕМ");
         DrawSiteContextMapPanel(
             gfx,
             request.Project,
             request.Project.SiteContext.SurroundingsOverview,
-            BuildingArchitectureConceptPageLayout.SiteContextOverviewPanel,
-            BuildingArchitectureConceptPageLayout.SiteContextOverviewMapArea,
+            overviewPanel,
+            overviewMap,
             "ОРЧНЫ ТОЙМ");
     }
+
+    private static (
+        PageRectMm LocationPanel,
+        PageRectMm LocationMap,
+        PageRectMm OverviewPanel,
+        PageRectMm OverviewMap) ResolveSiteContextRegions(AlbumDefinition album)
+    {
+        if (!UsesGeneratedWorkingDrawingFormat(album))
+        {
+            return (
+                BuildingArchitectureConceptPageLayout.SiteContextLocationPanel,
+                BuildingArchitectureConceptPageLayout.SiteContextLocationMapArea,
+                BuildingArchitectureConceptPageLayout.SiteContextOverviewPanel,
+                BuildingArchitectureConceptPageLayout.SiteContextOverviewMapArea);
+        }
+
+        PageFormatDefinition format = WorkingDrawingAlbumFormatFactory.Resolve(album);
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
+        const double inset = 4d;
+        const double gap = 6d;
+        const double headerHeight = 12d;
+        double left = regions.EtalonInnerFrame.X + inset;
+        double top = regions.SheetTitleArea.Y + regions.SheetTitleArea.Height + 5d;
+        double right = regions.EtalonInnerFrame.X + regions.EtalonInnerFrame.Width - inset;
+        double bottom = regions.TitleBlockArea.Y - 5d;
+        double panelWidth = Math.Max(1d, (right - left - gap) / 2d);
+        double panelHeight = Math.Max(headerHeight + 1d, bottom - top);
+        var locationPanel = new PageRectMm
+        {
+            X = left,
+            Y = top,
+            Width = panelWidth,
+            Height = panelHeight,
+        };
+        var overviewPanel = new PageRectMm
+        {
+            X = left + panelWidth + gap,
+            Y = top,
+            Width = panelWidth,
+            Height = panelHeight,
+        };
+        return (
+            locationPanel,
+            CreateMapArea(locationPanel, headerHeight),
+            overviewPanel,
+            CreateMapArea(overviewPanel, headerHeight));
+    }
+
+    private static PageRectMm CreateMapArea(PageRectMm panel, double headerHeight) => new()
+    {
+        X = panel.X,
+        Y = panel.Y + headerHeight,
+        Width = panel.Width,
+        Height = Math.Max(1d, panel.Height - headerHeight),
+    };
 
     private static void DrawSiteContextMapPanel(
         XGraphics gfx,
@@ -2722,9 +3063,22 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         PdfPage page,
         AlbumProject project,
         string title,
-        string number)
+        string number,
+        IEnumerable<AlbumPageRoleAssignment>? roleAssignments = null)
     {
         gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
+        if (UsesGeneratedWorkingDrawingFormat(project.Album))
+        {
+            PageFormatDefinition format = WorkingDrawingAlbumFormatFactory.Resolve(project.Album);
+            AlbumBuildPage generatedPage = CreateWorkingGeneratedPage(
+                format,
+                number,
+                title,
+                roleAssignments);
+            DrawWorkingDrawingSheetChrome(gfx, page, project, generatedPage);
+            return;
+        }
+
         DrawConceptSheetChrome(gfx, project, title, number);
     }
 
@@ -2914,9 +3268,17 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         VisualizationAlbumPagePlan plan,
         ICollection<string> warnings)
     {
-        PdfPage page = AddA3LandscapePage(document);
+        PdfPage page = AddGeneratedPage(document, project.Album);
         using XGraphics gfx = XGraphics.FromPdfPage(page);
-        DrawGeneratedPageChrome(gfx, page, project, plan.Title, plan.Number);
+        AlbumCompositionItem? component = project.Album.Composition.FirstOrDefault(item =>
+            item.Id.Equals("visualizations", StringComparison.OrdinalIgnoreCase));
+        DrawGeneratedPageChrome(
+            gfx,
+            page,
+            project,
+            plan.Title,
+            plan.Number,
+            component?.RoleAssignments);
         var tilePen = new XPen(XColor.FromArgb(200, 204, 210), Mm(0.10));
 
         foreach (VisualizationImageTilePlan tile in plan.Tiles)
@@ -3160,7 +3522,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         page.Size = PdfSharp.PageSize.A4;
         using var gfx = XGraphics.FromPdfPage(page);
 
-        var company = request.Project.Company;
+        CompanyProfile company = ResolveDesignCompanyProfile(request.Project);
         var subtitleFont = new XFont(FontName, 15);
         var labelFont = new XFont(FontName, 11);
         var mutedBrush = new XSolidBrush(XColor.FromArgb(96, 108, 122));
@@ -3168,6 +3530,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         var height = page.Height.Point;
 
         gfx.DrawRectangle(XBrushes.White, 0, 0, width, height);
+
+        DrawDesignCompanyLogo(
+            gfx,
+            company,
+            new XRect(width * 0.38, height * 0.055, width * 0.24, height * 0.08));
 
         var companyName = CompanyDisplayName(company);
         if (!string.IsNullOrWhiteSpace(companyName))
@@ -3205,15 +3572,20 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildRequest request,
         AlbumCompositionItem item)
     {
-        PageFormatDefinition format = PageFormatCatalog.DefaultWorkingDrawing;
-        PdfPage page = AddA3LandscapePage(document);
+        PageFormatDefinition format = UsesGeneratedWorkingDrawingFormat(request.Project.Album)
+            ? WorkingDrawingAlbumFormatFactory.Resolve(request.Project.Album)
+            : PageFormatCatalog.DefaultWorkingDrawing;
+        PdfPage page = UsesGeneratedWorkingDrawingFormat(request.Project.Album)
+            ? AddGeneratedPage(document, request.Project.Album)
+            : AddA3LandscapePage(document);
         using var gfx = XGraphics.FromPdfPage(page);
         gfx.DrawRectangle(XBrushes.White, 0, 0, page.Width.Point, page.Height.Point);
 
         AlbumBuildPage generatedPage = CreateWorkingGeneratedPage(
             format,
             item.Number,
-            "ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ");
+            "ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ",
+            item.RoleAssignments);
         DrawWorkingDrawingSheetChrome(gfx, page, request.Project, generatedPage);
 
         WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
@@ -3265,7 +3637,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static AlbumBuildPage CreateWorkingGeneratedPage(
         PageFormatDefinition format,
         string number,
-        string title)
+        string title,
+        IEnumerable<AlbumPageRoleAssignment>? roleAssignments = null)
     {
         var entry = new SheetPackageEntry
         {
@@ -3307,6 +3680,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 TitleOverride = title,
                 PageFormatId = format.Id,
                 PlacementMode = PagePlacementMode.PreserveDrawingSpace,
+                RoleAssignments = (roleAssignments ?? [])
+                    .Select(assignment => assignment.Clone())
+                    .ToList(),
             },
             Format = format,
             StudioNumber = number,

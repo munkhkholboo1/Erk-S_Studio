@@ -247,6 +247,7 @@ internal sealed partial class ShellView : IDisposable
     private bool suppressAutomaticAlbumRebuild;
     private bool assetSourceChangePendingDuringSync;
     private readonly List<SheetPackageLoadResult> deferredPackageResults = [];
+    private readonly StudioAlbumPreviewManifestCache albumPreviewManifest = new();
     private string? lastAlbumPath;
     private Exception? lastAlbumUpdateException;
 
@@ -273,7 +274,15 @@ internal sealed partial class ShellView : IDisposable
                 !syncPreparationInProgress &&
                 !syncInProgress)
             {
-                UpdateAlbum(silent: true);
+                bool updated = UpdateAlbum(
+                    silent: true,
+                    origin: StudioWorkspaceOperation.SourceRefresh);
+                if (!updated && lastAlbumUpdateException is not null)
+                {
+                    SetStatus(
+                        $"Альбум автоматаар шинэчлэхэд алдаа: " +
+                        lastAlbumUpdateException.Message);
+                }
                 if (activePage == StudioPage.Sources)
                 {
                     string? selectedSource =
@@ -3026,6 +3035,38 @@ internal sealed partial class ShellView : IDisposable
             }
             else
             {
+                bool cloudLinked =
+                    state.Project.Cloud.Origin.Equals(
+                        ProjectOrigins.Cloud,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(
+                        state.Project.Cloud.ServerProjectId);
+                int cloudOnlySourceComponentCount =
+                    StudioCloudAlbumLocalityPolicy
+                        .CloudOnlySourceComponentCount(
+                            state.Project,
+                            account.Current?.Email,
+                            StudioDeviceIdentity.Fingerprint);
+                if (StudioRefreshSyncOperationPolicy
+                    .ShouldDeferLocalAlbumReplacement(
+                        origin,
+                        cloudLinked,
+                        cloudUnionBuilt,
+                        cloudOnlySourceComponentCount))
+                {
+                    if (TryDeferSourceRefreshWithoutCanonicalUnion(
+                            cloudOnlySourceComponentCount,
+                            statusPrefix,
+                            out Exception? validationFailure))
+                    {
+                        return true;
+                    }
+
+                    throw validationFailure ??
+                        new InvalidDataException(
+                            "Local source contribution validation failed.");
+                }
+
                 if (origin == StudioWorkspaceOperation.LocalPdfPageEdit)
                 {
                     StudioPdfPageEditAlbumRouteDecision route =
@@ -4228,8 +4269,16 @@ internal sealed partial class ShellView : IDisposable
                     syncedAlbumHash,
                     StringComparison.OrdinalIgnoreCase))
             {
+                // Name what actually went wrong. The album is already on the server at this
+                // point, so a bare "could not be verified" sent people looking at the upload.
+                string detail = !string.IsNullOrWhiteSpace(verifiedAlbumRefresh.FailureReason)
+                    ? verifiedAlbumRefresh.FailureReason
+                    : !verifiedAlbumRefresh.HasCurrentAlbum
+                        ? "the server album has no downloadable current revision"
+                        : $"expected R{syncedRevisionId} {syncedAlbumHash}, cached " +
+                          $"R{verifiedAlbumRefresh.RevisionId} {verifiedAlbumRefresh.Sha256}";
                 throw new InvalidDataException(
-                    "Canonical album PDF could not be downloaded and verified after sync.");
+                    "Canonical album PDF could not be downloaded and verified after sync: " + detail);
             }
             foreach (ProjectSourceSyncCandidate source in sourcePackages)
                 ProjectCloudSyncMetadata.MarkSourceSynced(source);
@@ -4852,7 +4901,8 @@ internal sealed partial class ShellView : IDisposable
                 TaskCanceledException)
         {
             SetStatus("Cloud ERA album PDF cache алдаа: " + exception.Message);
-            return CloudAlbumCacheRefreshResult.None;
+            return CloudAlbumCacheRefreshResult.Failed(
+                $"{exception.GetType().Name}: {exception.Message}");
         }
     }
 
@@ -4956,9 +5006,18 @@ internal sealed partial class ShellView : IDisposable
         bool Downloaded,
         string RevisionId,
         int RevisionNumber,
-        string Sha256)
+        string Sha256,
+        string FailureReason = "")
     {
         public static CloudAlbumCacheRefreshResult None { get; } = new(false, false, "", 0, "");
+
+        /// <summary>
+        /// Why the refresh produced nothing. Without it the caller could only report that the
+        /// album "could not be downloaded and verified", which describes the outcome and none
+        /// of the cause - the reason was going to the status line and no further.
+        /// </summary>
+        public static CloudAlbumCacheRefreshResult Failed(string reason) =>
+            new(false, false, "", 0, "", reason);
     }
 
     private string CloudAlbumPreviewPath(StudioCloudAlbum album, StudioCloudAlbumRevision revision)
@@ -5350,6 +5409,20 @@ internal sealed partial class ShellView : IDisposable
             if (activePage == StudioPage.Albums)
                 RefreshAlbumWorkspace();
             RefreshSyncUi();
+
+            // SheetLibrary.Changed fires while the package is being absorbed,
+            // before RecordPackageReceived has reconciled its source pages into
+            // the project album. Restart from this authoritative point so an
+            // automatic build cannot finish against the old page set and then
+            // wait indefinitely for a manual Cloud Sync.
+            if (autoRebuildCheck.IsChecked == true &&
+                !suppressAutomaticAlbumRebuild &&
+                !syncPreparationInProgress &&
+                !syncInProgress)
+            {
+                autoRebuildTimer.Stop();
+                autoRebuildTimer.Start();
+            }
         }
         else if (result.IsLossless)
         {

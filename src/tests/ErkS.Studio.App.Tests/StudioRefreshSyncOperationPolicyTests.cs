@@ -6,12 +6,43 @@ namespace ErkS.Studio.App.Tests;
 public sealed class StudioRefreshSyncOperationPolicyTests
 {
     [Fact]
-    public void SourceRefresh_BuildsVerifiedLocalAlbumWithoutMutatingCloudUnionPreview()
+    public void SourceRefresh_AttemptsCloudUnionSoForeignComponentsRemainVisible()
     {
-        Assert.False(StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(
+        Assert.True(StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(
             StudioWorkspaceOperation.SourceRefresh));
         Assert.True(StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(
             StudioWorkspaceOperation.ExplicitAlbumEdit));
+        Assert.False(StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(
+            StudioWorkspaceOperation.CloudSync));
+    }
+
+    [Fact]
+    public void SourceRefresh_WithoutUsableCloudUnionDefersLocalOnlyAlbumReplacement()
+    {
+        Assert.True(
+            StudioRefreshSyncOperationPolicy.ShouldDeferLocalAlbumReplacement(
+                StudioWorkspaceOperation.SourceRefresh,
+                isCloudLinked: true,
+                cloudUnionBuilt: false,
+                cloudOnlySourceComponentCount: 1));
+        Assert.False(
+            StudioRefreshSyncOperationPolicy.ShouldDeferLocalAlbumReplacement(
+                StudioWorkspaceOperation.SourceRefresh,
+                isCloudLinked: true,
+                cloudUnionBuilt: true,
+                cloudOnlySourceComponentCount: 1));
+        Assert.False(
+            StudioRefreshSyncOperationPolicy.ShouldDeferLocalAlbumReplacement(
+                StudioWorkspaceOperation.SourceRefresh,
+                isCloudLinked: true,
+                cloudUnionBuilt: false,
+                cloudOnlySourceComponentCount: 0));
+        Assert.False(
+            StudioRefreshSyncOperationPolicy.ShouldDeferLocalAlbumReplacement(
+                StudioWorkspaceOperation.ExplicitAlbumEdit,
+                isCloudLinked: true,
+                cloudUnionBuilt: false,
+                cloudOnlySourceComponentCount: 1));
     }
 
     [Fact]

@@ -5,12 +5,10 @@ using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ErkS.Platform.Contracts;
@@ -98,6 +96,15 @@ internal sealed partial class ShellView
         StudioWidgets.CreatePrimaryButton("PDF хэсэг засах");
     private readonly StackPanel albumPdfFormatPanel = new();
     private readonly StackPanel albumPdfCustomSizePanel = new();
+    private readonly StackPanel albumGeneratedFormatPanel = new();
+    private readonly ComboBox albumGeneratedFormatColumnsBox = new();
+    private readonly ComboBox albumGeneratedFormatRowsBox = new();
+    private readonly TextBlock albumGeneratedFormatSummaryText = new()
+    {
+        TextWrapping = TextWrapping.Wrap,
+        Foreground = StudioTheme.MutedTextBrush,
+        Margin = new Thickness(0, 5, 0, 4),
+    };
     private readonly CheckBox includeCoverCheck = new() { Content = "Нүүр хуудас" };
     private readonly CheckBox includeTocCheck = new() { Content = "Зургийн жагсаалт" };
     private bool bindingAlbumPage;
@@ -109,7 +116,6 @@ internal sealed partial class ShellView
     private bool sourceRelationshipMutationInProgress;
     private CancellationTokenSource? sourceSheetThumbnailLoadCancellation;
     private long sourceSheetThumbnailLoadSerial;
-    private string? loadedAlbumPdfDocumentKey;
     private string? boundAlbumProjectId;
     private long albumPdfNavigationSerial;
     private CancellationTokenSource? albumThumbnailLoadCancellation;
@@ -2053,6 +2059,7 @@ internal sealed partial class ShellView
         root.Children.Add(workspace);
 
         albumPagesWorkspaceList.BorderThickness = new Thickness(0);
+        albumPagesWorkspaceList.SelectionMode = SelectionMode.Extended;
         albumPagesWorkspaceList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         albumPagesWorkspaceList.SetValue(
             ScrollViewer.HorizontalScrollBarVisibilityProperty,
@@ -2062,8 +2069,49 @@ internal sealed partial class ShellView
         albumPagesWorkspaceList.PreviewMouseLeftButtonDown += HandleAlbumNavigatorMouseDown;
         albumPagesWorkspaceList.KeyDown += HandleAlbumNavigatorKeyDown;
         albumPreviewHost.Background = new SolidColorBrush(Color.FromRgb(54, 58, 64));
-        var previewPane = BuildPane("Альбумын бодит харагдац", albumPreviewHost, new Thickness(0));
-        workspace.Children.Add(previewPane);
+        var primaryWorkspace = new Grid();
+        foreach (StudioAlbumWorkspacePane pane in StudioAlbumWorkspaceLayout.PrimaryPanes)
+        {
+            primaryWorkspace.ColumnDefinitions.Add(pane switch
+            {
+                StudioAlbumWorkspacePane.Navigator => new ColumnDefinition
+                {
+                    Width = new GridLength(StudioAlbumWorkspaceLayout.NavigatorWidth),
+                    MinWidth = StudioAlbumWorkspaceLayout.NavigatorMinimumWidth,
+                },
+                StudioAlbumWorkspacePane.Preview => new ColumnDefinition
+                {
+                    Width = new GridLength(1, GridUnitType.Star),
+                    MinWidth = StudioAlbumWorkspaceLayout.PreviewMinimumWidth,
+                },
+                StudioAlbumWorkspacePane.Properties => new ColumnDefinition
+                {
+                    Width = new GridLength(StudioAlbumWorkspaceLayout.PropertiesWidth),
+                    MinWidth = StudioAlbumWorkspaceLayout.PropertiesMinimumWidth,
+                },
+                _ => throw new InvalidOperationException($"Unsupported album workspace pane: {pane}"),
+            });
+        }
+
+        UIElement navigatorPane = BuildAlbumNavigatorPane();
+        primaryWorkspace.Children.Add(navigatorPane);
+        Grid.SetColumn(navigatorPane, 0);
+
+        UIElement previewPane = BuildPane(
+            "Альбумын бодит харагдац",
+            albumPreviewHost,
+            new Thickness(0));
+        primaryWorkspace.Children.Add(previewPane);
+        Grid.SetColumn(previewPane, 1);
+
+        UIElement propertiesPane = BuildPane(
+            "Альбумын тохиргоо",
+            BuildAlbumProperties(),
+            new Thickness(1, 0, 0, 0));
+        primaryWorkspace.Children.Add(propertiesPane);
+        Grid.SetColumn(propertiesPane, 2);
+
+        workspace.Children.Add(primaryWorkspace);
         Grid.SetColumn(albumProjectChatHost, 1);
         workspace.Children.Add(albumProjectChatHost);
         return root;
@@ -2584,6 +2632,13 @@ internal sealed partial class ShellView
 
     private UIElement BuildAlbumProperties()
     {
+        IReadOnlyList<ModuleCountChoice> moduleCounts = Enumerable.Range(
+                WorkingDrawingAlbumFormatFactory.MinimumModuleCount,
+                WorkingDrawingAlbumFormatFactory.MaximumModuleCount)
+            .Select(value => new ModuleCountChoice(value, value.ToString()))
+            .ToList();
+        albumGeneratedFormatColumnsBox.ItemsSource = moduleCounts;
+        albumGeneratedFormatRowsBox.ItemsSource = moduleCounts;
         albumPageFormatBox.ItemsSource = PageFormatCatalog.All;
         albumPlacementBox.ItemsSource = new[]
         {
@@ -2640,6 +2695,10 @@ internal sealed partial class ShellView
         albumCropRightBox.LostKeyboardFocus += (_, _) => ApplyAlbumPageProperties();
         albumCropBottomBox.LostKeyboardFocus += (_, _) => ApplyAlbumPageProperties();
         albumCropFromDrawingAreaButton.Click += (_, _) => ApplyDrawingAreaCropPreset();
+        albumGeneratedFormatColumnsBox.SelectionChanged += (_, _) =>
+            ApplyAlbumGeneratedPageFormat();
+        albumGeneratedFormatRowsBox.SelectionChanged += (_, _) =>
+            ApplyAlbumGeneratedPageFormat();
         includeCoverCheck.Checked += (_, _) => ApplyAlbumOptions();
         includeCoverCheck.Unchecked += (_, _) => ApplyAlbumOptions();
         includeTocCheck.Checked += (_, _) => ApplyAlbumOptions();
@@ -2650,6 +2709,7 @@ internal sealed partial class ShellView
         panel.Children.Add(StudioWidgets.CreateFormRow("Нэр", albumPageTitleBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Зургийн төрөл", albumContentKindBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Бүлэг", albumSectionBox, 76));
+        panel.Children.Add(BuildAlbumPageRolePanel());
 
         albumPdfFormatPanel.Children.Add(
             StudioWidgets.CreateSectionHeader("PDF хуудасны формат"));
@@ -2696,11 +2756,20 @@ internal sealed partial class ShellView
         albumPdfFormatPanel.Visibility = Visibility.Collapsed;
         panel.Children.Add(albumPdfFormatPanel);
         panel.Children.Add(StudioWidgets.CreateSectionHeader("Альбум"));
+        albumGeneratedFormatPanel.Children.Add(
+            StudioWidgets.CreateSectionHeader("Нийтлэг хуудасны формат"));
+        albumGeneratedFormatPanel.Children.Add(
+            StudioWidgets.CreateFormRow("A3 багана", albumGeneratedFormatColumnsBox, 92));
+        albumGeneratedFormatPanel.Children.Add(
+            StudioWidgets.CreateFormRow("A3 мөр", albumGeneratedFormatRowsBox, 92));
+        albumGeneratedFormatPanel.Children.Add(albumGeneratedFormatSummaryText);
+        albumGeneratedFormatPanel.Children.Add(StudioWidgets.CreateHint(
+            "Studio-оос үүсэх нүүр, зургийн жагсаалт, тайлбар бичиг, байршлын схем, " +
+            "орчны тойм болон цаашид нэмэгдэх хуудсуудад үйлчилнэ. A3 модулиуд 12 мм " +
+            "залгаастай; ажлын зургийн 180×36 мм хэвтээ булангийн хүснэгтийг хадгална."));
+        panel.Children.Add(albumGeneratedFormatPanel);
         panel.Children.Add(includeCoverCheck);
         panel.Children.Add(includeTocCheck);
-        autoRebuildCheck.Content = "Эх үүсвэр шинэчлэгдэхэд альбум автоматаар шинэчлэх";
-        autoRebuildCheck.Margin = new Thickness(0, 6, 0, 0);
-        panel.Children.Add(autoRebuildCheck);
         albumInfoText.Foreground = StudioTheme.MutedTextBrush;
         albumInfoText.Margin = new Thickness(0, 10, 0, 0);
         panel.Children.Add(albumInfoText);
@@ -2746,21 +2815,37 @@ internal sealed partial class ShellView
         includeCoverCheck.IsEnabled = canEditProjectContent;
         includeTocCheck.IsEnabled = canEditProjectContent;
         autoRebuildCheck.IsEnabled = canEditProjectContent;
+        PageFormatDefinition generatedFormat =
+            WorkingDrawingAlbumFormatFactory.Resolve(state.Album);
+        albumGeneratedFormatColumnsBox.SelectedItem =
+            albumGeneratedFormatColumnsBox.Items
+                .Cast<ModuleCountChoice>()
+                .FirstOrDefault(choice => choice.Value == Math.Max(
+                    WorkingDrawingAlbumFormatFactory.MinimumModuleCount,
+                    generatedFormat.ModuleColumns));
+        albumGeneratedFormatRowsBox.SelectedItem =
+            albumGeneratedFormatRowsBox.Items
+                .Cast<ModuleCountChoice>()
+                .FirstOrDefault(choice => choice.Value == Math.Max(
+                    WorkingDrawingAlbumFormatFactory.MinimumModuleCount,
+                    generatedFormat.ModuleRows));
+        albumGeneratedFormatColumnsBox.IsEnabled = canEditProjectContent;
+        albumGeneratedFormatRowsBox.IsEnabled = canEditProjectContent;
+        albumGeneratedFormatPanel.Visibility = state.Album.GeneratedPageFormat is null
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        RefreshAlbumGeneratedFormatSummary(generatedFormat);
         var hasComposition = state.Album.Composition.Count > 0;
         int visualizationImageCount = CurrentProjectVisualizationImages().Count;
         includeCoverCheck.Visibility = hasComposition ? Visibility.Collapsed : Visibility.Visible;
         if (hasComposition)
         {
-            var ready = state.Album.Composition.Count(item =>
-                item.Kind == AlbumCompositionKind.Generated ||
-                (item.Id.Equals("visualizations", StringComparison.OrdinalIgnoreCase) &&
-                 visualizationImageCount > 0) ||
-                state.Album.Pages.Any(page => string.Equals(
-                    page.TemplateSlotId,
-                    item.Id,
-                    StringComparison.OrdinalIgnoreCase)));
+            StudioAlbumCompositionProgress progress =
+                StudioAlbumCompositionProgress.Resolve(
+                    state.Album,
+                    visualizationImageCount);
             albumInfoText.Text =
-                $"Бүрдэл {ready}/{state.Album.Composition.Count} · {state.Album.Pages.Count} source sheet · " +
+                $"{progress.Summary} · {state.Album.Pages.Count} source sheet · " +
                 $"{visualizationImageCount} зураг";
         }
         else
@@ -2913,67 +2998,123 @@ internal sealed partial class ShellView
         }
         root.Children.Add(studioPages);
 
-        var generalPlanPages = CreateAlbumWorkspaceGroup(
-            $"{albumNodeKey}:general-plan",
-            AlbumWorkspaceNodeKind.GeneralPlan,
-            "Ерөнхий төлөвлөгөө");
-        foreach (var component in state.Album.Composition
-                     .Where(item => item.Kind == AlbumCompositionKind.SourceSlot && !item.AllowMultiple)
-                     .OrderBy(item => item.Order))
+        bool isPartialGeneralPlan = state.Album.TemplateId.Equals(
+            ErkS.Platform.Core.ProjectTypes.UrbanPlanning.UrbanPlanningAlbumTemplate.PartialPlanTemplateId,
+            StringComparison.OrdinalIgnoreCase);
+        if (isPartialGeneralPlan)
         {
-            var linkedPages = sequence.Where(item =>
-                    item.IsFixedTemplatePage &&
-                    string.Equals(item.Slot?.Id, component.Id, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (linkedPages.Count == 0)
+            foreach (StudioAlbumSectionGroup group in
+                     StudioAlbumSectionGrouping.ResolvePopulatedSourceSlots(
+                         state.Album,
+                         sequence.Select(item => item.Slot?.Id)))
             {
-                generalPlanPages.Children.Add(CreateAlbumWorkspacePage(new AlbumPageWorkspaceItem(
-                    null,
-                    component,
-                    component.Number,
-                    component.Number,
-                    component.Title,
-                    "Эх үүсвэр хүлээж байна",
-                    "")));
-                continue;
-            }
-
-            foreach (var linkedPage in linkedPages)
-            {
-                generalPlanPages.Children.Add(CreateAlbumWorkspacePage(
-                    CreateSourcePageWorkspaceItem(linkedPage)));
-            }
-        }
-        root.Children.Add(generalPlanPages);
-
-        var drawingPages = sequence.Where(item => !item.IsFixedTemplatePage).ToList();
-        foreach (var buildingGroup in drawingPages.GroupBy(
-                     item => item.SourceGroupKey,
-                     StringComparer.OrdinalIgnoreCase))
-        {
-            var firstBuildingPage = buildingGroup.First();
-            var buildingNode = CreateAlbumWorkspaceGroup(
-                $"{albumNodeKey}:building:{buildingGroup.Key}",
-                AlbumWorkspaceNodeKind.Source,
-                $"Барилга · {firstBuildingPage.SourceGroupTitle}");
-
-            foreach (var drawingTypeGroup in buildingGroup.GroupBy(
-                         ResolveAlbumWorkspaceDrawingTypeKey,
-                         StringComparer.OrdinalIgnoreCase))
-            {
-                var firstDrawingPage = drawingTypeGroup.First();
-                var drawingTypeNode = CreateAlbumWorkspaceGroup(
-                    $"{buildingNode.Key}:type:{drawingTypeGroup.Key}",
-                    AlbumWorkspaceNodeKind.DrawingType,
-                    ResolveAlbumWorkspaceDrawingTypeTitle(firstDrawingPage));
-                foreach (var linkedPage in drawingTypeGroup)
+                AlbumWorkspaceNodeKind kind = group.Title.Contains(
+                    "Инженерийн дэд бүтэц",
+                    StringComparison.OrdinalIgnoreCase)
+                        ? AlbumWorkspaceNodeKind.EngineeringInfrastructure
+                        : AlbumWorkspaceNodeKind.GeneralPlan;
+                AlbumWorkspaceNode sectionNode = CreateAlbumWorkspaceGroup(
+                    $"{albumNodeKey}:{group.Key}",
+                    kind,
+                    group.Title);
+                foreach (AlbumCompositionItem component in group.Components)
                 {
-                    drawingTypeNode.Children.Add(CreateAlbumWorkspacePage(
+                    List<ConceptAlbumSourcePage> linkedPages = sequence.Where(item =>
+                            string.Equals(
+                                item.Slot?.Id,
+                                component.Id,
+                                StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    foreach (ConceptAlbumSourcePage linkedPage in linkedPages)
+                    {
+                        sectionNode.Children.Add(CreateAlbumWorkspacePage(
+                            CreateSourcePageWorkspaceItem(linkedPage)));
+                    }
+                }
+                root.Children.Add(sectionNode);
+            }
+
+            List<ConceptAlbumSourcePage> unmatchedPages = sequence
+                .Where(item => item.Slot is null)
+                .ToList();
+            if (unmatchedPages.Count > 0)
+            {
+                AlbumWorkspaceNode unmatchedNode = CreateAlbumWorkspaceGroup(
+                    $"{albumNodeKey}:unmatched-source-pages",
+                    AlbumWorkspaceNodeKind.Source,
+                    "Бусад холбогдсон хуудас");
+                foreach (ConceptAlbumSourcePage linkedPage in unmatchedPages)
+                {
+                    unmatchedNode.Children.Add(CreateAlbumWorkspacePage(
                         CreateSourcePageWorkspaceItem(linkedPage)));
                 }
-                buildingNode.Children.Add(drawingTypeNode);
+                root.Children.Add(unmatchedNode);
             }
-            root.Children.Add(buildingNode);
+        }
+        else
+        {
+            var generalPlanPages = CreateAlbumWorkspaceGroup(
+                $"{albumNodeKey}:general-plan",
+                AlbumWorkspaceNodeKind.GeneralPlan,
+                "Ерөнхий төлөвлөгөө");
+            foreach (var component in state.Album.Composition
+                         .Where(item => item.Kind == AlbumCompositionKind.SourceSlot && !item.AllowMultiple)
+                         .OrderBy(item => item.Order))
+            {
+                var linkedPages = sequence.Where(item =>
+                        item.IsFixedTemplatePage &&
+                        string.Equals(item.Slot?.Id, component.Id, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (linkedPages.Count == 0)
+                {
+                    generalPlanPages.Children.Add(CreateAlbumWorkspacePage(new AlbumPageWorkspaceItem(
+                        null,
+                        component,
+                        component.Number,
+                        component.Number,
+                        component.Title,
+                        "Эх үүсвэр хүлээж байна",
+                        "")));
+                    continue;
+                }
+
+                foreach (var linkedPage in linkedPages)
+                {
+                    generalPlanPages.Children.Add(CreateAlbumWorkspacePage(
+                        CreateSourcePageWorkspaceItem(linkedPage)));
+                }
+            }
+            root.Children.Add(generalPlanPages);
+
+            var drawingPages = sequence.Where(item => !item.IsFixedTemplatePage).ToList();
+            foreach (var buildingGroup in drawingPages.GroupBy(
+                         item => item.SourceGroupKey,
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                var firstBuildingPage = buildingGroup.First();
+                var buildingNode = CreateAlbumWorkspaceGroup(
+                    $"{albumNodeKey}:building:{buildingGroup.Key}",
+                    AlbumWorkspaceNodeKind.Source,
+                    $"Барилга · {firstBuildingPage.SourceGroupTitle}");
+
+                foreach (var drawingTypeGroup in buildingGroup.GroupBy(
+                             ResolveAlbumWorkspaceDrawingTypeKey,
+                             StringComparer.OrdinalIgnoreCase))
+                {
+                    var firstDrawingPage = drawingTypeGroup.First();
+                    var drawingTypeNode = CreateAlbumWorkspaceGroup(
+                        $"{buildingNode.Key}:type:{drawingTypeGroup.Key}",
+                        AlbumWorkspaceNodeKind.DrawingType,
+                        ResolveAlbumWorkspaceDrawingTypeTitle(firstDrawingPage));
+                    foreach (var linkedPage in drawingTypeGroup)
+                    {
+                        drawingTypeNode.Children.Add(CreateAlbumWorkspacePage(
+                            CreateSourcePageWorkspaceItem(linkedPage)));
+                    }
+                    buildingNode.Children.Add(drawingTypeNode);
+                }
+                root.Children.Add(buildingNode);
+            }
         }
 
         if (visualizationPlans.Count > 0)
@@ -3173,6 +3314,9 @@ internal sealed partial class ShellView
     {
         bindingAlbumPage = true;
         bool canEditProjectContent = CanEditProjectContent();
+        int selectedPageCount = albumPagesWorkspaceList.SelectedItems
+            .OfType<AlbumPageWorkspaceItem>()
+            .Count(item => !item.IsGroup);
         albumSectionBox.ItemsSource = new[] { new SectionChoice(null, "Бүлэггүй") }
             .Concat(state.Album.Sections.Select(section => new SectionChoice(section.Id, section.Title)))
             .ToList();
@@ -3180,7 +3324,7 @@ internal sealed partial class ShellView
         if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem selected &&
             selected.Page is AlbumPageDefinition page)
         {
-            SetAlbumPagePropertiesEnabled(canEditProjectContent);
+            SetAlbumPagePropertiesEnabled(canEditProjectContent && selectedPageCount == 1);
             var sheet = state.Library.Find(page.SheetKey);
             albumPageNumberBox.Text = selected.Number;
             albumPageTitleBox.Text = string.IsNullOrWhiteSpace(page.TitleOverride)
@@ -3289,6 +3433,7 @@ internal sealed partial class ShellView
             albumSectionBox.SelectedItem = null;
         }
 
+        BindAlbumPageRoleControls(canEditProjectContent);
         bindingAlbumPage = false;
         RefreshAlbumPagePreview();
     }
@@ -3783,6 +3928,41 @@ internal sealed partial class ShellView
         state.Album.IncludeTableOfContents = includeTocCheck.IsChecked == true;
     }
 
+    private void ApplyAlbumGeneratedPageFormat()
+    {
+        if (bindingAlbumPage || !CanEditProjectContent() ||
+            albumGeneratedFormatColumnsBox.SelectedItem is not ModuleCountChoice columns ||
+            albumGeneratedFormatRowsBox.SelectedItem is not ModuleCountChoice rows)
+        {
+            return;
+        }
+
+        PageFormatDefinition format = WorkingDrawingAlbumFormatFactory.Create(
+            columns.Value,
+            rows.Value);
+        PageFormatDefinition current = WorkingDrawingAlbumFormatFactory.Resolve(state.Album);
+        if (string.Equals(current.GeometryHash, format.GeometryHash, StringComparison.Ordinal))
+        {
+            RefreshAlbumGeneratedFormatSummary(current);
+            return;
+        }
+
+        state.Album.GeneratedPageFormat = format;
+        state.SaveProject();
+        RefreshAlbumGeneratedFormatSummary(format);
+        UpdateAlbum(
+            silent: false,
+            statusPrefix: $"Альбумын нийтлэг формат {format.Code} · " +
+                          $"{format.WidthMm:0}×{format.HeightMm:0} мм боллоо");
+    }
+
+    private void RefreshAlbumGeneratedFormatSummary(PageFormatDefinition format)
+    {
+        albumGeneratedFormatSummaryText.Text =
+            $"{format.Code} · A3 {format.ModuleColumns}×{format.ModuleRows} · " +
+            $"{format.WidthMm:0}×{format.HeightMm:0} мм · хөндлөн";
+    }
+
     private void RemoveSelectedAlbumPage()
     {
         if (!EnsureProjectContentPermission() ||
@@ -3939,8 +4119,8 @@ internal sealed partial class ShellView
         albumThumbnailLoadCancellation?.Cancel();
         albumThumbnailLoadCancellation?.Dispose();
         albumThumbnailLoadCancellation = null;
-        loadedAlbumPdfDocumentKey = null;
         selectedAlbumWorkspaceKey = null;
+        albumPreviewManifest.Clear();
         albumPagesWorkspaceList.SelectedItem = null;
         albumPagesWorkspaceList.ItemsSource = null;
 
@@ -3979,7 +4159,9 @@ internal sealed partial class ShellView
         if (usesSharedManifest)
         {
             IReadOnlyList<ProjectCloudAlbumComponentReference> manifest =
-                state.Project.Cloud.SharedAlbumComponents ?? [];
+                albumPreviewManifest.Resolve(
+                    previewPath,
+                    state.Project.Cloud.SharedAlbumComponents);
             if (!string.IsNullOrWhiteSpace(selected.CanonicalComponentCode))
             {
                 return StudioAlbumPreviewPageMap.ResolveCanonicalGeneratedPage(
@@ -4053,7 +4235,9 @@ internal sealed partial class ShellView
             return null;
 
         return StudioAlbumPreviewPageMap.ResolveCanonicalComponentPage(
-            state.Project.Cloud.SharedAlbumComponents,
+            albumPreviewManifest.Resolve(
+                previewPath,
+                state.Project.Cloud.SharedAlbumComponents),
             componentCode);
     }
 
@@ -4109,39 +4293,12 @@ internal sealed partial class ShellView
             }
 
             var pdf = new FileInfo(previewPdfPath);
-            var documentKey = $"{pdf.FullName}|{pdf.LastWriteTimeUtc.Ticks}|{pdf.Length}";
             var builder = new UriBuilder(new Uri(previewPdfPath))
             {
                 Query = $"erksVersion={pdf.LastWriteTimeUtc.Ticks}-{pdf.Length}",
                 Fragment = $"page={targetPage}&zoom=page-fit",
             };
 
-            if (string.Equals(loadedAlbumPdfDocumentKey, documentKey, StringComparison.Ordinal))
-            {
-                var mainWindow = System.Windows.Application.Current.MainWindow;
-                var windowHandle = mainWindow is null ? IntPtr.Zero : new WindowInteropHelper(mainWindow).Handle;
-                for (var attempt = 0; attempt < 8; attempt++)
-                {
-                    if (navigationSerial != albumPdfNavigationSerial)
-                    {
-                        return;
-                    }
-
-                    if (windowHandle != IntPtr.Zero && await Task.Run(() =>
-                            TrySelectLoadedPdfPage(windowHandle, targetPage)))
-                    {
-                        await Task.Delay(40);
-                        if (navigationSerial == albumPdfNavigationSerial)
-                        {
-                            albumPagesWorkspaceList.Focus();
-                        }
-                        return;
-                    }
-                    await Task.Delay(75);
-                }
-            }
-
-            loadedAlbumPdfDocumentKey = documentKey;
             albumPdfViewer.CoreWebView2.Navigate(builder.Uri.AbsoluteUri);
         }
         catch (Exception exception)
@@ -4159,48 +4316,6 @@ internal sealed partial class ShellView
             });
         }
     }
-
-    private static bool TrySelectLoadedPdfPage(IntPtr windowHandle, int pageNumber)
-    {
-        try
-        {
-            var root = AutomationElement.FromHandle(windowHandle);
-            var selector = root.FindFirst(
-                TreeScope.Descendants,
-                new PropertyCondition(AutomationElement.AutomationIdProperty, "pageselector"));
-            if (selector is null ||
-                !selector.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObject) ||
-                valuePatternObject is not ValuePattern valuePattern)
-            {
-                return false;
-            }
-
-            SetForegroundWindow(windowHandle);
-            selector.SetFocus();
-            valuePattern.SetValue(Math.Max(1, pageNumber).ToString());
-            keybd_event(VirtualKeyReturn, 0, 0, UIntPtr.Zero);
-            keybd_event(VirtualKeyReturn, 0, KeyEventKeyUp, UIntPtr.Zero);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private const byte VirtualKeyReturn = 0x0D;
-    private const uint KeyEventKeyUp = 0x0002;
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(IntPtr windowHandle);
-
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(
-        byte virtualKey,
-        byte scanCode,
-        uint flags,
-        UIntPtr extraInfo);
 
     private void ShowCompositionPreview(AlbumPageWorkspaceItem selected)
     {
@@ -5207,6 +5322,7 @@ internal sealed partial class ShellView
         Album,
         Studio,
         GeneralPlan,
+        EngineeringInfrastructure,
         Source,
         DrawingType,
     }
@@ -5249,6 +5365,11 @@ internal sealed partial class ShellView
         public string ThumbnailMessage => thumbnailMessage;
 
         public bool IsGroup => Kind != AlbumWorkspaceNodeKind.Page;
+        public IAlbumPageRoleOwner? RoleOwner => Page is not null
+            ? Page
+            : Component?.Kind == AlbumCompositionKind.Generated
+                ? Component
+                : null;
         public string SelectionKey => NodeKey;
         public string ExpansionGlyph => IsExpanded ? "▾" : "▸";
         public string ChildCountLabel => ChildCount > 0 ? $"({ChildCount})" : "";
@@ -5278,6 +5399,11 @@ internal sealed partial class ShellView
     }
 
     private sealed record PdfFormatValueChoice(string Value, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    private sealed record ModuleCountChoice(int Value, string Label)
     {
         public override string ToString() => Label;
     }

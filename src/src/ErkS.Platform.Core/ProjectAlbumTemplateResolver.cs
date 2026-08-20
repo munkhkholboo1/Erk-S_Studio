@@ -53,12 +53,26 @@ public static class ProjectAlbumTemplateResolver
 
         if (string.Equals(album.Definition.TemplateId, expected.TemplateId, StringComparison.OrdinalIgnoreCase))
         {
+            bool changed = false;
+            if (isUrbanPlanning &&
+                (!PageFormatCatalog.IsUsable(album.Definition.GeneratedPageFormat) ||
+                 album.Definition.GeneratedPageFormat!.Kind != PageFormatKind.WorkingDrawing))
+            {
+                album.Definition.GeneratedPageFormat = expected.GeneratedPageFormat;
+                changed = true;
+            }
+            if (isUrbanPlanning &&
+                UrbanPlanningAlbumTemplate.EnsureGeneratedPages(album.Definition))
+            {
+                changed = true;
+            }
+
             // This front-matter page is owned by Studio. Migrate existing HET albums
             // without replacing their source pages or contributor content.
             AlbumCompositionItem? drawingList = album.Definition.Composition.FirstOrDefault(item =>
                 item.Id.Equals("drawing-list-and-notes", StringComparison.OrdinalIgnoreCase));
             if (drawingList is null || drawingList.Kind == AlbumCompositionKind.Generated)
-                return false;
+                return changed;
 
             drawingList.Kind = AlbumCompositionKind.Generated;
             drawingList.GeneratedPageKind = AlbumGeneratedPageKind.None;
@@ -70,6 +84,12 @@ public static class ProjectAlbumTemplateResolver
         // хэрэглэгчийн бодит альбомын агуулгыг энд устгахгүй.
         album.Definition = expected;
         album.Definition.Pages.AddRange(existingPages);
+        if (isUrbanPlanning)
+        {
+            UrbanPlanningAlbumTemplate.MigrateLegacyPages(
+                album.Definition,
+                album.Definition.Pages);
+        }
         workspace.BuildingGroups.Clear();
         workspace.SheetBuildingAssignments.Clear();
         return true;

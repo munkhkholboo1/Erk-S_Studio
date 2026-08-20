@@ -670,10 +670,13 @@ public static class StudioAlbumDocumentStore
         album.Definition.Sections ??= [];
         album.Definition.Pages ??= [];
         album.Definition.Composition ??= [];
+        foreach (AlbumPageDefinition page in album.Definition.Pages)
+            AlbumPageRoleAssignmentService.Normalize(page);
         foreach (var item in album.Definition.Composition)
         {
             item.MatchContentKinds ??= [];
             item.MatchNameTerms ??= [];
+            AlbumPageRoleAssignmentService.Normalize(item);
         }
         album.Revisions ??= [];
         int nextRevisionNumber = 1;

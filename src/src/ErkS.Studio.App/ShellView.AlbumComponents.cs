@@ -160,6 +160,36 @@ internal sealed partial class ShellView
         return true;
     }
 
+    private bool TryDeferSourceRefreshWithoutCanonicalUnion(
+        int cloudOnlySourceComponentCount,
+        string? statusPrefix,
+        out Exception? localValidationFailure)
+    {
+        if (!TryValidateLocalAlbumContribution(
+                "source-refresh-validation",
+                out AlbumBuildResult localBuild,
+                out localValidationFailure))
+        {
+            return false;
+        }
+
+        string? currentPreview = ResolveCurrentProjectAlbumPath();
+        string previewMessage =
+            !string.IsNullOrWhiteSpace(currentPreview) && File.Exists(currentPreview)
+                ? "Одоогийн canonical album preview болон бусад Cloud component-үүд хэвээр үлдлээ."
+                : "Canonical album preview энэ төхөөрөмжид хараахан татагдаагүй.";
+        string deferredMessage =
+            $"Локал эх үүсвэрийн contribution баталгаажиж хадгалагдлаа: {localBuild.SheetCount} sheet. " +
+            $"Өөр оролцогчийн {cloudOnlySourceComponentCount} Cloud component локал payload-гүй, " +
+            $"usable canonical manifest байхгүй тул local-only album-аар солиогүй. {previewMessage} " +
+            "Cloud Sync локал өөрчлөлтийг илгээж, бусад Cloud өөрчлөлтийг татан canonical merge-ийг дуусгана. " +
+            "[reason: source_refresh_cloud_components_deferred]";
+        SetStatus(string.IsNullOrWhiteSpace(statusPrefix)
+            ? deferredMessage
+            : $"{statusPrefix}. {deferredMessage}");
+        return true;
+    }
+
     private bool TryValidateLocalAlbumContribution(
         string validationPurpose,
         out AlbumBuildResult localBuild,
@@ -737,6 +767,7 @@ internal sealed partial class ShellView
             if (rendererMigrationCodes.Count > 0)
                 MarkAlbumRendererCurrent();
 
+            albumPreviewManifest.Record(result);
             CloudAlbumCacheMaintenance.Cleanup(previewFolder, outputPath);
             return true;
         }
@@ -935,6 +966,7 @@ internal sealed partial class ShellView
                 component,
                 component.PageNumbers),
         }));
+        albumPreviewManifest.Record(result);
         return result;
     }
 

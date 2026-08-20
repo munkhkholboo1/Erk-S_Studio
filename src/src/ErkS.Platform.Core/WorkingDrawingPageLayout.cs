@@ -8,6 +8,22 @@ public sealed record WorkingDrawingPageRegions(
     int GridColumns,
     int GridRows);
 
+public sealed record WorkingDrawingGeneratedPageChrome(
+    bool ShowSheetHeader,
+    bool ShowTitleBlock);
+
+public static class WorkingDrawingGeneratedPageChromePolicy
+{
+    public static WorkingDrawingGeneratedPageChrome Resolve(
+        AlbumGeneratedPageKind pageKind) => pageKind == AlbumGeneratedPageKind.Cover
+        ? new WorkingDrawingGeneratedPageChrome(
+            ShowSheetHeader: false,
+            ShowTitleBlock: false)
+        : new WorkingDrawingGeneratedPageChrome(
+            ShowSheetHeader: true,
+            ShowTitleBlock: true);
+}
+
 public static class WorkingDrawingPageLayout
 {
     public const double EtalonBandMm = 5d;
