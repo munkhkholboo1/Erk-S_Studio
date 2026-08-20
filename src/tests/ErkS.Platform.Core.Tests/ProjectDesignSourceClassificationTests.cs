@@ -281,11 +281,10 @@ public sealed class ProjectDesignSourceClassificationTests
     [Theory]
     [InlineData("ЕТ")]
     [InlineData("ет")]
-    [InlineData("ИДБ")]
     public void AutoCadGeneralPlanDrawingMarkIsDetectedAsGeneralPlan(string discipline)
     {
-        // AutoCAD sends the drawing mark as the discipline; the general-plan album marks its
-        // sheets ЕТ and ИДБ, which spell out neither "ерөнхий төлөвлөгөө" nor "general plan".
+        // AutoCAD sends the drawing mark as the discipline, and the general-plan album marks
+        // its general-plan sheets ЕТ, which spells out neither phrase detection looked for.
         var source = new ProjectDesignSource
         {
             Id = "autocad-general-plan",
@@ -338,6 +337,27 @@ public sealed class ProjectDesignSourceClassificationTests
             ProjectDesignSourceClassification.EffectivePurpose(source));
     }
 
+
+    [Fact]
+    public void EngineeringInfrastructureMarkIsNotTheGeneralPlan()
+    {
+        // ИДБ is Инженерийн дэд бүтэц, a discipline of the same album. This purpose makes a
+        // source the owner of the project's general plan, Project Land and location scheme,
+        // which an engineering-infrastructure source is not.
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-idb",
+            Kind = DesignSourceKind.AutoCad,
+        };
+
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: "ИДБ", contentKind: "heating-supply"));
+
+        Assert.NotEqual(
+            ProjectDesignSourcePurpose.GeneralPlan,
+            ProjectDesignSourceClassification.EffectivePurpose(source));
+    }
     private static SheetPackageManifest GeneralPlanManifest(
         string discipline,
         string contentKind) => new()

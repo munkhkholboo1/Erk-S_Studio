@@ -7,7 +7,7 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [0.001.38] - 2026-08-20
 
-- Classify an AutoCAD general-plan source as Ерөнхий төлөвлөгөө instead of a building. AutoCAD sends the drawing mark as the sheet discipline and the general-plan album marks its sheets ЕТ and ИДБ, which match none of the phrases detection looked for, and content kinds arrive as hyphenated template slot ids such as general-plan-zoning, so every general-plan DWG became a building - then required a building sub-cover the album never draws and blocked the project sync.
+- Classify an AutoCAD general-plan source as Ерөнхий төлөвлөгөө instead of a building. AutoCAD sends the drawing mark as the sheet discipline and the general-plan album marks its general-plan sheets ЕТ, which matches none of the phrases detection looked for, and content kinds arrive as hyphenated template slot ids such as general-plan-zoning, so every general-plan DWG became a building - then required a building sub-cover the album never draws and blocked the project sync.
 - Stop assuming a newly added AutoCAD source is a building and pre-filling "Барилга 1" behind the type selector; AutoCAD carries both kinds of drawing, so the package content or the person adding it decides.
 
 ## [0.001.37] - 2026-08-20

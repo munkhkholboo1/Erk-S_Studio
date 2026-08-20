@@ -231,9 +231,12 @@ public static class ProjectDesignSourceClassification
             return false;
 
         // AutoCAD sends the drawing mark as the sheet's discipline, and the general-plan album
-        // marks its sheets ЕТ and ИДБ. Neither spells out "ерөнхий төлөвлөгөө", so every
-        // general-plan DWG was classified as a building. Marks are codes, so match them whole.
-        if (normalized is "ет" or "идб" or "et" or "idb")
+        // marks its general-plan sheets ЕТ, which spells out neither "ерөнхий төлөвлөгөө" nor
+        // "general plan" - so every general-plan DWG was classified as a building. A mark is a
+        // code, so match it whole. ИДБ is deliberately not here: that is Инженерийн дэд бүтэц,
+        // a different discipline of the same album, and this purpose makes a source the owner
+        // of the project's general plan, Project Land and location scheme.
+        if (normalized is "ет" or "et")
             return true;
 
         // Content kinds arrive as template slot ids such as "general-plan-zoning", where the
