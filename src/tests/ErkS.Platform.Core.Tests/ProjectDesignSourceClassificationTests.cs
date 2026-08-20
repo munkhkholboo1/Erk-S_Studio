@@ -484,6 +484,37 @@ public sealed class ProjectDesignSourceClassificationTests
     }
 
     [Fact]
+    public void SourceWhoseSheetsAreAlreadyFiled_JoinsThatBuildingInsteadOfASecondOne()
+    {
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-building",
+            Kind = DesignSourceKind.AutoCad,
+            NativeDocumentTitle = "Сургууль.dwg",
+        };
+        var project = new ProjectWorkspace
+        {
+            Sources = [source],
+            BuildingGroups =
+            [
+                new ProjectBuildingGroup { Id = "block-a", Name = "A блок", Order = 1 },
+            ],
+        };
+        project.SheetBuildingAssignments["autocad-building|ar-01"] = "block-a";
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: "AR", contentKind: "floor-plan"));
+
+        Assert.True(
+            ProjectDesignSourceClassification.EnsureBuildingGroupForSource(project, source));
+
+        Assert.Equal(
+            "block-a",
+            ProjectDesignSourceClassification.BuildingGroupId(source));
+        Assert.Single(project.BuildingGroups);
+    }
+
+    [Fact]
     public void GeneralPlanSource_NeverGetsABuildingGroup()
     {
         var source = new ProjectDesignSource

@@ -242,13 +242,49 @@ public static class ProjectDesignSourceClassification
             return false;
         }
 
-        string name = SuggestBuildingGroupName(source);
-        ProjectBuildingGroup resolved =
-            FindBuildingGroup(project, "", name) ??
-            CreateBuildingGroup(project, "", name);
+        // The source's own sheets may already be filed under a building - by hand, or by an
+        // earlier package - while the source itself never recorded one. Adopting that group
+        // keeps the source with its sheets instead of adding an empty second building.
+        ProjectBuildingGroup? resolved =
+            FindGroupAlreadyHoldingSheetsOf(project, source);
+        if (resolved is null)
+        {
+            string name = SuggestBuildingGroupName(source);
+            resolved =
+                FindBuildingGroup(project, "", name) ??
+                CreateBuildingGroup(project, "", name);
+        }
+
         source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         source.Metadata[BuildingGroupIdKey] = resolved.Id;
         return true;
+    }
+
+    /// <summary>
+    /// The single building the source's sheets are already filed under, or null when they
+    /// are filed under none or under several - there the source has no one building to join.
+    /// </summary>
+    private static ProjectBuildingGroup? FindGroupAlreadyHoldingSheetsOf(
+        ProjectWorkspace project,
+        ProjectDesignSource source)
+    {
+        string sourceId = (source.Id ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(sourceId))
+            return null;
+
+        string prefix = sourceId.ToLowerInvariant() + "|";
+        string[] groupIds = (project.SheetBuildingAssignments ?? [])
+            .Where(assignment => assignment.Key.StartsWith(
+                prefix,
+                StringComparison.OrdinalIgnoreCase))
+            .Select(assignment => assignment.Value?.Trim() ?? "")
+            .Where(groupId => !string.IsNullOrWhiteSpace(groupId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return groupIds.Length == 1
+            ? project.BuildingGroups.FirstOrDefault(group =>
+                group.Id.Equals(groupIds[0], StringComparison.OrdinalIgnoreCase))
+            : null;
     }
 
     private static ProjectBuildingGroup? FindBuildingGroup(

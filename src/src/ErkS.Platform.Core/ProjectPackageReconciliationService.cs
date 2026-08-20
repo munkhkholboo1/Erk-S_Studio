@@ -171,9 +171,15 @@ public static class ProjectPackageReconciliationService
         // A source is recognised as a building only here, once its package is read, so it
         // is given a building group before its sheets are filed. The package's own
         // per-sheet building identity is more specific than the source default and is
-        // applied first. Only an album that composes buildings may gain a group this way -
-        // an urban-planning album would then demand a building sub-cover it never draws.
-        bool composesBuildings = usesConceptTemplate || usesWorkingDrawingTemplate;
+        // applied first.
+        //
+        // Only the concept album may gain a group this way. It alone builds a section per
+        // building (AlbumBuilder.IsBuildingSectionKey) and so is the only album whose writer
+        // draws a building sub-cover; anywhere else a group would demand a cover that is
+        // never rendered, which is what blocked the project's sync. The working-drawing
+        // album composes disciplines, not buildings, and the urban-planning album has no
+        // building types at all - engineering infrastructure arrives there as its own source.
+        bool composesBuildings = usesConceptTemplate;
         bool addedBuildingAssignments =
             composesBuildings &&
             ProjectDesignSourceClassification.EnsureBuildingGroupForSource(

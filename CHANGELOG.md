@@ -5,6 +5,11 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.40] - 2026-08-20
+
+- Restrict automatic building-group creation to the building-architecture concept album. It is the only album that builds a section per building and therefore the only one whose writer draws a building sub-cover, so a group created for a working-drawing album demanded a cover that is never rendered and would have failed the cloud sync the same way the urban-planning album did in 0.001.38.
+- Let a source whose sheets are already filed under one building join that building instead of creating a second, empty one beside it.
+
 ## [0.001.39] - 2026-08-20
 
 - Give an AutoCAD source that turns out to be a building a building group. It is recognised as a building only once its package is read, by which time nobody had picked a group for it, so every sheet it delivered stayed outside the building composition; the group is now named after the drawing.
