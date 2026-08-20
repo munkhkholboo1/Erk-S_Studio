@@ -164,11 +164,17 @@ public static class ProjectDesignSourceClassification
         return changed;
     }
 
+    /// <param name="allowNewBuildingGroups">
+    /// Whether a building the project has never listed may be added. Only an album that
+    /// composes buildings may: elsewhere a new group buys nothing and still demands a
+    /// building sub-cover that album never draws, which blocks the project's sync.
+    /// </param>
     public static bool ApplyPackageBuildingGroupAssignments(
         ProjectWorkspace project,
         ProjectDesignSource source,
         SheetPackageSource packageSource,
-        IEnumerable<SheetPackageEntry> entries)
+        IEnumerable<SheetPackageEntry> entries,
+        bool allowNewBuildingGroups = false)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(source);
@@ -188,22 +194,121 @@ public static class ProjectDesignSourceClassification
 
             string buildingId = (entry.BuildingId ?? "").Trim();
             string buildingName = (entry.BuildingName ?? "").Trim();
-            ProjectBuildingGroup? group = project.BuildingGroups.FirstOrDefault(candidate =>
-                (!string.IsNullOrWhiteSpace(buildingId) &&
-                 candidate.Id.Equals(
-                     buildingId,
-                     StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(buildingName) &&
-                 candidate.Name.Equals(
-                     buildingName,
-                     StringComparison.OrdinalIgnoreCase)));
-            if (group is null)
+            if (string.IsNullOrWhiteSpace(buildingId) &&
+                string.IsNullOrWhiteSpace(buildingName))
+            {
                 continue;
+            }
+
+            // The package can name a building this project has never seen - the next
+            // building of the set, or one drawn against another project's groups.
+            // Skipping it left those sheets outside every building, so the group the
+            // exporter declared is created here instead.
+            ProjectBuildingGroup? group =
+                FindBuildingGroup(project, buildingId, buildingName);
+            if (group is null)
+            {
+                if (!allowNewBuildingGroups)
+                    continue;
+                group = CreateBuildingGroup(project, buildingId, buildingName);
+            }
 
             project.SheetBuildingAssignments[key] = group.Id;
             changed = true;
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Gives a building source a building group when it has none. A source is often
+    /// recognised as a building only once its package is read - by then nobody picked a
+    /// group for it, and without one every sheet it delivers stays outside the building
+    /// composition.
+    /// </summary>
+    public static bool EnsureBuildingGroupForSource(
+        ProjectWorkspace project,
+        ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(source);
+        if (EffectivePurpose(source) != ProjectDesignSourcePurpose.Building)
+            return false;
+
+        string groupId = BuildingGroupId(source);
+        if (!string.IsNullOrWhiteSpace(groupId) &&
+            project.BuildingGroups.Any(group =>
+                group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        string name = SuggestBuildingGroupName(source);
+        ProjectBuildingGroup resolved =
+            FindBuildingGroup(project, "", name) ??
+            CreateBuildingGroup(project, "", name);
+        source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        source.Metadata[BuildingGroupIdKey] = resolved.Id;
+        return true;
+    }
+
+    private static ProjectBuildingGroup? FindBuildingGroup(
+        ProjectWorkspace project,
+        string buildingId,
+        string buildingName) =>
+        project.BuildingGroups.FirstOrDefault(candidate =>
+            (!string.IsNullOrWhiteSpace(buildingId) &&
+             candidate.Id.Equals(
+                 buildingId,
+                 StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(buildingName) &&
+             candidate.Name.Equals(
+                 buildingName,
+                 StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
+    /// Adds a building group to the project. A declared id is kept when it is still free so
+    /// the next package carrying the same identity resolves to this group rather than adding
+    /// a second one beside it.
+    /// </summary>
+    private static ProjectBuildingGroup CreateBuildingGroup(
+        ProjectWorkspace project,
+        string buildingId,
+        string buildingName)
+    {
+        string id = (buildingId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(id) ||
+            project.BuildingGroups.Any(group =>
+                group.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
+        {
+            id = Guid.NewGuid().ToString("N");
+        }
+
+        string name = (buildingName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            name = (buildingId ?? "").Trim();
+
+        var created = new ProjectBuildingGroup
+        {
+            Id = id,
+            Name = string.IsNullOrWhiteSpace(name)
+                ? $"Барилга {project.BuildingGroups.Count + 1}"
+                : name,
+            Order = project.BuildingGroups.Count + 1,
+        };
+        project.BuildingGroups.Add(created);
+        return created;
+    }
+
+    private static string SuggestBuildingGroupName(ProjectDesignSource source)
+    {
+        string title = (source.NativeDocumentTitle ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(title))
+            title = Path.GetFileName((source.NativeDocumentPath ?? "").Trim());
+
+        title = Path.GetFileNameWithoutExtension(title).Trim();
+        return string.IsNullOrWhiteSpace(title)
+            ? (source.Name ?? "").Trim()
+            : title;
     }
 
     private static ProjectDesignSourcePurpose Detect(SheetPackageManifest manifest)

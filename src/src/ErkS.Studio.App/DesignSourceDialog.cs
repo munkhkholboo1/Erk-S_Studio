@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using ErkS.Platform.Core;
+using ErkS.Platform.Core.ProjectTypes.UrbanPlanning;
 using Microsoft.Win32;
 
 namespace ErkS.Studio;
@@ -27,6 +28,8 @@ internal sealed class DesignSourceDialog : Window
         Margin = new Thickness(StudioTheme.FormLabelWidth, 0, 0, 8),
     };
     private readonly List<ProjectBuildingGroup> buildingGroups;
+    private readonly bool composesBuildings;
+    private readonly IReadOnlyList<SourcePurposeChoice> purposeChoices;
     private Grid purposeRow = null!;
     private Grid buildingGroupRow = null!;
 
@@ -42,6 +45,17 @@ internal sealed class DesignSourceDialog : Window
             .OrderBy(group => group.Order)
             .Select(group => group.Clone())
             .ToList();
+        // A partial or development general plan has no building types at all - engineering
+        // infrastructure arrives there as its own source, not as a building. Offering a
+        // building only produced sources nothing could compose.
+        composesBuildings = !UrbanPlanningAlbumTemplate.Supports(
+            project.Identity.ProjectType,
+            project.Identity.StageCode);
+        purposeChoices = composesBuildings
+            ? AllPurposeChoices
+            : AllPurposeChoices
+                .Where(choice => choice.Value != ProjectDesignSourcePurpose.Building)
+                .ToList();
         Title = "Эх үүсвэр нэмэх";
         Width = 620;
         Height = 620;
@@ -53,7 +67,7 @@ internal sealed class DesignSourceDialog : Window
 
         kindBox.ItemsSource = Enum.GetValues<DesignSourceKind>();
         kindBox.SelectedItem = DesignSourceKind.Revit;
-        purposeBox.ItemsSource = PurposeChoices;
+        purposeBox.ItemsSource = purposeChoices;
         purposeBox.DisplayMemberPath = nameof(SourcePurposeChoice.Label);
         buildingGroupBox.ItemsSource = buildingGroups;
         buildingGroupBox.DisplayMemberPath = nameof(ProjectBuildingGroup.Name);
@@ -146,13 +160,15 @@ internal sealed class DesignSourceDialog : Window
         documentPathBox.Clear();
         ProjectDesignSourcePurpose defaultPurpose =
             ProjectDesignSourceClassification.DefaultPurpose(kind);
-        purposeBox.SelectedItem = PurposeChoices.First(choice =>
-            choice.Value == defaultPurpose);
+        purposeBox.SelectedItem =
+            purposeChoices.FirstOrDefault(choice => choice.Value == defaultPurpose) ??
+            purposeChoices[0];
         // Only pre-fill a building for a kind that is a building by definition. An AutoCAD
         // package is just as likely to be the general plan, and filling in "Барилга 1" behind
         // the dropdown turned every general-plan DWG into a building - which then demanded a
         // building sub-cover the album never draws, and blocked the project's sync.
         if (defaultPurpose == ProjectDesignSourcePurpose.Building &&
+            composesBuildings &&
             kind != DesignSourceKind.AutoCad &&
             buildingGroupBox.SelectedItem is null &&
             string.IsNullOrWhiteSpace(buildingGroupBox.Text))
@@ -187,7 +203,9 @@ internal sealed class DesignSourceDialog : Window
             ? Visibility.Visible
             : Visibility.Collapsed;
         buildingGroupRow.Visibility =
-            supportsClassification && purpose == ProjectDesignSourcePurpose.Building
+            supportsClassification &&
+            composesBuildings &&
+            purpose == ProjectDesignSourcePurpose.Building
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         classificationHint.Visibility = supportsClassification
@@ -198,9 +216,14 @@ internal sealed class DesignSourceDialog : Window
             ProjectDesignSourcePurpose.GeneralPlan =>
                 "Энэ эх үүсвэр төслийн ерөнхий төлөвлөгөө, Project Land болон байршлын схемийг хариуцна.",
             ProjectDesignSourcePurpose.Building =>
-                "Revit болон AutoCAD хуудсууд сонгосон нэг барилгын иж бүрдэлд нийлнэ.",
+                "Revit болон AutoCAD хуудсууд сонгосон нэг барилгын иж бүрдэлд нийлнэ. " +
+                "Барилгын төрөл жагсаалтад байхгүй бол шинэ нэрийг нь шууд бичихэд үүснэ.",
+            _ when !composesBuildings =>
+                "Энэ үе шатанд барилгын төрөл байхгүй. AutoCAD/CityGen package-ийн metadata-аас " +
+                "ерөнхий төлөвлөгөөг танина, инженерийн дэд бүтэц тусдаа эх үүсвэрээр орж ирнэ.",
             _ =>
-                "AutoCAD/CityGen package-ийн metadata-аас ерөнхий төлөвлөгөө эсвэл барилгын зургийг автоматаар танина.",
+                "AutoCAD/CityGen package-ийн metadata-аас ерөнхий төлөвлөгөө эсвэл барилгын зургийг автоматаар танина. " +
+                "Барилгын зураг таньсан бол шинэ барилгын төрөл өөрөө үүсч хуудаснууд нь тэнд орно.",
         };
     }
 
@@ -401,7 +424,7 @@ internal sealed class DesignSourceDialog : Window
         return created;
     }
 
-    private static IReadOnlyList<SourcePurposeChoice> PurposeChoices { get; } =
+    private static IReadOnlyList<SourcePurposeChoice> AllPurposeChoices { get; } =
     [
         new(ProjectDesignSourcePurpose.Unspecified, "Package metadata-аар таних"),
         new(ProjectDesignSourcePurpose.GeneralPlan, "Ерөнхий төлөвлөгөө"),

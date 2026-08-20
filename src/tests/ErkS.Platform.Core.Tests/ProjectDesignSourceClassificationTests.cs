@@ -339,6 +339,170 @@ public sealed class ProjectDesignSourceClassificationTests
 
 
     [Fact]
+    public void PackageNamingAnUnknownBuilding_CreatesThatBuildingGroup()
+    {
+        // AutoCAD delivers a building this project has never listed. Before, the sheets were
+        // left in no building at all because only an existing group could be matched.
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-source",
+            Kind = DesignSourceKind.AutoCad,
+        };
+        var project = new ProjectWorkspace { Sources = [source] };
+        var packageSource = new SheetPackageSource
+        {
+            SourceId = source.Id,
+            Application = SheetSourceApplication.AutoCad,
+        };
+        var entry = new SheetPackageEntry
+        {
+            SheetId = "AR-01",
+            BuildingId = "kindergarten",
+            BuildingName = "Цэцэрлэг",
+        };
+
+        bool changed =
+            ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
+                project,
+                source,
+                packageSource,
+                [entry],
+                allowNewBuildingGroups: true);
+
+        Assert.True(changed);
+        ProjectBuildingGroup created = Assert.Single(project.BuildingGroups);
+        Assert.Equal("Цэцэрлэг", created.Name);
+        // The declared id is kept so the next package resolves to this same group.
+        Assert.Equal("kindergarten", created.Id);
+        Assert.Equal(
+            created.Id,
+            project.SheetBuildingAssignments[
+                SheetRecord.MakeKey(packageSource, entry, source.Id)]);
+
+        Assert.False(
+            ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
+                project,
+                source,
+                packageSource,
+                [entry],
+                allowNewBuildingGroups: true));
+        Assert.Single(project.BuildingGroups);
+    }
+
+    [Fact]
+    public void AlbumThatDoesNotComposeBuildings_NeverGainsABuildingGroup()
+    {
+        // An urban-planning album draws no building sub-cover, so a group created here would
+        // demand a cover that never exists and block the project's sync.
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-source",
+            Kind = DesignSourceKind.AutoCad,
+        };
+        var project = new ProjectWorkspace { Sources = [source] };
+        var packageSource = new SheetPackageSource
+        {
+            SourceId = source.Id,
+            Application = SheetSourceApplication.AutoCad,
+        };
+
+        bool changed =
+            ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
+                project,
+                source,
+                packageSource,
+                [
+                    new SheetPackageEntry
+                    {
+                        SheetId = "IDB-01",
+                        BuildingName = "Цэцэрлэг",
+                    },
+                ]);
+
+        Assert.False(changed);
+        Assert.Empty(project.BuildingGroups);
+        Assert.Empty(project.SheetBuildingAssignments);
+    }
+
+    [Fact]
+    public void SheetsWithoutABuildingIdentity_DoNotInventAGroup()
+    {
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-source",
+            Kind = DesignSourceKind.AutoCad,
+        };
+        var project = new ProjectWorkspace { Sources = [source] };
+        var packageSource = new SheetPackageSource
+        {
+            SourceId = source.Id,
+            Application = SheetSourceApplication.AutoCad,
+        };
+
+        bool changed =
+            ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
+                project,
+                source,
+                packageSource,
+                [new SheetPackageEntry { SheetId = "AR-01" }]);
+
+        Assert.False(changed);
+        Assert.Empty(project.BuildingGroups);
+        Assert.Empty(project.SheetBuildingAssignments);
+    }
+
+    [Fact]
+    public void DetectedBuildingSourceWithoutAGroup_GetsOneNamedAfterItsDrawing()
+    {
+        // Nobody picks a building group for an AutoCAD source, because it is only recognised
+        // as a building once its package is read.
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-building",
+            Kind = DesignSourceKind.AutoCad,
+            Name = "AutoCAD - Layout",
+            NativeDocumentTitle = "Сургууль.dwg",
+        };
+        var project = new ProjectWorkspace { Sources = [source] };
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: "AR", contentKind: "floor-plan"));
+
+        Assert.True(
+            ProjectDesignSourceClassification.EnsureBuildingGroupForSource(project, source));
+
+        ProjectBuildingGroup created = Assert.Single(project.BuildingGroups);
+        Assert.Equal("Сургууль", created.Name);
+        Assert.Equal(
+            created.Id,
+            ProjectDesignSourceClassification.BuildingGroupId(source));
+
+        // Reading the package again must not add a second group beside it.
+        Assert.False(
+            ProjectDesignSourceClassification.EnsureBuildingGroupForSource(project, source));
+        Assert.Single(project.BuildingGroups);
+    }
+
+    [Fact]
+    public void GeneralPlanSource_NeverGetsABuildingGroup()
+    {
+        var source = new ProjectDesignSource
+        {
+            Id = "autocad-general-plan",
+            Kind = DesignSourceKind.AutoCad,
+            NativeDocumentTitle = "ЕТ.dwg",
+        };
+        var project = new ProjectWorkspace { Sources = [source] };
+        ProjectDesignSourceClassification.RecordDetectedPurpose(
+            source,
+            GeneralPlanManifest(discipline: "ЕТ", contentKind: "general-plan-zoning"));
+
+        Assert.False(
+            ProjectDesignSourceClassification.EnsureBuildingGroupForSource(project, source));
+        Assert.Empty(project.BuildingGroups);
+    }
+
+    [Fact]
     public void EngineeringInfrastructureMarkIsNotTheGeneralPlan()
     {
         // ИДБ is Инженерийн дэд бүтэц, a discipline of the same album. This purpose makes a

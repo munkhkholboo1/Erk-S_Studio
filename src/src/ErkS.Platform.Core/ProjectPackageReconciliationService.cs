@@ -168,18 +168,30 @@ public static class ProjectPackageReconciliationService
                 usesWorkingDrawingTemplate);
         }
 
+        // A source is recognised as a building only here, once its package is read, so it
+        // is given a building group before its sheets are filed. The package's own
+        // per-sheet building identity is more specific than the source default and is
+        // applied first. Only an album that composes buildings may gain a group this way -
+        // an urban-planning album would then demand a building sub-cover it never draws.
+        bool composesBuildings = usesConceptTemplate || usesWorkingDrawingTemplate;
         bool addedBuildingAssignments =
-            ProjectDesignSourceClassification.ApplyDefaultBuildingGroupAssignments(
+            composesBuildings &&
+            ProjectDesignSourceClassification.EnsureBuildingGroupForSource(
                 project,
-                source,
-                manifest.Sheets.Select(entry =>
-                    SheetRecord.MakeKey(packageSource, entry, source.Id)));
+                source);
         addedBuildingAssignments |=
             ProjectDesignSourceClassification.ApplyPackageBuildingGroupAssignments(
                 project,
                 source,
                 packageSource,
-                manifest.Sheets);
+                manifest.Sheets,
+                composesBuildings);
+        addedBuildingAssignments |=
+            ProjectDesignSourceClassification.ApplyDefaultBuildingGroupAssignments(
+                project,
+                source,
+                manifest.Sheets.Select(entry =>
+                    SheetRecord.MakeKey(packageSource, entry, source.Id)));
         if (addedBuildingAssignments)
             ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
 
