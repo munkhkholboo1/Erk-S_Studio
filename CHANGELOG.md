@@ -5,6 +5,13 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.39] - 2026-08-20
+
+- Give an AutoCAD source that turns out to be a building a building group. It is recognised as a building only once its package is read, by which time nobody had picked a group for it, so every sheet it delivered stayed outside the building composition; the group is now named after the drawing.
+- Create the building group a package names when the project has never listed it, keeping the id the exporter declared so the next package resolves to the same group instead of adding a second one beside it. Previously such a sheet was skipped and belonged to no building.
+- Apply the package's own per-sheet building identity before the source-level default, so a package that files its sheets across several buildings is no longer flattened into one.
+- Confine both to albums that compose buildings. A partial or development general plan has no building types at all - a group created there would demand a building sub-cover that album never draws, which blocked the project sync - and the Add-Source dialog no longer offers the building type for those stages. Engineering infrastructure arrives there as its own source.
+
 ## [0.001.38] - 2026-08-20
 
 - Classify an AutoCAD general-plan source as Ерөнхий төлөвлөгөө instead of a building. AutoCAD sends the drawing mark as the sheet discipline and the general-plan album marks its general-plan sheets ЕТ, which matches none of the phrases detection looked for, and content kinds arrive as hyphenated template slot ids such as general-plan-zoning, so every general-plan DWG became a building - then required a building sub-cover the album never draws and blocked the project sync.
