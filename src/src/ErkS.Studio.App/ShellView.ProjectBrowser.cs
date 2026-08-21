@@ -496,11 +496,7 @@ internal sealed partial class ShellView
         };
 
         var open = new MenuItem { Header = "Нээх" };
-        open.Click += async (_, _) =>
-        {
-            projectsList.SelectedItem = row;
-            await OpenSelectedProjectAsync();
-        };
+        open.Click += async (_, _) => await OpenProjectRowAsync(row);
         menu.Items.Add(open);
 
         if (row.CanDelete || row.CanLeave)
@@ -510,11 +506,7 @@ internal sealed partial class ShellView
             {
                 Header = row.CanDelete ? "Устгах" : "Төслөөс гарах",
             };
-            lifecycle.Click += async (_, _) =>
-            {
-                projectsList.SelectedItem = row;
-                await RunSelectedProjectLifecycleActionAsync();
-            };
+            lifecycle.Click += async (_, _) => await RunSelectedProjectLifecycleActionAsync(row);
             menu.Items.Add(lifecycle);
         }
 

@@ -1672,15 +1672,31 @@ internal sealed partial class ShellView : IDisposable
 
     private async Task OpenSelectedProjectAsync()
     {
+        if (projectsList.SelectedItem is not ProjectRow row)
+        {
+            if (!EnsureWorkspaceLifecycleChangeAllowed())
+                return;
+            SetStatus("Нээх төслөө сонгоно уу.");
+            return;
+        }
+
+        await OpenProjectRowAsync(row);
+    }
+
+    /// <summary>
+    /// Opens one project. Named rather than read off the list's selection,
+    /// because the home page offers projects while the list itself is showing
+    /// organization folders - selecting a row that is not in the list does
+    /// nothing, so routing through the selection opened nothing at all.
+    /// </summary>
+    private async Task OpenProjectRowAsync(ProjectRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
         if (!EnsureWorkspaceLifecycleChangeAllowed())
             return;
         if (!await EnsureSignedInAsync())
             return;
-        if (projectsList.SelectedItem is not ProjectRow row)
-        {
-            SetStatus("Нээх төслөө сонгоно уу.");
-            return;
-        }
+
         if (row.IsCloudOnly)
         {
             await OpenCloudProjectAsync(row);

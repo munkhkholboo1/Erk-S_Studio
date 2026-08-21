@@ -76,9 +76,15 @@ internal sealed partial class ShellView
                 : "Эхлээд Cloud төсөл сонгоно уу";
     }
 
-    private async Task RunSelectedProjectLifecycleActionAsync()
+    /// <param name="row">
+    /// The project to act on. The card's own menu names it; without that the
+    /// action reads the list's selection, which is not the project the menu was
+    /// opened on whenever the list is showing something else.
+    /// </param>
+    private async Task RunSelectedProjectLifecycleActionAsync(ProjectRow? row = null)
     {
-        if (!account.IsSignedIn || projectsList.SelectedItem is not ProjectRow selected)
+        ProjectRow? selected = row ?? projectsList.SelectedItem as ProjectRow;
+        if (!account.IsSignedIn || selected is null)
             return;
 
         if (selected.CanDelete)

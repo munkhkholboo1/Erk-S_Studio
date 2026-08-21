@@ -475,11 +475,7 @@ internal sealed partial class ShellView
         stack.Children.Add(words);
 
         card.Child = stack;
-        card.MouseLeftButtonUp += async (_, _) =>
-        {
-            projectsList.SelectedItem = row;
-            await OpenSelectedProjectAsync();
-        };
+        card.MouseLeftButtonUp += async (_, _) => await OpenProjectRowAsync(row);
         card.MouseEnter += (_, _) => card.BorderBrush = StudioTheme.AccentBrush;
         card.MouseLeave += (_, _) => card.BorderBrush = StudioTheme.BorderBrush;
         return card;

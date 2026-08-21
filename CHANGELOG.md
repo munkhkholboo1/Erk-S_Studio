@@ -5,6 +5,11 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.45] - 2026-08-22
+
+- Open a project from the home page. A card set the project list's selection and then read it back, but the home page is shown while that list holds organization folders - a row that is not in the list cannot become its selection, so the selection stayed empty and opening stopped with "Нээх төслөө сонгоно уу." A project is now named to the open path rather than pointed at through a selection.
+- Act on the project whose three-dot menu was opened. Нээх and Устгах / Төслөөс гарах went through the same selection round-trip, so they depended on the list holding that project rather than on the menu that named it.
+
 ## [0.001.44] - 2026-08-22
 
 - Open the Studio on a home page of its own. The mark in the rail was decoration; it is now the way back to a page that carries the practice's recent projects, the programs the Platform publishes with the site's own artwork, their current versions and a download for each, and the Partner rights banner. The wording and availability come from the site when it serves them and from this build when it cannot be reached, so a program the site adds needs no new Studio.
