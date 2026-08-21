@@ -5,6 +5,13 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.43] - 2026-08-21
+
+- Stop serving a preview that was restamped by an older title-block revision. The album pointer a project stores is opened verbatim on load - nothing revalidates it - so 0.001.42's fix went on showing the doubled title block until some other album operation happened to regenerate the file. A pointer whose signature no longer matches is now dropped and the album rebuilt.
+- Keep a general-plan album in the order its sheets arrive from AutoCAD. Pages were ordered by template slot, and the slot matcher's numbered branch never fires for an AutoCAD package - its numbers are bare "00".."14" while the slots are numbered "ЕТ-03".. - so every sheet the matcher did not recognise was swept to the end of the album and a sheet in no section landed in a trailing bucket. Sections are now read off the page order as runs rather than imposed on it.
+- Drop the legacy A4-portrait table of contents from general-plan albums. The composition already carries the drawing list as a page of its own, so an album created before that emitted a second one in the middle of the set.
+- Also refuse the concept corner table on any album whose generated pages are drawn with the working-drawing chrome, whatever its template id says.
+
 ## [0.001.42] - 2026-08-21
 
 - Stop painting a second title block onto general-plan and working-drawing sheets. The canonical restamp always repainted the concept album's corner table, at concept coordinates, over pages that already carry the horizontal title block their own build drew - leaving two title blocks, offset from one another, on every sheet of a ХЕТ album. Those albums now keep the one their build drew.

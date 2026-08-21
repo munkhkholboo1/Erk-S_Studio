@@ -58,17 +58,29 @@ public static class UrbanPlanningAlbumTemplate
     public static bool EnsureGeneratedPages(AlbumDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        bool tableOfContentsDropped = false;
+        // The composition already carries the drawing list as a page of its
+        // own. An album created before that still has the flag set and emits a
+        // second, A4-portrait table of contents in the middle of the set.
+        if (IsUrbanPlanningTemplate(definition.TemplateId) &&
+            definition.IncludeTableOfContents)
+        {
+            definition.IncludeTableOfContents = false;
+            tableOfContentsDropped = true;
+        }
+
         if (!string.Equals(
                 definition.TemplateId,
                 PartialPlanTemplateId,
                 StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return tableOfContentsDropped;
         }
 
         AlbumCompositionItem? siteContext = definition.Composition.FirstOrDefault(item =>
             item.Id.Equals("site-context", StringComparison.OrdinalIgnoreCase));
-        bool changed = false;
+        bool changed = tableOfContentsDropped;
+
         if (siteContext is null)
         {
             if (definition.Composition.Any(item =>
@@ -117,6 +129,14 @@ public static class UrbanPlanningAlbumTemplate
                 .ToList();
         }
         return changed;
+    }
+
+    public static bool IsUrbanPlanningTemplate(string? templateId)
+    {
+        string value = (templateId ?? "").Trim();
+        return value.Equals(PartialPlanTemplateId, StringComparison.OrdinalIgnoreCase) ||
+            value.Equals(LegacyPartialPlanTemplateId, StringComparison.OrdinalIgnoreCase) ||
+            value.Equals(MasterPlanTemplateId, StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool Supports(string projectType, string stageType) =>

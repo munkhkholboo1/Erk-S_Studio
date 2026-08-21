@@ -1967,6 +1967,7 @@ internal sealed partial class ShellView : IDisposable
             await UpdateProjectOpenProgressAsync(52, "Төслийн мэдээллийг дэлгэцэд бэлтгэж байна...");
             EnterProjectWorkspace();
             await UpdateProjectOpenProgressAsync(86, "Төслийн ажлын орчныг нээж байна...");
+            DiscardStaleCanonicalTitleBlockPreview();
             lastAlbumPath = ResolveCurrentProjectAlbumPath();
             if (state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
@@ -4606,6 +4607,7 @@ internal sealed partial class ShellView : IDisposable
             ResetAlbumPreviewForProjectChange();
             boundAlbumProjectId = state.Project.ProjectId;
         }
+        DiscardStaleCanonicalTitleBlockPreview();
         lastAlbumPath = ResolveCurrentProjectAlbumPath();
         foundationEditMode = false;
         foundationEditBaseConcurrencyToken = "";
@@ -4674,6 +4676,52 @@ internal sealed partial class ShellView : IDisposable
             RefreshReportsAndArchive();
         RefreshSyncUi();
     }
+
+    /// <summary>
+    /// Drops a preview pointer that still names a restamped album from an older
+    /// title-block revision. That file is served verbatim on open - nothing
+    /// revalidates it - so a corrected build went on showing the old page until
+    /// some other album operation happened to regenerate it.
+    /// </summary>
+    private void DiscardStaleCanonicalTitleBlockPreview()
+    {
+        if (!state.HasOpenProject || string.IsNullOrWhiteSpace(state.ProjectPath))
+            return;
+
+        string pointer = (state.Project.PrimaryAlbum.LastPdfPath ?? "").Trim();
+        if (pointer.Length == 0 ||
+            !pointer.Replace('\\', '/').Contains(
+                CanonicalTitleBlockCacheFolder,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            string signature = PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(
+                state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false));
+            if (Path.GetFileNameWithoutExtension(pointer).EndsWith(
+                    "-" + signature[..16],
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            state.Project.PrimaryAlbum.LastPdfPath = "";
+            state.Project.PrimaryAlbum.LastPdfSha256 = "";
+            state.SaveProject();
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                InvalidDataException or InvalidOperationException)
+        {
+            // A pointer that cannot be validated is left alone; the album is
+            // rebuilt by the normal path.
+        }
+    }
+
+    private const string CanonicalTitleBlockCacheFolder = "cloud-local/titleblock/";
 
     private string? ResolveCurrentProjectAlbumPath()
     {

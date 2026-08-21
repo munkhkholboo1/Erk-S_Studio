@@ -14,7 +14,7 @@ public sealed record AlbumTitleBlockRestampResult(
 
 public sealed partial class PdfSharpAlbumWriter
 {
-    private const int CanonicalTitleBlockRevision = 4;
+    private const int CanonicalTitleBlockRevision = 5;
     private const string CanonicalTitleBlockKeywordPrefix = "ErkSCanonicalTitleBlock=";
 
     /// <summary>
@@ -204,7 +204,10 @@ public sealed partial class PdfSharpAlbumWriter
     private static bool ConceptAlbumOwnsTheCornerTable(AlbumProject project) =>
         BuildingArchitectureConceptAlbumTemplate.TemplateId.Equals(
             (project.Album.TemplateId ?? "").Trim(),
-            StringComparison.OrdinalIgnoreCase);
+            StringComparison.OrdinalIgnoreCase) &&
+        // An album whose generated pages are drawn with the working-drawing
+        // chrome carries the horizontal block whatever its template id says.
+        !UsesGeneratedWorkingDrawingFormat(project.Album);
 
     private static bool ShouldRestampCanonicalTitleBlock(string? componentCode)
     {

@@ -2,6 +2,9 @@ using ErkS.Platform.Contracts;
 
 namespace ErkS.Platform.Core;
 
+/// <summary>Consecutive pages of one section, in the order the album stores them.</summary>
+public sealed record AlbumSourceRun(string Title, IReadOnlyList<AlbumPageDefinition> Pages);
+
 public sealed class AlbumBuildException : Exception
 {
     public AlbumBuildException(IEnumerable<string> issues, Exception? innerException = null)
@@ -208,6 +211,9 @@ public sealed class AlbumBuilder
             return CreateConceptConfiguredRequest(project, library);
         }
 
+        if (IsUrbanPlanningAlbum(project.Album))
+            return CreateSourceOrderedRequest(project, library);
+
         var sections = new List<AlbumBuildSection>();
         var definedSectionIds = new HashSet<Guid>();
 
@@ -241,6 +247,67 @@ public sealed class AlbumBuilder
         }
 
         return new AlbumBuildRequest { Project = project, Sections = sections };
+    }
+
+    private static bool IsUrbanPlanningAlbum(AlbumDefinition album) =>
+        ProjectTypes.UrbanPlanning.UrbanPlanningAlbumTemplate.IsUrbanPlanningTemplate(
+            album.TemplateId);
+
+    /// <summary>
+    /// Keeps the album in the order its pages are stored, which for a general
+    /// plan is the order the sheets carry in AutoCAD.
+    ///
+    /// Ordering by template slot instead put every sheet the slot matcher did
+    /// not recognise at the end of the album - and the matcher's numbered
+    /// branch never fires for an AutoCAD package, whose numbers are bare
+    /// "00".."14" while the slots are numbered "ЕТ-03".."ЕТ-17". Sections are
+    /// read off the page order as runs rather than imposed on it, so a sheet
+    /// belonging to no section stays where it is instead of being swept into a
+    /// trailing bucket.
+    /// </summary>
+    private static AlbumBuildRequest CreateSourceOrderedRequest(
+        AlbumProject project,
+        SheetLibrary library)
+    {
+        var sections = new List<AlbumBuildSection>();
+        foreach (AlbumSourceRun run in BuildSourceOrderedRuns(project.Album))
+        {
+            List<AlbumBuildPage> resolved = ResolvePages(run.Pages, library);
+            if (resolved.Count > 0)
+                sections.Add(new AlbumBuildSection { Title = run.Title, Pages = resolved });
+        }
+
+        return new AlbumBuildRequest { Project = project, Sections = sections };
+    }
+
+    /// <summary>
+    /// The album's pages grouped into consecutive runs of one section, in the
+    /// order the pages are stored.
+    /// </summary>
+    public static IReadOnlyList<AlbumSourceRun> BuildSourceOrderedRuns(AlbumDefinition album)
+    {
+        ArgumentNullException.ThrowIfNull(album);
+        Dictionary<Guid, string> titles = album.Sections
+            .GroupBy(section => section.Id)
+            .ToDictionary(group => group.Key, group => group.First().Title);
+        var runs = new List<(string Title, List<AlbumPageDefinition> Pages)>();
+        foreach (AlbumPageDefinition page in album.Pages)
+        {
+            string title = page.SectionId.HasValue &&
+                titles.TryGetValue(page.SectionId.Value, out string? value)
+                    ? value
+                    : "";
+            if (runs.Count == 0 ||
+                !runs[^1].Title.Equals(title, StringComparison.Ordinal))
+            {
+                runs.Add((title, []));
+            }
+            runs[^1].Pages.Add(page);
+        }
+
+        return runs
+            .Select(run => new AlbumSourceRun(run.Title, run.Pages))
+            .ToList();
     }
 
     private static AlbumBuildRequest CreateConceptConfiguredRequest(
