@@ -69,6 +69,15 @@ public sealed class ProjectWorkspace
     /// <summary>Paperwork filed with a general plan, on the same footing as [ResearchDocuments].</summary>
     public List<ProjectFileReference> RecordDocuments { get; set; } = [];
 
+    /// <summary>
+    /// Files added straight to the portfolio, kept apart from the foundation
+    /// documents so a presentation asset never enters an approval or an album.
+    /// </summary>
+    public List<ProjectFileReference> PortfolioDocuments { get; set; } = [];
+
+    /// <summary>A presentation assembled from the project's own material. Local to this device.</summary>
+    public ProjectPortfolio Portfolio { get; set; } = new();
+
     /// <summary>Studio-owned raster source for automatically composed visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 

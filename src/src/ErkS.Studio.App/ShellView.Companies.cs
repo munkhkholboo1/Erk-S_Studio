@@ -15,6 +15,7 @@ namespace ErkS.Studio;
 internal sealed partial class ShellView
 {
     private readonly ListView companyLibraryList = new() { MinWidth = 270 };
+    private GridView? companyLibraryGridView;
     private readonly TextBlock companyLibraryStatus = new() { TextWrapping = TextWrapping.Wrap };
     private FrameworkElement? companyEditorHost;
     private readonly TextBox libraryCompanyNameBox = new();
@@ -180,6 +181,7 @@ internal sealed partial class ShellView
             Width = 88,
             DisplayMemberBinding = new System.Windows.Data.Binding(nameof(CompanyListRow.Access)),
         });
+        companyLibraryGridView = view;
         companyLibraryList.View = view;
         companyLibraryList.SelectionChanged += (_, _) =>
         {
@@ -470,7 +472,9 @@ internal sealed partial class ShellView
 
     private void RefreshCompanyList(string selectedId)
     {
-        List<CompanyListRow> rows = companyEntries.Select(entry => new CompanyListRow(entry)).ToList();
+        List<CompanyListRow> rows = companyEntries
+            .Select(entry => new CompanyListRow(entry, LoadLogoImage(entry.Profile.LogoPath)))
+            .ToList();
         companyLibraryList.ItemsSource = rows;
         CompanyListRow? selected = rows.FirstOrDefault(row =>
             row.Entry.Profile.OrganizationId.Equals(selectedId, StringComparison.OrdinalIgnoreCase)) ?? rows.FirstOrDefault();
@@ -1040,14 +1044,78 @@ internal sealed partial class ShellView
         ApplyCompanyEditorModeUi();
     }
 
+    /// <summary>
+    /// Gallery while browsing, narrow side list while editing - the same list
+    /// control either way, so the selection survives the switch.
+    /// </summary>
+    private void ApplyCompanyLibraryLayout(bool editing)
+    {
+        Grid.SetColumnSpan(companyLibraryList, editing ? 1 : 3);
+        companyLibraryList.ItemsPanel = editing
+            ? new ItemsPanelTemplate(new FrameworkElementFactory(typeof(StackPanel)))
+            : CreateProjectItemsPanel();
+        companyLibraryList.ItemContainerStyle = editing ? null : CreateProjectCardItemStyle();
+        companyLibraryList.ItemTemplate = editing ? null : CreateCompanyCardTemplate();
+        companyLibraryList.View = editing ? companyLibraryGridView : null;
+        companyLibraryList.Background = editing
+            ? StudioTheme.PanelBrush
+            : System.Windows.Media.Brushes.Transparent;
+        companyLibraryList.BorderThickness = new Thickness(editing ? 1 : 0);
+    }
+
+    /// <summary>The organization as a card: its logo, its name and what you may do with it.</summary>
+    private static DataTemplate CreateCompanyCardTemplate()
+    {
+        var root = new FrameworkElementFactory(typeof(StackPanel));
+
+        var crest = new FrameworkElementFactory(typeof(Border));
+        crest.SetValue(FrameworkElement.HeightProperty, 158d);
+        crest.SetValue(Border.BackgroundProperty, StudioTheme.InputBrush);
+        crest.SetValue(Border.CornerRadiusProperty, new CornerRadius(7, 7, 0, 0));
+        crest.SetValue(Border.ClipToBoundsProperty, true);
+        var crestGrid = new FrameworkElementFactory(typeof(Grid));
+
+        StudioOrganizationCrest.AppendTo(
+            crestGrid,
+            nameof(CompanyListRow.Monogram),
+            nameof(CompanyListRow.LogoSource),
+            initialsVisibilityPath: nameof(CompanyListRow.InitialsVisibility));
+        crest.AppendChild(crestGrid);
+        root.AppendChild(crest);
+
+        var body = new FrameworkElementFactory(typeof(StackPanel));
+        body.SetValue(FrameworkElement.MarginProperty, new Thickness(13, 11, 13, 13));
+        var name = new FrameworkElementFactory(typeof(TextBlock));
+        name.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(CompanyListRow.Name)));
+        name.SetValue(TextBlock.FontSizeProperty, 13.5);
+        name.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold);
+        name.SetValue(TextBlock.ForegroundProperty, StudioTheme.TextBrush);
+        name.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        name.SetValue(TextBlock.MaxHeightProperty, 40d);
+        body.AppendChild(name);
+        var access = new FrameworkElementFactory(typeof(TextBlock));
+        access.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(CompanyListRow.Access)));
+        access.SetValue(TextBlock.FontSizeProperty, 11.5);
+        access.SetValue(TextBlock.ForegroundProperty, StudioTheme.MutedTextBrush);
+        access.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 5, 0, 0));
+        body.AppendChild(access);
+        root.AppendChild(body);
+
+        return new DataTemplate(typeof(CompanyListRow)) { VisualTree = root };
+    }
+
     private void ApplyCompanyEditorModeUi()
     {
         bool hasSelection = selectedCompanyEntry is not null;
         bool canManage = selectedCompanyEntry?.CanManage == true;
         bool editing = companyEditorMode != CompanyEditorMode.View && canManage;
         bool inputsEnabled = editing && !companySaveInProgress;
+        // The library opens as a gallery of organizations - logo and name - and
+        // the form appears only once one is being edited. Landing straight in a
+        // dense form made the page unreadable and hid what was in the library.
         if (companyEditorHost is not null)
-            companyEditorHost.Visibility = hasSelection ? Visibility.Visible : Visibility.Collapsed;
+            companyEditorHost.Visibility = editing && hasSelection ? Visibility.Visible : Visibility.Collapsed;
+        ApplyCompanyLibraryLayout(editing);
         foreach (TextBox box in CompanyEditorTextBoxes())
             box.IsReadOnly = !inputsEnabled;
         bool lockedExistingRegistration = companyEditorMode == CompanyEditorMode.Edit &&
@@ -1685,10 +1753,22 @@ internal sealed partial class ShellView
 
     private sealed class CompanyListRow
     {
-        public CompanyListRow(CompanyCatalogEntry entry) => Entry = entry;
+        public CompanyListRow(CompanyCatalogEntry entry, ImageSource? logoSource = null)
+        {
+            Entry = entry;
+            LogoSource = logoSource;
+        }
+
         public CompanyCatalogEntry Entry { get; }
         public string Name => CompanyDisplayName(Entry.Profile);
         public string Access => Entry.CanManage ? "Удирдах" : "Харах";
+        public ImageSource? LogoSource { get; }
+
+        public string Monogram => StudioOrganizationCrest.Initials(Name);
+
+        public Visibility InitialsVisibility => LogoSource is null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
 }

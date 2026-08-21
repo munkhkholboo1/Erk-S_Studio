@@ -65,8 +65,13 @@ internal sealed class NewProjectDialog : Window
         }
     }
 
-    public NewProjectDialog(IReadOnlyList<StudioCloudOrganization> organizations)
+    private readonly Func<StudioCloudOrganization, System.Windows.Media.ImageSource?>? logoResolver;
+
+    public NewProjectDialog(
+        IReadOnlyList<StudioCloudOrganization> organizations,
+        Func<StudioCloudOrganization, System.Windows.Media.ImageSource?>? logoResolver = null)
     {
+        this.logoResolver = logoResolver;
         this.organizations = organizations
             .Where(StudioOrganizationAccessPolicy.CanCreateDesignProject)
             .GroupBy(item => item.OrganizationId, StringComparer.OrdinalIgnoreCase)
@@ -95,6 +100,7 @@ internal sealed class NewProjectDialog : Window
         clientTypeBox.SelectionChanged += (_, _) => RefreshClientNameEditor();
         clientTypeBox.SelectedIndex = 0;
         TextSearch.SetTextPath(organizationBox, nameof(OrganizationOption.SearchText));
+        organizationBox.ItemTemplate = CreateOrganizationOptionTemplate();
         createButton = StudioWidgets.CreatePrimaryButton("Төсөл үүсгэх");
         createButton.IsDefault = true;
         createButton.Click += (_, _) => Accept();
@@ -182,9 +188,9 @@ internal sealed class NewProjectDialog : Window
 
     private void RefreshOrganizationOptions()
     {
-        IEnumerable<OrganizationOption> ownOptions = organizations
-            .Select(item => new OrganizationOption(item));
-        OrganizationOption[] options = ownOptions.ToArray();
+        OrganizationOption[] options = organizations
+            .Select(item => new OrganizationOption(item, logoResolver?.Invoke(item)))
+            .ToArray();
         organizationBox.ItemsSource = options;
         organizationBox.SelectedIndex = options.Length > 0 ? 0 : -1;
         organizationBox.IsEnabled = options.Length > 0;
@@ -276,9 +282,50 @@ internal sealed class NewProjectDialog : Window
         public override string ToString() => Label;
     }
 
-    private sealed record OrganizationOption(StudioCloudOrganization Organization)
+    private static DataTemplate CreateOrganizationOptionTemplate()
+    {
+        var root = new FrameworkElementFactory(typeof(StackPanel));
+        root.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+        root.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 3, 0, 3));
+
+        var crest = new FrameworkElementFactory(typeof(Grid));
+        crest.SetValue(FrameworkElement.WidthProperty, 34d);
+        crest.SetValue(FrameworkElement.HeightProperty, 34d);
+        crest.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        StudioOrganizationCrest.AppendTo(
+            crest,
+            nameof(OrganizationOption.Initials),
+            nameof(OrganizationOption.LogoSource),
+            size: 34d);
+        root.AppendChild(crest);
+
+        var name = new FrameworkElementFactory(typeof(TextBlock));
+        name.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(OrganizationOption.DisplayName)));
+        name.SetValue(TextBlock.FontSizeProperty, 13d);
+        name.SetValue(TextBlock.ForegroundProperty, StudioTheme.TextBrush);
+        name.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        name.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        name.SetValue(FrameworkElement.MarginProperty, new Thickness(10, 0, 4, 0));
+        root.AppendChild(name);
+
+        return new DataTemplate(typeof(OrganizationOption)) { VisualTree = root };
+    }
+
+    /// <summary>
+    /// One organization the signed-in account may create a project for. The
+    /// crest is shown so the choice reads as the organization itself rather
+    /// than as a line of text.
+    /// </summary>
+    private sealed record OrganizationOption(
+        StudioCloudOrganization Organization,
+        System.Windows.Media.ImageSource? LogoSource = null)
     {
         public string OrganizationId => Organization.OrganizationId;
+        public string DisplayName => OrganizationDisplayName(Organization);
+        public string Initials => StudioOrganizationCrest.Initials(DisplayName);
+        public System.Windows.Visibility InitialsVisibility => LogoSource is null
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
         public string LegalName => OrganizationLegalName(Organization);
         public string SearchText => string.Join(
             " ",

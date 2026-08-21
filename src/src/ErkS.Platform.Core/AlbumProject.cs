@@ -311,6 +311,8 @@ public static class ProjectDocumentCategories
     public const string Research = "Research";
     /// <summary>Paperwork filed with a general plan.</summary>
     public const string Record = "Record";
+    /// <summary>A file added straight to the project portfolio.</summary>
+    public const string Portfolio = "Portfolio";
 }
 
 public sealed class AlbumDefinition

@@ -9,14 +9,32 @@ namespace ErkS.Studio;
 /// </summary>
 internal static class StudioAlbumRendererMigration
 {
-    public const int CurrentRevision = 4;
+    /// <summary>
+    /// Raised whenever a renderer change makes the pages already in a canonical
+    /// album wrong. A device whose album is behind re-renders the components it
+    /// owns and merges them, which is the only way a page composed by an older
+    /// build leaves the shared album.
+    ///
+    /// 5: the general plan no longer carries a second, concept-geometry corner
+    /// table, an A4 table of contents in the middle of the set, or its sheets in
+    /// template-slot order instead of the order they arrive from AutoCAD.
+    /// </summary>
+    public const int CurrentRevision = 5;
 
+    /// <param name="canManageCanonicalMetadata">
+    /// Whether this account may rewrite the album's generated pages - the cover,
+    /// the drawing list, the location scheme. Studio draws those from project
+    /// data on any device, so the question is authority rather than whether the
+    /// source is present. Without this they were skipped on every device, and a
+    /// generated page drawn by an older build could never be replaced.
+    /// </param>
     public static IReadOnlyList<string> SelectLocallyRenderableComponents(
         ProjectWorkspace project,
         IEnumerable<ProjectCloudAlbumComponentReference> manifest,
         string currentOwnerEmail,
         bool hasOwnedAtd,
-        bool hasVisualizations)
+        bool hasVisualizations,
+        bool canManageCanonicalMetadata = false)
     {
         ArgumentNullException.ThrowIfNull(project);
         string fallbackOwner = (currentOwnerEmail ?? "").Trim().ToLowerInvariant();
@@ -34,9 +52,16 @@ internal static class StudioAlbumRendererMigration
         var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (ProjectCloudAlbumComponentReference component in manifest ?? [])
         {
-            if (string.IsNullOrWhiteSpace(component.Code) ||
-                !IsSourceComponent(component))
+            if (string.IsNullOrWhiteSpace(component.Code))
+                continue;
+
+            if (!IsSourceComponent(component))
             {
+                // A generated page needs no source on this device, only the
+                // right to rewrite it. The caller still trims the ones with
+                // their own owner test, such as the location scheme.
+                if (canManageCanonicalMetadata)
+                    selected.Add(component.Code.Trim());
                 continue;
             }
 

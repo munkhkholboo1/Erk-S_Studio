@@ -5,6 +5,19 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.44] - 2026-08-22
+
+- Open the Studio on a home page of its own. The mark in the rail was decoration; it is now the way back to a page that carries the practice's recent projects, the programs the Platform publishes with the site's own artwork, their current versions and a download for each, and the Partner rights banner. The wording and availability come from the site when it serves them and from this build when it cannot be reached, so a program the site adds needs no new Studio.
+- File the project list into folders by design organization rather than one growing wall of cards. A folder shows the organization's logo and how many projects it holds; inside one, the projects are gathered under design-stage headings that name the stage and count it, and can be read as cards or as a compact list. A project is managed from a three-dot menu on the project itself, replacing a single header button that could only ever mean one thing at a time.
+- Show a partner organization's own logo. Only organizations this account belongs to had one; the logo of a practice whose project is merely visible here is now fetched through that project, which is exactly the right to see it.
+- Give an organization with no uploaded logo a mark made from its name, so it reads as itself rather than as a blank - on folders, on company cards, and in the organization picker.
+- Open the company library as logo-and-name cards. Entering the page showed the full record of whichever company happened to be selected; the details now appear when Засварлах is pressed.
+- Add a portfolio to a project, beside its album: a freer presentation assembled from the project's own drawings and images, with its own files kept apart from the foundation documents so a presentation asset never enters an approval.
+- Draw a contributed album page on the album's own page format. Without it the cover and drawing list of a general plan were composed A4 with a concept corner table - and those were the pages uploaded and kept as the shared album, which is why the stray A4 page returned after every sync.
+- Let the device that owns a page replace one an older build drew. Generated pages - cover, drawing list, location scheme - were skipped on every device because they have no source file, so a page composed by an older renderer could never leave the canonical album. Authority over the album's metadata now decides instead, and Бүрэн дахин байгуулах marks those pages for re-rendering so the rebuild reaches the shared album rather than only the local copy.
+- Say which part of a canonical album acknowledgement is missing when a sync verification fails. "Incomplete" was the same message whether the album was never resolved or the sync simply had no work to do.
+- Show the visualization row on a cloud project before it holds any image. The row is the only place the first image can be added, so hiding it until images existed meant the feature could never be started on a cloud project at all; the edit button now adds images rather than refusing.
+
 ## [0.001.43] - 2026-08-21
 
 - Stop serving a preview that was restamped by an older title-block revision. The album pointer a project stores is opened verbatim on load - nothing revalidates it - so 0.001.42's fix went on showing the doubled title block until some other album operation happened to regenerate the file. A pointer whose signature no longer matches is now dropped and the album rebuilt.

@@ -22,8 +22,20 @@ internal static class StudioCanonicalAlbumSyncVerifier
             string.IsNullOrWhiteSpace(expectedRevision) ||
             string.IsNullOrWhiteSpace(expectedHash))
         {
+            // Naming the missing value matters: each one fails for a different
+            // reason. No album id means the album was never resolved; no
+            // revision or hash means the sync wrote nothing and had nothing to
+            // acknowledge, which a sync with no work to do can reach.
+            string[] missing =
+            [
+                .. string.IsNullOrWhiteSpace(expectedAlbum) ? new[] { "album id" } : [],
+                .. string.IsNullOrWhiteSpace(expectedRevision) ? new[] { "revision id" } : [],
+                .. string.IsNullOrWhiteSpace(expectedHash) ? new[] { "PDF hash" } : [],
+            ];
             throw new InvalidDataException(
-                "Canonical album acknowledgement is incomplete.");
+                "Canonical album acknowledgement is incomplete: " +
+                string.Join(", ", missing) +
+                $" missing (albums returned: {(albums ?? []).Count}).");
         }
 
         StudioCloudAlbum album = (albums ?? [])

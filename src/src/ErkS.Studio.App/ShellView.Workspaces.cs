@@ -1325,9 +1325,12 @@ internal sealed partial class ShellView
         var representedCloudSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         IReadOnlyList<ProjectVisualizationImage> currentVisualizationImages =
             CurrentProjectVisualizationImages();
-        if (visualizations.IsConfiguredForProject(state.Project.ProjectId) &&
-            (!StudioAuxiliarySourceLocalityPolicy.IsCloudLinked(state.Project) ||
-             currentVisualizationImages.Count > 0))
+        // A cloud project hid this row until it already held images - and the row
+        // is the only place the first image can be added, so on a cloud project
+        // the feature could never be started at all. Anyone who may edit the
+        // project's content now sees it, empty or not.
+        if (visualizations.IsConfiguredForProject(state.Project.ProjectId) ||
+            CanEditProjectContent())
         {
             items.Add(SourceWorkspaceItem.Visualizations(
                 currentVisualizationImages.Count,
@@ -2394,6 +2397,14 @@ internal sealed partial class ShellView
         updateAlbum.Background = StudioTheme.AccentBrush;
         updateAlbum.BorderBrush = StudioTheme.AccentBrush;
         updateAlbum.Click += (_, _) => CheckForSourceUpdates();
+        var rebuildAlbum = StudioWidgets.CreateIconTextButton(
+            "icon-publish.svg",
+            "Бүрэн дахин байгуулах");
+        rebuildAlbum.ToolTip =
+            "Хуудсуудыг эх үүсвэрээс шинээр зурна. Cloud альбомын хуудас хуучин хувилбараар " +
+            "зурагдсан бол ердийн шинэчлэлт түүнийг хэвээр нь авч үлддэг; энэ үйлдэл " +
+            "энэ төхөөрөмжийн эзэмшдэг хэсгүүдийг дахин зурж, Sync-ээр солиход бэлдэнэ.";
+        rebuildAlbum.Click += (_, _) => RebuildAlbumFromSource();
         var editVisualizations = StudioWidgets.CreateIconTextButton(
             "icon-sources.svg",
             "Харагдах байдал",
@@ -2424,6 +2435,7 @@ internal sealed partial class ShellView
         };
         documentGroup.Children.Add(save);
         documentGroup.Children.Add(updateAlbum);
+        documentGroup.Children.Add(rebuildAlbum);
         documentGroup.Children.Add(editSiteContext);
         documentGroup.Children.Add(editVisualizations);
         documentGroup.Children.Add(elevationInformation);

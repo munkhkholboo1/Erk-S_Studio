@@ -23,12 +23,14 @@ internal sealed partial class ShellView : IDisposable
 {
     private enum StudioPage
     {
+        Home,
         Projects,
         Companies,
         Foundation,
         Participants,
         Sources,
         Albums,
+        Portfolio,
         Research,
         Records,
         Reports,
@@ -367,6 +369,8 @@ internal sealed partial class ShellView : IDisposable
         state.Dispose();
         account.Dispose();
         productUpdates.Dispose();
+        productCatalog.Dispose();
+        siteImages.Dispose();
     }
 
     private UIElement BuildShell()
@@ -402,12 +406,14 @@ internal sealed partial class ShellView : IDisposable
         DockPanel.SetDock(rail, Dock.Left);
         root.Children.Add(rail);
 
+        pages[StudioPage.Home] = BuildHomePage();
         pages[StudioPage.Projects] = BuildProjectsPage();
         pages[StudioPage.Companies] = BuildCompaniesPage();
         pages[StudioPage.Foundation] = BuildFoundationPage();
         pages[StudioPage.Participants] = BuildParticipantsPage();
         pages[StudioPage.Sources] = BuildSourcesPage();
         pages[StudioPage.Albums] = BuildAlbumPage();
+        pages[StudioPage.Portfolio] = BuildPortfolioPage();
         pages[StudioPage.Research] = BuildResearchPage();
         pages[StudioPage.Records] = BuildRecordsPage();
         pages[StudioPage.Reports] = BuildReportsPage();
@@ -422,11 +428,12 @@ internal sealed partial class ShellView : IDisposable
         shell.SizeChanged += (_, _) => RepositionProjectChatOverlay();
         RepositionProjectChatOverlay();
         RebuildNavigation();
-        SelectPage(StudioPage.Projects);
+        // The Studio opens on the Platform, not on a project list.
+        SelectPage(StudioPage.Home);
         return shell;
     }
 
-    private static UIElement BuildBrandBlock()
+    private UIElement BuildBrandBlock()
     {
         var stack = new StackPanel
         {
@@ -456,14 +463,20 @@ internal sealed partial class ShellView : IDisposable
             Foreground = StudioTheme.MutedTextBrush,
         });
         stack.Children.Add(words);
-        return new Border
+        // The mark is the way back to the home page, the way a masthead is.
+        var brand = new Border
         {
             Width = 216,
             Padding = new Thickness(18, 16, 14, 16),
             Margin = new Thickness(0, 0, 0, 8),
             BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "Нүүр хуудас",
             Child = stack,
         };
+        brand.MouseLeftButtonUp += (_, _) => SelectPage(StudioPage.Home);
+        return brand;
     }
 
     private UIElement BuildAccountPanel()
@@ -661,6 +674,7 @@ internal sealed partial class ShellView : IDisposable
         AddNavItem(StudioPage.Participants, "Оролцогчид", "icon-company.svg");
         AddNavItem(StudioPage.Sources, ProjectSurfaceLabel("sources", "Эх үүсвэр"), "icon-sources.svg");
         AddNavItem(StudioPage.Albums, ProjectSurfaceLabel("albums", "Альбум"), "icon-album.svg");
+        AddNavItem(StudioPage.Portfolio, ProjectSurfaceLabel("portfolio", "Портфолио"), "icon-album.svg");
         if (ProjectOwnsGeneralPlanLibraries())
         {
             AddNavItem(StudioPage.Research, ProjectSurfaceLabel("research", "Судалгаа"), "icon-sources.svg");
@@ -782,7 +796,8 @@ internal sealed partial class ShellView : IDisposable
             RefreshProjects();
             RebuildNavigation();
         }
-        if (page is not StudioPage.Projects and not StudioPage.Companies && !state.HasOpenProject)
+        if (page is not StudioPage.Home and not StudioPage.Projects and not StudioPage.Companies &&
+            !state.HasOpenProject)
         {
             return;
         }
@@ -790,6 +805,8 @@ internal sealed partial class ShellView : IDisposable
         activePage = page;
         contentHost.Children.Clear();
         contentHost.Children.Add(pages[page]);
+        if (page == StudioPage.Home)
+            _ = EnsureHomeCatalogAsync();
         foreach (var (candidate, item) in navItems)
         {
             var isActive = candidate == page;
@@ -822,6 +839,10 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshProjectLibraries();
         }
+        else if (page == StudioPage.Portfolio)
+        {
+            RefreshPortfolio();
+        }
         else if (page == StudioPage.Companies)
         {
             _ = RefreshCompaniesAsync();
@@ -850,23 +871,13 @@ internal sealed partial class ShellView : IDisposable
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         var create = StudioWidgets.CreateGlyphTextButton("\uE710", "Шинэ төсөл", primary: true);
         create.Click += async (_, _) => await CreateProjectAsync();
-        var openFile = StudioWidgets.CreateGlyphTextButton("\uE8E5", "Файлаас нээх");
-        openFile.Click += async (_, _) =>
-        {
-            if (await EnsureSignedInAsync())
-                await OpenProjectFromFileAsync();
-        };
-        var refresh = StudioWidgets.CreateGlyphButton("\uE72C", "Төслийн жагсаалтыг шинэчлэх");
+        var refresh = StudioWidgets.CreateGlyphButton("\uE895", "Төслийн жагсаалтыг шинэчлэх");
         refresh.Click += async (_, _) => await RefreshProjectsAsync();
         notificationsButton.Click += async (_, _) => await ShowNotificationsAsync();
         projectLifecycleButton.Click += async (_, _) => await RunSelectedProjectLifecycleActionAsync();
         productUpdateButton.Click += async (_, _) => await CheckForProductUpdateAsync(interactive: true);
         actions.Children.Add(create);
-        actions.Children.Add(openFile);
-        actions.Children.Add(notificationsButton);
-        actions.Children.Add(projectLifecycleButton);
         actions.Children.Add(productUpdateButton);
-        actions.Children.Add(refresh);
         DockPanel.SetDock(actions, Dock.Right);
         header.Children.Add(actions);
         var title = new StackPanel();
@@ -888,24 +899,32 @@ internal sealed partial class ShellView : IDisposable
         DockPanel.SetDock(header, Dock.Top);
         root.Children.Add(header);
 
+        UIElement banner = BuildProjectBrowserBanner();
+        DockPanel.SetDock(banner, Dock.Top);
+        root.Children.Add(banner);
+
         var section = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
         var search = BuildProjectSearchBox();
         DockPanel.SetDock(search, Dock.Right);
         section.Children.Add(search);
         var sectionTitle = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        sectionTitle.Children.Add(new TextBlock
-        {
-            Text = "Сүүлийн төслүүд",
-            FontSize = 15,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = StudioTheme.TextBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        projectsSectionHeading.Text = "Сүүлийн төслүүд";
+        projectsSectionHeading.FontSize = 15;
+        projectsSectionHeading.FontWeight = FontWeights.SemiBold;
+        projectsSectionHeading.Foreground = StudioTheme.TextBrush;
+        projectsSectionHeading.VerticalAlignment = VerticalAlignment.Center;
+        sectionTitle.Children.Add(projectsSectionHeading);
         projectsSummaryText.Foreground = StudioTheme.MutedTextBrush;
         projectsSummaryText.FontSize = 12;
         projectsSummaryText.Margin = new Thickness(10, 1, 0, 0);
         projectsSummaryText.VerticalAlignment = VerticalAlignment.Center;
         sectionTitle.Children.Add(projectsSummaryText);
+        // A DockPanel gives its last child the remaining space, so everything
+        // docked must be added before the part that fills.
+        DockPanel.SetDock(projectBrowserLayoutButton, Dock.Right);
+        section.Children.Add(projectBrowserLayoutButton);
+        DockPanel.SetDock(refresh, Dock.Right);
+        section.Children.Add(refresh);
         section.Children.Add(sectionTitle);
         DockPanel.SetDock(section, Dock.Top);
         root.Children.Add(section);
@@ -916,10 +935,25 @@ internal sealed partial class ShellView : IDisposable
         projectsList.HorizontalContentAlignment = HorizontalAlignment.Left;
         projectsList.ItemsPanel = CreateProjectItemsPanel();
         projectsList.ItemContainerStyle = CreateProjectCardItemStyle();
-        projectsList.ItemTemplate = CreateProjectCardTemplate();
+        projectsList.ItemTemplateSelector = new ProjectBrowserTemplateSelector
+        {
+            FolderTemplate = CreateProjectFolderTemplate(),
+            CardTemplate = CreateProjectCardTemplate(),
+            ListRowTemplate = CreateProjectListRowTemplate(),
+            UsesListLayout = () => projectBrowserListLayout,
+        };
+        InitializeProjectBrowser();
         ScrollViewer.SetHorizontalScrollBarVisibility(projectsList, ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(projectsList, ScrollBarVisibility.Auto);
-        projectsList.MouseDoubleClick += async (_, _) => await OpenSelectedProjectAsync();
+        projectsList.MouseDoubleClick += async (_, _) =>
+        {
+            if (projectsList.SelectedItem is ProjectFolderRow folder)
+            {
+                EnterProjectFolder(folder);
+                return;
+            }
+            await OpenSelectedProjectAsync();
+        };
         projectsList.SelectionChanged += (_, _) => UpdateSelectedProjectLifecycleAction();
         projectsList.KeyDown += async (_, args) =>
         {
@@ -1046,6 +1080,12 @@ internal sealed partial class ShellView : IDisposable
         {
             RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent),
         });
+        // Without the selector the card falls back to ToString() the moment the
+        // list shows more than one kind of row.
+        presenter.SetBinding(ContentPresenter.ContentTemplateSelectorProperty, new System.Windows.Data.Binding(nameof(ContentControl.ContentTemplateSelector))
+        {
+            RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent),
+        });
         border.AppendChild(presenter);
         template.VisualTree = border;
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
@@ -1059,7 +1099,7 @@ internal sealed partial class ShellView : IDisposable
         return style;
     }
 
-    private static DataTemplate CreateProjectCardTemplate()
+    private DataTemplate CreateProjectCardTemplate()
     {
         var template = new DataTemplate(typeof(ProjectRow));
         var root = new FrameworkElementFactory(typeof(StackPanel));
@@ -1097,6 +1137,7 @@ internal sealed partial class ShellView : IDisposable
         sourceText.SetValue(TextBlock.ForegroundProperty, StudioTheme.AccentSoftBrush);
         sourceBadge.AppendChild(sourceText);
         previewGrid.AppendChild(sourceBadge);
+        previewGrid.AppendChild(CreateProjectMenuGlyph(transparent: false));
         preview.AppendChild(previewGrid);
         root.AppendChild(preview);
 
@@ -1279,6 +1320,7 @@ internal sealed partial class ShellView : IDisposable
             if (!IsOperationContextCurrent(operationContext))
                 return;
             projectRows = Array.Empty<ProjectRow>();
+            RefreshHomeRecentProjects();
             projectRefreshNotice = "";
             ApplyProjectFilter();
             return;
@@ -1330,7 +1372,10 @@ internal sealed partial class ShellView : IDisposable
                     cloud.ProjectId,
                     local is null,
                     cloud.CurrentUserIsCreator,
-                    cloud.CurrentUserScopes));
+                    cloud.CurrentUserScopes)
+                {
+                    UpdatedAtUtc = cloud.UpdatedAtUtc,
+                });
             }
 
             rows.AddRange(localProjects
@@ -1372,6 +1417,7 @@ internal sealed partial class ShellView : IDisposable
         projectsSummaryText.ToolTip = LocalProjectCatalog.DefaultRoot;
         ApplyProjectFilter();
         UpdateSelectedProjectLifecycleAction();
+        RefreshHomeRecentProjects();
         StartProjectThumbnailLoading(rows);
     }
 
@@ -1387,7 +1433,16 @@ internal sealed partial class ShellView : IDisposable
                     item.Company.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                     item.Creator.Contains(query, StringComparison.CurrentCultureIgnoreCase))
                 .ToList();
-        projectsList.ItemsSource = visibleRows;
+        // An organization the search has emptied is no longer a place to stand.
+        if (projectBrowserOrganization.Length > 0 &&
+            !visibleRows.Any(row => row.CompanyLabel.Equals(
+                projectBrowserOrganization,
+                StringComparison.CurrentCultureIgnoreCase)))
+        {
+            projectBrowserOrganization = "";
+        }
+        ApplyProjectBrowserView(BuildProjectBrowserItems(visibleRows));
+        _ = EnsurePartnerOrganizationLogosAsync(visibleRows);
 
         if (!account.IsSignedIn)
         {
@@ -1521,7 +1576,17 @@ internal sealed partial class ShellView : IDisposable
             return;
         }
 
-        var dialog = new NewProjectDialog(organizations) { Owner = Window.GetWindow(Root) };
+        var dialog = new NewProjectDialog(
+            organizations,
+            organization => LoadLogoImage(companyEntries
+                .Select(entry => entry.Profile)
+                .FirstOrDefault(profile => profile.OrganizationId.Equals(
+                    organization.OrganizationId,
+                    StringComparison.OrdinalIgnoreCase))
+                ?.LogoPath))
+        {
+            Owner = Window.GetWindow(Root),
+        };
         if (dialog.ShowDialog() != true)
             return;
         try
@@ -1926,7 +1991,11 @@ internal sealed partial class ShellView : IDisposable
         project.ProjectId,
         false,
         false,
-        []);
+        [])
+    {
+        UpdatedAtUtc = new DateTimeOffset(
+            DateTime.SpecifyKind(project.LastWriteTimeUtc, DateTimeKind.Utc)),
+    };
 
     private static string ProjectStageLabel(string stage)
     {
@@ -1942,6 +2011,16 @@ internal sealed partial class ShellView : IDisposable
         {
             return "Ажлын зураг";
         }
+        // Every project type declares its stages with a Mongolian label. Falling
+        // through to the raw id put "planning-task" and "working-drawings" in
+        // front of the user beside properly named stages.
+        string? label = StudioProjectTypeRegistry.All
+            .SelectMany(type => type.Stages)
+            .FirstOrDefault(stage => stage.Id.Equals(value, StringComparison.OrdinalIgnoreCase))
+            ?.Label;
+        if (!string.IsNullOrWhiteSpace(label))
+            return label;
+
         return string.IsNullOrWhiteSpace(value) ? "Үе шат тодорхойгүй" : value;
     }
 
@@ -3024,7 +3103,16 @@ internal sealed partial class ShellView : IDisposable
             AlbumBuildResult result;
             AlbumBuildResult cloudUnion = null!;
             bool cloudUnionBuilt = false;
-            if (StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(origin))
+            // Pages drawn by an older build cannot be refreshed by composing the
+            // canonical album - that is where they live. When the album is
+            // behind the current renderer, this device draws its own components
+            // again and takes the local build path instead.
+            bool renderedByAnOlderBuild = AlbumWasRenderedByAnOlderBuild();
+            if (renderedByAnOlderBuild)
+                MarkOwnAlbumComponentsForRerender();
+
+            if (!renderedByAnOlderBuild &&
+                StudioRefreshSyncOperationPolicy.ShouldAttemptCloudUnionPreview(origin))
             {
                 try
                 {
@@ -4270,6 +4358,53 @@ internal sealed partial class ShellView : IDisposable
                 operationContext,
                 sourceSnapshotVersion,
                 "cloud_sync_verification_album_list");
+            // A sync that had nothing to write has nothing to acknowledge. It
+            // used to fail here for the absence of a write it never needed to
+            // make, which left every later sync of an up-to-date album in error.
+            if (string.IsNullOrWhiteSpace(syncedRevisionId) ||
+                string.IsNullOrWhiteSpace(syncedAlbumHash))
+            {
+                // The album this sync worked on, or the project's only album -
+                // an id that never matched is exactly how this fell through to
+                // an empty acknowledgement.
+                StudioCloudAlbum? verificationAlbum = verificationAlbums.FirstOrDefault(item =>
+                        item.AlbumId.Equals(serverAlbum.AlbumId, StringComparison.OrdinalIgnoreCase))
+                    ?? (verificationAlbums.Count == 1 ? verificationAlbums[0] : null);
+                StudioCloudAlbumRevision? serverCurrent = verificationAlbum?.Revisions
+                    .FirstOrDefault(item => item.RevisionId.Equals(
+                        verificationAlbum.CurrentRevisionId,
+                        StringComparison.OrdinalIgnoreCase));
+                if (serverCurrent is not null)
+                {
+                    syncedRevisionId = serverCurrent.RevisionId;
+                    syncedAlbumHash = serverCurrent.PdfSha256.Trim().ToLowerInvariant();
+                }
+                else
+                {
+                    RecordDiagnosticOperation(
+                        operationId,
+                        "cloud_sync",
+                        "warning",
+                        "cloud_sync_album_revision_unresolved",
+                        $"Album {serverAlbum.AlbumId} current revision was not in the " +
+                        $"{verificationAlbums.Count} album(s) returned; current id " +
+                        $"'{verificationAlbum?.CurrentRevisionId}', " +
+                        $"{verificationAlbum?.Revisions.Count ?? 0} revision(s) listed.");
+                }
+            }
+
+            // A project whose album has never had a revision written has nothing
+            // to acknowledge. The sync still did its work; failing here made
+            // every sync of such a project report an error it could not act on.
+            StudioCloudAlbum? currentServerAlbum = verificationAlbums.FirstOrDefault(item =>
+                    item.AlbumId.Equals(serverAlbum.AlbumId, StringComparison.OrdinalIgnoreCase))
+                ?? (verificationAlbums.Count == 1 ? verificationAlbums[0] : null);
+            if (currentServerAlbum is null || currentServerAlbum.Revisions.Count == 0)
+            {
+                syncNote += " Cloud альбом хараахан үүсээгүй тул баталгаажуулах хувилбар алга.";
+            }
+            else
+            {
             StudioCloudAlbumRevision verifiedRevision =
                 StudioCanonicalAlbumSyncVerifier.Verify(
                     verificationAlbums,
@@ -4326,6 +4461,7 @@ internal sealed partial class ShellView : IDisposable
                           $"R{verifiedAlbumRefresh.RevisionId} {verifiedAlbumRefresh.Sha256}";
                 throw new InvalidDataException(
                     "Canonical album PDF could not be downloaded and verified after sync: " + detail);
+            }
             }
             foreach (ProjectSourceSyncCandidate source in sourcePackages)
                 ProjectCloudSyncMetadata.MarkSourceSynced(source);
@@ -5790,6 +5926,11 @@ internal sealed partial class ShellView : IDisposable
         public string Code { get; }
         public string Name { get; }
         public string Stage { get; }
+        /// <summary>When the project last moved, so a home page can lead with it.</summary>
+        public DateTimeOffset UpdatedAtUtc { get; init; }
+        public string UpdatedLabel => UpdatedAtUtc == default
+            ? ""
+            : "Шинэчлэгдсэн " + UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd");
         public string Creator { get; }
         public string Company { get; }
         public string CompanyLabel => string.IsNullOrWhiteSpace(Company) ? "Байгууллага сонгогдоогүй" : Company;

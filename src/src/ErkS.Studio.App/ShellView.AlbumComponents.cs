@@ -38,6 +38,11 @@ internal sealed partial class ShellView
         {
             Title = album.Title,
             TemplateId = album.TemplateId,
+            // Without this the contributed pages are drawn on a default page
+            // instead of the album's own format: the cover and the drawing list
+            // came out A4 with a concept corner table, and those are the pages
+            // that were uploaded and became the shared album.
+            GeneratedPageFormat = album.GeneratedPageFormat,
             IncludeCover = album.IncludeCover,
             IncludeTableOfContents = album.IncludeTableOfContents,
             Composition = album.Composition.ToList(),
@@ -830,7 +835,10 @@ internal sealed partial class ShellView
                 manifest,
                 ownerEmail,
                 HasOwnedAtdDocuments(ownerEmail),
-                hasVisualizations);
+                hasVisualizations,
+                ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+                    state.Project.Cloud,
+                    ownerEmail));
         if (!ProjectSiteContextEditingPolicy.Resolve(state.Project, ownerEmail).CanEdit)
         {
             rawCodes = rawCodes
@@ -851,6 +859,69 @@ internal sealed partial class ShellView
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    /// <summary>
+    /// Draws the album's pages again from source.
+    ///
+    /// The cloud union preview composes from the canonical album's own pages, so
+    /// a page rendered by an older build survives every ordinary refresh - the
+    /// only way it leaves the album is for the device that owns it to render it
+    /// again. This marks those components and takes the local build path, which
+    /// the union preview otherwise short-circuits.
+    /// </summary>
+    private void RebuildAlbumFromSource()
+    {
+        if (!state.HasOpenProject || !CanEditProjectContent())
+            return;
+
+        int codes = MarkOwnAlbumComponentsForRerender();
+        bool rebuilt = UpdateAlbum(
+            silent: false,
+            statusPrefix: "Альбом эх үүсвэрээс бүрэн дахин байгуулагдлаа",
+            origin: StudioWorkspaceOperation.CloudSync);
+        if (!rebuilt)
+            return;
+
+        SetStatus(codes == 0
+            ? "Альбом дахин байгуулагдлаа."
+            : $"Альбом дахин байгуулагдаж, {codes} хэсэг Sync-ээр солигдохоор бэлдлээ.");
+    }
+
+    /// <summary>
+    /// Marks the components this device can draw itself, so a rebuild reaches
+    /// the shared album rather than only the local copy. Returns how many.
+    /// </summary>
+    private int MarkOwnAlbumComponentsForRerender()
+    {
+        string ownerEmail = CurrentCloudOwnerEmail();
+        IReadOnlyList<string> codes =
+            StudioAlbumRendererMigration.SelectLocallyRenderableComponents(
+                state.Project,
+                state.Project.Cloud.SharedAlbumComponents ?? [],
+                ownerEmail,
+                HasOwnedAtdDocuments(ownerEmail),
+                HasLocalVisualizationImages(),
+                ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+                    state.Project.Cloud,
+                    ownerEmail));
+        if (codes.Count == 0)
+            return 0;
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(state.Project, codes);
+        MarkAlbumRendererCurrent();
+        state.SaveProject();
+        return codes.Count;
+    }
+
+    /// <summary>
+    /// Whether the album's pages were drawn by a build older than the current
+    /// renderer. Those pages must be drawn again; composing the canonical album
+    /// would put them straight back.
+    /// </summary>
+    private bool AlbumWasRenderedByAnOlderBuild() =>
+        state.HasOpenProject &&
+        state.Project.PrimaryAlbum.RendererRevision <
+            StudioAlbumRendererMigration.CurrentRevision;
 
     private void MarkAlbumRendererCurrent()
     {

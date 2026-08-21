@@ -581,8 +581,18 @@ internal sealed partial class ShellView
                 .ToList();
         if (editableImages.Count == 0)
         {
-            SetStatus("Харагдах байдлын эх үүсвэрт зураг нэмээгүй байна.");
-            return;
+            // The editor arranges images across pages; with none yet the only
+            // useful action is to add them. Refusing here left the button doing
+            // nothing but writing a status line.
+            AddVisualizationImages();
+            editableImages = CurrentProjectVisualizationImages()
+                .Where(IsLocalVisualizationImage)
+                .Select(image => image.Clone())
+                .ToList();
+            if (editableImages.Count == 0)
+                return;
+
+            source = CurrentProjectVisualizationSource();
         }
 
         int firstPageNumber = ResolveFirstVisualizationPageNumber();

@@ -441,6 +441,9 @@ public static class ProjectWorkspaceStore
         project.Foundation ??= new ProjectFoundation();
         project.ResearchDocuments ??= [];
         project.RecordDocuments ??= [];
+        project.PortfolioDocuments ??= [];
+        project.Portfolio ??= new ProjectPortfolio();
+        project.Portfolio.Normalize();
         project.Stages ??= [];
         project.StageAssignments ??= [];
         project.Foundation.InitiationBasis ??= new ProjectInitiationBasis();
