@@ -47,11 +47,18 @@ public sealed partial class PdfSharpAlbumWriter
         if (!string.IsNullOrWhiteSpace(outputFolder))
             Directory.CreateDirectory(outputFolder);
 
-        HashSet<int> selectedPages = components
-            .Where(component => ShouldRestampCanonicalTitleBlock(component.Code))
-            .SelectMany(component => component.PageNumbers ?? [])
-            .Where(pageNumber => pageNumber > 0)
-            .ToHashSet();
+        // The corner table repainted below belongs to the concept album alone.
+        // A working-drawing or general-plan page already carries the horizontal
+        // title block its own build drew, and this table was painted over it at
+        // concept coordinates - leaving two title blocks, offset from one
+        // another, on every such sheet.
+        HashSet<int> selectedPages = ConceptAlbumOwnsTheCornerTable(project)
+            ? components
+                .Where(component => ShouldRestampCanonicalTitleBlock(component.Code))
+                .SelectMany(component => component.PageNumbers ?? [])
+                .Where(pageNumber => pageNumber > 0)
+                .ToHashSet()
+            : [];
         var restampedPages = new List<int>();
 
         using PdfDocument document = PdfReader.Open(inputPdfPath, PdfDocumentOpenMode.Modify);
@@ -186,6 +193,18 @@ public sealed partial class PdfSharpAlbumWriter
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToList();
     }
+
+    /// <summary>
+    /// Whether this album's pages carry the concept corner table. Every other
+    /// album - the general plan and the working drawings - draws the horizontal
+    /// title block instead, at coordinates this restamp cannot resolve from the
+    /// page size alone, so their canonical cells are left as their build drew
+    /// them rather than overpainted with a second table.
+    /// </summary>
+    private static bool ConceptAlbumOwnsTheCornerTable(AlbumProject project) =>
+        BuildingArchitectureConceptAlbumTemplate.TemplateId.Equals(
+            (project.Album.TemplateId ?? "").Trim(),
+            StringComparison.OrdinalIgnoreCase);
 
     private static bool ShouldRestampCanonicalTitleBlock(string? componentCode)
     {

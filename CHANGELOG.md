@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.42] - 2026-08-21
+
+- Stop painting a second title block onto general-plan and working-drawing sheets. The canonical restamp always repainted the concept album's corner table, at concept coordinates, over pages that already carry the horizontal title block their own build drew - leaving two title blocks, offset from one another, on every sheet of a ХЕТ album. Those albums now keep the one their build drew.
+
 ## [0.001.41] - 2026-08-21
 
 - Receive every working-drawing set PFA issues. ДМ (Дулаан механик) and АУ (Автомат удирдлага) had no set at all, and the electrical set carried its mark in the opposite order to the one PFA sends, so its sheets matched nothing; both orders are now recognised on import.

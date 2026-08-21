@@ -76,6 +76,48 @@ public sealed class CanonicalTitleBlockRestampTests : IDisposable
     }
 
     [Fact]
+    public void GeneralPlanAlbumKeepsItsOwnHorizontalTitleBlock()
+    {
+        // A ХЕТ page already carries the horizontal working-drawing title block
+        // its own build drew. Painting the concept corner table over it put a
+        // second, offset title block on every sheet of the album.
+        string input = Path.Combine(root, "urban-canonical.pdf");
+        string output = Path.Combine(root, "urban-restamped.pdf");
+        WriteA3Pdf(input, 3);
+        AlbumProject project = Project("Хэсэгчилсэн ерөнхий төлөвлөгөө", "Company");
+        project.Album.TemplateId = "urban-planning-partial-plan-v2";
+        IReadOnlyList<AlbumComponentPdfSlot> components =
+        [
+            new("generated:cover", 0, [1]),
+            new("source:owner-a:general-plan", 10, [2, 3]),
+        ];
+        PdfVectorDocumentProfile before = PdfVectorQualityInspector.Inspect(input);
+
+        AlbumTitleBlockRestampResult result =
+            PdfSharpAlbumWriter.RestampCanonicalTitleBlocks(
+                input,
+                project,
+                components,
+                output);
+
+        Assert.Empty(result.RestampedPages);
+        Assert.Equal(3, result.PageCount);
+        PdfVectorDocumentProfile after = PdfVectorQualityInspector.Inspect(output);
+        for (int page = 0; page < before.Pages.Count; page++)
+        {
+            Assert.Equal(
+                before.Pages[page].ContentSha256,
+                after.Pages[page].ContentSha256);
+        }
+
+        // The album is still stamped, so it is not restamped again on every sync.
+        Assert.True(
+            PdfSharpAlbumWriter.HasCanonicalTitleBlockSignature(
+                output,
+                PdfSharpAlbumWriter.ComputeCanonicalTitleBlockSignature(project)));
+    }
+
+    [Fact]
     public void SignatureChangesWhenCanonicalProjectOrCompanyChanges()
     {
         AlbumProject original = Project("Project A", "Company A");
@@ -96,6 +138,8 @@ public sealed class CanonicalTitleBlockRestampTests : IDisposable
     private AlbumProject Project(string projectName, string companyName) => new()
     {
         ProjectFolder = root,
+        // The corner table this restamp repaints belongs to the concept album.
+        Album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition(projectName),
         Name = projectName,
         ClientName = "Client",
         InitiationBasis = new ProjectInitiationBasis
