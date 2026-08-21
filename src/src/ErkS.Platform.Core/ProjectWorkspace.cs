@@ -59,6 +59,16 @@ public sealed class ProjectWorkspace
     public Dictionary<string, string> SheetBuildingAssignments { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Studies a general plan is drawn from. They are an input to the planning
+    /// work rather than pages of its album, so they are filed beside the project
+    /// instead of composed into it.
+    /// </summary>
+    public List<ProjectFileReference> ResearchDocuments { get; set; } = [];
+
+    /// <summary>Paperwork filed with a general plan, on the same footing as [ResearchDocuments].</summary>
+    public List<ProjectFileReference> RecordDocuments { get; set; } = [];
+
     /// <summary>Studio-owned raster source for automatically composed visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 

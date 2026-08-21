@@ -29,6 +29,8 @@ internal sealed partial class ShellView : IDisposable
         Participants,
         Sources,
         Albums,
+        Research,
+        Records,
         Reports,
         Archive,
     }
@@ -406,6 +408,8 @@ internal sealed partial class ShellView : IDisposable
         pages[StudioPage.Participants] = BuildParticipantsPage();
         pages[StudioPage.Sources] = BuildSourcesPage();
         pages[StudioPage.Albums] = BuildAlbumPage();
+        pages[StudioPage.Research] = BuildResearchPage();
+        pages[StudioPage.Records] = BuildRecordsPage();
         pages[StudioPage.Reports] = BuildReportsPage();
         pages[StudioPage.Archive] = BuildArchivePage();
 
@@ -657,6 +661,11 @@ internal sealed partial class ShellView : IDisposable
         AddNavItem(StudioPage.Participants, "Оролцогчид", "icon-company.svg");
         AddNavItem(StudioPage.Sources, ProjectSurfaceLabel("sources", "Эх үүсвэр"), "icon-sources.svg");
         AddNavItem(StudioPage.Albums, ProjectSurfaceLabel("albums", "Альбум"), "icon-album.svg");
+        if (ProjectOwnsGeneralPlanLibraries())
+        {
+            AddNavItem(StudioPage.Research, ProjectSurfaceLabel("research", "Судалгаа"), "icon-sources.svg");
+            AddNavItem(StudioPage.Records, ProjectSurfaceLabel("records", "Бичиг баримт"), "icon-publish.svg");
+        }
         AddNavItem(StudioPage.Reports, ProjectSurfaceLabel("reports", "Тайлан"), "icon-publish.svg");
         AddNavItem(StudioPage.Archive, ProjectSurfaceLabel("archive", "Архив"), "icon-company.svg");
         UpdateProjectChatWidgetVisibility();
@@ -808,6 +817,10 @@ internal sealed partial class ShellView : IDisposable
         else if (page == StudioPage.Sources)
         {
             RefreshSourceWorkspace();
+        }
+        else if (page is StudioPage.Research or StudioPage.Records)
+        {
+            RefreshProjectLibraries();
         }
         else if (page == StudioPage.Companies)
         {
@@ -3171,34 +3184,33 @@ internal sealed partial class ShellView : IDisposable
         AlbumProject project = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets);
         List<AlbumPageDefinition> allPages = project.Album.Pages.ToList();
         AlbumBuildResult? primaryResult = null;
-        foreach (IBuildingWorkingDrawingDiscipline discipline in BuildingWorkingDrawingAlbumCatalog.All)
+        foreach (ProjectAlbumRecord album in state.Project.Deliverables.Albums.ToList())
         {
-            List<AlbumPageDefinition> pages = allPages.Where(page =>
-            {
-                SheetRecord? source = state.Library.Find(page.SheetKey);
-                string mark = source?.Entry.Discipline ?? source?.Entry.Number?.Split('-').FirstOrDefault() ?? "";
-                if (discipline.Mark == "БА" && mark is "ЕХ" or "ЕТ" or "ТХ")
-                    return true;
-                return BuildingWorkingDrawingAlbumCatalog.MatchesMark(discipline, mark);
-            }).ToList();
+            string buildingGroupId =
+                BuildingWorkingDrawingAlbumCatalog.BuildingGroupIdOf(album.Id);
+            // Within a building the sheets run set by set - ЕХ, then БА, ББ and
+            // the rest - while the album's own order decides inside a set.
+            List<AlbumPageDefinition> pages = allPages
+                .Where(page => PageBelongsToBuildingAlbum(page, buildingGroupId, album.IsPrimary))
+                .OrderBy(page => BuildingWorkingDrawingAlbumCatalog.SectionOrder(WorkingDrawingMarkOf(page)))
+                .ToList();
 
-            // Do not publish an empty specialist album before that discipline
-            // has supplied sheets. The records still exist in Studio and become
-            // live automatically as soon as a package arrives.
-            if (pages.Count == 0 && discipline.Mark != "БА")
+            // Do not publish an empty building album before its sheets arrive.
+            // The record still exists in Studio and becomes live automatically
+            // as soon as a package lands on that building.
+            if (pages.Count == 0 && !album.IsPrimary)
                 continue;
 
             project.Album.Pages = pages;
-            project.Album.Title = discipline.Title;
-            string outputPath = Path.Combine(outputFolder, $"{SafeFileName(discipline.Title)}.pdf");
+            project.Album.Title = album.Title;
+            string outputPath = Path.Combine(outputFolder, $"{SafeFileName(album.Title)}.pdf");
             AlbumBuildResult result = state.Builder.Build(project, state.Library, outputPath);
-            ProjectAlbumRecord album = state.Project.Deliverables.Albums.Single(x => x.Id == discipline.Id);
             album.LastPdfPath = Path.GetRelativePath(state.ResolveProjectFolder(), result.OutputPath);
             album.LastPageCount = result.PageCount;
             album.LastPageSizeSummary = "Studio generated working drawing album";
             album.LastPdfSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(result.OutputPath))).ToLowerInvariant();
             album.RendererRevision = StudioAlbumRendererMigration.CurrentRevision;
-            if (discipline.Mark == "БА")
+            if (album.IsPrimary)
             {
                 primaryResult = result;
                 lastAlbumPath = result.OutputPath;
@@ -3210,7 +3222,41 @@ internal sealed partial class ShellView : IDisposable
         if (activePage == StudioPage.Albums)
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
         RefreshSyncUi();
-        return primaryResult ?? throw new InvalidDataException("БА ажлын зургийн альбум үүсгэх хуудас олдсонгүй.");
+        return primaryResult ?? throw new InvalidDataException("Ажлын зургийн альбом үүсгэх хуудас олдсонгүй.");
+    }
+
+    /// <summary>
+    /// Studio's own generated pages - the cover, the drawing list, the
+    /// explanatory note - are the general part of every volume, so each
+    /// building's album carries its own copy. A sheet no one has filed under a
+    /// building stays with the first album rather than being dropped.
+    /// </summary>
+    private bool PageBelongsToBuildingAlbum(
+        AlbumPageDefinition page,
+        string buildingGroupId,
+        bool isPrimaryAlbum)
+    {
+        string sheetKey = (page.SheetKey ?? "").Trim();
+        if (sheetKey.Length == 0)
+            return true;
+
+        if (!state.Project.SheetBuildingAssignments.TryGetValue(sheetKey, out string? assigned) ||
+            string.IsNullOrWhiteSpace(assigned))
+        {
+            return isPrimaryAlbum;
+        }
+
+        return string.IsNullOrWhiteSpace(buildingGroupId)
+            ? isPrimaryAlbum
+            : assigned.Trim().Equals(buildingGroupId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string WorkingDrawingMarkOf(AlbumPageDefinition page)
+    {
+        SheetRecord? source = state.Library.Find(page.SheetKey);
+        return source?.Entry.Discipline ??
+               source?.Entry.Number?.Split('-').FirstOrDefault() ??
+               "";
     }
 
     private async Task SynchronizeCurrentProjectAsync()

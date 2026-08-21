@@ -5,6 +5,13 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.41] - 2026-08-21
+
+- Receive every working-drawing set PFA issues. ДМ (Дулаан механик) and АУ (Автомат удирдлага) had no set at all, and the electrical set carried its mark in the opposite order to the one PFA sends, so its sheets matched nothing; both orders are now recognised on import.
+- Make ЕХ (Ерөнхий хэсэг) a set of its own and open every album with it. The cover, the drawing list and the explanatory note were folded into БА, which is not the mark they carry - and they were re-emitted into all six discipline PDFs besides.
+- Issue working drawings one album per building rather than one per discipline, the way they are bound. Inside an album the sheets run set by set - ЕХ, БА, ББ, ХАС, ДМ, ЦБУ, ХТ,ДГ, ХД, АУ - while the album's own order still decides within a set. The concept stage composes the opposite way and is unchanged: every building of the project in a single album.
+- Add Судалгаа and Бичиг баримт to partial and development general-plan projects, beside the album and the report. Both register files the way the foundation documents do, keeping an owned copy inside the project.
+
 ## [0.001.40] - 2026-08-20
 
 - Restrict automatic building-group creation to the building-architecture concept album. It is the only album that builds a section per building and therefore the only one whose writer draws a building sub-cover, so a group created for a working-drawing album demanded a cover that is never rendered and would have failed the cloud sync the same way the urban-planning album did in 0.001.38.

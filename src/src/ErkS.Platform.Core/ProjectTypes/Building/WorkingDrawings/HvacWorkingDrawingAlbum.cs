@@ -1,2 +1,2 @@
 namespace ErkS.Platform.Core.ProjectTypes.Building.WorkingDrawings;
-public sealed class HvacWorkingDrawingAlbum : IBuildingWorkingDrawingDiscipline { public string Id => "working-drawing-has"; public string Mark => "ХАС"; public string Title => "Халаалт, агаар сэлгэлтийн ажлын зургийн альбум"; }
+public sealed class HvacWorkingDrawingAlbum : IBuildingWorkingDrawingDiscipline { public string Id => "working-drawing-has"; public string Mark => "ХАС"; public string Name => "Халаалт, агаар сэлгэлт"; public string Title => "Халаалт, агаар сэлгэлтийн ажлын зураг"; }

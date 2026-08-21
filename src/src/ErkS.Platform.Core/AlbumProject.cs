@@ -307,6 +307,10 @@ public static class ProjectDocumentCategories
     public const string CompanyRegistrationCertificate = "CompanyRegistrationCertificate";
     public const string CompanyDesignLicense = "CompanyDesignLicense";
     public const string ApprovedPlanningTask = "ApprovedPlanningTask";
+    /// <summary>A study a general plan is drawn from.</summary>
+    public const string Research = "Research";
+    /// <summary>Paperwork filed with a general plan.</summary>
+    public const string Record = "Record";
 }
 
 public sealed class AlbumDefinition

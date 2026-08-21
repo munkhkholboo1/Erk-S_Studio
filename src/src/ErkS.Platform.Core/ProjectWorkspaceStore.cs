@@ -439,6 +439,8 @@ public static class ProjectWorkspaceStore
             pendingInformation.Foundation ??= new ProjectServerFoundationUpdate();
         project.Creation ??= new ProjectCreationInfo();
         project.Foundation ??= new ProjectFoundation();
+        project.ResearchDocuments ??= [];
+        project.RecordDocuments ??= [];
         project.Stages ??= [];
         project.StageAssignments ??= [];
         project.Foundation.InitiationBasis ??= new ProjectInitiationBasis();
