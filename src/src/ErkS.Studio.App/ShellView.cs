@@ -2200,15 +2200,29 @@ internal sealed partial class ShellView : IDisposable
         DockPanel.SetDock(toolbar, Dock.Top);
         root.Children.Add(toolbar);
 
-        var tabs = new TabControl
+        UIElement overview = BuildProjectOverview();
+        DockPanel.SetDock(overview, Dock.Top);
+        root.Children.Add(overview);
+
+        foundationEditTabs = new TabControl
         {
             Background = StudioTheme.WindowBackgroundBrush,
             Foreground = StudioTheme.TextBrush,
             BorderBrush = StudioTheme.BorderBrush,
+            // A TabControl centres its content by default, which floated the
+            // form into the middle of an otherwise empty page.
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
         };
-        tabs.Items.Add(new TabItem { Header = "Төслийн мэдээлэл", Content = BuildInitiationBasisTab() });
-        tabs.Items.Add(new TabItem { Header = "Уялдаа, баталгаажуулалт", Content = BuildPlanningTaskTab() });
-        root.Children.Add(tabs);
+        foundationEditTabs.Items.Add(new TabItem { Header = "Төслийн мэдээлэл", Content = BuildInitiationBasisTab() });
+        foundationEditTabs.Items.Add(new TabItem { Header = "Уялдаа, баталгаажуулалт", Content = BuildPlanningTaskTab() });
+
+        // The record is what a project shows; the form is what editing it
+        // looks like. Both live here and only one is on screen at a time.
+        var body = new Grid();
+        body.Children.Add(BuildProjectRecordView());
+        body.Children.Add(foundationEditTabs);
+        root.Children.Add(body);
         RefreshFoundationEditUi();
         return root;
     }
@@ -4818,6 +4832,7 @@ internal sealed partial class ShellView : IDisposable
 
         albumTitleBox.Text = state.Album.Title;
         RefreshCloudLinkText();
+        RefreshProjectOverview();
         RefreshParticipantGroupSummaries();
         RefreshParticipantsList();
         if (activePage == StudioPage.Sources)
@@ -5392,6 +5407,7 @@ internal sealed partial class ShellView : IDisposable
             ProjectOrigins.Cloud,
             StringComparison.OrdinalIgnoreCase);
 
+        ApplyFoundationPresentation(editing);
         foundationEditButton.Visibility = editing ? Visibility.Collapsed : Visibility.Visible;
         foundationSaveButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
         foundationCancelButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;

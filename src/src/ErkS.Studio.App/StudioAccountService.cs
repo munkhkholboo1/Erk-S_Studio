@@ -1954,6 +1954,88 @@ internal sealed class StudioAccountService :
         StateChanged?.Invoke();
     }
 
+    // Sheet comments. A reviewer's remarks on a drawing, kept in their own
+    // collection rather than in the album, so the album's merge rules never
+    // have to reason about them and an approver can write one without being
+    // able to change the drawing.
+
+    public async Task<StudioSheetCommentList> ListSheetCommentsAsync(
+        string projectId,
+        string? pageIdentity = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        string path = "/api/cloud-era/v1/projects/" +
+            Uri.EscapeDataString(projectId) + "/sheet-comments";
+        if (!string.IsNullOrWhiteSpace(pageIdentity))
+            path += "?pageIdentity=" + Uri.EscapeDataString(pageIdentity.Trim());
+        return await GetAuthorizedAsync<StudioSheetCommentList>(path, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    public async Task<StudioSheetCommentList> AddSheetCommentAsync(
+        string projectId,
+        StudioSheetCommentCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioSheetCommentCreateRequest, StudioSheetCommentList>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/sheet-comments",
+            request,
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioSheetCommentList> ReplyToSheetCommentAsync(
+        string projectId,
+        string commentId,
+        string body,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioSheetCommentReplyRequest, StudioSheetCommentList>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+                "/sheet-comments/" + Uri.EscapeDataString(commentId) + "/replies",
+            new StudioSheetCommentReplyRequest { Body = body ?? "" },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioSheetCommentList> SetSheetCommentStatusAsync(
+        string projectId,
+        string commentId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioSheetCommentStatusRequest, StudioSheetCommentList>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+                "/sheet-comments/" + Uri.EscapeDataString(commentId) + "/status",
+            new StudioSheetCommentStatusRequest { Status = status ?? "" },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioSheetCommentList> DeleteSheetCommentAsync(
+        string projectId,
+        string commentId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current
+            ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Delete,
+            BuildUri(
+                session.ServerUrl,
+                "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+                    "/sheet-comments/" + Uri.EscapeDataString(commentId)));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(true);
+        return await ReadResponseAsync<StudioSheetCommentList>(response, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
     private async Task<TResponse> GetAuthorizedAsync<TResponse>(string path, CancellationToken cancellationToken)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");

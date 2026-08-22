@@ -862,3 +862,68 @@ internal sealed class StudioCloudDesignPackage
     public string AlbumId { get; set; } = "";
     public List<StudioCloudSourcePackage> SourcePackages { get; set; } = [];
 }
+
+internal sealed class StudioSheetCommentReply
+{
+    public string ReplyId { get; set; } = "";
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public string AuthorInitials { get; set; } = "";
+    public string Body { get; set; } = "";
+    public DateTimeOffset CreatedAtUtc { get; set; }
+}
+
+internal sealed class StudioSheetComment
+{
+    public string CommentId { get; set; } = "";
+    public string PageIdentity { get; set; } = "";
+    public string PageLabel { get; set; } = "";
+    public int PageNumber { get; set; }
+    public double AnchorX { get; set; }
+    public double AnchorY { get; set; }
+    public string Kind { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Body { get; set; } = "";
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public string AuthorInitials { get; set; } = "";
+    public string AuthorRoleLabel { get; set; } = "";
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public string ResolvedByEmail { get; set; } = "";
+    public string ResolvedByDisplayName { get; set; } = "";
+    public DateTimeOffset? ResolvedAtUtc { get; set; }
+    public bool CanManage { get; set; }
+    public List<StudioSheetCommentReply> Replies { get; set; } = [];
+}
+
+internal sealed class StudioSheetCommentList
+{
+    public string ProjectId { get; set; } = "";
+    public string CurrentUserEmail { get; set; } = "";
+    public bool CanComment { get; set; }
+    public int OpenCount { get; set; }
+    public int ChangeRequiredCount { get; set; }
+    public List<StudioSheetComment> Comments { get; set; } = [];
+}
+
+internal sealed class StudioSheetCommentCreateRequest
+{
+    public string PageIdentity { get; set; } = "";
+    public string PageLabel { get; set; } = "";
+    public int PageNumber { get; set; }
+    public double AnchorX { get; set; }
+    public double AnchorY { get; set; }
+    public string Kind { get; set; } = "";
+    public string Body { get; set; } = "";
+}
+
+internal sealed class StudioSheetCommentReplyRequest
+{
+    public string Body { get; set; } = "";
+}
+
+internal sealed class StudioSheetCommentStatusRequest
+{
+    public string Status { get; set; } = "";
+}

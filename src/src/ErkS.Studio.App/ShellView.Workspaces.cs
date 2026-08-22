@@ -92,6 +92,8 @@ internal sealed partial class ShellView
     private readonly TextBox albumPdfCustomHeightBox = new();
     private readonly Button albumPdfApplyFormatButton =
         StudioWidgets.CreateButton("Формат хэрэглэх");
+    private readonly Button albumSheetCommentButton =
+        StudioWidgets.CreateGlyphTextButton("E90A", "Хуудасны коммент");
     private readonly Button albumPdfEditPageButton =
         StudioWidgets.CreatePrimaryButton("PDF хэсэг засах");
     private readonly StackPanel albumPdfFormatPanel = new();
@@ -2717,6 +2719,13 @@ internal sealed partial class ShellView
         includeTocCheck.Unchecked += (_, _) => ApplyAlbumOptions();
 
         var panel = new StackPanel { Margin = new Thickness(0, 0, 2, 0) };
+        // Above the page's own properties: a comment is about the drawing, not
+        // a property of it, and it is offered for every sheet rather than only
+        // for the ones this account may edit.
+        albumSheetCommentButton.Margin = new Thickness(0, 0, 0, 10);
+        albumSheetCommentButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        albumSheetCommentButton.Click += (_, _) => OpenSheetComments();
+        panel.Children.Add(albumSheetCommentButton);
         panel.Children.Add(StudioWidgets.CreateFormRow("Дугаар", albumPageNumberBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Нэр", albumPageTitleBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Зургийн төрөл", albumContentKindBox, 76));
@@ -3333,6 +3342,14 @@ internal sealed partial class ShellView
             .Concat(state.Album.Sections.Select(section => new SectionChoice(section.Id, section.Title)))
             .ToList();
 
+        // A comment does not change the drawing, so it follows the selection
+        // rather than the right to edit: a reviewer with read-only access can
+        // still say what they think of the sheet in front of them.
+        albumSheetCommentButton.IsEnabled =
+            albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem commentTarget &&
+            commentTarget.Page is not null &&
+            selectedPageCount == 1;
+
         if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem selected &&
             selected.Page is AlbumPageDefinition page)
         {
@@ -3740,6 +3757,50 @@ internal sealed partial class ShellView
         state.SaveProject();
         RefreshAlbumWorkspace(selectPageId: page.Id);
         UpdateAlbum(silent: false, statusPrefix: "PDF хуудасны формат шинэчлэгдлээ");
+    }
+
+    /// <summary>
+    /// Opens the comments on the selected sheet. Anyone on the project may read
+    /// and write them - a comment says something about a drawing without being
+    /// able to change it, which is the whole point for a reviewer who must not
+    /// be given the drawing.
+    /// </summary>
+    private void OpenSheetComments()
+    {
+        if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
+            selected.Page is not AlbumPageDefinition page)
+        {
+            SetStatus("Коммент бичих хуудсаа сонгоно уу.");
+            return;
+        }
+
+        SheetRecord? sheet = state.Library.Find(page.SheetKey);
+        if (sheet is null)
+        {
+            SetStatus("Сонгосон хуудасны эх үүсвэр олдсонгүй.");
+            return;
+        }
+
+        string projectId = state.Project.Cloud.ServerProjectId;
+        if (!account.IsSignedIn || string.IsNullOrWhiteSpace(projectId))
+        {
+            SetStatus("Хуудасны коммент Cloud ERA-д хадгалагдана. Эхлээд нэвтэрч, төслөө холбоно уу.");
+            return;
+        }
+
+        var window = new SheetCommentWindow(
+            account,
+            sourceSheetPageImages,
+            sheet,
+            projectId,
+            selected.Number,
+            string.IsNullOrWhiteSpace(page.TitleOverride) ? sheet.Entry.Name : page.TitleOverride,
+            selected.BuiltPageNumber ?? 0,
+            canWrite: true)
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        window.ShowDialog();
     }
 
     private void EditPdfSourcePage()

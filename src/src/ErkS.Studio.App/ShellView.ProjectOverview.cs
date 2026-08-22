@@ -1,0 +1,758 @@
+using System.Windows.Shapes;
+using ErkS.Platform.Core.ProjectTypes;
+using ErkS.Platform.Core;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+
+namespace ErkS.Studio;
+
+/// <summary>
+/// What a project looks like the moment it opens. A form of empty boxes reads
+/// as a settings dialog; this says which project this is - its name, its stage,
+/// the practice that draws it, the cover it has reached - before it offers
+/// anything to fill in.
+/// </summary>
+internal sealed partial class ShellView
+{
+    private const double ProjectCoverWidth = 168d;
+
+    private readonly Border projectOverviewBanner = new()
+    {
+        Background = StudioTheme.PanelBrush,
+        BorderBrush = StudioTheme.BorderBrush,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(14),
+        Padding = new Thickness(26, 22, 22, 22),
+        Margin = new Thickness(0, 0, 0, 14),
+    };
+    private readonly Border projectOverviewStageBadge = new()
+    {
+        Background = new SolidColorBrush(Color.FromArgb(64, 91, 156, 246)),
+        CornerRadius = new CornerRadius(5),
+        Padding = new Thickness(11, 4, 11, 4),
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Margin = new Thickness(0, 0, 0, 14),
+    };
+    private readonly TextBlock projectOverviewStageText = new()
+    {
+        FontSize = 10,
+        FontWeight = FontWeights.Bold,
+        Foreground = StudioTheme.AccentSoftBrush,
+    };
+    private readonly TextBlock projectOverviewName = new()
+    {
+        FontSize = 29,
+        FontWeight = FontWeights.SemiBold,
+        Foreground = StudioTheme.TextBrush,
+        TextWrapping = TextWrapping.Wrap,
+        TextAlignment = TextAlignment.Center,
+        LineHeight = 36,
+        MaxWidth = 620,
+    };
+    private readonly TextBlock projectOverviewIdentity = new()
+    {
+        FontSize = 12.5,
+        Foreground = StudioTheme.MutedTextBrush,
+        TextAlignment = TextAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = 620,
+        Margin = new Thickness(0, 9, 0, 0),
+    };
+    private readonly Image projectOverviewCompanyLogo = new()
+    {
+        Stretch = Stretch.Uniform,
+        Width = 78,
+        Height = 78,
+    };
+    private readonly Border projectOverviewCompanyCrest = new()
+    {
+        Width = 78,
+        Height = 78,
+        CornerRadius = new CornerRadius(39),
+        Background = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255)),
+    };
+    private readonly TextBlock projectOverviewCompanyMonogram = new()
+    {
+        FontSize = 27,
+        FontWeight = FontWeights.SemiBold,
+        Foreground = StudioTheme.TextBrush,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock projectOverviewCompanyName = new()
+    {
+        FontSize = 20,
+        FontWeight = FontWeights.SemiBold,
+        Foreground = StudioTheme.TextBrush,
+        TextAlignment = TextAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = 520,
+    };
+    private readonly TextBlock projectOverviewCompanyRole = new()
+    {
+        FontSize = 11.5,
+        Foreground = StudioTheme.MutedTextBrush,
+        TextAlignment = TextAlignment.Center,
+        Margin = new Thickness(0, 5, 0, 0),
+    };
+    private readonly Border projectOverviewCover = new()
+    {
+        Width = ProjectCoverWidth,
+        Background = StudioTheme.InputBrush,
+        BorderBrush = StudioTheme.BorderBrush,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(8),
+        VerticalAlignment = VerticalAlignment.Center,
+        ClipToBounds = true,
+    };
+    private readonly WrapPanel projectOverviewFacts = new() { Margin = new Thickness(0, 0, 0, 16) };
+    private readonly WrapPanel projectTeamPanel = new();
+    private readonly TextBlock projectTeamSummary = new()
+    {
+        FontSize = 12,
+        Foreground = StudioTheme.MutedTextBrush,
+        Margin = new Thickness(0, 3, 0, 0),
+    };
+    private readonly Dictionary<string, Image> teamAvatarTargets =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (TextBlock Target, MemberRow Member)> teamRoleTargets =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ImageSource> teamAvatarCache =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> projectRoleLabels =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly StackPanel projectRecordView = new();
+    private TabControl? foundationEditTabs;
+    private UIElement? projectRecordHost;
+
+    private string overviewCoverPdfPath = "";
+
+    /// <summary>
+    /// The project's own masthead: what it is on the left, the cover its album
+    /// has reached on the right.
+    /// </summary>
+    private UIElement BuildProjectOverview()
+    {
+        var stack = new StackPanel();
+
+        var layout = new DockPanel();
+
+        // A4 proportions, so an empty cover holds the same shape as a drawn one.
+        projectOverviewCover.Height = ProjectCoverWidth * 297d / 210d;
+        var coverLayers = new Grid();
+        coverLayers.Children.Add(new Image
+        {
+            Source = SvgIconLoader.TryLoad(StudioWidgets.GetAssetPath("logo-erks.svg")),
+            Width = 40,
+            Height = 40,
+            Opacity = 0.16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        projectOverviewCover.Child = coverLayers;
+        projectOverviewCover.Margin = new Thickness(24, 0, 0, 0);
+        DockPanel.SetDock(projectOverviewCover, Dock.Right);
+        layout.Children.Add(projectOverviewCover);
+
+        // Composed like the title page of an album: whose work this is at the
+        // top, then what the work is. Centred in the space the cover leaves.
+        var words = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        var crest = new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        projectOverviewCompanyCrest.Child = projectOverviewCompanyMonogram;
+        crest.Children.Add(projectOverviewCompanyCrest);
+        crest.Children.Add(projectOverviewCompanyLogo);
+        words.Children.Add(crest);
+        words.Children.Add(projectOverviewCompanyName);
+        words.Children.Add(projectOverviewCompanyRole);
+        words.Children.Add(new Border
+        {
+            Height = 1,
+            Width = 72,
+            Background = StudioTheme.BorderBrush,
+            Margin = new Thickness(0, 20, 0, 20),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
+
+        projectOverviewStageBadge.Child = projectOverviewStageText;
+        words.Children.Add(projectOverviewStageBadge);
+        words.Children.Add(projectOverviewName);
+        words.Children.Add(projectOverviewIdentity);
+        layout.Children.Add(words);
+
+        projectOverviewBanner.Child = layout;
+        stack.Children.Add(projectOverviewBanner);
+        stack.Children.Add(projectOverviewFacts);
+        stack.Children.Add(BuildProjectTeamSection());
+        return stack;
+    }
+
+    /// <summary>
+    /// Who is on this project. A project is people before it is files, so the
+    /// team is named on the page the project opens on rather than only behind
+    /// the Оролцогчид tab.
+    /// </summary>
+    private UIElement BuildProjectTeamSection()
+    {
+        var section = new StackPanel { Margin = new Thickness(0, 4, 0, 16) };
+
+        var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        Button all = StudioWidgets.CreateGlyphTextButton("", "Оролцогчид");
+        all.VerticalAlignment = VerticalAlignment.Center;
+        all.Click += (_, _) => SelectPage(StudioPage.Participants);
+        DockPanel.SetDock(all, Dock.Right);
+        heading.Children.Add(all);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        words.Children.Add(new TextBlock
+        {
+            Text = "Төслийн баг",
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = StudioTheme.TextBrush,
+        });
+        words.Children.Add(projectTeamSummary);
+        heading.Children.Add(words);
+        section.Children.Add(heading);
+        section.Children.Add(projectTeamPanel);
+        return section;
+    }
+
+    /// <summary>
+    /// Rebuilds the team strip. The names, roles and states come from the
+    /// project itself; the photographs are asked of Cloud ERA and filled in
+    /// when they arrive, so a member is shown at once with their initials
+    /// rather than waiting on the network.
+    /// </summary>
+    private void RefreshProjectTeamOverview()
+    {
+        projectTeamPanel.Children.Clear();
+        if (!state.HasOpenProject)
+        {
+            projectTeamSummary.Text = "";
+            return;
+        }
+
+        IReadOnlyList<MemberRow> members = ActiveProjectMemberRows();
+        projectTeamSummary.Text = members.Count == 0
+            ? "Багийн гишүүн бүртгэгдээгүй байна"
+            : $"{members.Count} гишүүн";
+        foreach (MemberRow member in members)
+            projectTeamPanel.Children.Add(BuildProjectTeamCard(member));
+
+        _ = LoadProjectTeamDetailAsync();
+    }
+
+    private UIElement BuildProjectTeamCard(MemberRow member)
+    {
+        var card = new Border
+        {
+            Width = 268,
+            Background = StudioTheme.PanelBrush,
+            BorderBrush = StudioTheme.BorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14, 12, 14, 12),
+            Margin = new Thickness(0, 0, 12, 12),
+            ToolTip = member.Email,
+        };
+        var layout = new DockPanel();
+
+        var avatar = new Grid
+        {
+            Width = 44,
+            Height = 44,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        avatar.Children.Add(new Ellipse
+        {
+            Width = 44,
+            Height = 44,
+            Fill = new SolidColorBrush(Color.FromRgb(44, 105, 83)),
+        });
+        avatar.Children.Add(new TextBlock
+        {
+            Text = StudioOrganizationCrest.Initials(member.Name),
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var photo = new Image
+        {
+            Width = 44,
+            Height = 44,
+            Stretch = Stretch.UniformToFill,
+            Clip = new EllipseGeometry(new Rect(0, 0, 44, 44)),
+            Visibility = Visibility.Collapsed,
+        };
+        avatar.Children.Add(photo);
+        teamAvatarTargets[member.Email.Trim().ToLowerInvariant()] = photo;
+        DockPanel.SetDock(avatar, Dock.Left);
+        layout.Children.Add(avatar);
+
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        words.Children.Add(new TextBlock
+        {
+            Text = member.Name,
+            FontSize = 13.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = StudioTheme.TextBrush,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        var roleText = new TextBlock
+        {
+            Text = ProjectRoleLabels(member),
+            FontSize = 11.5,
+            Foreground = StudioTheme.MutedTextBrush,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        teamRoleTargets[member.Email.Trim().ToLowerInvariant()] = (roleText, member);
+        words.Children.Add(roleText);
+
+        var state = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 7, 0, 0),
+        };
+        bool active = member.Status.Equals("Идэвхтэй", StringComparison.Ordinal);
+        state.Children.Add(new Ellipse
+        {
+            Width = 8,
+            Height = 8,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Fill = active ? StudioTheme.SuccessBrush : StudioTheme.WarningBrush,
+        });
+        state.Children.Add(new TextBlock
+        {
+            Text = member.Status,
+            FontSize = 11,
+            Foreground = active ? StudioTheme.SuccessBrush : StudioTheme.WarningBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        words.Children.Add(state);
+        layout.Children.Add(words);
+
+        card.Child = layout;
+        return card;
+    }
+
+    /// <summary>
+    /// A member's roles in the words the server uses for them, falling back to
+    /// the stored codes until the role catalogue has been read.
+    /// </summary>
+    private string ProjectRoleLabels(MemberRow member)
+    {
+        string[] codes = member.RoleCodes ?? [];
+        if (codes.Length == 0)
+            return string.IsNullOrWhiteSpace(member.Roles) ? "Үүрэг тодорхойгүй" : member.Roles;
+
+        return string.Join(
+            ", ",
+            codes.Select(code =>
+                projectRoleLabels.TryGetValue(code.Trim(), out string? label) ? label : code.Trim()));
+    }
+
+    /// <summary>
+    /// Reads the role catalogue and the members' photographs once per project,
+    /// then fills them into the cards already on screen.
+    /// </summary>
+    private async Task LoadProjectTeamDetailAsync()
+    {
+        if (!account.IsSignedIn || !state.HasOpenProject)
+            return;
+
+        string projectId = state.Project.Cloud.ServerProjectId;
+        if (projectId.Length == 0)
+            return;
+
+        try
+        {
+            if (projectRoleLabels.Count == 0)
+            {
+                foreach (StudioProjectRole role in await account.ListProjectRolesAsync())
+                    projectRoleLabels[role.Code] = role.Label;
+                foreach ((TextBlock target, MemberRow member) in teamRoleTargets.Values)
+                    target.Text = ProjectRoleLabels(member);
+            }
+
+            StudioProjectChatResponse chat = await account.GetProjectChatAsync(projectId, take: 1);
+            foreach (StudioProjectChatParticipant participant in chat.Participants)
+            {
+                string key = participant.Email.Trim().ToLowerInvariant();
+                if (participant.ProfileImageUrl.Length == 0 ||
+                    !teamAvatarTargets.TryGetValue(key, out Image? target))
+                {
+                    continue;
+                }
+
+                await ApplyTeamAvatarAsync(participant.ProfileImageUrl, target);
+            }
+        }
+        catch (Exception exception) when (
+            exception is StudioAccountException or System.Net.Http.HttpRequestException or TaskCanceledException)
+        {
+            // The strip already names everyone; a photograph is the only thing
+            // a failed read costs.
+        }
+    }
+
+    private async Task ApplyTeamAvatarAsync(string imageUrl, Image target)
+    {
+        if (!teamAvatarCache.TryGetValue(imageUrl, out ImageSource? source))
+        {
+            byte[]? bytes = await account.DownloadProjectChatAssetAsync(imageUrl);
+            if (bytes is null || bytes.Length == 0)
+                return;
+
+            using var stream = new MemoryStream(bytes, writable: false);
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            source = bitmap;
+            teamAvatarCache[imageUrl] = source;
+        }
+
+        target.Source = source;
+        target.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// The project's record, read rather than typed. In view mode a form of
+    /// empty input boxes reads as a settings dialog and says nothing about the
+    /// project; the same fields are shown here as written values, and the form
+    /// appears only once Засварлах is pressed.
+    /// </summary>
+    private UIElement BuildProjectRecordView()
+    {
+        projectRecordView.Margin = new Thickness(0, 4, 0, 0);
+        // One width for every section, so the record reads as one document
+        // rather than as cards that each stopped where their text did.
+        projectRecordView.MaxWidth = 980;
+        projectRecordView.HorizontalAlignment = HorizontalAlignment.Left;
+        projectRecordHost = StudioWidgets.CreateScrollHost(projectRecordView);
+        return projectRecordHost;
+    }
+
+    /// <summary>Shows the record or the form, never both.</summary>
+    private void ApplyFoundationPresentation(bool editing)
+    {
+        if (projectRecordHost is null || foundationEditTabs is null)
+            return;
+
+        projectRecordHost.Visibility = editing ? Visibility.Collapsed : Visibility.Visible;
+        foundationEditTabs.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+        if (!editing)
+            RefreshProjectRecordView();
+    }
+
+    /// <summary>
+    /// One definition of what the record holds, so the read view and the form
+    /// can never drift apart: the value is read from the very control the form
+    /// edits.
+    /// </summary>
+    private IReadOnlyList<(string Section, string Label, Func<string> Value)> ProjectRecordFields =>
+    [
+        ("Үндэслэл", "Төслийн код", () => projectCodeBox.Text),
+        ("Үндэслэл", "Төслийн нэр", () => projectNameBox.Text),
+        ("Үндэслэл", "Төслийн төрөл", () => ComboText(projectTypeBox)),
+        ("Үндэслэл", "Үе шат", () => ComboText(projectStageBox)),
+        ("Үндэслэл", "Үндэслэлийн төрөл", () => basisSourceBox.Text),
+        ("Үндэслэл", "Хүсэлтийн дугаар", () => requestNumberBox.Text),
+        ("Үндэслэл", "Төслийн хаяг", () => siteAddressBox.Text),
+        ("Үндэслэл", "Газрын холбоос", () => landReferenceBox.Text),
+        ("Үндэслэл", "Эх байгууллага", () => basisSourceOrganizationBox.Text),
+        ("Үндэслэл", "Товч мэдээлэл", () => basisSummaryBox.Text),
+        // The banner already says whether the project is on Cloud ERA; this is
+        // the address behind that word, so it belongs with the rest of the
+        // record rather than in a card of its own.
+        ("Үндэслэл", "Cloud ERA", () => cloudLinkText.Text),
+        ("Уялдаа, баталгаажуулалт", "АТД дугаар", () => atdNumberBox.Text),
+        ("Уялдаа, баталгаажуулалт", "Олгосон байгууллага", () => atdAuthorityBox.Text),
+        ("Уялдаа, баталгаажуулалт", "Төлөв", () => atdStatusBox.Text),
+        ("Уялдаа, баталгаажуулалт", "Шаардлага, нөхцөл", () => atdSummaryBox.Text),
+    ];
+
+    private static string ComboText(ComboBox box) =>
+        box.SelectedItem switch
+        {
+            IStudioProjectTypeDefinition type => type.Label,
+            StudioProjectStageDefinition stage => stage.Label,
+            null => "",
+            var value => value.ToString() ?? "",
+        };
+
+    private void RefreshProjectRecordView()
+    {
+        projectRecordView.Children.Clear();
+        if (!state.HasOpenProject)
+            return;
+
+        string openSection = "";
+        StackPanel? rows = null;
+        foreach ((string section, string label, Func<string> value) in ProjectRecordFields)
+        {
+            if (!section.Equals(openSection, StringComparison.Ordinal))
+            {
+                openSection = section;
+                var card = new Border
+                {
+                    Background = StudioTheme.PanelBrush,
+                    BorderBrush = StudioTheme.BorderBrush,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(20, 16, 20, 8),
+                    Margin = new Thickness(0, 0, 0, 12),
+                };
+                var body = new StackPanel();
+                body.Children.Add(new TextBlock
+                {
+                    Text = section,
+                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = StudioTheme.TextBrush,
+                    Margin = new Thickness(0, 0, 0, 12),
+                });
+                rows = new StackPanel();
+                body.Children.Add(rows);
+                card.Child = body;
+                projectRecordView.Children.Add(card);
+            }
+
+            rows!.Children.Add(BuildProjectRecordRow(label, value()));
+        }
+    }
+
+    private static UIElement BuildProjectRecordRow(string label, string value)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var name = new TextBlock
+        {
+            Text = label,
+            FontSize = 12,
+            Foreground = StudioTheme.MutedTextBrush,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 16, 0),
+        };
+        Grid.SetColumn(name, 0);
+        row.Children.Add(name);
+
+        string text = (value ?? "").Trim();
+        var written = new TextBlock
+        {
+            // An em dash rather than an empty line: the field is known to be
+            // part of the record and known to be unfilled.
+            Text = text.Length == 0 ? "—" : text,
+            FontSize = 13,
+            Foreground = text.Length == 0 ? StudioTheme.FaintTextBrush : StudioTheme.TextBrush,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        Grid.SetColumn(written, 1);
+        row.Children.Add(written);
+        return row;
+    }
+
+    /// <summary>
+    /// Fills the masthead from the open project. Called wherever the project or
+    /// its edit mode moves, so it can never describe a project that is closed.
+    /// </summary>
+    private void RefreshProjectOverview()
+    {
+        if (!state.HasOpenProject)
+        {
+            projectOverviewBanner.Visibility = Visibility.Collapsed;
+            projectOverviewFacts.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        projectOverviewBanner.Visibility = Visibility.Visible;
+        projectOverviewFacts.Visibility = Visibility.Visible;
+
+        ProjectWorkspace project = state.Project;
+        projectOverviewName.Text = string.IsNullOrWhiteSpace(project.Identity.Name)
+            ? "Нэргүй төсөл"
+            : project.Identity.Name;
+        projectOverviewStageText.Text =
+            ProjectStageLabel(project.Identity.StageName).ToUpperInvariant();
+
+        // Read from the control the form edits rather than resolved again here,
+        // so the banner and the record can never name different types.
+        projectOverviewIdentity.Text = string.Join(
+            " · ",
+            new[] { project.Code, ComboText(projectTypeBox) }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        RefreshProjectOverviewCompany();
+        RefreshProjectOverviewFacts();
+        RefreshProjectTeamOverview();
+        // The record reads its values out of the form's own controls, so it is
+        // rebuilt here too - this runs when a project is bound to the shell,
+        // which is when those controls take their values.
+        RefreshProjectRecordView();
+        _ = RefreshProjectOverviewCoverAsync();
+    }
+
+    private void RefreshProjectOverviewCompany()
+    {
+        CompanyProfile company = state.Project.Foundation.DesignCompany.OrganizationSnapshot;
+        string name = CompanyDisplayName(company);
+        projectOverviewCompanyName.Text = string.IsNullOrWhiteSpace(name)
+            ? "Зураг төслийн байгууллага сонгогдоогүй"
+            : name;
+        projectOverviewCompanyRole.Text = "Зураг төсөл боловсруулагч байгууллага";
+        projectOverviewCompanyMonogram.Text = StudioOrganizationCrest.Initials(name);
+
+        ImageSource? logo = LoadLogoImage(company.LogoPath);
+        projectOverviewCompanyLogo.Source = logo;
+        projectOverviewCompanyCrest.Visibility = logo is null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// What the project is made of, each figure a way into the page that owns
+    /// it. Read from the open workspace, so nothing here can disagree with the
+    /// page it leads to.
+    /// </summary>
+    private void RefreshProjectOverviewFacts()
+    {
+        projectOverviewFacts.Children.Clear();
+        ProjectWorkspace project = state.Project;
+
+        AddProjectFact(
+            "Эх үүсвэр",
+            project.Sources.Count.ToString(),
+            "Revit, AutoCAD болон бусад эх үүсвэр",
+            StudioPage.Sources);
+        AddProjectFact(
+            "Альбумын хуудас",
+            state.Album.Pages.Count.ToString(),
+            "Одоогийн альбум дахь хуудас",
+            StudioPage.Albums);
+        if (project.BuildingGroups.Count > 0)
+        {
+            AddProjectFact(
+                "Барилга",
+                project.BuildingGroups.Count.ToString(),
+                "Төслийн барилгын бүрдэл",
+                StudioPage.Sources);
+        }
+
+        bool linked = project.Cloud.Origin.Equals(
+            ProjectOrigins.Cloud,
+            StringComparison.OrdinalIgnoreCase);
+        AddProjectFact(
+            "Cloud ERA",
+            linked ? "Холбогдсон" : "Локал",
+            linked
+                ? "Cloud ERA төсөлтэй холбоотой"
+                : "Зөвхөн энэ төхөөрөмж дээр",
+            StudioPage.Participants);
+    }
+
+    private void AddProjectFact(string title, string value, string detail, StudioPage page)
+    {
+        var card = new Border
+        {
+            Width = 214,
+            Background = StudioTheme.PanelBrush,
+            BorderBrush = StudioTheme.BorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16, 13, 16, 13),
+            Margin = new Thickness(0, 0, 12, 0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = detail,
+        };
+        var words = new StackPanel();
+        words.Children.Add(new TextBlock
+        {
+            Text = title.ToUpperInvariant(),
+            FontSize = 9.5,
+            FontWeight = FontWeights.Bold,
+            Foreground = StudioTheme.MutedTextBrush,
+        });
+        words.Children.Add(new TextBlock
+        {
+            Text = value,
+            FontSize = 21,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = StudioTheme.TextBrush,
+            Margin = new Thickness(0, 6, 0, 0),
+        });
+        card.Child = words;
+        card.MouseLeftButtonUp += (_, _) => SelectPage(page);
+        card.MouseEnter += (_, _) => card.BorderBrush = StudioTheme.BorderHoverBrush;
+        card.MouseLeave += (_, _) => card.BorderBrush = StudioTheme.BorderBrush;
+        projectOverviewFacts.Children.Add(card);
+    }
+
+    /// <summary>
+    /// The album's first page, drawn as the project's cover. Rendered once per
+    /// PDF, because this refresh runs on every edit-mode change.
+    /// </summary>
+    private async Task RefreshProjectOverviewCoverAsync()
+    {
+        string path = ResolveCurrentProjectAlbumPath() ?? "";
+        if (path.Length == 0 || !File.Exists(path))
+        {
+            overviewCoverPdfPath = "";
+            ApplyProjectOverviewCover(null);
+            return;
+        }
+
+        if (path.Equals(overviewCoverPdfPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        overviewCoverPdfPath = path;
+        try
+        {
+            System.Windows.Media.Imaging.BitmapSource? page =
+                await projectThumbnailImages.GetPageAsync(
+                    path,
+                    pageNumber: 1,
+                    pixelWidth: 520,
+                    CancellationToken.None);
+            if (path.Equals(overviewCoverPdfPath, StringComparison.OrdinalIgnoreCase))
+                ApplyProjectOverviewCover(page);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            ApplyProjectOverviewCover(null);
+        }
+    }
+
+    private void ApplyProjectOverviewCover(ImageSource? cover)
+    {
+        // Painted as the border's background so it is clipped to the rounded
+        // corners; an Image child would square them off.
+        projectOverviewCover.Background = cover is null
+            ? StudioTheme.InputBrush
+            : new ImageBrush(cover)
+            {
+                Stretch = Stretch.UniformToFill,
+                AlignmentX = AlignmentX.Center,
+                AlignmentY = AlignmentY.Top,
+            };
+    }
+}
