@@ -35,6 +35,8 @@ internal sealed class BoardCanvasSurface : Grid
     private static readonly SolidColorBrush SelectedEdgeBrush = Frozen(Color.FromRgb(64, 132, 214));
     private static readonly SolidColorBrush SelectedFillBrush = Frozen(Color.FromArgb(46, 64, 132, 214));
     private static readonly SolidColorBrush LabelBrush = Frozen(Color.FromRgb(70, 78, 92));
+    private static readonly SolidColorBrush AnnotationBrush = Frozen(Color.FromArgb(24, 150, 120, 60));
+    private static readonly SolidColorBrush AnnotationEdgeBrush = Frozen(Color.FromRgb(176, 146, 96));
 
     private readonly ScrollViewer scroll = new()
     {
@@ -199,14 +201,20 @@ internal sealed class BoardCanvasSurface : Grid
         {
             Width = Math.Max(1, rect.WidthMm * zoom),
             Height = Math.Max(1, rect.HeightMm * zoom),
-            Fill = selected ? SelectedFillBrush : CardBrush,
+            // An annotation is about the plan rather than a piece of it, and
+            // reads as a lighter thing on the surface for the same reason.
+            Fill = element.IsAnnotation
+                ? AnnotationBrush
+                : selected ? SelectedFillBrush : CardBrush,
             Stroke = selected
                 ? SelectedEdgeBrush
-                : element.IsPlaceholder ? PlaceholderEdgeBrush : CardEdgeBrush,
+                : element.IsAnnotation ? AnnotationEdgeBrush
+                : element.IsPlaceholder ? PlaceholderEdgeBrush
+                : CardEdgeBrush,
             StrokeThickness = selected ? 2 : 1,
             // A card with nothing in it yet is a state of the layout, so it is
             // drawn as an outline rather than as a fault.
-            StrokeDashArray = element.IsPlaceholder ? [5, 4] : null,
+            StrokeDashArray = element.IsPlaceholder || element.IsAnnotation ? [5, 4] : null,
             Tag = element,
             Cursor = Cursors.SizeAll,
         };

@@ -27,6 +27,20 @@ internal sealed partial class ShellView
     private readonly TextBox boardRowsBox = new() { Width = 56 };
     private readonly TextBox boardGutterBox = new() { Width = 56 };
     private readonly TextBox boardMarginBox = new() { Width = 56 };
+    private readonly ComboBox boardCardKindBox = new() { MinWidth = 180 };
+    private readonly ComboBox boardPlanCardBox = new() { MinWidth = 180 };
+    private readonly Button boardPlanFileButton = StudioWidgets.CreateButton("Ерөнхий төлөвлөгөө сонгох");
+    private readonly TextBlock boardPlanFileText = new()
+    {
+        Foreground = StudioTheme.MutedTextBrush,
+        FontSize = StudioTheme.HintFontSize,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly CheckBox boardConfirmCheck = new()
+    {
+        Content = "Хойд зүгийг баталсан",
+        Margin = new Thickness(0, 4, 0, 0),
+    };
     private readonly ComboBox boardAssetBox = new() { MinWidth = 260 };
     private readonly ComboBox boardCardLayoutBox = new() { MinWidth = 180 };
     private readonly TextBox boardCardCaptionBox = new();
@@ -73,6 +87,20 @@ internal sealed partial class ShellView
             new PortfolioLayoutChoice(ProjectPortfolioLayouts.FullBleed, "Карт дүүрэн (тайрна)"),
         };
         boardCardLayoutBox.DisplayMemberPath = nameof(PortfolioLayoutChoice.Label);
+        boardCardKindBox.ItemsSource = new[]
+        {
+            new PortfolioLayoutChoice(BoardElementKinds.Card, "Материалын карт"),
+            new PortfolioLayoutChoice(BoardElementKinds.Legend, "Тэмдэглэгээ (легенд)"),
+            new PortfolioLayoutChoice(BoardElementKinds.NorthArrow, "Хойд сум"),
+            new PortfolioLayoutChoice(BoardElementKinds.ScaleBar, "Масштабын шугам"),
+        };
+        boardCardKindBox.DisplayMemberPath = nameof(PortfolioLayoutChoice.Label);
+        boardPlanCardBox.DisplayMemberPath = nameof(BoardAssetChoice.Label);
+        boardCardKindBox.SelectionChanged += (_, _) => ApplyBoardInspector();
+        boardPlanCardBox.SelectionChanged += (_, _) => ApplyBoardInspector();
+        boardConfirmCheck.Checked += (_, _) => ApplyBoardInspector();
+        boardConfirmCheck.Unchecked += (_, _) => ApplyBoardInspector();
+        boardPlanFileButton.Click += (_, _) => ChooseBoardPlanFile();
         boardDpiBox.ItemsSource = new[] { 150, 200, 300, 600 };
         boardDpiBox.SelectedItem = 300;
         boardDpiBox.SelectionChanged += (_, _) => RefreshBoardInspector();
@@ -155,9 +183,18 @@ internal sealed partial class ShellView
             "Энэ хэмжээг PFA эсвэл PFR дээрээ тохируулж эх бэлдээрэй — " +
             "картын харьцаанд тохирсон эх хамгийн цэвэр гарна."));
         inspector.Children.Add(StudioWidgets.CreateFormRow("Нягтрал", boardDpiBox, 90));
+        inspector.Children.Add(StudioWidgets.CreateFormRow("Төрөл", boardCardKindBox, 90));
         inspector.Children.Add(StudioWidgets.CreateFormRow("Агуулга", boardAssetBox, 90));
         inspector.Children.Add(StudioWidgets.CreateFormRow("Байрлал", boardCardLayoutBox, 90));
         inspector.Children.Add(StudioWidgets.CreateFormRow("Тайлбар", boardCardCaptionBox, 90));
+        inspector.Children.Add(boardPlanFileButton);
+        inspector.Children.Add(boardPlanFileText);
+        inspector.Children.Add(StudioWidgets.CreateFormRow("Тайлбарлах", boardPlanCardBox, 90));
+        inspector.Children.Add(boardConfirmCheck);
+        inspector.Children.Add(StudioWidgets.CreateHint(
+            "Хойд зүг нь зурган дээр зарлагдаагүй бол сум автоматаар зурагдахгүй. " +
+            "Дутуу сум ил харагдаж засагдана; буруу заасан сум үл үзэгдэх бөгөөд " +
+            "шүүгчийн ширээн дээр илэрнэ."));
 
         inspector.Children.Add(StudioWidgets.CreateSectionHeader("Цуврал"));
         var sizeRow = new WrapPanel();
@@ -249,11 +286,15 @@ internal sealed partial class ShellView
         boardAssetBox.ItemsSource = BoardAssetChoices();
         boardAssetBox.DisplayMemberPath = nameof(BoardAssetChoice.Label);
 
+        boardPlanCardBox.ItemsSource = PlanCardChoices();
         if (card is null)
         {
             boardCardSizeText.Text = "Карт сонгоогүй байна.";
             boardCardCaptionBox.Text = "";
             boardAssetBox.SelectedItem = null;
+            boardCardKindBox.SelectedItem = null;
+            boardPlanFileText.Text = "";
+            ShowCardControlsFor(null);
             boardInspectorSuspended = false;
             RefreshBoardSummary();
             return;
@@ -265,8 +306,76 @@ internal sealed partial class ShellView
             .FirstOrDefault(choice => choice.ItemId == card.AssetItemId);
         boardCardLayoutBox.SelectedItem = (boardCardLayoutBox.ItemsSource as IEnumerable<PortfolioLayoutChoice>)?
             .FirstOrDefault(choice => choice.Value == card.Layout);
+        boardCardKindBox.SelectedItem = (boardCardKindBox.ItemsSource as IEnumerable<PortfolioLayoutChoice>)?
+            .FirstOrDefault(choice => choice.Value == card.Kind);
+        boardPlanCardBox.SelectedItem = (boardPlanCardBox.ItemsSource as IEnumerable<BoardAssetChoice>)?
+            .FirstOrDefault(choice => choice.ItemId == card.PlanCardElementId);
+        boardConfirmCheck.IsChecked = card.IsConfirmed;
+        boardPlanFileText.Text = string.IsNullOrWhiteSpace(card.PlanPath)
+            ? "Ерөнхий төлөвлөгөө холбоогүй."
+            : Path.GetFileName(card.PlanPath) +
+              (File.Exists(card.PlanPath) ? "" : "  — файл олдсонгүй");
+        ShowCardControlsFor(card);
         boardInspectorSuspended = false;
         RefreshBoardSummary();
+    }
+
+    /// <summary>
+    /// Only what this kind of card can answer for. A legend has no layout and
+    /// an image has nothing to confirm, and offering either would invite the
+    /// user to set something that does nothing.
+    /// </summary>
+    private void ShowCardControlsFor(BoardElement? card)
+    {
+        bool isCard = card is not null && !card.IsAnnotation;
+        bool isAnnotation = card is not null && card.IsAnnotation;
+        boardAssetBox.IsEnabled = isCard;
+        boardCardLayoutBox.IsEnabled = isCard;
+        boardPlanFileButton.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
+        boardPlanFileText.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
+        boardPlanCardBox.IsEnabled = isAnnotation;
+        boardConfirmCheck.Visibility =
+            card?.Kind == BoardElementKinds.NorthArrow ? Visibility.Visible : Visibility.Collapsed;
+        boardCardKindBox.IsEnabled = card is not null;
+    }
+
+    /// <summary>The cards on this board that hold a plan an annotation could describe.</summary>
+    private List<BoardAssetChoice> PlanCardChoices()
+    {
+        var choices = new List<BoardAssetChoice> { new("", "— заагаагүй —") };
+        if (SelectedBoard is { } board)
+        {
+            choices.AddRange(board.Elements
+                .Where(element => !element.IsAnnotation && !string.IsNullOrWhiteSpace(element.PlanPath))
+                .Select(element => new BoardAssetChoice(
+                    element.Id,
+                    string.IsNullOrWhiteSpace(element.Caption)
+                        ? Path.GetFileNameWithoutExtension(element.PlanPath)
+                        : element.Caption)));
+        }
+        return choices;
+    }
+
+    private void ChooseBoardPlanFile()
+    {
+        if (boardCanvas.Selected is not { } card)
+            return;
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Ерөнхий төлөвлөгөөний экспорт сонгох",
+            Filter = "CityGen самбарын экспорт (*.erks-citygen-board.json)|*.erks-citygen-board.json",
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        card.PlanPath = dialog.FileName;
+        card.AssetItemId = "";
+        card.Normalize();
+        state.SaveProject();
+        boardCanvas.Redraw();
+        RefreshBoardInspector();
     }
 
     /// <summary>
@@ -291,8 +400,21 @@ internal sealed partial class ShellView
 
     private string DescribeBoardCard(BoardElement card)
     {
+        if (card.IsAnnotation)
+        {
+            string name = card.Kind switch
+            {
+                BoardElementKinds.Legend => "Тэмдэглэгээ",
+                BoardElementKinds.NorthArrow => "Хойд сум",
+                BoardElementKinds.ScaleBar => "Масштаб",
+                _ => card.Kind,
+            };
+            return string.IsNullOrWhiteSpace(card.PlanCardElementId) ? name + " (заагаагүй)" : name;
+        }
         if (!string.IsNullOrWhiteSpace(card.Caption))
             return card.Caption;
+        if (!string.IsNullOrWhiteSpace(card.PlanPath))
+            return Path.GetFileNameWithoutExtension(card.PlanPath);
         ProjectPortfolioItem? asset = FindBoardAsset(card);
         return asset is null ? "Хоосон карт" : asset.Title;
     }
@@ -373,10 +495,15 @@ internal sealed partial class ShellView
         if (boardInspectorSuspended || boardCanvas.Selected is not { } card)
             return;
 
+        if (boardCardKindBox.SelectedItem is PortfolioLayoutChoice kind)
+            card.Kind = kind.Value;
         if (boardAssetBox.SelectedItem is BoardAssetChoice asset)
             card.AssetItemId = asset.ItemId;
+        if (boardPlanCardBox.SelectedItem is BoardAssetChoice plan)
+            card.PlanCardElementId = plan.ItemId;
         if (boardCardLayoutBox.SelectedItem is PortfolioLayoutChoice layout)
             card.Layout = layout.Value;
+        card.IsConfirmed = boardConfirmCheck.IsChecked == true;
         card.Caption = boardCardCaptionBox.Text.Trim();
         card.Normalize();
         state.SaveProject();
@@ -525,13 +652,26 @@ internal sealed partial class ShellView
             element.ColumnSpan,
             element.Row,
             element.RowSpan,
-            element.CropX,
-            element.CropY,
-            element.CropWidth,
-            element.CropHeight,
-            element.FocalPointX,
-            element.FocalPointY);
+            PlanPath: element.PlanPath,
+            Id: element.Id,
+            Kind: ToBuildKind(element.Kind),
+            PlanCardId: element.PlanCardElementId,
+            IsConfirmed: element.IsConfirmed,
+            CropX: element.CropX,
+            CropY: element.CropY,
+            CropWidth: element.CropWidth,
+            CropHeight: element.CropHeight,
+            FocalPointX: element.FocalPointX,
+            FocalPointY: element.FocalPointY);
     }
+
+    private static string ToBuildKind(string kind) => kind switch
+    {
+        BoardElementKinds.Legend => BoardBuildCardKinds.Legend,
+        BoardElementKinds.NorthArrow => BoardBuildCardKinds.NorthArrow,
+        BoardElementKinds.ScaleBar => BoardBuildCardKinds.ScaleBar,
+        _ => BoardBuildCardKinds.Content,
+    };
 
     private void OpenBoardPdf()
     {

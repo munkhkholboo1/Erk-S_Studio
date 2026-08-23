@@ -259,14 +259,39 @@ public static class BoardGridFitting
     }
 }
 
+/// <summary>
+/// The catalogue of things that can sit on a board. It is deliberately closed:
+/// a board is a competition board and not a drawing program, and the surest way
+/// to never finish this is to keep adding to this list.
+/// </summary>
 public static class BoardElementKinds
 {
     /// <summary>
     /// A framed area holding one piece of the project's material, or nothing
-    /// yet. The catalogue of element kinds is deliberately closed; a board is a
-    /// competition board and not a drawing program.
+    /// yet.
     /// </summary>
     public const string Card = "Card";
+
+    /// <summary>What the plan's surfaces mean, taken from the plan itself.</summary>
+    public const string Legend = "Legend";
+
+    public const string NorthArrow = "NorthArrow";
+
+    public const string ScaleBar = "ScaleBar";
+
+    /// <summary>Everything except a card describes a plan rather than holding one.</summary>
+    public static bool IsAnnotation(string? kind) =>
+        !string.IsNullOrWhiteSpace(kind) &&
+        !kind.Equals(Card, StringComparison.OrdinalIgnoreCase);
+
+    public static string Normalize(string? kind)
+    {
+        string value = (kind ?? "").Trim();
+        return value.Equals(Legend, StringComparison.OrdinalIgnoreCase) ? Legend
+            : value.Equals(NorthArrow, StringComparison.OrdinalIgnoreCase) ? NorthArrow
+            : value.Equals(ScaleBar, StringComparison.OrdinalIgnoreCase) ? ScaleBar
+            : Card;
+    }
 }
 
 /// <summary>
@@ -306,6 +331,32 @@ public sealed class BoardElement
     /// </summary>
     public string AssetItemId { get; set; } = "";
 
+    /// <summary>
+    /// A CityGen board export this card draws from its classification, instead
+    /// of a file it places.
+    ///
+    /// It is held as a path rather than pulled into the project's own store.
+    /// That is a known gap: the file lives beside the drawing it came from, so
+    /// renaming or moving that drawing breaks the link. Bringing it into the
+    /// pool the way a delivered page is brought in is the proper answer and is
+    /// not done yet.
+    /// </summary>
+    public string PlanPath { get; set; } = "";
+
+    /// <summary>
+    /// For an annotation, the card whose plan it describes. A legend, an arrow
+    /// and a scale bar are statements about one particular drawing.
+    /// </summary>
+    public string PlanCardElementId { get; set; } = "";
+
+    /// <summary>
+    /// The user has looked at a value the source only assumed - which way north
+    /// is, most often - and agreed it. Until then the annotation that depends
+    /// on it is not drawn: a missing arrow is visible and gets fixed, while one
+    /// pointing the wrong way looks exactly like one pointing the right way.
+    /// </summary>
+    public bool IsConfirmed { get; set; }
+
     /// <summary><see cref="ProjectPortfolioLayouts"/>.</summary>
     public string Layout { get; set; } = ProjectPortfolioLayouts.FitPage;
 
@@ -331,7 +382,12 @@ public sealed class BoardElement
 
     public BoardGridSpan Span => new(Column, ColumnSpan, Row, RowSpan);
 
-    public bool IsPlaceholder => string.IsNullOrWhiteSpace(AssetItemId);
+    public bool IsPlaceholder =>
+        !BoardElementKinds.IsAnnotation(Kind) &&
+        string.IsNullOrWhiteSpace(AssetItemId) &&
+        string.IsNullOrWhiteSpace(PlanPath);
+
+    public bool IsAnnotation => BoardElementKinds.IsAnnotation(Kind);
 
     public bool ShowsWholeSource =>
         CropX == 0 && CropY == 0 && CropWidth == 1 && CropHeight == 1;
@@ -339,12 +395,14 @@ public sealed class BoardElement
     public void Normalize()
     {
         Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString("N") : Id.Trim();
-        Kind = BoardElementKinds.Card;
+        Kind = BoardElementKinds.Normalize(Kind);
         Column = Math.Max(0, Column);
         Row = Math.Max(0, Row);
         ColumnSpan = Math.Max(1, ColumnSpan);
         RowSpan = Math.Max(1, RowSpan);
         AssetItemId = (AssetItemId ?? "").Trim();
+        PlanPath = (PlanPath ?? "").Trim();
+        PlanCardElementId = (PlanCardElementId ?? "").Trim();
         Caption = (Caption ?? "").Trim();
         Layout = NormalizeLayout(Layout);
         CropX = Clamp01(CropX, 0);
@@ -383,6 +441,9 @@ public sealed class BoardElement
         IsLocked = IsLocked,
         IsHidden = IsHidden,
         AssetItemId = AssetItemId,
+        PlanPath = PlanPath,
+        PlanCardElementId = PlanCardElementId,
+        IsConfirmed = IsConfirmed,
         Layout = Layout,
         Caption = Caption,
         CropX = CropX,
