@@ -169,6 +169,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         string traceId = "";
         string currentSourceId = "";
         string currentRevisionId = "";
+        string currentOrganizationConcurrencyToken = "";
         IReadOnlyDictionary<string, string[]>? fieldErrors = null;
         if (!string.IsNullOrWhiteSpace(exception.Response))
         {
@@ -183,6 +184,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                     traceId = error.TraceId;
                     currentSourceId = error.CurrentSourceId;
                     currentRevisionId = error.CurrentRevisionId;
+                    currentOrganizationConcurrencyToken = error.CurrentOrganizationConcurrencyToken;
                     fieldErrors = error.FieldErrors;
                     if (!string.IsNullOrWhiteSpace(error.Message))
                         message = error.Message;
@@ -203,7 +205,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 traceId,
                 fieldErrors,
                 currentSourceId,
-                currentRevisionId)
+                currentRevisionId,
+                currentOrganizationConcurrencyToken)
             : new StudioAccountException(message);
     }
 }

@@ -39,6 +39,7 @@ internal sealed class StudioAccountException : Exception
     public string TraceId { get; } = "";
     public string CurrentSourceId { get; } = "";
     public string CurrentRevisionId { get; } = "";
+    public string CurrentOrganizationConcurrencyToken { get; } = "";
     public IReadOnlyDictionary<string, string[]> FieldErrors { get; } =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
 
@@ -53,13 +54,16 @@ internal sealed class StudioAccountException : Exception
         string traceId = "",
         IReadOnlyDictionary<string, string[]>? fieldErrors = null,
         string currentSourceId = "",
-        string currentRevisionId = "") : base(message)
+        string currentRevisionId = "",
+        string currentOrganizationConcurrencyToken = "") : base(message)
     {
         StatusCode = statusCode;
         ErrorCode = errorCode;
         TraceId = traceId?.Trim() ?? "";
         CurrentSourceId = currentSourceId?.Trim() ?? "";
         CurrentRevisionId = currentRevisionId?.Trim() ?? "";
+        CurrentOrganizationConcurrencyToken =
+            currentOrganizationConcurrencyToken?.Trim() ?? "";
         var details = fieldErrors is null
             ? new Dictionary<string, string[]>(
                 StringComparer.OrdinalIgnoreCase)
@@ -795,6 +799,11 @@ internal sealed class StudioAccountService :
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        // Without the gate, a server with no ДАН connection answers this with
+        // a raw 503 instead of a controlled feature-unavailable message.
+        await EnsureCapabilityAsync(
+            CloudEraFeatures.DanOrganizationRegistryImportV1,
+            cancellationToken).ConfigureAwait(true);
         RequireExactConcurrencyToken(
             baseConcurrencyToken,
             "Organization registry import requires the original canonical concurrency token.");
@@ -814,6 +823,9 @@ internal sealed class StudioAccountService :
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        await EnsureCapabilityAsync(
+            CloudEraFeatures.DanOrganizationRegistryImportV1,
+            cancellationToken).ConfigureAwait(true);
         return await GetAuthorizedAsync<StudioOrganizationRegistryImportResponse>(
             "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId) +
             "/registry-imports/" + Uri.EscapeDataString(importId),
@@ -2182,7 +2194,8 @@ internal sealed class StudioAccountService :
                 StudioCloudTraceIdentifier.Resolve(response, error),
                 error?.FieldErrors,
                 error?.CurrentSourceId ?? "",
-                error?.CurrentRevisionId ?? "");
+                error?.CurrentRevisionId ?? "",
+                error?.CurrentOrganizationConcurrencyToken ?? "");
         }
 
         TResponse? value = await response.Content.ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken).ConfigureAwait(true);

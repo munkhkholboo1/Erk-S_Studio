@@ -847,10 +847,27 @@ internal sealed partial class ShellView
         catch (StudioAccountException exception) when (
             exception.StatusCode == HttpStatusCode.PreconditionFailed)
         {
-            SetStatus(
-                "Байгууллагын мэдээлэл сервер дээр өөрчлөгдсөн тул хуучин " +
-                "draft-аар дарж бичсэнгүй. Компанийн санг шинэчлээд " +
-                $"өөрчлөлтөө харьцуулна уу. {exception.Message}");
+            // The 412 carries the organization's current canonical token so a
+            // reviewed retry does not require a full re-list first. The draft
+            // stays open; only a deliberate re-save applies over the newer
+            // server version.
+            if (!string.IsNullOrWhiteSpace(exception.CurrentOrganizationConcurrencyToken))
+            {
+                entry.ConcurrencyToken = exception.CurrentOrganizationConcurrencyToken;
+                store.Save(companyEntries);
+                SetStatus(
+                    "Байгууллагын мэдээлэл сервер дээр өөрчлөгдсөн тул хуучин " +
+                    "draft-аар дарж бичсэнгүй. Өөрчлөлтөө харьцуулаад дахин " +
+                    "хадгалбал серверийн сүүлийн хувилбар дээр бичигдэнэ. " +
+                    exception.Message);
+            }
+            else
+            {
+                SetStatus(
+                    "Байгууллагын мэдээлэл сервер дээр өөрчлөгдсөн тул хуучин " +
+                    "draft-аар дарж бичсэнгүй. Компанийн санг шинэчлээд " +
+                    $"өөрчлөлтөө харьцуулна уу. {exception.Message}");
+            }
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {

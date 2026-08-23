@@ -52,6 +52,7 @@ public static class CloudEraFeatures
 {
     public const string Projects = "projects";
     public const string Organizations = "organizations";
+    public const string DanOrganizationRegistryImportV1 = "dan-organization-registry-import-v1";
     public const string Collaboration = "collaboration";
     public const string ConceptArchitectAssignment = "concept-architect-assignment";
     public const string ParticipantRoleManagement = "participant-role-management";

@@ -621,6 +621,13 @@ internal sealed class StudioCloudApiError
     public string TraceId { get; set; } = "";
     public string CurrentSourceId { get; set; } = "";
     public string CurrentRevisionId { get; set; } = "";
+
+    /// <summary>
+    /// The organization's canonical concurrency token at the moment a write
+    /// was refused with 412, so the caller can retry without a full re-list.
+    /// </summary>
+    public string CurrentOrganizationConcurrencyToken { get; set; } = "";
+
     public Dictionary<string, string[]>? FieldErrors { get; set; }
 }
 
