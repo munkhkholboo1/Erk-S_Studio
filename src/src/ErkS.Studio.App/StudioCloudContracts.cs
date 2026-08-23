@@ -881,6 +881,8 @@ internal sealed class StudioSheetComment
     public int PageNumber { get; set; }
     public double AnchorX { get; set; }
     public double AnchorY { get; set; }
+    public string Shape { get; set; } = "";
+    public List<StudioSheetCommentPoint> ShapePoints { get; set; } = [];
     public string Kind { get; set; } = "";
     public string Status { get; set; } = "";
     public string Body { get; set; } = "";
@@ -914,6 +916,8 @@ internal sealed class StudioSheetCommentCreateRequest
     public int PageNumber { get; set; }
     public double AnchorX { get; set; }
     public double AnchorY { get; set; }
+    public string Shape { get; set; } = "";
+    public List<StudioSheetCommentPoint> ShapePoints { get; set; } = [];
     public string Kind { get; set; } = "";
     public string Body { get; set; } = "";
 }
@@ -926,4 +930,11 @@ internal sealed class StudioSheetCommentReplyRequest
 internal sealed class StudioSheetCommentStatusRequest
 {
     public string Status { get; set; } = "";
+}
+
+/// <summary>One point of a drawn mark, as a fraction of the page.</summary>
+internal sealed class StudioSheetCommentPoint
+{
+    public double X { get; set; }
+    public double Y { get; set; }
 }

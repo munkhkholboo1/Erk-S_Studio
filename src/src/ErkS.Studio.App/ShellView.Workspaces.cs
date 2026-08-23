@@ -67,6 +67,16 @@ internal sealed partial class ShellView
         HorizontalAlignment = HorizontalAlignment.Stretch,
         VerticalAlignment = VerticalAlignment.Stretch,
     };
+    private readonly ComboBox albumPageSelectorBox = new();
+    private readonly TextBlock albumPageOwnerText = new();
+
+    /// <summary>
+    /// The album view in marking mode. It takes the place of the reader in the
+    /// same panel rather than opening a window of its own: a reviewer marks the
+    /// fault on the drawing they are already looking at.
+    /// </summary>
+    private SheetMarkupSurface? albumMarkupSurface;
+    private bool albumMarkupMode;
     private readonly ComboBox albumPageFormatBox = new();
     private readonly ComboBox albumPlacementBox = new();
     private readonly ComboBox albumSectionBox = new();
@@ -2079,11 +2089,6 @@ internal sealed partial class ShellView
         {
             primaryWorkspace.ColumnDefinitions.Add(pane switch
             {
-                StudioAlbumWorkspacePane.Navigator => new ColumnDefinition
-                {
-                    Width = new GridLength(StudioAlbumWorkspaceLayout.NavigatorWidth),
-                    MinWidth = StudioAlbumWorkspaceLayout.NavigatorMinimumWidth,
-                },
                 StudioAlbumWorkspacePane.Preview => new ColumnDefinition
                 {
                     Width = new GridLength(1, GridUnitType.Star),
@@ -2098,23 +2103,19 @@ internal sealed partial class ShellView
             });
         }
 
-        UIElement navigatorPane = BuildAlbumNavigatorPane();
-        primaryWorkspace.Children.Add(navigatorPane);
-        Grid.SetColumn(navigatorPane, 0);
-
         UIElement previewPane = BuildPane(
             "Альбумын бодит харагдац",
             albumPreviewHost,
             new Thickness(0));
         primaryWorkspace.Children.Add(previewPane);
-        Grid.SetColumn(previewPane, 1);
+        Grid.SetColumn(previewPane, 0);
 
         UIElement propertiesPane = BuildPane(
             "Альбумын тохиргоо",
             BuildAlbumProperties(),
             new Thickness(1, 0, 0, 0));
         primaryWorkspace.Children.Add(propertiesPane);
-        Grid.SetColumn(propertiesPane, 2);
+        Grid.SetColumn(propertiesPane, 1);
 
         workspace.Children.Add(primaryWorkspace);
         Grid.SetColumn(albumProjectChatHost, 1);
@@ -2724,8 +2725,23 @@ internal sealed partial class ShellView
         // for the ones this account may edit.
         albumSheetCommentButton.Margin = new Thickness(0, 0, 0, 10);
         albumSheetCommentButton.HorizontalAlignment = HorizontalAlignment.Stretch;
-        albumSheetCommentButton.Click += (_, _) => OpenSheetComments();
+        albumSheetCommentButton.Click += (_, _) => ToggleSheetMarkup();
         panel.Children.Add(albumSheetCommentButton);
+
+        // The page these settings belong to, chosen here rather than in a list
+        // beside the drawing. The viewer can be told to go to a page but never
+        // asked which page is on screen, so the choice has to be made on this
+        // side; picking one moves the viewer to it.
+        albumPageSelectorBox.Margin = new Thickness(0, 0, 0, 4);
+        albumPageSelectorBox.DisplayMemberPath = nameof(AlbumPageChoice.Label);
+        albumPageSelectorBox.SelectionChanged += (_, _) => ApplyAlbumPageSelection();
+        panel.Children.Add(StudioWidgets.CreateFormRow("Хуудас", albumPageSelectorBox, 76));
+        albumPageOwnerText.FontSize = 11;
+        albumPageOwnerText.Foreground = StudioTheme.MutedTextBrush;
+        albumPageOwnerText.TextWrapping = TextWrapping.Wrap;
+        albumPageOwnerText.Margin = new Thickness(80, 0, 0, 12);
+        panel.Children.Add(albumPageOwnerText);
+
         panel.Children.Add(StudioWidgets.CreateFormRow("Дугаар", albumPageNumberBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Нэр", albumPageTitleBox, 76));
         panel.Children.Add(StudioWidgets.CreateFormRow("Зургийн төрөл", albumContentKindBox, 76));
@@ -2819,6 +2835,7 @@ internal sealed partial class ShellView
 
         bindingAlbumPage = true;
         albumPagesWorkspaceList.ItemsSource = items;
+        RefreshAlbumPageChoices();
         albumPagesWorkspaceList.SelectedItem = items.FirstOrDefault(item => string.Equals(
             item.SelectionKey,
             requestedSelectionKey,
@@ -3342,13 +3359,11 @@ internal sealed partial class ShellView
             .Concat(state.Album.Sections.Select(section => new SectionChoice(section.Id, section.Title)))
             .ToList();
 
-        // A comment does not change the drawing, so it follows the selection
-        // rather than the right to edit: a reviewer with read-only access can
-        // still say what they think of the sheet in front of them.
+        // A comment does not change the drawing, so it follows the chosen page
+        // rather than the right to edit: a reviewer holds none of the sources
+        // and may still say what they think of the sheet in front of them.
         albumSheetCommentButton.IsEnabled =
-            albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem commentTarget &&
-            !commentTarget.IsGroup &&
-            selectedPageCount == 1;
+            albumPageSelectorBox.SelectedItem is AlbumPageChoice;
 
         if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem selected &&
             selected.Page is AlbumPageDefinition page)
@@ -3465,6 +3480,150 @@ internal sealed partial class ShellView
         BindAlbumPageRoleControls(canEditProjectContent);
         bindingAlbumPage = false;
         RefreshAlbumPagePreview();
+    }
+
+    /// <summary>One page of the album, as it can be chosen for settings.</summary>
+    private sealed record AlbumPageChoice(
+        int PageNumber,
+        string Label,
+        string Owner,
+        string PageKey);
+
+    /// <summary>
+    /// Fills the page chooser from the album itself.
+    ///
+    /// The built album is the only thing that knows every page there is. The
+    /// shared manifest names the pages and says who contributed each, and this
+    /// device knows the titles of its own - but neither is complete, and a
+    /// reviewer holds none of the sources at all. So the album is counted, and
+    /// what is known about each page is laid over that count. Every page of the
+    /// album can then be chosen, whoever made it.
+    /// </summary>
+    private void RefreshAlbumPageChoices()
+    {
+        if (!state.HasOpenProject)
+        {
+            albumPageSelectorBox.ItemsSource = Array.Empty<AlbumPageChoice>();
+            albumPageOwnerText.Text = "";
+            return;
+        }
+
+        var named = new Dictionary<int, AlbumPageChoice>();
+        foreach (ProjectCloudAlbumComponentReference component in
+            state.Project.Cloud.SharedAlbumComponents ?? [])
+        {
+            string label = string.IsNullOrWhiteSpace(component.Label)
+                ? component.Code
+                : component.Label;
+            foreach (ProjectCloudAlbumComponentPageReference page in component.Pages)
+            {
+                if (page.PageNumber > 0 && !named.ContainsKey(page.PageNumber))
+                {
+                    named[page.PageNumber] = new AlbumPageChoice(
+                        page.PageNumber,
+                        label,
+                        component.OwnerEmail,
+                        page.PageKey);
+                }
+            }
+        }
+
+        foreach (AlbumPageWorkspaceItem item in albumPagesWorkspaceList.Items
+            .OfType<AlbumPageWorkspaceItem>()
+            .Where(item => !item.IsGroup))
+        {
+            if (ResolveBuiltAlbumPage(item) is int page && page > 0 && !named.ContainsKey(page))
+                named[page] = new AlbumPageChoice(page, item.Title, "", "");
+        }
+
+        int count = ResolveAlbumPageCount();
+        if (count <= 0)
+            count = named.Count == 0 ? 0 : named.Keys.Max();
+
+        var choices = new List<AlbumPageChoice>(count);
+        for (int page = 1; page <= count; page++)
+        {
+            AlbumPageChoice known = named.TryGetValue(page, out AlbumPageChoice? entry)
+                ? entry
+                : new AlbumPageChoice(page, "", "", "");
+            choices.Add(known with
+            {
+                Label = known.Label.Length == 0
+                    ? $"{page:00}  ·  Хуудас {page}"
+                    : $"{page:00}  ·  {known.Label}",
+            });
+        }
+
+        object? previous = albumPageSelectorBox.SelectedItem;
+        albumPageSelectorBox.ItemsSource = choices;
+        albumPageSelectorBox.SelectedItem = previous is AlbumPageChoice earlier
+            ? choices.FirstOrDefault(choice => choice.PageNumber == earlier.PageNumber)
+            : choices.FirstOrDefault();
+        albumSheetCommentButton.IsEnabled = choices.Count > 0;
+        if (choices.Count == 0)
+        {
+            albumPageOwnerText.Text =
+                "Альбум хараахан байгуулагдаагүй байна. «Альбум байгуулах» дарснаар " +
+                "хуудаснууд гарч ирнэ.";
+        }
+    }
+
+    /// <summary>
+    /// How many pages the built album has. This is read from the album rather
+    /// than counted from the sources, because the sources of the other
+    /// participants are not on this device.
+    /// </summary>
+    private int ResolveAlbumPageCount()
+    {
+        string? previewPath = ResolveAlbumPreviewPath();
+        if (string.IsNullOrWhiteSpace(previewPath))
+            return 0;
+
+        if (string.Equals(previewPath, albumPageCountPath, StringComparison.OrdinalIgnoreCase))
+            return albumPageCountValue;
+
+        using PdfiumDocument? document = PdfiumDocument.Open(previewPath);
+        albumPageCountPath = previewPath;
+        albumPageCountValue = document?.PageCount ?? 0;
+        return albumPageCountValue;
+    }
+
+    private string albumPageCountPath = "";
+    private int albumPageCountValue;
+
+    /// <summary>
+    /// Moves the viewer to the chosen page and opens whatever of it this device
+    /// may edit. A page contributed by somebody else has no entry here; the
+    /// panel then says whose it is rather than showing empty fields.
+    /// </summary>
+    private void ApplyAlbumPageSelection()
+    {
+        if (bindingAlbumPage || albumPageSelectorBox.SelectedItem is not AlbumPageChoice choice)
+            return;
+
+        string? previewPath = ResolveAlbumPreviewPath();
+        if (albumMarkupMode)
+            ShowAlbumMarkup(choice);
+        else if (!string.IsNullOrWhiteSpace(previewPath))
+            ShowAlbumPdfPage(previewPath, choice.PageNumber);
+
+        AlbumPageWorkspaceItem? owned = albumPagesWorkspaceList.Items
+            .OfType<AlbumPageWorkspaceItem>()
+            .FirstOrDefault(item =>
+                !item.IsGroup &&
+                (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item)) == choice.PageNumber);
+        if (owned is not null)
+        {
+            albumPageOwnerText.Text = "";
+            albumPagesWorkspaceList.SelectedItem = owned;
+            return;
+        }
+
+        albumPagesWorkspaceList.SelectedItem = null;
+        albumPageOwnerText.Text = choice.Owner.Length == 0
+            ? "Энэ хуудас энэ төхөөрөмжийн эх үүсвэрээс гараагүй тул засах боломжгүй."
+            : $"Энэ хуудсыг {choice.Owner} оруулсан. Засах эрх нь тэдэнд байна — " +
+              "коммент бичиж санал хүргэнэ үү.";
     }
 
     private void SetAlbumPagePropertiesEnabled(bool enabled)
@@ -3765,63 +3924,105 @@ internal sealed partial class ShellView
     /// able to change it, which is the whole point for a reviewer who must not
     /// be given the drawing.
     /// </summary>
-    private void OpenSheetComments()
+    /// <summary>
+    /// Turns marking on and off in the album panel. On, the sheet is drawn by
+    /// Studio itself and can be marked; off, it goes back to the reader.
+    /// </summary>
+    private void ToggleSheetMarkup()
     {
-        if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
-            selected.IsGroup)
+        if (albumMarkupMode)
         {
-            SetStatus("Коммент бичих хуудсаа сонгоно уу.");
+            albumMarkupMode = false;
+            albumMarkupSurface?.Release();
+            albumSheetCommentButton.ToolTip = null;
+            RefreshAlbumPagePreview();
             return;
         }
 
-        string projectId = state.Project.Cloud.ServerProjectId;
-        if (!account.IsSignedIn || string.IsNullOrWhiteSpace(projectId))
+        if (albumPageSelectorBox.SelectedItem is not AlbumPageChoice choice)
+        {
+            SetStatus("Тэмдэглэгээ хийх хуудсаа «Хуудас» жагсаалтаас сонгоно уу.");
+            return;
+        }
+
+        if (!account.IsSignedIn || string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
         {
             SetStatus("Хуудасны коммент Cloud ERA-д хадгалагдана. Эхлээд нэвтэрч, төслөө холбоно уу.");
             return;
         }
 
-        // A drawing is named by its sheet; a page the album generates - a cover,
-        // a drawing list, a visualization - by the key its own plan carries.
-        SheetRecord? sheet = selected.Page is AlbumPageDefinition page
-            ? state.Library.Find(page.SheetKey)
-            : null;
-        string identity = StudioSheetCommentRules.PageIdentity(
-            sheet,
-            string.IsNullOrWhiteSpace(selected.GeneratedNavigationKey)
-                ? selected.CanonicalComponentCode
-                : selected.GeneratedNavigationKey);
-        if (identity.Length == 0)
-        {
-            SetStatus("Энэ хуудсанд коммент бэхлэх тогтвортой дугаар алга.");
-            return;
-        }
-
-        string? albumPath = ResolveAlbumPreviewPath();
-        int? builtPage = ResolveBuiltAlbumPage(selected);
-        if (string.IsNullOrWhiteSpace(albumPath) || builtPage is null)
+        if (string.IsNullOrWhiteSpace(ResolveAlbumPreviewPath()))
         {
             SetStatus(
-                "Хуудсыг харуулахын тулд эхлээд альбумаа байгуулна уу. " +
-                "Коммент альбум дээрх хуудсанд тавигдана.");
+                "Тэмдэглэгээ альбумын хуудсанд тавигдана. Эхлээд альбумаа байгуулна уу.");
             return;
         }
 
-        var window = new SheetCommentWindow(
-            account,
-            albumPageImages,
-            albumPath,
-            builtPage.Value,
-            identity,
-            projectId,
-            selected.Number,
-            selected.Title,
-            builtPage.Value,
-            canWrite: true)
+        albumMarkupMode = true;
+        ShowAlbumMarkup(choice);
+    }
+
+    /// <summary>
+    /// Puts the chosen page on the marking surface, in the panel the reader was
+    /// in.
+    ///
+    /// The page is named the way the whole album names it, so the author and a
+    /// reviewer who holds none of the sources arrive at the same conversation
+    /// about the same drawing. A project that has never synced has no such name
+    /// yet, and falls back to the name this device gives the sheet.
+    /// </summary>
+    private void ShowAlbumMarkup(AlbumPageChoice choice)
+    {
+        string? albumPath = ResolveAlbumPreviewPath();
+        if (string.IsNullOrWhiteSpace(albumPath))
+            return;
+
+        AlbumPageWorkspaceItem? owned = albumPagesWorkspaceList.Items
+            .OfType<AlbumPageWorkspaceItem>()
+            .FirstOrDefault(item =>
+                !item.IsGroup &&
+                (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item)) == choice.PageNumber);
+
+        string identity = StudioSheetCommentRules.AlbumPageIdentity(choice.PageKey);
+        if (identity.Length == 0 && owned is not null)
         {
-            Owner = Window.GetWindow(Root),
-        };
-        window.ShowDialog();
+            SheetRecord? sheet = owned.Page is AlbumPageDefinition page
+                ? state.Library.Find(page.SheetKey)
+                : null;
+            identity = StudioSheetCommentRules.PageIdentity(
+                sheet,
+                string.IsNullOrWhiteSpace(owned.GeneratedNavigationKey)
+                    ? owned.CanonicalComponentCode
+                    : owned.GeneratedNavigationKey);
+        }
+
+        if (identity.Length == 0)
+        {
+            SetStatus(
+                "Энэ хуудсанд тэмдэглэгээ бэхлэх тогтвортой нэр алга. " +
+                "Төслөө үүлэн рүү илгээснээр нэр үүснэ.");
+            albumMarkupMode = false;
+            return;
+        }
+
+        albumMarkupSurface ??= new SheetMarkupSurface(
+            account,
+            state.Project.Cloud.ServerProjectId,
+            canWrite: true,
+            onExit: ToggleSheetMarkup);
+
+        albumPreviewHost.Children.Clear();
+        if (albumMarkupSurface.Parent is Panel parent)
+            parent.Children.Remove(albumMarkupSurface);
+        albumPreviewHost.Children.Add(albumMarkupSurface);
+        albumSheetCommentButton.ToolTip = "Тэмдэглэгээний горимоос гарах";
+
+        _ = albumMarkupSurface.ShowPageAsync(
+            albumPath,
+            choice.PageNumber,
+            identity,
+            owned?.Number ?? choice.PageNumber.ToString(),
+            owned?.Title ?? "");
     }
 
     private void EditPdfSourcePage()
@@ -4105,6 +4306,23 @@ internal sealed partial class ShellView
         }
         if (inlineSiteContextEditor is not null)
         {
+            return;
+        }
+        // Marking owns the panel while it is on. A selection made in the album
+        // must not pull the sheet being marked out from under the reviewer.
+        if (albumMarkupMode)
+        {
+            return;
+        }
+
+        // The chosen page is what the reader shows, whoever contributed it. A
+        // page from another participant has no entry in this device's own list,
+        // and showing nothing for it would leave most of the album unviewable.
+        if (albumPageSelectorBox.SelectedItem is AlbumPageChoice chosen &&
+            ResolveAlbumPreviewPath() is string builtAlbum &&
+            !string.IsNullOrWhiteSpace(builtAlbum))
+        {
+            ShowAlbumPdfPage(builtAlbum, chosen.PageNumber);
             return;
         }
 

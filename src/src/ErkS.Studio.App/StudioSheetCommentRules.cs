@@ -21,6 +21,50 @@ internal static class StudioSheetCommentRules
     public const string StatusOpen = "Open";
     public const string StatusResolved = "Resolved";
 
+    /// <summary>
+    /// The mark drawn on the drawing. A reviewer of a construction drawing does
+    /// not say "somewhere here" - they cloud what must change, box an area, or
+    /// point an arrow at one line. Said the same way the server says it.
+    /// </summary>
+    public const string ShapePin = "Pin";
+    public const string ShapeRectangle = "Rectangle";
+    public const string ShapeArrow = "Arrow";
+    public const string ShapeFreehand = "Freehand";
+    public const string ShapeCloud = "Cloud";
+
+    public static IReadOnlyList<string> Shapes { get; } =
+    [
+        ShapeCloud,
+        ShapeRectangle,
+        ShapeArrow,
+        ShapeFreehand,
+        ShapePin,
+    ];
+
+    public static string ShapeLabel(string? shape) => NormalizeShape(shape) switch
+    {
+        ShapeCloud => "Үүл",
+        ShapeRectangle => "Тэгш өнцөгт",
+        ShapeArrow => "Сум",
+        ShapeFreehand => "Чөлөөт зураас",
+        _ => "Цэг",
+    };
+
+    public static string NormalizeShape(string? value)
+    {
+        string shape = (value ?? "").Trim();
+        return Shapes.FirstOrDefault(item =>
+            item.Equals(shape, StringComparison.OrdinalIgnoreCase)) ?? ShapePin;
+    }
+
+    /// <summary>How many points a mark of this kind needs to mean anything.</summary>
+    public static int MinimumPointsFor(string? shape) => NormalizeShape(shape) switch
+    {
+        ShapeRectangle or ShapeArrow => 2,
+        ShapeFreehand or ShapeCloud => 3,
+        _ => 1,
+    };
+
     public const int MaximumBodyLength = 4000;
 
     /// <summary>The kinds in the order they are offered and read.</summary>
@@ -79,6 +123,22 @@ internal static class StudioSheetCommentRules
 
         string generated = (generatedKey ?? "").Trim();
         return generated.Length == 0 ? "" : "generated:" + generated.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// The durable name of a page as the whole album knows it.
+    ///
+    /// A reviewer holds none of the sources the album was built from, so the
+    /// page they are looking at cannot be named by a sheet they do not have.
+    /// The shared album names every page - including the ones other
+    /// participants contributed - by a key that survives a rebuild, and that is
+    /// the name a conversation about the page hangs on. Author and reviewer
+    /// therefore arrive at the same name for the same drawing.
+    /// </summary>
+    public static string AlbumPageIdentity(string? pageKey)
+    {
+        string key = (pageKey ?? "").Trim();
+        return key.Length == 0 ? "" : "album:" + key.ToLowerInvariant();
     }
 
     /// <summary>How the page is named to a reader, at the time of writing.</summary>

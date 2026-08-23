@@ -5,14 +5,13 @@ namespace ErkS.Studio.App.Tests;
 public sealed class StudioAlbumWorkspaceLayoutTests
 {
     [Fact]
-    public void PrimaryWorkspace_ShowsNavigatorPreviewAndAlbumProperties()
+    public void PrimaryWorkspace_GivesTheWidthToTheDrawingAndItsSettings()
     {
         IReadOnlyList<StudioAlbumWorkspacePane> panes =
             StudioAlbumWorkspaceLayout.PrimaryPanes;
 
         Assert.Equal(
             [
-                StudioAlbumWorkspacePane.Navigator,
                 StudioAlbumWorkspacePane.Preview,
                 StudioAlbumWorkspacePane.Properties,
             ],

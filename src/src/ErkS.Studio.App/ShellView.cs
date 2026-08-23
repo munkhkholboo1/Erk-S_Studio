@@ -124,6 +124,9 @@ internal sealed partial class ShellView : IDisposable
     private string loadedProfileImageKey = "";
     private string requestedProfileImageKey = "";
     private readonly Button productUpdateButton = StudioWidgets.CreateGlyphTextButton("\uE72C", "Шинэчлэлт", "Erk-S Studio шинэчлэлт шалгах");
+    private readonly Border railUpdateRow = new();
+    private readonly TextBlock railUpdateGlyph = new();
+    private readonly TextBlock railUpdateText = new();
     private StudioUpdateLatestResponse? availableProductUpdate;
     private bool productUpdateCheckInProgress;
 
@@ -546,6 +549,10 @@ internal sealed partial class ShellView : IDisposable
             Items = { signOut },
         };
         var accountPanel = new StackPanel();
+        // The rail is on screen whatever page is open, so this is the one place
+        // a waiting update can be seen from the home page and from inside a
+        // project alike. It used to live only in the project list's header.
+        accountPanel.Children.Add(BuildRailUpdateRow());
         var notificationHost = new Grid { Margin = new Thickness(0, 0, 0, 8) };
         notificationHost.Children.Add(notificationsRailButton);
         notificationHost.Children.Add(notificationsRailBadge);
@@ -557,6 +564,79 @@ internal sealed partial class ShellView : IDisposable
             Padding = new Thickness(14, 12, 10, 12),
             Child = accountPanel,
         };
+    }
+
+    /// <summary>
+    /// The rail's own update row. Quiet while the build is current - a line
+    /// that offers to check - and unmistakable once a version is waiting, so
+    /// nobody has to walk to the project list to find out.
+    /// </summary>
+    private UIElement BuildRailUpdateRow()
+    {
+        railUpdateRow.Margin = new Thickness(0, 0, 0, 8);
+        railUpdateRow.Padding = new Thickness(10, 7, 10, 7);
+        railUpdateRow.CornerRadius = new CornerRadius(6);
+        railUpdateRow.Cursor = System.Windows.Input.Cursors.Hand;
+        railUpdateRow.MouseLeftButtonUp += async (_, _) =>
+            await CheckForProductUpdateAsync(interactive: true);
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        railUpdateGlyph.FontFamily = new FontFamily("Segoe MDL2 Assets");
+        railUpdateGlyph.FontSize = 13;
+        railUpdateGlyph.VerticalAlignment = VerticalAlignment.Center;
+        railUpdateGlyph.Margin = new Thickness(0, 0, 8, 0);
+        row.Children.Add(railUpdateGlyph);
+        railUpdateText.FontSize = 11.5;
+        railUpdateText.VerticalAlignment = VerticalAlignment.Center;
+        railUpdateText.TextTrimming = TextTrimming.CharacterEllipsis;
+        railUpdateText.MaxWidth = 168;
+        row.Children.Add(railUpdateText);
+        railUpdateRow.Child = row;
+
+        RefreshProductUpdateIndicator();
+        return railUpdateRow;
+    }
+
+    /// <summary>
+    /// Puts the update state on both the rail and the project list's button,
+    /// from one description of that state, so the two cannot disagree.
+    /// </summary>
+    private void RefreshProductUpdateIndicator()
+    {
+        if (productUpdateCheckInProgress)
+        {
+            railUpdateRow.Background = Brushes.Transparent;
+            railUpdateGlyph.Text = "";
+            railUpdateGlyph.Foreground = StudioTheme.MutedTextBrush;
+            railUpdateText.Text = "Шалгаж байна…";
+            railUpdateText.Foreground = StudioTheme.MutedTextBrush;
+            railUpdateText.FontWeight = FontWeights.Normal;
+            railUpdateRow.ToolTip = "Erk-S Studio шинэчлэлт шалгаж байна";
+            return;
+        }
+
+        if (availableProductUpdate?.IsUpdateAvailable == true)
+        {
+            string version = (availableProductUpdate.Version ?? "").Trim();
+            railUpdateRow.Background = StudioTheme.AccentBrush;
+            railUpdateGlyph.Text = "";
+            railUpdateGlyph.Foreground = Brushes.White;
+            railUpdateText.Text = version.Length == 0
+                ? "Шинэ хувилбар бэлэн"
+                : "Шинэ хувилбар " + version;
+            railUpdateText.Foreground = Brushes.White;
+            railUpdateText.FontWeight = FontWeights.SemiBold;
+            railUpdateRow.ToolTip = $"Erk-S Studio {version} татаж суулгах";
+            return;
+        }
+
+        railUpdateRow.Background = Brushes.Transparent;
+        railUpdateGlyph.Text = "";
+        railUpdateGlyph.Foreground = StudioTheme.MutedTextBrush;
+        railUpdateText.Text = "Шинэчлэлт алга";
+        railUpdateText.Foreground = StudioTheme.MutedTextBrush;
+        railUpdateText.FontWeight = FontWeights.Normal;
+        railUpdateRow.ToolTip = "Erk-S Studio шинэчлэлт шалгах";
     }
 
     private async Task ToggleAccountAsync()
@@ -1234,6 +1314,7 @@ internal sealed partial class ShellView : IDisposable
         productUpdateCheckInProgress = true;
         productUpdateButton.IsEnabled = false;
         SetProductUpdateButtonLabel("Шалгаж байна");
+        RefreshProductUpdateIndicator();
         try
         {
             StudioUpdateLatestResponse result = await productUpdates.CheckAsync();
@@ -1278,6 +1359,7 @@ internal sealed partial class ShellView : IDisposable
         {
             productUpdateCheckInProgress = false;
             productUpdateButton.IsEnabled = true;
+            RefreshProductUpdateIndicator();
         }
     }
 

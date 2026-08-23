@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="153.0.8009" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
   </ItemGroup>
 
@@ -34,27 +35,19 @@
 
   <ItemGroup>
     <Content Include="Assets\*.svg" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\*.png"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\*.html" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Assets\site-context-map.html" />
-    <Content Include="..\ErkS.Studio\Assets\logo-erks.ico"
-             Link="Assets\logo-erks.ico"
-             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\ErkS.Studio\Assets\logo-erks.ico" Link="Assets\logo-erks.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- DevMod: every build refreshes the folder the running host reloads from. -->
-  <Target Name="PublishToDevModFolder"
-          AfterTargets="Build"
-          Condition="'$(StudioProductBuild)' != 'true'">
+  <Target Name="PublishToDevModFolder" AfterTargets="Build" Condition="'$(StudioProductBuild)' != 'true'">
     <MakeDir Directories="$(StudioDevAppDir)" />
     <ItemGroup>
       <DevAppOutput Include="$(TargetDir)**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(DevAppOutput)"
-          DestinationFiles="@(DevAppOutput->'$(StudioDevAppDir)\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DevAppOutput)" DestinationFiles="@(DevAppOutput->'$(StudioDevAppDir)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
