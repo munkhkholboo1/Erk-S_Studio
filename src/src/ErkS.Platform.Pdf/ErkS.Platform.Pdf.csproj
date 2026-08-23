@@ -20,12 +20,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\..\..\Erk-S Platform For Autocad\src\autocad\2026-dev\source\Fonts\isocpeu_mon_3.ttf"
-             Link="Fonts\isocpeu_mon_3.ttf"
+    <!--
+      The album's Mongolian technical fonts belong to this repository.
+      They used to be copied out of the Platform for AutoCAD working copy
+      through a sibling-folder path, which exists only on a machine that
+      happens to hold both products side by side: every CI build, which checks
+      out this repository alone, failed on the missing files.
+    -->
+    <Content Include="Fonts\isocpeu_mon_3.ttf"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\..\..\Erk-S Platform For Autocad\src\autocad\2026-dev\source\Fonts\isocpeui_mon_3.ttf"
-             Link="Fonts\isocpeui_mon_3.ttf"
+    <Content Include="Fonts\isocpeui_mon_3.ttf"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="..\ErkS.Studio\Assets\logo-erks-source.png"
