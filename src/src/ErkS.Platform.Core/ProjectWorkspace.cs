@@ -78,6 +78,18 @@ public sealed class ProjectWorkspace
     /// <summary>A presentation assembled from the project's own material. Local to this device.</summary>
     public ProjectPortfolio Portfolio { get; set; } = new();
 
+    /// <summary>
+    /// Composed sheets - a competition submission and the like - made from the
+    /// same material the portfolio holds.
+    ///
+    /// This is what separates the pool of material from the composition. A
+    /// portfolio item records what arrived and keeps its link to the source; a
+    /// board decides what appears where. Until a board says so, an item is
+    /// simply material, which is why nothing about it had to change for boards
+    /// to exist.
+    /// </summary>
+    public ProjectBoardSeries Boards { get; set; } = new();
+
     /// <summary>Studio-owned raster source for automatically composed visualization pages.</summary>
     public ProjectVisualizationSource Visualizations { get; set; } = new();
 
