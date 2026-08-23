@@ -87,6 +87,11 @@ public static class PortfolioSheetImportService
                     Layout = ProjectPortfolioLayouts.FitPage,
                     Title = sourceTitle,
                     SourceTitle = sourceTitle,
+                    // The description the page was authored with becomes the
+                    // caption it starts life with. Only here, at creation: the
+                    // caption is printed and is the user's to write, so a
+                    // re-export never reaches in and rewrites it.
+                    Caption = (entry.SheetDescription ?? "").Trim(),
                     RelativePath = relativePath,
                     SourcePageNumber = sourcePageNumber,
                     SourceSheetKey = key,

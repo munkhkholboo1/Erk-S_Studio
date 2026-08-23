@@ -442,6 +442,71 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
         return PortfolioSheetImportService.Import(project, projectPath, result);
     }
 
+    [Fact]
+    public void AuthoredDescription_BecomesTheCaptionAPageStartsWith()
+    {
+        string manifestPath = WritePackage(
+            "described",
+            [Portfolio("P1", "Хуудас", description: "Өмнөд талын харагдац.")],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow);
+        SheetPackageLoadResult result = SheetPackageReader.Load(manifestPath);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+
+        PortfolioSheetImportService.Import(project, projectPath, result);
+
+        Assert.Equal("Өмнөд талын харагдац.", Assert.Single(project.Portfolio.Items).Caption);
+    }
+
+    [Fact]
+    public void PageWithoutADescription_StartsWithAnEmptyCaption()
+    {
+        string manifestPath = WritePackage(
+            "undescribed",
+            [Portfolio("P1", "Хуудас")],
+            SheetPackageScope.Delta,
+            DateTimeOffset.UtcNow);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(manifestPath));
+
+        Assert.Equal("", Assert.Single(project.Portfolio.Items).Caption);
+    }
+
+    [Fact]
+    public void ChangedDescription_NeverRewritesTheCaption()
+    {
+        // The caption is printed and belongs to whoever is presenting.
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstPath = WritePackage(
+            "caption-v1",
+            [Portfolio("P1", "Хуудас", description: "Анхны тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(firstPath));
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        item.Caption = "Танилцуулгад бичсэн тайлбар";
+
+        string secondPath = WritePackage(
+            "caption-v2",
+            [Portfolio("P1", "Хуудас", description: "Producer дээр өөрчилсөн тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(secondPath));
+
+        Assert.Equal("Танилцуулгад бичсэн тайлбар", item.Caption);
+    }
+
     private (ProjectWorkspace Project, string ProjectPath) CreateProject()
     {
         string projectFolder = Path.Combine(
@@ -471,13 +536,18 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
         string SheetId,
         string Name,
         string Destination,
-        string PdfText);
+        string PdfText,
+        string Description = "");
 
     private static PackageSheet Album(string sheetId, string name) =>
         new(sheetId, name, SheetDestinations.Album, name);
 
-    private static PackageSheet Portfolio(string sheetId, string name, string? pdfText = null) =>
-        new(sheetId, name, SheetDestinations.Portfolio, pdfText ?? name);
+    private static PackageSheet Portfolio(
+        string sheetId,
+        string name,
+        string? pdfText = null,
+        string description = "") =>
+        new(sheetId, name, SheetDestinations.Portfolio, pdfText ?? name, description);
 
     private string WritePackage(
         string folderName,
@@ -508,6 +578,7 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
                 SheetId = sheet.SheetId,
                 Number = sheet.SheetId,
                 Name = sheet.Name,
+                SheetDescription = sheet.Description,
                 Destination = sheet.Destination,
                 WidthMm = 420,
                 HeightMm = 297,
