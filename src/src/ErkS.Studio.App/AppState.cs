@@ -53,6 +53,13 @@ public sealed class AppState : IDisposable
 
     public SheetIntakeService Intake { get; }
 
+    /// <summary>
+    /// The second delivery channel, watched beside the first. Two watchers
+    /// rather than one wider filter: the channels answer to different
+    /// contracts, and the sheet intake is the path a user's day runs through.
+    /// </summary>
+    public VisualIntakeService VisualIntake { get; } = new();
+
     public AlbumBuilder Builder { get; }
 
     public event Action? ProjectReplaced;
@@ -729,6 +736,7 @@ public sealed class AppState : IDisposable
                 !string.IsNullOrWhiteSpace(previousInbox))
             {
                 Intake.UnwatchFolder(previousInbox);
+                VisualIntake.UnwatchFolder(previousInbox);
             }
             source = existingSource;
         }
@@ -739,6 +747,7 @@ public sealed class AppState : IDisposable
                 source.InboxFolder,
                 source.UseLegacySheetKeys ? null : source.Id,
                 Project.ProjectId);
+            VisualIntake.WatchFolder(source.InboxFolder, source.Id);
         }
     }
 
@@ -1331,6 +1340,12 @@ public sealed class AppState : IDisposable
                         source.UseLegacySheetKeys ? null : source.Id,
                         Project.ProjectId,
                         scanExisting: scanExistingPackages);
+                    // Visual packages land in the same folder under their own
+                    // name. Without this they would arrive to silence.
+                    VisualIntake.WatchFolder(
+                        source.InboxFolder,
+                        source.Id,
+                        scanExisting: scanExistingPackages);
                 }
                 if (source.Metadata.TryGetValue("LegacyInboxFolder", out var legacyInbox) &&
                     !string.IsNullOrWhiteSpace(legacyInbox) &&
@@ -1354,6 +1369,10 @@ public sealed class AppState : IDisposable
         foreach (var watched in Intake.WatchedFolders)
         {
             Intake.UnwatchFolder(watched);
+        }
+        foreach (string watched in VisualIntake.WatchedFolders)
+        {
+            VisualIntake.UnwatchFolder(watched);
         }
     }
 

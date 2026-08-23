@@ -1973,9 +1973,32 @@ internal sealed partial class ShellView
         // inbox, and until something says so the project looks exactly as it
         // would if the drawing had never been sent.
         PendingSourcePackageSurvey pending = SurveyPendingDeliveries(source);
-        sourceWorkflowText.Text = pending.Any
-            ? DescribePendingDeliveries(pending) + Environment.NewLine + Environment.NewLine + workflowHint
-            : workflowHint;
+        // Visuals arrive in the same folder under their own name, and a user
+        // who has been told about one waiting delivery will expect to be told
+        // about the other.
+        PendingVisualPackageSurvey pendingVisuals = VisualInboxScanner.Survey(
+            source.InboxFolder,
+            VisualInboxScanner.AbsorbedUpTo(state.Project.Portfolio, source.Id));
+
+        var notices = new List<string>();
+        if (pending.Any)
+            notices.Add(DescribePendingDeliveries(pending));
+        if (pendingVisuals.HasPending)
+            notices.Add(DescribePendingVisuals(pendingVisuals));
+        notices.Add(workflowHint);
+        sourceWorkflowText.Text = string.Join(
+            Environment.NewLine + Environment.NewLine,
+            notices);
+    }
+
+    private static string DescribePendingVisuals(PendingVisualPackageSurvey pending)
+    {
+        string arrived = pending.NewestExportedAtUtc is { } newest
+            ? newest.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : "";
+        string when = arrived.Length > 0 ? $" (сүүлийнх {arrived})" : "";
+        return $"⚠ {pending.Count} визуал багц хүлээгдэж байна{when}. " +
+            "Төслөө нээхэд визуалууд автоматаар орж ирнэ.";
     }
 
     /// <summary>

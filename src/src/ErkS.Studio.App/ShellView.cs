@@ -331,6 +331,8 @@ internal sealed partial class ShellView : IDisposable
 
         state.Library.Changed += () => dispatcher.BeginInvoke(new Action(OnLibraryChanged));
         state.Intake.PackageProcessed += result => dispatcher.BeginInvoke(new Action(() => OnPackageProcessed(result)));
+        state.VisualIntake.PackageProcessed += arrival =>
+            dispatcher.BeginInvoke(new Action(() => OnVisualPackageProcessed(arrival)));
         state.Intake.IntakeError += message => dispatcher.BeginInvoke(new Action(() => SetStatus(message)));
         state.AssetSourcesChanged += () => dispatcher.BeginInvoke(new Action(OnAssetSourcesChanged));
         state.ProjectReplaced += () =>

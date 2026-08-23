@@ -766,6 +766,57 @@ internal sealed partial class ShellView
         }
     }
 
+    /// <summary>
+    /// A visual package has arrived. Its assets join the pool the boards draw
+    /// from, and whatever could not be used is said out loud - a delivery that
+    /// landed and did nothing, with no error and no notice, is the failure this
+    /// project keeps finding.
+    /// </summary>
+    private void OnVisualPackageProcessed(VisualPackageArrival arrival)
+    {
+        if (!state.HasOpenProject || string.IsNullOrWhiteSpace(state.ProjectPath))
+            return;
+
+        if (!arrival.Result.IsLoaded)
+        {
+            SetStatus(
+                "Визуал багцыг хүлээж авсангүй: " + string.Join("; ", arrival.Result.Issues));
+            return;
+        }
+
+        VisualPackageImportResult imported = VisualPackageImportService.Import(
+            state.Project,
+            state.ProjectPath,
+            arrival.Result,
+            arrival.PackageFolder,
+            arrival.SourceId);
+        if (!imported.BroughtAnything && imported.Issues.Count == 0)
+            return;
+
+        state.SaveProject();
+        if (activePage == StudioPage.Boards)
+            RefreshBoards();
+        else if (activePage == StudioPage.Portfolio)
+            RefreshPortfolio();
+
+        SetStatus(DescribeVisualArrival(imported));
+    }
+
+    private static string DescribeVisualArrival(VisualPackageImportResult imported)
+    {
+        var parts = new List<string>();
+        if (imported.CreatedItemCount > 0)
+            parts.Add($"{imported.CreatedItemCount} шинэ визуал");
+        if (imported.UpdatedItemCount > 0)
+            parts.Add($"{imported.UpdatedItemCount} визуал шинэчлэгдсэн");
+        string arrived = parts.Count == 0
+            ? "Визуал багц ирлээ"
+            : "Визуал багц ирлээ: " + string.Join(", ", parts);
+        return imported.Issues.Count == 0
+            ? arrived + "."
+            : $"{arrived}. {imported.Issues.Count} зүйл ашиглагдсангүй: {imported.Issues[0]}";
+    }
+
     private static string DescribeBoard(ProjectBoard board) =>
         string.IsNullOrWhiteSpace(board.Title)
             ? (string.IsNullOrWhiteSpace(board.Code) ? "Самбар" : board.Code)
