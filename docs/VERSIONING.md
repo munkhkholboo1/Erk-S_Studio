@@ -4,9 +4,28 @@
 
 - `main` contains the current integrated source.
 - Every source backup is an annotated Git tag on a tested commit.
-- `VERSION` contains the current source snapshot version.
+- **`src/Studio.Version.props` is the only source of the version a build carries.**
+  It holds the published version and its assembly version, plus the development
+  version used by every ordinary build. Nothing else in the tree decides a
+  build's version, so this is the file a release updates.
 - `CHANGELOG.md` describes product and architecture milestones.
 - Build output, installer payloads, local projects, native design files, credentials, and license data are never source history.
+
+## How a build gets its version
+
+`ErkS.Studio.csproj` and `ErkS.Studio.App.csproj` import `Studio.Version.props` and set
+`InformationalVersion` from it:
+
+- no `StudioReleaseLabel` given → `StudioDevelopmentVersion` (for example `0.001.47-dev`);
+- `StudioReleaseLabel` given → that label verbatim (the release script passes
+  `Demo V0.001.47`).
+
+**The `-dev` suffix is load-bearing.** Studio reads its own `InformationalVersion`
+to decide whether it is a development build, and a development build does not
+enforce the companion licence. A shipped artifact carrying `-dev` would disable
+that enforcement with nothing failing and nothing logged, so
+`Test-Studio-ReleaseArtifact.ps1` refuses any artifact whose product version
+contains it, and `Publish-Studio-Demo.ps1` refuses such a release label up front.
 
 ## Version format
 
@@ -18,7 +37,7 @@ Do not move or overwrite an existing version tag. Create a new patch or developm
 
 ## Creating a backup version
 
-1. Update `VERSION` and `CHANGELOG.md`.
+1. Update `src/Studio.Version.props` and `CHANGELOG.md`.
 2. Build and test the exact source to be preserved.
 3. Commit the complete intended change.
 4. Create an annotated tag: `git tag -a v0.1.0-dev.2 -m "Erk-S Studio v0.1.0-dev.2"`.

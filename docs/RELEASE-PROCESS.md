@@ -22,7 +22,11 @@ the corresponding connector release.
 3. Actual Revit and AutoCAD reference packages pass `ErkS.PackageAcceptance`.
 4. Release build and WPF publish smoke pass.
 5. Performance report has no unexplained regression.
-6. `VERSION`, changelog/release notes, README, architecture, and contracts agree.
+6. `src/Studio.Version.props` (the only file a build takes its version from),
+   changelog/release notes, README, architecture, and contracts agree. The
+   release label passed to `Publish-Studio-Demo.ps1` must not contain `-dev`:
+   Studio reads that marker to identify a development build and stops enforcing
+   the companion licence when it sees it.
 7. A production code-signing certificate with private key and publisher `Erk-S LLC` is available.
 8. Server release storage and backup are verified before replacing a catalog entry.
 

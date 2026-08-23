@@ -205,6 +205,14 @@ if ($AssemblyVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
     throw "AssemblyVersion нь 0.0.1 эсвэл 0.0.1.1 хэлбэртэй байна."
 }
 
+# The release label becomes the built binary's InformationalVersion, which
+# Studio reads to decide whether it is a development build. A label carrying
+# '-dev' would ship a product that quietly stops enforcing its licence, so it
+# is refused here rather than after a long build.
+if ($ReleaseVersion -like "*-dev*") {
+    throw "ReleaseVersion нь '-dev' тэмдэглэгээ агуулж болохгүй: '$ReleaseVersion'. Studio ийм шошготой build-ийг хөгжүүлэлтийн хувилбар гэж үзэж лицензийн шалгалтаа унтраадаг."
+}
+
 foreach ($TestProject in $TestProjects) {
     if (-not (Test-Path -LiteralPath $TestProject -PathType Leaf)) {
         throw "Release regression test project was not found: $TestProject"

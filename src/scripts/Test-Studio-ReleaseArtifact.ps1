@@ -76,6 +76,21 @@ else {
             -Details "Expected '$ExpectedProductVersion'; received '$ProductVersion'."
     }
 
+    # Studio reads its own version string to decide whether it is a development
+    # build, and a development build does not enforce the companion licence. A
+    # shipped artifact carrying '-dev' would therefore disable that enforcement
+    # silently, with nothing failing and nothing logged.
+    $CarriesDevelopmentMarker = $ProductVersion -like "*-dev*"
+    Add-ArtifactCheck `
+        -Name "Release build marker" `
+        -Passed (-not $CarriesDevelopmentMarker) `
+        -Details $(if ($CarriesDevelopmentMarker) {
+            "ProductVersion '$ProductVersion' carries the '-dev' development marker. A shipped build must not: Studio would treat it as a development build and stop enforcing the companion licence."
+        }
+        else {
+            "ProductVersion '$ProductVersion' carries no development marker."
+        })
+
     $Signature = Get-AuthenticodeSignature -LiteralPath $Path
     $Certificate = $Signature.SignerCertificate
     $SignatureValid = $Signature.Status -eq [Management.Automation.SignatureStatus]::Valid

@@ -35,6 +35,35 @@ public sealed class StudioCompanionEnforcementTests
     }
 
     [Fact]
+    public void ReleaseSmokeRun_DoesNotEnforce()
+    {
+        // CI publishes the product with a release label and then runs it. A
+        // licence prompt there would hang a job nobody can answer.
+        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+            "https://erk-s.mn",
+            isDevelopmentBuild: false,
+            commandLineArguments: ["ErkS.Studio.exe", "--release-smoke-test", "--release-smoke-output=x"]));
+    }
+
+    [Fact]
+    public void ReleaseUpdateHoldRun_DoesNotEnforce()
+    {
+        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+            "https://erk-s.mn",
+            isDevelopmentBuild: false,
+            commandLineArguments: ["ErkS.Studio.exe", "--release-update-hold-test"]));
+    }
+
+    [Fact]
+    public void OrdinaryLaunchArguments_StillEnforce()
+    {
+        Assert.True(StudioCompanionEnforcement.IsEnabledFor(
+            "https://erk-s.mn",
+            isDevelopmentBuild: false,
+            commandLineArguments: ["ErkS.Studio.exe"]));
+    }
+
+    [Fact]
     public void UnknownServer_StillEnforces()
     {
         // An address we cannot parse must not be mistaken for a local one.

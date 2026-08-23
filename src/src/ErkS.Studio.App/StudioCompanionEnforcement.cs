@@ -13,16 +13,53 @@ namespace ErkS.Studio;
 /// </summary>
 internal static class StudioCompanionEnforcement
 {
-    public static bool IsEnabledFor(string? serverUrl) =>
-        IsEnabledFor(serverUrl, StudioReleaseInfo.IsDevelopmentBuild);
+    /// <summary>
+    /// Arguments that mark an unattended acceptance run — the CI product smoke
+    /// test and the release script's install/update checks. Those builds carry
+    /// a release label, so without this they would be enforced against, and a
+    /// licence prompt would appear where no one can answer it.
+    /// </summary>
+    private static readonly string[] AcceptanceRunArguments =
+    [
+        "--release-smoke-test",
+        "--release-update-hold-test",
+    ];
 
-    internal static bool IsEnabledFor(string? serverUrl, bool isDevelopmentBuild)
+    public static bool IsEnabledFor(string? serverUrl) =>
+        IsEnabledFor(
+            serverUrl,
+            StudioReleaseInfo.IsDevelopmentBuild,
+            Environment.GetCommandLineArgs());
+
+    internal static bool IsEnabledFor(
+        string? serverUrl,
+        bool isDevelopmentBuild,
+        IReadOnlyList<string>? commandLineArguments = null)
     {
         if (isDevelopmentBuild)
+            return false;
+        if (IsAcceptanceRun(commandLineArguments))
             return false;
 
         // An unknown server cannot be assumed local: enforcement stays on, and
         // the decision then rests on the cached grant.
         return !Uri.TryCreate(serverUrl, UriKind.Absolute, out Uri? uri) || !uri.IsLoopback;
+    }
+
+    internal static bool IsAcceptanceRun(IReadOnlyList<string>? commandLineArguments)
+    {
+        if (commandLineArguments is null)
+            return false;
+
+        foreach (string argument in commandLineArguments)
+        {
+            foreach (string acceptance in AcceptanceRunArguments)
+            {
+                if (string.Equals(argument, acceptance, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+
+        return false;
     }
 }
