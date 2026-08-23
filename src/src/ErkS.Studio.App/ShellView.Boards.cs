@@ -692,6 +692,8 @@ internal sealed partial class ShellView
     private BoardBuildCard ToBuildCard(BoardElement element)
     {
         ProjectPortfolioItem? asset = FindBoardAsset(element);
+        (double cropX, double cropY, double cropWidth, double cropHeight) =
+            BoardCardContent.ResolveCrop(element, asset);
         // A project with no path on disk cannot resolve its own files, so the
         // card falls back to being a placeholder rather than to a broken path:
         // the board still builds and the empty card says what is missing.
@@ -712,10 +714,10 @@ internal sealed partial class ShellView
             Kind: ToBuildKind(element.Kind),
             PlanCardId: element.PlanCardElementId,
             IsConfirmed: element.IsConfirmed,
-            CropX: element.CropX,
-            CropY: element.CropY,
-            CropWidth: element.CropWidth,
-            CropHeight: element.CropHeight,
+            CropX: cropX,
+            CropY: cropY,
+            CropWidth: cropWidth,
+            CropHeight: cropHeight,
             FocalPointX: element.FocalPointX,
             FocalPointY: element.FocalPointY);
     }

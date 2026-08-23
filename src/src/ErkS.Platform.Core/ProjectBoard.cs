@@ -231,6 +231,34 @@ public static class BoardCardMeasurements
 }
 
 /// <summary>
+/// What a card actually shows of the file behind it.
+/// </summary>
+public static class BoardCardContent
+{
+    /// <summary>
+    /// The crop to draw with: the user's own if they set one, and otherwise the
+    /// asset's own account of which part of it is the drawing.
+    ///
+    /// The asset knows this and the card does not. A view exported onto a
+    /// standard sheet arrives surrounded by paper nobody asked for, and a card
+    /// that showed the whole file would put that paper on the board. Deferring
+    /// to the asset by default means the right thing happens without anyone
+    /// being asked, while a card that has been cropped by hand keeps its own
+    /// answer - what the user touched is theirs.
+    /// </summary>
+    public static (double X, double Y, double Width, double Height) ResolveCrop(
+        BoardElement element,
+        ProjectPortfolioItem? asset)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (!element.ShowsWholeSource || asset is null)
+            return (element.CropX, element.CropY, element.CropWidth, element.CropHeight);
+
+        return (asset.SourceCropX, asset.SourceCropY, asset.SourceCropWidth, asset.SourceCropHeight);
+    }
+}
+
+/// <summary>
 /// Keeps cards inside a grid that has been made smaller.
 ///
 /// A card left reaching past the last column would be refused by the writer,

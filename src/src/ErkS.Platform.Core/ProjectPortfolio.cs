@@ -13,6 +13,9 @@ public static class ProjectPortfolioItemKinds
 
     /// <summary>An authored CAD page a sheet package marked for the portfolio.</summary>
     public const string CadPage = "CadPage";
+
+    /// <summary>A render or view a visual package delivered from a model.</summary>
+    public const string Visual = "Visual";
 }
 
 /// <summary>
@@ -119,6 +122,34 @@ public sealed class ProjectPortfolioItem
 
     public bool IsRemoved => RemovedAtUtc.HasValue;
 
+    /// <summary>
+    /// The part of the file that is actually the drawing, as fractions of it.
+    /// The whole file by default.
+    ///
+    /// A model exports a view onto whatever standard paper it is limited to and
+    /// says where the drawing landed, so the surrounding paper is not part of
+    /// what anyone asked for. Recording it here keeps it with the asset, where
+    /// it belongs: it is a fact about the delivered file rather than a decision
+    /// a board made, and every card showing the file starts from it.
+    /// </summary>
+    public double SourceCropX { get; set; }
+
+    public double SourceCropY { get; set; }
+
+    public double SourceCropWidth { get; set; } = 1;
+
+    public double SourceCropHeight { get; set; } = 1;
+
+    /// <summary>Pixels across, for a raster. Zero when it is not one.</summary>
+    public int SourceWidthPixels { get; set; }
+
+    public int SourceHeightPixels { get; set; }
+
+    /// <summary>Members of one exported group share this, and keep their order.</summary>
+    public string SourceSeriesId { get; set; } = "";
+
+    public int SourceSeriesOrder { get; set; }
+
     /// <summary>Where a cropped item is centred, 0..1 of the source.</summary>
     public double FocalPointX { get; set; } = 0.5;
 
@@ -143,6 +174,14 @@ public sealed class ProjectPortfolioItem
         SourceCaption = SourceCaption,
         MissingFromSourceSinceUtc = MissingFromSourceSinceUtc,
         RemovedAtUtc = RemovedAtUtc,
+        SourceCropX = SourceCropX,
+        SourceCropY = SourceCropY,
+        SourceCropWidth = SourceCropWidth,
+        SourceCropHeight = SourceCropHeight,
+        SourceWidthPixels = SourceWidthPixels,
+        SourceHeightPixels = SourceHeightPixels,
+        SourceSeriesId = SourceSeriesId,
+        SourceSeriesOrder = SourceSeriesOrder,
         FocalPointX = FocalPointX,
         FocalPointY = FocalPointY,
         AddedAtUtc = AddedAtUtc,
@@ -231,6 +270,22 @@ public sealed class ProjectPortfolio
             item.SourceSheetKey = (item.SourceSheetKey ?? "").Trim();
             item.SourceTitle = (item.SourceTitle ?? "").Trim();
             item.SourceCaption = (item.SourceCaption ?? "").Trim();
+            item.SourceSeriesId = (item.SourceSeriesId ?? "").Trim();
+            item.SourceCropX = Clamp01(item.SourceCropX);
+            item.SourceCropY = Clamp01(item.SourceCropY);
+            item.SourceCropWidth = Clamp01(item.SourceCropWidth);
+            item.SourceCropHeight = Clamp01(item.SourceCropHeight);
+            // A crop reaching past the file would show a band of nothing.
+            if (item.SourceCropWidth <= 0 || item.SourceCropX + item.SourceCropWidth > 1)
+            {
+                item.SourceCropX = 0;
+                item.SourceCropWidth = 1;
+            }
+            if (item.SourceCropHeight <= 0 || item.SourceCropY + item.SourceCropHeight > 1)
+            {
+                item.SourceCropY = 0;
+                item.SourceCropHeight = 1;
+            }
             item.SourcePageNumber = Math.Max(1, item.SourcePageNumber);
             item.FocalPointX = Clamp01(item.FocalPointX);
             item.FocalPointY = Clamp01(item.FocalPointY);
@@ -247,7 +302,9 @@ public sealed class ProjectPortfolio
                 ? ProjectPortfolioItemKinds.AlbumPage
                 : value.Equals(ProjectPortfolioItemKinds.CadPage, StringComparison.OrdinalIgnoreCase)
                     ? ProjectPortfolioItemKinds.CadPage
-                    : ProjectPortfolioItemKinds.Image;
+                    : value.Equals(ProjectPortfolioItemKinds.Visual, StringComparison.OrdinalIgnoreCase)
+                        ? ProjectPortfolioItemKinds.Visual
+                        : ProjectPortfolioItemKinds.Image;
     }
 
     private static string NormalizeLayout(string? layout)
