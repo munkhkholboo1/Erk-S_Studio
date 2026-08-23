@@ -16,6 +16,7 @@ namespace ErkS.Studio;
 internal sealed partial class ShellView
 {
     private readonly ListView portfolioItemsList = new() { MinHeight = 260 };
+    private readonly TextBox portfolioTitleBox = new();
     private readonly TextBox portfolioCaptionBox = new();
     private readonly ComboBox portfolioLayoutBox = new();
     private readonly TextBlock portfolioSummary = new()
@@ -49,6 +50,16 @@ internal sealed partial class ShellView
         "",
         "Хасах",
         "Сонгосон хуудсыг портфолиогоос хасах");
+    private readonly Button portfolioRestoreButton = StudioWidgets.CreateGlyphTextButton(
+        "",
+        "Сэргээх",
+        "Хассан хуудсыг портфолиод буцааж оруулах");
+    private readonly CheckBox portfolioShowRemovedCheck = new()
+    {
+        Content = "Хассаныг харуулах",
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(12, 0, 0, 0),
+    };
     private readonly Button portfolioBuildButton = StudioWidgets.CreatePrimaryButton("PDF үүсгэх");
     private readonly Button portfolioOpenButton = StudioWidgets.CreateButton("PDF нээх");
     private bool portfolioInspectorSuspended;
@@ -70,9 +81,13 @@ internal sealed partial class ShellView
         portfolioMoveUpButton.Click += (_, _) => MovePortfolioItem(-1);
         portfolioMoveDownButton.Click += (_, _) => MovePortfolioItem(1);
         portfolioRemoveButton.Click += (_, _) => RemovePortfolioItem();
+        portfolioRestoreButton.Click += (_, _) => RestorePortfolioItem();
+        portfolioShowRemovedCheck.Checked += (_, _) => RefreshPortfolio();
+        portfolioShowRemovedCheck.Unchecked += (_, _) => RefreshPortfolio();
         portfolioBuildButton.Click += (_, _) => BuildPortfolioPdf();
         portfolioOpenButton.Click += (_, _) => OpenPortfolioPdf();
         portfolioItemsList.SelectionChanged += (_, _) => RefreshPortfolioInspector();
+        portfolioTitleBox.LostFocus += (_, _) => ApplyPortfolioInspector();
         portfolioCaptionBox.LostFocus += (_, _) => ApplyPortfolioInspector();
         portfolioLayoutBox.SelectionChanged += (_, _) => ApplyPortfolioInspector();
 
@@ -95,10 +110,13 @@ internal sealed partial class ShellView
         actions.Children.Add(portfolioMoveUpButton);
         actions.Children.Add(portfolioMoveDownButton);
         actions.Children.Add(portfolioRemoveButton);
+        actions.Children.Add(portfolioRestoreButton);
+        actions.Children.Add(portfolioShowRemovedCheck);
         panel.Children.Add(actions);
         panel.Children.Add(portfolioItemsList);
 
         panel.Children.Add(StudioWidgets.CreateSectionHeader("Сонгосон хуудас"));
+        panel.Children.Add(StudioWidgets.CreateFormRow("Нэр", portfolioTitleBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Тайлбар", portfolioCaptionBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Байрлал", portfolioLayoutBox));
 
@@ -140,8 +158,14 @@ internal sealed partial class ShellView
         view.Columns.Add(new GridViewColumn
         {
             Header = "Байрлал",
-            Width = 110,
+            Width = 150,
             DisplayMemberBinding = new System.Windows.Data.Binding(nameof(PortfolioItemRow.Layout)),
+        });
+        view.Columns.Add(new GridViewColumn
+        {
+            Header = "Төлөв",
+            Width = 150,
+            DisplayMemberBinding = new System.Windows.Data.Binding(nameof(PortfolioItemRow.State)),
         });
         portfolioItemsList.View = view;
     }
@@ -204,21 +228,19 @@ internal sealed partial class ShellView
         {
             try
             {
+                // Inspected so an unreadable or unsupported file is refused
+                // before it is copied in, the same as any other project asset.
                 ProjectDocumentAssetInspection inspection =
                     ProjectDocumentAssetInspector.Inspect(sourcePath);
                 string relativePath = ProjectDocumentFileStore.StoreInsideProject(
                     state.ProjectPath,
                     ProjectDocumentCategories.Portfolio,
                     sourcePath);
-                ProjectFileReference document = CreateDocumentReference(
-                    sourcePath,
-                    relativePath,
-                    ProjectDocumentCategories.Portfolio,
-                    Path.GetFileNameWithoutExtension(sourcePath),
-                    inspection);
-                // A presentation asset never enters an upload queue.
-                document.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Local;
-                AddDocumentIfMissing(state.Project.PortfolioDocuments, document);
+                // The portfolio item is the only record of this file. It was
+                // also written into a project document list that nothing ever
+                // read, which meant a file could be listed there and referenced
+                // nowhere - the item, and the storage tidy-up that follows it,
+                // are now the single account of what the portfolio holds.
                 Portfolio.Items.Add(new ProjectPortfolioItem
                 {
                     Order = Portfolio.Items.Count + 1,
@@ -321,12 +343,38 @@ internal sealed partial class ShellView
 
     private void RemovePortfolioItem()
     {
-        if (portfolioItemsList.SelectedItem is not PortfolioItemRow selected)
+        if (portfolioItemsList.SelectedItem is not PortfolioItemRow selected || selected.Item.IsRemoved)
             return;
+
+        // An imported page is hidden rather than deleted: the next export from
+        // the same drawing would otherwise put it straight back, and taking one
+        // out by accident would leave no way back.
+        if (selected.Item.Kind.Equals(
+                ProjectPortfolioItemKinds.CadPage,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            selected.Item.RemovedAtUtc = DateTimeOffset.UtcNow;
+            CommitPortfolio(
+                "Портфолиогоос хаслаа. «Хассаныг харуулах»-аар сэргээж болно.",
+                selected.Item.Id);
+            return;
+        }
 
         Portfolio.Items.RemoveAll(item =>
             item.Id.Equals(selected.Item.Id, StringComparison.OrdinalIgnoreCase));
         CommitPortfolio("Портфолиогоос хаслаа.");
+    }
+
+    private void RestorePortfolioItem()
+    {
+        if (portfolioItemsList.SelectedItem is not PortfolioItemRow selected ||
+            !selected.Item.IsRemoved)
+        {
+            return;
+        }
+
+        selected.Item.RemovedAtUtc = null;
+        CommitPortfolio("Хуудсыг портфолиод буцаалаа.", selected.Item.Id);
     }
 
     private void ApplyPortfolioInspector()
@@ -337,15 +385,20 @@ internal sealed partial class ShellView
             return;
         }
 
+        string title = portfolioTitleBox.Text.Trim();
         string caption = portfolioCaptionBox.Text.Trim();
         string layout = (portfolioLayoutBox.SelectedItem as PortfolioLayoutChoice)?.Value
             ?? selected.Item.Layout;
-        if (selected.Item.Caption.Equals(caption, StringComparison.Ordinal) &&
+        if (selected.Item.Title.Equals(title, StringComparison.Ordinal) &&
+            selected.Item.Caption.Equals(caption, StringComparison.Ordinal) &&
             selected.Item.Layout.Equals(layout, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
+        // A name the user typed is theirs from now on: the next import updates
+        // the drawing behind this page but leaves the wording alone.
+        selected.Item.Title = title.Length > 0 ? title : selected.Item.SourceTitle;
         selected.Item.Caption = caption;
         selected.Item.Layout = layout;
         CommitPortfolio("", selected.Item.Id);
@@ -357,9 +410,13 @@ internal sealed partial class ShellView
         try
         {
             var selected = portfolioItemsList.SelectedItem as PortfolioItemRow;
+            portfolioTitleBox.Text = selected?.Item.Title ?? "";
+            portfolioTitleBox.IsEnabled = selected is not null;
             portfolioCaptionBox.Text = selected?.Item.Caption ?? "";
             portfolioCaptionBox.IsEnabled = selected is not null;
             portfolioLayoutBox.IsEnabled = selected is not null;
+            portfolioRemoveButton.IsEnabled = selected is not null && !selected.Item.IsRemoved;
+            portfolioRestoreButton.IsEnabled = selected?.Item.IsRemoved == true;
             portfolioLayoutBox.SelectedItem = portfolioLayoutBox.Items
                 .OfType<PortfolioLayoutChoice>()
                 .FirstOrDefault(choice => choice.Value.Equals(
@@ -404,7 +461,9 @@ internal sealed partial class ShellView
 
         string? keepId = selectItemId ??
             (portfolioItemsList.SelectedItem as PortfolioItemRow)?.Item.Id;
-        portfolioItemsList.ItemsSource = Portfolio.OrderedItems()
+        portfolioItemsList.ItemsSource = (portfolioShowRemovedCheck.IsChecked == true
+                ? Portfolio.OrderedItems()
+                : Portfolio.OrderedVisibleItems())
             .Select(item => new PortfolioItemRow(item))
             .ToList();
         if (keepId is not null)
@@ -414,10 +473,13 @@ internal sealed partial class ShellView
                 .FirstOrDefault(row => row.Item.Id.Equals(keepId, StringComparison.OrdinalIgnoreCase));
         }
 
+        int visibleCount = Portfolio.OrderedVisibleItems().Count;
+        int removedCount = Portfolio.Items.Count - visibleCount;
+        string removedNote = removedCount > 0 ? $" {removedCount} хуудас хасагдсан." : "";
         portfolioSummary.Text = Portfolio.LastBuiltAtUtc is null
-            ? $"{Portfolio.Items.Count} хуудас. PDF үүсгээгүй байна."
-            : $"{Portfolio.Items.Count} хуудас. Сүүлд {Portfolio.LastPageCount} хуудсаар " +
-              $"{Portfolio.LastBuiltAtUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm}-д үүсгэсэн.";
+            ? $"{visibleCount} хуудас. PDF үүсгээгүй байна.{removedNote}"
+            : $"{visibleCount} хуудас. Сүүлд {Portfolio.LastPageCount} хуудсаар " +
+              $"{Portfolio.LastBuiltAtUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm}-д үүсгэсэн.{removedNote}";
         portfolioOpenButton.IsEnabled = ResolvePortfolioPdfPath() is { } path && File.Exists(path);
         RefreshPortfolioInspector();
     }
@@ -464,7 +526,7 @@ internal sealed partial class ShellView
                 outputPath,
                 Portfolio.PageWidthMm,
                 Portfolio.PageHeightMm,
-                Portfolio.OrderedItems().Select(ResolveBuildItem).ToList());
+                Portfolio.OrderedVisibleItems().Select(ResolveBuildItem).ToList());
 
             PortfolioBuildResult result = PortfolioPdfWriter.Build(request);
             Portfolio.LastPdfPath = Path.GetRelativePath(projectFolder, result.OutputPath);
@@ -556,6 +618,16 @@ internal sealed partial class ShellView
         public string Title => Item.Title;
 
         public string Caption => Item.Caption;
+
+        /// <summary>
+        /// Why a page looks the way it does: taken out by the user, or still
+        /// here although the drawing it came from no longer offers it.
+        /// </summary>
+        public string State => Item.IsRemoved
+            ? "Хасагдсан"
+            : Item.MissingFromSourceSinceUtc is not null
+                ? "Эх багцад алга"
+                : "";
 
         public string Layout => Item.Layout switch
         {

@@ -71,6 +71,30 @@ public sealed class ProjectPortfolioItem
     /// <summary>Export time of the package this item was last imported from.</summary>
     public DateTimeOffset? SourceExportedAtUtc { get; set; }
 
+    /// <summary>
+    /// The title the source last gave this page. It is kept beside the shown
+    /// title so a re-import can tell a name the user changed from one it set
+    /// itself, and leave the user's wording alone.
+    /// </summary>
+    public string SourceTitle { get; set; } = "";
+
+    /// <summary>
+    /// When the source stopped offering this page - a full snapshot arrived
+    /// without it. The item stays: a portfolio is the project's own
+    /// presentation and does not lose material because a drawing was
+    /// reorganised. Recording it lets the page say so for itself.
+    /// </summary>
+    public DateTimeOffset? MissingFromSourceSinceUtc { get; set; }
+
+    /// <summary>
+    /// When the user took this page out of the portfolio. An imported page is
+    /// hidden rather than deleted, so the next export does not quietly put it
+    /// back and so taking one out can be undone.
+    /// </summary>
+    public DateTimeOffset? RemovedAtUtc { get; set; }
+
+    public bool IsRemoved => RemovedAtUtc.HasValue;
+
     /// <summary>Where a cropped item is centred, 0..1 of the source.</summary>
     public double FocalPointX { get; set; } = 0.5;
 
@@ -91,6 +115,9 @@ public sealed class ProjectPortfolioItem
         AlbumPageId = AlbumPageId,
         SourceSheetKey = SourceSheetKey,
         SourceExportedAtUtc = SourceExportedAtUtc,
+        SourceTitle = SourceTitle,
+        MissingFromSourceSinceUtc = MissingFromSourceSinceUtc,
+        RemovedAtUtc = RemovedAtUtc,
         FocalPointX = FocalPointX,
         FocalPointY = FocalPointY,
         AddedAtUtc = AddedAtUtc,
@@ -128,6 +155,18 @@ public sealed class ProjectPortfolio
         .ThenBy(item => item.AddedAtUtc)
         .ToList();
 
+    /// <summary>
+    /// The pages the portfolio actually shows. A page the user took out keeps
+    /// its place and its wording, but is not presented or printed.
+    /// </summary>
+    public IReadOnlyList<ProjectPortfolioItem> OrderedVisibleItems() => OrderedItems()
+        .Where(item => !item.IsRemoved)
+        .ToList();
+
+    public IReadOnlyList<ProjectPortfolioItem> OrderedRemovedItems() => OrderedItems()
+        .Where(item => item.IsRemoved)
+        .ToList();
+
     public void Normalize()
     {
         Items ??= [];
@@ -152,6 +191,7 @@ public sealed class ProjectPortfolio
             item.RelativePath = (item.RelativePath ?? "").Trim();
             item.AlbumPageId = (item.AlbumPageId ?? "").Trim();
             item.SourceSheetKey = (item.SourceSheetKey ?? "").Trim();
+            item.SourceTitle = (item.SourceTitle ?? "").Trim();
             item.SourcePageNumber = Math.Max(1, item.SourcePageNumber);
             item.FocalPointX = Clamp01(item.FocalPointX);
             item.FocalPointY = Clamp01(item.FocalPointY);

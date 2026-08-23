@@ -290,6 +290,158 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
             PageFormatResolver.FromSpec(new PageFormatSpec { Mode = "SomethingElse" }).Kind);
     }
 
+    [Fact]
+    public void UserRenamedPage_KeepsItsNameOnReimport()
+    {
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        (ProjectWorkspace project, string projectPath, SheetPackageLoadResult first) =
+            ImportOne("rename-v1", "P1", "Эх нэр", exportedAtUtc);
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        item.Title = "Хэрэглэгчийн нэр";
+
+        Reimport(project, projectPath, "rename-v2", "P1", "Шинэ эх нэр", exportedAtUtc.AddMinutes(5));
+
+        // The drawing behind the page is refreshed; the wording is not.
+        Assert.Equal("Хэрэглэгчийн нэр", item.Title);
+        Assert.Equal("Шинэ эх нэр", item.SourceTitle);
+        Assert.NotNull(first);
+    }
+
+    [Fact]
+    public void UntouchedName_KeepsFollowingTheSource()
+    {
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        (ProjectWorkspace project, string projectPath, _) =
+            ImportOne("follow-v1", "P1", "Эх нэр", exportedAtUtc);
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+
+        Reimport(project, projectPath, "follow-v2", "P1", "Шинэ эх нэр", exportedAtUtc.AddMinutes(5));
+
+        Assert.Equal("Шинэ эх нэр", item.Title);
+    }
+
+    [Fact]
+    public void RemovedPage_DoesNotComeBackOnTheNextExport()
+    {
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        (ProjectWorkspace project, string projectPath, _) =
+            ImportOne("removed-v1", "P1", "Хуудас", exportedAtUtc);
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        item.RemovedAtUtc = DateTimeOffset.UtcNow;
+
+        PortfolioSheetImportResult again = Reimport(
+            project,
+            projectPath,
+            "removed-v2",
+            "P1",
+            "Хуудас",
+            exportedAtUtc.AddMinutes(5));
+
+        // Still one item, still removed, and not reported as having arrived.
+        Assert.Single(project.Portfolio.Items);
+        Assert.True(item.IsRemoved);
+        Assert.Equal(0, again.CreatedItemCount);
+        Assert.Equal(0, again.UpdatedItemCount);
+    }
+
+    [Fact]
+    public void PageTheSourceStopsOffering_SaysSoAndStays()
+    {
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstManifest = WritePackage(
+            "dropped-v1",
+            [Portfolio("P1", "Нэг"), Portfolio("P2", "Хоёр")],
+            SheetPackageScope.FullSnapshot,
+            exportedAtUtc);
+        SheetPackageLoadResult first = SheetPackageReader.Load(firstManifest);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(project, projectPath, first);
+        Assert.Equal(2, project.Portfolio.Items.Count);
+
+        string secondManifest = WritePackage(
+            "dropped-v2",
+            [Portfolio("P1", "Нэг")],
+            SheetPackageScope.FullSnapshot,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(secondManifest));
+
+        Assert.Equal(2, project.Portfolio.Items.Count);
+        ProjectPortfolioItem stillOffered = project.Portfolio.Items.Single(item => item.Title == "Нэг");
+        ProjectPortfolioItem dropped = project.Portfolio.Items.Single(item => item.Title == "Хоёр");
+        Assert.Null(stillOffered.MissingFromSourceSinceUtc);
+        Assert.NotNull(dropped.MissingFromSourceSinceUtc);
+    }
+
+    [Fact]
+    public void DeltaPackage_NeverMarksAPageAsDropped()
+    {
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstManifest = WritePackage(
+            "delta-v1",
+            [Portfolio("P1", "Нэг"), Portfolio("P2", "Хоёр")],
+            SheetPackageScope.FullSnapshot,
+            exportedAtUtc);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(firstManifest));
+
+        // A delta says nothing about what it leaves out.
+        string deltaManifest = WritePackage(
+            "delta-v2",
+            [Portfolio("P1", "Нэг")],
+            SheetPackageScope.Delta,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(deltaManifest));
+
+        Assert.All(
+            project.Portfolio.Items,
+            item => Assert.Null(item.MissingFromSourceSinceUtc));
+    }
+
+    private (ProjectWorkspace Project, string ProjectPath, SheetPackageLoadResult Result) ImportOne(
+        string folder,
+        string sheetId,
+        string name,
+        DateTimeOffset exportedAtUtc)
+    {
+        string manifestPath = WritePackage(
+            folder,
+            [Portfolio(sheetId, name)],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        SheetPackageLoadResult result = SheetPackageReader.Load(manifestPath);
+        Assert.True(result.IsLossless, string.Join("; ", result.Issues));
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(project, projectPath, result);
+        return (project, projectPath, result);
+    }
+
+    private PortfolioSheetImportResult Reimport(
+        ProjectWorkspace project,
+        string projectPath,
+        string folder,
+        string sheetId,
+        string name,
+        DateTimeOffset exportedAtUtc)
+    {
+        string manifestPath = WritePackage(
+            folder,
+            [Portfolio(sheetId, name, pdfText: name)],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        SheetPackageLoadResult result = SheetPackageReader.Load(manifestPath);
+        Assert.True(result.IsLossless, string.Join("; ", result.Issues));
+        return PortfolioSheetImportService.Import(project, projectPath, result);
+    }
+
     private (ProjectWorkspace Project, string ProjectPath) CreateProject()
     {
         string projectFolder = Path.Combine(
