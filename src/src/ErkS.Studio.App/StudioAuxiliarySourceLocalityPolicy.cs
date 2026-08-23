@@ -426,7 +426,10 @@ internal static class StudioAuxiliarySourceLocalityPolicy
             !string.IsNullOrWhiteSpace(currentDevice) &&
             owner.Equals(currentAccount, StringComparison.OrdinalIgnoreCase) &&
             bindingAccount.Equals(currentAccount, StringComparison.OrdinalIgnoreCase) &&
-            bindingDevice.Equals(currentDevice, StringComparison.Ordinal);
+            // The same machine under either name: a document or image bound
+            // before the fingerprint moved to the shared platform form names
+            // this device by its older value.
+            StudioLocalSourceBindingPolicy.MatchesBoundDevice(bindingDevice, currentDevice);
     }
 
     private static bool CanExplicitlyBind(

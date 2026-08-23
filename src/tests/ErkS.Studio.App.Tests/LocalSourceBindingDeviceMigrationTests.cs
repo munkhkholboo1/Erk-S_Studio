@@ -34,6 +34,29 @@ public sealed class LocalSourceBindingDeviceMigrationTests
     }
 
     [Fact]
+    public void ADocumentOrImageBoundBefore_IsStillThisDevice()
+    {
+        // Documents and visualization images carry their own copy of the same
+        // binding, and they broke the same way. One rule now answers for all.
+        var project = new ProjectWorkspace
+        {
+            Cloud = { Origin = "Cloud", ServerProjectId = "p1" },
+        };
+        var document = new ProjectFileReference
+        {
+            CloudOwnerEmail = Email,
+            LocalBindingAccountEmail = Email,
+            LocalBindingDeviceFingerprint = StudioDeviceIdentity.Fingerprints.Legacy,
+        };
+
+        Assert.True(StudioAuxiliarySourceLocalityPolicy.BindingMatches(
+            project,
+            document,
+            Email,
+            StudioDeviceIdentity.Fingerprints.Canonical));
+    }
+
+    [Fact]
     public void AnotherDevicesFingerprint_DoesNotMatch()
     {
         Assert.False(StudioLocalSourceBindingPolicy.MatchesBoundDevice(
