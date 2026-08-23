@@ -158,6 +158,7 @@ internal static class StudioAlbumComponentManifestNormalizer
                         PageKey = page.PageKey,
                         SortKey = page.SortKey,
                         SectionKey = page.SectionKey,
+                        Title = page.Title,
                         SequenceKey = page.SequenceKey,
                     })
                     .ToList();
@@ -266,6 +267,7 @@ internal static class StudioAlbumComponentManifestNormalizer
                 PageKey = page.PageKey ?? "",
                 SortKey = page.SortKey ?? "",
                 SectionKey = page.SectionKey ?? "",
+                Title = page.Title ?? "",
                 SequenceKey = page.SequenceKey ?? "",
             }).ToList(),
     };

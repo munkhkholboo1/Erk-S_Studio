@@ -714,6 +714,17 @@ public sealed class ProjectCloudAlbumComponentPageReference
 {
     public int PageNumber { get; set; }
     public string PageKey { get; set; } = "";
+
+    /// <summary>
+    /// What this page is called on the drawing, as read off the sheet by the
+    /// device that rendered it.
+    ///
+    /// A component covering six pages carries one label for all six. This is
+    /// the name of the one page, and it is the only name a participant who
+    /// holds none of the sources can know. Empty for a page rendered before
+    /// pages carried their own name.
+    /// </summary>
+    public string Title { get; set; } = "";
     public string SortKey { get; set; } = "";
     public string SectionKey { get; set; } = "";
     public string SequenceKey { get; set; } = "";

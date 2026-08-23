@@ -78,6 +78,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 component.Pages.Add(new AlbumBuildComponentPage
                 {
                     PageNumber = page,
+                    // The name is taken here because this is the one moment
+                    // both the drawing and the physical page it landed on are
+                    // in hand. A reviewer holds neither, and reads this.
+                    Title = sourcePage.Title,
                     NativeSheetId = nativeSheetId,
                     NativePageNumber = nativePageNumber,
                     SortKey = StablePageSortKey(

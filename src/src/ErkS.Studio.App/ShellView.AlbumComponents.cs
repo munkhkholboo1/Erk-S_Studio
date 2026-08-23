@@ -412,6 +412,7 @@ internal sealed partial class ShellView
                         page.NativeSheetId,
                         page.NativePageNumber)
                     : page.PageKey.Trim(),
+                Title = (page.Title ?? "").Trim(),
                 SortKey = page.SortKey,
                 SectionKey = sectionKey,
                 SequenceKey = sequenceKey,
@@ -824,6 +825,7 @@ internal sealed partial class ShellView
                         PageKey = page.PageKey ?? "",
                         SortKey = page.SortKey ?? "",
                         SectionKey = page.SectionKey ?? "",
+                        Title = page.Title ?? "",
                         SequenceKey = page.SequenceKey ?? "",
                     }).ToList(),
             })
@@ -956,6 +958,7 @@ internal sealed partial class ShellView
                         PageKey = page.PageKey,
                         SortKey = page.SortKey,
                         SectionKey = page.SectionKey,
+                        Title = page.Title,
                         SequenceKey = page.SequenceKey,
                     }).ToList(),
             })
@@ -1068,6 +1071,7 @@ internal sealed partial class ShellView
                 PageKey = page.PageKey,
                 SortKey = page.SortKey,
                 SectionKey = page.SectionKey,
+                Title = page.Title,
                 SequenceKey = page.SequenceKey,
             }).ToList();
     }
@@ -1757,6 +1761,7 @@ internal sealed partial class ShellView
                 PageKey = page.PageKey,
                 SortKey = page.SortKey,
                 SectionKey = page.SectionKey,
+                Title = page.Title,
                 SequenceKey = page.SequenceKey,
             })
             .ToList();

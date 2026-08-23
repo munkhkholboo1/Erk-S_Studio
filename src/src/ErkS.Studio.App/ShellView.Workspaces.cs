@@ -3519,9 +3519,13 @@ internal sealed partial class ShellView
             {
                 if (page.PageNumber > 0 && !named.ContainsKey(page.PageNumber))
                 {
+                    // The page's own name first. The component's label names
+                    // the whole run of pages it produced, so falling back to it
+                    // gives six pages the same name - true of the run, useless
+                    // for picking one page out of it.
                     named[page.PageNumber] = new AlbumPageChoice(
                         page.PageNumber,
-                        label,
+                        string.IsNullOrWhiteSpace(page.Title) ? label : page.Title.Trim(),
                         component.OwnerEmail,
                         page.PageKey);
                 }

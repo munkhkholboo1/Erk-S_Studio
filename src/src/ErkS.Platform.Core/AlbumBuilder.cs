@@ -91,6 +91,12 @@ public sealed class AlbumBuildComponentPage
 {
     public required int PageNumber { get; init; }
     public string PageKey { get; init; } = "";
+
+    /// <summary>
+    /// What this page is called on the drawing. A component covering six pages
+    /// has one label for all six; this is the name of the one page.
+    /// </summary>
+    public string Title { get; init; } = "";
     public string NativeSheetId { get; init; } = "";
     public int NativePageNumber { get; init; }
     public string SortKey { get; init; } = "";
@@ -155,6 +161,7 @@ public sealed class AlbumBuilder
                     {
                         PageNumber = page.PageNumber,
                         PageKey = page.PageKey,
+                        Title = page.Title,
                         NativeSheetId = page.NativeSheetId,
                         NativePageNumber = page.NativePageNumber,
                         SortKey = page.SortKey,

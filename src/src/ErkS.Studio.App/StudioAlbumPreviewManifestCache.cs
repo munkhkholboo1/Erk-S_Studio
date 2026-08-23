@@ -32,6 +32,7 @@ internal sealed class StudioAlbumPreviewManifestCache
                     {
                         PageNumber = page.PageNumber,
                         PageKey = page.PageKey,
+                        Title = page.Title,
                         SortKey = page.SortKey,
                         SectionKey = page.SectionKey,
                         SequenceKey = page.SequenceKey,

@@ -745,6 +745,7 @@ internal sealed class StudioCloudAlbumComponentPage
 {
     public int PageNumber { get; set; }
     public string PageKey { get; set; } = "";
+    public string Title { get; set; } = "";
     public string SortKey { get; set; } = "";
     public string SectionKey { get; set; } = "";
     public string SequenceKey { get; set; } = "";

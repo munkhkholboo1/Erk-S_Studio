@@ -403,6 +403,7 @@ public static class ProjectWorkspaceStore
             foreach (ProjectCloudAlbumComponentPageReference page in component.Pages)
             {
                 page.PageKey ??= "";
+                page.Title ??= "";
                 page.SortKey ??= "";
                 page.SectionKey ??= "";
                 page.SequenceKey ??= "";
