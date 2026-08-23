@@ -789,16 +789,26 @@ public sealed class AppState : IDisposable
         SaveProject();
     }
 
+    /// <summary>Why the last package was not taken in, when one was not.</summary>
+    public string LastPackageRefusal { get; private set; } = "";
+
     public PackageRecordResult? RecordPackageReceived(SheetPackageLoadResult result)
     {
-        ProjectDesignSource? admittedSource =
-            StudioRuntimeSourceScope.ResolvePackageSource(
-                Project,
-                result,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint);
+        PackageAdmission admission = StudioRuntimeSourceScope.Admit(
+            Project,
+            result,
+            runtimeAccountEmail,
+            runtimeDeviceFingerprint);
+        ProjectDesignSource? admittedSource = admission.Source;
         if (admittedSource is null)
+        {
+            // Nothing quarantines a refused package, so this reason is the only
+            // account of it that will ever exist. Losing it makes a delivery
+            // that was refused look exactly like one that never arrived.
+            LastPackageRefusal = admission.Refusal;
             return null;
+        }
+        LastPackageRefusal = "";
         // The source proved it belongs to this device; if it did so under the
         // older fingerprint, record the current one now while the project is
         // being saved anyway.

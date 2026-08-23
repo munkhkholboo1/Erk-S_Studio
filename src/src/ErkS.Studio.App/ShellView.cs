@@ -5840,8 +5840,11 @@ internal sealed partial class ShellView : IDisposable
         }
         else if (result.IsLossless)
         {
+            string reason = string.IsNullOrWhiteSpace(state.LastPackageRefusal)
+                ? "Энэ төсөлд хамаарахгүй байна."
+                : state.LastPackageRefusal;
             SetStatus(
-                "Package үл тооцогдлоо: source нь энэ бүртгэл/төхөөрөмжийн баталгаатай локал payload биш эсвэл өөр inbox-оос ирсэн.");
+                $"Багц хүлээж аваагүй ({Path.GetFileName(result.ManifestPath)}): {reason}");
             return;
         }
         if (!result.IsLossless)

@@ -9,6 +9,19 @@ namespace ErkS.Studio;
 /// may be watched, scanned, reconciled, or uploaded only when both Cloud
 /// authority and the exact account/device payload binding are valid.
 /// </summary>
+/// <summary>
+/// Whether a package may be taken into the project, and the reason when it may
+/// not.
+/// </summary>
+internal sealed record PackageAdmission(ProjectDesignSource? Source, string Refusal)
+{
+    public static PackageAdmission Admitted(ProjectDesignSource source) => new(source, "");
+
+    public static PackageAdmission Refused(string reason) => new(null, reason);
+
+    public bool IsAdmitted => Source is not null;
+}
+
 internal static class StudioRuntimeSourceScope
 {
     public static IReadOnlyList<ProjectDesignSource> AuthorizedSources(
@@ -57,43 +70,69 @@ internal static class StudioRuntimeSourceScope
         SheetPackageLoadResult result,
         string? currentAccountEmail,
         string? currentDeviceFingerprint,
+        Func<ProjectDesignSource, bool>? hasVerifiedPayload = null) =>
+        Admit(
+            project,
+            result,
+            currentAccountEmail,
+            currentDeviceFingerprint,
+            hasVerifiedPayload).Source;
+
+    /// <summary>
+    /// Decides whether a verified package may be taken into this project, and
+    /// says why not when it may not. A refused package is not a bad package, so
+    /// nothing quarantines it - which means this reason is the only account the
+    /// user will ever get, and losing it makes the delivery look as though it
+    /// never arrived.
+    /// </summary>
+    public static PackageAdmission Admit(
+        ProjectWorkspace project,
+        SheetPackageLoadResult result,
+        string? currentAccountEmail,
+        string? currentDeviceFingerprint,
         Func<ProjectDesignSource, bool>? hasVerifiedPayload = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(result);
         SheetPackageManifest? manifest = result.Manifest;
         if (!result.IsLossless || manifest is null)
-            return null;
+            return PackageAdmission.Refused("Багц шалгалт давсангүй.");
 
         if (!string.IsNullOrWhiteSpace(manifest.ProjectId) &&
             !manifest.ProjectId.Trim().Equals(
                 project.ProjectId.Trim(),
                 StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return PackageAdmission.Refused("Багц өөр төслийнх байна.");
         }
 
         string sourceId = manifest.Source?.SourceId?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(sourceId))
-            return null;
+            return PackageAdmission.Refused("Багцад эх үүсвэрийн дугаар алга байна.");
         ProjectDesignSource? source = (project.Sources ?? []).FirstOrDefault(
             candidate => candidate.Id.Equals(
                 sourceId,
                 StringComparison.OrdinalIgnoreCase));
-        if (source is null ||
-            !IsAuthorizedLocal(
+        if (source is null)
+        {
+            return PackageAdmission.Refused(
+                "Багцын эх үүсвэр энэ төсөлд бүртгэлгүй байна.");
+        }
+        if (!IsAuthorizedLocal(
                 project,
                 source,
                 currentAccountEmail,
                 currentDeviceFingerprint,
                 hasVerifiedPayload))
         {
-            return null;
+            return PackageAdmission.Refused(
+                $"«{source.Name}» эх үүсвэр энэ бүртгэл эсвэл энэ төхөөрөмжид холбогдоогүй байна.");
         }
 
         return PackageBelongsToSourceInbox(source, result.ManifestPath)
-            ? source
-            : null;
+            ? PackageAdmission.Admitted(source)
+            : PackageAdmission.Refused(
+                $"Багц «{source.Name}» эх үүсвэрийн inbox-оос ирээгүй байна.");
     }
 
     private static bool PackageBelongsToSourceInbox(
