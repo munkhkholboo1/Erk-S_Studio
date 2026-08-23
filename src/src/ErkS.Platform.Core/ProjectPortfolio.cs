@@ -22,6 +22,14 @@ public static class ProjectPortfolioLayouts
 
     /// <summary>The item is fitted whole inside the page, with a margin.</summary>
     public const string Contain = "Contain";
+
+    /// <summary>
+    /// The item is fitted whole to the page edge: no margin is added and
+    /// nothing is cropped. This is what an authored CAD page needs - it already
+    /// carries its own margin, so a second one would frame it twice, while
+    /// filling the page would cut drawing off the edges.
+    /// </summary>
+    public const string FitPage = "FitPage";
 }
 
 public sealed class ProjectPortfolioItem
@@ -163,12 +171,15 @@ public sealed class ProjectPortfolio
                     : ProjectPortfolioItemKinds.Image;
     }
 
-    private static string NormalizeLayout(string? layout) =>
-        (layout ?? "").Trim().Equals(
-            ProjectPortfolioLayouts.FullBleed,
-            StringComparison.OrdinalIgnoreCase)
+    private static string NormalizeLayout(string? layout)
+    {
+        string value = (layout ?? "").Trim();
+        return value.Equals(ProjectPortfolioLayouts.FullBleed, StringComparison.OrdinalIgnoreCase)
             ? ProjectPortfolioLayouts.FullBleed
-            : ProjectPortfolioLayouts.Contain;
+            : value.Equals(ProjectPortfolioLayouts.FitPage, StringComparison.OrdinalIgnoreCase)
+                ? ProjectPortfolioLayouts.FitPage
+                : ProjectPortfolioLayouts.Contain;
+    }
 
     private static double Clamp01(double value) =>
         double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 0.5;

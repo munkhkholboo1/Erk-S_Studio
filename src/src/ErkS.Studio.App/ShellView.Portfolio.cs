@@ -58,8 +58,9 @@ internal sealed partial class ShellView
         ConfigurePortfolioList();
         portfolioLayoutBox.ItemsSource = new[]
         {
-            new PortfolioLayoutChoice(ProjectPortfolioLayouts.Contain, "Бүтнээр нь"),
-            new PortfolioLayoutChoice(ProjectPortfolioLayouts.FullBleed, "Хуудас дүүрэн"),
+            new PortfolioLayoutChoice(ProjectPortfolioLayouts.Contain, "Захтай, бүтнээр"),
+            new PortfolioLayoutChoice(ProjectPortfolioLayouts.FitPage, "Захгүй, бүтнээр"),
+            new PortfolioLayoutChoice(ProjectPortfolioLayouts.FullBleed, "Хуудас дүүрэн (тайрна)"),
         };
         portfolioLayoutBox.DisplayMemberPath = nameof(PortfolioLayoutChoice.Label);
 
@@ -540,10 +541,11 @@ internal sealed partial class ShellView
 
         public string Caption => Item.Caption;
 
-        public string Layout => Item.Layout.Equals(
-            ProjectPortfolioLayouts.FullBleed,
-            StringComparison.OrdinalIgnoreCase)
-                ? "Хуудас дүүрэн"
-                : "Бүтнээр нь";
+        public string Layout => Item.Layout switch
+        {
+            ProjectPortfolioLayouts.FullBleed => "Хуудас дүүрэн (тайрна)",
+            ProjectPortfolioLayouts.FitPage => "Захгүй, бүтнээр",
+            _ => "Захтай, бүтнээр",
+        };
     }
 }

@@ -64,7 +64,9 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
         Assert.Equal(1, imported.CreatedItemCount);
         ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
         Assert.Equal(ProjectPortfolioItemKinds.CadPage, item.Kind);
-        Assert.Equal(ProjectPortfolioLayouts.FullBleed, item.Layout);
+        // Fitted to the page edge: the page brings its own margin, and cropping
+        // it would lose drawing whenever the portfolio page is a different shape.
+        Assert.Equal(ProjectPortfolioLayouts.FitPage, item.Layout);
         Assert.Equal("Портфолио хуудас", item.Title);
         Assert.Equal(KeyOf(result, "P1"), item.SourceSheetKey);
         string storedPath = ProjectWorkspacePaths.ResolveInsideProject(

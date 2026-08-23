@@ -25,6 +25,77 @@ public sealed record PortfolioBuildResult(
     IReadOnlyList<string> Warnings);
 
 /// <summary>
+/// Where a portfolio item lands on its page. This is the geometry only, kept
+/// apart from the drawing so the guarantee that matters - a fitted page loses
+/// nothing off its edges - can be asserted directly.
+/// </summary>
+public readonly record struct PortfolioPlacementRect(
+    double Left,
+    double Top,
+    double Width,
+    double Height)
+{
+    public double Right => Left + Width;
+
+    public double Bottom => Top + Height;
+}
+
+public static class PortfolioPlacement
+{
+    /// <summary>
+    /// Scales the source to sit wholly inside the area, centred. Nothing is
+    /// cropped, so a drawing keeps every millimetre it was exported with.
+    /// </summary>
+    public static PortfolioPlacementRect? Fit(
+        double sourceWidth,
+        double sourceHeight,
+        double areaLeft,
+        double areaTop,
+        double areaWidth,
+        double areaHeight)
+    {
+        double scale = Math.Min(areaWidth / sourceWidth, areaHeight / sourceHeight);
+        if (!double.IsFinite(scale) || scale <= 0)
+            return null;
+
+        double width = sourceWidth * scale;
+        double height = sourceHeight * scale;
+        return new PortfolioPlacementRect(
+            areaLeft + (areaWidth - width) / 2,
+            areaTop + (areaHeight - height) / 2,
+            width,
+            height);
+    }
+
+    /// <summary>
+    /// Scales the source to cover the area, cropping whatever falls outside.
+    /// Right for a photograph, wrong for a drawing.
+    /// </summary>
+    public static PortfolioPlacementRect? Cover(
+        double sourceWidth,
+        double sourceHeight,
+        double areaLeft,
+        double areaTop,
+        double areaWidth,
+        double areaHeight,
+        double focalPointX,
+        double focalPointY)
+    {
+        double scale = Math.Max(areaWidth / sourceWidth, areaHeight / sourceHeight);
+        if (!double.IsFinite(scale) || scale <= 0)
+            return null;
+
+        double width = sourceWidth * scale;
+        double height = sourceHeight * scale;
+        return new PortfolioPlacementRect(
+            areaLeft - (width - areaWidth) * Math.Clamp(focalPointX, 0, 1),
+            areaTop - (height - areaHeight) * Math.Clamp(focalPointY, 0, 1),
+            width,
+            height);
+    }
+}
+
+/// <summary>
 /// Writes the portfolio as a presentation: one page per item, drawn edge to
 /// edge with nothing else on it.
 ///
@@ -121,13 +192,18 @@ public static class PortfolioPdfWriter
         bool fullBleed = item.Layout.Equals(
             "FullBleed",
             StringComparison.OrdinalIgnoreCase);
+        // A page fitted to the edge keeps every millimetre of the drawing: it
+        // is scaled to the page rather than over it, so nothing is cut away.
+        bool fitPage = item.Layout.Equals(
+            "FitPage",
+            StringComparison.OrdinalIgnoreCase);
         var pageRect = new XRect(0, 0, page.Width.Point, page.Height.Point);
         gfx.DrawRectangle(fullBleed ? BleedBrush : PaperBrush, pageRect);
 
         try
         {
             using XImage image = OpenSource(item);
-            XRect area = fullBleed
+            XRect area = fullBleed || fitPage
                 ? pageRect
                 : ContentArea(pageRect, hasCaption: item.Caption.Length > 0);
             if (fullBleed)
@@ -143,7 +219,9 @@ public static class PortfolioPdfWriter
             return false;
         }
 
-        DrawCaption(gfx, page, item.Caption, fullBleed);
+        // Over an edge-fitted page the caption sits on the drawing itself, so
+        // it needs the same legible band a full-bleed page gives it.
+        DrawCaption(gfx, page, item.Caption, fullBleed || fitPage);
         return true;
     }
 
@@ -173,18 +251,18 @@ public static class PortfolioPdfWriter
     /// <summary>Fits the whole source inside the area, centred.</summary>
     private static void DrawContained(XGraphics gfx, XImage image, XRect area)
     {
-        double scale = Math.Min(area.Width / image.PointWidth, area.Height / image.PointHeight);
-        if (!double.IsFinite(scale) || scale <= 0)
+        if (PortfolioPlacement.Fit(
+                image.PointWidth,
+                image.PointHeight,
+                area.Left,
+                area.Top,
+                area.Width,
+                area.Height) is not { } placement)
+        {
             return;
+        }
 
-        double width = image.PointWidth * scale;
-        double height = image.PointHeight * scale;
-        gfx.DrawImage(
-            image,
-            area.Left + (area.Width - width) / 2,
-            area.Top + (area.Height - height) / 2,
-            width,
-            height);
+        gfx.DrawImage(image, placement.Left, placement.Top, placement.Width, placement.Height);
     }
 
     /// <summary>Fills the area, cropping whatever falls outside it.</summary>
@@ -195,18 +273,22 @@ public static class PortfolioPdfWriter
         double focalPointX,
         double focalPointY)
     {
-        double scale = Math.Max(area.Width / image.PointWidth, area.Height / image.PointHeight);
-        if (!double.IsFinite(scale) || scale <= 0)
+        if (PortfolioPlacement.Cover(
+                image.PointWidth,
+                image.PointHeight,
+                area.Left,
+                area.Top,
+                area.Width,
+                area.Height,
+                focalPointX,
+                focalPointY) is not { } placement)
+        {
             return;
-
-        double width = image.PointWidth * scale;
-        double height = image.PointHeight * scale;
-        double left = area.Left - (width - area.Width) * Math.Clamp(focalPointX, 0, 1);
-        double top = area.Top - (height - area.Height) * Math.Clamp(focalPointY, 0, 1);
+        }
 
         XGraphicsState state = gfx.Save();
         gfx.IntersectClip(area);
-        gfx.DrawImage(image, left, top, width, height);
+        gfx.DrawImage(image, placement.Left, placement.Top, placement.Width, placement.Height);
         gfx.Restore(state);
     }
 

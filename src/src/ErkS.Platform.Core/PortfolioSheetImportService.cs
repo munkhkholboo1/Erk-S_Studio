@@ -74,9 +74,11 @@ public static class PortfolioSheetImportService
                 {
                     Order = project.Portfolio.Items.Count + 1,
                     Kind = ProjectPortfolioItemKinds.CadPage,
-                    // The page carries its own 10 mm margin; Contain would
-                    // frame that margin a second time.
-                    Layout = ProjectPortfolioLayouts.FullBleed,
+                    // The page carries its own 10 mm margin, so Contain would
+                    // frame that margin a second time - and FullBleed would cut
+                    // drawing off the edges whenever the portfolio page is a
+                    // different shape. Fitted to the edge it keeps both.
+                    Layout = ProjectPortfolioLayouts.FitPage,
                     Title = title,
                     RelativePath = relativePath,
                     SourcePageNumber = sourcePageNumber,
