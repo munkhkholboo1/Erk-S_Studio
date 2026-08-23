@@ -108,24 +108,24 @@ public sealed class VisualPackageReaderTests : IDisposable
     [Fact]
     public void ThePageRectangleBecomesTheCropACardHolds()
     {
-        // The measured example from the contract: a 300 x 200 mm view centred
-        // on an A3 sheet.
+        // The numbers a real Revit export produced: a 300 x 200 mm view centred
+        // on ISO B4 landscape.
         var page = new VisualAssetPage
         {
-            PaperWidthMm = 420,
-            PaperHeightMm = 297,
-            ViewXMm = 60,
-            ViewYMm = 48.5,
+            PaperWidthMm = 353,
+            PaperHeightMm = 250,
+            ViewXMm = 26.5,
+            ViewYMm = 25,
             ViewWidthMm = 300,
             ViewHeightMm = 200,
         };
 
         (double x, double y, double width, double height) = Require(page.AsNormalizedCrop());
 
-        Assert.Equal(60d / 420d, x, precision: 9);
-        Assert.Equal(48.5d / 297d, y, precision: 9);
-        Assert.Equal(300d / 420d, width, precision: 9);
-        Assert.Equal(200d / 297d, height, precision: 9);
+        Assert.Equal(26.5d / 353d, x, precision: 9);
+        Assert.Equal(0.1, y, precision: 9);
+        Assert.Equal(300d / 353d, width, precision: 9);
+        Assert.Equal(0.8, height, precision: 9);
     }
 
     [Fact]
@@ -309,12 +309,14 @@ public sealed class VisualPackageReaderTests : IDisposable
         MediaType = VisualMediaTypes.Pdf,
         FileName = $"{assetId}.pdf",
         // The contract's own measured example: 300 x 200 mm centred on A3.
+        // The values a real Revit export produced: a 300 x 200 mm view centred
+        // on ISO B4 landscape.
         Page = new VisualAssetPage
         {
-            PaperWidthMm = 420,
-            PaperHeightMm = 297,
-            ViewXMm = 60,
-            ViewYMm = 48.5,
+            PaperWidthMm = 353,
+            PaperHeightMm = 250,
+            ViewXMm = 26.5,
+            ViewYMm = 25,
             ViewWidthMm = 300,
             ViewHeightMm = 200,
         },

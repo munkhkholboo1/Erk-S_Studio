@@ -62,8 +62,8 @@ public sealed class VisualPackageImportTests : IDisposable
         Import(project, Manifest(Vector("view-1", "Аксонометр")));
 
         ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
-        Assert.Equal(60d / 420d, item.SourceCropX, precision: 9);
-        Assert.Equal(300d / 420d, item.SourceCropWidth, precision: 9);
+        Assert.Equal(26.5d / 353d, item.SourceCropX, precision: 9);
+        Assert.Equal(300d / 353d, item.SourceCropWidth, precision: 9);
     }
 
     [Fact]
@@ -289,12 +289,14 @@ public sealed class VisualPackageImportTests : IDisposable
             Kind = VisualAssetKinds.LineView,
             MediaType = VisualMediaTypes.Pdf,
             FileName = $"{assetId}.pdf",
+            // The values a real Revit export produced: a 300 x 200 mm view
+            // centred on ISO B4 landscape.
             Page = new VisualAssetPage
             {
-                PaperWidthMm = 420,
-                PaperHeightMm = 297,
-                ViewXMm = 60,
-                ViewYMm = 48.5,
+                PaperWidthMm = 353,
+                PaperHeightMm = 250,
+                ViewXMm = 26.5,
+                ViewYMm = 25,
                 ViewWidthMm = 300,
                 ViewHeightMm = 200,
             },
