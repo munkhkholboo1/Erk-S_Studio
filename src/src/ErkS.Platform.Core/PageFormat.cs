@@ -17,6 +17,14 @@ public enum PageFormatKind
     Concept,
     Document,
     Cover,
+
+    /// <summary>
+    /// A chromeless presentation page: no border, grid, sheet title or title
+    /// block is ever drawn over it. Portfolio entries normally never enter an
+    /// album; this kind keeps one that slips through from being stamped with
+    /// working-drawing chrome by the unknown-mode fallback.
+    /// </summary>
+    Portfolio,
 }
 
 /// <summary>
@@ -300,6 +308,10 @@ public static class PageFormatResolver
         if (string.Equals(mode, "Cover", StringComparison.OrdinalIgnoreCase))
         {
             return PageFormatKind.Cover;
+        }
+        if (string.Equals(mode, "Portfolio", StringComparison.OrdinalIgnoreCase))
+        {
+            return PageFormatKind.Portfolio;
         }
         return PageFormatKind.WorkingDrawing;
     }

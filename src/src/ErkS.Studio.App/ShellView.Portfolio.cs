@@ -532,6 +532,7 @@ internal sealed partial class ShellView
         {
             ProjectPortfolioItemKinds.AlbumPage => "Альбомын хуудас",
             ProjectPortfolioItemKinds.Document => "Нэмсэн файл",
+            ProjectPortfolioItemKinds.CadPage => "CAD хуудас",
             _ => "Төслийн зураг",
         };
 

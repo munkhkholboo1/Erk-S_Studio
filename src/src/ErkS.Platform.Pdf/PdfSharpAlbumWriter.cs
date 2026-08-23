@@ -587,7 +587,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildPage buildPage)
     {
         var format = buildPage.Format;
-        if (format.Kind == PageFormatKind.SourceAsIs)
+        if (format.Kind is PageFormatKind.SourceAsIs or PageFormatKind.Portfolio)
         {
             return;
         }

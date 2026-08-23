@@ -257,6 +257,37 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
         Assert.Equal(portfolioKey, item.SourceSheetKey);
     }
 
+    [Fact]
+    public void PortfolioFormatMode_ResolvesToChromelessKind()
+    {
+        var spec = new PageFormatSpec
+        {
+            Id = "erks-portfolio-a1-landscape",
+            Name = "Portfolio A1",
+            Mode = "Portfolio",
+            Code = "A1",
+            Orientation = "LANDSCAPE",
+            BindEdge = "NONE",
+            WidthMm = 420,
+            HeightMm = 297,
+            DrawingArea = new PageRectSpec { X = 10, Y = 10, Width = 400, Height = 277 },
+            SheetTitleArea = new PageRectSpec(),
+            TitleBlockArea = new PageRectSpec(),
+            ShowBorder = false,
+            ShowGrid = false,
+        };
+        spec.GeometryHash = PageFormatSpecGeometry.ComputeHash(spec);
+
+        PageFormatDefinition format = PageFormatResolver.FromSpec(spec);
+
+        // A page that slips into an album must never be stamped with
+        // working-drawing chrome by the unknown-mode fallback.
+        Assert.Equal(PageFormatKind.Portfolio, format.Kind);
+        Assert.Equal(
+            PageFormatKind.WorkingDrawing,
+            PageFormatResolver.FromSpec(new PageFormatSpec { Mode = "SomethingElse" }).Kind);
+    }
+
     private (ProjectWorkspace Project, string ProjectPath) CreateProject()
     {
         string projectFolder = Path.Combine(
