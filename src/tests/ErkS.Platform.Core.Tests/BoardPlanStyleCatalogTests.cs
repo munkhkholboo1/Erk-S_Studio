@@ -140,6 +140,32 @@ public sealed class BoardPlanStyleCatalogTests
         Assert.Equal("lawn", Assert.Single(legend).Key);
     }
 
+    [Theory]
+    [InlineData("PlannedBuilding")]
+    [InlineData("PlannedRoad")]
+    [InlineData("PlannedWalkway")]
+    [InlineData("PlannedGreenArea")]
+    public void CityGensOwnCategoryNamesResolve(string category)
+    {
+        // Measured against a real masterplan export: these are the names that
+        // actually arrive. Missing them left five hundred and thirty-five
+        // shapes - every building among them - drawn as unrecognised.
+        PlanStyle style = BoardPlanStyleCatalog.Resolve("", "unknown", "SOURCE", category);
+
+        Assert.False(style.IsUnrecognised, "category " + category + " should resolve");
+    }
+
+    [Fact]
+    public void TheWordUnknownIsNotAClassification()
+    {
+        // CityGen states "unknown" rather than leaving the field empty, and
+        // most of a real plan carries it: a building has no surface material.
+        // It has to fall through exactly as an empty field does.
+        PlanStyle style = BoardPlanStyleCatalog.Resolve("unknown", "unknown", "SOURCE", "PlannedBuilding");
+
+        Assert.Equal("PlannedBuilding", style.Key);
+    }
+
     private static CityGenBoardManifest Manifest(params CityGenBoardObject[] objects) => new()
     {
         Schema = CityGenGraphicBoardContract.Schema,

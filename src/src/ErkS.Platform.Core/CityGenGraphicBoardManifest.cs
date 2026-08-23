@@ -300,7 +300,7 @@ public static class CityGenGraphicBoardReader
         manifest.Objects ??= [];
         manifest.Origin ??= new CityGenBoardOrigin();
 
-        var skipped = new List<string>();
+        var complaints = new List<(string Reason, string Subject)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (CityGenBoardObject item in manifest.Objects)
         {
@@ -310,15 +310,16 @@ public static class CityGenGraphicBoardReader
             {
                 // Without an identity a user's own styling could never be kept
                 // across a re-export, so the object is of no use to a board.
-                skipped.Add($"{Describe(item)}: танигчгүй.");
+                complaints.Add(("танигчгүй объект", Describe(item)));
                 continue;
             }
             if (!seen.Add(item.Id))
-                skipped.Add($"{item.Id}: танигч давхардсан.");
+                complaints.Add(("танигч давхардсан", item.Id));
             if (!item.IsDrawable)
-                skipped.Add($"{item.Id}: зурахад хангалттай оройгүй.");
+                complaints.Add(("зурахад хангалттай оройгүй", item.Id));
         }
 
+        var skipped = Summarise(complaints);
         if (issues.Count == 0 && manifest.ObjectCount != manifest.Objects.Count)
         {
             // Not fatal, but it means the file was truncated or written by
@@ -334,6 +335,31 @@ public static class CityGenGraphicBoardReader
             Issues = issues,
             SkippedObjects = skipped,
         };
+    }
+
+    /// <summary>
+    /// One line per kind of complaint, with a count and a few examples.
+    ///
+    /// A real plan produced a hundred and ninety-one identical reports, and a
+    /// hundred and ninety-one identical lines hide a problem as effectively as
+    /// silence does. The count is what makes it legible; the examples are what
+    /// make it findable.
+    /// </summary>
+    private static List<string> Summarise(IReadOnlyList<(string Reason, string Subject)> complaints)
+    {
+        const int examples = 3;
+        return complaints
+            .GroupBy(complaint => complaint.Reason, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                string sample = string.Join(
+                    ", ",
+                    group.Select(complaint => complaint.Subject).Distinct(StringComparer.Ordinal).Take(examples));
+                return group.Count() == 1
+                    ? $"{sample}: {group.Key}."
+                    : $"{group.Key}: {group.Count()} объект (жишээ: {sample}).";
+            })
+            .ToList();
     }
 
     private static string Describe(CityGenBoardObject item) =>

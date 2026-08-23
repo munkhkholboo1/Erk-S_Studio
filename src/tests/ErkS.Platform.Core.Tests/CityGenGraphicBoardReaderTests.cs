@@ -153,6 +153,27 @@ public sealed class CityGenGraphicBoardReaderTests : IDisposable
     }
 
     [Fact]
+    public void ManyObjectsWithTheSameComplaintBecomeOneCountedLine()
+    {
+        // A real masterplan produced a hundred and ninety-one duplicate
+        // identifiers. A hundred and ninety-one identical lines hide a problem
+        // as effectively as silence does, so the count is what carries it.
+        CityGenBoardManifest manifest = Manifest(
+            Area("lawn-1", "LAWN", "Green", "grass", "lawn"),
+            Area("lawn-1", "LAWN", "Green", "grass", "lawn"),
+            Area("lawn-1", "LAWN", "Green", "grass", "lawn"),
+            Area("road-1", "ROAD_ASPHALT_OUTLINE", "Road", "asphalt", ""),
+            Area("road-1", "ROAD_ASPHALT_OUTLINE", "Road", "asphalt", ""));
+
+        CityGenBoardLoadResult result = CityGenGraphicBoardReader.Verify(manifest);
+
+        string reported = Assert.Single(result.SkippedObjects);
+        Assert.Contains("3", reported);
+        Assert.Contains("lawn-1", reported);
+        Assert.Contains("road-1", reported);
+    }
+
+    [Fact]
     public void ACountThatDisagreesWithTheBodyIsSaidOutLoud()
     {
         CityGenBoardManifest manifest = Manifest(Area("lawn-1", "LAWN", "Green", "grass", "lawn"));
