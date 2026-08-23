@@ -130,7 +130,9 @@ public static class BoardPlanStyleCatalog
         new("PlannedGreenArea", "Ногоон байгууламж", PlanFillPatterns.Grass, "#D8E8C8", "#7FA45C", "#7FA45C", 0.25),
         new("PlannedRoad", "Зам", PlanFillPatterns.Solid, "#D2D5DA", "#AEB3BB", "#9BA1AA", 0.25),
         new("PlannedWalkway", "Явган зам", PlanFillPatterns.Paving, "#E8E2D8", "#BFB5A4", "#AFA593", 0.25),
-        new("PlannedBuilding", "Барилга", PlanFillPatterns.Solid, "#D9D2C8", "#8C8378", "#6F675E", 0.35),
+        new("PlannedBuilding", "Төлөвлөсөн барилга", PlanFillPatterns.Solid, "#D9D2C8", "#8C8378", "#6F675E", 0.35),
+        new("ExistingBuilding", "Одоо байгаа барилга", PlanFillPatterns.Solid, "#C9C4BC", "#7C7468", "#5F594F", 0.3),
+        new("DemolishedBuilding", "Буулгах барилга", PlanFillPatterns.Hatch, "#EFE2E2", "#B98C8C", "#A87878", 0.3),
         new("PlannedWater", "Ус", PlanFillPatterns.Water, "#CFE2F0", "#6E9EC4", "#6E9EC4", 0.25),
         new("PlannedParking", "Зогсоол", PlanFillPatterns.Solid, "#DDDFE3", "#B4B8BF", "#A4A8B0", 0.25),
         new("Green", "Ногоон", PlanFillPatterns.Grass, "#D8E8C8", "#7FA45C", "#7FA45C", 0.25),
@@ -144,7 +146,40 @@ public static class BoardPlanStyleCatalog
     public static PlanStyle Resolve(CityGenBoardObject item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        return Resolve(item.Subtype, item.Material, item.Flow, item.Category);
+        return ApplyRole(
+            Resolve(item.Subtype, item.Material, item.Flow, item.Category),
+            item.Role);
+    }
+
+    /// <summary>
+    /// The exporter's word on whether a thing is ground or paint, applied over
+    /// whatever the catalogue chose.
+    ///
+    /// The two answer different questions and both are needed: the role says
+    /// whether to fill, the catalogue says what it looks like. Where a role is
+    /// given it wins, because CityGen knows and Studio could only infer it from
+    /// the shape of a flow name.
+    /// </summary>
+    public static PlanStyle ApplyRole(PlanStyle style, string? role)
+    {
+        string value = (role ?? "").Trim();
+        if (value.Length == 0)
+            return style;
+        if (value.Equals(CityGenBoardRoles.Surface, StringComparison.OrdinalIgnoreCase))
+            return style;
+        if (value.Equals(CityGenBoardRoles.Marking, StringComparison.OrdinalIgnoreCase) ||
+            value.Equals(CityGenBoardRoles.Symbol, StringComparison.OrdinalIgnoreCase))
+        {
+            // Drawn in the colour the catalogue chose for it, but never filled.
+            return style with
+            {
+                FillPattern = PlanFillPatterns.None,
+                OutlineColorHex = style.OutlineColorHex,
+                OutlineWidthMm = style.OutlineWidthMm > 0 ? style.OutlineWidthMm : 0.35,
+            };
+        }
+        // A role nobody here knows leaves the catalogue's decision standing.
+        return style;
     }
 
     public static PlanStyle Resolve(string? subtype, string? material, string? flow, string? category)

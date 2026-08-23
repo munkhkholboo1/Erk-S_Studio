@@ -172,6 +172,68 @@ public sealed class BoardPlanStyleCatalogTests
     }
 
     [Fact]
+    public void TheExportersWordOnGroundOrPaintOverridesTheGuess()
+    {
+        // The role settles what Studio could otherwise only infer from the
+        // shape of a flow name. Where CityGen states it, it wins.
+        var marking = new CityGenBoardObject
+        {
+            Id = "m",
+            Flow = "SOMETHING_UNFAMILIAR",
+            Category = "PlannedRoad",
+            Role = CityGenBoardRoles.Marking,
+        };
+
+        PlanStyle style = BoardPlanStyleCatalog.Resolve(marking);
+
+        Assert.Equal(PlanFillPatterns.None, style.FillPattern);
+        Assert.True(style.OutlineWidthMm > 0);
+    }
+
+    [Fact]
+    public void ASurfaceKeepsWhatTheCatalogueChoseForIt()
+    {
+        var surface = new CityGenBoardObject
+        {
+            Id = "s",
+            Material = "grass",
+            Category = "PlannedGreenArea",
+            Role = CityGenBoardRoles.Surface,
+        };
+
+        Assert.Equal(PlanFillPatterns.Grass, BoardPlanStyleCatalog.Resolve(surface).FillPattern);
+    }
+
+    [Fact]
+    public void ARoleNobodyKnowsLeavesTheCataloguesDecisionStanding()
+    {
+        // The vocabulary is open, so an unfamiliar value must cost nothing.
+        var item = new CityGenBoardObject
+        {
+            Id = "x",
+            Material = "grass",
+            Category = "PlannedGreenArea",
+            Role = "embankment",
+        };
+
+        Assert.Equal(PlanFillPatterns.Grass, BoardPlanStyleCatalog.Resolve(item).FillPattern);
+    }
+
+    [Theory]
+    [InlineData("ExistingBuilding")]
+    [InlineData("DemolishedBuilding")]
+    public void ABuildingIsNamedByWhatWillHappenToIt(string category)
+    {
+        // A building being demolished is still a building. Before CityGen gave
+        // it a category of its own it resolved to nothing and was drawn as an
+        // unrecognised patch.
+        PlanStyle style = BoardPlanStyleCatalog.Resolve("", "unknown", "SOURCE", category);
+
+        Assert.False(style.IsUnrecognised);
+        Assert.Contains("барилга", style.Label, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TheWordUnknownIsNotAClassification()
     {
         // CityGen states "unknown" rather than leaving the field empty, and

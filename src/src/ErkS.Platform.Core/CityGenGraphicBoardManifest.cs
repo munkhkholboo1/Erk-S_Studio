@@ -60,6 +60,23 @@ public static class CityGenGraphicBoardContract
     }
 }
 
+/// <summary>
+/// What kind of thing an object is on the ground. An open vocabulary: a value
+/// Studio does not know leaves the decision to the style catalogue rather than
+/// failing.
+/// </summary>
+public static class CityGenBoardRoles
+{
+    /// <summary>A piece of ground. Filled.</summary>
+    public const string Surface = "surface";
+
+    /// <summary>A painted line. Drawn, never filled.</summary>
+    public const string Marking = "marking";
+
+    /// <summary>Something placed at a point, such as a tree.</summary>
+    public const string Symbol = "symbol";
+}
+
 public sealed class CityGenBoardVertex
 {
     public double X { get; set; }
@@ -133,6 +150,25 @@ public sealed class CityGenBoardObject
 
     /// <summary>An open vocabulary. An unknown value falls back, never fails.</summary>
     public string Subtype { get; set; } = "";
+
+    /// <summary>
+    /// Whether this is a piece of ground, a painted line, or something placed
+    /// at a point - <see cref="CityGenBoardRoles"/>.
+    ///
+    /// It settles a question Studio could otherwise only guess at from the
+    /// shape of a flow name, which is the same guessing-from-names both sides
+    /// agreed to stop doing. On a road drawing two thirds of the objects are
+    /// markings, and filling them would lay bands of road colour across the
+    /// carriageway.
+    /// </summary>
+    public string Role { get; set; } = "";
+
+    /// <summary>
+    /// What produced the object. More dependable than the category for telling
+    /// a building from anything else, because a building being demolished is
+    /// still a building.
+    /// </summary>
+    public string Kind { get; set; } = "";
 
     public string Layer { get; set; } = "";
 
