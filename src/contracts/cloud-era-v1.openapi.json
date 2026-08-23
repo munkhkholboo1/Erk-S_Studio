@@ -1577,6 +1577,215 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/sheet-comments": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraSheetComments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageIdentity",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSheetCommentListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "CreateCloudEraSheetComment",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSheetCommentCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSheetCommentListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/sheet-comments/{commentId}/replies": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ReplyToCloudEraSheetComment",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSheetCommentReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSheetCommentListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/sheet-comments/{commentId}/status": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "SetCloudEraSheetCommentStatus",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSheetCommentStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSheetCommentListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/sheet-comments/{commentId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "DeleteCloudEraSheetComment",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSheetCommentListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/projects": {
       "get": {
         "tags": [
@@ -2569,6 +2778,9 @@
             "format": "int32"
           },
           "pageKey": {
+            "type": "string"
+          },
+          "title": {
             "type": "string"
           },
           "sortKey": {
@@ -3848,6 +4060,12 @@
               "type": "string"
             }
           },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "status": {
             "type": "string"
           }
@@ -4503,6 +4721,212 @@
           "complete": {
             "type": "boolean"
           },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSheetCommentCreateRequest": {
+        "type": "object",
+        "properties": {
+          "pageIdentity": {
+            "type": "string"
+          },
+          "pageLabel": {
+            "type": "string"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "anchorX": {
+            "type": "number",
+            "format": "double"
+          },
+          "anchorY": {
+            "type": "number",
+            "format": "double"
+          },
+          "shape": {
+            "type": "string"
+          },
+          "shapePoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraSheetCommentPointDto"
+            }
+          },
+          "kind": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSheetCommentDto": {
+        "type": "object",
+        "properties": {
+          "commentId": {
+            "type": "string"
+          },
+          "pageIdentity": {
+            "type": "string"
+          },
+          "pageLabel": {
+            "type": "string"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "anchorX": {
+            "type": "number",
+            "format": "double"
+          },
+          "anchorY": {
+            "type": "number",
+            "format": "double"
+          },
+          "shape": {
+            "type": "string"
+          },
+          "shapePoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraSheetCommentPointDto"
+            }
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "authorEmail": {
+            "type": "string"
+          },
+          "authorDisplayName": {
+            "type": "string"
+          },
+          "authorInitials": {
+            "type": "string"
+          },
+          "authorRoleLabel": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedByEmail": {
+            "type": "string"
+          },
+          "resolvedByDisplayName": {
+            "type": "string"
+          },
+          "resolvedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "canManage": {
+            "type": "boolean"
+          },
+          "replies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraSheetCommentReplyDto"
+            }
+          }
+        }
+      },
+      "CloudEraSheetCommentListResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "currentUserEmail": {
+            "type": "string"
+          },
+          "canComment": {
+            "type": "boolean"
+          },
+          "openCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "changeRequiredCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraSheetCommentDto"
+            }
+          }
+        }
+      },
+      "CloudEraSheetCommentPointDto": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CloudEraSheetCommentReplyDto": {
+        "type": "object",
+        "properties": {
+          "replyId": {
+            "type": "string"
+          },
+          "authorEmail": {
+            "type": "string"
+          },
+          "authorDisplayName": {
+            "type": "string"
+          },
+          "authorInitials": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraSheetCommentReplyRequest": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSheetCommentStatusRequest": {
+        "type": "object",
+        "properties": {
           "status": {
             "type": "string"
           }

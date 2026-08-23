@@ -425,6 +425,51 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync();
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -4581,6 +4626,462 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity)
+        {
+            return ListCloudEraSheetCommentsAsync(projectId, pageIdentity, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/sheet-comments"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/sheet-comments");
+                    urlBuilder_.Append('?');
+                    if (pageIdentity != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("pageIdentity")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(pageIdentity, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSheetCommentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body)
+        {
+            return CreateCloudEraSheetCommentAsync(projectId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/sheet-comments"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/sheet-comments");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSheetCommentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body)
+        {
+            return ReplyToCloudEraSheetCommentAsync(projectId, commentId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (commentId == null)
+                throw new System.ArgumentNullException("commentId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/sheet-comments/{commentId}/replies"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/sheet-comments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(commentId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/replies");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSheetCommentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body)
+        {
+            return SetCloudEraSheetCommentStatusAsync(projectId, commentId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (commentId == null)
+                throw new System.ArgumentNullException("commentId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/sheet-comments/{commentId}/status"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/sheet-comments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(commentId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/status");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSheetCommentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId)
+        {
+            return DeleteCloudEraSheetCommentAsync(projectId, commentId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (commentId == null)
+                throw new System.ArgumentNullException("commentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/sheet-comments/{commentId}"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/sheet-comments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(commentId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSheetCommentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         public virtual System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync()
         {
             return ListCloudEraProjectsAsync(System.Threading.CancellationToken.None);
@@ -6762,6 +7263,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("pageKey")]
         public string PageKey { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("title")]
+        public string Title { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("sortKey")]
         public string SortKey { get; set; }
 
@@ -8187,6 +8691,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("stageScopes")]
         public System.Collections.Generic.ICollection<string> StageScopes { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("scopes")]
+        public System.Collections.Generic.ICollection<string> Scopes { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("status")]
         public string Status { get; set; }
 
@@ -8942,6 +9449,255 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("complete")]
         public bool Complete { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentCreateRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageIdentity")]
+        public string PageIdentity { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageLabel")]
+        public string PageLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageNumber")]
+        public int PageNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("anchorX")]
+        public double AnchorX { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("anchorY")]
+        public double AnchorY { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("shape")]
+        public string Shape { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("shapePoints")]
+        public System.Collections.Generic.ICollection<CloudEraSheetCommentPointDto> ShapePoints { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("kind")]
+        public string Kind { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("body")]
+        public string Body { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("commentId")]
+        public string CommentId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageIdentity")]
+        public string PageIdentity { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageLabel")]
+        public string PageLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageNumber")]
+        public int PageNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("anchorX")]
+        public double AnchorX { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("anchorY")]
+        public double AnchorY { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("shape")]
+        public string Shape { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("shapePoints")]
+        public System.Collections.Generic.ICollection<CloudEraSheetCommentPointDto> ShapePoints { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("kind")]
+        public string Kind { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("body")]
+        public string Body { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorEmail")]
+        public string AuthorEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorDisplayName")]
+        public string AuthorDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorInitials")]
+        public string AuthorInitials { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorRoleLabel")]
+        public string AuthorRoleLabel { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
+        public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("updatedAtUtc")]
+        public System.DateTimeOffset UpdatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("resolvedByEmail")]
+        public string ResolvedByEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("resolvedByDisplayName")]
+        public string ResolvedByDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("resolvedAtUtc")]
+        public System.DateTimeOffset? ResolvedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("canManage")]
+        public bool CanManage { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("replies")]
+        public System.Collections.Generic.ICollection<CloudEraSheetCommentReplyDto> Replies { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentListResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("apiVersion")]
+        public string ApiVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentUserEmail")]
+        public string CurrentUserEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("canComment")]
+        public bool CanComment { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("openCount")]
+        public int OpenCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("changeRequiredCount")]
+        public int ChangeRequiredCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("comments")]
+        public System.Collections.Generic.ICollection<CloudEraSheetCommentDto> Comments { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentPointDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("x")]
+        public double X { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("y")]
+        public double Y { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentReplyDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("replyId")]
+        public string ReplyId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorEmail")]
+        public string AuthorEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorDisplayName")]
+        public string AuthorDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorInitials")]
+        public string AuthorInitials { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("body")]
+        public string Body { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
+        public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentReplyRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("body")]
+        public string Body { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSheetCommentStatusRequest
+    {
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
         public string Status { get; set; }
