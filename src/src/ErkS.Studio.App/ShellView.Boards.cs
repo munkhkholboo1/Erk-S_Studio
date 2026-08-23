@@ -510,12 +510,16 @@ internal sealed partial class ShellView
     private BoardBuildCard ToBuildCard(BoardElement element)
     {
         ProjectPortfolioItem? asset = FindBoardAsset(element);
+        // A project with no path on disk cannot resolve its own files, so the
+        // card falls back to being a placeholder rather than to a broken path:
+        // the board still builds and the empty card says what is missing.
+        string projectPath = state.ProjectPath ?? "";
         return new BoardBuildCard(
             element.Layout,
             element.Caption,
-            asset is null
+            asset is null || projectPath.Length == 0
                 ? ""
-                : ProjectWorkspacePaths.ResolveInsideProject(state.ProjectPath, asset.RelativePath),
+                : ProjectWorkspacePaths.ResolveInsideProject(projectPath, asset.RelativePath),
             asset?.SourcePageNumber ?? 1,
             element.Column,
             element.ColumnSpan,
