@@ -632,6 +632,59 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
         Assert.Equal("Танилцуулгад бичсэн тайлбар", item.Caption);
     }
 
+    [Fact]
+    public void SheetMovedFromAlbumToPortfolio_LeavesTheAlbumAndArrivesInThePortfolio()
+    {
+        // The page was delivered as an album sheet before, so the album holds a
+        // page for it and the library holds its record. The drawing then moves it
+        // to the portfolio and re-exports under the same sheet id.
+        var firstExportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string asAlbum = WritePackage(
+            "moved-v1",
+            [Album("A1", "Байгуулалт"), Album("M1", "Зөөгдөх хуудас")],
+            SheetPackageScope.FullSnapshot,
+            firstExportedAtUtc);
+        SheetPackageLoadResult first = SheetPackageReader.Load(asAlbum);
+        Assert.True(first.IsLossless, string.Join("; ", first.Issues));
+        var library = new SheetLibrary();
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        var album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("Concept");
+        library.Absorb(first);
+        Assert.NotNull(ProjectPackageReconciliationService.Apply(project, album, library, first));
+        string movedKey = KeyOf(first, "M1");
+        Assert.Contains(album.Pages, page => page.SheetKey == movedKey);
+        Assert.NotNull(library.FindVerified(movedKey));
+        Assert.Empty(project.Portfolio.Items);
+
+        string asPortfolio = WritePackage(
+            "moved-v2",
+            [Album("A1", "Байгуулалт"), Portfolio("M1", "Зөөгдөх хуудас")],
+            SheetPackageScope.FullSnapshot,
+            firstExportedAtUtc.AddMinutes(5));
+        SheetPackageLoadResult second = SheetPackageReader.Load(asPortfolio);
+        Assert.True(second.IsLossless, string.Join("; ", second.Issues));
+        library.Absorb(second);
+        Assert.NotNull(ProjectPackageReconciliationService.Apply(project, album, library, second));
+        PortfolioSheetImportResult imported = PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            second);
+
+        // It must leave the album completely - page, section placement and the
+        // library record - and arrive in the portfolio exactly once.
+        Assert.DoesNotContain(album.Pages, page => page.SheetKey == movedKey);
+        Assert.All(
+            album.Sections,
+            section => Assert.DoesNotContain(movedKey, section.SheetKeys));
+        Assert.Null(library.FindVerified(movedKey));
+        Assert.Equal(1, imported.CreatedItemCount);
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        Assert.Equal(movedKey, item.SourceSheetKey);
+        Assert.Null(item.MissingFromSourceSinceUtc);
+        // The album sheet that did not move stays put.
+        Assert.Contains(album.Pages, page => page.SheetKey == KeyOf(second, "A1"));
+    }
+
     private (ProjectWorkspace Project, string ProjectPath) CreateProject()
     {
         string projectFolder = Path.Combine(
