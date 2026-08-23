@@ -1961,7 +1961,7 @@ internal sealed partial class ShellView
         openSourceFolderButton.Visibility = Visibility.Visible;
         visualizationSourceControls.Visibility = Visibility.Collapsed;
         SetNativeSourceActionsVisible(true, CanEditLocalSource(source));
-        sourceWorkflowText.Text = source.Kind switch
+        string workflowHint = source.Kind switch
         {
             DesignSourceKind.Revit when sheetCount == 0 =>
                 "RVT холбоос бэлэн. Revit дээр файлаа нээгээд Erk-S Platform > Альбум > Studio руу илгээхэд хуудаснууд энд автоматаар орж ирнэ.",
@@ -1969,6 +1969,41 @@ internal sealed partial class ShellView
                 "Revit дээр өөрчлөлт хийсний дараа Erk-S Platform > Альбум > Studio руу илгээхэд нэмэгдсэн, өөрчлөгдсөн, хасагдсан хуудаснууд автоматаар шинэчлэгдэнэ.",
             _ => "Native эх файл Studio болон Cloud ERA руу хуулагдахгүй; зөвхөн энэ төхөөрөмж дээрх холбоос хадгалагдана.",
         };
+        // A delivery that arrived while the project was closed waits in the
+        // inbox, and until something says so the project looks exactly as it
+        // would if the drawing had never been sent.
+        PendingSourcePackageSurvey pending = SurveyPendingDeliveries(source);
+        sourceWorkflowText.Text = pending.Any
+            ? DescribePendingDeliveries(pending) + Environment.NewLine + Environment.NewLine + workflowHint
+            : workflowHint;
+    }
+
+    /// <summary>
+    /// What this source has waiting in its inbox that the project has not taken
+    /// in. Read from manifest headers only - whether a delivery is any good is
+    /// intake's question, not this one's.
+    /// </summary>
+    private PendingSourcePackageSurvey SurveyPendingDeliveries(ProjectDesignSource source)
+    {
+        ProjectSourceSyncCandidate? recorded = ProjectCloudSyncMetadata
+            .SourcePackages(state.Project)
+            .FirstOrDefault(candidate => candidate.Source.Id.Equals(
+                source.Id,
+                StringComparison.OrdinalIgnoreCase));
+        return SourceInboxScanner.Survey(
+            source.InboxFolder,
+            recorded?.ManifestId ?? "",
+            recorded?.ExportedAtUtc);
+    }
+
+    private static string DescribePendingDeliveries(PendingSourcePackageSurvey pending)
+    {
+        string arrived = pending.NewestExportedAtUtc is { } newest
+            ? newest.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : "";
+        string when = arrived.Length > 0 ? $" (сүүлийнх {arrived})" : "";
+        return $"26A0 {pending.Count} шинэ багц хүлээгдэж байна{when}. " +
+            "«Эх үүсвэрээс шинэчлэх» дарвал хуудаснууд орж ирнэ.";
     }
 
     private void SetNativeSourceActionsVisible(

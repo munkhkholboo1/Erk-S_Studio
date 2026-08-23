@@ -4872,6 +4872,31 @@ internal sealed partial class ShellView : IDisposable
                         : "Cloud өөрчлөлтийг энэ төхөөрөмж рүү татаж шинэчилнэ";
     }
 
+    /// <summary>
+    /// Says, once per project open, that a source has deliveries waiting to be
+    /// taken in. Without this the project looks exactly as it would if the
+    /// drawing had never been sent.
+    /// </summary>
+    private void ReportPendingDeliveriesOnOpen()
+    {
+        int sources = 0;
+        int packages = 0;
+        foreach (ProjectDesignSource source in state.Project.Sources)
+        {
+            PendingSourcePackageSurvey pending = SurveyPendingDeliveries(source);
+            if (!pending.Any)
+                continue;
+            sources++;
+            packages += pending.Count;
+        }
+        if (packages == 0)
+            return;
+
+        SetStatus(sources == 1
+            ? $"{packages} шинэ багц уншигдаагүй байна. Эх үүсвэр хуудсаас «Эх үүсвэрээс шинэчлэх» дарна уу."
+            : $"{sources} эх үүсвэрт нийт {packages} шинэ багц уншигдаагүй байна. Эх үүсвэр хуудсаас «Эх үүсвэрээс шинэчлэх» дарна уу.");
+    }
+
     private void BindProjectToUi()
     {
         if (!state.HasOpenProject)
@@ -4886,6 +4911,10 @@ internal sealed partial class ShellView : IDisposable
         {
             ResetAlbumPreviewForProjectChange();
             boundAlbumProjectId = state.Project.ProjectId;
+            // Deliveries that arrived while this project was closed are the one
+            // thing a user cannot discover by looking: the project simply shows
+            // nothing new. Say it once, as the project opens.
+            ReportPendingDeliveriesOnOpen();
         }
         DiscardStaleCanonicalTitleBlockPreview();
         lastAlbumPath = ResolveCurrentProjectAlbumPath();
