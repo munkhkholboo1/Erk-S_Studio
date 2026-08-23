@@ -53,13 +53,59 @@ internal static class StudioLocalSourceBindingPolicy
         string boundAccount = Value(source, AccountKey);
         string boundDevice = Value(source, DeviceKey);
         return !string.IsNullOrWhiteSpace(boundAccount) &&
-            !string.IsNullOrWhiteSpace(boundDevice) &&
             boundAccount.Equals(
                 NormalizeEmail(currentAccountEmail),
                 StringComparison.OrdinalIgnoreCase) &&
-            boundDevice.Equals(
-                NormalizeDevice(currentDeviceFingerprint),
-                StringComparison.Ordinal);
+            MatchesBoundDevice(boundDevice, currentDeviceFingerprint);
+    }
+
+    /// <summary>
+    /// Whether a binding recorded on this source names this device. The device
+    /// fingerprint moved to a shared platform form, so a source bound before
+    /// that carries the older Studio-only value for the very same machine -
+    /// which is still this machine. Both are accepted; refusing the older one
+    /// would silently stop taking in every delivery from every source bound
+    /// before the change, with nothing said and nothing to see.
+    /// </summary>
+    internal static bool MatchesBoundDevice(
+        string? boundDevice,
+        string? currentDeviceFingerprint,
+        string? legacyDeviceFingerprint = null)
+    {
+        string bound = NormalizeDevice(boundDevice);
+        if (bound.Length == 0)
+            return false;
+        if (bound.Equals(NormalizeDevice(currentDeviceFingerprint), StringComparison.Ordinal))
+            return true;
+
+        string legacy = NormalizeDevice(
+            legacyDeviceFingerprint ?? StudioDeviceIdentity.Fingerprints.Legacy);
+        return legacy.Length > 0 && bound.Equals(legacy, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Rewrites a binding that named this device by its older fingerprint, so
+    /// the project stops carrying a value that only one build understands.
+    /// Returns true when something was rewritten.
+    /// </summary>
+    internal static bool TryMigrateBinding(
+        ProjectDesignSource source,
+        string? currentAccountEmail,
+        string? currentDeviceFingerprint,
+        string? legacyDeviceFingerprint = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        string current = NormalizeDevice(currentDeviceFingerprint);
+        string bound = NormalizeDevice(Value(source, DeviceKey));
+        if (current.Length == 0 || bound.Length == 0 ||
+            bound.Equals(current, StringComparison.Ordinal) ||
+            !MatchesBoundDevice(bound, currentDeviceFingerprint, legacyDeviceFingerprint))
+        {
+            return false;
+        }
+
+        Bind(source, NormalizeEmail(currentAccountEmail), current);
+        return true;
     }
 
     internal static bool HasAnyBinding(ProjectDesignSource source)

@@ -799,6 +799,13 @@ public sealed class AppState : IDisposable
                 runtimeDeviceFingerprint);
         if (admittedSource is null)
             return null;
+        // The source proved it belongs to this device; if it did so under the
+        // older fingerprint, record the current one now while the project is
+        // being saved anyway.
+        StudioLocalSourceBindingPolicy.TryMigrateBinding(
+            admittedSource,
+            runtimeAccountEmail,
+            runtimeDeviceFingerprint);
 
         ProjectPackageReconciliationResult? reconciled =
             ProjectPackageReconciliationService.Apply(Project, Album, Library, result);
