@@ -149,6 +149,10 @@ public static class PortfolioPdfWriter
             warnings.Add("Портфолиод хуудас нэмээгүй тул хоосон баримт үүсгэлээ.");
         }
 
+        // Read this before saving: PdfSharp seals the document on save and
+        // refuses every question about it afterwards, including how many pages
+        // it just wrote.
+        int pageCount = document.PageCount;
         string outputPath = Path.GetFullPath(request.OutputPath);
         string directory = Path.GetDirectoryName(outputPath) ?? Directory.GetCurrentDirectory();
         Directory.CreateDirectory(directory);
@@ -173,7 +177,7 @@ public static class PortfolioPdfWriter
             }
         }
 
-        return new PortfolioBuildResult(outputPath, document.PageCount, warnings);
+        return new PortfolioBuildResult(outputPath, pageCount, warnings);
     }
 
     private static bool DrawItem(
