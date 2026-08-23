@@ -477,6 +477,69 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
     }
 
     [Fact]
+    public void DescriptionAddedAfterTheFirstExport_ReachesAnUncaptionedPage()
+    {
+        // The realistic order of work: export, then write the descriptions,
+        // then export again. The page was imported before they existed.
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstPath = WritePackage(
+            "late-caption-v1",
+            [Portfolio("P1", "Хуудас")],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(firstPath));
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        Assert.Equal("", item.Caption);
+
+        string secondPath = WritePackage(
+            "late-caption-v2",
+            [Portfolio("P1", "Хуудас", description: "Дараа бичсэн тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(secondPath));
+
+        Assert.Equal("Дараа бичсэн тайлбар.", item.Caption);
+    }
+
+    [Fact]
+    public void CaptionTheUserCleared_StaysCleared()
+    {
+        // Clearing a caption is a decision, not an absence of one.
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstPath = WritePackage(
+            "cleared-v1",
+            [Portfolio("P1", "Хуудас", description: "Анхны тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(firstPath));
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        item.Caption = "";
+
+        string secondPath = WritePackage(
+            "cleared-v2",
+            [Portfolio("P1", "Хуудас", description: "Дахин илгээсэн тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(secondPath));
+
+        Assert.Equal("", item.Caption);
+    }
+
+    [Fact]
     public void ChangedDescription_NeverRewritesTheCaption()
     {
         // The caption is printed and belongs to whoever is presenting.

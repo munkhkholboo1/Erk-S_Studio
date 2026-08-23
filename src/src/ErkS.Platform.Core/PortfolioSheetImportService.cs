@@ -71,6 +71,7 @@ public static class PortfolioSheetImportService
             string sourceTitle = (string.IsNullOrWhiteSpace(entry.Name)
                 ? entry.Number
                 : entry.Name).Trim();
+            string sourceCaption = (entry.SheetDescription ?? "").Trim();
             int sourcePageNumber = manifest.SchemaVersion >= 5
                 ? Math.Max(1, entry.PdfPageNumber)
                 : 1;
@@ -88,10 +89,9 @@ public static class PortfolioSheetImportService
                     Title = sourceTitle,
                     SourceTitle = sourceTitle,
                     // The description the page was authored with becomes the
-                    // caption it starts life with. Only here, at creation: the
-                    // caption is printed and is the user's to write, so a
-                    // re-export never reaches in and rewrites it.
-                    Caption = (entry.SheetDescription ?? "").Trim(),
+                    // caption it starts life with.
+                    Caption = sourceCaption,
+                    SourceCaption = sourceCaption,
                     RelativePath = relativePath,
                     SourcePageNumber = sourcePageNumber,
                     SourceSheetKey = key,
@@ -112,6 +112,15 @@ public static class PortfolioSheetImportService
                     item.Title = sourceTitle;
                 }
                 item.SourceTitle = sourceTitle;
+                // The caption follows the same rule as the title: a description
+                // written at the source reaches a page nobody has captioned -
+                // including one imported before descriptions existed - but a
+                // caption the user wrote, or deliberately cleared, is theirs.
+                if (string.Equals(item.Caption, item.SourceCaption, StringComparison.Ordinal))
+                {
+                    item.Caption = sourceCaption;
+                }
+                item.SourceCaption = sourceCaption;
                 item.MissingFromSourceSinceUtc = null;
                 item.RelativePath = relativePath;
                 item.SourcePageNumber = sourcePageNumber;

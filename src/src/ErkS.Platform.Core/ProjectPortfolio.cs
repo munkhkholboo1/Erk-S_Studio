@@ -68,6 +68,14 @@ public sealed class ProjectPortfolioItem
     /// </summary>
     public string SourceSheetKey { get; set; } = "";
 
+    /// <summary>
+    /// The description the source last gave this page, beside the caption that
+    /// is printed. Comparing the two tells a caption the user wrote from one
+    /// the source set, so a description added or changed at the source reaches
+    /// a page nobody has captioned, and never touches one they have.
+    /// </summary>
+    public string SourceCaption { get; set; } = "";
+
     /// <summary>Export time of the package this item was last imported from.</summary>
     public DateTimeOffset? SourceExportedAtUtc { get; set; }
 
@@ -116,6 +124,7 @@ public sealed class ProjectPortfolioItem
         SourceSheetKey = SourceSheetKey,
         SourceExportedAtUtc = SourceExportedAtUtc,
         SourceTitle = SourceTitle,
+        SourceCaption = SourceCaption,
         MissingFromSourceSinceUtc = MissingFromSourceSinceUtc,
         RemovedAtUtc = RemovedAtUtc,
         FocalPointX = FocalPointX,
@@ -192,6 +201,7 @@ public sealed class ProjectPortfolio
             item.AlbumPageId = (item.AlbumPageId ?? "").Trim();
             item.SourceSheetKey = (item.SourceSheetKey ?? "").Trim();
             item.SourceTitle = (item.SourceTitle ?? "").Trim();
+            item.SourceCaption = (item.SourceCaption ?? "").Trim();
             item.SourcePageNumber = Math.Max(1, item.SourcePageNumber);
             item.FocalPointX = Clamp01(item.FocalPointX);
             item.FocalPointY = Clamp01(item.FocalPointY);
