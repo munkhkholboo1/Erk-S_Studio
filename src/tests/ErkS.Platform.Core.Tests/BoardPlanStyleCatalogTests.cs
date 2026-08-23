@@ -155,6 +155,22 @@ public sealed class BoardPlanStyleCatalogTests
         Assert.False(style.IsUnrecognised, "category " + category + " should resolve");
     }
 
+    [Theory]
+    [InlineData("ROAD_LANE_DIVIDER")]
+    [InlineData("ROAD_LANE_LIMIT")]
+    [InlineData("ROAD_CURB")]
+    public void AMarkingIsStrokedRatherThanFilled(string flow)
+    {
+        // A lane divider is a painted line, not a piece of ground. Filling its
+        // outline lays a band of road colour across the carriageway - and on a
+        // real road drawing two thirds of the objects are markings, so this is
+        // not a detail.
+        PlanStyle style = BoardPlanStyleCatalog.Resolve("", "unknown", flow, "PlannedRoad");
+
+        Assert.Equal(PlanFillPatterns.None, style.FillPattern);
+        Assert.True(style.OutlineWidthMm > 0, "a marking still has to be drawn");
+    }
+
     [Fact]
     public void TheWordUnknownIsNotAClassification()
     {

@@ -97,10 +97,21 @@ public static class BoardPlanStyleCatalog
         new("soil", "Хөрс", PlanFillPatterns.Solid, "#E6DCCE", "#C0AE96", "#B2A088", 0.25),
     ]);
 
+    /// <summary>
+    /// Where a flow says something the material and category cannot.
+    ///
+    /// Most of these are markings rather than surfaces: a lane divider is a
+    /// painted line, and filling its outline would lay a band of road colour
+    /// across the carriageway. On a real road drawing two thirds of the objects
+    /// are markings, so drawing them as areas is not a detail.
+    /// </summary>
     private static readonly Dictionary<string, PlanStyle> ByFlow = Build(
     [
         new("ROAD_MEDIAN", "Төв зурвас", PlanFillPatterns.Solid, "#DCE4D6", "#A8B79C", "#98A78C", 0.25),
         new("ROAD_CURB", "Хашлага", PlanFillPatterns.None, "#00000000", "#00000000", "#8A9099", 0.35),
+        new("ROAD_LANE_DIVIDER", "Эгнээний зураас", PlanFillPatterns.None, "#00000000", "#00000000", "#F4F5F7", 0.4),
+        new("ROAD_LANE_LIMIT", "Эгнээний хязгаар", PlanFillPatterns.None, "#00000000", "#00000000", "#F4F5F7", 0.4),
+        new("ROAD_TURN_GUIDE", "Эргэлтийн заавар", PlanFillPatterns.None, "#00000000", "#00000000", "#F4F5F7", 0.4),
         new("WALKWAY", "Явган зам", PlanFillPatterns.Paving, "#E8E2D8", "#BFB5A4", "#AFA593", 0.25),
         new("BIKE_PATH", "Дугуйн зам", PlanFillPatterns.Solid, "#E4D8D8", "#BFA4A4", "#AF9393", 0.25),
     ]);
