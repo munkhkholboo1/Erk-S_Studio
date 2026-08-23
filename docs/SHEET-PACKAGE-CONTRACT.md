@@ -37,9 +37,10 @@ package root.
 | `source.documentPath` | Local binding metadata only; never authorizes upload. |
 | `source.documentTitle` | Display name of the source. |
 | `source.projectCode` | Project grouping hint. |
-| `projectId`, `stageId`, `workPackageId` | Optional canonical assignment metadata. |
+| `projectId`, `stageId`, `workPackageId` | Optional canonical assignment metadata. `projectId` is matched against the receiving project. `stageId` and `workPackageId` are OPAQUE optional strings: producers have written both Guid ("N") values and stage codes, Studio's UI never fills them, and no consumer may parse or rely on their format. |
 | `packageScope` | `Delta` or `FullSnapshot`. |
 | `exportedAtUtc` | UTC timestamp of the completed export. |
+| `exportMode` | Producer-informational free text (e.g. `"SheetsAsIs"`, `"LayoutsAsIs"`). Studio records it and never reads it; nothing may depend on its value. |
 | `sheets` | Ordered list of package entries. |
 
 Every sheet entry MUST have a stable `sheetId`, relative `.pdf` filename, positive page count,
@@ -122,6 +123,28 @@ For `isCleanDrawingSpace=true`:
 - `contentWidthMm` and `contentHeightMm` MUST equal the format drawing area;
 - the source PDF physical page MUST match the declared clean content size;
 - official border, grid, sheet title, corner table, company data, and project data MUST be absent.
+
+## Studio-generated album pages
+
+Studio composes some album pages itself; a producer MUST NOT deliver sheets
+that stand in for them (block them from export the way PFR's workflow boundary
+does). The authoritative slots and their exact titles (Ordinal):
+
+Building-architecture concept album
+(`BuildingArchitectureConceptAlbumTemplate.cs`):
+
+| Slot id | № | Title | Section |
+| --- | --- | --- | --- |
+| `cover` | 00 | `НҮҮР ХУУДАС` | Нүүр хуудас |
+| `design-organization` | 01 | `ЗУРАГ ТӨСӨЛ БОЛОВСРУУЛСАН БАЙГУУЛЛАГА` | Ерөнхий хэсэг |
+| `planning-task` | 02 | `БАТЛАГДСАН АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР` | Ерөнхий хэсэг |
+| `site-context` | 03 | `БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ` | Ерөнхий төлөвлөгөө |
+
+Building working-drawing album (`BuildingWorkingDrawingAlbumTemplate.cs`):
+`cover` / 00 / `НҮҮР ХУУДАС` and `drawing-list-and-notes` / 01 /
+`ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ`. In the current Blueprint workflow these two
+remain producer-owned on the Revit side; when working-drawing albums move to
+Studio composition, producers update their block lists together with this table.
 
 ## Path and file security
 

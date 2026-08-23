@@ -119,8 +119,10 @@ Grouped inventory of everything Studio calls. Full file:line detail:
 - Device activation (`/api/license/activate`) and the Studio session
   (`/api/studio/session`) are separate operations; both carry the password.
   Session refresh (`/api/studio/session/refresh`) re-proves identity with
-  licenseId + activationId + deviceFingerprint, without the password (see the
-  server's decision record for this trade-off; rate-limited server-side).
+  licenseId + activationId + deviceFingerprint, without the password — a
+  deliberate design; the trade-off and its residual risk are recorded in
+  `Erk-S-Server/docs/INTEGRATION-AUDIT-2026-08-23.md` §7.1 (rate-limited
+  server-side; revocation is device unbind).
 - Access tokens live 15 minutes; Studio refreshes when less than 2 minutes
   remain, single-flight, before every authenticated call.
 - Storage: the access token is held in memory only. LicenseId/activationId/
