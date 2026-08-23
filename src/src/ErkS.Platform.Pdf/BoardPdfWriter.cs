@@ -23,7 +23,13 @@ public sealed record BoardBuildCard(
     double CropWidth = 1,
     double CropHeight = 1,
     double FocalPointX = 0.5,
-    double FocalPointY = 0.5);
+    double FocalPointY = 0.5,
+    /// <summary>
+    /// A CityGen board export to draw from its classification, instead of a
+    /// file to place. This is the general plan arriving as what it means rather
+    /// than as a picture of itself.
+    /// </summary>
+    string PlanPath = "");
 
 public sealed record BoardBuildBoard(
     string Code,
@@ -255,8 +261,16 @@ public static class BoardPdfWriter
         List<string> warnings)
     {
         string path = (card.SourcePath ?? "").Trim();
+        string planPath = (card.PlanPath ?? "").Trim();
         bool hasCaption = !string.IsNullOrWhiteSpace(card.Caption);
         XRect content = hasCaption ? ContentAbove(cell) : cell;
+
+        if (planPath.Length > 0)
+        {
+            DrawPlan(gfx, planPath, content, boardLabel, warnings);
+            DrawCaption(gfx, cell, card.Caption);
+            return;
+        }
 
         if (path.Length == 0)
         {
@@ -322,6 +336,51 @@ public static class BoardPdfWriter
         }
 
         DrawCaption(gfx, cell, card.Caption);
+    }
+
+    /// <summary>
+    /// Draws the general plan from its classification. A plan that cannot be
+    /// read leaves the board standing and says why: half a masterplan drawn
+    /// silently would be worse than none.
+    /// </summary>
+    private static void DrawPlan(
+        XGraphics gfx,
+        string planPath,
+        XRect content,
+        string boardLabel,
+        List<string> warnings)
+    {
+        CityGenBoardLoadResult loaded = CityGenGraphicBoardReader.Load(planPath);
+        if (!loaded.IsLoaded)
+        {
+            warnings.Add(
+                $"Самбар {boardLabel}: ерөнхий төлөвлөгөөг уншиж чадсангүй - " +
+                string.Join("; ", loaded.Issues));
+            return;
+        }
+
+        BoardPlanDrawResult drawn = BoardPlanRenderer.Draw(gfx, loaded.Manifest!, content);
+        if (drawn.ShapesDrawn == 0)
+        {
+            warnings.Add($"Самбар {boardLabel}: ерөнхий төлөвлөгөөнөөс зурах дүрс олдсонгүй.");
+            return;
+        }
+
+        foreach (string skipped in loaded.SkippedObjects)
+            warnings.Add($"Самбар {boardLabel}: {skipped}");
+        if (drawn.UnrecognisedShapes > 0)
+        {
+            // Drawn, but in the neutral style: the plan came in carrying a
+            // classification Studio has no entry for, and that is worth saying
+            // rather than leaving the user to notice the grey patches.
+            warnings.Add(
+                $"Самбар {boardLabel}: {drawn.UnrecognisedShapes} дүрсийн ангилал танигдсангүй.");
+        }
+        if (loaded.Manifest!.NorthIsAssumed)
+        {
+            warnings.Add(
+                $"Самбар {boardLabel}: хойд зүг зурганд зарлагдаагүй, таамагласан утга.");
+        }
     }
 
     private static XImage OpenSource(BoardBuildCard card)
