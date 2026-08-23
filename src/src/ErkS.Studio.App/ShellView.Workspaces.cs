@@ -4489,8 +4489,8 @@ internal sealed partial class ShellView
             if (selected.Page is not AlbumPageDefinition canonicalSourcePage)
                 return null;
 
-            AlbumBuildRequest canonicalRequest =
-                AlbumBuilder.CreateRequest(project, state.Library);
+            if (!AlbumBuilder.TryCreateRequest(project, state.Library, out AlbumBuildRequest canonicalRequest))
+                return null;
             return StudioAlbumPreviewPageMap.ResolveCanonicalSourcePage(
                 state.Project,
                 canonicalRequest,
@@ -4511,7 +4511,8 @@ internal sealed partial class ShellView
 
         if (selected.VisualizationPlan is VisualizationAlbumPagePlan visualizationPlan)
         {
-            AlbumBuildRequest visualizationRequest = AlbumBuilder.CreateRequest(project, state.Library);
+            if (!AlbumBuilder.TryCreateRequest(project, state.Library, out AlbumBuildRequest visualizationRequest))
+                return null;
             return StudioAlbumPreviewPageMap.ResolveLocalVisualizationPage(
                 visualizationRequest,
                 visualizationPlan.PageIndex,
@@ -4524,7 +4525,11 @@ internal sealed partial class ShellView
             return null;
         }
 
-        var request = AlbumBuilder.CreateRequest(project, state.Library);
+        // An album waiting on its sheets cannot be built, and asking which page
+        // this item would occupy has no answer yet. That is not a failure to take
+        // the workspace down with - the list simply shows no page number.
+        if (!AlbumBuilder.TryCreateRequest(project, state.Library, out AlbumBuildRequest request))
+            return null;
         return StudioAlbumPreviewPageMap.ResolveLocalSourcePage(
             request,
             selectedPage.Id,

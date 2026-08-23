@@ -206,6 +206,30 @@ public sealed class AlbumBuilder
             : CreateLegacyRequest(project, library);
     }
 
+    /// <summary>
+    /// Builds the request, or reports that it cannot be built yet. An album whose
+    /// sheets have not been received references pages nothing can resolve - an
+    /// ordinary state for a project waiting on a delivery, not a fault. Callers
+    /// that only want to look at the album, rather than produce it, ask this way
+    /// so an unbuildable album stays a fact about the album.
+    /// </summary>
+    public static bool TryCreateRequest(
+        AlbumProject project,
+        SheetLibrary library,
+        out AlbumBuildRequest request)
+    {
+        try
+        {
+            request = CreateRequest(project, library);
+            return true;
+        }
+        catch (AlbumBuildException)
+        {
+            request = null!;
+            return false;
+        }
+    }
+
     private static AlbumBuildRequest CreateConfiguredRequest(AlbumProject project, SheetLibrary library)
     {
         RejectUnresolvedPages(project.Album.Pages, library);
