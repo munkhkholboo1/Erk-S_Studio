@@ -118,9 +118,13 @@ Grouped inventory of everything Studio calls. Full file:line detail:
 
 - Device activation (`/api/license/activate`) and the Studio session
   (`/api/studio/session`) are separate operations; both carry the password.
-  Session refresh (`/api/studio/session/refresh`) re-proves identity with
-  licenseId + activationId + deviceFingerprint, without the password — a
-  deliberate design; the trade-off and its residual risk are recorded in
+  Every device-bound request carries the shared canonical `deviceFingerprint`
+  and Studio's optional `legacyDeviceFingerprint` alias. This applies to
+  activation, validation, session sign-in, and session refresh; the two values
+  must be non-empty and different before the server may adopt the canonical
+  value. Session restore validates the activation and then refreshes the
+  session with licenseId + activationId + those fingerprints, without the
+  password — a deliberate design; the trade-off and its residual risk are recorded in
   `Erk-S-Server/docs/INTEGRATION-AUDIT-2026-08-23.md` §7.1 (rate-limited
   server-side; revocation is device unbind).
 - Access tokens live 15 minutes; Studio refreshes when less than 2 minutes
@@ -129,7 +133,10 @@ Grouped inventory of everything Studio calls. Full file:line detail:
   deviceFingerprint live in Windows Credential Manager. Non-secret session
   metadata (server URL, e-mail, display names, profile-image URL, licence
   type/expiry) lives in `%LOCALAPPDATA%\Erk-S Studio\account.json`; that file
-  MUST never contain a password or token.
+  MUST never contain a password or token. A credential bound with Studio's
+  legacy fingerprint remains valid and is lazily rewritten with the canonical
+  fingerprint after the server successfully validates and refreshes it, so the
+  salt migration never requires another login.
 - **Same-origin rule**: a request that carries the bearer token MUST resolve to
   the session server's own origin. A server-supplied URL (profile image,
   organization logo, chat asset) that resolves anywhere else is refused

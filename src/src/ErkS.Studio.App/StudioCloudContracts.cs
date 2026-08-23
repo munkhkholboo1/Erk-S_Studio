@@ -80,6 +80,47 @@ internal sealed class StudioProjectChatReactionRequest
     public string PeerEmail { get; set; } = "";
 }
 
+internal abstract class StudioDeviceBoundRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+    public string DeviceName { get; set; } = "";
+    public string AppVersion { get; set; } = "";
+}
+
+internal sealed class StudioLicenseActivateRequest : StudioDeviceBoundRequest
+{
+    public string ProductCode { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string Password { get; set; } = "";
+}
+
+internal sealed class StudioLicenseValidateRequest : StudioDeviceBoundRequest
+{
+    public string ProductCode { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string LicenseId { get; set; } = "";
+    public string ActivationId { get; set; } = "";
+}
+
+internal sealed class StudioSessionRequest : StudioDeviceBoundRequest
+{
+    public string Email { get; set; } = "";
+    public string Password { get; set; } = "";
+    public string ClientName { get; set; } = "Erk-S Studio";
+    public string ProductCode { get; set; } = "";
+    public string LicenseId { get; set; } = "";
+    public string ActivationId { get; set; } = "";
+}
+
+internal sealed class StudioSessionRefreshRequest : StudioDeviceBoundRequest
+{
+    public string Email { get; set; } = "";
+    public string ProductCode { get; set; } = "";
+    public string LicenseId { get; set; } = "";
+    public string ActivationId { get; set; } = "";
+}
+
 internal sealed class StudioLicenseResponse
 {
     public bool IsValid { get; set; }

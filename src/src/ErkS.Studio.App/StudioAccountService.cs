@@ -249,17 +249,21 @@ internal sealed class StudioAccountService :
             CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
                 transition.CancellationToken);
-        string fingerprint = StudioDeviceIdentity.Fingerprint;
-        var activateRequest = new
+        // The canonical fingerprint is the device identity going forward. The
+        // legacy alias lets the server find this Studio activation without
+        // consuming another device slot during the salt migration.
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        var activateRequest = new StudioLicenseActivateRequest
         {
-            productCode = ProductCode,
-            email = normalizedEmail,
-            password,
-            deviceFingerprint = fingerprint,
-            deviceName = Environment.MachineName,
-            appVersion = AppVersion,
+            ProductCode = ProductCode,
+            Email = normalizedEmail,
+            Password = password,
+            DeviceFingerprint = fingerprints.Canonical,
+            LegacyDeviceFingerprint = fingerprints.Legacy,
+            DeviceName = Environment.MachineName,
+            AppVersion = AppVersion,
         };
-        StudioLicenseResponse license = await PostAsync<object, StudioLicenseResponse>(
+        StudioLicenseResponse license = await PostAsync<StudioLicenseActivateRequest, StudioLicenseResponse>(
             normalizedServer,
             "/api/license/activate",
             activateRequest,
@@ -270,19 +274,20 @@ internal sealed class StudioAccountService :
                 ? "Erk-S Studio лиценз идэвхжсэнгүй."
                 : license.Message);
 
-        var sessionRequest = new
+        var sessionRequest = new StudioSessionRequest
         {
-            email = normalizedEmail,
-            password,
-            clientName = "Erk-S Studio",
-            productCode = ProductCode,
-            licenseId = license.LicenseId,
-            activationId = license.ActivationId,
-            deviceFingerprint = fingerprint,
-            deviceName = Environment.MachineName,
-            appVersion = AppVersion,
+            Email = normalizedEmail,
+            Password = password,
+            ClientName = "Erk-S Studio",
+            ProductCode = ProductCode,
+            LicenseId = license.LicenseId,
+            ActivationId = license.ActivationId,
+            DeviceFingerprint = fingerprints.Canonical,
+            LegacyDeviceFingerprint = fingerprints.Legacy,
+            DeviceName = Environment.MachineName,
+            AppVersion = AppVersion,
         };
-        StudioSessionResponse session = await PostAsync<object, StudioSessionResponse>(
+        StudioSessionResponse session = await PostAsync<StudioSessionRequest, StudioSessionResponse>(
             normalizedServer,
             "/api/studio/session",
             sessionRequest,
@@ -309,7 +314,7 @@ internal sealed class StudioAccountService :
         {
             LicenseId = session.LicenseId,
             ActivationId = session.ActivationId,
-            DeviceFingerprint = fingerprint,
+            DeviceFingerprint = fingerprints.Canonical,
         };
         CommitSession(
             transition.Epoch,
@@ -1776,17 +1781,43 @@ internal sealed class StudioAccountService :
         long expectedSessionEpoch,
         CancellationToken cancellationToken)
     {
-        var request = new
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        var validateRequest = new StudioLicenseValidateRequest
         {
-            email = savedMetadata.Email,
-            productCode = ProductCode,
-            licenseId = savedCredential.LicenseId,
-            activationId = savedCredential.ActivationId,
-            deviceFingerprint = savedCredential.DeviceFingerprint,
-            deviceName = Environment.MachineName,
-            appVersion = AppVersion,
+            Email = savedMetadata.Email,
+            ProductCode = ProductCode,
+            LicenseId = savedCredential.LicenseId,
+            ActivationId = savedCredential.ActivationId,
+            DeviceFingerprint = fingerprints.Canonical,
+            LegacyDeviceFingerprint = fingerprints.Legacy,
+            DeviceName = Environment.MachineName,
+            AppVersion = AppVersion,
         };
-        StudioSessionResponse session = await PostAsync<object, StudioSessionResponse>(
+        StudioLicenseResponse license = await PostAsync<StudioLicenseValidateRequest, StudioLicenseResponse>(
+            savedMetadata.ServerUrl,
+            "/api/license/validate",
+            validateRequest,
+            cancellationToken).ConfigureAwait(true);
+        RequireSessionEpoch(expectedSessionEpoch);
+        if (!license.IsValid)
+        {
+            throw new StudioAccountException(string.IsNullOrWhiteSpace(license.Message)
+                ? "Studio лицензийн төхөөрөмжийн activation хүчингүй байна."
+                : license.Message);
+        }
+
+        var request = new StudioSessionRefreshRequest
+        {
+            Email = savedMetadata.Email,
+            ProductCode = ProductCode,
+            LicenseId = savedCredential.LicenseId,
+            ActivationId = savedCredential.ActivationId,
+            DeviceFingerprint = fingerprints.Canonical,
+            LegacyDeviceFingerprint = fingerprints.Legacy,
+            DeviceName = Environment.MachineName,
+            AppVersion = AppVersion,
+        };
+        StudioSessionResponse session = await PostAsync<StudioSessionRefreshRequest, StudioSessionResponse>(
             savedMetadata.ServerUrl,
             "/api/studio/session/refresh",
             request,
@@ -1806,13 +1837,24 @@ internal sealed class StudioAccountService :
              !savedCredential.ActivationId.Equals(
                  session.ActivationId,
                  StringComparison.Ordinal));
+        // Keep the legacy value in the protected cache until both server calls
+        // have succeeded. Only then is it safe to adopt canonical locally;
+        // credentials on an unrelated device never pass this migration path.
+        if (StudioDeviceIdentity.TryMigrateStoredFingerprint(
+                savedCredential.DeviceFingerprint,
+                out string canonicalFingerprint))
+        {
+            savedCredential.DeviceFingerprint = canonicalFingerprint;
+            persistCredential = true;
+        }
         CommitSession(
             expectedSessionEpoch,
             savedMetadata,
             savedCredential,
             session,
             capabilities,
-            persistCredential);
+            persistCredential,
+            entitlements: license.Entitlements);
     }
 
     private async Task<CloudEraCapabilitiesSnapshot> LoadCapabilitiesAsync(
@@ -1958,7 +2000,8 @@ internal sealed class StudioAccountService :
             savedCredential.CompanionExpiresAtUtc,
             savedCredential.CompanionCheckedAtUtc,
             savedCredential.DeviceFingerprint,
-            StudioDeviceIdentity.Fingerprint);
+            StudioDeviceIdentity.FingerprintForStoredGrant(
+                savedCredential.DeviceFingerprint));
 
     private void CommitSession(
         long expectedSessionEpoch,
@@ -2437,9 +2480,14 @@ internal sealed class StudioAccountService :
 
 internal static class StudioDeviceIdentity
 {
-    public static string Fingerprint { get; } = BuildFingerprint();
+    private const string CanonicalSalt = "Erk-S device v1";
+    private const string LegacyStudioSalt = "Erk-S Studio device v1";
 
-    private static string BuildFingerprint()
+    public static StudioDeviceFingerprints Fingerprints { get; } = BuildFingerprints();
+
+    public static string Fingerprint => Fingerprints.Canonical;
+
+    private static StudioDeviceFingerprints BuildFingerprints()
     {
         string machineGuid = "";
         try
@@ -2459,10 +2507,76 @@ internal static class StudioDeviceIdentity
         catch (SecurityException)
         {
         }
-        string material = string.Join("|", "Erk-S Studio device v1", Environment.MachineName, Environment.UserName, machineGuid, sid);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+
+        return BuildFingerprints(
+            Environment.MachineName,
+            Environment.UserName,
+            machineGuid,
+            sid);
+    }
+
+    internal static StudioDeviceFingerprints BuildFingerprints(
+        string machineName,
+        string userName,
+        string machineGuid,
+        string sid) =>
+        new(
+            Hash(CanonicalSalt, machineName, userName, machineGuid, sid),
+            Hash(LegacyStudioSalt, machineName, userName, machineGuid, sid));
+
+    internal static StudioDeviceFingerprintValidation ValidateStoredFingerprint(
+        string? storedFingerprint)
+    {
+        string stored = (storedFingerprint ?? "").Trim();
+        if (stored.Equals(Fingerprints.Canonical, StringComparison.Ordinal))
+            return new StudioDeviceFingerprintValidation(true, false);
+        if (stored.Equals(Fingerprints.Legacy, StringComparison.Ordinal))
+            return new StudioDeviceFingerprintValidation(true, true);
+        return new StudioDeviceFingerprintValidation(false, false);
+    }
+
+    internal static bool TryMigrateStoredFingerprint(
+        string? storedFingerprint,
+        out string migratedFingerprint)
+    {
+        StudioDeviceFingerprintValidation validation =
+            ValidateStoredFingerprint(storedFingerprint);
+        migratedFingerprint = validation.RequiresCanonicalRewrite
+            ? Fingerprints.Canonical
+            : (storedFingerprint ?? "").Trim();
+        return validation.RequiresCanonicalRewrite;
+    }
+
+    internal static string FingerprintForStoredGrant(string? storedFingerprint) =>
+        ValidateStoredFingerprint(storedFingerprint).IsValid
+            ? (storedFingerprint ?? "").Trim()
+            : Fingerprint;
+
+    private static string Hash(
+        string salt,
+        string machineName,
+        string userName,
+        string machineGuid,
+        string sid)
+    {
+        string material = string.Join(
+            "|",
+            salt,
+            machineName,
+            userName,
+            machineGuid,
+            sid);
+        return Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(material)))
+            .ToLowerInvariant();
     }
 }
+
+internal sealed record StudioDeviceFingerprints(string Canonical, string Legacy);
+
+internal readonly record struct StudioDeviceFingerprintValidation(
+    bool IsValid,
+    bool RequiresCanonicalRewrite);
 
 internal static class WindowsCredentialVault
 {
