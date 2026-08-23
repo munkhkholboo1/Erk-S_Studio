@@ -1287,17 +1287,49 @@ internal sealed partial class ShellView : IDisposable
         {
             await RefreshProjectsAsync();
             SetStatus("Cloud ERA төслүүд шинэчлэгдлээ.");
-            return;
         }
-
-        if (string.IsNullOrWhiteSpace(account.LastError))
+        else if (string.IsNullOrWhiteSpace(account.LastError))
         {
             await EnsureSignedInAsync();
-            return;
+        }
+        else
+        {
+            await RefreshProjectsAsync();
+            SetStatus("Studio session сэргээж чадсангүй: " + account.LastError + " Нэвтрэх товчоор лицензээ дахин шалгана уу.");
         }
 
-        await RefreshProjectsAsync();
-        SetStatus("Studio session сэргээж чадсангүй: " + account.LastError + " Нэвтрэх товчоор лицензээ дахин шалгана уу.");
+        await EnforceCompanionLicenseAsync();
+    }
+
+    /// <summary>
+    /// Studio opens only for an account holding an active Platform or CityGen
+    /// licence. The check runs once the account has had its chance to sign in,
+    /// and the user may retry, obtain a licence, or close Studio. Enforcement
+    /// is off for development builds and loopback servers
+    /// (<see cref="StudioCompanionEnforcement"/>), so this is inert until an
+    /// official build ships.
+    /// </summary>
+    private async Task EnforceCompanionLicenseAsync()
+    {
+        while (true)
+        {
+            StudioCompanionDecision decision = account.EvaluateCompanionAccess();
+            if (decision.AllowsStudio)
+                return;
+
+            var dialog = new StudioCompanionRequiredDialog(decision, account.SuggestedServerUrl)
+            {
+                Owner = Window.GetWindow(Root),
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                Application.Current?.Shutdown();
+                return;
+            }
+
+            await EnsureSignedInAsync();
+            UpdateAccountUi();
+        }
     }
 
     private async Task CheckForProductUpdateAsync(bool interactive)

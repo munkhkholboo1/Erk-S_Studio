@@ -111,6 +111,17 @@ internal sealed class StudioAccountService :
 
     public StudioAccountSession? Current { get; private set; }
     public CloudEraCapabilitiesSnapshot? CurrentCapabilities { get; private set; }
+
+    /// <summary>How much the server last said about this account's entitlements.</summary>
+    public StudioCompanionServerAnswer CompanionAnswer { get; private set; } =
+        StudioCompanionServerAnswer.NotContacted;
+
+    /// <summary>The entitlement the server stated this session, when it stated one.</summary>
+    public StudioCompanionEntitlement? StatedCompanionEntitlement { get; private set; }
+
+    /// <summary>The last entitlement confirmed on this device, read from the credential store.</summary>
+    public StudioCompanionEntitlement? CachedCompanionEntitlement { get; private set; }
+
     public bool OrganizationRegistryImportConfigured { get; private set; }
     public string OrganizationRegistryImportMessage { get; private set; } = "ДАН холболтын төлөв тодорхойгүй байна.";
 
@@ -189,6 +200,9 @@ internal sealed class StudioAccountService :
                 CredentialTarget(savedMetadata));
         if (savedCredential is null)
             return false;
+        // Load the stored grant before reaching for the network, so a device
+        // that cannot reach the server still knows what it last confirmed.
+        LoadCachedCompanionEntitlement(savedCredential);
 
         try
         {
@@ -303,7 +317,10 @@ internal sealed class StudioAccountService :
             signedInCredential,
             session,
             capabilities,
-            persistCredential: true);
+            persistCredential: true,
+            // Activation answers first and may be the only response carrying
+            // entitlements on a server that has not extended the session route.
+            entitlements: license.Entitlements);
     }
 
     public async Task<IReadOnlyList<StudioCloudProjectSummary>> ListProjectsAsync(CancellationToken cancellationToken = default)
@@ -1606,6 +1623,10 @@ internal sealed class StudioAccountService :
             registeredPersonNames.Clear();
             metadata = null;
             credential = null;
+            // The credential carrying the stored grant is gone with it.
+            CompanionAnswer = StudioCompanionServerAnswer.NotContacted;
+            StatedCompanionEntitlement = null;
+            CachedCompanionEntitlement = null;
             LastError = "";
             StateChanged?.Invoke();
         });
@@ -1892,14 +1913,75 @@ internal sealed class StudioAccountService :
         }
     }
 
+    /// <summary>
+    /// Decides whether Studio may open for the account as things currently
+    /// stand. This is the single place the enforcement switch and the decision
+    /// rules meet; callers only read the outcome.
+    /// </summary>
+    public StudioCompanionDecision EvaluateCompanionAccess() =>
+        StudioCompanionPolicy.Evaluate(
+            StudioCompanionEnforcement.IsEnabledFor(Current?.ServerUrl ?? metadata?.ServerUrl),
+            CompanionAnswer,
+            StatedCompanionEntitlement,
+            CachedCompanionEntitlement,
+            DateTimeOffset.UtcNow);
+
+    private bool RecordCompanionEntitlement(
+        StudioActivationCredential savedCredential,
+        StudioCloudEntitlements entitlements)
+    {
+        var stated = new StudioCompanionEntitlement(
+            entitlements.StudioCompanion,
+            entitlements.CompanionExpiresAtUtc,
+            DateTimeOffset.UtcNow);
+        CompanionAnswer = StudioCompanionServerAnswer.Stated;
+        StatedCompanionEntitlement = stated;
+        CachedCompanionEntitlement = stated;
+
+        // Rewrite the stored grant when it changed, when there was none, or
+        // when it is old enough that the grace window is worth rolling forward.
+        // Persisting on every refresh would rewrite the credential all day.
+        bool changed =
+            savedCredential.CompanionCheckedAtUtc == default ||
+            savedCredential.CompanionGranted != stated.StudioCompanion ||
+            savedCredential.CompanionExpiresAtUtc != stated.CompanionExpiresAtUtc ||
+            stated.CheckedAtUtc - savedCredential.CompanionCheckedAtUtc > TimeSpan.FromHours(12);
+        savedCredential.CompanionGranted = stated.StudioCompanion;
+        savedCredential.CompanionExpiresAtUtc = stated.CompanionExpiresAtUtc;
+        savedCredential.CompanionCheckedAtUtc = stated.CheckedAtUtc;
+        return changed;
+    }
+
+    private void LoadCachedCompanionEntitlement(StudioActivationCredential savedCredential) =>
+        CachedCompanionEntitlement = StudioCompanionPolicy.ReadStoredGrant(
+            savedCredential.CompanionGranted,
+            savedCredential.CompanionExpiresAtUtc,
+            savedCredential.CompanionCheckedAtUtc,
+            savedCredential.DeviceFingerprint,
+            StudioDeviceIdentity.Fingerprint);
+
     private void CommitSession(
         long expectedSessionEpoch,
         StudioAccountMetadata savedMetadata,
         StudioActivationCredential savedCredential,
         StudioSessionResponse session,
         CloudEraCapabilitiesSnapshot capabilities,
-        bool persistCredential)
+        bool persistCredential,
+        StudioCloudEntitlements? entitlements = null)
     {
+        StudioCloudEntitlements? statedEntitlements = session.Entitlements ?? entitlements;
+        // A server that never mentions entitlements is an older deployment, not
+        // an account without a licence, so the cached grant is left untouched.
+        if (statedEntitlements is null)
+        {
+            CompanionAnswer = StudioCompanionServerAnswer.FieldAbsent;
+            StatedCompanionEntitlement = null;
+        }
+        else
+        {
+            persistCredential |= RecordCompanionEntitlement(savedCredential, statedEntitlements);
+        }
+
         sessionTransitions.Commit(expectedSessionEpoch, () =>
         {
             if (persistCredential &&
@@ -2337,6 +2419,19 @@ internal sealed class StudioAccountService :
         public string LicenseId { get; set; } = "";
         public string ActivationId { get; set; } = "";
         public string DeviceFingerprint { get; set; } = "";
+
+        /// <summary>
+        /// Last companion entitlement this device confirmed, so Studio can open
+        /// offline for a while. It lives in the credential blob rather than a
+        /// settings file because that store is encrypted for this user on this
+        /// machine: the grant cannot be hand-edited into a longer one. A default
+        /// <see cref="CompanionCheckedAtUtc"/> means nothing was ever confirmed.
+        /// </summary>
+        public bool CompanionGranted { get; set; }
+
+        public DateTimeOffset? CompanionExpiresAtUtc { get; set; }
+
+        public DateTimeOffset CompanionCheckedAtUtc { get; set; }
     }
 }
 

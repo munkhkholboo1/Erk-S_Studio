@@ -90,6 +90,9 @@ internal sealed class StudioLicenseResponse
     public string Email { get; set; } = "";
     public string LicenseType { get; set; } = "";
     public DateTimeOffset ExpiresAtUtc { get; set; }
+
+    /// <summary>See <see cref="StudioSessionResponse.Entitlements"/>.</summary>
+    public StudioCloudEntitlements? Entitlements { get; set; }
 }
 
 internal sealed class StudioSessionResponse
@@ -106,6 +109,32 @@ internal sealed class StudioSessionResponse
     public string ActivationId { get; set; } = "";
     public string LicenseType { get; set; } = "";
     public DateTimeOffset LicenseExpiresAtUtc { get; set; }
+
+    /// <summary>
+    /// What this account is entitled to across the product family. Absent from
+    /// servers that predate companion entitlements, which MUST read as "this
+    /// server does not know", never as "no licence".
+    /// </summary>
+    public StudioCloudEntitlements? Entitlements { get; set; }
+}
+
+internal sealed class StudioCloudEntitlements
+{
+    public string PlatformTier { get; set; } = "";
+
+    public string CityGenTier { get; set; } = "";
+
+    /// <summary>True when an active Platform or CityGen licence opens Studio.</summary>
+    public bool StudioCompanion { get; set; }
+
+    /// <summary>
+    /// When the licence granting the companion expires. It is not the Studio
+    /// product licence's own expiry, and a server that does not state it leaves
+    /// the offline grace window as the only limit.
+    /// </summary>
+    public DateTimeOffset? CompanionExpiresAtUtc { get; set; }
+
+    public Dictionary<string, bool>? Features { get; set; }
 }
 
 internal sealed class StudioCloudProjectListResponse

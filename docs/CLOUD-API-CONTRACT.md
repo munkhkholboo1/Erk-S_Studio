@@ -220,6 +220,19 @@ These live outside `/api/cloud-era/v1` and outside the OpenAPI snapshot:
 
 - **Session/license**: `/api/license/activate`, `/api/studio/session`,
   `/api/studio/session/refresh`, `/api/studio/profile/photo`.
+- **Companion licence**: `activate` and `session` may carry a nullable
+  `entitlements` object (`platformTier`, `cityGenTier`, `studioCompanion`,
+  `companionExpiresAtUtc`, `features`). Studio is free but opens only for an
+  account holding an active Platform or CityGen licence. The rule is
+  asymmetric on purpose: a **missing** `entitlements` object means the server
+  predates the feature and Studio opens; only an explicit
+  `studioCompanion: false` closes it. A confirmed grant is cached in the
+  credential store, bound to the device, and keeps Studio open offline for
+  seven days or until `companionExpiresAtUtc`, whichever comes first; a cache
+  stamped in the future is treated as a moved clock and refused. Enforcement
+  is off for development builds and loopback servers, with no switch that
+  turns it off for an official build against the live server. Server-side
+  contract: `Erk-S-Server/docs/TASK-STU-STUDIO-COMPANION-CONTRACT.md`.
 - **Updates**: `/api/updates/latest` — governed by `UPDATE-SIGNING.md`
   (transport gate, SHA-256, Authenticode chain, publisher pin).
 - **Program catalog**: `/api/products/catalog`, `/api/installers/latest` —
