@@ -344,6 +344,14 @@ public sealed class BoardElement
     public string PlanPath { get; set; } = "";
 
     /// <summary>
+    /// The plan this card draws, as an asset the project holds. Preferred over
+    /// <see cref="PlanPath"/>, which stays honoured so a card made before the
+    /// plans were brought into the project keeps working rather than quietly
+    /// losing its drawing.
+    /// </summary>
+    public string PlanAssetId { get; set; } = "";
+
+    /// <summary>
     /// For an annotation, the card whose plan it describes. A legend, an arrow
     /// and a scale bar are statements about one particular drawing.
     /// </summary>
@@ -385,7 +393,8 @@ public sealed class BoardElement
     public bool IsPlaceholder =>
         !BoardElementKinds.IsAnnotation(Kind) &&
         string.IsNullOrWhiteSpace(AssetItemId) &&
-        string.IsNullOrWhiteSpace(PlanPath);
+        string.IsNullOrWhiteSpace(PlanPath) &&
+        string.IsNullOrWhiteSpace(PlanAssetId);
 
     public bool IsAnnotation => BoardElementKinds.IsAnnotation(Kind);
 
@@ -403,6 +412,7 @@ public sealed class BoardElement
         AssetItemId = (AssetItemId ?? "").Trim();
         PlanPath = (PlanPath ?? "").Trim();
         PlanCardElementId = (PlanCardElementId ?? "").Trim();
+        PlanAssetId = (PlanAssetId ?? "").Trim();
         Caption = (Caption ?? "").Trim();
         Layout = NormalizeLayout(Layout);
         CropX = Clamp01(CropX, 0);
@@ -442,6 +452,7 @@ public sealed class BoardElement
         IsHidden = IsHidden,
         AssetItemId = AssetItemId,
         PlanPath = PlanPath,
+        PlanAssetId = PlanAssetId,
         PlanCardElementId = PlanCardElementId,
         IsConfirmed = IsConfirmed,
         Layout = Layout,
@@ -534,6 +545,13 @@ public sealed class ProjectBoardSeries
 
     public List<ProjectBoard> Boards { get; set; } = [];
 
+    /// <summary>
+    /// General plans this project holds, brought in the way a delivered page is
+    /// brought in. A card cites one by id, so re-importing an export refreshes
+    /// every board that shows it without any of them being touched.
+    /// </summary>
+    public List<ProjectBoardPlanAsset> Plans { get; set; } = [];
+
     public string LastPdfPath { get; set; } = "";
 
     public DateTimeOffset? LastBuiltAtUtc { get; set; }
@@ -545,7 +563,10 @@ public sealed class ProjectBoardSeries
     public void Normalize()
     {
         Boards ??= [];
+        Plans ??= [];
         Grid ??= new BoardGrid();
+        foreach (ProjectBoardPlanAsset plan in Plans)
+            plan.Normalize();
         Title = string.IsNullOrWhiteSpace(Title) ? "Самбар" : Title.Trim();
         // A board is not a sheet, so it is not held to the sheet formats. A
         // competition names its own size and they are rarely standard.
@@ -563,6 +584,12 @@ public sealed class ProjectBoardSeries
         }
         Boards = ordered;
     }
+
+    /// <summary>The plan a card draws, or null if it cites none.</summary>
+    public ProjectBoardPlanAsset? FindPlan(BoardElement? element) =>
+        element is null || string.IsNullOrWhiteSpace(element.PlanAssetId)
+            ? null
+            : Plans.FirstOrDefault(plan => plan.Id == element.PlanAssetId);
 
     /// <summary>The rectangle a card occupies on a board of this series.</summary>
     public BoardRectMm? Resolve(BoardElement element) =>

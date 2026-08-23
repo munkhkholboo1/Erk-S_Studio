@@ -311,10 +311,7 @@ internal sealed partial class ShellView
         boardPlanCardBox.SelectedItem = (boardPlanCardBox.ItemsSource as IEnumerable<BoardAssetChoice>)?
             .FirstOrDefault(choice => choice.ItemId == card.PlanCardElementId);
         boardConfirmCheck.IsChecked = card.IsConfirmed;
-        boardPlanFileText.Text = string.IsNullOrWhiteSpace(card.PlanPath)
-            ? "Ерөнхий төлөвлөгөө холбоогүй."
-            : Path.GetFileName(card.PlanPath) +
-              (File.Exists(card.PlanPath) ? "" : "  — файл олдсонгүй");
+        boardPlanFileText.Text = DescribeBoardPlanLink(card);
         ShowCardControlsFor(card);
         boardInspectorSuspended = false;
         RefreshBoardSummary();
@@ -339,6 +336,26 @@ internal sealed partial class ShellView
         boardCardKindBox.IsEnabled = card is not null;
     }
 
+    private string DescribeBoardPlanLink(BoardElement card)
+    {
+        if (Boards.FindPlan(card) is { } plan)
+        {
+            string path = string.IsNullOrWhiteSpace(state.ProjectPath)
+                ? ""
+                : ProjectWorkspacePaths.ResolveInsideProject(state.ProjectPath, plan.RelativePath);
+            return $"{plan.Title} — {plan.ObjectCount} объект" +
+                (path.Length > 0 && File.Exists(path) ? "" : "  — төслийн хуулбар олдсонгүй");
+        }
+        if (!string.IsNullOrWhiteSpace(card.PlanPath))
+        {
+            // Made before plans were brought into the project. It still draws,
+            // but it depends on a file the project does not own.
+            return Path.GetFileName(card.PlanPath) +
+                (File.Exists(card.PlanPath) ? "  — төслөөс гадуур" : "  — файл олдсонгүй");
+        }
+        return "Ерөнхий төлөвлөгөө холбоогүй.";
+    }
+
     /// <summary>The cards on this board that hold a plan an annotation could describe.</summary>
     private List<BoardAssetChoice> PlanCardChoices()
     {
@@ -346,20 +363,36 @@ internal sealed partial class ShellView
         if (SelectedBoard is { } board)
         {
             choices.AddRange(board.Elements
-                .Where(element => !element.IsAnnotation && !string.IsNullOrWhiteSpace(element.PlanPath))
+                .Where(element => !element.IsAnnotation &&
+                    (!string.IsNullOrWhiteSpace(element.PlanAssetId) ||
+                     !string.IsNullOrWhiteSpace(element.PlanPath)))
                 .Select(element => new BoardAssetChoice(
                     element.Id,
                     string.IsNullOrWhiteSpace(element.Caption)
-                        ? Path.GetFileNameWithoutExtension(element.PlanPath)
+                        ? Boards.FindPlan(element)?.Title ??
+                          Path.GetFileNameWithoutExtension(element.PlanPath)
                         : element.Caption)));
         }
         return choices;
     }
 
+    /// <summary>
+    /// Brings a CityGen export into the project and points the card at it.
+    ///
+    /// The plan is copied rather than linked, the way a delivered page is. A
+    /// card that merely remembered where the file used to be would break the
+    /// moment the drawing it came from was renamed, and the user would find out
+    /// while assembling a submission.
+    /// </summary>
     private void ChooseBoardPlanFile()
     {
         if (boardCanvas.Selected is not { } card)
             return;
+        if (string.IsNullOrWhiteSpace(state.ProjectPath))
+        {
+            SetStatus("Төслийг эхлээд хадгална уу — төлөвлөгөөг төсөл дотор хуулна.");
+            return;
+        }
 
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -370,12 +403,32 @@ internal sealed partial class ShellView
         if (dialog.ShowDialog() != true)
             return;
 
-        card.PlanPath = dialog.FileName;
+        BoardPlanImportResult imported = BoardPlanImportService.Import(
+            Boards,
+            state.ProjectPath,
+            dialog.FileName);
+        if (!imported.Succeeded)
+        {
+            // Refused before it was copied: a project should not end up holding
+            // something that fails every time a board is built.
+            SetStatus("Төлөвлөгөөг оруулж чадсангүй: " + string.Join("; ", imported.Issues));
+            return;
+        }
+
+        card.PlanAssetId = imported.Asset!.Id;
+        card.PlanPath = "";
         card.AssetItemId = "";
         card.Normalize();
+        BoardPlanStorageMaintenance.RemoveUnreferencedFiles(Boards, state.ProjectPath);
         state.SaveProject();
         boardCanvas.Redraw();
         RefreshBoardInspector();
+        SetStatus(imported.Created
+            ? $"Төлөвлөгөө орлоо: {imported.Asset.Title} ({imported.Asset.ObjectCount} объект)."
+            : imported.Refreshed
+                ? $"Төлөвлөгөө шинэчлэгдлээ: {imported.Asset.Title}. Түүнийг харуулж буй " +
+                  "бүх самбар шинэ зургийг авна."
+                : $"Төлөвлөгөө өөрчлөгдөөгүй: {imported.Asset.Title}.");
     }
 
     /// <summary>
@@ -413,6 +466,8 @@ internal sealed partial class ShellView
         }
         if (!string.IsNullOrWhiteSpace(card.Caption))
             return card.Caption;
+        if (Boards.FindPlan(card) is { } linked)
+            return linked.Title;
         if (!string.IsNullOrWhiteSpace(card.PlanPath))
             return Path.GetFileNameWithoutExtension(card.PlanPath);
         ProjectPortfolioItem? asset = FindBoardAsset(card);
@@ -652,7 +707,7 @@ internal sealed partial class ShellView
             element.ColumnSpan,
             element.Row,
             element.RowSpan,
-            PlanPath: element.PlanPath,
+            PlanPath: ResolveBoardPlanPath(element),
             Id: element.Id,
             Kind: ToBuildKind(element.Kind),
             PlanCardId: element.PlanCardElementId,
@@ -663,6 +718,23 @@ internal sealed partial class ShellView
             CropHeight: element.CropHeight,
             FocalPointX: element.FocalPointX,
             FocalPointY: element.FocalPointY);
+    }
+
+    /// <summary>
+    /// Where the card's plan actually is. The project's own copy when it has
+    /// one, and otherwise the path a card made before the plans were brought
+    /// into the project still remembers - so such a card keeps its drawing
+    /// rather than quietly losing it.
+    /// </summary>
+    private string ResolveBoardPlanPath(BoardElement element)
+    {
+        ProjectBoardPlanAsset? plan = Boards.FindPlan(element);
+        if (plan is null)
+            return element.PlanPath;
+        string projectPath = state.ProjectPath ?? "";
+        return projectPath.Length == 0
+            ? ""
+            : ProjectWorkspacePaths.ResolveInsideProject(projectPath, plan.RelativePath);
     }
 
     private static string ToBuildKind(string kind) => kind switch

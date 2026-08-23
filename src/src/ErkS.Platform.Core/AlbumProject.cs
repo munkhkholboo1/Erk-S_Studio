@@ -313,6 +313,8 @@ public static class ProjectDocumentCategories
     public const string Record = "Record";
     /// <summary>A file added straight to the project portfolio.</summary>
     public const string Portfolio = "Portfolio";
+    /// <summary>A CityGen general-plan export a board draws from.</summary>
+    public const string BoardPlan = "BoardPlan";
 }
 
 public sealed class AlbumDefinition
