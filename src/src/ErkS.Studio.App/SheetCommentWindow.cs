@@ -25,7 +25,8 @@ internal sealed class SheetCommentWindow : Window
 
     private readonly StudioAccountService account;
     private readonly PdfPageImageCache imageCache;
-    private readonly SheetRecord sheet;
+    private readonly string albumPdfPath;
+    private readonly int albumPdfPageNumber;
     private readonly string projectId;
     private readonly string pageIdentity;
     private readonly string pageLabel;
@@ -58,10 +59,17 @@ internal sealed class SheetCommentWindow : Window
     private bool placing;
     private bool busy;
 
+    /// <param name="albumPdfPath">
+    /// The built album, not the source drawing. A reviewer comments on the page
+    /// as it appears in the album - with its title block, format and Studio
+    /// layout - and a page the album generates has no source drawing at all.
+    /// </param>
     public SheetCommentWindow(
         StudioAccountService account,
         PdfPageImageCache imageCache,
-        SheetRecord sheet,
+        string albumPdfPath,
+        int albumPdfPageNumber,
+        string pageIdentity,
         string projectId,
         string pageNumberText,
         string pageTitle,
@@ -70,11 +78,12 @@ internal sealed class SheetCommentWindow : Window
     {
         this.account = account ?? throw new ArgumentNullException(nameof(account));
         this.imageCache = imageCache ?? throw new ArgumentNullException(nameof(imageCache));
-        this.sheet = sheet ?? throw new ArgumentNullException(nameof(sheet));
+        this.albumPdfPath = (albumPdfPath ?? "").Trim();
+        this.albumPdfPageNumber = albumPdfPageNumber;
         this.projectId = (projectId ?? "").Trim();
         this.pageNumber = pageNumber;
         this.canWrite = canWrite;
-        pageIdentity = StudioSheetCommentRules.PageIdentity(sheet);
+        this.pageIdentity = (pageIdentity ?? "").Trim();
         pageLabel = StudioSheetCommentRules.PageLabel(pageNumberText, pageTitle);
 
         Title = "Хуудасны коммент — " + pageLabel;
@@ -198,11 +207,13 @@ internal sealed class SheetCommentWindow : Window
 
     private async Task LoadPageImageAsync()
     {
-        BitmapSource? bitmap = await imageCache.GetPageAsync(
-            sheet.PdfPath,
-            Math.Max(1, sheet.Entry.PdfPageNumber),
-            2200,
-            CancellationToken.None);
+        BitmapSource? bitmap = albumPdfPath.Length == 0
+            ? null
+            : await imageCache.GetPageAsync(
+                albumPdfPath,
+                Math.Max(1, albumPdfPageNumber),
+                2200,
+                CancellationToken.None);
         if (bitmap is null)
         {
             pageHost.Width = LogicalPageWidth;

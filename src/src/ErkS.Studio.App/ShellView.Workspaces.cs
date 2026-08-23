@@ -93,7 +93,7 @@ internal sealed partial class ShellView
     private readonly Button albumPdfApplyFormatButton =
         StudioWidgets.CreateButton("Формат хэрэглэх");
     private readonly Button albumSheetCommentButton =
-        StudioWidgets.CreateGlyphTextButton("E90A", "Хуудасны коммент");
+        StudioWidgets.CreateGlyphTextButton("", "Хуудасны коммент");
     private readonly Button albumPdfEditPageButton =
         StudioWidgets.CreatePrimaryButton("PDF хэсэг засах");
     private readonly StackPanel albumPdfFormatPanel = new();
@@ -3347,7 +3347,7 @@ internal sealed partial class ShellView
         // still say what they think of the sheet in front of them.
         albumSheetCommentButton.IsEnabled =
             albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem commentTarget &&
-            commentTarget.Page is not null &&
+            !commentTarget.IsGroup &&
             selectedPageCount == 1;
 
         if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem selected &&
@@ -3768,16 +3768,9 @@ internal sealed partial class ShellView
     private void OpenSheetComments()
     {
         if (albumPagesWorkspaceList.SelectedItem is not AlbumPageWorkspaceItem selected ||
-            selected.Page is not AlbumPageDefinition page)
+            selected.IsGroup)
         {
             SetStatus("Коммент бичих хуудсаа сонгоно уу.");
-            return;
-        }
-
-        SheetRecord? sheet = state.Library.Find(page.SheetKey);
-        if (sheet is null)
-        {
-            SetStatus("Сонгосон хуудасны эх үүсвэр олдсонгүй.");
             return;
         }
 
@@ -3788,14 +3781,42 @@ internal sealed partial class ShellView
             return;
         }
 
+        // A drawing is named by its sheet; a page the album generates - a cover,
+        // a drawing list, a visualization - by the key its own plan carries.
+        SheetRecord? sheet = selected.Page is AlbumPageDefinition page
+            ? state.Library.Find(page.SheetKey)
+            : null;
+        string identity = StudioSheetCommentRules.PageIdentity(
+            sheet,
+            string.IsNullOrWhiteSpace(selected.GeneratedNavigationKey)
+                ? selected.CanonicalComponentCode
+                : selected.GeneratedNavigationKey);
+        if (identity.Length == 0)
+        {
+            SetStatus("Энэ хуудсанд коммент бэхлэх тогтвортой дугаар алга.");
+            return;
+        }
+
+        string? albumPath = ResolveAlbumPreviewPath();
+        int? builtPage = ResolveBuiltAlbumPage(selected);
+        if (string.IsNullOrWhiteSpace(albumPath) || builtPage is null)
+        {
+            SetStatus(
+                "Хуудсыг харуулахын тулд эхлээд альбумаа байгуулна уу. " +
+                "Коммент альбум дээрх хуудсанд тавигдана.");
+            return;
+        }
+
         var window = new SheetCommentWindow(
             account,
-            sourceSheetPageImages,
-            sheet,
+            albumPageImages,
+            albumPath,
+            builtPage.Value,
+            identity,
             projectId,
             selected.Number,
-            string.IsNullOrWhiteSpace(page.TitleOverride) ? sheet.Entry.Name : page.TitleOverride,
-            selected.BuiltPageNumber ?? 0,
+            selected.Title,
+            builtPage.Value,
             canWrite: true)
         {
             Owner = Window.GetWindow(Root),

@@ -5,6 +5,15 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.46] - 2026-08-23
+
+- Take comments on the sheets of the album. A page is opened for review, a pin is placed where the remark belongs, and the thread beside it carries the comment, its replies and its state. Three kinds ordered by how much they demand - Засах шаардлагатай, Тайлбар, Зөвшөөрсөн - and two states, нээлттэй and шийдэгдсэн, with who settled it recorded. Reading and writing needs only membership of the project, so a reviewer who may not change a drawing can still say what they think of it; settling or withdrawing needs authorship or the right to the project's content.
+- Anchor a comment to the sheet's own key and to a fraction of the page, never to a page number. An album is rebuilt, merged and re-ordered constantly, and a comment that pointed at "page 7" would be pointing at a different drawing by the afternoon. The anchor survives every rebuild, every re-order and a re-issue of the sheet in another format, and the comments live in their own store so the album's canonical merge rules are untouched by them.
+- Draw the page under review from the built album rather than from the source drawing, so a reviewer sees the sheet as the album issues it - with its title block, format and Studio layout - and so the pages the album generates, the cover and the drawing list among them, can be commented on at all.
+- Say what a project is when it opens. The page led with a form of empty input boxes and read as a settings dialog; it now opens on the design organization's logo and name, the project's own name and stage, the cover its album has reached, and what the project is made of. The record itself is read rather than typed - a field nobody has filled shows as a dash instead of an empty box - and the form appears only once Засварлах is pressed.
+- Show the project's team on the page the project opens on, with each member's photograph, their roles in the words the server uses for them, and whether they are active.
+- Lay a tab page out from its top-left corner. A TabControl centres its content by default, which floated the project form into the middle of an otherwise empty page.
+
 ## [0.001.45] - 2026-08-22
 
 - Open a project from the home page. A card set the project list's selection and then read it back, but the home page is shown while that list holds organization folders - a row that is not in the list cannot become its selection, so the selection stayed empty and opening stopped with "Нээх төслөө сонгоно уу." A project is now named to the open path rather than pointed at through a selection.

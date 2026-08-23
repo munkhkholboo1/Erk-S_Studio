@@ -63,16 +63,22 @@ internal static class StudioSheetCommentRules
         (status ?? "").Trim().Equals(StatusResolved, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The durable name of the page a comment is placed on. A sheet keeps its
-    /// key across re-exports of the same drawing, which is exactly the lifetime
-    /// a comment needs. A page with no sheet behind it - a cover or a drawing
-    /// list the album generates - cannot be named this way and takes no
-    /// comments.
+    /// The durable name of the page a comment is placed on.
+    ///
+    /// A drawing is named by its sheet key, which the sheet keeps across
+    /// re-exports of the same drawing. A page the album generates - a cover, a
+    /// drawing list, a visualization - has no sheet, and is named by the key its
+    /// own plan carries, which is just as durable. Both outlive a rebuild, a
+    /// re-order and a change of format, which is the lifetime a comment needs.
     /// </summary>
-    public static string PageIdentity(SheetRecord? sheet)
+    public static string PageIdentity(SheetRecord? sheet, string? generatedKey = null)
     {
         string key = (sheet?.Key ?? "").Trim();
-        return key.Length == 0 ? "" : "sheet:" + key.ToLowerInvariant();
+        if (key.Length > 0)
+            return "sheet:" + key.ToLowerInvariant();
+
+        string generated = (generatedKey ?? "").Trim();
+        return generated.Length == 0 ? "" : "generated:" + generated.ToLowerInvariant();
     }
 
     /// <summary>How the page is named to a reader, at the time of writing.</summary>
