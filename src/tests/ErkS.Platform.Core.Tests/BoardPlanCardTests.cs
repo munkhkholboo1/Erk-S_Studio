@@ -46,8 +46,9 @@ public sealed class BoardPlanCardTests : IDisposable
 
         BoardBuildResult result = Build(planPath, out string outputPath);
 
-        // The assumed north is reported, and nothing else is.
-        Assert.All(result.Warnings, warning => Assert.Contains("хойд зүг", warning));
+        // Nothing to report: the plan read, its surfaces all resolved, and the
+        // assumed north is only said where it has a consequence.
+        Assert.Empty(result.Warnings);
         Assert.Equal(1, result.PageCount);
 
         using PdfDocument built = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
@@ -154,6 +155,133 @@ public sealed class BoardPlanCardTests : IDisposable
             gfx,
             manifest,
             new PdfSharp.Drawing.XRect(0, 0, widthMm * pointsPerMm, heightMm * pointsPerMm));
+    }
+
+    [Fact]
+    public void AnAssumedNorthIsNotDrawnUntilSomebodyConfirmsIt()
+    {
+        // A missing arrow is visible and gets fixed. One pointing the wrong way
+        // looks exactly like one pointing the right way, and is found by the
+        // jury rather than by the office.
+        string planPath = WritePlan(Lawn("lawn-1"));
+
+        BoardBuildResult result = BuildWithAnnotations(planPath, confirmed: false, out _);
+
+        Assert.Contains(result.Warnings, warning => warning.Contains("сум"));
+    }
+
+    [Fact]
+    public void AConfirmedNorthIsDrawn()
+    {
+        string planPath = WritePlan(Lawn("lawn-1"));
+
+        BoardBuildResult result = BuildWithAnnotations(planPath, confirmed: true, out _);
+
+        Assert.DoesNotContain(result.Warnings, warning => warning.Contains("сум"));
+    }
+
+    [Fact]
+    public void ADeclaredNorthNeedsNoConfirmation()
+    {
+        CityGenBoardManifest manifest = Manifest(Lawn("lawn-1"));
+        manifest.NorthAngleSource = CityGenGraphicBoardContract.NorthFromUtmGrid;
+        string planPath = WriteManifest(manifest);
+
+        BoardBuildResult result = BuildWithAnnotations(planPath, confirmed: false, out _);
+
+        Assert.DoesNotContain(result.Warnings, warning => warning.Contains("сум"));
+    }
+
+    [Fact]
+    public void AnAnnotationThatNamesNoPlanIsReportedRatherThanDrawnBlank()
+    {
+        string outputPath = Path.Combine(workDirectory, "orphan.pdf");
+        BoardBuildResult result = BoardPdfWriter.Build(new BoardBuildRequest(
+            "Самбар",
+            outputPath,
+            BoardWidthMm,
+            BoardHeightMm,
+            new BoardGrid(),
+            [
+                new BoardBuildBoard("A1", "", [Annotation(BoardBuildCardKinds.Legend, "", 0, 3, 6, 3)]),
+            ]));
+
+        Assert.Contains(result.Warnings, warning => warning.Contains("заагаагүй"));
+    }
+
+    [Fact]
+    public void TheLegendAndScaleBarAreDrawnFromThePlanTheyName()
+    {
+        string planPath = WritePlan(Lawn("lawn-1"), Road("road-1"));
+
+        BoardBuildResult result = BuildWithAnnotations(planPath, confirmed: true, out string outputPath);
+
+        // Only the north arrow could complain here, and it was confirmed.
+        Assert.Empty(result.Warnings);
+        Assert.True(new FileInfo(outputPath).Length > 0);
+    }
+
+    private BoardBuildResult BuildWithAnnotations(
+        string planPath,
+        bool confirmed,
+        out string outputPath)
+    {
+        outputPath = Path.Combine(workDirectory, $"annotated-{Guid.NewGuid():N}.pdf");
+        return BoardPdfWriter.Build(new BoardBuildRequest(
+            "Уралдааны самбар",
+            outputPath,
+            BoardWidthMm,
+            BoardHeightMm,
+            new BoardGrid(),
+            [
+                new BoardBuildBoard("A1", "Ерөнхий төлөвлөгөө",
+                [
+                    new BoardBuildCard(
+                        ProjectPortfolioLayouts.FitPage,
+                        Caption: "",
+                        SourcePath: "",
+                        SourcePageNumber: 1,
+                        Column: 0,
+                        ColumnSpan: 8,
+                        Row: 0,
+                        RowSpan: 6,
+                        PlanPath: planPath,
+                        Id: "plan"),
+                    Annotation(BoardBuildCardKinds.Legend, "plan", 8, 4, 0, 3),
+                    Annotation(BoardBuildCardKinds.NorthArrow, "plan", 8, 2, 3, 2, confirmed),
+                    Annotation(BoardBuildCardKinds.ScaleBar, "plan", 8, 4, 6, 1, confirmed),
+                ]),
+            ]));
+    }
+
+    private static BoardBuildCard Annotation(
+        string kind,
+        string planCardId,
+        int column,
+        int columnSpan,
+        int row,
+        int rowSpan,
+        bool confirmed = false) =>
+        new(
+            ProjectPortfolioLayouts.FitPage,
+            Caption: "",
+            SourcePath: "",
+            SourcePageNumber: 1,
+            Column: column,
+            ColumnSpan: columnSpan,
+            Row: row,
+            RowSpan: rowSpan,
+            Kind: kind,
+            PlanCardId: planCardId,
+            IsConfirmed: confirmed);
+
+    private string WriteManifest(CityGenBoardManifest manifest)
+    {
+        string path = Path.Combine(workDirectory, $"plan-{Guid.NewGuid():N}.erks-citygen-board.json");
+        File.WriteAllText(
+            path,
+            JsonSerializer.Serialize(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        return path;
     }
 
     private BoardBuildResult Build(string planPath, out string outputPath)

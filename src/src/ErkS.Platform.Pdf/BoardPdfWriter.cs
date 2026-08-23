@@ -29,7 +29,34 @@ public sealed record BoardBuildCard(
     /// file to place. This is the general plan arriving as what it means rather
     /// than as a picture of itself.
     /// </summary>
-    string PlanPath = "");
+    string PlanPath = "",
+    string Id = "",
+    /// <summary><see cref="BoardBuildCardKinds"/>.</summary>
+    string Kind = BoardBuildCardKinds.Content,
+    /// <summary>
+    /// For an annotation, the plan card it describes. A legend, an arrow and a
+    /// scale bar are all statements about one particular drawing, and saying
+    /// which one is what keeps them from drifting away from it.
+    /// </summary>
+    string PlanCardId = "",
+    /// <summary>
+    /// The user has looked at a value the source only assumed and agreed it.
+    /// Without this an assumed north or an inferred unit is not drawn at all.
+    /// </summary>
+    bool IsConfirmed = false);
+
+public static class BoardBuildCardKinds
+{
+    /// <summary>Material placed on the board: a page, a render, a plan.</summary>
+    public const string Content = "Content";
+
+    /// <summary>What the plan's surfaces mean, taken from the plan itself.</summary>
+    public const string Legend = "Legend";
+
+    public const string NorthArrow = "NorthArrow";
+
+    public const string ScaleBar = "ScaleBar";
+}
 
 public sealed record BoardBuildBoard(
     string Code,
@@ -233,24 +260,128 @@ public static class BoardPdfWriter
             ? board.Title
             : $"{board.Code} {board.Title}".Trim();
 
+        // The content first, then what describes it. An annotation is drawn
+        // from what the plan card actually turned out to be - the scale it came
+        // out at, the surfaces it really used - so it cannot be drawn until
+        // that card has been.
+        var plans = new Dictionary<string, DrawnPlan>(StringComparer.Ordinal);
         foreach (BoardBuildCard card in board.Cards)
         {
-            BoardRectMm? cell = BoardGridGeometry.Resolve(
-                request.Grid,
-                request.BoardWidthMm,
-                request.BoardHeightMm,
-                new BoardGridSpan(card.Column, card.ColumnSpan, card.Row, card.RowSpan));
-            if (cell is not { } rect)
-            {
-                warnings.Add(
-                    $"Самбар {label}: карт торонд багтсангүй " +
-                    $"({card.Column},{card.Row} {card.ColumnSpan}x{card.RowSpan}).");
+            if (!card.Kind.Equals(BoardBuildCardKinds.Content, StringComparison.Ordinal))
                 continue;
-            }
+            if (Resolve(request, card, label, warnings) is not { } rect)
+                continue;
+            DrawCard(gfx, request, card, rect, label, warnings, plans);
+        }
 
-            DrawCard(gfx, request, card, ToPoints(rect), label, warnings);
+        foreach (BoardBuildCard card in board.Cards)
+        {
+            if (card.Kind.Equals(BoardBuildCardKinds.Content, StringComparison.Ordinal))
+                continue;
+            if (Resolve(request, card, label, warnings) is not { } rect)
+                continue;
+            DrawAnnotation(gfx, card, rect, label, plans, warnings);
         }
     }
+
+    private static XRect? Resolve(
+        BoardBuildRequest request,
+        BoardBuildCard card,
+        string boardLabel,
+        List<string> warnings)
+    {
+        BoardRectMm? cell = BoardGridGeometry.Resolve(
+            request.Grid,
+            request.BoardWidthMm,
+            request.BoardHeightMm,
+            new BoardGridSpan(card.Column, card.ColumnSpan, card.Row, card.RowSpan));
+        if (cell is { } rect)
+            return ToPoints(rect);
+
+        warnings.Add(
+            $"Самбар {boardLabel}: карт торонд багтсангүй " +
+            $"({card.Column},{card.Row} {card.ColumnSpan}x{card.RowSpan}).");
+        return null;
+    }
+
+    /// <summary>
+    /// A legend, a north arrow or a scale bar, drawn from the plan it names.
+    ///
+    /// Two of the three refuse to appear when the plan only assumed the answer.
+    /// A missing north arrow is visible and gets fixed; one pointing the wrong
+    /// way looks exactly like one pointing the right way, and is discovered by
+    /// the jury.
+    /// </summary>
+    private static void DrawAnnotation(
+        XGraphics gfx,
+        BoardBuildCard card,
+        XRect rect,
+        string boardLabel,
+        Dictionary<string, DrawnPlan> plans,
+        List<string> warnings)
+    {
+        if (!plans.TryGetValue(card.PlanCardId ?? "", out DrawnPlan? plan))
+        {
+            warnings.Add(
+                $"Самбар {boardLabel}: {DescribeAnnotation(card.Kind)} нь ямар " +
+                "төлөвлөгөөг тайлбарлахаа заагаагүй тул зурагдсангүй.");
+            return;
+        }
+
+        switch (card.Kind)
+        {
+            case BoardBuildCardKinds.Legend:
+                if (BoardPlanAnnotations.DrawLegend(gfx, plan.Result.Legend, rect, card.Caption) <
+                    plan.Result.Legend.Count)
+                {
+                    warnings.Add(
+                        $"Самбар {boardLabel}: легенд бүхэлдээ багтсангүй, " +
+                        "картыг өндөр болгоно уу.");
+                }
+                break;
+
+            case BoardBuildCardKinds.NorthArrow:
+                if (!BoardPlanAnnotations.DrawNorthArrow(
+                        gfx,
+                        plan.Manifest.NorthAngleDegrees,
+                        plan.Manifest.NorthIsAssumed,
+                        card.IsConfirmed,
+                        rect))
+                {
+                    warnings.Add(
+                        $"Самбар {boardLabel}: хойд зүг зурганд зарлагдаагүй тул сум " +
+                        "зурагдсангүй — хэрэглэгч баталсны дараа зурагдана.");
+                }
+                break;
+
+            case BoardBuildCardKinds.ScaleBar:
+                if (!BoardPlanAnnotations.DrawScaleBar(
+                        gfx,
+                        plan.Result.ScaleDenominator,
+                        unitsAreAssumed: false,
+                        card.IsConfirmed,
+                        rect))
+                {
+                    warnings.Add(
+                        $"Самбар {boardLabel}: масштабын шугам энэ картад багтсангүй.");
+                }
+                break;
+
+            default:
+                warnings.Add($"Самбар {boardLabel}: '{card.Kind}' төрлийн карт танигдсангүй.");
+                break;
+        }
+    }
+
+    private static string DescribeAnnotation(string kind) => kind switch
+    {
+        BoardBuildCardKinds.Legend => "легенд",
+        BoardBuildCardKinds.NorthArrow => "хойд сум",
+        BoardBuildCardKinds.ScaleBar => "масштабын шугам",
+        _ => kind,
+    };
+
+    private sealed record DrawnPlan(CityGenBoardManifest Manifest, BoardPlanDrawResult Result);
 
     private static void DrawCard(
         XGraphics gfx,
@@ -258,7 +389,8 @@ public static class BoardPdfWriter
         BoardBuildCard card,
         XRect cell,
         string boardLabel,
-        List<string> warnings)
+        List<string> warnings,
+        Dictionary<string, DrawnPlan> plans)
     {
         string path = (card.SourcePath ?? "").Trim();
         string planPath = (card.PlanPath ?? "").Trim();
@@ -267,7 +399,7 @@ public static class BoardPdfWriter
 
         if (planPath.Length > 0)
         {
-            DrawPlan(gfx, planPath, content, boardLabel, warnings);
+            DrawPlan(gfx, planPath, content, boardLabel, warnings, card, plans);
             DrawCaption(gfx, cell, card.Caption);
             return;
         }
@@ -348,7 +480,9 @@ public static class BoardPdfWriter
         string planPath,
         XRect content,
         string boardLabel,
-        List<string> warnings)
+        List<string> warnings,
+        BoardBuildCard card,
+        Dictionary<string, DrawnPlan> plans)
     {
         CityGenBoardLoadResult loaded = CityGenGraphicBoardReader.Load(planPath);
         if (!loaded.IsLoaded)
@@ -360,6 +494,10 @@ public static class BoardPdfWriter
         }
 
         BoardPlanDrawResult drawn = BoardPlanRenderer.Draw(gfx, loaded.Manifest!, content);
+        // Recorded under the card that drew it, so a legend or a scale bar can
+        // be drawn from what this plan actually turned out to be.
+        if (!string.IsNullOrWhiteSpace(card.Id))
+            plans[card.Id] = new DrawnPlan(loaded.Manifest!, drawn);
         if (drawn.ShapesDrawn == 0)
         {
             warnings.Add($"Самбар {boardLabel}: ерөнхий төлөвлөгөөнөөс зурах дүрс олдсонгүй.");
@@ -376,11 +514,11 @@ public static class BoardPdfWriter
             warnings.Add(
                 $"Самбар {boardLabel}: {drawn.UnrecognisedShapes} дүрсийн ангилал танигдсангүй.");
         }
-        if (loaded.Manifest!.NorthIsAssumed)
-        {
-            warnings.Add(
-                $"Самбар {boardLabel}: хойд зүг зурганд зарлагдаагүй, таамагласан утга.");
-        }
+        // An assumed north is not reported here. Nothing on a plan without an
+        // arrow depends on it, and a warning with no consequence is noise -
+        // which is exactly what buried a hundred and ninety-one duplicated
+        // identifiers behind a hundred and ninety-one identical lines. It is
+        // said where it matters instead: when an arrow refuses to be drawn.
     }
 
     private static XImage OpenSource(BoardBuildCard card)

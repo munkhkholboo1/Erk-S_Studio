@@ -293,10 +293,10 @@ public static class BoardPlanRenderer
     private static double Bulge(Dictionary<int, double> bulges, int startIndex) =>
         bulges.TryGetValue(startIndex, out double bulge) ? bulge : 0;
 
-    private static XSolidBrush? TryBrush(string hex) =>
+    internal static XSolidBrush? TryBrush(string hex) =>
         TryColor(hex) is { } colour ? new XSolidBrush(colour) : null;
 
-    private static XColor? TryColor(string hex)
+    internal static XColor? TryColor(string hex)
     {
         string value = (hex ?? "").Trim().TrimStart('#');
         if (value.Length == 8)
