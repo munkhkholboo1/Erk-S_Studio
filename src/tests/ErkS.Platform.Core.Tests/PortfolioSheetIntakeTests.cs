@@ -509,6 +509,68 @@ public sealed class PortfolioSheetIntakeTests : IDisposable
     }
 
     [Fact]
+    public void DescriptionClearedAtTheSource_EmptiesAnUntouchedCaption()
+    {
+        // Clearing the description in the drawing is a decision too, and a
+        // caption nobody has written is still the source speaking.
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstPath = WritePackage(
+            "source-cleared-v1",
+            [Portfolio("P1", "Хуудас", description: "Анхны тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(firstPath));
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        Assert.Equal("Анхны тайлбар.", item.Caption);
+
+        string secondPath = WritePackage(
+            "source-cleared-v2",
+            [Portfolio("P1", "Хуудас")],
+            SheetPackageScope.Delta,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(secondPath));
+
+        Assert.Equal("", item.Caption);
+    }
+
+    [Fact]
+    public void DescriptionClearedAtTheSource_LeavesTheUsersCaptionAlone()
+    {
+        var exportedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+        string firstPath = WritePackage(
+            "source-cleared-kept-v1",
+            [Portfolio("P1", "Хуудас", description: "Анхны тайлбар.")],
+            SheetPackageScope.Delta,
+            exportedAtUtc);
+        (ProjectWorkspace project, string projectPath) = CreateProject();
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(firstPath));
+        ProjectPortfolioItem item = Assert.Single(project.Portfolio.Items);
+        item.Caption = "Танилцуулгад бичсэн";
+
+        string secondPath = WritePackage(
+            "source-cleared-kept-v2",
+            [Portfolio("P1", "Хуудас")],
+            SheetPackageScope.Delta,
+            exportedAtUtc.AddMinutes(5));
+        PortfolioSheetImportService.Import(
+            project,
+            projectPath,
+            SheetPackageReader.Load(secondPath));
+
+        Assert.Equal("Танилцуулгад бичсэн", item.Caption);
+    }
+
+    [Fact]
     public void CaptionTheUserCleared_StaysCleared()
     {
         // Clearing a caption is a decision, not an absence of one.
