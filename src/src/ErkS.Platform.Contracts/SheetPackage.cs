@@ -99,10 +99,34 @@ public enum SheetPrintColorMode
     Grayscale,
 }
 
+/// <summary>
+/// Where the receiving side files a package entry. An Album entry is bound
+/// into the project album; a Portfolio entry is a presentation page that must
+/// never enter the album or any album composition.
+/// </summary>
+public static class SheetDestinations
+{
+    public const string Album = "Album";
+    public const string Portfolio = "Portfolio";
+
+    public static bool IsKnown(string? value) => value is Album or Portfolio;
+
+    public static bool IsPortfolio(string? value) =>
+        string.Equals(value, Portfolio, StringComparison.Ordinal);
+}
+
 public sealed class SheetPackageEntry
 {
     /// <summary>Source-side stable id (layout handle, Revit sheet unique id).</summary>
     public string SheetId { get; set; } = "";
+
+    /// <summary>
+    /// Exactly <see cref="SheetDestinations.Album"/> or
+    /// <see cref="SheetDestinations.Portfolio"/>. Manifests written before this
+    /// field existed deserialize as Album, keeping their meaning; any other
+    /// value fails package verification.
+    /// </summary>
+    public string Destination { get; set; } = SheetDestinations.Album;
 
     /// <summary>Sheet number as printed in the corner table, e.g. "AR-05".</summary>
     public string Number { get; set; } = "";

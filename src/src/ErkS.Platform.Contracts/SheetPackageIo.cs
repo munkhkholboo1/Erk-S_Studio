@@ -501,6 +501,11 @@ public static class SheetPackageReader
             issues.Add(
                 $"Sheet '{sheet.Number}': print color mode '{sheet.PrintColorMode}' is unsupported.");
         }
+        if (!SheetDestinations.IsKnown(sheet.Destination))
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': destination '{sheet.Destination}' is unsupported.");
+        }
         if (manifest.SchemaVersion >= 4 && (!IsPositiveFinite(sheet.WidthMm) || !IsPositiveFinite(sheet.HeightMm)))
         {
             issues.Add($"Sheet '{sheet.Number}': physical page size must be positive finite millimetres.");

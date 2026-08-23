@@ -63,6 +63,31 @@ Schema 5 permits several logical sheet entries to reference distinct `pdfPageNum
 one multi-page PDF. Consequently every page can retain its own `printColorMode` even when the
 entries share the same PDF file and SHA-256.
 
+## Per-sheet destination
+
+`destination` says where the receiving side files an entry. It is exactly one of these JSON
+strings:
+
+- `Album` — the entry is bound into the project album (the behavior of every package written
+  before this field existed; missing values deserialize as `Album`);
+- `Portfolio` — the entry is a presentation page for the project portfolio. It MUST NOT enter
+  the sheet library, the album, or any album composition.
+
+Any other value fails package verification, the same way an unknown `printColorMode` does.
+
+A producer writing a `Portfolio` entry MUST export it with `format.mode = "Portfolio"`, an
+equal 10 mm margin on every edge, and zero-size `sheetTitleArea` and `titleBlockArea`: the page
+carries no corner table, no sheet title strip and no reference grid. Paper sizes stay the
+standard `A1`–`DH4` matrix. Hashing, page references, print color, and package scope are
+unchanged by this field.
+
+Studio imports each `Portfolio` entry as one portfolio item: the PDF is copied into the
+project's own storage and the item is keyed by source identity plus `sheetId`, so a re-export
+updates the same item (its content, title, and page reference) while the user's ordering,
+caption, layout, and focal point stay untouched. The page is placed full-bleed because it
+already carries its own margin, and an imported page of a different size is fitted whole,
+never cropped.
+
 ## Package scope
 
 - `Delta` updates only sheets present in the package and never implies deletion.
@@ -70,6 +95,12 @@ entries share the same PDF file and SHA-256.
   may remove only omitted sheets belonging to that source.
 - An empty package is valid only as a `FullSnapshot`; it means that source currently has no sheets.
 - An invalid or older snapshot MUST NOT remove or replace verified records.
+- `Album` and `Portfolio` entries are two independent sets inside one package. A snapshot's
+  omissions delete only within the same destination: portfolio entries never look like
+  deletions of album sheets, and album entries never look like deletions of portfolio pages.
+  A snapshot that omits a previously delivered portfolio page does not remove the imported
+  portfolio item; the portfolio is the receiving project's own presentation and must not
+  lose content.
 
 ## Page format geometry
 

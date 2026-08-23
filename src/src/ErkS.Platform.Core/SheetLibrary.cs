@@ -56,7 +56,19 @@ public sealed class SheetLibraryChange
     public bool Rejected { get; init; }
     public bool FullSnapshotApplied { get; init; }
     public bool StaleSnapshotIgnored { get; init; }
-    public bool HasChanges => UpdatedSheetCount > 0 || RemovedSheetKeys.Count > 0 || FullSnapshotApplied;
+
+    /// <summary>
+    /// Portfolio entries this package delivered as a newer export than any the
+    /// library has seen. They never become library records; the count exists so
+    /// a portfolio-only package still reaches project reconciliation.
+    /// </summary>
+    public int NewPortfolioEntryCount { get; init; }
+
+    public bool HasChanges =>
+        UpdatedSheetCount > 0 ||
+        RemovedSheetKeys.Count > 0 ||
+        FullSnapshotApplied ||
+        NewPortfolioEntryCount > 0;
 }
 
 /// <summary>
@@ -68,6 +80,7 @@ public sealed class SheetLibrary
     private readonly object sync = new();
     private readonly Dictionary<string, SheetRecord> sheets = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SourceSnapshotState> sourceSnapshots = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> portfolioExports = new(StringComparer.Ordinal);
     private long version;
 
     public event Action? Changed;
@@ -155,11 +168,20 @@ public sealed class SheetLibrary
             }
             verifiedPaths[entry] = verifiedPath;
         }
+        // Album and Portfolio entries are two independent sets inside one
+        // package: a portfolio entry never becomes a library record, and a
+        // full snapshot's deletions are judged within each set alone.
         var incomingKeys = manifest.Sheets
+            .Where(entry => !SheetDestinations.IsPortfolio(entry.Destination))
+            .Select(entry => SheetRecord.MakeKey(manifest.Source, entry, sourceId))
+            .ToHashSet(StringComparer.Ordinal);
+        var incomingPortfolioKeys = manifest.Sheets
+            .Where(entry => SheetDestinations.IsPortfolio(entry.Destination))
             .Select(entry => SheetRecord.MakeKey(manifest.Source, entry, sourceId))
             .ToHashSet(StringComparer.Ordinal);
         var removedKeys = new List<string>();
         var updatedSheetCount = 0;
+        var newPortfolioEntryCount = 0;
         var fullSnapshotApplied = false;
         var staleSnapshotIgnored = false;
 
@@ -174,7 +196,8 @@ public sealed class SheetLibrary
                     sourceSnapshots[sourceIdentity] = new SourceSnapshotState(
                         manifest.PackageId,
                         manifest.ExportedAtUtc,
-                        incomingKeys);
+                        incomingKeys,
+                        incomingPortfolioKeys);
 
                     foreach (var key in sheets.Values
                         .Where(record =>
@@ -186,6 +209,16 @@ public sealed class SheetLibrary
                     {
                         sheets.Remove(key);
                         removedKeys.Add(key);
+                    }
+                    foreach (var key in portfolioExports
+                        .Where(export =>
+                            SheetRecord.BelongsToSource(export.Key, manifest.Source, sourceId) &&
+                            export.Value <= manifest.ExportedAtUtc &&
+                            !incomingPortfolioKeys.Contains(export.Key))
+                        .Select(export => export.Key)
+                        .ToList())
+                    {
+                        portfolioExports.Remove(key);
                     }
                 }
                 else if (currentSnapshot.PackageId != manifest.PackageId)
@@ -199,6 +232,23 @@ public sealed class SheetLibrary
             {
                 SheetPackageEntry entry = manifest.Sheets[sourceSheetIndex];
                 var key = SheetRecord.MakeKey(manifest.Source, entry, sourceId);
+                if (SheetDestinations.IsPortfolio(entry.Destination))
+                {
+                    if (activeSnapshot is not null &&
+                        activeSnapshot.PackageId != manifest.PackageId &&
+                        manifest.ExportedAtUtc <= activeSnapshot.ExportedAtUtc &&
+                        !activeSnapshot.PortfolioKeys.Contains(key))
+                    {
+                        continue;
+                    }
+                    if (!portfolioExports.TryGetValue(key, out DateTimeOffset lastExportedAtUtc) ||
+                        manifest.ExportedAtUtc > lastExportedAtUtc)
+                    {
+                        portfolioExports[key] = manifest.ExportedAtUtc;
+                        newPortfolioEntryCount++;
+                    }
+                    continue;
+                }
                 if (activeSnapshot is not null &&
                     activeSnapshot.PackageId != manifest.PackageId &&
                     manifest.ExportedAtUtc <= activeSnapshot.ExportedAtUtc &&
@@ -252,6 +302,7 @@ public sealed class SheetLibrary
             RemovedSheetKeys = removedKeys,
             FullSnapshotApplied = fullSnapshotApplied,
             StaleSnapshotIgnored = staleSnapshotIgnored,
+            NewPortfolioEntryCount = newPortfolioEntryCount,
         };
         if (change.HasChanges && notifyChanged)
         {
@@ -283,6 +334,7 @@ public sealed class SheetLibrary
         {
             sheets.Clear();
             sourceSnapshots.Clear();
+            portfolioExports.Clear();
             Interlocked.Increment(ref version);
         }
 
@@ -310,5 +362,6 @@ public sealed class SheetLibrary
     private sealed record SourceSnapshotState(
         Guid PackageId,
         DateTimeOffset ExportedAtUtc,
-        HashSet<string> SheetKeys);
+        HashSet<string> SheetKeys,
+        HashSet<string> PortfolioKeys);
 }

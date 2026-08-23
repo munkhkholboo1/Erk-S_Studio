@@ -10,6 +10,9 @@ public static class ProjectPortfolioItemKinds
 
     /// <summary>One page of the project's album.</summary>
     public const string AlbumPage = "AlbumPage";
+
+    /// <summary>An authored CAD page a sheet package marked for the portfolio.</summary>
+    public const string CadPage = "CadPage";
 }
 
 public static class ProjectPortfolioLayouts
@@ -50,6 +53,16 @@ public sealed class ProjectPortfolioItem
     /// </summary>
     public string AlbumPageId { get; set; } = "";
 
+    /// <summary>
+    /// Sheet-library-style key (source identity + sheet id) of the authored
+    /// page a <see cref="ProjectPortfolioItemKinds.CadPage"/> item was imported
+    /// from, so a re-export replaces this item instead of appending a duplicate.
+    /// </summary>
+    public string SourceSheetKey { get; set; } = "";
+
+    /// <summary>Export time of the package this item was last imported from.</summary>
+    public DateTimeOffset? SourceExportedAtUtc { get; set; }
+
     /// <summary>Where a cropped item is centred, 0..1 of the source.</summary>
     public double FocalPointX { get; set; } = 0.5;
 
@@ -68,6 +81,8 @@ public sealed class ProjectPortfolioItem
         RelativePath = RelativePath,
         SourcePageNumber = SourcePageNumber,
         AlbumPageId = AlbumPageId,
+        SourceSheetKey = SourceSheetKey,
+        SourceExportedAtUtc = SourceExportedAtUtc,
         FocalPointX = FocalPointX,
         FocalPointY = FocalPointY,
         AddedAtUtc = AddedAtUtc,
@@ -128,6 +143,7 @@ public sealed class ProjectPortfolio
             item.Caption = (item.Caption ?? "").Trim();
             item.RelativePath = (item.RelativePath ?? "").Trim();
             item.AlbumPageId = (item.AlbumPageId ?? "").Trim();
+            item.SourceSheetKey = (item.SourceSheetKey ?? "").Trim();
             item.SourcePageNumber = Math.Max(1, item.SourcePageNumber);
             item.FocalPointX = Clamp01(item.FocalPointX);
             item.FocalPointY = Clamp01(item.FocalPointY);
@@ -142,7 +158,9 @@ public sealed class ProjectPortfolio
             ? ProjectPortfolioItemKinds.Document
             : value.Equals(ProjectPortfolioItemKinds.AlbumPage, StringComparison.OrdinalIgnoreCase)
                 ? ProjectPortfolioItemKinds.AlbumPage
-                : ProjectPortfolioItemKinds.Image;
+                : value.Equals(ProjectPortfolioItemKinds.CadPage, StringComparison.OrdinalIgnoreCase)
+                    ? ProjectPortfolioItemKinds.CadPage
+                    : ProjectPortfolioItemKinds.Image;
     }
 
     private static string NormalizeLayout(string? layout) =>

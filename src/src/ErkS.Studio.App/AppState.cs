@@ -802,6 +802,15 @@ public sealed class AppState : IDisposable
             return null;
         }
 
+        if (!string.IsNullOrWhiteSpace(ProjectPath))
+        {
+            PortfolioSheetImportService.Import(
+                Project,
+                ProjectPath,
+                result,
+                reconciled.SourceId);
+        }
+
         if (StudioBuildingCompositionSync.MaterializeSharedAssignments(
                 Project,
                 Library))

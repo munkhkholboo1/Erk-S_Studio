@@ -60,7 +60,13 @@ public static class ProjectPackageReconciliationService
             return null;
         }
 
-        foreach (SheetPackageEntry entry in manifest.Sheets)
+        // A Portfolio entry is presentation material: it never enters the
+        // sheet library, the album, or any album composition, and only Album
+        // entries count as a full snapshot's authoritative sheet set.
+        List<SheetPackageEntry> albumSheets = manifest.Sheets
+            .Where(entry => !SheetDestinations.IsPortfolio(entry.Destination))
+            .ToList();
+        foreach (SheetPackageEntry entry in albumSheets)
         {
             string key = SheetRecord.MakeKey(packageSource, entry, source.Id);
             SheetRecord? record = library.FindVerified(key);
@@ -110,7 +116,7 @@ public static class ProjectPackageReconciliationService
         if (manifest.PackageScope == SheetPackageScope.FullSnapshot &&
             library.IsCurrentAuthoritativeSnapshot(manifest, source.Id))
         {
-            HashSet<string> authoritativeKeys = manifest.Sheets
+            HashSet<string> authoritativeKeys = albumSheets
                 .Select(entry => SheetRecord.MakeKey(packageSource, entry, source.Id))
                 .ToHashSet(StringComparer.Ordinal);
             removedAlbumPageCount = album.Pages.RemoveAll(page =>
@@ -132,7 +138,7 @@ public static class ProjectPackageReconciliationService
             if (staleBuildingAssignments.Count > 0)
                 ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
 
-            HashSet<string> authoritativeSheetIds = manifest.Sheets
+            HashSet<string> authoritativeSheetIds = albumSheets
                 .Select(entry => entry.SheetId?.Trim() ?? "")
                 .Where(sheetId => sheetId.Length > 0)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -144,7 +150,7 @@ public static class ProjectPackageReconciliationService
             }
         }
 
-        foreach (SheetPackageEntry entry in manifest.Sheets)
+        foreach (SheetPackageEntry entry in albumSheets)
         {
             string key = SheetRecord.MakeKey(packageSource, entry, source.Id);
             SheetRecord? currentRecord = library.FindVerified(key);
@@ -190,13 +196,13 @@ public static class ProjectPackageReconciliationService
                 project,
                 source,
                 packageSource,
-                manifest.Sheets,
+                albumSheets,
                 composesBuildings);
         addedBuildingAssignments |=
             ProjectDesignSourceClassification.ApplyDefaultBuildingGroupAssignments(
                 project,
                 source,
-                manifest.Sheets.Select(entry =>
+                albumSheets.Select(entry =>
                     SheetRecord.MakeKey(packageSource, entry, source.Id)));
         if (addedBuildingAssignments)
             ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
@@ -218,7 +224,7 @@ public static class ProjectPackageReconciliationService
         }
         else if (usesUrbanPlanningTemplate)
         {
-            OrderUrbanPlanningPages(album, manifest, packageSource, source.Id);
+            OrderUrbanPlanningPages(album, albumSheets, packageSource, source.Id);
         }
 
         return new ProjectPackageReconciliationResult(source.Id, removedAlbumPageCount);
@@ -429,13 +435,13 @@ public static class ProjectPackageReconciliationService
 
     private static void OrderUrbanPlanningPages(
         AlbumDefinition album,
-        SheetPackageManifest manifest,
+        IReadOnlyList<SheetPackageEntry> albumSheets,
         SheetPackageSource packageSource,
         string projectSourceId)
     {
         OrderUrbanPlanningPages(
             album,
-            manifest.Sheets
+            albumSheets
             .Select((entry, index) => new
             {
                 Key = SheetRecord.MakeKey(packageSource, entry, projectSourceId),
