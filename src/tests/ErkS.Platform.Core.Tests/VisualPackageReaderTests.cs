@@ -5,13 +5,12 @@ namespace ErkS.Platform.Core.Tests;
 /// <summary>
 /// The channel Revit's board visuals arrive through.
 ///
-/// These are written from the contract PFR authored rather than from a guess at
-/// it, and the page rectangle is the literal one they measured. That is not the
-/// same as being verified: the reader has not yet met a package their exporter
-/// produced, and the last time a reader was only tested against its author's
-/// own idea of the format, five hundred and thirty-five shapes turned out to be
-/// unrecognised the first time real data arrived. These pin the rules; the real
-/// package still has to confirm the shapes.
+/// The shapes here are confirmed rather than assumed: a package their exporter
+/// actually produced - five assets out of a real model, hashes and all - reads
+/// clean through this reader. Asking for that package before writing a line of
+/// it was worth doing on its own, because it caught their first output writing
+/// a single pixel figure where the contract promised a width and a height. A
+/// reader built to the promise would have waited for fields that never came.
 /// </summary>
 public sealed class VisualPackageReaderTests : IDisposable
 {
