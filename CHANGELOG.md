@@ -5,6 +5,9 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+- Stop cropping an imported portfolio page. A page authored for the portfolio arrives with its own 10 mm margin, so it was placed full-bleed rather than contained, which would have framed that margin a second time. But full-bleed fills the page and crops whatever falls outside it, so any page whose shape differed from the portfolio's own lost drawing off its edges - the one thing the intake contract says a portfolio must never do. Such a page is now fitted to the page edge: no margin is added and nothing is cut away, and the choice is offered in the layout list as «Захгүй, бүтнээр» beside the two that were already there.
+- Say when a package brings portfolio pages. They arrive in the same package as album sheets but are filed somewhere else entirely, so nothing reported them: a user watching the portfolio saw the list sit still, and a user anywhere else was never told the pages had come at all. The portfolio list now refreshes as the package lands, and the status line says how many pages were added and how many were updated.
+
 ## [0.001.47] - 2026-08-23
 
 - Keep an existing Studio activation while device identity moves to the shared Erk-S fingerprint. Activation, validation, sign-in, and refresh now send the canonical fingerprint together with Studio's legacy alias, so the server can recognize one machine instead of consuming another device slot. A legacy device-bound companion grant remains valid in Windows Credential Manager and is rewritten to the canonical fingerprint after the first successful validation, without asking the user to sign in again.

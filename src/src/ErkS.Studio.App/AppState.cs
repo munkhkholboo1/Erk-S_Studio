@@ -6,7 +6,15 @@ using ErkS.Platform.Pdf;
 
 namespace ErkS.Studio;
 
-public sealed record PackageRecordResult(string SourceId, int RemovedAlbumPageCount);
+public sealed record PackageRecordResult(
+    string SourceId,
+    int RemovedAlbumPageCount,
+    int CreatedPortfolioItemCount = 0,
+    int UpdatedPortfolioItemCount = 0)
+{
+    public bool BroughtPortfolioPages =>
+        CreatedPortfolioItemCount > 0 || UpdatedPortfolioItemCount > 0;
+}
 
 /// <summary>
 /// Runtime state of one explicitly opened project workspace. There is no
@@ -802,9 +810,10 @@ public sealed class AppState : IDisposable
             return null;
         }
 
+        PortfolioSheetImportResult portfolioImport = PortfolioSheetImportResult.Empty;
         if (!string.IsNullOrWhiteSpace(ProjectPath))
         {
-            PortfolioSheetImportService.Import(
+            portfolioImport = PortfolioSheetImportService.Import(
                 Project,
                 ProjectPath,
                 result,
@@ -827,7 +836,11 @@ public sealed class AppState : IDisposable
             Album.Pages.AddRange(orderedPages);
         }
         SaveProject();
-        return new PackageRecordResult(reconciled.SourceId, reconciled.RemovedAlbumPageCount);
+        return new PackageRecordResult(
+            reconciled.SourceId,
+            reconciled.RemovedAlbumPageCount,
+            portfolioImport.CreatedItemCount,
+            portfolioImport.UpdatedItemCount);
     }
 
     public void SetSourceSheetActivity(

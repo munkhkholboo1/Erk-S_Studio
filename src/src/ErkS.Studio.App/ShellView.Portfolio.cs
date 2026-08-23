@@ -372,6 +372,22 @@ internal sealed partial class ShellView
         }
     }
 
+    /// <summary>
+    /// Says what a received package brought the portfolio. Imported pages are
+    /// otherwise silent: they are not album sheets, so no other message
+    /// mentions them.
+    /// </summary>
+    private static string DescribePortfolioArrival(PackageRecordResult recorded)
+    {
+        int created = recorded.CreatedPortfolioItemCount;
+        int updated = recorded.UpdatedPortfolioItemCount;
+        if (created > 0 && updated > 0)
+            return $"Портфолиод {created} хуудас нэмэгдэж, {updated} хуудас шинэчлэгдлээ.";
+        return created > 0
+            ? $"Портфолиод {created} хуудас нэмэгдлээ."
+            : $"Портфолиогийн {updated} хуудас шинэчлэгдлээ.";
+    }
+
     private void CommitPortfolio(string status, string? selectItemId = null)
     {
         Portfolio.Normalize();

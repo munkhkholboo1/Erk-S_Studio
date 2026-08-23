@@ -5784,6 +5784,15 @@ internal sealed partial class ShellView : IDisposable
                 RefreshSourceWorkspace(recorded.SourceId);
             if (activePage == StudioPage.Albums)
                 RefreshAlbumWorkspace();
+            // Portfolio pages arrive in the same package as album sheets, so the
+            // portfolio has to be told too - otherwise a user watching that page
+            // sees nothing happen and has to leave and come back.
+            if (recorded.BroughtPortfolioPages)
+            {
+                if (activePage == StudioPage.Portfolio)
+                    RefreshPortfolio();
+                SetStatus(DescribePortfolioArrival(recorded));
+            }
             RefreshSyncUi();
 
             // SheetLibrary.Changed fires while the package is being absorbed,
