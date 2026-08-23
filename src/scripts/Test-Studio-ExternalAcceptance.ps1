@@ -99,6 +99,12 @@ function Invoke-AcceptanceCheck {
     }
 }
 
+# Called from the check scriptblocks, which Invoke-AcceptanceCheck runs in this
+# script's own scope. Two of them used to be wrapped in GetNewClosure() to pin
+# the loop's $Year; that puts the block in an isolated module scope where this
+# function is not visible, and every host build failed with "not recognized"
+# rather than with whatever the build actually said. The blocks run inside the
+# same iteration that creates them, so $Year needs no pinning.
 function Invoke-CheckedProcess {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
@@ -237,7 +243,7 @@ if ($AutoCADRepositoryAvailable) {
                     ) `
                     -WorkingDirectory $AutoCADRoot
                 return "Built against the installed AutoCAD $Year API."
-            }.GetNewClosure()
+            }
         }
     }
 }
@@ -278,7 +284,7 @@ if ($RevitRepositoryAvailable) {
                     ) `
                     -WorkingDirectory $RevitRoot
                 return "Built against the installed Revit $Year API without registering a dev add-in."
-            }.GetNewClosure()
+            }
         }
     }
 }
