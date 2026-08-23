@@ -905,7 +905,9 @@ internal sealed class StudioAccountService :
             return null;
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
-        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, logoUrl));
+        if (!TryBuildSameOriginUri(session.ServerUrl, logoUrl, out Uri logoUri))
+            return null;
+        using HttpRequestMessage request = new(HttpMethod.Get, logoUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response = await httpClient.SendAsync(
             request,
@@ -1393,8 +1395,10 @@ internal sealed class StudioAccountService :
         string profileImagePath = string.IsNullOrWhiteSpace(session.ProfileImageUrl)
             ? "/api/studio/profile/photo"
             : session.ProfileImageUrl;
+        if (!TryBuildSameOriginUri(session.ServerUrl, profileImagePath, out Uri profileImageUri))
+            profileImageUri = BuildUri(session.ServerUrl, "/api/studio/profile/photo");
 
-        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, profileImagePath));
+        using HttpRequestMessage request = new(HttpMethod.Get, profileImageUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -2234,6 +2238,21 @@ internal sealed class StudioAccountService :
     }
 
     private static Uri BuildUri(string serverUrl, string path) => new(new Uri(serverUrl.TrimEnd('/') + "/"), path.TrimStart('/'));
+
+    /// <summary>
+    /// Resolves a server-supplied path or URL for a request that will carry the
+    /// session's bearer token. The token must never travel to any host other
+    /// than the session's own server, so a value resolving elsewhere is refused.
+    /// </summary>
+    internal static bool TryBuildSameOriginUri(string serverUrl, string pathOrUrl, out Uri uri)
+    {
+        var baseUri = new Uri(serverUrl.TrimEnd('/') + "/");
+        uri = new Uri(baseUri, pathOrUrl.TrimStart('/'));
+        return string.Equals(
+            uri.GetLeftPart(UriPartial.Authority),
+            baseUri.GetLeftPart(UriPartial.Authority),
+            StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string NormalizeServerUrl(string value)
     {
