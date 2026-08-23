@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.36",
-    [string]$AssemblyVersion = "0.0.1.36",
+    [string]$ReleaseVersion = "",
+    [string]$AssemblyVersion = "",
     [string]$OutputDirectory = "",
     [string]$CodeSigningThumbprint = $env:ERKS_CODE_SIGN_CERT_THUMBPRINT,
     [string]$ExpectedPublisher = "Erk-S LLC",
@@ -14,6 +14,76 @@ $ErrorActionPreference = "Stop"
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SourceRoot = Split-Path -Parent $ScriptRoot
 $ProductRoot = Split-Path -Parent $SourceRoot
+
+function Get-RequiredStudioVersionProperty {
+    param(
+        [Parameter(Mandatory = $true)][xml]$Document,
+        [Parameter(Mandatory = $true)][string]$PropertyName,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $Node = $Document.SelectSingleNode("/Project/PropertyGroup/$PropertyName")
+    $Value = if ($null -eq $Node) { "" } else { $Node.InnerText.Trim() }
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw "Studio version property '$PropertyName' is missing from '$Path'."
+    }
+
+    return $Value
+}
+
+$VersionPropsPath = Join-Path $SourceRoot "Studio.Version.props"
+if (-not (Test-Path -LiteralPath $VersionPropsPath -PathType Leaf)) {
+    throw "Authoritative Studio version file was not found: $VersionPropsPath"
+}
+[xml]$VersionProps = Get-Content -LiteralPath $VersionPropsPath -Raw
+$PublishedVersion = Get-RequiredStudioVersionProperty `
+    -Document $VersionProps `
+    -PropertyName "StudioPublishedVersion" `
+    -Path $VersionPropsPath
+$AuthoritativeAssemblyVersion = Get-RequiredStudioVersionProperty `
+    -Document $VersionProps `
+    -PropertyName "StudioPublishedAssemblyVersion" `
+    -Path $VersionPropsPath
+if ($PublishedVersion -notmatch '^\d+\.\d{3}(?:\.\d+)?$') {
+    throw "StudioPublishedVersion '$PublishedVersion' has an invalid release format."
+}
+if ($AuthoritativeAssemblyVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+    throw "StudioPublishedAssemblyVersion '$AuthoritativeAssemblyVersion' has an invalid assembly format."
+}
+$AuthoritativeReleaseVersion = "V$PublishedVersion"
+
+if ([string]::IsNullOrWhiteSpace($ReleaseVersion)) {
+    $ReleaseVersion = $AuthoritativeReleaseVersion
+}
+else {
+    $RequestedReleaseVersion = $ReleaseVersion.Trim()
+    if ($RequestedReleaseVersion.StartsWith("Demo ", [StringComparison]::OrdinalIgnoreCase)) {
+        $RequestedReleaseVersion = $RequestedReleaseVersion.Substring(5).Trim()
+    }
+    if ($RequestedReleaseVersion -notmatch '^[vV]?(\d+\.\d{3}(?:\.\d+)?)$') {
+        throw "ReleaseVersion must use V0.001 or V0.001.1 format."
+    }
+    $RequestedReleaseVersion = "V$($Matches[1])"
+    if (-not $RequestedReleaseVersion.Equals(
+            $AuthoritativeReleaseVersion,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "ReleaseVersion '$ReleaseVersion' does not match authoritative Studio.Version.props value '$AuthoritativeReleaseVersion'."
+    }
+    $ReleaseVersion = $AuthoritativeReleaseVersion
+}
+
+if ([string]::IsNullOrWhiteSpace($AssemblyVersion)) {
+    $AssemblyVersion = $AuthoritativeAssemblyVersion
+}
+elseif (-not $AssemblyVersion.Trim().Equals(
+        $AuthoritativeAssemblyVersion,
+        [StringComparison]::Ordinal)) {
+    throw "AssemblyVersion '$AssemblyVersion' does not match authoritative Studio.Version.props value '$AuthoritativeAssemblyVersion'."
+}
+else {
+    $AssemblyVersion = $AuthoritativeAssemblyVersion
+}
+
 $ProductBuildRoot = [IO.Path]::GetFullPath((Join-Path $ProductRoot "builds\product"))
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $ProductBuildRoot ("Demo-" + $ReleaseVersion)

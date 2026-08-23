@@ -3,6 +3,54 @@ namespace ErkS.Studio.App.Tests;
 public sealed class StudioReleasePipelineTests
 {
     [Fact]
+    public void ReleaseScripts_DeriveDefaultsFromAuthoritativeVersionProps()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string versionPropsPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Studio.Version.props");
+        System.Xml.Linq.XDocument versionProps = System.Xml.Linq.XDocument.Load(
+            versionPropsPath);
+        string publishedVersion = versionProps
+            .Descendants("StudioPublishedVersion")
+            .Single()
+            .Value
+            .Trim();
+        string publishedAssemblyVersion = versionProps
+            .Descendants("StudioPublishedAssemblyVersion")
+            .Single()
+            .Value
+            .Trim();
+
+        string publishScript = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "scripts",
+            "Publish-Studio-Demo.ps1"));
+        string serverScript = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "scripts",
+            "Publish-Studio-DemoToServer.ps1"));
+
+        foreach (string script in new[] { publishScript, serverScript })
+        {
+            Assert.Contains("[string]$ReleaseVersion = \"\"", script, StringComparison.Ordinal);
+            Assert.Contains("Studio.Version.props", script, StringComparison.Ordinal);
+            Assert.Contains("StudioPublishedVersion", script, StringComparison.Ordinal);
+            Assert.Contains("$AuthoritativeReleaseVersion", script, StringComparison.Ordinal);
+            Assert.Contains("does not match authoritative Studio.Version.props", script, StringComparison.Ordinal);
+            Assert.DoesNotContain($"\"V{publishedVersion}\"", script, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("[string]$AssemblyVersion = \"\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("StudioPublishedAssemblyVersion", publishScript, StringComparison.Ordinal);
+        Assert.Contains("$AuthoritativeAssemblyVersion", publishScript, StringComparison.Ordinal);
+        Assert.DoesNotContain($"\"{publishedAssemblyVersion}\"", publishScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProductPublish_RunsAllRegressionSuitesInProductModeBeforePublish()
     {
         string repositoryRoot = FindRepositoryRoot();

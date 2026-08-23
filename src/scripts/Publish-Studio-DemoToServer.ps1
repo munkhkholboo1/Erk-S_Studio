@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ReleaseVersion = "V0.001.36",
+    [string]$ReleaseVersion = "",
 
     [Parameter(Mandatory = $true)]
     [string]$ReleaseNotes,
@@ -12,6 +12,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+function Get-RequiredStudioVersionProperty {
+    param(
+        [Parameter(Mandatory = $true)][xml]$Document,
+        [Parameter(Mandatory = $true)][string]$PropertyName,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $Node = $Document.SelectSingleNode("/Project/PropertyGroup/$PropertyName")
+    $Value = if ($null -eq $Node) { "" } else { $Node.InnerText.Trim() }
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw "Studio version property '$PropertyName' is missing from '$Path'."
+    }
+
+    return $Value
+}
 
 function Resolve-ReleaseVersion {
     param([Parameter(Mandatory = $true)][string]$Value)
@@ -84,10 +100,37 @@ function Expand-HistoryEntry {
     }
 }
 
-$versions = Resolve-ReleaseVersion -Value $ReleaseVersion
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $sourceRoot = Split-Path -Parent $scriptRoot
 $productRoot = Split-Path -Parent $sourceRoot
+$versionPropsPath = Join-Path $sourceRoot "Studio.Version.props"
+if (-not (Test-Path -LiteralPath $versionPropsPath -PathType Leaf)) {
+    throw "Authoritative Studio version file was not found: $versionPropsPath"
+}
+[xml]$versionProps = Get-Content -LiteralPath $versionPropsPath -Raw
+$publishedVersion = Get-RequiredStudioVersionProperty `
+    -Document $versionProps `
+    -PropertyName "StudioPublishedVersion" `
+    -Path $versionPropsPath
+if ($publishedVersion -notmatch '^\d+\.\d{3}(?:\.\d+)?$') {
+    throw "StudioPublishedVersion '$publishedVersion' has an invalid release format."
+}
+$AuthoritativeReleaseVersion = "V$publishedVersion"
+
+if ([string]::IsNullOrWhiteSpace($ReleaseVersion)) {
+    $ReleaseVersion = $AuthoritativeReleaseVersion
+}
+else {
+    $requestedVersions = Resolve-ReleaseVersion -Value $ReleaseVersion
+    if (-not $requestedVersions.Artifact.Equals(
+            $AuthoritativeReleaseVersion,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "ReleaseVersion '$ReleaseVersion' does not match authoritative Studio.Version.props value '$AuthoritativeReleaseVersion'."
+    }
+    $ReleaseVersion = $AuthoritativeReleaseVersion
+}
+
+$versions = Resolve-ReleaseVersion -Value $ReleaseVersion
 $serverRoot = [IO.Path]::GetFullPath($LicenseServerRoot)
 $driveRoot = [IO.Path]::GetPathRoot($serverRoot).TrimEnd('\', '/')
 if ($serverRoot.TrimEnd('\', '/').Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase)) {
