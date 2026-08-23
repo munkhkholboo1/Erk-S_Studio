@@ -141,6 +141,122 @@ public static class BoardGridGeometry
             boardWidthMm,
             boardHeightMm,
             new BoardGridSpan(0, grid?.Columns ?? 1, 0, grid?.Rows ?? 1));
+
+    /// <summary>
+    /// The cell a point on the board falls in - the inverse of
+    /// <see cref="Resolve"/>, and what turns a dragged card into a placement.
+    ///
+    /// A point in a gutter, or out in the margin, belongs to the nearest cell
+    /// rather than to nothing. Dragging is a gesture at a cell, not a claim
+    /// about a coordinate, and a card that refused to move because the pointer
+    /// was two millimetres into a gutter would be maddening.
+    /// </summary>
+    public static (int Column, int Row)? CellAt(
+        BoardGrid grid,
+        double boardWidthMm,
+        double boardHeightMm,
+        double xMm,
+        double yMm)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        if (!double.IsFinite(xMm) || !double.IsFinite(yMm))
+            return null;
+
+        double contentWidth = boardWidthMm - grid.MarginLeftMm - grid.MarginRightMm;
+        double contentHeight = boardHeightMm - grid.MarginTopMm - grid.MarginBottomMm;
+        double columnWidth =
+            (contentWidth - grid.ColumnGutterMm * (grid.Columns - 1)) / grid.Columns;
+        double rowHeight =
+            (contentHeight - grid.RowGutterMm * (grid.Rows - 1)) / grid.Rows;
+        if (columnWidth <= 0 || rowHeight <= 0)
+            return null;
+
+        int column = (int)Math.Floor((xMm - grid.MarginLeftMm) / (columnWidth + grid.ColumnGutterMm));
+        int row = (int)Math.Floor((yMm - grid.MarginTopMm) / (rowHeight + grid.RowGutterMm));
+        return (
+            Math.Clamp(column, 0, grid.Columns - 1),
+            Math.Clamp(row, 0, grid.Rows - 1));
+    }
+}
+
+/// <summary>
+/// What a card is, said in the terms the drawing programs need to hear it in.
+///
+/// This is the whole of the arrangement with AutoCAD and Revit. Studio sends
+/// them no task; it states plainly how large the card is, what shape, and how
+/// many pixels that needs, and the artwork is prepared to match by hand. The
+/// pixel count is the part that cannot be eyeballed - four hundred millimetres
+/// at print quality is nearly five thousand pixels, and a render that falls
+/// short of it looks fine on screen and soft on the board.
+/// </summary>
+public readonly record struct BoardCardMeasurement(
+    double WidthMm,
+    double HeightMm,
+    double AspectRatio,
+    int WidthPixels,
+    int HeightPixels,
+    int Dpi);
+
+public static class BoardCardMeasurements
+{
+    /// <summary>Print quality, and the figure a competition usually asks for.</summary>
+    public const int PrintDpi = 300;
+
+    public static BoardCardMeasurement? Measure(BoardRectMm? rect, int dpi)
+    {
+        if (rect is not { } size || size.WidthMm <= 0 || size.HeightMm <= 0 || dpi <= 0)
+            return null;
+
+        return new BoardCardMeasurement(
+            size.WidthMm,
+            size.HeightMm,
+            size.WidthMm / size.HeightMm,
+            // Rounded up: a pixel short of the requirement is still short.
+            (int)Math.Ceiling(size.WidthMm / 25.4 * dpi),
+            (int)Math.Ceiling(size.HeightMm / 25.4 * dpi),
+            dpi);
+    }
+
+    /// <summary>
+    /// Whether a raster of this size would hold up at the card's printed size.
+    /// Asked while the card is being placed rather than while it is being
+    /// printed, because by then the board is already wrong.
+    /// </summary>
+    public static bool IsSharpEnough(
+        BoardCardMeasurement measurement,
+        int sourceWidthPixels,
+        int sourceHeightPixels) =>
+        sourceWidthPixels >= measurement.WidthPixels &&
+        sourceHeightPixels >= measurement.HeightPixels;
+}
+
+/// <summary>
+/// Keeps cards inside a grid that has been made smaller.
+///
+/// A card left reaching past the last column would be refused by the writer,
+/// and the person composing would see it vanish from the printed sheet without
+/// being told why. Pulling it back is the lesser surprise: it stays visible, on
+/// the board, where it can be moved.
+/// </summary>
+public static class BoardGridFitting
+{
+    public static bool HoldInside(BoardGrid grid, IEnumerable<BoardElement> elements)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(elements);
+
+        bool moved = false;
+        foreach (BoardElement element in elements)
+        {
+            BoardGridSpan before = element.Span;
+            element.ColumnSpan = Math.Clamp(element.ColumnSpan, 1, grid.Columns);
+            element.RowSpan = Math.Clamp(element.RowSpan, 1, grid.Rows);
+            element.Column = Math.Clamp(element.Column, 0, grid.Columns - element.ColumnSpan);
+            element.Row = Math.Clamp(element.Row, 0, grid.Rows - element.RowSpan);
+            moved |= !element.Span.Equals(before);
+        }
+        return moved;
+    }
 }
 
 public static class BoardElementKinds

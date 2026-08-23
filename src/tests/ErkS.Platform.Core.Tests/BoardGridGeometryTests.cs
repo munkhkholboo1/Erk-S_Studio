@@ -153,6 +153,84 @@ public sealed class BoardGridGeometryTests
             precision: 9);
     }
 
+    [Fact]
+    public void APointInACellBelongsToThatCell()
+    {
+        BoardGrid grid = Grid();
+        BoardRectMm rect = Require(Resolve(grid, new BoardGridSpan(4, 1, 7, 1)));
+
+        (int column, int row) = Require(BoardGridGeometry.CellAt(
+            grid,
+            BoardWidth,
+            BoardHeight,
+            rect.LeftMm + rect.WidthMm / 2,
+            rect.TopMm + rect.HeightMm / 2));
+
+        Assert.Equal(4, column);
+        Assert.Equal(7, row);
+    }
+
+    [Fact]
+    public void EveryCellRoundTripsThroughItsOwnCentre()
+    {
+        // Placing a card and then picking it up again must not move it.
+        BoardGrid grid = Grid();
+
+        for (int column = 0; column < grid.Columns; column++)
+        {
+            for (int row = 0; row < grid.Rows; row++)
+            {
+                BoardRectMm rect = Require(Resolve(grid, new BoardGridSpan(column, 1, row, 1)));
+                (int gotColumn, int gotRow) = Require(BoardGridGeometry.CellAt(
+                    grid,
+                    BoardWidth,
+                    BoardHeight,
+                    rect.LeftMm + rect.WidthMm / 2,
+                    rect.TopMm + rect.HeightMm / 2));
+
+                Assert.Equal((column, row), (gotColumn, gotRow));
+            }
+        }
+    }
+
+    [Fact]
+    public void APointInAGutterBelongsToTheNearestCellRatherThanToNothing()
+    {
+        // Dragging is a gesture at a cell, not a claim about a coordinate. A
+        // card that refused to move because the pointer was inside a gutter
+        // would be maddening to use.
+        BoardGrid grid = Grid();
+        BoardRectMm first = Require(Resolve(grid, new BoardGridSpan(0, 1, 0, 1)));
+
+        (int column, int row) = Require(BoardGridGeometry.CellAt(
+            grid,
+            BoardWidth,
+            BoardHeight,
+            first.RightMm + grid.ColumnGutterMm / 2,
+            first.TopMm + 1));
+
+        Assert.Equal(0, column);
+        Assert.Equal(0, row);
+    }
+
+    [Fact]
+    public void APointOutsideTheBoardIsHeldAtTheEdge()
+    {
+        BoardGrid grid = Grid();
+
+        (int column, int row) = Require(BoardGridGeometry.CellAt(
+            grid, BoardWidth, BoardHeight, -500, 99999));
+
+        Assert.Equal(0, column);
+        Assert.Equal(grid.Rows - 1, row);
+    }
+
+    private static (int Column, int Row) Require((int Column, int Row)? cell)
+    {
+        Assert.NotNull(cell);
+        return cell!.Value;
+    }
+
     private static BoardRectMm? Resolve(BoardGrid grid, BoardGridSpan span) =>
         BoardGridGeometry.Resolve(grid, BoardWidth, BoardHeight, span);
 
