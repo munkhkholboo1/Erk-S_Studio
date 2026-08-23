@@ -234,7 +234,7 @@ public sealed class PageFormatSpec
 
     public string Name { get; set; } = "";
 
-    /// <summary>Concept/Sketch, WorkingDrawing/Blueprint, Document or Cover.</summary>
+    /// <summary>Concept/Sketch, WorkingDrawing/Blueprint, Document, Cover or Portfolio.</summary>
     public string Mode { get; set; } = "";
 
     public string Code { get; set; } = "";
