@@ -17,7 +17,13 @@ public sealed record PortfolioBuildRequest(
     string OutputPath,
     double PageWidthMm,
     double PageHeightMm,
-    IReadOnlyList<PortfolioBuildItem> Items);
+    IReadOnlyList<PortfolioBuildItem> Items,
+    /// <summary>
+    /// Give each page the size of the drawing it shows instead of one size for
+    /// all. The document then holds pages of several sizes, which is the point:
+    /// a drawing put on a large sheet is meant to be seen on one.
+    /// </summary>
+    bool UseSourcePageSize = false);
 
 public sealed record PortfolioBuildResult(
     string OutputPath,
@@ -128,9 +134,10 @@ public static class PortfolioPdfWriter
 
         foreach (PortfolioBuildItem item in request.Items)
         {
+            (double pageWidthMm, double pageHeightMm) = ResolvePageSize(request, item);
             PdfPage page = document.AddPage();
-            page.Width = XUnit.FromMillimeter(Math.Max(50, request.PageWidthMm));
-            page.Height = XUnit.FromMillimeter(Math.Max(50, request.PageHeightMm));
+            page.Width = XUnit.FromMillimeter(Math.Max(50, pageWidthMm));
+            page.Height = XUnit.FromMillimeter(Math.Max(50, pageHeightMm));
             using XGraphics gfx = XGraphics.FromPdfPage(page);
             if (!DrawItem(gfx, page, item, warnings))
             {
@@ -178,6 +185,36 @@ public static class PortfolioPdfWriter
         }
 
         return new PortfolioBuildResult(outputPath, pageCount, warnings);
+    }
+
+    /// <summary>
+    /// The page size for one item: the portfolio's own, or the size of the
+    /// drawing it shows. A source that cannot be measured falls back to the
+    /// portfolio size rather than failing the build.
+    /// </summary>
+    private static (double WidthMm, double HeightMm) ResolvePageSize(
+        PortfolioBuildRequest request,
+        PortfolioBuildItem item)
+    {
+        if (!request.UseSourcePageSize)
+            return (request.PageWidthMm, request.PageHeightMm);
+
+        try
+        {
+            using XImage source = OpenSource(item);
+            double widthMm = source.PointWidth / PointsPerMm;
+            double heightMm = source.PointHeight / PointsPerMm;
+            return double.IsFinite(widthMm) && double.IsFinite(heightMm) &&
+                widthMm > 0 && heightMm > 0
+                ? (widthMm, heightMm)
+                : (request.PageWidthMm, request.PageHeightMm);
+        }
+        catch (Exception exception) when (
+            exception is IOException or InvalidOperationException or
+                NotSupportedException or ArgumentException)
+        {
+            return (request.PageWidthMm, request.PageHeightMm);
+        }
     }
 
     private static bool DrawItem(

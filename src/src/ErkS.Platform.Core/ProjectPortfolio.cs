@@ -15,6 +15,22 @@ public static class ProjectPortfolioItemKinds
     public const string CadPage = "CadPage";
 }
 
+/// <summary>
+/// How big the pages of the built presentation are.
+/// </summary>
+public static class ProjectPortfolioPageSizeModes
+{
+    /// <summary>Every page is the one size the portfolio was given.</summary>
+    public const string Fixed = "Fixed";
+
+    /// <summary>
+    /// Each page keeps the size of the drawing it shows, so the document holds
+    /// pages of several sizes. Choosing a large sheet for a drawing is a
+    /// decision about how it should be seen, and this keeps that decision.
+    /// </summary>
+    public const string SourcePage = "SourcePage";
+}
+
 public static class ProjectPortfolioLayouts
 {
     /// <summary>The item fills the whole page and is cropped to it.</summary>
@@ -149,6 +165,16 @@ public sealed class ProjectPortfolio
 
     public double PageHeightMm { get; set; } = 297;
 
+    /// <summary>
+    /// <see cref="ProjectPortfolioPageSizeModes"/>. Fixed by default, so a
+    /// portfolio behaves as it always has until someone chooses otherwise.
+    /// </summary>
+    public string PageSizeMode { get; set; } = ProjectPortfolioPageSizeModes.Fixed;
+
+    public bool UsesSourcePageSize => PageSizeMode.Equals(
+        ProjectPortfolioPageSizeModes.SourcePage,
+        StringComparison.OrdinalIgnoreCase);
+
     public List<ProjectPortfolioItem> Items { get; set; } = [];
 
     public string LastPdfPath { get; set; } = "";
@@ -184,6 +210,9 @@ public sealed class ProjectPortfolio
             PageWidthMm = 420;
         if (PageHeightMm <= 0 || !double.IsFinite(PageHeightMm))
             PageHeightMm = 297;
+        PageSizeMode = UsesSourcePageSize
+            ? ProjectPortfolioPageSizeModes.SourcePage
+            : ProjectPortfolioPageSizeModes.Fixed;
 
         List<ProjectPortfolioItem> ordered = OrderedItems().ToList();
         for (int index = 0; index < ordered.Count; index++)

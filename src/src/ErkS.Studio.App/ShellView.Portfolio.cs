@@ -16,6 +16,9 @@ namespace ErkS.Studio;
 internal sealed partial class ShellView
 {
     private readonly ListView portfolioItemsList = new() { MinHeight = 260 };
+    private readonly ComboBox portfolioPageSizeModeBox = new();
+    private readonly TextBox portfolioPageWidthBox = new() { Width = 90 };
+    private readonly TextBox portfolioPageHeightBox = new() { Width = 90 };
     private readonly TextBox portfolioTitleBox = new();
     private readonly TextBox portfolioCaptionBox = new();
     private readonly ComboBox portfolioLayoutBox = new();
@@ -74,6 +77,15 @@ internal sealed partial class ShellView
             new PortfolioLayoutChoice(ProjectPortfolioLayouts.FullBleed, "Хуудас дүүрэн (тайрна)"),
         };
         portfolioLayoutBox.DisplayMemberPath = nameof(PortfolioLayoutChoice.Label);
+        portfolioPageSizeModeBox.ItemsSource = new[]
+        {
+            new PortfolioLayoutChoice(ProjectPortfolioPageSizeModes.Fixed, "Тогтмол хэмжээ"),
+            new PortfolioLayoutChoice(ProjectPortfolioPageSizeModes.SourcePage, "Эх хуудасны хэмжээгээр"),
+        };
+        portfolioPageSizeModeBox.DisplayMemberPath = nameof(PortfolioLayoutChoice.Label);
+        portfolioPageSizeModeBox.SelectionChanged += (_, _) => ApplyPortfolioPageSetup();
+        portfolioPageWidthBox.LostFocus += (_, _) => ApplyPortfolioPageSetup();
+        portfolioPageHeightBox.LostFocus += (_, _) => ApplyPortfolioPageSetup();
 
         portfolioAddImageButton.Click += (_, _) => AddPortfolioVisualizations();
         portfolioAddFileButton.Click += (_, _) => AddPortfolioFiles();
@@ -114,6 +126,28 @@ internal sealed partial class ShellView
         actions.Children.Add(portfolioShowRemovedCheck);
         panel.Children.Add(actions);
         panel.Children.Add(portfolioItemsList);
+
+        panel.Children.Add(StudioWidgets.CreateSectionHeader("Хуудасны хэмжээ"));
+        panel.Children.Add(StudioWidgets.CreateFormRow("Горим", portfolioPageSizeModeBox));
+        var sizeRow = new WrapPanel();
+        sizeRow.Children.Add(portfolioPageWidthBox);
+        sizeRow.Children.Add(new TextBlock
+        {
+            Text = " × ",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = StudioTheme.MutedTextBrush,
+        });
+        sizeRow.Children.Add(portfolioPageHeightBox);
+        sizeRow.Children.Add(new TextBlock
+        {
+            Text = " мм",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = StudioTheme.MutedTextBrush,
+        });
+        panel.Children.Add(StudioWidgets.CreateFormRow("Хэмжээ", sizeRow));
+        panel.Children.Add(StudioWidgets.CreateHint(
+            "«Эх хуудасны хэмжээгээр» горимд хуудас бүр өөрийн зургийн хэмжээгээр гарна — " +
+            "танилцуулга холимог хэмжээтэй болно. Том форматаар зурсан хуудсыг жижигрүүлэхгүй."));
 
         panel.Children.Add(StudioWidgets.CreateSectionHeader("Сонгосон хуудас"));
         panel.Children.Add(StudioWidgets.CreateFormRow("Нэр", portfolioTitleBox));
@@ -454,6 +488,46 @@ internal sealed partial class ShellView
             SetStatus(status);
     }
 
+    /// <summary>
+    /// Applies the page setup. Only the portfolio's own page settings change
+    /// here - the pages in it, their order and their wording are untouched, so
+    /// changing the size never costs the user the arrangement they built.
+    /// </summary>
+    private void ApplyPortfolioPageSetup()
+    {
+        if (portfolioInspectorSuspended || !state.HasOpenProject)
+            return;
+
+        string mode = (portfolioPageSizeModeBox.SelectedItem as PortfolioLayoutChoice)?.Value
+            ?? Portfolio.PageSizeMode;
+        double width = ParsePageSize(portfolioPageWidthBox.Text, Portfolio.PageWidthMm);
+        double height = ParsePageSize(portfolioPageHeightBox.Text, Portfolio.PageHeightMm);
+        if (Portfolio.PageSizeMode.Equals(mode, StringComparison.OrdinalIgnoreCase) &&
+            Math.Abs(Portfolio.PageWidthMm - width) < 0.001 &&
+            Math.Abs(Portfolio.PageHeightMm - height) < 0.001)
+        {
+            return;
+        }
+
+        Portfolio.PageSizeMode = mode;
+        Portfolio.PageWidthMm = width;
+        Portfolio.PageHeightMm = height;
+        CommitPortfolio(
+            Portfolio.UsesSourcePageSize
+                ? "Хуудас бүр эх зургийнхаа хэмжээгээр гарна."
+                : $"Хуудасны хэмжээ {Portfolio.PageWidthMm:0.#} × {Portfolio.PageHeightMm:0.#} мм боллоо.",
+            (portfolioItemsList.SelectedItem as PortfolioItemRow)?.Item.Id);
+    }
+
+    private static double ParsePageSize(string text, double fallback) =>
+        double.TryParse(
+            (text ?? "").Trim(),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.CurrentCulture,
+            out double value) && double.IsFinite(value) && value >= 50
+            ? value
+            : fallback;
+
     private void RefreshPortfolio(string? selectItemId = null)
     {
         if (!state.HasOpenProject)
@@ -481,6 +555,23 @@ internal sealed partial class ShellView
             : $"{visibleCount} хуудас. Сүүлд {Portfolio.LastPageCount} хуудсаар " +
               $"{Portfolio.LastBuiltAtUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm}-д үүсгэсэн.{removedNote}";
         portfolioOpenButton.IsEnabled = ResolvePortfolioPdfPath() is { } path && File.Exists(path);
+        portfolioInspectorSuspended = true;
+        try
+        {
+            portfolioPageSizeModeBox.SelectedItem = portfolioPageSizeModeBox.Items
+                .OfType<PortfolioLayoutChoice>()
+                .FirstOrDefault(choice => choice.Value.Equals(
+                    Portfolio.PageSizeMode,
+                    StringComparison.OrdinalIgnoreCase));
+            portfolioPageWidthBox.Text = Portfolio.PageWidthMm.ToString("0.#");
+            portfolioPageHeightBox.Text = Portfolio.PageHeightMm.ToString("0.#");
+            portfolioPageWidthBox.IsEnabled = !Portfolio.UsesSourcePageSize;
+            portfolioPageHeightBox.IsEnabled = !Portfolio.UsesSourcePageSize;
+        }
+        finally
+        {
+            portfolioInspectorSuspended = false;
+        }
         RefreshPortfolioInspector();
     }
 
@@ -526,7 +617,8 @@ internal sealed partial class ShellView
                 outputPath,
                 Portfolio.PageWidthMm,
                 Portfolio.PageHeightMm,
-                Portfolio.OrderedVisibleItems().Select(ResolveBuildItem).ToList());
+                Portfolio.OrderedVisibleItems().Select(ResolveBuildItem).ToList(),
+                Portfolio.UsesSourcePageSize);
 
             PortfolioBuildResult result = PortfolioPdfWriter.Build(request);
             Portfolio.LastPdfPath = Path.GetRelativePath(projectFolder, result.OutputPath);
