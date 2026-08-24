@@ -456,6 +456,56 @@ internal sealed class StudioCloudOrganizationRenderProfile
     public double LogoOffsetX { get; set; }
     public double LogoOffsetY { get; set; }
     public bool IsProjectSnapshot { get; set; } = true;
+
+    /// <summary>
+    /// The organisation's registration certificate, as scans the server holds.
+    ///
+    /// Somebody uploads these into their own organisation once and every
+    /// project that organisation is on should carry them. Until this arrived
+    /// they only existed on the machine of whoever added them, so a colleague
+    /// opening the same project found the certificate page empty and was told,
+    /// in effect, that they had not uploaded it.
+    ///
+    /// Empty against a server that predates the field, which is every server
+    /// until the next deploy - the album keeps its placeholder page and says
+    /// why.
+    /// </summary>
+    public List<StudioCloudOrganizationDocument> RegistrationCertificateDocuments { get; set; } = [];
+
+    /// <summary>The organisation's design licence, on the same footing.</summary>
+    public List<StudioCloudOrganizationDocument> DesignLicenseDocuments { get; set; } = [];
+}
+
+/// <summary>
+/// One scan the server holds for an organisation.
+/// </summary>
+internal sealed class StudioCloudOrganizationDocument
+{
+    public string DocumentId { get; set; } = "";
+    public string Category { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string OriginalFileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+
+    /// <summary>
+    /// How many faces the scan has, or <c>0</c> for "not counted". Zero is not
+    /// "no pages": the server counts only what it can open, and a document it
+    /// could not measure still has to be drawn.
+    /// </summary>
+    public int PageCount { get; set; }
+
+    public string Sha256 { get; set; } = "";
+
+    /// <summary>
+    /// Where to fetch the file, relative to the server. The path goes through
+    /// the project rather than the organisation, so being a member of the
+    /// project is enough - which is the situation of most people who need to
+    /// print the album.
+    /// </summary>
+    public string ContentUrl { get; set; } = "";
+
+    public DateTimeOffset? UpdatedAtUtc { get; set; }
 }
 
 internal sealed class StudioCloudProjectInformation

@@ -37,12 +37,30 @@ public sealed class ProjectCompanyDocumentAvailabilityTests
     }
 
     [Fact]
+    public void ADocumentTheServerHoldsButThisDeviceLacksIsItsOwnState()
+    {
+        // The moment organisations start carrying their own papers, this is
+        // what a colleague sees first. Calling it present leaves the album
+        // page blank with nothing said; calling it absent tells them to upload
+        // a file that is already uploaded.
+        ProjectWorkspace project = CloudProject();
+        project.Foundation.DesignCompany.OrganizationSnapshot.RegistrationCertificateDocuments.Add(
+            new ProjectFileReference { IsAvailable = false, ServerDocumentId = "d1" });
+
+        string notice = Require(project);
+
+        Assert.Contains("серверт байгаа", notice);
+        Assert.Contains("татагдаагүй", notice);
+        Assert.DoesNotContain("Компанийн сангаас", notice);
+    }
+
+    [Fact]
     public void NothingIsSaidWhenBothDocumentsAreThere()
     {
         ProjectWorkspace project = CloudProject();
         CompanyProfile company = project.Foundation.DesignCompany.OrganizationSnapshot;
-        company.RegistrationCertificateDocuments.Add(new ProjectFileReference());
-        company.DesignLicenseDocuments.Add(new ProjectFileReference());
+        company.RegistrationCertificateDocuments.Add(new ProjectFileReference { IsAvailable = true });
+        company.DesignLicenseDocuments.Add(new ProjectFileReference { IsAvailable = true });
 
         Assert.Null(ProjectCompanyDocumentAvailability.Describe(project));
     }
@@ -68,9 +86,9 @@ public sealed class ProjectCompanyDocumentAvailabilityTests
         ProjectWorkspace project = CloudProject();
         CompanyProfile company = project.Foundation.DesignCompany.OrganizationSnapshot;
         if (certificate)
-            company.RegistrationCertificateDocuments.Add(new ProjectFileReference());
+            company.RegistrationCertificateDocuments.Add(new ProjectFileReference { IsAvailable = true });
         if (licence)
-            company.DesignLicenseDocuments.Add(new ProjectFileReference());
+            company.DesignLicenseDocuments.Add(new ProjectFileReference { IsAvailable = true });
 
         Assert.StartsWith(expected, Require(project), StringComparison.Ordinal);
     }

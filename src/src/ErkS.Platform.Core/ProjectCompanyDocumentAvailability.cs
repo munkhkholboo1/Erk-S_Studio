@@ -33,6 +33,19 @@ public static class ProjectCompanyDocumentAvailability
             return null;
         }
 
+        // A document the server holds but this device has not fetched is a
+        // third state, and the one that appears the moment the organisation
+        // starts carrying its own papers. Counting it as present would leave
+        // the page blank with nothing said; counting it as absent would tell
+        // somebody to upload a file that is already uploaded.
+        int waiting = company.RegistrationCertificateDocuments.Count(document => !document.IsAvailable) +
+            company.DesignLicenseDocuments.Count(document => !document.IsAvailable);
+        if (waiting > 0)
+        {
+            return $"Байгууллагын {waiting} хуулбар серверт байгаа ч энэ төхөөрөмжид " +
+                "хараахан татагдаагүй байна. Синк хийсний дараа альбомд орно.";
+        }
+
         bool certificate = company.RegistrationCertificateDocuments.Count > 0;
         bool licence = company.DesignLicenseDocuments.Count > 0;
         if (certificate && licence)

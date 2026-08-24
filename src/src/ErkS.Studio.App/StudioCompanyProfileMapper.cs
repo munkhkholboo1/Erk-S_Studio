@@ -82,10 +82,53 @@ internal static class StudioCompanyProfileMapper
             LogoOffsetX = cloud.LogoOffsetX,
             LogoOffsetY = cloud.LogoOffsetY,
         };
+        profile.RegistrationCertificateDocuments = ToDocuments(
+            cloud.RegistrationCertificateDocuments,
+            ProjectDocumentCategories.CompanyRegistrationCertificate);
+        profile.DesignLicenseDocuments = ToDocuments(
+            cloud.DesignLicenseDocuments,
+            ProjectDocumentCategories.CompanyDesignLicense);
         AddDesignRepresentativeSigner(profile);
         profile.Normalize();
         return profile;
     }
+
+    /// <summary>
+    /// The organisation's scans as the project sees them.
+    ///
+    /// They arrive as cloud placeholders: the server holds the file, this
+    /// device does not have it, and the content URL says where to get it.
+    /// Recording them as present but unfetched is what lets the album stop
+    /// claiming nobody uploaded anything - which was the complaint. The
+    /// certificate had been uploaded, into an organisation, by somebody else.
+    ///
+    /// A page count of 0 means the server could not count the faces, not that
+    /// there are none. It is carried through unchanged; the renderer already
+    /// draws the one page it can be sure of.
+    /// </summary>
+    private static List<ProjectFileReference> ToDocuments(
+        IEnumerable<StudioCloudOrganizationDocument>? documents,
+        string category) =>
+        [.. (documents ?? [])
+            .Where(document => document is not null)
+            .Where(document => !string.IsNullOrWhiteSpace(document.DocumentId))
+            .Select(document => new ProjectFileReference
+            {
+                Category = category,
+                Title = document.Title,
+                OriginalFileName = document.OriginalFileName,
+                ContentType = document.ContentType,
+                SizeBytes = document.SizeBytes,
+                PageCount = document.PageCount,
+                Sha256 = document.Sha256,
+                ServerDocumentId = document.DocumentId,
+                CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Synced,
+                IsCloudPlaceholder = true,
+                // Nothing has been fetched onto this device yet, so the album
+                // must not try to draw a file that is not there.
+                IsAvailable = false,
+                AddedAtUtc = document.UpdatedAtUtc ?? DateTimeOffset.UtcNow,
+            })];
 
     public static StudioCloudOrganizationUpsertRequest ToUpsertRequest(CompanyProfile profile)
         => ToUpsertRequest(profile, "");
