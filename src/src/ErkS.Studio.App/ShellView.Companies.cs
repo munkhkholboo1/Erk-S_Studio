@@ -232,7 +232,13 @@ internal sealed partial class ShellView
         form.Children.Add(BuildCompanyRegistrationDocumentEditor());
         form.Children.Add(StudioWidgets.CreateSectionHeader("Тусгай зөвшөөрлийн хуулбар"));
         form.Children.Add(BuildCompanyLicenseDocumentEditor());
-        form.Children.Add(StudioWidgets.CreateSectionHeader("Зураг төсөлд төлөөлөх хүн"));
+        // "Захирал", because that is who this is. It read "Зураг төсөлд
+        // төлөөлөх хүн" while one person filled both the director and the
+        // design representative; now that a chief architect is a separate,
+        // separately appointed person, the old wording invited the reader to
+        // type the architect here. The album has always printed this person
+        // as Захирал, and the server uses the same word.
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Захирал"));
         form.Children.Add(StudioWidgets.CreateFormRow("Албан тушаал", libraryCompanyDirectorTitleBox, 155));
         form.Children.Add(StudioWidgets.CreateFormRow("Нэр", libraryCompanyDirectorNameBox, 155));
         form.Children.Add(StudioWidgets.CreateSectionHeader("Лого"));
