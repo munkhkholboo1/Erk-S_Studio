@@ -44,6 +44,17 @@ internal static class StudioReleaseInfo
         ?? typeof(StudioReleaseInfo).Assembly.GetName().Version?.ToString()
         ?? "Unknown";
 
+    /// <summary>
+    /// The version as a person reads it, without the commit the build came
+    /// from.
+    ///
+    /// The full string ends in a plus sign and forty hexadecimal characters,
+    /// which is what makes a release traceable and what nobody wants to read
+    /// in a dialog telling them they are up to date. The hash stays available
+    /// on <see cref="DisplayVersion"/> for anything diagnostic.
+    /// </summary>
+    public static string ShortVersion => DisplayVersion.Split('+')[0];
+
     public static bool IsDevelopmentBuild => DisplayVersion.Contains("-dev", StringComparison.OrdinalIgnoreCase);
 
     public static string ExpectedUpdatePublisher => IsDevelopmentBuild

@@ -443,10 +443,22 @@ internal sealed partial class ShellView
             : companyLicenseDocumentDrafts;
         if (list.SelectedItem is not DocumentAssetRow selected)
             return;
+        // A copy the server also holds does not leave when this one does. It
+        // keeps arriving in every project the organisation is on, so a person
+        // who removes it here and sees it again has been told nothing useful
+        // by the removal.
+        bool alsoInCloud = !string.IsNullOrWhiteSpace(selected.Document.ServerDocumentId);
+
         target.RemoveAll(document => document.Id.Equals(selected.Document.Id, StringComparison.OrdinalIgnoreCase));
         companyDocumentsChanged = true;
         RefreshCompanyDocumentLists();
-        SetStatus($"{(category == ProjectDocumentCategories.CompanyRegistrationCertificate ? "Гэрчилгээ" : "Тусгай зөвшөөрөл")}-ний хуулбарыг жагсаалтаас хаслаа. Хадгалах дарна уу.");
+        string what = category == ProjectDocumentCategories.CompanyRegistrationCertificate
+            ? "Гэрчилгээ"
+            : "Тусгай зөвшөөрөл";
+        SetStatus(alsoInCloud
+            ? $"{what}-ний хуулбарыг энэ төхөөрөмжөөс хаслаа. Cloud ERA-д хэвээр байгаа тул " +
+              "төслүүдийн альбомд гарсаар байна — бүрмөсөн хасахыг байгууллагын удирдлагаас хийнэ."
+            : $"{what}-ний хуулбарыг жагсаалтаас хаслаа. Хадгалах дарна уу.");
     }
 
     private void RelinkCompanyDocument(string category)

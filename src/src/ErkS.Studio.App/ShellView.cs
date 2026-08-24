@@ -1390,7 +1390,7 @@ internal sealed partial class ShellView : IDisposable
             {
                 StudioMessageDialog.Show(
                     Window.GetWindow(Root),
-                    $"Erk-S Studio {StudioReleaseInfo.DisplayVersion} хамгийн сүүлийн хувилбар байна.",
+                    $"Erk-S Studio {StudioReleaseInfo.ShortVersion} хамгийн сүүлийн хувилбар байна.",
                     "Шинэчлэлт",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

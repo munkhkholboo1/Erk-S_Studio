@@ -156,7 +156,7 @@ internal sealed partial class ShellView
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
             {
-                Text = "Studio " + StudioReleaseInfo.DisplayVersion.Split('+')[0],
+                Text = "Studio " + StudioReleaseInfo.ShortVersion,
                 FontSize = 10.5,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = StudioTheme.MutedTextBrush,
