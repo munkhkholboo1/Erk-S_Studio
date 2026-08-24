@@ -38,9 +38,27 @@ public static class ProjectCompanyAssignmentService
         if (!MatchesAssignedOrganization(project, profile))
             return false;
 
+        ProjectCompanyAssignment assignment = project.Foundation.DesignCompany;
         CompanyProfile snapshot = profile.Clone();
         snapshot.OrganizationId = profile.OrganizationId;
-        ProjectCompanyAssignment assignment = project.Foundation.DesignCompany;
+
+        // The company library is not an authoritative list of the
+        // organisation's scans, so its emptiness is not a deletion.
+        //
+        // A certificate can reach a project two ways: somebody on this device
+        // put it in the company library, or the server sent it down for this
+        // project. The library never learns about the second - the
+        // organisation list carries no documents - so replacing the project's
+        // snapshot with a library profile wholesale drops every scan that came
+        // from the cloud, and the album quietly loses pages that worked a
+        // moment earlier.
+        snapshot.RegistrationCertificateDocuments = MergeDocuments(
+            snapshot.RegistrationCertificateDocuments,
+            assignment.OrganizationSnapshot.RegistrationCertificateDocuments);
+        snapshot.DesignLicenseDocuments = MergeDocuments(
+            snapshot.DesignLicenseDocuments,
+            assignment.OrganizationSnapshot.DesignLicenseDocuments);
+
         bool changed = !ProfilesEqual(assignment.OrganizationSnapshot, snapshot) ||
             !assignment.OrganizationId.Equals(profile.OrganizationId, StringComparison.OrdinalIgnoreCase) ||
             !assignment.OrganizationName.Equals(profile.Name, StringComparison.Ordinal);
@@ -257,6 +275,54 @@ public static class ProjectCompanyAssignmentService
             DocumentListsEqual(left.RegistrationCertificateDocuments, right.RegistrationCertificateDocuments) &&
             DocumentListsEqual(left.DesignLicenseDocuments, right.DesignLicenseDocuments) &&
             Nullable.Equals(left.UpdatedAtUtc, right.UpdatedAtUtc);
+    }
+
+    /// <summary>
+    /// The library's scans, plus anything the project already had that the
+    /// library does not know about.
+    /// </summary>
+    /// <remarks>
+    /// Identity is the sha256, falling back to the server's document id when a
+    /// scan has no hash yet. Category is ignored on purpose, matching how
+    /// uploads are deduplicated: the same scan filed under a different heading
+    /// is still the same scan, and drawing it twice is what the reader
+    /// notices.
+    /// </remarks>
+    private static List<ProjectFileReference> MergeDocuments(
+        IEnumerable<ProjectFileReference>? fromLibrary,
+        IEnumerable<ProjectFileReference>? alreadyOnTheProject)
+    {
+        List<ProjectFileReference> merged = [.. (fromLibrary ?? [])];
+        HashSet<string> seen = [.. merged
+            .Select(Identity)
+            .Where(identity => identity.Length > 0)];
+
+        foreach (ProjectFileReference document in alreadyOnTheProject ?? [])
+        {
+            if (document is null)
+                continue;
+
+            string identity = Identity(document);
+            // A document with neither a hash nor a server id cannot be told
+            // apart from anything else, so keeping it risks a duplicate page.
+            // Dropping it risks losing a scan. The album can survive a
+            // duplicate; it cannot recover a scan nobody kept.
+            if (identity.Length > 0 && !seen.Add(identity))
+                continue;
+
+            merged.Add(document.Clone());
+        }
+
+        return merged;
+
+        static string Identity(ProjectFileReference document)
+        {
+            if (!string.IsNullOrWhiteSpace(document.Sha256))
+                return "sha:" + document.Sha256.Trim().ToLowerInvariant();
+            return string.IsNullOrWhiteSpace(document.ServerDocumentId)
+                ? ""
+                : "id:" + document.ServerDocumentId.Trim().ToLowerInvariant();
+        }
     }
 
     private static bool DocumentListsEqual(
