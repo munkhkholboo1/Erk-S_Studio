@@ -384,14 +384,24 @@ internal sealed partial class ShellView
         if (presenceRuleLoaded)
             return;
 
-        presenceRuleLoaded = true;
         IReadOnlyList<StudioServerRule> rules = await account.GetServerRulesAsync();
+        if (rules.Count == 0)
+        {
+            // Nothing came back - a dropped request, or a server with no rules
+            // yet. The default stands, and the next visit tries again rather
+            // than pinning it for the rest of the session on one bad moment.
+            return;
+        }
+
+        presenceRuleLoaded = true;
         StudioServerRule? presence = rules.FirstOrDefault(rule =>
             rule.Id.Equals("presence", StringComparison.OrdinalIgnoreCase));
         if (presence is null ||
             !presence.Values.TryGetValue("onlineWithinSeconds", out long seconds) ||
             seconds <= 0)
         {
+            // The server answered and simply has no presence rule, or one this
+            // build cannot use. That is an answer, so stop asking.
             return;
         }
 
