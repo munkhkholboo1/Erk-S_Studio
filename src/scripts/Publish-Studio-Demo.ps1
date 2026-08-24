@@ -11,7 +11,11 @@ param(
 
     # Allows a finished release folder to be rebuilt over. Without it, a folder
     # that already holds a release.json is left alone - see the guard below.
-    [switch]$ReplaceExistingBuild
+    [switch]$ReplaceExistingBuild,
+
+    # Allows a build whose source has moved on since the version number was
+    # set. For test builds that will not be published - see the guard below.
+    [switch]$AllowTreeAheadOfVersion
 )
 
 $ErrorActionPreference = "Stop"
@@ -313,6 +317,52 @@ if ($SigningContext.SelfSigned) {
         throw "The self-signed demo certificate does not match the Studio updater certificate pin."
     }
     Write-Warning "Building a private-trust transitional demo. Chrome and Smart App Control require a CA-trusted certificate or Microsoft Store distribution."
+}
+
+# The version number and the code have to be describing the same thing.
+#
+# StudioPublishedVersion names this build, but it lives in a file of its own and
+# nothing ties it to the code being compiled. On 2026-08-25 the props still said
+# 0.001.50 while the tree had moved on to 0.001.51's work, and the result was a
+# build of one release carrying another's name - which then overwrote the real
+# V0.001.50 on the server and locally.
+#
+# So: if shipped source has changed since the version was set, this build is
+# about to produce different content under that version's name.
+#
+# Only src\src is counted. Docs, the release index and the scripts themselves do
+# not go into the binary, and blocking on those would be a false alarm that
+# teaches people to pass the override without reading it.
+$versionPropsRelative = "src/Studio.Version.props"
+$versionCommit = (& git -C $ProductRoot log -n 1 --format=%H -- $versionPropsRelative 2>$null)
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($versionCommit)) {
+    $versionCommit = $versionCommit.Trim()
+    $movedCommits = @(& git -C $ProductRoot log --format="%h %s" "$versionCommit..HEAD" -- "src/src" 2>$null)
+    $dirtySource = @(& git -C $ProductRoot status --porcelain -- "src/src" 2>$null) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    if (($movedCommits.Count -gt 0 -or $dirtySource.Count -gt 0) -and (-not $AllowTreeAheadOfVersion)) {
+        $detail = ""
+        if ($movedCommits.Count -gt 0) {
+            $detail += "`n  committed since the version was set:`n    " +
+                ($movedCommits -join "`n    ")
+        }
+        if ($dirtySource.Count -gt 0) {
+            $detail += "`n  uncommitted source changes:`n    " +
+                (($dirtySource | Select-Object -First 10) -join "`n    ")
+        }
+
+        throw @"
+Shipped source has changed since $ReleaseVersion was set, so this build would
+carry code that version number does not describe.
+
+  version set by : $($versionCommit.Substring(0, 7))$detail
+
+Either bump StudioPublishedVersion in src\Studio.Version.props to a new number,
+or set the version last and build straight after. To build anyway - for a test
+build that will not be published - pass -AllowTreeAheadOfVersion.
+"@
+    }
 }
 
 # A finished release in this folder is not scratch space.

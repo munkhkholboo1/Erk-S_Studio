@@ -16,7 +16,22 @@ namespace ErkS.Studio;
 /// </summary>
 internal sealed partial class ShellView
 {
-    private const double ProjectCoverWidth = 168d;
+    /// <summary>
+    /// The box the album's first page is fitted into, whatever shape it is.
+    /// </summary>
+    /// <remarks>
+    /// This used to be a width plus a hard-coded A4 height, and the page was
+    /// painted with <see cref="Stretch.UniformToFill"/> - which fills the box
+    /// and cuts off whatever does not fit. An album page is not always A4
+    /// portrait, so a landscape cover lost its sides. Now the page is fitted
+    /// whole inside these bounds and the frame takes the page's own
+    /// proportions.
+    /// </remarks>
+    private const double ProjectCoverMaxWidth = 230d;
+    private const double ProjectCoverMaxHeight = 330d;
+
+    /// <summary>Shape of the empty placeholder, before any page is drawn.</summary>
+    private const double ProjectCoverWidth = 200d;
 
     private readonly Border projectOverviewBanner = new()
     {
@@ -139,7 +154,9 @@ internal sealed partial class ShellView
 
         var layout = new DockPanel();
 
-        // A4 proportions, so an empty cover holds the same shape as a drawn one.
+        // A4 proportions until a page is actually drawn. Once one is, the
+        // frame takes that page's shape instead - see ApplyProjectOverviewCover.
+        // The placeholder cannot match a shape nobody has measured yet.
         projectOverviewCover.Height = ProjectCoverWidth * 297d / 210d;
         var coverLayers = new Grid();
         coverLayers.Children.Add(new Image
@@ -744,15 +761,33 @@ internal sealed partial class ShellView
 
     private void ApplyProjectOverviewCover(ImageSource? cover)
     {
+        if (cover is null)
+        {
+            projectOverviewCover.Background = StudioTheme.InputBrush;
+            projectOverviewCover.Width = ProjectCoverWidth;
+            projectOverviewCover.Height = ProjectCoverWidth * 297d / 210d;
+            return;
+        }
+
+        // The frame takes the page's proportions rather than assuming A4, so
+        // the whole page shows with no empty bars beside it and nothing cut
+        // off. A landscape sheet ends up short and wide, a portrait one tall.
+        (double Width, double Height)? box = ScaledFit.Within(
+            cover.Width,
+            cover.Height,
+            ProjectCoverMaxWidth,
+            ProjectCoverMaxHeight);
+        projectOverviewCover.Width = box?.Width ?? ProjectCoverWidth;
+        projectOverviewCover.Height = box?.Height ?? ProjectCoverWidth * 297d / 210d;
+
         // Painted as the border's background so it is clipped to the rounded
         // corners; an Image child would square them off.
-        projectOverviewCover.Background = cover is null
-            ? StudioTheme.InputBrush
-            : new ImageBrush(cover)
-            {
-                Stretch = Stretch.UniformToFill,
-                AlignmentX = AlignmentX.Center,
-                AlignmentY = AlignmentY.Top,
-            };
+        projectOverviewCover.Background = new ImageBrush(cover)
+        {
+            Stretch = Stretch.Uniform,
+            AlignmentX = AlignmentX.Center,
+            AlignmentY = AlignmentY.Center,
+        };
     }
+
 }
