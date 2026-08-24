@@ -623,9 +623,21 @@ internal sealed partial class ShellView
             .ToList();
         projectArchitectBox.ItemsSource = options;
         ProjectArchitectOption? current = options.FirstOrDefault(option => option.IsCurrent);
-        projectArchitectBox.SelectedItem = current ?? options.FirstOrDefault();
+
+        // Nobody appointed leaves the picker empty. It used to fall back to the
+        // first member, which on a new project is whoever created it - so the
+        // director arrived pre-selected as the architect and one press of the
+        // button made it true. The client's instruction was exactly this:
+        // «Захирал төсөл үүсгэхдээ ерөнхий архитектороор шууд томилогддоггүй
+        // болгочих. Томилохоор бол өөрөө тохируулчихаж чадна.»
+        //
+        // The line below the picker already said nobody was appointed. The
+        // pre-selection contradicted it, and a control that disagrees with its
+        // own caption is read as the caption being out of date.
+        projectArchitectBox.SelectedItem = current;
         projectArchitectSummaryText.Text = current is null
-            ? "Үндсэн архитектор томилогдоогүй. Булангийн хүснэгтийн Архитектор мөр хоосон байна."
+            ? "Үндсэн архитектор томилогдоогүй. Булангийн хүснэгтийн Архитектор мөр хоосон гарна. " +
+              "Томилохын тулд хүнээ сонгоод «Томилох» дарна уу."
             : $"Одоогийн архитектор: {current.DocumentName}";
         RefreshProjectArchitectActionUi();
     }

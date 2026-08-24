@@ -152,6 +152,14 @@ public sealed class AlbumBuilder
             // knows things this does not, and a build that stops is a build
             // that gets worked around.
             result.Warnings.AddRange(DrawingScaleSurvey.Review(request));
+
+            // No warning here for an unappointed architect, though it was
+            // tried. A project without one yet is an ordinary early state, not
+            // a fault, and warning on every build for a state that may last
+            // weeks is how a warning becomes noise and stops being read. The
+            // team page says it where the appointment can actually be made,
+            // and the corner table leaves the line blank rather than filling
+            // it with a guess.
             result.Components.AddRange(temporaryResult.Components.Select(component => new AlbumBuildComponent
             {
                 Code = component.Code,
