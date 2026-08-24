@@ -273,10 +273,56 @@ $historyEntry = [ordered]@{
     RevitVersion = ""
     PublishedAtUtc = [DateTimeOffset]::UtcNow.ToString("o")
 }
+$previousHistory = @(Read-HistoryFile -Path $historyPath)
 $history = @($historyEntry) + @(
-    Read-HistoryFile -Path $historyPath |
+    $previousHistory |
         Where-Object { -not [string]::Equals($_.Version, $versions.Metadata, [StringComparison]::OrdinalIgnoreCase) }
 )
+
+# Keep the record this is about to overwrite.
+#
+# update-history.json holds the authoritative hash of every release, and this
+# line replaces it. When V0.001.51's build was published under V0.001.50's name
+# on 2026-08-25, the real V0.001.50 hash was overwritten here and the only way
+# anyone could tell was that it had been read minutes earlier - the file kept no
+# trace of what it used to say.
+#
+# The server has the same guard on its own admin path, but that path is not the
+# one releases actually travel; this script is. A snapshot here is what makes
+# the guard cover the real route.
+#
+# Failing to take the copy must not stop a release: losing the backup is worse
+# than not having taken it, but neither is worse than a release that cannot go
+# out.
+try {
+    if (Test-Path -LiteralPath $historyPath -PathType Leaf) {
+        $snapshotRoot = Join-Path $productDataRoot "history-snapshots"
+        [IO.Directory]::CreateDirectory($snapshotRoot) | Out-Null
+        $stamp = [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmss")
+        Copy-Item -LiteralPath $historyPath `
+            -Destination (Join-Path $snapshotRoot "update-history-$stamp.json") -Force
+
+        # A version whose hash changes was already published with different
+        # content. That is always a mistake, and it is the one thing a reader of
+        # these snapshots would most want pointed out.
+        $previousEntry = $previousHistory |
+            Where-Object { [string]::Equals($_.Version, $versions.Metadata, [StringComparison]::OrdinalIgnoreCase) } |
+            Select-Object -First 1
+        if ($null -ne $previousEntry -and
+            -not [string]::Equals([string]$previousEntry.Sha256, $updateHash, [StringComparison]::OrdinalIgnoreCase)) {
+            @(
+                "version    : $($versions.Metadata)"
+                "was        : $($previousEntry.Sha256)"
+                "now        : $updateHash"
+                "writtenAt  : $([DateTimeOffset]::UtcNow.ToString('o'))"
+            ) | Out-File -FilePath (Join-Path $snapshotRoot "update-history-$stamp-hash-changed.txt") -Encoding utf8
+            Write-Warning "$($versions.Metadata) was already published with a different hash - see history-snapshots."
+        }
+    }
+} catch {
+    Write-Warning "Could not snapshot update-history.json: $($_.Exception.Message)"
+}
+
 Write-JsonFile -Path $historyPath -Value $history
 
 Write-Host "Published Erk-S Studio Demo $($versions.Artifact) to $serverRoot"
