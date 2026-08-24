@@ -3481,6 +3481,7 @@ internal sealed partial class ShellView : IDisposable
         if (activePage == StudioPage.Albums)
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
         RefreshSyncUi();
+        ReportSheetsOutsideEveryBuilding(allPages);
         return primaryResult ?? throw new InvalidDataException("Ажлын зургийн альбом үүсгэх хуудас олдсонгүй.");
     }
 
@@ -3490,6 +3491,28 @@ internal sealed partial class ShellView : IDisposable
     /// building's album carries its own copy. A sheet no one has filed under a
     /// building stays with the first album rather than being dropped.
     /// </summary>
+    /// <summary>
+    /// Says how many sheets went into the first album because no building
+    /// claimed them.
+    ///
+    /// The sheets are not lost, so nothing looked wrong; they simply are not
+    /// in the building they were drawn for. Said at the end of a build,
+    /// because that is the moment the album is about to leave the office.
+    /// </summary>
+    private void ReportSheetsOutsideEveryBuilding(IEnumerable<AlbumPageDefinition> pages)
+    {
+        int unassigned = ProjectBuildingComposition.CountUnassignedSheets(
+            state.Project.BuildingGroups,
+            state.Project.SheetBuildingAssignments,
+            pages.Select(page => page.SheetKey));
+        if (unassigned == 0)
+            return;
+
+        SetStatus(
+            $"{unassigned} хуудас ямар ч барилгад оноогдоогүй тул эхний альбомд орлоо. " +
+            "«Барилга тохируулах» цонхоор оноогоод дахин үүсгэнэ үү.");
+    }
+
     private bool PageBelongsToBuildingAlbum(
         AlbumPageDefinition page,
         string buildingGroupId,
@@ -4903,6 +4926,20 @@ internal sealed partial class ShellView : IDisposable
     /// taken in. Without this the project looks exactly as it would if the
     /// drawing had never been sent.
     /// </summary>
+    /// <summary>
+    /// Says, once per project open, that this stage has no album template of
+    /// its own. The substitute album works, which is why nobody noticed: only
+    /// someone who knew what the stage should look like could tell.
+    /// </summary>
+    private void ReportAlbumTemplateFallbackOnOpen()
+    {
+        string? notice = ProjectAlbumTemplateResolver
+            .DescribeCoverage(state.Project)
+            .Notice;
+        if (notice is not null)
+            SetStatus(notice);
+    }
+
     private void ReportPendingDeliveriesOnOpen()
     {
         int sources = 0;
@@ -4941,6 +4978,7 @@ internal sealed partial class ShellView : IDisposable
             // thing a user cannot discover by looking: the project simply shows
             // nothing new. Say it once, as the project opens.
             ReportPendingDeliveriesOnOpen();
+            ReportAlbumTemplateFallbackOnOpen();
         }
         DiscardStaleCanonicalTitleBlockPreview();
         lastAlbumPath = ResolveCurrentProjectAlbumPath();

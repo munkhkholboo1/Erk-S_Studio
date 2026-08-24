@@ -3,8 +3,69 @@ using ErkS.Platform.Core.ProjectTypes.Building.WorkingDrawings;
 
 namespace ErkS.Platform.Core;
 
+/// <summary>
+/// Whether the project's stage has an album template of its own, and what it
+/// got instead when it does not.
+/// </summary>
+public sealed record ProjectAlbumTemplateCoverage(
+    bool HasTemplateForStage,
+    string ProjectType,
+    string StageCode,
+    string StageLabel)
+{
+    /// <summary>
+    /// What to tell the user, or null when the stage is properly covered.
+    ///
+    /// A stage with no template of its own falls back to the concept album.
+    /// That produces a usable album, which is exactly why it went unnoticed:
+    /// the pages are numbered, the corner block is drawn, nothing errors. What
+    /// is missing is the composition this stage is supposed to have, and the
+    /// only way to find that out was to know what it should have looked like.
+    /// </summary>
+    public string? Notice => HasTemplateForStage
+        ? null
+        : $"«{StageLabel}» үе шатанд зориулсан альбомын загвар хараахан байхгүй тул " +
+          "энэ төсөл «Загвар зураг»-ийн загвараар нээгдэж байна. Формат, булангийн " +
+          "хүснэгт ажиллана, харин хуудасны бүрдэл, дараалал нь энэ үе шатных биш. " +
+          "Загвар нэмэгдэх хүртэл хуудсаа гараар зохион байгуулна уу.";
+}
+
 public static class ProjectAlbumTemplateResolver
 {
+    /// <summary>
+    /// Reports whether a stage is covered rather than quietly substituting a
+    /// template for it. <see cref="CreateDefinition"/> has to return something
+    /// usable and so cannot refuse; this is how the substitution gets said out
+    /// loud.
+    /// </summary>
+    public static ProjectAlbumTemplateCoverage DescribeCoverage(ProjectWorkspace workspace)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        string projectType = (workspace.Identity.ProjectType ?? "").Trim();
+        string stageCode = (workspace.Identity.StageCode ?? "").Trim();
+        bool covered =
+            UrbanPlanningAlbumTemplate.Supports(projectType, stageCode) ||
+            BuildingWorkingDrawingAlbumTemplate.Supports(projectType, stageCode) ||
+            IsConceptStage(projectType, stageCode);
+        string label = (workspace.Identity.StageName ?? "").Trim();
+        return new ProjectAlbumTemplateCoverage(
+            covered,
+            projectType,
+            stageCode,
+            label.Length > 0 ? label : stageCode);
+    }
+
+    /// <summary>
+    /// The concept album is a template in its own right, not only the
+    /// fallback. A building concept project reaching it is covered; an urban
+    /// planning stage landing there is not.
+    /// </summary>
+    private static bool IsConceptStage(string projectType, string stageCode) =>
+        !projectType.Equals(
+            ProjectTypes.UrbanPlanningProjectType.TypeId,
+            StringComparison.OrdinalIgnoreCase) &&
+        stageCode.Length > 0;
+
     public static AlbumDefinition CreateDefinition(ProjectWorkspace workspace)
     {
         if (UrbanPlanningAlbumTemplate.Supports(

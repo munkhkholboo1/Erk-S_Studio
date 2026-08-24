@@ -116,4 +116,32 @@ public static class ProjectBuildingComposition
                 group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase))
             ?.Name ?? "";
     }
+
+    /// <summary>
+    /// Sheets that belong to no building, counted only when the project splits
+    /// its album by building at all.
+    ///
+    /// Such a sheet is not lost - it stays with the first album - but it does
+    /// not reach the building it was drawn for, and nothing said so. On a set
+    /// handed to a client that is a section quietly filed under the wrong
+    /// building. A project with no building groups has nothing to be wrong
+    /// about, so it is not counted there.
+    /// </summary>
+    public static int CountUnassignedSheets(
+        IReadOnlyList<ProjectBuildingGroup>? groups,
+        IReadOnlyDictionary<string, string>? assignments,
+        IEnumerable<string>? sheetKeys)
+    {
+        if (groups is null || groups.Count == 0 || sheetKeys is null)
+            return 0;
+
+        return sheetKeys
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count(key =>
+                assignments is null ||
+                !assignments.TryGetValue(key, out string? groupId) ||
+                string.IsNullOrWhiteSpace(groupId));
+    }
 }

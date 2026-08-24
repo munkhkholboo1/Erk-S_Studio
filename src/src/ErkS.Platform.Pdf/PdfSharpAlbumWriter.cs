@@ -1118,15 +1118,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             Mm(y0),
             Mm(x5 - x0),
             Mm(y4 - y0));
-        gfx.DrawRectangle(borderPen, Mm(x0), Mm(y0), Mm(x5 - x0), Mm(y4 - y0));
-        foreach (var x in new[] { x1, x2, x3, x4 })
-        {
-            gfx.DrawLine(finePen, Mm(x), Mm(y0), Mm(x), Mm(y4));
-        }
-        foreach (var y in new[] { y1, y2, y3 })
-        {
-            gfx.DrawLine(finePen, Mm(x1), Mm(y), Mm(x5), Mm(y));
-        }
+        DrawCornerTableLines(gfx, ConceptCornerTableLines.Full(grid), borderPen, finePen);
 
         DrawCanonicalConceptCornerMetadata(
             gfx,
@@ -1169,11 +1161,15 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 Mm(y0),
                 Mm(x3 - x0),
                 Mm(y4 - y0));
-            gfx.DrawRectangle(borderPen, Mm(x0), Mm(y0), Mm(x3 - x0), Mm(y4 - y0));
-            foreach (var x in new[] { x1, x2 })
-                gfx.DrawLine(finePen, Mm(x), Mm(y0), Mm(x), Mm(y4));
-            foreach (var y in new[] { y1, y2, y3 })
-                gfx.DrawLine(finePen, Mm(x1), Mm(y), Mm(x3), Mm(y));
+            // Only x0, y0 and y4 are edges of the table. x3 is an interior
+            // division, and redrawing it with the border pen - which a plain
+            // rectangle does - laid a heavy line down the middle of the block
+            // and made it read as two tables.
+            DrawCornerTableLines(
+                gfx,
+                ConceptCornerTableLines.Restamped(grid),
+                borderPen,
+                finePen);
         }
 
         CompanyProfile company = ResolveDesignCompanyProfile(project);
@@ -1201,6 +1197,23 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         DrawCellText(gfx, "Захиалагч", x1, y3, x2, y4, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, ValueOrDash(clientName), x2, y3, x3, y4, false, XStringFormats.Center);
+    }
+
+    private static void DrawCornerTableLines(
+        XGraphics gfx,
+        IReadOnlyList<ConceptCornerTableSegment> lines,
+        XPen borderPen,
+        XPen finePen)
+    {
+        foreach (ConceptCornerTableSegment line in lines)
+        {
+            gfx.DrawLine(
+                line.Heavy ? borderPen : finePen,
+                Mm(line.X0),
+                Mm(line.Y0),
+                Mm(line.X1),
+                Mm(line.Y1));
+        }
     }
 
     private static void DrawCellText(
