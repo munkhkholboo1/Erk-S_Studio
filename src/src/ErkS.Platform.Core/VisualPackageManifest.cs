@@ -147,6 +147,21 @@ public sealed class VisualAsset
 
     public bool IsPerspective { get; set; }
 
+    /// <summary>
+    /// Which building this view is of, named by the project's own building
+    /// group. Empty when the source belongs to no building, which is ordinary
+    /// rather than an error.
+    ///
+    /// It sits on the asset rather than on the package because one model can
+    /// serve several buildings - the same reason a sheet carries it per sheet.
+    /// Revit had been sending it here already and this reader was discarding
+    /// it, so a board could not have grouped visuals by building even though
+    /// every package said which building each one showed.
+    /// </summary>
+    public string BuildingId { get; set; } = "";
+
+    public string BuildingName { get; set; } = "";
+
     public DateTimeOffset? CapturedAtUtc { get; set; }
 
     [JsonIgnore]

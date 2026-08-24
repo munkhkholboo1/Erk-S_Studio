@@ -362,6 +362,22 @@ public sealed class AlbumCompositionItem : IAlbumPageRoleOwner
     public string Number { get; set; } = "";
     public string Title { get; set; } = "";
     public string SectionTitle { get; set; } = "";
+
+    /// <summary>
+    /// The scale this slot is supposed to be drawn at, as the standard states
+    /// it - "М1:1500". Empty where no scale is prescribed.
+    ///
+    /// It belongs to the slot rather than the page because it is a requirement
+    /// of the set, not a property of whatever arrived: the drawing that comes
+    /// back at the wrong scale is exactly the one nobody can catch without
+    /// something to compare against.
+    ///
+    /// Nothing is refused over it. A slot with no prescribed scale and a page
+    /// that does not state its own are both ordinary, and only a slot and a
+    /// page that both speak and disagree are worth a word.
+    /// </summary>
+    public string Scale { get; set; } = "";
+
     public AlbumCompositionKind Kind { get; set; }
     public AlbumGeneratedPageKind GeneratedPageKind { get; set; }
     public bool Required { get; set; } = true;
