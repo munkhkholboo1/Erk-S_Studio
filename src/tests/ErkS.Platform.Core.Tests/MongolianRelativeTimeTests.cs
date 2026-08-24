@@ -68,13 +68,17 @@ public sealed class MongolianRelativeTimeTests
     }
 
     [Fact]
-    public void TheTooltipSaysConnectedNotWorking()
+    public void TheTooltipNamesStudioSoItIsNotReadAsThisProject()
     {
-        // The signal is that Studio was open and talking to the server. Saying
-        // someone was "working" claims something this cannot see.
+        // The signal is that Studio was open and talking to the server - not
+        // that anyone was working, and not that they were in this project. A
+        // colleague read the unqualified wording as "here, on this project"
+        // within an hour of it shipping, so the sentence names Studio.
         string tooltip = MongolianRelativeTime.DescribeLastSeen(Now.AddHours(-3), Now);
 
-        Assert.Equal("3 цагийн өмнө холбогдсон", tooltip);
+        Assert.Equal("Studio-д 3 цагийн өмнө холбогдсон", tooltip);
+        Assert.Contains("Studio", tooltip);
         Assert.DoesNotContain("ажил", tooltip);
+        Assert.DoesNotContain("төсөл", tooltip);
     }
 }

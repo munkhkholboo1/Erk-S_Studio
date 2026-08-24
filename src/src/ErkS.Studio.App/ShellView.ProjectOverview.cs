@@ -575,7 +575,7 @@ internal sealed partial class ShellView
                     ? StudioTheme.SuccessBrush
                     : StudioTheme.DangerBrush,
                 ToolTip = presenceState == MemberPresenceState.Online
-                    ? "Одоо холбогдсон"
+                    ? "Studio-д одоо холбогдсон"
                     : presenceTooltip,
             });
         }
@@ -601,7 +601,7 @@ internal sealed partial class ShellView
         {
             Text = presenceState switch
             {
-                MemberPresenceState.Online => "Онлайн",
+                MemberPresenceState.Online => "Studio-д онлайн",
                 MemberPresenceState.Offline => presenceTooltip,
                 _ => "Мэдээлэл алга",
             },

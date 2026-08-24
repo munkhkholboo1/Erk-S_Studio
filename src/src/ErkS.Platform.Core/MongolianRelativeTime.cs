@@ -46,12 +46,16 @@ public static class MongolianRelativeTime
     /// The presence tooltip: when this person was last connected.
     /// </summary>
     /// <remarks>
-    /// "Холбогдсон" rather than "ажиллаж байсан", because what is actually
-    /// known is that their Studio was open and talking to the server. Whether
-    /// anyone was at the keyboard is not something this can see.
+    /// "Studio-д … холбогдсон", not "ажиллаж байсан" and not a bare
+    /// "холбогдсон". Two things had to be kept out of this sentence: whether
+    /// anyone was at the keyboard, which cannot be seen at all; and whether
+    /// they were in *this* project, which cannot be seen either. A reader on a
+    /// project page takes an unqualified "online" to mean "here, on this" - a
+    /// colleague noticed exactly that within an hour of it shipping. The
+    /// signal is only that their Studio was open and talking to the server.
     /// </remarks>
     public static string DescribeLastSeen(DateTimeOffset? lastSeen, DateTimeOffset now) =>
         lastSeen is null
             ? "Мэдээлэл алга"
-            : $"{Describe(lastSeen.Value, now)} холбогдсон";
+            : $"Studio-д {Describe(lastSeen.Value, now)} холбогдсон";
 }
