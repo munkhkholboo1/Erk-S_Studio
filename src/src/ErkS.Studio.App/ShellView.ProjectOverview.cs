@@ -339,29 +339,7 @@ internal sealed partial class ShellView
         words.Children.Add(roleText);
         words.Children.Add(BuildTeamMemberSourcesLine(member));
 
-        var state = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 7, 0, 0),
-        };
-        bool active = member.Status.Equals("Идэвхтэй", StringComparison.Ordinal);
-        state.Children.Add(new Ellipse
-        {
-            Width = 8,
-            Height = 8,
-            Margin = new Thickness(0, 0, 7, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Fill = active ? StudioTheme.SuccessBrush : StudioTheme.WarningBrush,
-        });
-        state.Children.Add(new TextBlock
-        {
-            Text = member.Status,
-            FontSize = 11,
-            Foreground = active ? StudioTheme.SuccessBrush : StudioTheme.WarningBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        words.Children.Add(state);
+        words.Children.Add(BuildTeamMemberPresenceLine(member));
         layout.Children.Add(words);
 
         card.Child = layout;
@@ -388,6 +366,38 @@ internal sealed partial class ShellView
     /// Reads the role catalogue and the members' photographs once per project,
     /// then fills them into the cards already on screen.
     /// </summary>
+    /// <summary>
+    /// How recently someone has to have been heard from to count as present.
+    /// </summary>
+    /// <remarks>
+    /// The server owns this because it may need changing - a busier server
+    /// might want a longer window - and changing it there reaches everyone
+    /// without anyone installing anything. An unreachable server or a rule this
+    /// build does not recognise leaves the default standing, which is how an
+    /// older Studio behaves anyway.
+    /// </remarks>
+    private TimeSpan presenceOnlineWithin = MemberPresence.DefaultOnlineWithin;
+    private bool presenceRuleLoaded;
+
+    private async Task RefreshPresenceRuleAsync()
+    {
+        if (presenceRuleLoaded)
+            return;
+
+        presenceRuleLoaded = true;
+        IReadOnlyList<StudioServerRule> rules = await account.GetServerRulesAsync();
+        StudioServerRule? presence = rules.FirstOrDefault(rule =>
+            rule.Id.Equals("presence", StringComparison.OrdinalIgnoreCase));
+        if (presence is null ||
+            !presence.Values.TryGetValue("onlineWithinSeconds", out long seconds) ||
+            seconds <= 0)
+        {
+            return;
+        }
+
+        presenceOnlineWithin = TimeSpan.FromSeconds(seconds);
+    }
+
     private async Task LoadProjectTeamDetailAsync()
     {
         if (!account.IsSignedIn || !state.HasOpenProject)
@@ -399,6 +409,7 @@ internal sealed partial class ShellView
 
         try
         {
+            await RefreshPresenceRuleAsync();
             if (projectRoleLabels.Count == 0)
             {
                 foreach (StudioProjectRole role in await account.ListProjectRolesAsync())
@@ -457,6 +468,92 @@ internal sealed partial class ShellView
     /// project; the same fields are shown here as written values, and the form
     /// appears only once Засварлах is pressed.
     /// </summary>
+    /// <summary>
+    /// Whether this colleague is there, and anything the project needs to say
+    /// about their membership.
+    /// </summary>
+    /// <remarks>
+    /// The dot used to be green and read "Идэвхтэй" for everybody, which said
+    /// nothing: the member list is already filtered to active members upstream,
+    /// so the only possible value was the one shown. Read as presence - which
+    /// is how a green dot reads - it claimed knowledge the product did not
+    /// have. Now it shows what the server actually reports, and shows nothing
+    /// when the server has never heard from someone.
+    /// </remarks>
+    private UIElement BuildTeamMemberPresenceLine(MemberRow member)
+    {
+        var line = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 7, 0, 0),
+        };
+
+        state.ParticipantPresence.TryGetValue(
+            member.Email.Trim(),
+            out ParticipantPresenceInfo? presence);
+        MemberPresenceState presenceState = MemberPresence.Resolve(
+            presence?.LastSeenAtUtc,
+            DateTimeOffset.UtcNow,
+            presenceOnlineWithin);
+        string presenceTooltip = MongolianRelativeTime.DescribeLastSeen(
+            presence?.LastSeenAtUtc,
+            DateTimeOffset.UtcNow);
+
+        // Nothing is drawn for Unknown. A grey dot would still read as a state
+        // somebody chose; an absent dot reads as what it is.
+        if (presenceState != MemberPresenceState.Unknown)
+        {
+            line.Children.Add(new Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Margin = new Thickness(0, 0, 7, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Fill = presenceState == MemberPresenceState.Online
+                    ? StudioTheme.SuccessBrush
+                    : StudioTheme.DangerBrush,
+                ToolTip = presenceState == MemberPresenceState.Online
+                    ? "Одоо холбогдсон"
+                    : presenceTooltip,
+            });
+        }
+
+        // The membership note is separate information and outranks presence:
+        // somebody on their way out of the project matters more than whether
+        // their Studio happens to be open.
+        bool leaving = !member.Status.Equals("Идэвхтэй", StringComparison.Ordinal);
+        if (leaving)
+        {
+            line.Children.Add(new TextBlock
+            {
+                Text = member.Status,
+                FontSize = 11,
+                Foreground = StudioTheme.WarningBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            return line;
+        }
+
+        line.Children.Add(new TextBlock
+        {
+            Text = presenceState switch
+            {
+                MemberPresenceState.Online => "Онлайн",
+                MemberPresenceState.Offline => presenceTooltip,
+                _ => "Мэдээлэл алга",
+            },
+            FontSize = 11,
+            Foreground = presenceState == MemberPresenceState.Online
+                ? StudioTheme.SuccessBrush
+                : StudioTheme.MutedTextBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = presenceTooltip,
+        });
+        return line;
+    }
+
     /// <summary>
     /// What this person has put into the project.
     /// </summary>

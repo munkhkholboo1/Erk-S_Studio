@@ -2278,6 +2278,49 @@ internal sealed class StudioAccountService :
             .ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// The rules the server hands out, so behaviour it owns can change without
+    /// updating anyone's Studio.
+    /// </summary>
+    /// <remarks>
+    /// Read here rather than through the generated Cloud ERA client because
+    /// that client is regenerated on the server's schedule and drops fields it
+    /// was not generated with - which for a channel whose whole purpose is to
+    /// carry new rules would mean each new rule silently disappearing until the
+    /// next regeneration.
+    ///
+    /// Failure is not an error worth surfacing: no rules means every default
+    /// stands, which is exactly how an older Studio already behaves.
+    /// </remarks>
+    public async Task<IReadOnlyList<StudioServerRule>> GetServerRulesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        StudioAccountSession? session = Current;
+        if (session is null)
+            return [];
+
+        try
+        {
+            using HttpRequestMessage request = new(
+                HttpMethod.Get,
+                BuildUri(session.ServerUrl, "/api/cloud-era/v1/capabilities"));
+            using HttpResponseMessage response =
+                await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+            if (!response.IsSuccessStatusCode)
+                return [];
+
+            StudioServerRulesResponse? rules = await response.Content
+                .ReadFromJsonAsync<StudioServerRulesResponse>(JsonOptions, cancellationToken)
+                .ConfigureAwait(true);
+            return rules?.Rules ?? [];
+        }
+        catch (Exception exception) when (
+            exception is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return [];
+        }
+    }
+
     private async Task<TResponse> GetAuthorizedAsync<TResponse>(string path, CancellationToken cancellationToken)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");

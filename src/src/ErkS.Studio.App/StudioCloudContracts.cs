@@ -644,6 +644,36 @@ internal sealed class StudioCloudParticipant
     public string OrganizationId { get; set; } = "";
     public string[] Roles { get; set; } = [];
     public string Status { get; set; } = "";
+
+    /// <summary>
+    /// When the server last heard from this person, or null when it never has.
+    /// </summary>
+    /// <remarks>
+    /// A timestamp rather than an "online" flag: a flag decided when the
+    /// response was built is stale by the time it is read, and "3 цагийн өмнө"
+    /// cannot be recovered from the word "Offline". Null is not offline - it is
+    /// nobody having heard from them.
+    /// </remarks>
+    public DateTimeOffset? LastSeenAtUtc { get; set; }
+
+    public string ProfileImageUrl { get; set; } = "";
+    public string Initials { get; set; } = "";
+}
+
+/// <summary>
+/// One rule the server hands out so it can be changed without updating anyone's
+/// Studio.
+/// </summary>
+internal sealed class StudioServerRule
+{
+    public string Id { get; set; } = "";
+    public int Version { get; set; }
+    public Dictionary<string, long> Values { get; set; } = [];
+}
+
+internal sealed class StudioServerRulesResponse
+{
+    public List<StudioServerRule> Rules { get; set; } = [];
 }
 
 internal sealed class StudioConceptArchitectAssignmentRequest

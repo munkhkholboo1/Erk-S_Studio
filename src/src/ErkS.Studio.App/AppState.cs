@@ -33,6 +33,18 @@ public sealed class AppState : IDisposable
 
     public bool HasOpenProject => project is not null;
 
+    /// <summary>
+    /// What the server last said about each participant, keyed by email.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not part of the saved project. Presence is true only for
+    /// the moment it was fetched; writing it to disk would mean reopening a
+    /// project tomorrow and being told who was online yesterday, stated as
+    /// though it were now.
+    /// </remarks>
+    public Dictionary<string, ParticipantPresenceInfo> ParticipantPresence { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public ProjectWorkspace Project => project
         ?? throw new InvalidOperationException("No project workspace is open.");
 
@@ -462,6 +474,17 @@ public sealed class AppState : IDisposable
             .OfType<StudioCloudParticipant>()
             .Where(item => string.Equals(item.Status, "Active", StringComparison.OrdinalIgnoreCase))
             .ToList();
+        ParticipantPresence.Clear();
+        foreach (StudioCloudParticipant participant in activeParticipants)
+        {
+            if (string.IsNullOrWhiteSpace(participant.AccountEmail))
+                continue;
+
+            ParticipantPresence[participant.AccountEmail.Trim()] = new ParticipantPresenceInfo(
+                participant.LastSeenAtUtc,
+                participant.ProfileImageUrl,
+                participant.Initials);
+        }
         Project.Foundation.PlanningTask.AuthorityMembers = activeParticipants
             .Where(item => (item.Roles ?? []).Any(IsAuthorityRole))
             .Select(ToProjectMember)
@@ -1717,3 +1740,17 @@ public sealed class AppState : IDisposable
         Intake.Dispose();
     }
 }
+
+/// <summary>
+/// What the server last said about one participant, as of the last sync.
+/// </summary>
+/// <param name="LastSeenAtUtc">
+/// When the server last heard from them, or null when it never has - which is
+/// not the same as their being away.
+/// </param>
+/// <param name="ProfileImageUrl">Empty when they have not set a photograph.</param>
+/// <param name="Initials">The server's initials, used when there is no photograph.</param>
+public sealed record ParticipantPresenceInfo(
+    DateTimeOffset? LastSeenAtUtc,
+    string ProfileImageUrl,
+    string Initials);
