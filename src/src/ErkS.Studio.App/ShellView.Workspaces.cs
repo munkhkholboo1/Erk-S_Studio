@@ -1521,7 +1521,17 @@ internal sealed partial class ShellView
         for (int index = 0; index < items.Count; index++)
             items[index] = items[index] with { Owner = ResolveSourceOwner(items[index].OwnerEmail) };
 
-        var grouped = new CollectionViewSource { Source = items };
+        // People first, this device last. Groups appear in the order their
+        // first item does, and the local sources are gathered before the shared
+        // ones - which would put the anonymous pile above every colleague. The
+        // page is about who contributed what; the leftovers belong at the end.
+        List<SourceWorkspaceItem> ordered =
+        [
+            .. items.Where(item => !item.Owner.IsDevice),
+            .. items.Where(item => item.Owner.IsDevice),
+        ];
+
+        var grouped = new CollectionViewSource { Source = ordered };
         grouped.GroupDescriptions.Add(
             new PropertyGroupDescription(nameof(SourceWorkspaceItem.Owner)));
 
