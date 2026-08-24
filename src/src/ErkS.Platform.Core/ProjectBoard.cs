@@ -231,6 +231,38 @@ public static class BoardCardMeasurements
 }
 
 /// <summary>
+/// Where a card lands, once its own size has had its say over the grid's.
+/// </summary>
+public static class BoardCardGeometry
+{
+    public static BoardRectMm? Resolve(
+        BoardGrid grid,
+        double boardWidthMm,
+        double boardHeightMm,
+        BoardElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (BoardGridGeometry.Resolve(grid, boardWidthMm, boardHeightMm, element.Span)
+            is not { } cell)
+        {
+            return null;
+        }
+        if (!element.HasSizeOverride)
+            return cell;
+
+        // Held to the sheet it is on. A card asked to be wider than the board
+        // is given what there is rather than refused: unlike a span outside the
+        // grid, this can be drawn - and the inspector shows the size it came
+        // out at, so the limit is visible rather than silent.
+        double width = Math.Min(element.WidthMm, boardWidthMm - cell.LeftMm);
+        double height = Math.Min(element.HeightMm, boardHeightMm - cell.TopMm);
+        return width <= 0 || height <= 0
+            ? cell
+            : new BoardRectMm(cell.LeftMm, cell.TopMm, width, height);
+    }
+}
+
+/// <summary>
 /// What a card actually shows of the file behind it.
 /// </summary>
 public static class BoardCardContent
@@ -343,6 +375,23 @@ public sealed class BoardElement
 
     public int RowSpan { get; set; } = 1;
 
+    /// <summary>
+    /// An exact size in millimetres, overriding the one the grid would give.
+    /// Zero means follow the grid.
+    ///
+    /// The grid still places the card's top-left corner, so the alignment a
+    /// grid exists for is kept; only how far the card reaches becomes exact.
+    /// That matters here more than elsewhere: the card's size is what the user
+    /// takes to AutoCAD or Revit to prepare artwork by hand, and a card that
+    /// answered "372.4" when they asked for 380 would make that arrangement
+    /// useless.
+    /// </summary>
+    public double WidthMm { get; set; }
+
+    public double HeightMm { get; set; }
+
+    public bool HasSizeOverride => WidthMm > 0 && HeightMm > 0;
+
     /// <summary>Higher draws later, so over.</summary>
     public int ZOrder { get; set; }
 
@@ -437,6 +486,8 @@ public sealed class BoardElement
         Row = Math.Max(0, Row);
         ColumnSpan = Math.Max(1, ColumnSpan);
         RowSpan = Math.Max(1, RowSpan);
+        WidthMm = double.IsFinite(WidthMm) && WidthMm > 0 ? WidthMm : 0;
+        HeightMm = double.IsFinite(HeightMm) && HeightMm > 0 ? HeightMm : 0;
         AssetItemId = (AssetItemId ?? "").Trim();
         PlanPath = (PlanPath ?? "").Trim();
         PlanCardElementId = (PlanCardElementId ?? "").Trim();
@@ -475,6 +526,8 @@ public sealed class BoardElement
         ColumnSpan = ColumnSpan,
         Row = Row,
         RowSpan = RowSpan,
+        WidthMm = WidthMm,
+        HeightMm = HeightMm,
         ZOrder = ZOrder,
         IsLocked = IsLocked,
         IsHidden = IsHidden,
@@ -623,5 +676,5 @@ public sealed class ProjectBoardSeries
     public BoardRectMm? Resolve(BoardElement element) =>
         element is null
             ? null
-            : BoardGridGeometry.Resolve(Grid, BoardWidthMm, BoardHeightMm, element.Span);
+            : BoardCardGeometry.Resolve(Grid, BoardWidthMm, BoardHeightMm, element);
 }

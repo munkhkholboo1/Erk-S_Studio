@@ -67,7 +67,21 @@ internal sealed partial class ShellView
     private readonly Button boardRemoveCardButton = StudioWidgets.CreateGlyphTextButton(
         "", "Карт устгах", "Сонгосон картыг самбараас хасах");
     private readonly Button boardCopySizeButton = StudioWidgets.CreateButton("Хэмжээг хуулах");
+    private readonly TextBox boardCardWidthBox = new() { Width = 74 };
+    private readonly TextBox boardCardHeightBox = new() { Width = 74 };
+    private readonly Button boardCardFollowGridButton = StudioWidgets.CreateInlineButton("Тор дагах");
     private readonly Button boardZoomFitButton = StudioWidgets.CreateButton("Багтаах");
+    private readonly Button boardZoomInButton = StudioWidgets.CreateButton("+");
+    private readonly Button boardZoomOutButton = StudioWidgets.CreateButton("−");
+    private readonly Button boardZoomActualButton = StudioWidgets.CreateButton("100%");
+    private readonly TextBlock boardZoomText = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(8, 0, 8, 0),
+        Foreground = StudioTheme.MutedTextBrush,
+        MinWidth = 52,
+        TextAlignment = TextAlignment.Center,
+    };
     private readonly Button boardBuildButton = StudioWidgets.CreatePrimaryButton("PDF үүсгэх");
     private readonly Button boardOpenButton = StudioWidgets.CreateButton("PDF нээх");
     private bool boardInspectorSuspended;
@@ -120,6 +134,15 @@ internal sealed partial class ShellView
         boardRemoveCardButton.Click += (_, _) => RemoveBoardCard();
         boardCopySizeButton.Click += (_, _) => CopyBoardCardSize();
         boardZoomFitButton.Click += (_, _) => boardCanvas.ZoomToFit();
+        boardZoomInButton.Click += (_, _) => boardCanvas.ZoomBy(1.25);
+        boardZoomOutButton.Click += (_, _) => boardCanvas.ZoomBy(1 / 1.25);
+        boardZoomActualButton.Click += (_, _) => boardCanvas.ZoomToActualSize();
+        boardCanvas.ZoomChanged += (_, _) => ShowBoardZoom();
+        boardCardWidthBox.LostFocus += (_, _) => ApplyBoardCardSize();
+        boardCardHeightBox.LostFocus += (_, _) => ApplyBoardCardSize();
+        boardCardWidthBox.KeyDown += (_, e) => CommitBoardCardSizeOnEnter(e);
+        boardCardHeightBox.KeyDown += (_, e) => CommitBoardCardSizeOnEnter(e);
+        boardCardFollowGridButton.Click += (_, _) => ReturnBoardCardToGrid();
         boardBuildButton.Click += (_, _) => BuildBoardPdf();
         boardOpenButton.Click += (_, _) => OpenBoardPdf();
         boardAssetBox.SelectionChanged += (_, _) => ApplyBoardInspector();
@@ -149,7 +172,11 @@ internal sealed partial class ShellView
         actions.Children.Add(boardRemoveButton);
         actions.Children.Add(boardAddCardButton);
         actions.Children.Add(boardRemoveCardButton);
+        actions.Children.Add(boardZoomOutButton);
+        actions.Children.Add(boardZoomText);
+        actions.Children.Add(boardZoomInButton);
         actions.Children.Add(boardZoomFitButton);
+        actions.Children.Add(boardZoomActualButton);
         actions.Children.Add(boardBuildButton);
         actions.Children.Add(boardOpenButton);
         header.Children.Add(actions);
@@ -178,6 +205,27 @@ internal sealed partial class ShellView
         var inspector = new StackPanel { Width = 340 };
         inspector.Children.Add(StudioWidgets.CreateSectionHeader("Сонгосон карт"));
         inspector.Children.Add(boardCardSizeText);
+        var cardSizeRow = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        cardSizeRow.Children.Add(boardCardWidthBox);
+        cardSizeRow.Children.Add(new TextBlock
+        {
+            Text = " × ",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = StudioTheme.MutedTextBrush,
+        });
+        cardSizeRow.Children.Add(boardCardHeightBox);
+        cardSizeRow.Children.Add(new TextBlock
+        {
+            Text = " мм ",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = StudioTheme.MutedTextBrush,
+        });
+        cardSizeRow.Children.Add(boardCardFollowGridButton);
+        inspector.Children.Add(StudioWidgets.CreateFormRow("Хэмжээ", cardSizeRow, 90));
+        inspector.Children.Add(StudioWidgets.CreateHint(
+            "Хэмжээг бичихэд карт яг тэр хэмжээтэй болно. Тор нь картын зүүн " +
+            "дээд булангийн байрлалыг хэвээр барина — тэгшилгээ алдагдахгүй, " +
+            "хэмжээ нь яг таарна. Булангаас нь татвал тор руугаа буцна."));
         inspector.Children.Add(boardCopySizeButton);
         inspector.Children.Add(StudioWidgets.CreateHint(
             "Энэ хэмжээг PFA эсвэл PFR дээрээ тохируулж эх бэлдээрэй — " +
@@ -270,6 +318,63 @@ internal sealed partial class ShellView
     {
         boardCanvas.Show(Boards, SelectedBoard);
         RefreshBoardInspector();
+        ShowBoardZoom();
+    }
+
+    private void ShowBoardZoom() =>
+        boardZoomText.Text = (boardCanvas.Zoom * 100).ToString("0") + "%";
+
+    /// <summary>
+    /// The size the user typed. It becomes the card's own, and the grid keeps
+    /// only the corner it starts from.
+    ///
+    /// Snapping the typed figure to the nearest cell was the alternative and
+    /// would have been useless: this number is what they take to AutoCAD or
+    /// Revit to prepare artwork by hand, and a card that answered 372.4 when
+    /// they asked for 380 would break that arrangement rather than serve it.
+    /// Alignment - what a grid is actually for - survives on the corner.
+    /// </summary>
+    private void ApplyBoardCardSize()
+    {
+        if (boardInspectorSuspended || boardCanvas.Selected is not { } card)
+            return;
+
+        bool hasWidth = double.TryParse(boardCardWidthBox.Text, out double width) && width > 0;
+        bool hasHeight = double.TryParse(boardCardHeightBox.Text, out double height) && height > 0;
+        if (!hasWidth || !hasHeight)
+        {
+            // Half an answer is not one. The card keeps what it had and the
+            // boxes are put back to it, so nothing changes behind their back.
+            RefreshBoardInspector();
+            return;
+        }
+
+        card.WidthMm = width;
+        card.HeightMm = height;
+        card.Normalize();
+        state.SaveProject();
+        boardCanvas.Redraw();
+        RefreshBoardInspector();
+    }
+
+    private void CommitBoardCardSizeOnEnter(System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter)
+            return;
+        ApplyBoardCardSize();
+        e.Handled = true;
+    }
+
+    private void ReturnBoardCardToGrid()
+    {
+        if (boardCanvas.Selected is not { } card)
+            return;
+        card.WidthMm = 0;
+        card.HeightMm = 0;
+        card.Normalize();
+        state.SaveProject();
+        boardCanvas.Redraw();
+        RefreshBoardInspector();
     }
 
     private void RefreshBoardInspector()
@@ -280,6 +385,8 @@ internal sealed partial class ShellView
         boardRemoveCardButton.IsEnabled = hasCard;
         boardCopySizeButton.IsEnabled = hasCard;
         boardAssetBox.IsEnabled = hasCard;
+        boardCardWidthBox.IsEnabled = hasCard;
+        boardCardHeightBox.IsEnabled = hasCard;
         boardCardLayoutBox.IsEnabled = hasCard;
         boardCardCaptionBox.IsEnabled = hasCard;
 
@@ -290,6 +397,9 @@ internal sealed partial class ShellView
         if (card is null)
         {
             boardCardSizeText.Text = "Карт сонгоогүй байна.";
+            boardCardWidthBox.Text = "";
+            boardCardHeightBox.Text = "";
+            boardCardFollowGridButton.Visibility = Visibility.Collapsed;
             boardCardCaptionBox.Text = "";
             boardAssetBox.SelectedItem = null;
             boardCardKindBox.SelectedItem = null;
@@ -301,6 +411,13 @@ internal sealed partial class ShellView
         }
 
         boardCardSizeText.Text = DescribeCardSize(card);
+        // Always the size the card actually came out at, so a figure the board
+        // had to limit is visible rather than left as the one that was typed.
+        BoardRectMm? resolved = Boards.Resolve(card);
+        boardCardWidthBox.Text = resolved is { } rect ? rect.WidthMm.ToString("0.#") : "";
+        boardCardHeightBox.Text = resolved is { } size ? size.HeightMm.ToString("0.#") : "";
+        boardCardFollowGridButton.Visibility =
+            card.HasSizeOverride ? Visibility.Visible : Visibility.Collapsed;
         boardCardCaptionBox.Text = card.Caption;
         boardAssetBox.SelectedItem = (boardAssetBox.ItemsSource as IEnumerable<BoardAssetChoice>)?
             .FirstOrDefault(choice => choice.ItemId == card.AssetItemId);
@@ -719,7 +836,9 @@ internal sealed partial class ShellView
             CropWidth: cropWidth,
             CropHeight: cropHeight,
             FocalPointX: element.FocalPointX,
-            FocalPointY: element.FocalPointY);
+            FocalPointY: element.FocalPointY,
+            WidthMm: element.WidthMm,
+            HeightMm: element.HeightMm);
     }
 
     /// <summary>

@@ -22,8 +22,14 @@ namespace ErkS.Studio;
 /// </summary>
 internal sealed class BoardCanvasSurface : Grid
 {
-    private const double MinimumZoom = 0.05;
-    private const double MaximumZoom = 2.0;
+    private const double MinimumZoom = 0.02;
+
+    /// <summary>Close enough to inspect a hairline on a board a metre across.</summary>
+    private const double MaximumZoom = 8.0;
+
+    /// <summary>One wheel notch. Multiplicative, so every step feels the same.</summary>
+    private const double ZoomStep = 1.15;
+
     private const double HandleSize = 12;
 
     private static readonly SolidColorBrush PaperBrush = Frozen(Color.FromRgb(250, 250, 248));
@@ -56,6 +62,11 @@ internal sealed class BoardCanvasSurface : Grid
     private ProjectBoard? board;
     private double zoom = 0.25;
 
+    private bool hasBeenFitted;
+    private bool panning;
+    private Point panFrom;
+    private Point panOffset;
+
     private BoardElement? dragged;
     private bool draggingSize;
     private Point dragOrigin;
@@ -69,6 +80,17 @@ internal sealed class BoardCanvasSurface : Grid
         surface.MouseMove += OnSurfaceMove;
         surface.MouseLeftButtonUp += OnSurfaceUp;
         surface.MouseLeave += (_, _) => EndDrag();
+
+        // The wheel zooms and the middle button pans, the way the drawing
+        // programs this board is assembled from behave. The people using it
+        // spend their day in AutoCAD, and a board that scrolled instead would
+        // be wrong under their hands before they had thought about it.
+        scroll.PreviewMouseWheel += OnWheel;
+        scroll.PreviewMouseDown += OnPanStart;
+        scroll.PreviewMouseMove += OnPanMove;
+        scroll.PreviewMouseUp += OnPanEnd;
+        scroll.SizeChanged += (_, _) => FitOnFirstSight();
+        Focusable = true;
     }
 
     /// <summary>The card the inspector is showing, or null.</summary>
@@ -92,6 +114,7 @@ internal sealed class BoardCanvasSurface : Grid
                 return;
             zoom = clamped;
             Redraw();
+            ZoomChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -102,6 +125,10 @@ internal sealed class BoardCanvasSurface : Grid
         if (Selected is not null && board?.Elements.Contains(Selected) != true)
             Select(null);
         Redraw();
+        // Only ever the first board seen. Switching between boards of a series
+        // leaves the zoom where the person put it: they are comparing two
+        // sheets, and having the view jump each time would undo that.
+        FitOnFirstSight();
     }
 
     public void Select(BoardElement? element)
@@ -113,15 +140,100 @@ internal sealed class BoardCanvasSurface : Grid
         Redraw();
     }
 
+    /// <summary>Raised when the zoom changes, so the shell can show it.</summary>
+    public event EventHandler? ZoomChanged;
+
     /// <summary>The zoom that shows the whole board in the space available.</summary>
     public void ZoomToFit()
     {
-        double available = Math.Min(
-            scroll.ViewportWidth - 48,
-            scroll.ViewportHeight * (series.BoardWidthMm / Math.Max(1, series.BoardHeightMm)) - 48);
-        if (available <= 0 || !double.IsFinite(available))
+        const double padding = 40;
+        double width = scroll.ViewportWidth - padding;
+        double height = scroll.ViewportHeight - padding;
+        if (width <= 0 || height <= 0 || series.BoardWidthMm <= 0 || series.BoardHeightMm <= 0)
             return;
-        Zoom = available / series.BoardWidthMm;
+
+        Zoom = Math.Min(width / series.BoardWidthMm, height / series.BoardHeightMm);
+        hasBeenFitted = true;
+    }
+
+    /// <summary>One millimetre of board to one point on screen.</summary>
+    public void ZoomToActualSize() => Zoom = 1;
+
+    public void ZoomBy(double factor) => ZoomAbout(factor, null);
+
+    /// <summary>
+    /// The first sight of a board shows the whole of it. Opening at some fixed
+    /// scale leaves an A0 sheet either as a stamp in the corner or as a corner
+    /// of a sheet, and neither tells anyone what they are looking at.
+    /// </summary>
+    private void FitOnFirstSight()
+    {
+        if (hasBeenFitted || scroll.ViewportWidth <= 0 || scroll.ViewportHeight <= 0)
+            return;
+        ZoomToFit();
+    }
+
+    /// <summary>
+    /// Zooms, keeping the point under the pointer where it is. Without that a
+    /// zoom walks away from whatever the person was looking at, and they spend
+    /// the next moment finding it again.
+    /// </summary>
+    private void ZoomAbout(double factor, Point? anchor)
+    {
+        double before = zoom;
+        double target = Math.Clamp(zoom * factor, MinimumZoom, MaximumZoom);
+        if (Math.Abs(target - before) < 1e-6)
+            return;
+
+        Point at = anchor ?? new Point(scroll.ViewportWidth / 2, scroll.ViewportHeight / 2);
+        double contentX = (scroll.HorizontalOffset + at.X) / before;
+        double contentY = (scroll.VerticalOffset + at.Y) / before;
+
+        Zoom = target;
+        scroll.UpdateLayout();
+        scroll.ScrollToHorizontalOffset(contentX * target - at.X);
+        scroll.ScrollToVerticalOffset(contentY * target - at.Y);
+    }
+
+    private void OnWheel(object sender, MouseWheelEventArgs e)
+    {
+        ZoomAbout(e.Delta > 0 ? ZoomStep : 1 / ZoomStep, e.GetPosition(scroll));
+        e.Handled = true;
+    }
+
+    private void OnPanStart(object sender, MouseButtonEventArgs e)
+    {
+        bool pans = e.ChangedButton == MouseButton.Middle ||
+            (e.ChangedButton == MouseButton.Left && Keyboard.IsKeyDown(Key.Space));
+        if (!pans)
+            return;
+
+        panFrom = e.GetPosition(scroll);
+        panOffset = new Point(scroll.HorizontalOffset, scroll.VerticalOffset);
+        panning = true;
+        scroll.Cursor = Cursors.ScrollAll;
+        scroll.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OnPanMove(object sender, MouseEventArgs e)
+    {
+        if (!panning)
+            return;
+        Point now = e.GetPosition(scroll);
+        scroll.ScrollToHorizontalOffset(panOffset.X - (now.X - panFrom.X));
+        scroll.ScrollToVerticalOffset(panOffset.Y - (now.Y - panFrom.Y));
+        e.Handled = true;
+    }
+
+    private void OnPanEnd(object sender, MouseButtonEventArgs e)
+    {
+        if (!panning)
+            return;
+        panning = false;
+        scroll.Cursor = null;
+        scroll.ReleaseMouseCapture();
+        e.Handled = true;
     }
 
     public void Redraw()
@@ -316,6 +428,10 @@ internal sealed class BoardCanvasSurface : Grid
                 return;
             dragged.ColumnSpan = Math.Min(columnSpan, series.Grid.Columns - dragged.Column);
             dragged.RowSpan = Math.Min(rowSpan, series.Grid.Rows - dragged.Row);
+            // Dragging the corner is a statement in cells, so it takes back
+            // whatever exact size was typed rather than fighting it.
+            dragged.WidthMm = 0;
+            dragged.HeightMm = 0;
         }
         else
         {

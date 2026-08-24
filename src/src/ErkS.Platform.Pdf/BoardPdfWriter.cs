@@ -43,7 +43,13 @@ public sealed record BoardBuildCard(
     /// The user has looked at a value the source only assumed and agreed it.
     /// Without this an assumed north or an inferred unit is not drawn at all.
     /// </summary>
-    bool IsConfirmed = false);
+    bool IsConfirmed = false,
+    /// <summary>
+    /// An exact size in millimetres, overriding the grid's. Zero follows the
+    /// grid. The grid still places the card's corner; only its reach changes.
+    /// </summary>
+    double WidthMm = 0,
+    double HeightMm = 0);
 
 public static class BoardBuildCardKinds
 {
@@ -290,11 +296,19 @@ public static class BoardPdfWriter
         string boardLabel,
         List<string> warnings)
     {
-        BoardRectMm? cell = BoardGridGeometry.Resolve(
+        BoardRectMm? cell = BoardCardGeometry.Resolve(
             request.Grid,
             request.BoardWidthMm,
             request.BoardHeightMm,
-            new BoardGridSpan(card.Column, card.ColumnSpan, card.Row, card.RowSpan));
+            new BoardElement
+            {
+                Column = card.Column,
+                ColumnSpan = card.ColumnSpan,
+                Row = card.Row,
+                RowSpan = card.RowSpan,
+                WidthMm = card.WidthMm,
+                HeightMm = card.HeightMm,
+            });
         if (cell is { } rect)
             return ToPoints(rect);
 
