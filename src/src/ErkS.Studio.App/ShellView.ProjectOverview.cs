@@ -134,6 +134,8 @@ internal sealed partial class ShellView
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, (TextBlock Target, MemberRow Member)> teamRoleTargets =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (StackPanel Target, MemberRow Member)> teamPresenceTargets =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ImageSource> teamAvatarCache =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> projectRoleLabels =
@@ -252,6 +254,9 @@ internal sealed partial class ShellView
     private void RefreshProjectTeamOverview()
     {
         projectTeamPanel.Children.Clear();
+        // The cards are about to be rebuilt, so the elements these point at are
+        // gone. Leaving them would refill panels no longer on screen.
+        teamPresenceTargets.Clear();
         if (!state.HasOpenProject)
         {
             projectTeamSummary.Text = "";
@@ -408,6 +413,38 @@ internal sealed partial class ShellView
         presenceOnlineWithin = TimeSpan.FromSeconds(seconds);
     }
 
+    /// <summary>
+    /// Asks the server who is present, and fills the dots in.
+    /// </summary>
+    /// <remarks>
+    /// Presence used to arrive only as a side effect of a full cloud sync,
+    /// which happens on its own schedule and often after the team cards have
+    /// already been drawn - so on a freshly opened project every colleague read
+    /// as never-heard-from, including whoever was sitting in front of it. Asked
+    /// for here, it is there when the page is looked at.
+    ///
+    /// The call also counts as this device being heard from, so opening a
+    /// project is itself a sign of life.
+    /// </remarks>
+    private async Task RefreshTeamPresenceAsync(string projectId)
+    {
+        StudioCloudProjectDetail detail = await account.GetProjectAsync(projectId);
+        state.ParticipantPresence.Clear();
+        foreach (StudioCloudParticipant participant in detail.Participants ?? [])
+        {
+            if (participant is null || string.IsNullOrWhiteSpace(participant.AccountEmail))
+                continue;
+
+            state.ParticipantPresence[participant.AccountEmail.Trim()] = new ParticipantPresenceInfo(
+                participant.LastSeenAtUtc,
+                participant.ProfileImageUrl,
+                participant.Initials);
+        }
+
+        foreach ((StackPanel target, MemberRow member) in teamPresenceTargets.Values)
+            FillTeamMemberPresenceLine(target, member);
+    }
+
     private async Task LoadProjectTeamDetailAsync()
     {
         if (!account.IsSignedIn || !state.HasOpenProject)
@@ -428,6 +465,7 @@ internal sealed partial class ShellView
                     target.Text = ProjectRoleLabels(member);
             }
 
+            await RefreshTeamPresenceAsync(projectId);
             StudioProjectChatResponse chat = await account.GetProjectChatAsync(projectId, take: 1);
             foreach (StudioProjectChatParticipant participant in chat.Participants)
             {
@@ -498,6 +536,20 @@ internal sealed partial class ShellView
             Margin = new Thickness(0, 7, 0, 0),
         };
 
+        // Registered so the line can be filled in again when presence arrives.
+        // The card is built when the project opens; what the server knows about
+        // who is present arrives afterwards, over the network. Without this the
+        // card keeps whatever it was built with - which, on a freshly opened
+        // project, is nothing, and every colleague reads as unheard-from.
+        // The avatars beside them already work this way.
+        teamPresenceTargets[member.Email.Trim().ToLowerInvariant()] = (line, member);
+        FillTeamMemberPresenceLine(line, member);
+        return line;
+    }
+
+    private void FillTeamMemberPresenceLine(StackPanel line, MemberRow member)
+    {
+        line.Children.Clear();
         state.ParticipantPresence.TryGetValue(
             member.Email.Trim(),
             out ParticipantPresenceInfo? presence);
@@ -542,7 +594,7 @@ internal sealed partial class ShellView
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
-            return line;
+            return;
         }
 
         line.Children.Add(new TextBlock
@@ -561,7 +613,7 @@ internal sealed partial class ShellView
             TextTrimming = TextTrimming.CharacterEllipsis,
             ToolTip = presenceTooltip,
         });
-        return line;
+        return;
     }
 
     /// <summary>
