@@ -1067,6 +1067,7 @@ internal sealed partial class ShellView
         if (!state.HasOpenProject)
             return;
         await ApplyCloudClientLogoAsync(cloud);
+        await ApplyCloudOrganizationDocumentsAsync(cloud);
 
         StudioCloudOrganizationRenderProfile? profile = cloud.DesignOrganizationProfile;
         if (profile is null)
@@ -1125,6 +1126,108 @@ internal sealed partial class ShellView
             SetStatus("Төслийн компанийн лого татагдсангүй: " + exception.Message);
         }
     }
+    /// <summary>
+    /// Brings the organisation's certificate and licence onto this device, so
+    /// the album can draw them instead of a placeholder.
+    ///
+    /// Somebody uploads these into their organisation once. Before this they
+    /// lived only on the machine of whoever added them, and a colleague opening
+    /// the same project found the certificate page empty - told, in effect,
+    /// that they had not uploaded something they had.
+    ///
+    /// A file already on disk with the same fingerprint is left alone: the
+    /// scans do not change, and re-fetching them on every sync would spend a
+    /// user's connection to produce the bytes they already have.
+    /// </summary>
+    private async Task ApplyCloudOrganizationDocumentsAsync(StudioCloudProjectDetail cloud)
+    {
+        StudioCloudOrganizationRenderProfile? profile = cloud.DesignOrganizationProfile;
+        if (profile is null || !state.HasOpenProject || state.ProjectPath is null)
+            return;
+
+        (StudioCloudOrganizationDocument Cloud, List<ProjectFileReference> Target)[] wanted =
+        [
+            .. profile.RegistrationCertificateDocuments.Select(document =>
+                (document, state.Project.Foundation.DesignCompany.OrganizationSnapshot.RegistrationCertificateDocuments)),
+            .. profile.DesignLicenseDocuments.Select(document =>
+                (document, state.Project.Foundation.DesignCompany.OrganizationSnapshot.DesignLicenseDocuments)),
+        ];
+        if (wanted.Length == 0)
+            return;
+
+        string projectFolder = ProjectWorkspacePaths.GetProjectFolder(state.ProjectPath);
+        string assetsFolder = Path.Combine(projectFolder, "assets", "organization-documents");
+        string projectId = state.Project.ProjectId;
+        int fetched = 0;
+        var failures = new List<string>();
+
+        foreach ((StudioCloudOrganizationDocument document, List<ProjectFileReference> target) in wanted)
+        {
+            ProjectFileReference? local = target.FirstOrDefault(item =>
+                item.ServerDocumentId.Equals(document.DocumentId, StringComparison.OrdinalIgnoreCase));
+            if (local is null)
+                continue;
+
+            string extension = StudioOrganizationDocumentFormats.Extension(document.ContentType);
+            if (extension.Length == 0)
+            {
+                failures.Add($"{document.Title}: '{document.ContentType}' төрлийг альбомд зурах боломжгүй");
+                continue;
+            }
+
+            string fileName = document.DocumentId + extension;
+            string fullPath = Path.Combine(assetsFolder, fileName);
+            if (File.Exists(fullPath) && local.IsAvailable)
+                continue;
+
+            try
+            {
+                StudioDownloadedDocument? content =
+                    await account.GetOrganizationDocumentAsync(document.ContentUrl);
+                if (content is null)
+                {
+                    failures.Add($"{document.Title}: сервер дээр олдсонгүй");
+                    continue;
+                }
+
+                // The project may have been closed or swapped while this was in
+                // flight; writing into the previous project's folder would put
+                // a stranger's certificate in it.
+                if (!state.HasOpenProject ||
+                    !state.Project.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                Directory.CreateDirectory(assetsFolder);
+                await using var bytes = new MemoryStream(content.Bytes, writable: false);
+                await StudioAccountService.ReplaceDownloadedFileAsync(bytes, fullPath);
+
+                local.RelativePath = Path.GetRelativePath(projectFolder, fullPath);
+                local.ContentType = content.ContentType;
+                local.IsAvailable = true;
+                local.IsCloudPlaceholder = false;
+                fetched++;
+            }
+            catch (Exception exception) when (
+                exception is StudioAccountException or HttpRequestException or
+                    TaskCanceledException or IOException or UnauthorizedAccessException)
+            {
+                failures.Add($"{document.Title}: {exception.Message}");
+            }
+        }
+
+        if (fetched > 0)
+            state.SaveProject();
+
+        // A scan that did not arrive leaves a placeholder page in a printed
+        // album, so it is named rather than counted.
+        if (failures.Count > 0)
+            SetStatus("Байгууллагын баримт татагдсангүй — " + string.Join("; ", failures));
+        else if (fetched > 0)
+            SetStatus($"Байгууллагын {fetched} хуулбар татагдаж, альбомд орлоо.");
+    }
+
     private async Task ApplyCloudClientLogoAsync(StudioCloudProjectDetail cloud)
     {
         StudioCloudProjectInitiationBasis? basis = cloud.Foundation?.InitiationBasis;

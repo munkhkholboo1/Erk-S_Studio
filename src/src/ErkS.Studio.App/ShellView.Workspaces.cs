@@ -4715,7 +4715,15 @@ internal sealed partial class ShellView
         }
         if (component?.GeneratedPageKind == AlbumGeneratedPageKind.Cover)
         {
-            AddConceptCoverPreview(canvas);
+            // The preview drew the approval cover for every album, while the
+            // PDF picks among four covers. On a working drawing album the two
+            // therefore showed different pages, and the preview was the one
+            // that lied - a person checking their cover here saw something
+            // that would never be printed.
+            if (AlbumCoverStyle.UsesApprovalCover(state.AlbumDocument.Definition.TemplateId))
+                AddConceptCoverPreview(canvas);
+            else
+                AddCoverPreviewUnavailable(canvas);
             ShowAlbumPreviewCanvas(canvas);
             return;
         }
@@ -5049,6 +5057,35 @@ internal sealed partial class ShellView
                     1.0);
                 return formatted.WidthIncludingTrailingWhitespace <= width + 0.01;
             });
+    }
+
+    /// <summary>
+    /// An empty sheet saying the cover cannot be shown here.
+    ///
+    /// Studio can draw one of the four covers the PDF writer knows; for the
+    /// others there is nothing to show. Showing the one it can draw anyway is
+    /// what this replaces - a preview that quietly disagrees with the printed
+    /// page is worse than no preview, because it is believed.
+    /// </summary>
+    private void AddCoverPreviewUnavailable(Canvas canvas)
+    {
+        AddPreviewRectangle(
+            canvas,
+            BuildingArchitectureConceptPageLayout.Frame,
+            Brushes.White,
+            Brushes.Black);
+        AddCoverPreviewText(
+            canvas,
+            "Энэ альбомын нүүрийг энд урьдчилан харуулах боломжгүй.",
+            BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 160, 320, 10),
+            4.0,
+            FontWeights.Normal);
+        AddCoverPreviewText(
+            canvas,
+            "PDF үүсгэвэл бодит нүүр гарна.",
+            BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 148, 320, 8),
+            3.2,
+            FontWeights.Normal);
     }
 
     private void AddConceptCoverPreview(Canvas canvas)

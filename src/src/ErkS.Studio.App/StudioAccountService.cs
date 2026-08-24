@@ -962,6 +962,56 @@ internal sealed class StudioAccountService :
         return new StudioDownloadedImage(bytes, contentType);
     }
 
+    /// <summary>
+    /// Fetches one of the organisation's scans - a registration certificate or
+    /// a design licence - by the content URL the server gave for it.
+    ///
+    /// The path goes through the project, so being on the project is enough;
+    /// somebody printing the album need not also be a member of the
+    /// organisation that owns the papers.
+    ///
+    /// The content type is read from the response rather than guessed from the
+    /// file name, and anything that is not a document the album can draw is
+    /// refused rather than saved for the renderer to fail on later.
+    /// </summary>
+    public async Task<StudioDownloadedDocument?> GetOrganizationDocumentAsync(
+        string contentUrl,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(contentUrl))
+            return null;
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        if (!TryBuildSameOriginUri(session.ServerUrl, contentUrl, out Uri documentUri))
+            return null;
+
+        using HttpRequestMessage request = new(HttpMethod.Get, documentUri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(true);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        if (!response.IsSuccessStatusCode)
+            return await ReadResponseAsync<StudioDownloadedDocument?>(response, cancellationToken).ConfigureAwait(true);
+
+        string contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+        if (!StudioOrganizationDocumentFormats.CanDraw(contentType))
+        {
+            throw new StudioAccountException(
+                $"Байгууллагын баримт '{contentType}' төрөлтэй байна. PDF, PNG эсвэл JPEG байх ёстой.");
+        }
+
+        const long limit = 20L * 1024L * 1024L;
+        if (response.Content.Headers.ContentLength > limit)
+            throw new StudioAccountException("Байгууллагын баримт 20 MB-аас их байна.");
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(true);
+        if (bytes.Length > limit)
+            throw new StudioAccountException("Байгууллагын баримт 20 MB-аас их байна.");
+        return new StudioDownloadedDocument(bytes, contentType);
+    }
+
     public async Task<IReadOnlyList<StudioCloudControlledDocument>> ListControlledDocumentsAsync(
         string projectId,
         CancellationToken cancellationToken = default)
