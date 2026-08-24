@@ -38,13 +38,31 @@ public sealed class ConceptGeneratedPagePlan
 /// </summary>
 public static class BuildingArchitectureConceptGeneratedPagePlanner
 {
-    public const int DocumentPagesPerAlbumPage = 2;
+    /// <summary>
+    /// How many faces of a scanned document share one album page.
+    ///
+    /// Read from the sheet the album is drawn on rather than fixed here: the
+    /// client set it per format - four on A2, two on A3 - and the generated
+    /// pages are A3 today. When they can be A2 this follows without a change.
+    /// </summary>
+    public static int DocumentPagesPerAlbumPage(AlbumProject project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        PageFormatDefinition? format = project.Album.GeneratedPageFormat;
+        return format is not null && PageFormatCatalog.IsUsable(format)
+            ? DocumentFaceDistribution.Capacity(format.WidthMm, format.HeightMm)
+            : DocumentFaceDistribution.Capacity(
+                BuildingArchitectureConceptPageLayout.PageWidthMm,
+                BuildingArchitectureConceptPageLayout.PageHeightMm);
+    }
+
     public const string DesignOrganizationTitle = "ЗУРАГ ТӨСӨЛ БОЛОВСРУУЛСАН БАЙГУУЛЛАГА";
     public const string ApprovedPlanningTaskTitle = "БАТЛАГДСАН АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР";
 
     public static IReadOnlyList<ConceptGeneratedPagePlan> Create(AlbumProject project)
     {
         var drafts = new List<PageDraft>();
+        int facesPerPage = DocumentPagesPerAlbumPage(project);
         foreach (AlbumCompositionItem component in project.Album.Composition
                      .Where(item => item.Kind == AlbumCompositionKind.Generated)
                      .OrderBy(FixedGeneratedPageOrder)
@@ -63,7 +81,8 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                         "БАЙГУУЛЛАГЫН ГЭРЧИЛГЭЭ",
                         ConceptGeneratedDocumentKind.CompanyRegistrationCertificate,
                         project.Company.RegistrationCertificateDocuments,
-                        createPlaceholder: true);
+                        createPlaceholder: true,
+                        facesPerPage);
                     AddDocumentBatches(
                         drafts,
                         component,
@@ -71,7 +90,8 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                         "ТУСГАЙ ЗӨВШӨӨРӨЛ",
                         ConceptGeneratedDocumentKind.CompanyDesignLicense,
                         project.Company.DesignLicenseDocuments,
-                        createPlaceholder: true);
+                        createPlaceholder: true,
+                        facesPerPage);
                     break;
                 case AlbumGeneratedPageKind.PlanningTask:
                     List<ProjectFileReference> planningDocuments = project.PlanningTask.Documents
@@ -84,7 +104,8 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                         "БАТЛАГДСАН ХУУЛБАР",
                         ConceptGeneratedDocumentKind.ApprovedPlanningTask,
                         planningDocuments,
-                        createPlaceholder: true);
+                        createPlaceholder: true,
+                        facesPerPage);
                     break;
                 case AlbumGeneratedPageKind.SiteContext:
                     drafts.Add(PageDraft.Empty(component, component.Title));
@@ -130,7 +151,7 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
         ConceptGeneratedDocumentKind kind,
         IEnumerable<ProjectFileReference>? documents,
         bool createPlaceholder,
-        int pagesPerAlbumPage = DocumentPagesPerAlbumPage)
+        int pagesPerAlbumPage)
     {
         if (pagesPerAlbumPage <= 0)
             throw new ArgumentOutOfRangeException(nameof(pagesPerAlbumPage));
@@ -144,10 +165,15 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                     SourcePageNumber = pageNumber,
                 }))
             .ToList();
-        int batchCount = Math.Max(createPlaceholder ? 1 : 0,
-            (int)Math.Ceiling(pages.Count / (double)pagesPerAlbumPage));
+        // Spread rather than packed: five faces make 3 and 2, not 4 and 1.
+        IReadOnlyList<int> perPage = DocumentFaceDistribution.Distribute(
+            pages.Count,
+            pagesPerAlbumPage);
+        int batchCount = Math.Max(createPlaceholder ? 1 : 0, perPage.Count);
+        int taken = 0;
         for (int batch = 0; batch < batchCount; batch++)
         {
+            int take = batch < perPage.Count ? perPage[batch] : 0;
             target.Add(new PageDraft
             {
                 Component = component,
@@ -156,11 +182,9 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                 DocumentLabel = documentLabel,
                 BatchNumber = batch + 1,
                 BatchCount = batchCount,
-                DocumentPages = pages
-                    .Skip(batch * pagesPerAlbumPage)
-                    .Take(pagesPerAlbumPage)
-                    .ToList(),
+                DocumentPages = pages.Skip(taken).Take(take).ToList(),
             });
+            taken += take;
         }
     }
 
