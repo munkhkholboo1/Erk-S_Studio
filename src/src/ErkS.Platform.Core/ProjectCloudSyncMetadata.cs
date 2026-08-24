@@ -615,8 +615,13 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.SyncStatus = ProjectSyncStatuses.Conflict;
         project.Cloud.LastServerConcurrencyToken = serverConcurrencyToken?.Trim() ?? "";
         project.Cloud.LastSyncError = message?.Trim() ?? "";
+        // "Local edit was preserved" was a promise with no evidence behind it,
+        // in a language the rest of the app does not use. It now names where
+        // the work is and what has to happen for it to leave.
         project.Cloud.LastSyncNote =
-            "Local edit was preserved. Review the server snapshot before saving or syncing again.";
+            "Хувилбарын зөрчил. Таны бичсэн мэдээлэл хүлээгдэж буй шинэчлэлтэд бүрэн " +
+            "хадгалагдсан — дахин бичих шаардлагагүй. Серверийн мэдээлэлтэй " +
+            "харьцуулаад Засварлахыг дахин нээж, дахин синк хийхэд илгээгдэнэ.";
     }
 
     private static void MarkPending(ProjectWorkspace project)

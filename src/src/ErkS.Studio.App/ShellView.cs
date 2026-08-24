@@ -2974,11 +2974,20 @@ internal sealed partial class ShellView : IDisposable
                     RefreshSyncUi();
                     StudioMessageDialog.Show(
                         Window.GetWindow(Root),
-                        BuildProjectInformationConflictMessage(pending, state.Project.Cloud.ServerSnapshot),
+                        BuildProjectInformationConflictMessage(
+                            pending,
+                            state.Project,
+                            state.Project.Cloud.ServerSnapshot),
                         "Төслийн мэдээллийн зөрчил",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
-                    SetStatus("Cloud conflict: локал засварыг хадгаллаа. Server мэдээллийг харьцуулж дахин засна уу.");
+                    // "Локал засварыг хадгаллаа" said nothing about what was
+                    // kept, so it read as a formality next to a page that had
+                    // just been refreshed. The count is the reassurance.
+                    SetStatus(ProjectInformationConflictReport.Summarize(
+                        pending,
+                        state.Project,
+                        state.Project.Cloud.ServerSnapshot));
                     return;
                 }
                 catch (Exception exception) when (
@@ -4858,17 +4867,9 @@ internal sealed partial class ShellView : IDisposable
 
     private static string BuildProjectInformationConflictMessage(
         PendingProjectInformationUpdate local,
-        ProjectServerSnapshot server)
-    {
-        return
-            "Энэ төслийг өөр хэрэглэгч эсвэл өөр төхөөрөмж дээр шинэчилсэн байна. " +
-            "Studio server мэдээллийг дарж бичээгүй, таны локал засварыг хадгалсан.\n\n" +
-            $"ЛОКАЛ\nНэр: {local.Name}\nХаяг: {local.Location}\nЗориулалт: {local.BuildingPurpose}\n\n" +
-            $"SERVER\nНэр: {server.Name}\nХаяг: {server.Information.Location}\n" +
-            $"Зориулалт: {server.Information.BuildingPurpose}\n\n" +
-            "Хуучин суурь хувилбараас энэ өөрчлөлтийг автоматаар дахин илгээхгүй. " +
-            "Болих дараад server мэдээллийг харьцуулсны дараа Засварлахыг дахин нээнэ үү.";
-    }
+        ProjectWorkspace project,
+        ProjectServerSnapshot server) =>
+        ProjectInformationConflictReport.Describe(local, project, server);
 
     private void RefreshSyncUi()
     {

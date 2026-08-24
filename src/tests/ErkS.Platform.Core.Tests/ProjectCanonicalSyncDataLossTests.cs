@@ -158,6 +158,45 @@ public sealed class ProjectCanonicalSyncDataLossTests
         Assert.Equal("АТД-114", project.Foundation.PlanningTask.AtdNumber);
     }
 
+    [Fact]
+    public void A412RefreshDoesNotWipeTheEditThatCausedIt()
+    {
+        // The conflict path downloads the server's current state and applies it
+        // before telling the user anything. That refresh runs through here, so
+        // the rejection used to destroy the very edit it was rejecting - the
+        // user pressed sync, was told there was a conflict, and found the form
+        // blank.
+        ProjectWorkspace project = LinkedProject();
+        ProjectCanonicalSyncService.Apply(project, EmptyServerSnapshot());
+
+        project.Foundation.InitiationBasis.SiteAddress = "Эмээлт, 3-р хэсэг";
+        project.Foundation.InitiationBasis.ClientName = "З.Нэр";
+        project.Foundation.PlanningTask.AtdNumber = "АТД-2026-114";
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate
+        {
+            BaseConcurrencyToken = "93F34CA5B8A06BD9EEA6248C",
+            ProjectCode = "MAD-2026-ЕТ/03",
+            Name = "Эмээлт",
+            ClientName = "З.Нэр",
+            QueuedAtUtc = DateTimeOffset.UtcNow,
+            Foundation = new ProjectServerFoundationUpdate
+            {
+                IsAvailable = true,
+                SiteAddress = "Эмээлт, 3-р хэсэг",
+                AtdNumber = "АТД-2026-114",
+            },
+        };
+
+        // What the refresh after a 412 hands back: the server, unchanged,
+        // because it rejected the write.
+        ProjectCanonicalSyncService.Apply(project, EmptyServerSnapshot());
+
+        Assert.Equal("Эмээлт, 3-р хэсэг", project.Foundation.InitiationBasis.SiteAddress);
+        Assert.Equal("З.Нэр", project.Foundation.InitiationBasis.ClientName);
+        Assert.Equal("АТД-2026-114", project.Foundation.PlanningTask.AtdNumber);
+        Assert.NotNull(project.Cloud.PendingProjectInformation);
+    }
+
     private static ProjectWorkspace LinkedProject()
     {
         var project = new ProjectWorkspace();
