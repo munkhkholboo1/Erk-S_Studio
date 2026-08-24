@@ -151,6 +151,10 @@ public static class BuildingArchitectureConceptAlbumSequencer
             .OrderBy(candidate => candidate.DrawingBand)
             .ThenBy(candidate => candidate.BuildingOrder)
             .ThenBy(candidate => firstBuildingPositions[candidate.SourceGroupKey])
+            // Within a building, the kind of drawing decides - not which
+            // product sent it. Two products serve one building and each
+            // numbers its own set from one.
+            .ThenBy(candidate => candidate.BuildingPageTypeOrder)
             .ThenBy(candidate => candidate.IsPdfSource
                 ? pdfSourceBlockOrders[candidate.SourceBlockKey]
                 : candidate.SlotOrder)
@@ -357,6 +361,8 @@ public static class BuildingArchitectureConceptAlbumSequencer
                 : hasExplicitAssignment || hasPackageBuilding
                     ? 1
                     : 2,
+            BuildingPageTypeOrder = ErkS.Platform.Core.BuildingPageTypeOrder.Of(
+                AlbumPageSourceMetadata.ResolveContentKind(page, sheet?.Entry ?? new SheetPackageEntry())),
             BuildingOrder = hasExplicitAssignment
                 ? assignedGroup!.Order
                 : hasPackageBuilding
@@ -483,6 +489,13 @@ public static class BuildingArchitectureConceptAlbumSequencer
         public required string BuildingTitle { get; init; }
         public required int DrawingBand { get; init; }
         public required int BuildingOrder { get; init; }
+
+        /// <summary>
+        /// Where this drawing belongs among its building's pages. It sorts
+        /// before the source, so a building reads the same however many
+        /// products contributed to it and in whatever order they exported.
+        /// </summary>
+        public required int BuildingPageTypeOrder { get; init; }
         public required bool IsPackageBuilding { get; init; }
         public required int SlotOrder { get; init; }
         public required bool IsPdfSource { get; init; }
