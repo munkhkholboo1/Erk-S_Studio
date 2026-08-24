@@ -1012,6 +1012,57 @@ internal sealed class StudioAccountService :
         return new StudioDownloadedDocument(bytes, contentType);
     }
 
+    /// <summary>
+    /// Sends one of this device's scans up to the organisation that owns it.
+    ///
+    /// The title goes as its own part rather than in the query string: it is
+    /// Mongolian, and a certificate that arrives called «Ð“ÑÑ€Ñ‡Ð¸Ð»Ð³ÑÑ» is a
+    /// certificate somebody has to fix by hand.
+    /// </summary>
+    public async Task<StudioCloudOrganizationDocument> UploadOrganizationDocumentAsync(
+        string organizationId,
+        string category,
+        string title,
+        string fileName,
+        string contentType,
+        byte[] bytes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(organizationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(category);
+        ArgumentNullException.ThrowIfNull(bytes);
+        if (bytes.Length == 0)
+            throw new StudioAccountException("Байгууллагын баримт хоосон байна.");
+        if (!StudioOrganizationDocumentFormats.CanDraw(contentType))
+        {
+            throw new StudioAccountException(
+                $"'{contentType}' төрлийг байгууллагын баримт болгож илгээхгүй. PDF, PNG эсвэл JPEG байх ёстой.");
+        }
+
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent(category, Encoding.UTF8), "category");
+        form.Add(new StringContent(title ?? "", Encoding.UTF8), "title");
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        form.Add(file, "file", string.IsNullOrWhiteSpace(fileName) ? "document" : fileName);
+
+        string path = "/api/cloud-era/v1/organizations/" +
+            Uri.EscapeDataString(organizationId) + "/documents";
+        using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(session.ServerUrl, path))
+        {
+            Content = form,
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(true);
+        return await ReadResponseAsync<StudioCloudOrganizationDocument>(response, cancellationToken)
+            .ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер байгууллагын баримтын хариу буцаасангүй.");
+    }
+
     public async Task<IReadOnlyList<StudioCloudControlledDocument>> ListControlledDocumentsAsync(
         string projectId,
         CancellationToken cancellationToken = default)

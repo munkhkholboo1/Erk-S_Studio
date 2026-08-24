@@ -393,6 +393,13 @@ internal sealed partial class ShellView
                                 profile.LogoPath = store.StoreLogo(cloud.OrganizationId, logo.Bytes, logo.ContentType);
                         }
                     }
+                    // Scans this device holds and the server does not. People
+                    // filed these into their own Studio before organisations
+                    // could carry them, and every colleague on the same
+                    // project has been looking at an empty certificate page
+                    // ever since.
+                    await SendOrganizationDocumentsAsync(cloud, old?.Profile, profile);
+
                     merged.Add(new CompanyCatalogEntry
                     {
                         Profile = profile,
@@ -1553,6 +1560,101 @@ internal sealed partial class ShellView
             ? "Төслийн баталгаажсан зураг төслийн байгууллагыг санаатайгаар солих"
             : "Төслийн зураг төслийн байгууллагыг компанийн сангаас сонгох";
     }
+
+    /// <summary>
+    /// Sends this device's copies of a company's certificate and licence up to
+    /// the organisation, so every member of every project using it can see
+    /// them.
+    ///
+    /// This is the other half of a gap that cost a real project a day: the
+    /// scans were uploaded, into a company library, on one machine - and the
+    /// album on everybody else's machine printed an empty page telling them
+    /// nobody had uploaded anything.
+    ///
+    /// Matching is by organisation id, never by name: two companies can share
+    /// a name, and sending one company's licence to another is not a mistake
+    /// anyone would find quickly.
+    /// </summary>
+    private async Task SendOrganizationDocumentsAsync(
+        StudioCloudOrganization cloud,
+        CompanyProfile? local,
+        CompanyProfile merged)
+    {
+        if (local is null || string.IsNullOrWhiteSpace(cloud.OrganizationId))
+            return;
+        if (!local.OrganizationId.Equals(cloud.OrganizationId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        IReadOnlyList<CompanyDocumentUpload> uploads = CompanyDocumentUploadPlan.Decide(
+            local.RegistrationCertificateDocuments,
+            local.DesignLicenseDocuments,
+            cloud.RegistrationCertificateDocuments
+                .Concat(cloud.DesignLicenseDocuments)
+                .Select(document => document.Sha256),
+            cloud.CanManage);
+        if (uploads.Count == 0)
+            return;
+
+        var failures = new List<string>();
+        int sent = 0;
+        foreach (CompanyDocumentUpload upload in uploads)
+        {
+            string path = upload.Document.RelativePath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                failures.Add($"{upload.Document.Title}: файл олдсонгүй");
+                continue;
+            }
+
+            try
+            {
+                byte[] bytes = await File.ReadAllBytesAsync(path);
+                StudioCloudOrganizationDocument stored =
+                    await account.UploadOrganizationDocumentAsync(
+                        cloud.OrganizationId,
+                        ToServerDocumentCategory(upload.Category),
+                        upload.Document.Title,
+                        upload.Document.OriginalFileName,
+                        upload.Document.ContentType,
+                        bytes);
+                upload.Document.ServerDocumentId = stored.DocumentId;
+                sent++;
+            }
+            catch (Exception exception) when (
+                exception is StudioAccountException or HttpRequestException or
+                    TaskCanceledException or IOException or UnauthorizedAccessException)
+            {
+                failures.Add($"{upload.Document.Title}: {exception.Message}");
+            }
+        }
+
+        if (sent > 0)
+        {
+            merged.RegistrationCertificateDocuments = local.RegistrationCertificateDocuments
+                .Select(document => document.Clone())
+                .ToList();
+            merged.DesignLicenseDocuments = local.DesignLicenseDocuments
+                .Select(document => document.Clone())
+                .ToList();
+        }
+
+        // Named rather than counted: a scan that did not go up leaves a blank
+        // page in somebody else's album, and they will not know which.
+        if (failures.Count > 0)
+            SetStatus("Байгууллагын баримт илгээгдсэнгүй — " + string.Join("; ", failures));
+        else if (sent > 0)
+            SetStatus($"Байгууллагын {sent} хуулбар Cloud ERA руу илгээгдлээ.");
+    }
+
+    /// <summary>
+    /// Studio's category name for the server's.
+    /// </summary>
+    private static string ToServerDocumentCategory(string category) =>
+        category.Equals(
+            ProjectDocumentCategories.CompanyRegistrationCertificate,
+            StringComparison.OrdinalIgnoreCase)
+            ? "RegistrationCertificate"
+            : "DesignLicense";
 
     private static string ProjectCompanyAssignmentDescription(ProjectWorkspace project)
     {

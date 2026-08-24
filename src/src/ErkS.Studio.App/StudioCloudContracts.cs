@@ -196,13 +196,15 @@ internal sealed class StudioCloudOrganization
     public string ConcurrencyToken { get; set; } = "";
 
     /// <summary>
-    /// If-Match token for the information endpoint alone. It does not move when
-    /// an album is uploaded or a member is added, so a queued information edit
-    /// survives the user's own unrelated activity - which is what invalidated
-    /// it before. Empty against a server that predates it; callers fall back to
-    /// <see cref="ConcurrencyToken"/> there.
+    /// The organisation's registration certificate as the server holds it.
+    /// Read here mainly for the fingerprints: a scan already up there must not
+    /// be sent again, and the website can put one there too.
     /// </summary>
-    public string InformationConcurrencyToken { get; set; } = "";
+    public List<StudioCloudOrganizationDocument> RegistrationCertificateDocuments { get; set; } = [];
+
+    /// <summary>The design licence, on the same footing.</summary>
+    public List<StudioCloudOrganizationDocument> DesignLicenseDocuments { get; set; } = [];
+
     public string LegalName { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
