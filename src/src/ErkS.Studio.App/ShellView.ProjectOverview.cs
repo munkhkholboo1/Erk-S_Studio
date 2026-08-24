@@ -337,6 +337,7 @@ internal sealed partial class ShellView
         };
         teamRoleTargets[member.Email.Trim().ToLowerInvariant()] = (roleText, member);
         words.Children.Add(roleText);
+        words.Children.Add(BuildTeamMemberSourcesLine(member));
 
         var state = new StackPanel
         {
@@ -456,6 +457,42 @@ internal sealed partial class ShellView
     /// project; the same fields are shown here as written values, and the form
     /// appears only once Засварлах is pressed.
     /// </summary>
+    /// <summary>
+    /// What this person has put into the project.
+    /// </summary>
+    /// <remarks>
+    /// Only cloud-registered sources carry the person who registered them, so
+    /// a member who has only ever added a source on their own machine reads as
+    /// having registered none. That is the honest answer rather than a blank
+    /// space, which reads as "still loading".
+    /// </remarks>
+    private TextBlock BuildTeamMemberSourcesLine(MemberRow member)
+    {
+        ProjectMemberSourceSummary summary = state.HasOpenProject
+            ? ProjectMemberSources.For(state.Project.Cloud.SharedSources, member.Email)
+            : ProjectMemberSourceSummary.None;
+
+        var line = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = StudioTheme.MutedTextBrush,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 5, 0, 0),
+        };
+
+        if (!summary.Any)
+        {
+            line.Text = "Эх үүсвэр бүртгүүлээгүй";
+            return line;
+        }
+
+        line.Text = summary.SheetCount > 0
+            ? $"{summary.Count} эх үүсвэр · {summary.SheetCount} хуудас"
+            : $"{summary.Count} эх үүсвэр";
+        line.ToolTip = string.Join("\n", summary.Names);
+        return line;
+    }
+
     private UIElement BuildProjectRecordView()
     {
         projectRecordView.Margin = new Thickness(0, 4, 0, 0);
