@@ -138,6 +138,12 @@ internal sealed partial class ShellView : IDisposable
     private readonly ComboBox projectStageBox = new();
     private readonly ComboBox cornerTableBox = new();
     private readonly TextBlock cornerTableHint = StudioWidgets.CreateHint("");
+
+    /// <summary>
+    /// Things worth saying as a project opens, held until the code that opened
+    /// it has finished writing its own status line over them.
+    /// </summary>
+    private readonly List<string> pendingOpenNotices = [];
     private readonly TextBox basisSourceBox = new();
     private readonly TextBox requestNumberBox = new();
     private readonly ComboBox clientTypeBox = new();
@@ -5002,7 +5008,46 @@ internal sealed partial class ShellView : IDisposable
             .DescribeCoverage(state.Project)
             .Notice;
         if (notice is not null)
-            SetStatus(notice);
+            pendingOpenNotices.Add(notice);
+    }
+
+    /// <summary>
+    /// Shows the notices gathered while a project was opening, once the code
+    /// that opened it has had its say.
+    ///
+    /// These used to go straight to the status bar from inside the binding
+    /// routine, and every caller sets a status of its own on the very next
+    /// line - so the message was written and overwritten before a frame was
+    /// drawn. It was a warning nobody could ever have seen, which is the
+    /// failure this codebase keeps finding, built by hand.
+    ///
+    /// A stage with no album template of its own gets a dialog rather than a
+    /// status line: the album that opens instead looks perfectly normal, so
+    /// there is nothing on screen for a passing message to attach itself to.
+    /// </summary>
+    private void FlushOpenNoticesAfterCallerFinishes()
+    {
+        if (pendingOpenNotices.Count == 0)
+            return;
+
+        string[] notices = [.. pendingOpenNotices];
+        pendingOpenNotices.Clear();
+        Root.Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() =>
+            {
+                if (!state.HasOpenProject)
+                    return;
+
+                string message = string.Join("\n\n", notices);
+                SetStatus(notices[^1]);
+                StudioMessageDialog.Show(
+                    Window.GetWindow(Root),
+                    message,
+                    "Төсөл нээгдлээ",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }));
     }
 
     private void ReportPendingDeliveriesOnOpen()
@@ -5020,7 +5065,7 @@ internal sealed partial class ShellView : IDisposable
         if (packages == 0)
             return;
 
-        SetStatus(sources == 1
+        pendingOpenNotices.Add(sources == 1
             ? $"{packages} шинэ багц уншигдаагүй байна. Эх үүсвэр хуудсаас «Эх үүсвэрээс шинэчлэх» дарна уу."
             : $"{sources} эх үүсвэрт нийт {packages} шинэ багц уншигдаагүй байна. Эх үүсвэр хуудсаас «Эх үүсвэрээс шинэчлэх» дарна уу.");
     }
@@ -5044,6 +5089,7 @@ internal sealed partial class ShellView : IDisposable
             // nothing new. Say it once, as the project opens.
             ReportPendingDeliveriesOnOpen();
             ReportAlbumTemplateFallbackOnOpen();
+            FlushOpenNoticesAfterCallerFinishes();
         }
         DiscardStaleCanonicalTitleBlockPreview();
         lastAlbumPath = ResolveCurrentProjectAlbumPath();
