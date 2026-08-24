@@ -3409,7 +3409,14 @@ internal sealed partial class ShellView : IDisposable
                     collectUi,
                     reconcileLinkedProjectAssets);
             }
-            var warningSuffix = result.Warnings.Count > 0 ? $" ({result.Warnings.Count} анхааруулга)" : "";
+            // A count leaves somebody to find which sheet across thirty-odd
+            // pages, so the first one is named and the rest counted.
+            var warningSuffix = result.Warnings.Count switch
+            {
+                0 => "",
+                1 => $" — анхааруулга: {result.Warnings[0]}",
+                _ => $" — {result.Warnings.Count} анхааруулга, эхнийх нь: {result.Warnings[0]}",
+            };
             var updateMessage = $"Альбум шинэчлэгдлээ: {result.SheetCount} sheet, {result.PageCount} хуудас - {result.OutputPath}{warningSuffix}";
             SetStatus(string.IsNullOrWhiteSpace(statusPrefix)
                 ? updateMessage

@@ -147,6 +147,11 @@ public sealed class AlbumBuilder
                 PageCount = temporaryResult.PageCount,
             };
             result.Warnings.AddRange(temporaryResult.Warnings);
+            // A drawing that came back at the wrong scale is the one nobody
+            // catches by eye. Reported, never refused: whoever plotted it
+            // knows things this does not, and a build that stops is a build
+            // that gets worked around.
+            result.Warnings.AddRange(DrawingScaleSurvey.Review(request));
             result.Components.AddRange(temporaryResult.Components.Select(component => new AlbumBuildComponent
             {
                 Code = component.Code,
