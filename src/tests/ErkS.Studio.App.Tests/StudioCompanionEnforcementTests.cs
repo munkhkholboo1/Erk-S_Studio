@@ -5,11 +5,16 @@ namespace ErkS.Studio.App.Tests;
 
 public sealed class StudioCompanionEnforcementTests
 {
+    // These describe the rule itself. It is held back for now by
+    // LicensingIsOpen, and stays under test so that the release which opens
+    // licensing turns on something still known to be correct rather than
+    // something nothing has exercised in months.
+
     [Fact]
     public void DevelopmentBuild_NeverEnforces()
     {
         // Today's builds are all -dev, which is what keeps this work unblocked.
-        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.False(StudioCompanionEnforcement.WouldEnforce(
             "https://erk-s.mn",
             isDevelopmentBuild: true));
     }
@@ -17,7 +22,7 @@ public sealed class StudioCompanionEnforcementTests
     [Fact]
     public void OfficialBuildAgainstTheLiveServer_Enforces()
     {
-        Assert.True(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.True(StudioCompanionEnforcement.WouldEnforce(
             "https://erk-s.mn",
             isDevelopmentBuild: false));
     }
@@ -26,10 +31,10 @@ public sealed class StudioCompanionEnforcementTests
     public void LoopbackServer_DoesNotEnforce()
     {
         // A development database holds no real licences.
-        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.False(StudioCompanionEnforcement.WouldEnforce(
             "http://127.0.0.1:5055",
             isDevelopmentBuild: false));
-        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.False(StudioCompanionEnforcement.WouldEnforce(
             "http://localhost:5055",
             isDevelopmentBuild: false));
     }
@@ -39,7 +44,7 @@ public sealed class StudioCompanionEnforcementTests
     {
         // CI publishes the product with a release label and then runs it. A
         // licence prompt there would hang a job nobody can answer.
-        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.False(StudioCompanionEnforcement.WouldEnforce(
             "https://erk-s.mn",
             isDevelopmentBuild: false,
             commandLineArguments: ["ErkS.Studio.exe", "--release-smoke-test", "--release-smoke-output=x"]));
@@ -48,7 +53,7 @@ public sealed class StudioCompanionEnforcementTests
     [Fact]
     public void ReleaseUpdateHoldRun_DoesNotEnforce()
     {
-        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.False(StudioCompanionEnforcement.WouldEnforce(
             "https://erk-s.mn",
             isDevelopmentBuild: false,
             commandLineArguments: ["ErkS.Studio.exe", "--release-update-hold-test"]));
@@ -57,7 +62,7 @@ public sealed class StudioCompanionEnforcementTests
     [Fact]
     public void OrdinaryLaunchArguments_StillEnforce()
     {
-        Assert.True(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.True(StudioCompanionEnforcement.WouldEnforce(
             "https://erk-s.mn",
             isDevelopmentBuild: false,
             commandLineArguments: ["ErkS.Studio.exe"]));
@@ -67,12 +72,46 @@ public sealed class StudioCompanionEnforcementTests
     public void UnknownServer_StillEnforces()
     {
         // An address we cannot parse must not be mistaken for a local one.
-        Assert.True(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.True(StudioCompanionEnforcement.WouldEnforce(
             "",
             isDevelopmentBuild: false));
-        Assert.True(StudioCompanionEnforcement.IsEnabledFor(
+        Assert.True(StudioCompanionEnforcement.WouldEnforce(
             "not a url",
             isDevelopmentBuild: false));
+    }
+
+    [Fact]
+    public void WhileLicensingIsClosed_NobodyIsEnforcedAgainst()
+    {
+        // There is no licence to hold yet: the two-licence model is not open,
+        // nobody has been told how to buy one, and nothing has been decided
+        // for the people already working. A real project is being drawn by
+        // four of them, and locking them out of it over a rule none of them
+        // could satisfy would be the opposite of what this release is for.
+        Assert.False(StudioCompanionEnforcement.LicensingIsOpen);
+        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+            "https://erk-s.mn",
+            isDevelopmentBuild: false));
+        Assert.False(StudioCompanionEnforcement.IsEnabledFor(
+            "https://erk-s.mn",
+            isDevelopmentBuild: false,
+            commandLineArguments: ["ErkS.Studio.exe"]));
+    }
+
+    [Fact]
+    public void TheHoldIsABuildConstantRatherThanASetting()
+    {
+        // The original design has no way for an official build to be talked
+        // out of enforcement at run time, because that would be the bypass the
+        // rule exists to prevent. Holding it back must not become that bypass:
+        // it is decided at compile time and cannot be reached from a
+        // configuration file, an environment variable or a command line.
+        Assert.True(typeof(StudioCompanionEnforcement)
+            .GetField(
+                nameof(StudioCompanionEnforcement.LicensingIsOpen),
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Static)
+            ?.IsLiteral);
     }
 }
 

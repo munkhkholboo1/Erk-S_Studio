@@ -194,6 +194,15 @@ internal sealed class StudioCloudOrganization
 {
     public string OrganizationId { get; set; } = "";
     public string ConcurrencyToken { get; set; } = "";
+
+    /// <summary>
+    /// If-Match token for the information endpoint alone. It does not move when
+    /// an album is uploaded or a member is added, so a queued information edit
+    /// survives the user's own unrelated activity - which is what invalidated
+    /// it before. Empty against a server that predates it; callers fall back to
+    /// <see cref="ConcurrencyToken"/> there.
+    /// </summary>
+    public string InformationConcurrencyToken { get; set; } = "";
     public string LegalName { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string ShortName { get; set; } = "";
@@ -305,6 +314,15 @@ internal sealed class StudioCloudProjectSummary
     public string[] CurrentUserScopes { get; set; } = [];
     public bool CurrentUserIsCreator { get; set; }
     public string ConcurrencyToken { get; set; } = "";
+
+    /// <summary>
+    /// If-Match token for the information endpoint alone. It does not move when
+    /// an album is uploaded or a member is added, so a queued information edit
+    /// survives the user's own unrelated activity - which is what invalidated
+    /// it before. Empty against a server that predates it; callers fall back to
+    /// <see cref="ConcurrencyToken"/> there.
+    /// </summary>
+    public string InformationConcurrencyToken { get; set; } = "";
 }
 
 internal sealed class StudioCloudProjectDeleteRequest

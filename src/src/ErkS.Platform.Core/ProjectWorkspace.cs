@@ -343,6 +343,14 @@ public sealed class ProjectServerSnapshot
     public string DesignOrganizationName { get; set; } = "";
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public string ConcurrencyToken { get; set; } = "";
+
+    /// <summary>
+    /// If-Match token for the information endpoint alone, when the server
+    /// offers one. It does not move when an album is uploaded, so a queued
+    /// information edit is no longer invalidated by the user's own unrelated
+    /// work. Empty against a server that predates it.
+    /// </summary>
+    public string InformationConcurrencyToken { get; set; } = "";
     public ProjectServerSurface Surface { get; set; } = new();
     public ProjectServerInformation Information { get; set; } = new();
     public ProjectServerFoundation Foundation { get; set; } = new();

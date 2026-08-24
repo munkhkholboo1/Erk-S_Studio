@@ -31,7 +31,36 @@ internal static class StudioCompanionEnforcement
             StudioReleaseInfo.IsDevelopmentBuild,
             Environment.GetCommandLineArgs());
 
+    /// <summary>
+    /// Whether the licence this enforcement checks for can be obtained yet.
+    ///
+    /// It cannot. The two-licence model is not open, nobody has been told how
+    /// to buy one, and no decision has been made about the people already
+    /// working - a real project is being drawn by four of them right now.
+    /// Enforcing against a licence that does not exist would lock them out of
+    /// their own work in the name of a rule none of them could satisfy.
+    ///
+    /// This is a build constant, not a setting: there is still no way for an
+    /// official build to be talked out of enforcement at run time. Flip it in
+    /// the release that opens licensing, together with whatever is decided for
+    /// existing users.
+    /// </summary>
+    internal const bool LicensingIsOpen = false;
+
     internal static bool IsEnabledFor(
+        string? serverUrl,
+        bool isDevelopmentBuild,
+        IReadOnlyList<string>? commandLineArguments = null) =>
+        LicensingIsOpen &&
+        WouldEnforce(serverUrl, isDevelopmentBuild, commandLineArguments);
+
+    /// <summary>
+    /// What enforcement decides, setting aside whether licensing is open at
+    /// all. Kept separate so the rules stay under test while the gate above
+    /// holds them back - a rule nothing exercises is a rule that has quietly
+    /// stopped being true by the time it is needed again.
+    /// </summary>
+    internal static bool WouldEnforce(
         string? serverUrl,
         bool isDevelopmentBuild,
         IReadOnlyList<string>? commandLineArguments = null)

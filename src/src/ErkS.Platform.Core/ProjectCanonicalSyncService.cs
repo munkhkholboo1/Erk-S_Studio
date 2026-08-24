@@ -244,6 +244,7 @@ public static class ProjectCanonicalSyncService
             DesignOrganizationName = Clean(snapshot.DesignOrganizationName),
             UpdatedAtUtc = snapshot.UpdatedAtUtc,
             ConcurrencyToken = Clean(snapshot.ConcurrencyToken),
+            InformationConcurrencyToken = Clean(snapshot.InformationConcurrencyToken),
             Surface = Clone(snapshot.Surface),
             Information = new ProjectServerInformation
             {

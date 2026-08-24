@@ -181,6 +181,27 @@ internal static class ProjectInformationSaveReconciler
                 "Pending project information has no canonical base concurrency token and cannot be safely rebased.");
     }
 
+    /// <summary>
+    /// Which token an information edit should be based on.
+    ///
+    /// The project-wide token moves whenever anything about the project moves,
+    /// including the user's own album upload - so their queued edit was
+    /// invalidated by their own unrelated work, and the resulting conflict was
+    /// what destroyed it. The narrow token covers the information and its
+    /// foundation only.
+    ///
+    /// A server that predates the narrow token sends nothing, and the project
+    /// token is what it will check. Falling back is therefore not a
+    /// convenience: without it a new Studio could not save at all against a
+    /// server that has not been updated yet.
+    /// </summary>
+    public static string ResolveEditBaseToken(ProjectServerSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        string narrow = Clean(snapshot.InformationConcurrencyToken);
+        return narrow.Length > 0 ? narrow : Clean(snapshot.ConcurrencyToken);
+    }
+
     public static string RequireCanonicalEditBaseToken(string? token)
     {
         string canonical = Clean(token);

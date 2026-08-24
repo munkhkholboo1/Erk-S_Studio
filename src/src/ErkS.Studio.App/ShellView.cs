@@ -2726,8 +2726,8 @@ internal sealed partial class ShellView : IDisposable
                 foundationEditBaseConcurrencyToken =
                     ProjectInformationSaveReconciler
                         .RequireCanonicalEditBaseToken(
-                            state.Project.Cloud.ServerSnapshot
-                                .ConcurrencyToken);
+                            ProjectInformationSaveReconciler.ResolveEditBaseToken(
+                                state.Project.Cloud.ServerSnapshot));
             }
             catch (InvalidOperationException)
             {

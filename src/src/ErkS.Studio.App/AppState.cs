@@ -526,6 +526,7 @@ public sealed class AppState : IDisposable
             DesignOrganizationName = summary.DesignOrganizationName,
             UpdatedAtUtc = summary.UpdatedAtUtc,
             ConcurrencyToken = summary.ConcurrencyToken,
+            InformationConcurrencyToken = summary.InformationConcurrencyToken,
             Surface = new ProjectServerSurface
             {
                 SchemaVersion = surface?.SchemaVersion ?? "",
