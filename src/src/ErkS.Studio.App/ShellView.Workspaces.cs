@@ -150,6 +150,16 @@ internal sealed partial class ShellView
         root.Children.Add(workspace);
 
         designSourcesWorkspaceList.BorderThickness = new Thickness(0);
+        designSourcesWorkspaceList.ItemTemplate = CreateSourceItemTemplate();
+        designSourcesWorkspaceList.GroupStyle.Add(new GroupStyle
+        {
+            HeaderTemplate = CreateSourceOwnerHeaderTemplate(),
+        });
+        designSourcesWorkspaceList.ContextMenu = BuildSourceActionsMenu();
+        designSourcesWorkspaceList.PreviewMouseRightButtonDown += SelectSourceUnderPointer;
+        designSourcesWorkspaceList.AddHandler(
+            System.Windows.Controls.Primitives.ButtonBase.ClickEvent,
+            new RoutedEventHandler(OpenSourceActionsMenu));
         designSourcesWorkspaceList.SelectionChanged += (_, _) =>
         {
             if (bindingSourceWorkspaceSelection)
@@ -178,30 +188,38 @@ internal sealed partial class ShellView
         sourceWorkflowText.Foreground = StudioTheme.MutedTextBrush;
         sourceWorkflowText.Margin = new Thickness(2, 0, 2, 10);
         details.Children.Add(sourceWorkflowText);
+
+        // The six per-source actions now live in the menu on each source. They
+        // stay in the tree, hidden by their container rather than by their own
+        // Visibility, because the menu reads that Visibility to know whether an
+        // action applies - collapsing them individually would hide every menu
+        // entry along with them.
+        var sourceActionButtons = new StackPanel { Visibility = Visibility.Collapsed };
         openNativeSourceButton.Margin = new Thickness(0, 0, 0, 6);
         openNativeSourceButton.Click += (_, _) => OpenSelectedNativeSource();
-        details.Children.Add(openNativeSourceButton);
+        sourceActionButtons.Children.Add(openNativeSourceButton);
         openSourceFolderButton.Click += (_, _) => OpenSelectedSourceFolder();
-        details.Children.Add(openSourceFolderButton);
+        sourceActionButtons.Children.Add(openSourceFolderButton);
         relinkNativeSourceButton.Margin = new Thickness(0, 6, 0, 0);
         relinkNativeSourceButton.ToolTip =
             "RVT/DWG эх файлын локал байрлалыг энэ төхөөрөмж дээр солино. Файл cloud руу дамжихгүй.";
         relinkNativeSourceButton.Click += (_, _) => RelinkSelectedNativeSource();
-        details.Children.Add(relinkNativeSourceButton);
+        sourceActionButtons.Children.Add(relinkNativeSourceButton);
         bindCloudSourceButton.Margin = new Thickness(0, 6, 0, 0);
         bindCloudSourceButton.ToolTip =
             "Өөрт хариуцуулсан cloud source-ийг сонгосон локал эх үүсвэртэй холбоно.";
         bindCloudSourceButton.Click += async (_, _) => await BindSelectedCloudSourceAsync();
-        details.Children.Add(bindCloudSourceButton);
+        sourceActionButtons.Children.Add(bindCloudSourceButton);
         transferSourceCustodyButton.Margin = new Thickness(0, 6, 0, 0);
         transferSourceCustodyButton.ToolTip =
             "Cloud source-ийн хариуцагчийг төслийн edit эрхтэй гишүүнд шилжүүлнэ. Native файл дамжихгүй.";
         transferSourceCustodyButton.Click += async (_, _) => await TransferCloudSourceCustodyAsync();
-        details.Children.Add(transferSourceCustodyButton);
+        sourceActionButtons.Children.Add(transferSourceCustodyButton);
         removeDesignSourceButton.Margin = new Thickness(0, 6, 0, 0);
         removeDesignSourceButton.ToolTip = "Төслийн бүртгэлээс хасна. Эх файл болон хүлээн авсан файлуудыг устгахгүй.";
         removeDesignSourceButton.Click += async (_, _) => await RemoveSelectedDesignSourceAsync();
-        details.Children.Add(removeDesignSourceButton);
+        sourceActionButtons.Children.Add(removeDesignSourceButton);
+        details.Children.Add(sourceActionButtons);
         details.Children.Add(BuildVisualizationSourceControls());
         var detailPane = BuildPane(
             "Эх үүсвэрийн мэдээлэл",
@@ -240,12 +258,20 @@ internal sealed partial class ShellView
             "Source Refresh болон Cloud Sync хаана, ямар reason code-оор зогссон эсвэл дууссаныг харна.\n" +
             operationDiagnosticLog.LogPath;
         openOperationLog.Click += (_, _) => OpenOperationDiagnosticLogFolder();
+        // The top row is for making things. What each source can do moved onto
+        // the source itself, and the two diagnostic tools moved into their own
+        // group - they are read when something has gone wrong, not while
+        // working, and sitting beside "Эх үүсвэр нэмэх" gave them the same
+        // weight as the work.
         sourceGroup.Children.Add(addSource);
         sourceGroup.Children.Add(addVisualizationSource);
         sourceGroup.Children.Add(configureBuildings);
-        sourceGroup.Children.Add(rescan);
-        sourceGroup.Children.Add(openOperationLog);
         ribbon.Children.Add(sourceGroup);
+
+        var diagnosticsGroup = CreateRibbonGroup("ОНОШИЛГОО");
+        diagnosticsGroup.Children.Add(rescan);
+        diagnosticsGroup.Children.Add(openOperationLog);
+        ribbon.Children.Add(diagnosticsGroup);
         return ribbon;
     }
 
@@ -1412,7 +1438,14 @@ internal sealed partial class ShellView
                     SourceDocumentLabel(source),
                     detail,
                     CloudSource: sharedSource,
-                    CloudComponent: component));
+                    CloudComponent: component,
+                    // Registered through the cloud, so it has a person; if it
+                    // has never left this device it does not, and falls under
+                    // the device heading rather than being credited to whoever
+                    // is signed in now.
+                    OwnerEmail: sharedSource is null
+                        ? ""
+                        : SourceWorkspaceItem.OwnerOfShared(sharedSource)));
                 continue;
             }
 
@@ -1481,10 +1514,21 @@ internal sealed partial class ShellView
                 $"Cloud album slot | {component.OwnerEmail} | " +
                 $"{component.PageNumbers.Count} page | Зөвхөн харах"));
         }
+        // Filed under whoever registered each source. Done here, in one place,
+        // rather than at each of the five spots that build an item - the owner
+        // is a property of the finished list, and scattering it invites one
+        // branch to be forgotten.
+        for (int index = 0; index < items.Count; index++)
+            items[index] = items[index] with { Owner = ResolveSourceOwner(items[index].OwnerEmail) };
+
+        var grouped = new CollectionViewSource { Source = items };
+        grouped.GroupDescriptions.Add(
+            new PropertyGroupDescription(nameof(SourceWorkspaceItem.Owner)));
+
         bindingSourceWorkspaceSelection = true;
         try
         {
-            designSourcesWorkspaceList.ItemsSource = items;
+            designSourcesWorkspaceList.ItemsSource = grouped.View;
             designSourcesWorkspaceList.SelectedItem = items.FirstOrDefault(item =>
                 string.Equals(item.SelectionKey, selectSourceId, StringComparison.OrdinalIgnoreCase));
             if (designSourcesWorkspaceList.SelectedItem is null && items.Count > 0)
@@ -5599,8 +5643,30 @@ internal sealed partial class ShellView
         string Detail,
         ProjectCloudSourceReference? CloudSource = null,
         ProjectCloudAlbumComponentReference? CloudComponent = null,
-        bool HasLocalPayload = true)
+        bool HasLocalPayload = true,
+        string OwnerEmail = "")
     {
+        /// <summary>
+        /// The heading this source is filed under, resolved when the list is
+        /// built.
+        /// </summary>
+        public SourceOwnerGroup Owner { get; init; } = SourceOwnerGroup.ThisDevice;
+
+        /// <summary>
+        /// The second line of the row: the same facts, without the pipes and
+        /// without the owner's address.
+        /// </summary>
+        /// <remarks>
+        /// The address now heads the group, so repeating it on every row inside
+        /// that group is noise - and it was the longest thing on the line,
+        /// pushing everything else out of view.
+        /// </remarks>
+        public string Summary => string.Join(
+            " · ",
+            Detail
+                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(part => !part.Contains('@', StringComparison.Ordinal)));
+
         public bool IsCloudPlaceholder => !IsVisualization &&
             !HasLocalPayload &&
             (Source is not null ||
@@ -5614,6 +5680,14 @@ internal sealed partial class ShellView
                 : CloudSource is not null
                     ? "cloud-source:" + CloudSource.SourceId
                     : "cloud-component:" + (CloudComponent?.Code ?? "");
+
+        /// <summary>Whoever registered a shared source, if the record says.</summary>
+        internal static string OwnerOfShared(ProjectCloudSourceReference source) =>
+            !string.IsNullOrWhiteSpace(source.RegisteredBy)
+                ? source.RegisteredBy
+                : !string.IsNullOrWhiteSpace(source.OwnerEmail)
+                    ? source.OwnerEmail
+                    : source.CustodianEmail;
 
         public static SourceWorkspaceItem Visualizations(int imageCount, int imagesPerPage) => new(
             null,
@@ -5632,7 +5706,8 @@ internal sealed partial class ShellView
             detail,
             CloudSource: source,
             CloudComponent: component,
-            HasLocalPayload: false);
+            HasLocalPayload: false,
+            OwnerEmail: OwnerOfShared(source));
 
         public static SourceWorkspaceItem Cloud(
             ProjectCloudAlbumComponentReference component,
@@ -5643,7 +5718,8 @@ internal sealed partial class ShellView
             name,
             detail,
             CloudComponent: component,
-            HasLocalPayload: false);
+            HasLocalPayload: false,
+            OwnerEmail: component.OwnerEmail);
 
         public static SourceWorkspaceItem CloudBinding(
             ProjectDesignSource source,
@@ -5657,7 +5733,8 @@ internal sealed partial class ShellView
             detail,
             CloudSource: cloudSource,
             CloudComponent: component,
-            HasLocalPayload: false);
+            HasLocalPayload: false,
+            OwnerEmail: cloudSource is null ? (component?.OwnerEmail ?? "") : OwnerOfShared(cloudSource));
 
         public override string ToString() => $"{Name}\n{Detail}";
     }
