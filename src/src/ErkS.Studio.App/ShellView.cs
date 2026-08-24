@@ -2818,6 +2818,19 @@ internal sealed partial class ShellView : IDisposable
         bool foundationContentChanged = FoundationDraftDiffersFromProject(draft);
         if (linked && !await EnsureSignedInAsync())
             return;
+
+        // The corner table is chosen on this page but is not part of the
+        // foundation draft, because the draft is what gets sent to the server
+        // and this choice never leaves the project file. Writing it here, once
+        // every guard above has let the save through, is what actually saves
+        // it - the general CollectUiToProject path this page does not use.
+        //
+        // It counts as a content change so the stamped title blocks are marked
+        // for redrawing: changing which block is drawn and leaving the drawn
+        // ones alone would show the old table until something else happened to
+        // refresh them.
+        bool cornerTableChanged = ApplySelectedCornerTable();
+        foundationContentChanged |= cornerTableChanged;
         string baseConcurrencyToken = "";
         if (linked)
         {
@@ -3048,6 +3061,12 @@ internal sealed partial class ShellView : IDisposable
             RefreshProjects();
             RebuildNavigation();
             SelectPage(returnPage);
+            if (cornerTableChanged)
+            {
+                ReportCornerTableChange();
+                return;
+            }
+
             SetStatus(!string.IsNullOrWhiteSpace(cloudSaveNotice)
                 ? cloudSaveNotice
                 : cloudUpdateQueued
@@ -4942,6 +4961,37 @@ internal sealed partial class ShellView : IDisposable
     /// is not the size - that is in the label - but that AutoCAD and Revit
     /// follow the same choice, which nothing on this page would otherwise show.
     /// </summary>
+    /// <summary>
+    /// Writes the chosen corner table into the project and says whether it
+    /// changed.
+    /// </summary>
+    private bool ApplySelectedCornerTable()
+    {
+        string chosen = AlbumCornerTableStyles.Normalize(
+            (cornerTableBox.SelectedItem as ProjectCornerTableChoice)?.Value);
+        if (string.Equals(state.Project.AlbumStyle.CornerTable, chosen, StringComparison.Ordinal))
+            return false;
+
+        state.Project.AlbumStyle.CornerTable = chosen;
+        return true;
+    }
+
+    /// <summary>
+    /// Says that AutoCAD and Revit read this choice when they open the
+    /// project, so a session already open keeps drawing the old block.
+    ///
+    /// They have no way to be told; the project file is the only channel and
+    /// they read it on load. The person who just made the change is the only
+    /// one who can act on that, and this is the moment they can.
+    /// </summary>
+    private void ReportCornerTableChange()
+    {
+        ProjectCornerTableChoice? choice = cornerTableBox.SelectedItem as ProjectCornerTableChoice;
+        SetStatus(
+            $"Булангийн хүснэгт «{choice?.Label}» болов. " +
+            "Нээлттэй байгаа AutoCAD, Revit төслөө дахин ачаалах хүртэл хуучин хүснэгтээр зурсаар байна.");
+    }
+
     private void RefreshCornerTableHint() =>
         cornerTableHint.Text = ProjectCornerTableChoices.Explain(
             (cornerTableBox.SelectedItem as ProjectCornerTableChoice)?.Value);
@@ -5588,8 +5638,8 @@ internal sealed partial class ShellView : IDisposable
         project.Identity.Description = basisSummaryBox.Text;
         ApplySelectedProjectClassification();
         var basis = project.Foundation.InitiationBasis;
-        project.AlbumStyle.CornerTable = AlbumCornerTableStyles.Normalize(
-            (cornerTableBox.SelectedItem as ProjectCornerTableChoice)?.Value);
+        // One implementation, because the two save paths must not drift.
+        _ = ApplySelectedCornerTable();
         basis.SourceType = basisSourceBox.Text.Trim();
         basis.RequestNumber = requestNumberBox.Text.Trim();
         basis.ClientType = ProjectClientTypes.Normalize(SelectedClientType);
