@@ -176,6 +176,22 @@ public sealed class SheetPackageEntry
     public string ContentKind { get; set; } = "";
 
     /// <summary>
+    /// Which slot of the album's composition this sheet was drawn for, when
+    /// the exporter knows.
+    ///
+    /// It is carried separately from <see cref="ContentKind"/> because the two
+    /// answer different questions: what a drawing is, and where it belongs. An
+    /// exporter that has a slot writes it into both fields for compatibility,
+    /// and reading only the kind would leave Studio deciding which of the two
+    /// it had been handed by looking at the shape of the string - the same
+    /// guess this codebase refuses to make between a media type and a kind.
+    ///
+    /// Empty from an exporter that has no composition to place sheets in, and
+    /// from every package written before the field existed.
+    /// </summary>
+    public string TemplateSlotId { get; set; } = "";
+
+    /// <summary>
     /// Optional source-sheet narrative. Revit uses its "Хуудасны тайлбар"
     /// parameter; Studio may override it per album page without changing the
     /// authoring file. Missing values preserve schema 1-4 compatibility.
