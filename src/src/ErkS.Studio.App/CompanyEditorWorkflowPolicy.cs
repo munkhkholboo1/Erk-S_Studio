@@ -36,7 +36,10 @@ internal static class CompanyEditorWorkflowPolicy
                 profile.WebSite,
                 profile.LicenseScope,
                 profile.LicenseNumber,
-                profile.DesignRepresentativeName,
+                // The editor's representative field writes the director, so
+                // that is the one that tells an empty profile from a filled
+                // one.
+                profile.DirectorName,
                 profile.LogoPath,
             }
             .All(string.IsNullOrWhiteSpace) &&

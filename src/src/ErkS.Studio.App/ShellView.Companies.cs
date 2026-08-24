@@ -698,7 +698,9 @@ internal sealed partial class ShellView
             {
                 OrganizationId = "local-" + Guid.NewGuid().ToString("N"),
                 OrganizationType = "DesignCompany",
-                DesignRepresentativeTitle = "Захирал",
+                // Only the director gets a default title. A new company has no
+                // appointed architect, and pre-filling that title would make
+                // the profile look like it has one.
                 DirectorTitle = "Захирал",
             },
             CanManage = true,
@@ -1000,8 +1002,12 @@ internal sealed partial class ShellView
         libraryCompanyWebsiteBox.Text = profile.WebSite;
         libraryCompanyLicenseScopeBox.Text = profile.LicenseScope;
         libraryCompanyLicenseNumberBox.Text = profile.LicenseNumber;
-        libraryCompanyDirectorTitleBox.Text = profile.DesignRepresentativeTitle;
-        libraryCompanyDirectorNameBox.Text = profile.DesignRepresentativeName;
+        // This one editor field is the company's own officer - the person the
+        // album prints as "Захирал". It was stored in the design
+        // representative until the server told the two apart; the chief
+        // architect is appointed per project from the team, not typed here.
+        libraryCompanyDirectorTitleBox.Text = profile.DirectorTitle;
+        libraryCompanyDirectorNameBox.Text = profile.DirectorName;
         libraryCompanyRegistrySourceText.Text = RegistrySourceLabel(profile);
         RefreshCompanyRegistryImportButton(entry);
         companyLogoScaleSlider.Value = profile.LogoScale;
@@ -1048,18 +1054,20 @@ internal sealed partial class ShellView
         profile.WebSite = libraryCompanyWebsiteBox.Text.Trim();
         profile.LicenseScope = libraryCompanyLicenseScopeBox.Text.Trim();
         profile.LicenseNumber = libraryCompanyLicenseNumberBox.Text.Trim();
-        profile.DesignRepresentativeTitle = libraryCompanyDirectorTitleBox.Text.Trim();
-        profile.DesignRepresentativeName = libraryCompanyDirectorNameBox.Text.Trim();
-        profile.DirectorTitle = profile.DesignRepresentativeTitle;
-        profile.DirectorName = profile.DesignRepresentativeName;
+        profile.DirectorTitle = libraryCompanyDirectorTitleBox.Text.Trim();
+        profile.DirectorName = libraryCompanyDirectorNameBox.Text.Trim();
+        // DesignRepresentative* is deliberately not written here. It holds the
+        // appointed chief architect, which this editor does not edit, and
+        // copying the director into it is the automatic appointment we were
+        // asked to stop.
         profile.LogoScale = companyLogoScaleSlider.Value;
         profile.LogoOffsetX = companyLogoOffsetXSlider.Value;
         profile.LogoOffsetY = companyLogoOffsetYSlider.Value;
         ApplyCompanyDocumentDrafts(profile);
         profile.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        profile.Signers = string.IsNullOrWhiteSpace(profile.DesignRepresentativeName)
+        profile.Signers = string.IsNullOrWhiteSpace(profile.DirectorName)
             ? []
-            : [new CompanySigner { Role = profile.DesignRepresentativeTitle, FullName = profile.DesignRepresentativeName }];
+            : [new CompanySigner { Role = profile.DirectorTitle, FullName = profile.DirectorName }];
         profile.Normalize();
         return profile;
     }

@@ -1348,15 +1348,23 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             Mm(printedTextHeightMm / BuildingArchitectureConceptPageLayout.ArialCapHeightRatio),
             bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
 
+    /// <summary>
+    /// The company officer this table names, which the album labels "Захирал".
+    ///
+    /// It read the design representative for as long as that field held the
+    /// director - one person written into two slots. Now that a chief
+    /// architect can be appointed into the design representative, reading it
+    /// here would print the architect's name under the word "Захирал".
+    /// </summary>
     private static (string Role, string Name) ResolveCompanyRepresentative(AlbumProject project)
     {
-        if (!string.IsNullOrWhiteSpace(project.Company.DesignRepresentativeName))
+        if (!string.IsNullOrWhiteSpace(project.Company.DirectorName))
         {
             return (
-                string.IsNullOrWhiteSpace(project.Company.DesignRepresentativeTitle)
+                string.IsNullOrWhiteSpace(project.Company.DirectorTitle)
                     ? "Захирал"
-                    : project.Company.DesignRepresentativeTitle,
-                project.Company.DesignRepresentativeName);
+                    : project.Company.DirectorTitle,
+                project.Company.DirectorName);
         }
 
         var signer = project.Company.Signers.FirstOrDefault(candidate =>

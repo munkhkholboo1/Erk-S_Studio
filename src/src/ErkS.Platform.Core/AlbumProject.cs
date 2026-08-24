@@ -183,12 +183,20 @@ public sealed class CompanyProfile
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (string.IsNullOrWhiteSpace(DesignRepresentativeTitle))
-            DesignRepresentativeTitle = DirectorTitle;
-        if (string.IsNullOrWhiteSpace(DesignRepresentativeName))
-            DesignRepresentativeName = DirectorName;
-        DirectorTitle = DesignRepresentativeTitle;
-        DirectorName = DesignRepresentativeName;
+        // The director and the design representative are two people: the
+        // company's own officer, and the chief architect appointed to a
+        // project. They were kept identical here for as long as one value was
+        // written into both slots, and that mirroring is what made an
+        // appointed architect overwrite the director's name.
+        //
+        // The director keeps a fallback because snapshots written before the
+        // split hold the director in both slots. The design representative
+        // gets none: copying the director into it is an automatic
+        // appointment, and nobody appointed is a real answer.
+        if (string.IsNullOrWhiteSpace(DirectorTitle))
+            DirectorTitle = DesignRepresentativeTitle;
+        if (string.IsNullOrWhiteSpace(DirectorName))
+            DirectorName = DesignRepresentativeName;
         RegistrySource = string.IsNullOrWhiteSpace(RegistrySource) ? "SelfDeclared" : RegistrySource.Trim();
         RegistrySourceUrl = string.IsNullOrWhiteSpace(RegistrySourceUrl)
             ? "https://opendata.burtgel.gov.mn/les"

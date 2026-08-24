@@ -162,13 +162,15 @@ internal static class StudioCompanySnapshotRefreshPolicy
     private static (string Role, string Name) ResolveCompanyRepresentative(
         CompanyProfile profile)
     {
-        if (!string.IsNullOrWhiteSpace(profile.DesignRepresentativeName))
+        // The director, not the appointed architect - this pairs with the
+        // album's own resolver, which labels the line "Захирал".
+        if (!string.IsNullOrWhiteSpace(profile.DirectorName))
         {
             return (
-                string.IsNullOrWhiteSpace(profile.DesignRepresentativeTitle)
+                string.IsNullOrWhiteSpace(profile.DirectorTitle)
                     ? "Захирал"
-                    : Normalize(profile.DesignRepresentativeTitle),
-                Normalize(profile.DesignRepresentativeName));
+                    : Normalize(profile.DirectorTitle),
+                Normalize(profile.DirectorName));
         }
 
         CompanySigner? signer = profile.Signers.FirstOrDefault(candidate =>

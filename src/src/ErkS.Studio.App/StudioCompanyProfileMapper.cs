@@ -33,16 +33,27 @@ internal static class StudioCompanyProfileMapper
             WebSite = cloud.Website,
             LicenseScope = cloud.LicenseScope,
             LicenseNumber = cloud.LicenseNumber,
-            DesignRepresentativeTitle = FirstValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
-            DesignRepresentativeName = FirstValue(cloud.DesignRepresentativeName, cloud.DirectorName),
-            DirectorTitle = FirstValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
-            DirectorName = FirstValue(cloud.DesignRepresentativeName, cloud.DirectorName),
+            // The two used to be one person read twice. They are separate on
+            // the server now, and reading the design representative first put
+            // the chief architect's name into the director field the moment
+            // anyone appointed one. Each field reads its own value.
+            //
+            // Director keeps a fallback: snapshots written before the split
+            // hold the director in both slots, so an old profile still finds
+            // the name. The design representative gets no fallback on purpose
+            // - filling it from the director is the automatic appointment we
+            // were asked to remove, and an unappointed architect must read as
+            // unappointed.
+            DesignRepresentativeTitle = Clean(cloud.DesignRepresentativeTitle),
+            DesignRepresentativeName = Clean(cloud.DesignRepresentativeName),
+            DirectorTitle = FirstValue(cloud.DirectorTitle, cloud.DesignRepresentativeTitle),
+            DirectorName = FirstValue(cloud.DirectorName, cloud.DesignRepresentativeName),
             LogoScale = cloud.LogoScale,
             LogoOffsetX = cloud.LogoOffsetX,
             LogoOffsetY = cloud.LogoOffsetY,
             UpdatedAtUtc = cloud.UpdatedAtUtc,
         };
-        AddDesignRepresentativeSigner(profile);
+        AddDirectorSigner(profile);
         profile.Normalize();
         return profile;
     }
@@ -74,10 +85,21 @@ internal static class StudioCompanyProfileMapper
             WebSite = cloud.Website,
             LicenseScope = cloud.LicenseScope,
             LicenseNumber = cloud.LicenseNumber,
-            DesignRepresentativeTitle = FirstValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
-            DesignRepresentativeName = FirstValue(cloud.DesignRepresentativeName, cloud.DirectorName),
-            DirectorTitle = FirstValue(cloud.DesignRepresentativeTitle, cloud.DirectorTitle),
-            DirectorName = FirstValue(cloud.DesignRepresentativeName, cloud.DirectorName),
+            // The two used to be one person read twice. They are separate on
+            // the server now, and reading the design representative first put
+            // the chief architect's name into the director field the moment
+            // anyone appointed one. Each field reads its own value.
+            //
+            // Director keeps a fallback: snapshots written before the split
+            // hold the director in both slots, so an old profile still finds
+            // the name. The design representative gets no fallback on purpose
+            // - filling it from the director is the automatic appointment we
+            // were asked to remove, and an unappointed architect must read as
+            // unappointed.
+            DesignRepresentativeTitle = Clean(cloud.DesignRepresentativeTitle),
+            DesignRepresentativeName = Clean(cloud.DesignRepresentativeName),
+            DirectorTitle = FirstValue(cloud.DirectorTitle, cloud.DesignRepresentativeTitle),
+            DirectorName = FirstValue(cloud.DirectorName, cloud.DesignRepresentativeName),
             LogoScale = cloud.LogoScale,
             LogoOffsetX = cloud.LogoOffsetX,
             LogoOffsetY = cloud.LogoOffsetY,
@@ -88,7 +110,7 @@ internal static class StudioCompanyProfileMapper
         profile.DesignLicenseDocuments = ToDocuments(
             cloud.DesignLicenseDocuments,
             ProjectDocumentCategories.CompanyDesignLicense);
-        AddDesignRepresentativeSigner(profile);
+        AddDirectorSigner(profile);
         profile.Normalize();
         return profile;
     }
@@ -161,29 +183,54 @@ internal static class StudioCompanyProfileMapper
             Website = profile.WebSite,
             LicenseScope = profile.LicenseScope,
             LicenseNumber = profile.LicenseNumber,
-            DesignRepresentativeTitle = profile.DesignRepresentativeTitle,
-            DesignRepresentativeName = profile.DesignRepresentativeName,
-            // Keep legacy aliases on the wire; the Studio editor exposes only one representative section.
-            DirectorTitle = profile.DesignRepresentativeTitle,
-            DirectorName = profile.DesignRepresentativeName,
+            // Both halves carry the director, and both must keep carrying it
+            // until this client declares supportsSeparateRepresentatives.
+            //
+            // The server ignores the design representative half from a client
+            // that has not declared the flag, so sending the director in both
+            // leaves the wire behaving exactly as it did. What changed is
+            // where the value is read from: profile.DesignRepresentative* now
+            // holds the appointed chief architect, and sending that as the
+            // director would file the architect as the director - or, when
+            // nobody is appointed, blank the director outright.
+            //
+            // Declaring the flag is held back deliberately. Once declared, an
+            // empty design representative clears the stored one, so a client
+            // that had not read the server's current value first would erase
+            // an appointment made on the website. SRV has been asked whether
+            // baseConcurrencyToken already prevents that.
+            DesignRepresentativeTitle = profile.DirectorTitle,
+            DesignRepresentativeName = profile.DirectorName,
+            DirectorTitle = profile.DirectorTitle,
+            DirectorName = profile.DirectorName,
             LogoScale = profile.LogoScale,
             LogoOffsetX = profile.LogoOffsetX,
             LogoOffsetY = profile.LogoOffsetY,
         };
     }
 
-    private static void AddDesignRepresentativeSigner(CompanyProfile profile)
+    /// <summary>
+    /// The company's signing officer, which is the director.
+    ///
+    /// This read the design representative until the server told the two
+    /// apart. Once a chief architect can be appointed, taking the signer from
+    /// that field would put the architect's name on the line the album labels
+    /// "Захирал".
+    /// </summary>
+    private static void AddDirectorSigner(CompanyProfile profile)
     {
-        if (!string.IsNullOrWhiteSpace(profile.DesignRepresentativeName))
+        if (!string.IsNullOrWhiteSpace(profile.DirectorName))
         {
             profile.Signers.Add(new CompanySigner
             {
-                Role = profile.DesignRepresentativeTitle,
-                FullName = profile.DesignRepresentativeName,
+                Role = profile.DirectorTitle,
+                FullName = profile.DirectorName,
             });
         }
     }
 
     private static string FirstValue(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
+
+    private static string Clean(string? value) => (value ?? "").Trim();
 }

@@ -52,20 +52,59 @@ public sealed class CompanyLibraryTests : IDisposable
     }
 
     [Fact]
-    public void LegacyDirectorFieldsBecomeDesignRepresentativeWithoutLosingCompatibility()
+    public void LegacyDesignRepresentativeStillAnswersForAMissingDirector()
     {
+        // Snapshots written before the split hold the director in both slots.
+        // Reading one of them must still find the director's name.
         var profile = new CompanyProfile
         {
-            DirectorTitle = "Зураг төсөл хариуцсан захирал",
-            DirectorName = "Э.Мөнххолбоо",
+            DesignRepresentativeTitle = "Зураг төсөл хариуцсан захирал",
+            DesignRepresentativeName = "Э.Мөнххолбоо",
         };
 
         profile.Normalize();
 
-        Assert.Equal("Зураг төсөл хариуцсан захирал", profile.DesignRepresentativeTitle);
-        Assert.Equal("Э.Мөнххолбоо", profile.DesignRepresentativeName);
-        Assert.Equal(profile.DesignRepresentativeTitle, profile.DirectorTitle);
-        Assert.Equal(profile.DesignRepresentativeName, profile.DirectorName);
+        Assert.Equal("Зураг төсөл хариуцсан захирал", profile.DirectorTitle);
+        Assert.Equal("Э.Мөнххолбоо", profile.DirectorName);
+    }
+
+    [Fact]
+    public void AppointedArchitectNeverOverwritesTheDirector()
+    {
+        // The whole point of the split. While the two were mirrored, an
+        // appointed architect replaced the director's name, and the album's
+        // "Захирал" line printed the architect.
+        var profile = new CompanyProfile
+        {
+            DirectorTitle = "Захирал",
+            DirectorName = "О.Очир-Эрдэнэ",
+            DesignRepresentativeTitle = "Ерөнхий архитектор",
+            DesignRepresentativeName = "Г.Энх-Амар",
+        };
+
+        profile.Normalize();
+
+        Assert.Equal("О.Очир-Эрдэнэ", profile.DirectorName);
+        Assert.Equal("Захирал", profile.DirectorTitle);
+        Assert.Equal("Г.Энх-Амар", profile.DesignRepresentativeName);
+    }
+
+    [Fact]
+    public void NobodyAppointedStaysEmptyRatherThanBorrowingTheDirector()
+    {
+        // Copying the director in was an automatic appointment. An
+        // unappointed architect has to read as unappointed.
+        var profile = new CompanyProfile
+        {
+            DirectorTitle = "Захирал",
+            DirectorName = "О.Очир-Эрдэнэ",
+        };
+
+        profile.Normalize();
+
+        Assert.Equal("", profile.DesignRepresentativeName);
+        Assert.Equal("", profile.DesignRepresentativeTitle);
+        Assert.Equal("О.Очир-Эрдэнэ", profile.DirectorName);
     }
 
     [Fact]
