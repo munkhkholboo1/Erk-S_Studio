@@ -50,17 +50,18 @@ public sealed class DevelopmentProjectAlbumTemplateTests
     [Fact]
     public void TheReferenceAlbumsThirtySlotsAreAllThere()
     {
-        // Five pages Studio makes plus the thirty AutoCAD fills.
+        // Six pages Studio makes plus the thirty AutoCAD fills.
         IReadOnlyList<AlbumCompositionItem> composition = Definition().Composition;
 
-        Assert.Equal(35, composition.Count);
-        Assert.Equal(5, composition.Count(item => item.Kind == AlbumCompositionKind.Generated));
+        Assert.Equal(36, composition.Count);
+        Assert.Equal(6, composition.Count(item => item.Kind == AlbumCompositionKind.Generated));
         Assert.Equal(30, composition.Count(item => item.Kind == AlbumCompositionKind.SourceSlot));
     }
 
     [Theory]
     [InlineData("cover")]
     [InlineData("drawing-list-and-notes")]
+    [InlineData("design-organization")]
     [InlineData("planning-task")]
     public void ThePagesTheReferenceAlbumLeavesUnnumberedCarryNoNumber(string id)
     {
@@ -169,6 +170,29 @@ public sealed class DevelopmentProjectAlbumTemplateTests
 
         Assert.Equal(AlbumGeneratedPageKind.PlanningTask, task.GeneratedPageKind);
         Assert.Single(Definition().Composition, item => item.Id == "planning-task");
+    }
+
+    [Fact]
+    public void TheOrganisationsCertificateAndLicenceAreStudioPages()
+    {
+        // «Байгууллагын гэрчилгээ, Байгууллагын тусгай зөвшөөрөл … Эдгээр
+        // хуудаснууд студио талд үүснэ.» One slot draws both, the same way the
+        // concept album already does - two entries would have meant two
+        // mechanisms for one pair of documents.
+        AlbumCompositionItem slot = Slot("design-organization");
+
+        Assert.Equal(AlbumGeneratedPageKind.DesignOrganization, slot.GeneratedPageKind);
+        Assert.Equal(AlbumCompositionKind.Generated, slot.Kind);
+    }
+
+    [Fact]
+    public void TheOrganisationPagesDoNotDisturbTheDrawingNumbers()
+    {
+        // They carry no mark, so inserting them cannot push ЕТ-01 along -
+        // which is the whole reason the counters are per mark.
+        Assert.Equal("", Slot("design-organization").Number);
+        Assert.Equal("ЕТ-01", Slot("location-scheme").Number);
+        Assert.Equal("ЕТ-03", Slot("topographic-base").Number);
     }
 
     [Fact]
