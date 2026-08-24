@@ -2,8 +2,15 @@
 param(
     [string]$ReleaseVersion = "",
 
-    [Parameter(Mandatory = $true)]
-    [string]$ReleaseNotes,
+    # Not Mandatory on purpose. A mandatory parameter makes PowerShell stop and
+    # prompt "ReleaseNotes:", and whatever is typed next becomes the value -
+    # including a command meant for the shell, typed by someone who thought the
+    # script had already finished. This text is published on the public release
+    # page, so that prompt is a way for a stray line to end up on the website,
+    # and answering it also lets the upload continue when the intent was to
+    # abort. Both happened on 2026-08-25. Missing notes now stop the run with an
+    # explanation instead of asking a question.
+    [string]$ReleaseNotes = "",
 
     [string]$LicenseServerRoot = "D:\ErkS-Server\data-root",
 
@@ -12,6 +19,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($ReleaseNotes)) {
+    throw @'
+Release notes are required and this script will not ask for them.
+
+Pass them on the command line, in quotes:
+  .\src\scripts\Publish-Studio-DemoToServer.ps1 -ReleaseNotes "<юу өөрчлөгдсөн>"
+
+They are shown to every user on the public release page, so they have to be
+written deliberately rather than typed into a prompt.
+'@
+}
+
 
 function Get-RequiredStudioVersionProperty {
     param(
@@ -169,6 +189,41 @@ $updatePath = Join-Path $updatesRoot $updateName
 foreach ($directory in @($productDataRoot, $downloadsRoot, $updatesRoot)) {
     [IO.Directory]::CreateDirectory($directory) | Out-Null
 }
+
+# One version number must never name two different builds.
+#
+# On 2026-08-25 a build of V0.001.51 was produced under the name V0.001.50 and
+# published over the real V0.001.50, which overwrote it on the server and left
+# nothing to roll back to. Nothing checked, because the file name matched.
+# A name collision with different bytes is always a mistake, so it stops here
+# rather than being resolved by whoever copied last.
+$incomingHash = (Get-FileHash -LiteralPath $setupSource -Algorithm SHA256).Hash
+foreach ($existing in @($downloadPath, $updatePath)) {
+    if (-not (Test-Path -LiteralPath $existing -PathType Leaf)) {
+        continue
+    }
+
+    $existingHash = (Get-FileHash -LiteralPath $existing -Algorithm SHA256).Hash
+    if ([string]::Equals($existingHash, $incomingHash, [StringComparison]::OrdinalIgnoreCase)) {
+        continue
+    }
+
+    throw @"
+$($versions.Metadata) is already published with different content.
+
+  on the server : $existingHash
+  about to copy : $incomingHash
+  path          : $existing
+
+Publishing this would replace a release that users may already be running, and
+the version number would no longer identify what they have. Check whether the
+build was made under the wrong version number - Studio.Version.props names the
+build folder - and republish under its own number.
+"@
+}
+
+Write-Host "Release notes to publish:" -ForegroundColor Cyan
+Write-Host $ReleaseNotes.Trim()
 
 Copy-Item -LiteralPath $setupSource -Destination $downloadPath -Force
 Copy-Item -LiteralPath $setupSource -Destination $updatePath -Force

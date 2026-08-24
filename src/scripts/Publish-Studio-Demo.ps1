@@ -7,7 +7,11 @@ param(
     [string]$ExpectedPublisher = "Erk-S LLC",
     [string]$TimestampUrl = "http://timestamp.digicert.com",
     [switch]$AllowPrivateTrustDemoCertificate,
-    [string]$PrivateTrustCertificateSha256 = "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A"
+    [string]$PrivateTrustCertificateSha256 = "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A",
+
+    # Allows a finished release folder to be rebuilt over. Without it, a folder
+    # that already holds a release.json is left alone - see the guard below.
+    [switch]$ReplaceExistingBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -309,6 +313,38 @@ if ($SigningContext.SelfSigned) {
         throw "The self-signed demo certificate does not match the Studio updater certificate pin."
     }
     Write-Warning "Building a private-trust transitional demo. Chrome and Smart App Control require a CA-trusted certificate or Microsoft Store distribution."
+}
+
+# A finished release in this folder is not scratch space.
+#
+# The version number comes from Studio.Version.props, not from the code being
+# built, so a build can arrive here carrying one version's content under
+# another version's name. On 2026-08-25 that is exactly what happened: the
+# props still said 0.001.50 while the tree held 0.001.51, and this line deleted
+# the only local copy of the released V0.001.50 without a word.
+#
+# A folder with no release.json is an abandoned run and is cleared as before.
+$existingManifest = Join-Path $OutputDirectory "release.json"
+if ((Test-Path -LiteralPath $existingManifest -PathType Leaf) -and (-not $ReplaceExistingBuild)) {
+    $existingVersion = ""
+    try {
+        $existingVersion = (Get-Content -Raw -LiteralPath $existingManifest | ConvertFrom-Json).displayVersion
+    } catch {
+        $existingVersion = "(release.json unreadable)"
+    }
+
+    throw @"
+$ReleaseVersion has already been built here and would be overwritten.
+
+  folder   : $OutputDirectory
+  contains : $existingVersion
+
+If the tree has moved on since that build, this run is about to produce
+different content under the same version number. Check StudioPublishedVersion
+in src\Studio.Version.props first - that is what names this folder.
+
+To rebuild this version on purpose, pass -ReplaceExistingBuild.
+"@
 }
 
 if (Test-Path -LiteralPath $OutputDirectory) {
