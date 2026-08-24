@@ -144,6 +144,12 @@ internal sealed partial class ShellView : IDisposable
     /// it has finished writing its own status line over them.
     /// </summary>
     private readonly List<string> pendingOpenNotices = [];
+
+    /// <summary>
+    /// Why the assigned company's certificate and licence are missing, when
+    /// they are. Blank when there is nothing to explain.
+    /// </summary>
+    private readonly TextBlock companyDocumentAvailabilityText = new();
     private readonly TextBox basisSourceBox = new();
     private readonly TextBox requestNumberBox = new();
     private readonly ComboBox clientTypeBox = new();
@@ -2594,6 +2600,11 @@ internal sealed partial class ShellView : IDisposable
         projectCompanyLibraryButton.HorizontalAlignment = HorizontalAlignment.Left;
         projectCompanyLibraryButton.Click += (_, _) => OpenCompanyLibraryForProject();
         form.Children.Add(projectCompanyLibraryButton);
+
+        companyDocumentAvailabilityText.Foreground = StudioTheme.MutedTextBrush;
+        companyDocumentAvailabilityText.Margin = new Thickness(0, 10, 0, 0);
+        companyDocumentAvailabilityText.TextWrapping = TextWrapping.Wrap;
+        form.Children.Add(companyDocumentAvailabilityText);
 
         form.Children.Add(StudioWidgets.CreateHint(
             "Компанийн project snapshot нь нүүр хуудас, компанийн мэдээллийн хуудас болон булангийн хүснэгтэд автоматаар хэрэглэгдэнэ. Задгай profile болон эх файлууд энэ төсөлд нээгдэхгүй."));
@@ -5129,6 +5140,8 @@ internal sealed partial class ShellView : IDisposable
             ? "Зураг төслийн байгууллага сонгогдоогүй"
             : CompanyDisplayName(company);
         companyAssignmentPolicyText.Text = ProjectCompanyAssignmentDescription(project);
+        companyDocumentAvailabilityText.Text =
+            ProjectCompanyDocumentAvailability.Describe(project) ?? "";
         RefreshProjectCompanySelectorUi();
 
         foreach (TextBox box in new[]
