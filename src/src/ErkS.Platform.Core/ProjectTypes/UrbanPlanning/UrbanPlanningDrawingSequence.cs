@@ -14,7 +14,28 @@ public sealed record UrbanPlanningDrawingSlot(
     string Title,
     bool UsesNomenclatureGrid = false,
     bool AllowMultiplePages = false,
-    bool Required = true);
+    bool Required = true,
+    string Scale = "",
+    string Section = "",
+    AlbumGeneratedPageKind GeneratedPageKind = AlbumGeneratedPageKind.None)
+{
+    /// <summary>
+    /// A page the album makes for itself rather than one a drawing arrives
+    /// into. The two existing sequences decide this from the slot id; a third
+    /// with more generated pages says it outright.
+    /// </summary>
+    public bool IsGenerated =>
+        GeneratedPageKind != AlbumGeneratedPageKind.None ||
+        Id is "cover" or "drawing-list-and-notes";
+
+    /// <summary>
+    /// The drawing number printed on the sheet, or empty for a page the
+    /// standard does not number - a cover, a drawing list, a copy of the
+    /// planning task.
+    /// </summary>
+    public string DrawingNumber =>
+        string.IsNullOrWhiteSpace(Mark) ? "" : $"{Mark}-{MarkOrder:00}";
+}
 
 public interface IUrbanPlanningDrawingSequence
 {
@@ -29,6 +50,7 @@ public static class UrbanPlanningDrawingSequenceRegistry
         {
             new MasterPlanDrawingSequence(),
             new PartialMasterPlanDrawingSequence(),
+            new DevelopmentProjectDrawingSequence(),
         }.ToDictionary(item => item.ProjectStageType, StringComparer.OrdinalIgnoreCase);
 
     public static IUrbanPlanningDrawingSequence Resolve(string stageType) =>
@@ -87,6 +109,97 @@ internal static class UrbanPlanningDrawingSequenceFactory
         Tiled("power-supply", 21, UrbanPlanningDrawingMarks.EngineeringInfrastructure, 4, "Эрчим хүчний хангамж, сэргээгдэх эрчим хүч"),
         Tiled("communications-and-signaling", 22, UrbanPlanningDrawingMarks.EngineeringInfrastructure, 5, "Холбоо, мэдээллийн сүлжээ"),
     ];
+
+    /// <summary>
+    /// Барилгажилтын төслийн дараалал. Эх сурвалж:
+    /// docs/DEVELOPMENT-PROJECT-ALBUM-CONTRACT.md.
+    ///
+    /// The opening five entries are Studio's own. The remaining thirty are the
+    /// slots AutoCAD fills, numbered ЕТ-03 upward because the location scheme
+    /// and the site overview take ЕТ-01 and ЕТ-02.
+    /// </summary>
+    public static IReadOnlyList<UrbanPlanningDrawingSlot> CreateDevelopmentProjectSequence() =>
+    [
+        Generated("cover", 1, "Нүүр хуудас", AlbumGeneratedPageKind.Cover),
+        Generated("drawing-list-and-notes", 2, "Тайлбар бичиг, зургийн жагсаалт"),
+        Generated("planning-task", 3, "Архитектур төлөвлөлтийн даалгавар", AlbumGeneratedPageKind.PlanningTask),
+        Generated("location-scheme", 4, "Байршлын схем", AlbumGeneratedPageKind.SiteContext, "ЕТ", 1, "М1:200000"),
+        Generated("site-overview", 5, "Орчны тойм", AlbumGeneratedPageKind.SiteContext, "ЕТ", 2, "М1:20000"),
+
+        // Одоогийн байдлын судалгаа.
+        Survey("topographic-base", 6, "ЕТ", 3, "Байр зүйн дэвсгэр зураг", "М1:1500"),
+        Survey("terrain-elevation", 7, "ЕТ", 4, "Газрын гадаргын өндөржилт", "М1:1500"),
+        Survey("terrain-slope", 8, "ЕТ", 5, "Газрын гадаргын налуужилт", "М1:1500"),
+        Survey("approved-planning-survey", 9, "ЕТ", 6, "Батлагдсан төлөвлөлтийн судалгаа", ""),
+        Survey("environmental-condition", 10, "ЕТ", 7, "Байгаль орчны төлөв байдал", "М1:6000"),
+        Survey("road-network-survey", 11, "ЕТ", 8, "Авто замын сүлжээ", "М1:10000"),
+        Survey("land-use-survey", 12, "ЕТ", 9, "Газар ашиглалтын судалгаа", "М1:16000"),
+        Survey("existing-engineering-preparation", 13, "ИДБ", 1, "Инженерийн бэлтгэл арга хэмжээ", "М1:1500"),
+        Survey("existing-heating-supply", 14, "ИДБ", 2, "Дулаан хангамж", "М1:1500"),
+        Survey("existing-water-and-sewer", 15, "ИДБ", 3, "Ус хангамж, ариутгах татуурга", "М1:1500"),
+        Survey("existing-power-supply", 16, "ИДБ", 4, "Цахилгаан хангамж", "М1:1500"),
+        Survey("existing-communications", 17, "ИДБ", 5, "Мэдээлэл холбооны сүлжээ", "М1:1500"),
+
+        // Хувилбарууд нь төлөвлөлтийн ажил боловч жишиг альбом тэдгээрийг
+        // судалгааны хэсэгт тавьсан. Дараагийн хүн үүнийг алдаа гэж бодож
+        // зөөхөөс сэргийлж энд тэмдэглэв.
+        Survey("planning-option-1", 18, "ЕТ", 10, "Төлөвлөлтийн хувилбар-1", "М1:1500"),
+        Survey("site-layout-option-1", 19, "ЕТ", 11, "Талбайн зохион байгуулалт", "М1:1500"),
+        Survey("planning-option-2", 20, "ЕТ", 12, "Төлөвлөлтийн хувилбар-2", "М1:1500"),
+        Survey("site-layout-option-2", 21, "ЕТ", 13, "Талбайн зохион байгуулалт", "М1:1500"),
+
+        // Төлөвлөлтийн шийдэл.
+        Solution("general-plan-zoning", 22, "ЕТ", 14, "Төлөвлөлтийн үндсэн шийдэл", "М1:1500"),
+        Solution("site-layout", 23, "ЕТ", 15, "Талбайн зохион байгуулалт", "М1:1500"),
+        Solution("architectural-spatial-planning", 24, "ЕТ", 16, "Архитектур орон зайн төлөвлөлт", "М1:1500"),
+        Solution("street-road-transport", 25, "ЕТ", 17, "Авто зам, тээврийн сүлжээний төлөвлөлт", "М1:1500"),
+        Solution("traffic-organization", 26, "ЕТ", 18, "Хөдөлгөөн зохион байгуулалт", "М1:1500"),
+        Solution("green-infrastructure", 27, "ЕТ", 19, "Ногоон байгууламжийн төлөвлөлт", "М1:1500"),
+        Solution("waste-management", 28, "ЕТ", 20, "Хог хаягдлын менежмент", "М1:1500"),
+        Solution("general-view-1", 29, "ЕТ", 21, "Ерөнхий харагдах байдал - 1", "М1:1500"),
+        Solution("general-view-2", 30, "ЕТ", 22, "Ерөнхий харагдах байдал - 2", "М1:1500"),
+        Solution("engineering-preparation", 31, "ИДБ", 6, "Инженерийн бэлтгэл арга хэмжээ", "М1:1500"),
+        Solution("heating-supply", 32, "ИДБ", 7, "Дулаан хангамж", "М1:1500"),
+        Solution("water-and-sewer", 33, "ИДБ", 8, "Ус хангамж, ариутгах татуурга", "М1:1500"),
+        Solution("power-supply", 34, "ИДБ", 9, "Цахилгаан хангамж", "М1:1500"),
+        Solution("communications-and-signaling", 35, "ИДБ", 10, "Мэдээлэл холбооны сүлжээ", "М1:1500"),
+    ];
+
+    private static UrbanPlanningDrawingSlot Generated(
+        string id,
+        int order,
+        string title,
+        AlbumGeneratedPageKind kind = AlbumGeneratedPageKind.None,
+        string mark = "",
+        int markOrder = 0,
+        string scale = "") =>
+        new(id, order, mark, markOrder, title, Scale: scale, GeneratedPageKind: kind);
+
+    private static UrbanPlanningDrawingSlot Survey(
+        string id,
+        int order,
+        string mark,
+        int markOrder,
+        string title,
+        string scale) =>
+        Tiled(id, order, mark, markOrder, title) with
+        {
+            Scale = scale,
+            Section = DevelopmentProjectDrawingSequence.SurveySectionTitle,
+        };
+
+    private static UrbanPlanningDrawingSlot Solution(
+        string id,
+        int order,
+        string mark,
+        int markOrder,
+        string title,
+        string scale) =>
+        Tiled(id, order, mark, markOrder, title) with
+        {
+            Scale = scale,
+            Section = DevelopmentProjectDrawingSequence.SolutionSectionTitle,
+        };
 
     private static UrbanPlanningDrawingSlot Fixed(string id, int order, string mark, int markOrder, string title) =>
         new(id, order, mark, markOrder, title);

@@ -116,6 +116,7 @@ public static class ProjectAlbumTemplateResolver
         {
             bool changed = false;
             if (isUrbanPlanning &&
+                expected.GeneratedPageFormat is not null &&
                 (!PageFormatCatalog.IsUsable(album.Definition.GeneratedPageFormat) ||
                  album.Definition.GeneratedPageFormat!.Kind != PageFormatKind.WorkingDrawing))
             {

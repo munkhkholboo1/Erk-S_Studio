@@ -3,12 +3,15 @@ namespace ErkS.Platform.Core.Tests;
 /// <summary>
 /// A stage with no album template of its own.
 ///
-/// Three urban planning stages exist in practice - master plan, partial plan
-/// and development project - but only the first two have templates. The third
-/// fell through to the building concept album without a word. That album is
-/// perfectly usable, which is exactly why the substitution went unnoticed: the
-/// pages number, the corner block draws, nothing errors. Only someone who knew
-/// what the stage should have looked like could tell it was wrong.
+/// Development project was the stage that prompted this: it fell through to
+/// the building concept album without a word, and the client opened their
+/// project to find a cover reading /ЗАГВАР ЗУРАГ/. That album is perfectly
+/// usable, which is exactly why the substitution went unnoticed - the pages
+/// number, the corner block draws, nothing errors. Only someone who knew what
+/// the stage should have looked like could tell it was wrong.
+///
+/// That stage now has a template. The notice remains, because the next stage
+/// nobody has built yet will land in exactly the same place.
 ///
 /// CreateDefinition has to return something, so it cannot refuse. This is the
 /// separate answer to "was it the right one".
@@ -16,14 +19,16 @@ namespace ErkS.Platform.Core.Tests;
 public sealed class ProjectAlbumTemplateCoverageTests
 {
     [Fact]
-    public void ADevelopmentProjectIsReportedAsUncovered()
+    public void AStageWithNoTemplateIsReportedAsUncovered()
     {
-        // The user's own project. urban-planning + development-project is the
-        // combination that has no template.
+        // This used to be development-project - the user's own project, and
+        // the reason this notice exists. That stage now has a template of its
+        // own, so the example moved to one that still does not: the mechanism
+        // has to keep working for the next stage nobody has built yet.
         ProjectAlbumTemplateCoverage coverage = Describe(
             "urban-planning",
-            "development-project",
-            "Барилгажилтын төсөл");
+            "detailed-plan",
+            "Хэсэгчилсэн нарийвчилсан төлөвлөгөө");
 
         Assert.False(coverage.HasTemplateForStage);
         Assert.NotNull(coverage.Notice);
@@ -36,10 +41,10 @@ public sealed class ProjectAlbumTemplateCoverageTests
         // act on, which is as good as silence.
         string notice = Require(Describe(
             "urban-planning",
-            "development-project",
-            "Барилгажилтын төсөл"));
+            "detailed-plan",
+            "Хэсэгчилсэн нарийвчилсан төлөвлөгөө"));
 
-        Assert.Contains("Барилгажилтын төсөл", notice);
+        Assert.Contains("Хэсэгчилсэн нарийвчилсан төлөвлөгөө", notice);
         Assert.Contains("хуудасны бүрдэл", notice);
     }
 
@@ -51,8 +56,8 @@ public sealed class ProjectAlbumTemplateCoverageTests
         // setting that is not there.
         string notice = Require(Describe(
             "urban-planning",
-            "development-project",
-            "Барилгажилтын төсөл"));
+            "detailed-plan",
+            "Хэсэгчилсэн нарийвчилсан төлөвлөгөө"));
 
         Assert.Contains("хараахан байхгүй", notice);
     }
@@ -93,11 +98,11 @@ public sealed class ProjectAlbumTemplateCoverageTests
         // Better an identifier than an empty pair of quotation marks.
         ProjectAlbumTemplateCoverage coverage = Describe(
             "urban-planning",
-            "development-project",
+            "detailed-plan",
             "");
 
-        Assert.Equal("development-project", coverage.StageLabel);
-        Assert.Contains("development-project", Require(coverage));
+        Assert.Equal("detailed-plan", coverage.StageLabel);
+        Assert.Contains("detailed-plan", Require(coverage));
     }
 
     private static ProjectAlbumTemplateCoverage Describe(

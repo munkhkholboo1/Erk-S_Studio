@@ -6,6 +6,7 @@ public static class UrbanPlanningAlbumTemplate
     public const string MasterPlanTemplateId = "urban-planning-master-plan-v1";
     public const string LegacyPartialPlanTemplateId = "urban-planning-partial-plan-v1";
     public const string PartialPlanTemplateId = "urban-planning-partial-plan-v2";
+    public const string DevelopmentProjectTemplateId = "urban-planning-development-project-v1";
     public const string Abbreviation = "ХЕТ";
 
     public static AlbumDefinition CreateDefinition(string stageType)
@@ -14,6 +15,12 @@ public static class UrbanPlanningAlbumTemplate
         bool isPartialPlan = stageType.Equals(
             PartialMasterPlanDrawingSequence.StageType,
             StringComparison.OrdinalIgnoreCase);
+        bool isDevelopmentProject = stageType.Equals(
+            DevelopmentProjectDrawingSequence.StageType,
+            StringComparison.OrdinalIgnoreCase);
+        if (isDevelopmentProject)
+            return CreateDevelopmentProjectDefinition(sequence);
+
         string fullName = !isPartialPlan
             ? "Хөгжлийн ерөнхий төлөвлөгөө"
             : "Хэсэгчилсэн ерөнхий төлөвлөгөө";
@@ -136,13 +143,67 @@ public static class UrbanPlanningAlbumTemplate
         string value = (templateId ?? "").Trim();
         return value.Equals(PartialPlanTemplateId, StringComparison.OrdinalIgnoreCase) ||
             value.Equals(LegacyPartialPlanTemplateId, StringComparison.OrdinalIgnoreCase) ||
-            value.Equals(MasterPlanTemplateId, StringComparison.OrdinalIgnoreCase);
+            value.Equals(MasterPlanTemplateId, StringComparison.OrdinalIgnoreCase) ||
+            value.Equals(DevelopmentProjectTemplateId, StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool Supports(string projectType, string stageType) =>
         projectType.Equals(global::ErkS.Platform.Core.ProjectTypes.UrbanPlanningProjectType.TypeId, StringComparison.OrdinalIgnoreCase) &&
         (stageType.Equals(MasterPlanDrawingSequence.StageType, StringComparison.OrdinalIgnoreCase) ||
-         stageType.Equals(PartialMasterPlanDrawingSequence.StageType, StringComparison.OrdinalIgnoreCase));
+         stageType.Equals(PartialMasterPlanDrawingSequence.StageType, StringComparison.OrdinalIgnoreCase) ||
+         stageType.Equals(DevelopmentProjectDrawingSequence.StageType, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Барилгажилтын төслийн альбом.
+    ///
+    /// It differs from its two siblings in three ways, each of which came from
+    /// the client rather than from a standard:
+    ///
+    /// No reference grid, and a corner title block the project chooses. The
+    /// other two are working drawings and carry both; this album is composed,
+    /// so the page format is left for the project rather than fixed here.
+    ///
+    /// Sections are the two halves of the reference album - what was surveyed
+    /// and what was decided - rather than the ЕТ and ИДБ marks. A drawing's
+    /// mark still numbers it; it no longer decides which half it belongs to,
+    /// because both halves contain both marks.
+    ///
+    /// Five opening pages Studio makes for itself, three of them unnumbered.
+    /// </summary>
+    private static AlbumDefinition CreateDevelopmentProjectDefinition(
+        IUrbanPlanningDrawingSequence sequence)
+    {
+        var definition = new AlbumDefinition
+        {
+            Title = "Барилгажилтын төсөл",
+            TemplateId = DevelopmentProjectTemplateId,
+            IncludeCover = false,
+            IncludeTableOfContents = false,
+            Sections =
+            [
+                new AlbumSection { Title = DevelopmentProjectDrawingSequence.SurveySectionTitle },
+                new AlbumSection { Title = DevelopmentProjectDrawingSequence.SolutionSectionTitle },
+            ],
+        };
+
+        definition.Composition = sequence.Drawings.Select(slot => new AlbumCompositionItem
+        {
+            Id = slot.Id,
+            Order = slot.Order,
+            Number = slot.DrawingNumber,
+            Title = slot.Title,
+            Scale = slot.Scale,
+            SectionTitle = slot.Section,
+            Kind = slot.IsGenerated ? AlbumCompositionKind.Generated : AlbumCompositionKind.SourceSlot,
+            GeneratedPageKind = slot.GeneratedPageKind,
+            Required = slot.Required,
+            AllowMultiple = slot.AllowMultiplePages,
+            MatchContentKinds = [slot.Id],
+            MatchNameTerms = [slot.Title],
+        }).ToList();
+
+        return definition;
+    }
 
     public static AlbumCompositionItem? FindSourceSlot(
         AlbumDefinition definition,
