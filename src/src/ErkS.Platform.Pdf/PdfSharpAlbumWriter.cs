@@ -833,11 +833,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             false,
             XStringFormats.CenterRight);
 
-        DrawConceptCornerTable(
+        DrawSelectedCornerTable(
             gfx,
             project,
-            buildPage.Number,
-            buildPage.ScaleText,
+            buildPage,
             regions.TitleBlockArea,
             borderPen,
             finePen);
@@ -1087,6 +1086,63 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             if (y > rect.Bottom + 0.01)
                 break;
         }
+    }
+
+    /// <summary>
+    /// Draws whichever corner title block the project asked for.
+    ///
+    /// Both are drawn here, on a page that has no reference grid: the grid
+    /// belongs to the working drawing sheet, not to the block, and a project
+    /// can want the larger block without wanting the grid that block usually
+    /// travels with.
+    /// </summary>
+    private static void DrawSelectedCornerTable(
+        XGraphics gfx,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        PageRectMm titleBlockArea,
+        XPen borderPen,
+        XPen finePen)
+    {
+        if (AlbumCornerTableStyles.Normalize(project.CornerTableStyle)
+            == AlbumCornerTableStyles.WorkingDrawing)
+        {
+            DrawRevitWorkingTitleBlock(
+                gfx,
+                ToPoints(WorkingDrawingCornerArea(titleBlockArea)),
+                project,
+                buildPage,
+                borderPen,
+                finePen);
+            return;
+        }
+
+        DrawConceptCornerTable(
+            gfx,
+            project,
+            buildPage.Number,
+            buildPage.ScaleText,
+            titleBlockArea,
+            borderPen,
+            finePen);
+    }
+
+    /// <summary>
+    /// The 180 x 36 mm block placed in the space the 190 x 28 one would have
+    /// filled: anchored to the same bottom-right corner, so a project that
+    /// switches style keeps its drawings where they were.
+    /// </summary>
+    private static PageRectMm WorkingDrawingCornerArea(PageRectMm conceptArea)
+    {
+        double width = WorkingDrawingPageLayout.HorizontalTitleBlockWidthMm;
+        double height = WorkingDrawingPageLayout.HorizontalTitleBlockHeightMm;
+        return new PageRectMm
+        {
+            X = conceptArea.X + conceptArea.Width - width,
+            Y = conceptArea.Y + conceptArea.Height - height,
+            Width = width,
+            Height = height,
+        };
     }
 
     private static void DrawConceptCornerTable(

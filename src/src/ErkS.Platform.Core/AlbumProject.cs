@@ -43,6 +43,13 @@ public sealed class AlbumProject
 
     public string CloudStatus { get; set; } = "";
 
+    /// <summary>
+    /// Which corner title block this album's sheets carry. Empty means the
+    /// template decides, which is what every album built before the choice
+    /// existed must keep doing.
+    /// </summary>
+    public string CornerTableStyle { get; set; } = AlbumCornerTableStyles.TemplateDecides;
+
     public ProjectInitiationBasis InitiationBasis { get; set; } = new();
 
     public PlanningTaskInformation PlanningTask { get; set; } = new();

@@ -136,6 +136,8 @@ internal sealed partial class ShellView : IDisposable
     private readonly TextBox projectCodeBox = new();
     private readonly ComboBox projectTypeBox = new();
     private readonly ComboBox projectStageBox = new();
+    private readonly ComboBox cornerTableBox = new();
+    private readonly TextBlock cornerTableHint = StudioWidgets.CreateHint("");
     private readonly TextBox basisSourceBox = new();
     private readonly TextBox requestNumberBox = new();
     private readonly ComboBox clientTypeBox = new();
@@ -2360,6 +2362,10 @@ internal sealed partial class ShellView : IDisposable
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн нэр", projectNameBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн төрөл", projectTypeBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Үе шат", projectStageBox));
+        cornerTableBox.ItemsSource = ProjectCornerTableChoices.All;
+        cornerTableBox.SelectionChanged += (_, _) => RefreshCornerTableHint();
+        form.Children.Add(StudioWidgets.CreateFormRow("Булангийн хүснэгт", cornerTableBox));
+        form.Children.Add(cornerTableHint);
         form.Children.Add(StudioWidgets.CreateFormRow("Үндэслэлийн төрөл", basisSourceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Хүсэлтийн дугаар", requestNumberBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
@@ -4931,6 +4937,15 @@ internal sealed partial class ShellView : IDisposable
     /// its own. The substitute album works, which is why nobody noticed: only
     /// someone who knew what the stage should look like could tell.
     /// </summary>
+    /// <summary>
+    /// Says what the chosen corner table means. The consequence worth stating
+    /// is not the size - that is in the label - but that AutoCAD and Revit
+    /// follow the same choice, which nothing on this page would otherwise show.
+    /// </summary>
+    private void RefreshCornerTableHint() =>
+        cornerTableHint.Text = ProjectCornerTableChoices.Explain(
+            (cornerTableBox.SelectedItem as ProjectCornerTableChoice)?.Value);
+
     private void ReportAlbumTemplateFallbackOnOpen()
     {
         string? notice = ProjectAlbumTemplateResolver
@@ -5526,6 +5541,9 @@ internal sealed partial class ShellView : IDisposable
         IStudioProjectTypeDefinition selectedType = StudioProjectTypeRegistry.Resolve(project.Identity.ProjectType);
         projectTypeBox.SelectedItem = selectedType;
         RefreshExistingProjectStageOptions(project.Identity.StageCode);
+        cornerTableBox.SelectedItem =
+            ProjectCornerTableChoices.Resolve(project.AlbumStyle.CornerTable);
+        RefreshCornerTableHint();
         basisSourceBox.Text = basis.SourceType;
         requestNumberBox.Text = basis.RequestNumber;
         SelectClientType(ProjectClientTypes.ResolveStoredType(
@@ -5570,6 +5588,8 @@ internal sealed partial class ShellView : IDisposable
         project.Identity.Description = basisSummaryBox.Text;
         ApplySelectedProjectClassification();
         var basis = project.Foundation.InitiationBasis;
+        project.AlbumStyle.CornerTable = AlbumCornerTableStyles.Normalize(
+            (cornerTableBox.SelectedItem as ProjectCornerTableChoice)?.Value);
         basis.SourceType = basisSourceBox.Text.Trim();
         basis.RequestNumber = requestNumberBox.Text.Trim();
         basis.ClientType = ProjectClientTypes.Normalize(SelectedClientType);
@@ -5662,6 +5682,7 @@ internal sealed partial class ShellView : IDisposable
         projectCodeBox.ToolTip = fieldsEditable
             ? "Энэ утга ажлын зургийн булангийн хүснэгтийн ЕГ шифрт хэрэглэгдэнэ."
             : null;
+        cornerTableBox.IsEnabled = fieldsEditable;
         projectTypeBox.IsEnabled = classificationEditable;
         projectStageBox.IsEnabled = classificationEditable;
         string classificationTip = classificationEditable

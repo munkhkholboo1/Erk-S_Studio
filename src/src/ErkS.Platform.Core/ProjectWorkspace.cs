@@ -53,6 +53,14 @@ public sealed class ProjectWorkspace
     public List<ProjectBuildingGroup> BuildingGroups { get; set; } = [];
 
     /// <summary>
+    /// How the project's sheets are drawn. It sits in the project file rather
+    /// than the album document because AutoCAD and Revit draw sheets of their
+    /// own and read this file already; a choice they cannot see would produce
+    /// one album with two different title blocks in it.
+    /// </summary>
+    public ProjectAlbumStyle AlbumStyle { get; set; } = new();
+
+    /// <summary>
     /// Sheet key to building-group id. Package BuildingId/BuildingName remains
     /// an automatic fallback; an explicit Studio assignment is authoritative.
     /// </summary>
@@ -878,6 +886,70 @@ public sealed class ProjectDeliverables
 {
     public List<ProjectAlbumRecord> Albums { get; set; } = [];
     public List<ProjectReportRecord> Reports { get; set; } = [];
+}
+
+/// <summary>
+/// The corner title block a project's sheets carry.
+///
+/// The value names its own measurements rather than pointing at a table
+/// somewhere else, because AutoCAD and Revit read this file too and a bare
+/// "concept" would send them looking for a definition Studio owns.
+/// </summary>
+public static class AlbumCornerTableStyles
+{
+    /// <summary>190 x 28 mm, no reference grid - the concept album's block.</summary>
+    public const string Concept = "concept-190x28";
+
+    /// <summary>180 x 36 mm - the working drawing block.</summary>
+    public const string WorkingDrawing = "working-drawing-180x36";
+
+    /// <summary>
+    /// What an unset value means: leave every album exactly as it draws today.
+    ///
+    /// A project saved before this setting existed must not change appearance
+    /// the next time its album is built. A blank is therefore not "the default
+    /// style" but "the style this album already had", which each template
+    /// decides for itself.
+    /// </summary>
+    public const string TemplateDecides = "";
+
+    /// <summary>
+    /// Whether this version recognises the value as written. It deliberately
+    /// does not consult <see cref="Normalize"/>: normalising turns anything
+    /// unknown into the template default, so asking it here would report every
+    /// value as known and the question would answer itself.
+    /// </summary>
+    public static bool IsKnown(string? value)
+    {
+        string cleaned = (value ?? "").Trim();
+        return cleaned.Length == 0 ||
+            cleaned.Equals(Concept, StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Equals(WorkingDrawing, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string Normalize(string? value)
+    {
+        string cleaned = (value ?? "").Trim();
+        if (cleaned.Length == 0)
+            return TemplateDecides;
+
+        return cleaned.Equals(Concept, StringComparison.OrdinalIgnoreCase) ? Concept
+            : cleaned.Equals(WorkingDrawing, StringComparison.OrdinalIgnoreCase) ? WorkingDrawing
+            // An unrecognised style is not guessed at. Falling back to the
+            // template keeps the sheets looking the way they already did
+            // rather than silently redrawing them as something else.
+            : TemplateDecides;
+    }
+}
+
+/// <summary>
+/// Choices about how a project's sheets look, as opposed to what is on them.
+/// Kept in the project file because AutoCAD and Revit draw their own sheets
+/// and have to agree with Studio about this.
+/// </summary>
+public sealed class ProjectAlbumStyle
+{
+    public string CornerTable { get; set; } = AlbumCornerTableStyles.TemplateDecides;
 }
 
 public sealed class ProjectAlbumRecord

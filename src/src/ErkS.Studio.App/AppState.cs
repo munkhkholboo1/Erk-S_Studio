@@ -995,6 +995,8 @@ public sealed class AppState : IDisposable
             PlanningAuthorityName = planningAuthorityName,
             DesignOrganizationName = designOrganizationName,
             CloudStatus = Project.Cloud.SyncStatus,
+            CornerTableStyle = AlbumCornerTableStyles.Normalize(
+                Project.AlbumStyle.CornerTable),
             InitiationBasis = initiationBasis,
             PlanningTask = CreateAlbumPlanningTaskSnapshot(),
             ApprovalWorkflow = Project.Foundation.ApprovalWorkflow.Clone(),
