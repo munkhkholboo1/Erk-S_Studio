@@ -13,8 +13,8 @@ param(
     # that already holds a release.json is left alone - see the guard below.
     [switch]$ReplaceExistingBuild,
 
-    # Allows a build whose source has moved on since the version number was
-    # set. For test builds that will not be published - see the guard below.
+    # Silences the note about source having moved on since the version was set.
+    # The note does not stop a build; this only quietens it.
     [switch]$AllowTreeAheadOfVersion
 )
 
@@ -352,15 +352,28 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($versionCommit)) 
                 (($dirtySource | Select-Object -First 10) -join "`n    ")
         }
 
-        throw @"
-Shipped source has changed since $ReleaseVersion was set, so this build would
-carry code that version number does not describe.
+        # Stated, not blocked.
+        #
+        # Carrying on working after setting the next version number is ordinary
+        # - the version is set at the start of a release, and the release is
+        # what follows it. Refusing to build would fire on nearly every release
+        # and teach whoever runs this to pass the override without reading it,
+        # which is worse than saying nothing.
+        #
+        # What made 2026-08-25 dangerous was not that the tree had moved; it
+        # was that the version had ALREADY BEEN PUBLISHED under different
+        # content. That case is refused outright by the release-folder guard
+        # below and by the hash comparison in Publish-Studio-DemoToServer.
+        # This line exists so that whoever reads the output can see what the
+        # version number is actually about to describe.
+        Write-Warning @"
+Shipped source has changed since $ReleaseVersion was set.
 
   version set by : $($versionCommit.Substring(0, 7))$detail
 
-Either bump StudioPublishedVersion in src\Studio.Version.props to a new number,
-or set the version last and build straight after. To build anyway - for a test
-build that will not be published - pass -AllowTreeAheadOfVersion.
+That is normal while a release is being prepared. Worth a second look only if
+$ReleaseVersion has already gone out - in which case this build would be a
+second, different thing under the same name.
 "@
     }
 }
