@@ -52,12 +52,25 @@ public static class ProjectCornerTableChoices
         AlbumCornerTableStyles.Normalize(value) switch
         {
             AlbumCornerTableStyles.Concept =>
-                "Бүх хуудас 190×28 мм хүснэгттэй гарна. AutoCAD, Revit тал ч үүнийг дагана.",
+                "Хуудас 190×28 мм хүснэгттэй гарна. AutoCAD, Revit тал ч үүнийг дагана. " +
+                NewSheetsOnly,
             AlbumCornerTableStyles.WorkingDrawing =>
-                "Бүх хуудас 180×36 мм хүснэгттэй гарна. Эталон тор нэмэгдэхгүй. " +
-                "AutoCAD, Revit тал ч үүнийг дагана.",
+                "Хуудас 180×36 мм хүснэгттэй гарна. Эталон тор нэмэгдэхгүй. " +
+                "AutoCAD, Revit тал ч үүнийг дагана. " + NewSheetsOnly,
             _ =>
                 "Альбомын загвар өөрөө шийднэ — одоо байгаа төслүүдийн харагдац " +
                 "өөрчлөгдөхгүй.",
         };
+
+    /// <summary>
+    /// AutoCAD freezes the choice into a sheet when the sheet is created, so
+    /// that a frame already drawn in a DWG cannot change under the person who
+    /// drew it. That is the right behaviour and it has a cost: switching the
+    /// style leaves every existing sheet exactly as it was.
+    ///
+    /// Without saying so, someone changes the setting, sees nothing move, and
+    /// concludes it does not work.
+    /// </summary>
+    private const string NewSheetsOnly =
+        "Энэ сонголт зөвхөн шинээр үүсгэх хуудсанд үйлчилнэ; байгаа хуудас хэв маягаа хадгална.";
 }

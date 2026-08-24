@@ -67,6 +67,20 @@ public sealed class ProjectCornerTableChoiceTests
     }
 
     [Fact]
+    public void BothConcreteChoicesSayTheyOnlyAffectNewSheets()
+    {
+        // AutoCAD freezes the style into a sheet when the sheet is created, so
+        // a frame already drawn cannot change under whoever drew it. That is
+        // right, and it means switching the style moves nothing already on the
+        // page - which looks exactly like a setting that does not work.
+        foreach (string value in new[]
+                 { AlbumCornerTableStyles.Concept, AlbumCornerTableStyles.WorkingDrawing })
+        {
+            Assert.Contains("шинээр үүсгэх хуудсанд", ProjectCornerTableChoices.Explain(value));
+        }
+    }
+
+    [Fact]
     public void TheDefaultEntryPromisesNothingChanges()
     {
         Assert.Contains(
