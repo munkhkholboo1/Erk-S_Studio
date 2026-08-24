@@ -410,9 +410,11 @@ internal sealed partial class ShellView
                         DocumentsPendingCloudSync = old?.DocumentsPendingCloudSync == true,
                     });
                 }
-                merged.AddRange(cached.Where(item =>
+                List<CompanyCatalogEntry> stillPending = [.. cached.Where(item =>
                     item.SyncStatus is CompanySyncStatuses.PendingCreate or CompanySyncStatuses.PendingUpdate &&
-                    merged.All(remote => !remote.Profile.OrganizationId.Equals(item.Profile.OrganizationId, StringComparison.OrdinalIgnoreCase))));
+                    merged.All(remote => !remote.Profile.OrganizationId.Equals(item.Profile.OrganizationId, StringComparison.OrdinalIgnoreCase)))];
+                await SendPendingOrganizationsAsync(stillPending);
+                merged.AddRange(stillPending);
                 companyEntries = merged.OrderBy(item => CompanyDisplayName(item.Profile), StringComparer.CurrentCultureIgnoreCase).ToList();
                 store.Save(companyEntries);
                 RefreshOpenProjectCompanyFromCatalog(
@@ -1559,6 +1561,62 @@ internal sealed partial class ShellView
         projectCompanyLibraryButton.ToolTip = assigned
             ? "Төслийн баталгаажсан зураг төслийн байгууллагыг санаатайгаар солих"
             : "Төслийн зураг төслийн байгууллагыг компанийн сангаас сонгох";
+    }
+
+    /// <summary>
+    /// Sends organisations this device created but never managed to register,
+    /// and says which ones are still stuck.
+    ///
+    /// An organisation that failed to reach the cloud - the network was down,
+    /// the session had expired - stayed in the library marked pending and
+    /// nothing ever tried again. It went up only if somebody happened to
+    /// reopen the company editor and press save, and nothing said that was
+    /// needed. A company nobody else can see is one whose certificates nobody
+    /// else can see either, which is where this whole day started.
+    ///
+    /// Only creations are retried. An organisation that exists in the cloud
+    /// already may have been edited there since, and pushing this device's
+    /// version over it without anyone looking is how a colleague's work
+    /// disappears - the thing this codebase spent today removing. Those are
+    /// named instead, so the person can open the editor and decide.
+    /// </summary>
+    private async Task SendPendingOrganizationsAsync(IReadOnlyList<CompanyCatalogEntry> pending)
+    {
+        if (pending.Count == 0)
+            return;
+
+        var stuck = new List<string>();
+        int registered = 0;
+        foreach (CompanyCatalogEntry entry in pending)
+        {
+            if (!entry.SyncStatus.Equals(CompanySyncStatuses.PendingCreate, StringComparison.OrdinalIgnoreCase))
+            {
+                stuck.Add(CompanyDisplayName(entry.Profile));
+                continue;
+            }
+
+            try
+            {
+                StudioCloudOrganization cloud =
+                    await account.CreateOrganizationAsync(ToCloudCompanyRequest(entry.Profile));
+                StudioOrganizationMutationCheckpoint.Apply(entry, entry.Profile, cloud);
+                registered++;
+            }
+            catch (Exception exception) when (
+                exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+            {
+                stuck.Add($"{CompanyDisplayName(entry.Profile)}: {exception.Message}");
+            }
+        }
+
+        if (registered > 0)
+            SetStatus($"{registered} байгууллага Cloud ERA-д бүртгэгдлээ.");
+        if (stuck.Count > 0)
+        {
+            SetStatus(
+                "Cloud ERA-д хараахан гараагүй байгууллага: " + string.Join("; ", stuck) +
+                ". Компанийн санд нээж Хадгалах дарна уу.");
+        }
     }
 
     /// <summary>
