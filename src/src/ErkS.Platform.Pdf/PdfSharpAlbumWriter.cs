@@ -2246,9 +2246,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             projectNameTextHeightMm,
             false,
             XStringFormats.Center);
-        string coverTypeTitle = drawWorkingDrawingEtalon
-            ? "БАРИЛГА АРХИТЕКТУРЫН ХЭСЭГ-БА"
-            : "/ЗАГВАР ЗУРАГ/";
+        string coverTypeTitle = AlbumCoverDocumentTitle.Resolve(
+            request.Project.Album.TemplateId,
+            drawWorkingDrawingEtalon);
         DrawCoverText(
             gfx,
             coverTypeTitle,
