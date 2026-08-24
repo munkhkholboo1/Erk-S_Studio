@@ -139,6 +139,24 @@ public sealed class CompanyProfile
     public string DirectorName { get; set; } = "";
     public string DesignRepresentativeTitle { get; set; } = "";
     public string DesignRepresentativeName { get; set; } = "";
+
+    /// <summary>
+    /// Whether this device actually knows who the chief architect is.
+    ///
+    /// Every profile written before the director and the architect were told
+    /// apart holds the director's name in both fields. Those two fields being
+    /// equal is not evidence of anything - one person can genuinely hold both
+    /// roles in a small company - so the residue cannot be recognised by
+    /// comparing them. What distinguishes it is where the value came from.
+    ///
+    /// False means "this device has never been told" and the architect must
+    /// not be sent to the server: doing so would file every director as their
+    /// own company's chief architect. It turns true when the value arrives
+    /// from a server that separates the two, or when someone appoints an
+    /// architect in the editor.
+    /// </summary>
+    public bool DesignRepresentativeKnown { get; set; }
+
     public string LogoPath { get; set; } = "";
     /// <summary>User-facing source name; LogoPath may be content-addressed.</summary>
     public string LogoOriginalFileName { get; set; } = "";
@@ -244,6 +262,7 @@ public sealed class CompanyProfile
             DirectorName = DirectorName,
             DesignRepresentativeTitle = DesignRepresentativeTitle,
             DesignRepresentativeName = DesignRepresentativeName,
+            DesignRepresentativeKnown = DesignRepresentativeKnown,
             LogoPath = LogoPath,
             LogoOriginalFileName = LogoOriginalFileName,
             LogoScale = LogoScale,

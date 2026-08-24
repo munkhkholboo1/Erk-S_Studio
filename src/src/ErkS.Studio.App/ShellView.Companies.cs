@@ -36,6 +36,13 @@ internal sealed partial class ShellView
     private readonly TextBox libraryCompanyLicenseNumberBox = new();
     private readonly TextBox libraryCompanyDirectorTitleBox = new();
     private readonly TextBox libraryCompanyDirectorNameBox = new();
+    private readonly TextBox libraryCompanyArchitectTitleBox = new();
+    private readonly TextBox libraryCompanyArchitectNameBox = new();
+    private readonly TextBlock libraryCompanyArchitectHint = new()
+    {
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new Thickness(0, 2, 0, 0),
+    };
     private readonly TextBlock libraryCompanyRegistrySourceText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button libraryCompanyOpenRegistryButton = StudioWidgets.CreateButton("ДАН-аар мэдээлэл татах");
     private readonly TextBlock companyLogoFileText = new() { TextWrapping = TextWrapping.Wrap };
@@ -212,6 +219,7 @@ internal sealed partial class ShellView
         form.Children.Add(StudioWidgets.CreateFormRow("Хот / дүүрэг", libraryCompanyCityBox, 180));
         form.Children.Add(StudioWidgets.CreateFormRow("Бүртгэлтэй хаяг", libraryCompanyAddressBox, 180));
         libraryCompanyRegistrySourceText.Foreground = StudioTheme.MutedTextBrush;
+        libraryCompanyArchitectHint.Foreground = StudioTheme.MutedTextBrush;
         ToolTipService.SetShowOnDisabled(libraryCompanyOpenRegistryButton, true);
         libraryCompanyOpenRegistryButton.Click += async (_, _) => await ImportOrganizationRegistryAsync();
         var registrySourcePanel = new StackPanel();
@@ -241,6 +249,10 @@ internal sealed partial class ShellView
         form.Children.Add(StudioWidgets.CreateSectionHeader("Захирал"));
         form.Children.Add(StudioWidgets.CreateFormRow("Албан тушаал", libraryCompanyDirectorTitleBox, 155));
         form.Children.Add(StudioWidgets.CreateFormRow("Нэр", libraryCompanyDirectorNameBox, 155));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Ерөнхий архитектор · заавал биш"));
+        form.Children.Add(StudioWidgets.CreateFormRow("Албан тушаал", libraryCompanyArchitectTitleBox, 155));
+        form.Children.Add(StudioWidgets.CreateFormRow("Нэр", libraryCompanyArchitectNameBox, 155));
+        form.Children.Add(libraryCompanyArchitectHint);
         form.Children.Add(StudioWidgets.CreateSectionHeader("Лого"));
         form.Children.Add(BuildCompanyLogoEditor());
         return StudioWidgets.CreateScrollHost(form);
@@ -1010,10 +1022,10 @@ internal sealed partial class ShellView
         libraryCompanyLicenseNumberBox.Text = profile.LicenseNumber;
         // This one editor field is the company's own officer - the person the
         // album prints as "Захирал". It was stored in the design
-        // representative until the server told the two apart; the chief
-        // architect is appointed per project from the team, not typed here.
+        // representative until the server told the two apart.
         libraryCompanyDirectorTitleBox.Text = profile.DirectorTitle;
         libraryCompanyDirectorNameBox.Text = profile.DirectorName;
+        BindCompanyArchitectEditor(profile);
         libraryCompanyRegistrySourceText.Text = RegistrySourceLabel(profile);
         RefreshCompanyRegistryImportButton(entry);
         companyLogoScaleSlider.Value = profile.LogoScale;
@@ -1062,10 +1074,7 @@ internal sealed partial class ShellView
         profile.LicenseNumber = libraryCompanyLicenseNumberBox.Text.Trim();
         profile.DirectorTitle = libraryCompanyDirectorTitleBox.Text.Trim();
         profile.DirectorName = libraryCompanyDirectorNameBox.Text.Trim();
-        // DesignRepresentative* is deliberately not written here. It holds the
-        // appointed chief architect, which this editor does not edit, and
-        // copying the director into it is the automatic appointment we were
-        // asked to stop.
+        ApplyCompanyArchitectEditor(profile);
         profile.LogoScale = companyLogoScaleSlider.Value;
         profile.LogoOffsetX = companyLogoOffsetXSlider.Value;
         profile.LogoOffsetY = companyLogoOffsetYSlider.Value;
@@ -1076,6 +1085,49 @@ internal sealed partial class ShellView
             : [new CompanySigner { Role = profile.DirectorTitle, FullName = profile.DirectorName }];
         profile.Normalize();
         return profile;
+    }
+
+    /// <summary>
+    /// Shows the chief architect, and says plainly when nobody knows one.
+    ///
+    /// A profile that has not been read from the server since the split still
+    /// carries the director's name in the architect's field. Printing that
+    /// here would tell the reader their director is the chief architect -
+    /// which is exactly the automatic appointment that was removed - so an
+    /// unknown architect shows as empty rather than as a guess.
+    /// </summary>
+    private void BindCompanyArchitectEditor(CompanyProfile profile)
+    {
+        bool known = profile.DesignRepresentativeKnown;
+        libraryCompanyArchitectTitleBox.Text = known ? profile.DesignRepresentativeTitle : "";
+        libraryCompanyArchitectNameBox.Text = known ? profile.DesignRepresentativeName : "";
+        libraryCompanyArchitectHint.Text = CompanyArchitectEditorPolicy.Explain(
+            known,
+            profile.DesignRepresentativeName);
+    }
+
+    /// <summary>
+    /// Writes the architect back, and only then calls it known.
+    /// </summary>
+    /// <remarks>
+    /// Saving a profile whose architect this device never learned must not
+    /// turn the blank boxes into an appointment of nobody: under the flag the
+    /// server would take that literally and clear an architect appointed on
+    /// the website. Typing a name is the appointment; leaving the boxes as
+    /// they were is not an answer.
+    /// </remarks>
+    private void ApplyCompanyArchitectEditor(CompanyProfile profile)
+    {
+        CompanyArchitectAppointment decision = CompanyArchitectEditorPolicy.Decide(
+            profile.DesignRepresentativeKnown,
+            libraryCompanyArchitectTitleBox.Text,
+            libraryCompanyArchitectNameBox.Text);
+        if (!decision.Known)
+            return;
+
+        profile.DesignRepresentativeTitle = decision.Title;
+        profile.DesignRepresentativeName = decision.Name;
+        profile.DesignRepresentativeKnown = true;
     }
 
     private void SetCompanyEditorMode(CompanyEditorMode mode)
@@ -1222,6 +1274,8 @@ internal sealed partial class ShellView
         yield return libraryCompanyLicenseNumberBox;
         yield return libraryCompanyDirectorTitleBox;
         yield return libraryCompanyDirectorNameBox;
+        yield return libraryCompanyArchitectTitleBox;
+        yield return libraryCompanyArchitectNameBox;
     }
 
     private void ClearCompanyEditor()

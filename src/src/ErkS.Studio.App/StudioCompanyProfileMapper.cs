@@ -46,6 +46,17 @@ internal static class StudioCompanyProfileMapper
             // unappointed.
             DesignRepresentativeTitle = Clean(cloud.DesignRepresentativeTitle),
             DesignRepresentativeName = Clean(cloud.DesignRepresentativeName),
+            // The server is the only place that knows whether an architect was
+            // appointed, so a value that came from it - including an empty one,
+            // which means nobody - is knowledge. Anything still sitting on this
+            // device from before the split is not.
+            //
+            // One limitation, stated rather than hidden: a server old enough to
+            // still mirror the two fields would hand back the director here and
+            // this would call it knowledge. Production separates them and has a
+            // test forbidding the old shape, so the case is theoretical today; a
+            // server-declared marker would close it properly.
+            DesignRepresentativeKnown = true,
             DirectorTitle = FirstValue(cloud.DirectorTitle, cloud.DesignRepresentativeTitle),
             DirectorName = FirstValue(cloud.DirectorName, cloud.DesignRepresentativeName),
             LogoScale = cloud.LogoScale,
@@ -98,6 +109,17 @@ internal static class StudioCompanyProfileMapper
             // unappointed.
             DesignRepresentativeTitle = Clean(cloud.DesignRepresentativeTitle),
             DesignRepresentativeName = Clean(cloud.DesignRepresentativeName),
+            // The server is the only place that knows whether an architect was
+            // appointed, so a value that came from it - including an empty one,
+            // which means nobody - is knowledge. Anything still sitting on this
+            // device from before the split is not.
+            //
+            // One limitation, stated rather than hidden: a server old enough to
+            // still mirror the two fields would hand back the director here and
+            // this would call it knowledge. Production separates them and has a
+            // test forbidding the old shape, so the case is theoretical today; a
+            // server-declared marker would close it properly.
+            DesignRepresentativeKnown = true,
             DirectorTitle = FirstValue(cloud.DirectorTitle, cloud.DesignRepresentativeTitle),
             DirectorName = FirstValue(cloud.DirectorName, cloud.DesignRepresentativeName),
             LogoScale = cloud.LogoScale,
@@ -183,24 +205,26 @@ internal static class StudioCompanyProfileMapper
             Website = profile.WebSite,
             LicenseScope = profile.LicenseScope,
             LicenseNumber = profile.LicenseNumber,
-            // Both halves carry the director, and both must keep carrying it
-            // until this client declares supportsSeparateRepresentatives.
+            // The architect is sent only when this device actually knows who
+            // it is. Otherwise the profile still holds the pre-split residue -
+            // the director's name in the architect's field - and sending it
+            // under the flag would appoint every director as their own
+            // company's chief architect, across every colleague on the
+            // project. That is the automatic appointment we were told to
+            // remove, spread through the cloud instead of one machine.
             //
-            // The server ignores the design representative half from a client
-            // that has not declared the flag, so sending the director in both
-            // leaves the wire behaving exactly as it did. What changed is
-            // where the value is read from: profile.DesignRepresentative* now
-            // holds the appointed chief architect, and sending that as the
-            // director would file the architect as the director - or, when
-            // nobody is appointed, blank the director outright.
-            //
-            // Declaring the flag is held back deliberately. Once declared, an
-            // empty design representative clears the stored one, so a client
-            // that had not read the server's current value first would erase
-            // an appointment made on the website. SRV has been asked whether
-            // baseConcurrencyToken already prevents that.
-            DesignRepresentativeTitle = profile.DirectorTitle,
-            DesignRepresentativeName = profile.DirectorName,
+            // With the flag off the server ignores the architect half and
+            // edits only the director, so an unknowing client stays harmless
+            // without needing to guess. Nothing here inspects whether the two
+            // names match: one person can hold both roles, and treating that
+            // as residue would quietly delete a real appointment.
+            SupportsSeparateRepresentatives = profile.DesignRepresentativeKnown,
+            DesignRepresentativeTitle = profile.DesignRepresentativeKnown
+                ? profile.DesignRepresentativeTitle
+                : profile.DirectorTitle,
+            DesignRepresentativeName = profile.DesignRepresentativeKnown
+                ? profile.DesignRepresentativeName
+                : profile.DirectorName,
             DirectorTitle = profile.DirectorTitle,
             DirectorName = profile.DirectorName,
             LogoScale = profile.LogoScale,

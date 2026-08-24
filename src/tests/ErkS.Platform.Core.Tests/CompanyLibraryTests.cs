@@ -108,6 +108,68 @@ public sealed class CompanyLibraryTests : IDisposable
     }
 
     [Fact]
+    public void TheArchitectKnownMarkerSurvivesTheLibraryFile()
+    {
+        // If the marker is lost on the way to disk, every profile reloads as
+        // "never told" - or worse, a saved appointment reloads as unknown and
+        // stops being sent. The residue it guards against is silent, so the
+        // guard has to be checked rather than assumed.
+        var store = new CompanyLibraryStore(
+            Path.Combine(workDirectory, "companies.json"),
+            Path.Combine(workDirectory, "logos"));
+
+        store.Save(
+        [
+            new CompanyCatalogEntry
+            {
+                CanManage = true,
+                Profile = new CompanyProfile
+                {
+                    OrganizationId = "org-known",
+                    Name = "Эрк-С ХХК",
+                    DirectorName = "О.Очир-Эрдэнэ",
+                    DesignRepresentativeName = "Г.Энх-Амар",
+                    DesignRepresentativeKnown = true,
+                },
+            },
+        ]);
+
+        CompanyCatalogEntry loaded = Assert.Single(store.Load());
+
+        Assert.True(loaded.Profile.DesignRepresentativeKnown);
+        Assert.Equal("Г.Энх-Амар", loaded.Profile.DesignRepresentativeName);
+        Assert.Equal("О.Очир-Эрдэнэ", loaded.Profile.DirectorName);
+    }
+
+    [Fact]
+    public void ALibraryFileWrittenBeforeTheSplitReloadsAsNotKnown()
+    {
+        // The field simply is not there in files already on disk. Defaulting
+        // to false is what keeps their mirrored architect off the wire.
+        string path = Path.Combine(workDirectory, "companies.json");
+        File.WriteAllText(
+            path,
+            """
+            [
+              {
+                "canManage": true,
+                "profile": {
+                  "organizationId": "org-old",
+                  "name": "Эрк-С ХХК",
+                  "directorName": "О.Очир-Эрдэнэ",
+                  "designRepresentativeName": "О.Очир-Эрдэнэ"
+                }
+              }
+            ]
+            """);
+
+        var store = new CompanyLibraryStore(path, Path.Combine(workDirectory, "logos"));
+        CompanyCatalogEntry loaded = Assert.Single(store.Load());
+
+        Assert.False(loaded.Profile.DesignRepresentativeKnown);
+    }
+
+    [Fact]
     public void AccountCachePreservesCompanyAndLogoPlacement()
     {
         var store = new CompanyLibraryStore(

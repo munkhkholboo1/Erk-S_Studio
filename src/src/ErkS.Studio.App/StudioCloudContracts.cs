@@ -265,6 +265,18 @@ internal sealed class StudioCloudOrganizationUpsertRequest
     public string DirectorName { get; set; } = "";
     public string DesignRepresentativeTitle { get; set; } = "";
     public string DesignRepresentativeName { get; set; } = "";
+
+    /// <summary>
+    /// Tells the server this request means the two representative fields
+    /// literally, so an empty architect clears the stored one.
+    /// </summary>
+    /// <remarks>
+    /// Off, the server ignores the architect half and edits only the director
+    /// - which is what a client should ask for when it does not know who the
+    /// architect is. See <c>CompanyProfile.DesignRepresentativeKnown</c>.
+    /// </remarks>
+    public bool SupportsSeparateRepresentatives { get; set; }
+
     public double LogoScale { get; set; } = 1d;
     public double LogoOffsetX { get; set; }
     public double LogoOffsetY { get; set; }
