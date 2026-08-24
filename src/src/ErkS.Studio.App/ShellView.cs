@@ -3206,8 +3206,16 @@ internal sealed partial class ShellView : IDisposable
             _ => field,
         }).ToArray();
 
-        return "Өөрчлөлт локал төсөлд хадгалагдлаа. Cloud ERA эрх болон эх сурвалжийн " +
-            $"дүрмээр дараах мэдээллийг баталгаажуулаагүй: {string.Join(", ", labels)}.";
+        // This used to blame "Cloud ERA permission and source rules", which is
+        // both wrong and expensive: the server takes these edits from anyone
+        // holding ProjectAdmin, and the real reasons are that a few fields are
+        // not carried at all and that the project's version moved on. Naming
+        // permissions sent the user looking for a rights problem that was never
+        // there, and left them believing the software denied their colleagues.
+        return "Дараах мэдээллийг Cloud ERA хүлээж аваагүй: " +
+            $"{string.Join(", ", labels)}. " +
+            "Таны бичсэн утга төсөлдөө хадгалагдсан хэвээр байгаа бөгөөд дараагийн " +
+            "синк дээр дахин илгээгдэнэ. Энэ нь эрхийн асуудал биш.";
     }
 
     private void SaveProject()
@@ -4752,9 +4760,17 @@ internal sealed partial class ShellView : IDisposable
                 "cloud_sync",
                 "conflict",
                 reasonCode,
+                // The old wording said the local edit was saved and stopped
+                // there, while the screen had just been overwritten from the
+                // server - true and useless at once. It now says what changed,
+                // that the work is intact, and that nothing needs re-typing.
                 albumConflict
-                    ? "Sync зогслоо: server альбумын суурь revision өөрчлөгдсөн. Локал засвар хадгалагдсан; canonical album-ыг татаж дахин оролдоно уу."
-                    : "Sync зогслоо: server төсөл өөрчлөгдсөн. Локал засвар хадгалагдсан, Refresh хийж шийдвэрлэнэ үү.",
+                    ? "Sync зогслоо: серверийн альбомын суурь хувилбар өөрчлөгдсөн. " +
+                      "Таны засвар хэвээр байна — canonical альбомыг татаад дахин синк хийнэ үү."
+                    : "Sync зогслоо: төслийн хувилбар та засварлаж эхэлснээс хойш өөрчлөгдсөн " +
+                      "(альбом байршуулах зэрэг өөрийн үйлдэл ч үүнийг үүсгэдэг). " +
+                      "Таны бичсэн мэдээлэл хэвээр байгаа, дахин бичих шаардлагагүй — " +
+                      "дахин синк хийхэд илгээгдэнэ.",
                 exception);
         }
         catch (StudioOperationContextChangedException)

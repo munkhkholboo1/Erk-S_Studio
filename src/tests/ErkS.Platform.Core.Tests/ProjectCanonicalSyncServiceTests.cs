@@ -138,12 +138,23 @@ public sealed class ProjectCanonicalSyncServiceTests
 
         ProjectCanonicalSyncService.Apply(project, cleared);
 
-        Assert.Empty(project.Identity.Name);
-        Assert.Empty(project.Identity.Description);
-        Assert.Empty(project.Foundation.InitiationBasis.ClientName);
-        Assert.Empty(project.Foundation.InitiationBasis.SiteAddress);
-        Assert.Empty(project.Foundation.InitiationBasis.Summary);
-        Assert.Empty(project.Foundation.PlanningTask.IssuingAuthorityName);
+        // This used to assert that the mirror was emptied. It is not any more,
+        // and the change is deliberate: with no earlier snapshot to compare
+        // against there is no way to tell a value the server cleared from one
+        // the user has only just typed, and clearing both is how a project's
+        // information came to be wiped on every sync. Showing a stale value is
+        // corrected by the next sync; destroying someone's work is not.
+        //
+        // What the test was really guarding is untouched: nothing returns from
+        // the legacy fallback, the conflict draft survives, and the token moves
+        // on. Once a snapshot has been recorded - which this call does - a
+        // genuine clearing on the server is seen as a change and does apply.
+        Assert.Equal("Old local name", project.Identity.Name);
+        Assert.Equal("Old client", project.Foundation.InitiationBasis.ClientName);
+        Assert.Equal("Old address", project.Foundation.InitiationBasis.SiteAddress);
+        Assert.DoesNotContain(
+            "Legacy address that must not return",
+            project.Foundation.InitiationBasis.SiteAddress);
         Assert.Equal(
             "server-token-after-clear",
             project.Cloud.ServerSnapshot.ConcurrencyToken);
@@ -277,12 +288,22 @@ public sealed class ProjectCanonicalSyncServiceTests
     public void CanonicalEmptyFoundationValuesClearStaleLocalMirrorValues()
     {
         ProjectWorkspace project = Project();
-        project.Foundation.InitiationBasis.RequestNumber = "STALE-REQ";
-        project.Foundation.InitiationBasis.ClientRepresentativePosition = "Stale position";
-        project.Foundation.InitiationBasis.ClientRepresentativeName = "Stale representative";
-        project.Foundation.PlanningTask.AtdNumber = "STALE-ATD";
-        project.Foundation.PlanningTask.Summary = "Stale ATD summary";
-        project.Foundation.PlanningTask.Requirements = ["Stale requirement"];
+
+        // These are stale *mirror* values, so they have to arrive the way a
+        // mirror's values do - from an earlier snapshot. Setting them straight
+        // onto the project would make them indistinguishable from something the
+        // user had just typed, and a sync that cannot tell those apart is what
+        // wiped a real project's information.
+        ProjectServerSnapshot before = Snapshot();
+        before.Foundation = SnapshotFoundation();
+        before.Foundation.InitiationBasis.RequestNumber = "STALE-REQ";
+        before.Foundation.InitiationBasis.ClientRepresentativePosition = "Stale position";
+        before.Foundation.InitiationBasis.ClientRepresentativeName = "Stale representative";
+        before.Foundation.PlanningTask.AtdNumber = "STALE-ATD";
+        before.Foundation.PlanningTask.Summary = "Stale ATD summary";
+        before.Foundation.PlanningTask.Requirements = ["Stale requirement"];
+        ProjectCanonicalSyncService.Apply(project, before);
+
         ProjectServerSnapshot snapshot = Snapshot();
         snapshot.Foundation = SnapshotFoundation();
         snapshot.Foundation.InitiationBasis.RequestNumber = string.Empty;

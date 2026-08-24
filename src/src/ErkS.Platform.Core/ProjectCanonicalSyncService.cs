@@ -33,33 +33,114 @@ public static class ProjectCanonicalSyncService
             pending = null;
         }
         bool applyFoundationDetails = serverFoundation.IsAvailable;
+        ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
+        PlanningTaskInformation planningTask = project.Foundation.PlanningTask;
+        // The snapshot this mirror was last built from. It is the missing third
+        // party in every one of these decisions and is captured before the new
+        // one replaces it.
+        ProjectServerSnapshot previous = project.Cloud.ServerSnapshot ?? new();
+        ProjectServerInformation previousInformation = previous.Information ?? new();
+        ProjectServerFoundation previousFoundation = previous.Foundation ?? new();
+        ProjectServerInitiationBasis previousBasis = previousFoundation.InitiationBasis ?? new();
+        ProjectServerPlanningTask previousPlanningTask = previousFoundation.PlanningTask ?? new();
+
+        // What to write locally for one field.
+        //
+        // Comparing the incoming snapshot against the one the mirror was built
+        // from says whether the server changed this field or merely restated
+        // it. Where it changed, the server wins - that is how one admin's
+        // accepted edit reaches everybody else's screen. Where it did not, the
+        // local value stays, because the only thing that can have altered it is
+        // the person sitting in front of it.
+        //
+        // Before this, the server's value was written unconditionally. That
+        // read every blank as an erasure, so a server which simply does not
+        // carry a field - three of them do not - wiped the user's work on every
+        // sync, and the sync meant to publish their edit destroyed it instead.
+        string Resolve(string serverValue, string previousValue, string localValue)
+        {
+            bool serverChangedIt = !string.Equals(serverValue, previousValue, StringComparison.Ordinal);
+            return serverChangedIt ? serverValue : Clean(localValue);
+        }
+
         string serverProjectCode = FirstValue(snapshot.ProjectCode, information.ProjectCode);
         string projectCode = pending is not null && !string.IsNullOrWhiteSpace(pending.ProjectCode)
             ? Clean(pending.ProjectCode)
-            : serverProjectCode;
+            : Resolve(
+                serverProjectCode,
+                FirstValue(previous.ProjectCode, previousInformation.ProjectCode),
+                project.Identity.Code);
         string serverProjectName = Clean(snapshot.Name);
-        string projectName = serverProjectName;
-        string siteAddress = Clean(information.Location);
-        string landReference = serverFoundation.IsAvailable
-            ? Clean(serverBasis.LandReference)
-            : string.Join(", ", CleanValues(siteAndLand.ParcelNumbers));
-        string buildingPurpose = Clean(information.BuildingPurpose);
-        string clientName = Clean(snapshot.ClientName);
-        string planningAuthorityName = Clean(snapshot.PlanningAuthorityName);
-        string basisSourceType = Clean(serverBasis.SourceType);
-        string requestNumber = Clean(serverBasis.RequestNumber);
-        string clientType = ProjectClientTypes.Normalize(serverBasis.ClientType);
-        string clientEmail = Clean(serverBasis.ClientEmail);
-        string clientRepresentativePosition = Clean(serverBasis.ClientRepresentativePosition);
-        string clientRepresentativeName = Clean(serverBasis.ClientRepresentativeName);
-        string sourceOrganizationName = Clean(serverBasis.SourceOrganizationName);
-        string atdNumber = Clean(serverPlanningTask.AtdNumber);
-        string atdStatus = Clean(serverPlanningTask.Status);
-        string atdSummary = Clean(serverPlanningTask.Summary);
+        string projectName = Resolve(
+            serverProjectName,
+            Clean(previous.Name),
+            project.Identity.Name);
+        string siteAddress = Resolve(
+            Clean(information.Location),
+            Clean(previousInformation.Location),
+            basis.SiteAddress);
+        string landReference = Resolve(
+            serverFoundation.IsAvailable
+                ? Clean(serverBasis.LandReference)
+                : string.Join(", ", CleanValues(siteAndLand.ParcelNumbers)),
+            previousFoundation.IsAvailable
+                ? Clean(previousBasis.LandReference)
+                : string.Join(", ", CleanValues((previous.SiteAndLand ?? new()).ParcelNumbers)),
+            basis.LandReference);
+        string buildingPurpose = Resolve(
+            Clean(information.BuildingPurpose),
+            Clean(previousInformation.BuildingPurpose),
+            basis.Summary);
+        string clientName = Resolve(
+            Clean(snapshot.ClientName),
+            Clean(previous.ClientName),
+            basis.ClientName);
+        string planningAuthorityName = Resolve(
+            Clean(snapshot.PlanningAuthorityName),
+            Clean(previous.PlanningAuthorityName),
+            planningTask.IssuingAuthorityName);
+        string basisSourceType = Resolve(
+            Clean(serverBasis.SourceType),
+            Clean(previousBasis.SourceType),
+            basis.SourceType);
+        string requestNumber = Resolve(
+            Clean(serverBasis.RequestNumber),
+            Clean(previousBasis.RequestNumber),
+            basis.RequestNumber);
+        string clientType = ProjectClientTypes.Normalize(Resolve(
+            ProjectClientTypes.Normalize(serverBasis.ClientType),
+            ProjectClientTypes.Normalize(previousBasis.ClientType),
+            basis.ClientType));
+        string clientEmail = Resolve(
+            Clean(serverBasis.ClientEmail),
+            Clean(previousBasis.ClientEmail),
+            basis.ClientEmail);
+        string clientRepresentativePosition = Resolve(
+            Clean(serverBasis.ClientRepresentativePosition),
+            Clean(previousBasis.ClientRepresentativePosition),
+            basis.ClientRepresentativePosition);
+        string clientRepresentativeName = Resolve(
+            Clean(serverBasis.ClientRepresentativeName),
+            Clean(previousBasis.ClientRepresentativeName),
+            basis.ClientRepresentativeName);
+        string sourceOrganizationName = Resolve(
+            Clean(serverBasis.SourceOrganizationName),
+            Clean(previousBasis.SourceOrganizationName),
+            basis.SourceOrganizationName);
+        string atdNumber = Resolve(
+            Clean(serverPlanningTask.AtdNumber),
+            Clean(previousPlanningTask.AtdNumber),
+            planningTask.AtdNumber);
+        string atdStatus = Resolve(
+            Clean(serverPlanningTask.Status),
+            Clean(previousPlanningTask.Status),
+            planningTask.Status);
+        string atdSummary = Resolve(
+            Clean(serverPlanningTask.Summary),
+            Clean(previousPlanningTask.Summary),
+            planningTask.Summary);
         string currentStage = Clean(snapshot.CurrentStage);
 
-        ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
-        PlanningTaskInformation planningTask = project.Foundation.PlanningTask;
         bool foundationChanged =
             !string.Equals(project.Identity.Name, projectName, StringComparison.Ordinal) ||
             !string.Equals(project.Identity.Code, projectCode, StringComparison.Ordinal) ||
