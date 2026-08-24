@@ -5099,7 +5099,7 @@ internal sealed partial class ShellView
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 220.510, 180, 8), bodyTextHeightMm, FontWeights.Normal);
         AddCoverPreviewText(canvas, state.Project.Name,
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 207.510, 220, 12), projectNameTextHeightMm, FontWeights.Normal);
-        AddCoverPreviewText(canvas, AlbumCoverDocumentTitle.Resolve(
+        AddCoverPreviewText(canvas, AlbumCoverStyle.Resolve(
                 state.AlbumDocument.Definition.TemplateId,
                 drawsWorkingDrawingEtalon: false),
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 186.760, 110, 8), bodyTextHeightMm, FontWeights.Normal);

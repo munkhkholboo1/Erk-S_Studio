@@ -2005,9 +2005,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 {
                     DrawAlbumFormatCoverPage(document, request, plan);
                 }
-                else if (request.Project.Album.TemplateId.Equals(
-                        BuildingArchitectureConceptAlbumTemplate.TemplateId,
-                        StringComparison.OrdinalIgnoreCase))
+                else if (AlbumCoverStyle.UsesApprovalCover(request.Project.Album.TemplateId))
                 {
                     DrawConceptCoverPage(document, request, plan.Component);
                 }
@@ -2246,7 +2244,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             projectNameTextHeightMm,
             false,
             XStringFormats.Center);
-        string coverTypeTitle = AlbumCoverDocumentTitle.Resolve(
+        string coverTypeTitle = AlbumCoverStyle.Resolve(
             request.Project.Album.TemplateId,
             drawWorkingDrawingEtalon);
         DrawCoverText(
