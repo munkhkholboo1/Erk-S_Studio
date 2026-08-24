@@ -156,6 +156,15 @@ internal static class StudioCompanyProfileMapper
         [.. (documents ?? [])
             .Where(document => document is not null)
             .Where(document => !string.IsNullOrWhiteSpace(document.DocumentId))
+            // The same scan can be stored twice: the server counts records per
+            // category rather than distinct content, so uploading one file
+            // again through the website creates a second row with its own id.
+            // Both would reach the album as separate pages of the same
+            // certificate. Documents with no hash yet keep their own identity -
+            // there is nothing to compare them by.
+            .DistinctBy(document => string.IsNullOrWhiteSpace(document.Sha256)
+                ? "id:" + document.DocumentId.Trim().ToLowerInvariant()
+                : "sha:" + document.Sha256.Trim().ToLowerInvariant())
             .Select(document => new ProjectFileReference
             {
                 Category = category,
