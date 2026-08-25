@@ -317,6 +317,7 @@ internal sealed partial class ShellView : IDisposable
         notificationRefreshTimer.Tick += async (_, _) =>
         {
             await RefreshNotificationsAsync();
+            await RefreshTeamPresenceIfVisibleAsync();
             if (projectWorkspaceOpen &&
                 state.HasOpenProject &&
                 CurrentWorkspaceLifecycleDecision().Allowed)
@@ -906,6 +907,14 @@ internal sealed partial class ShellView : IDisposable
         contentHost.Children.Add(pages[page]);
         if (page == StudioPage.Home)
             _ = EnsureHomeCatalogAsync();
+        if (page == StudioPage.Foundation)
+        {
+            // Coming back to the team means looking at the dots, and what is on
+            // screen may have been fetched a while ago. Ask now rather than
+            // waiting out the timer with stale answers on display.
+            lastPresenceFetchUtc = DateTimeOffset.MinValue;
+            _ = RefreshTeamPresenceIfVisibleAsync();
+        }
         foreach (var (candidate, item) in navItems)
         {
             var isActive = candidate == page;

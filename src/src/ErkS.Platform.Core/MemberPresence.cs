@@ -36,6 +36,29 @@ public static class MemberPresence
     /// </summary>
     public static readonly TimeSpan DefaultOnlineWithin = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// How often to ask the server again, given how long it counts someone as
+    /// present.
+    /// </summary>
+    /// <remarks>
+    /// Asking less often than the window means everyone drops to offline
+    /// between fetches and springs back on the next one - the whole team
+    /// blinking together, which is what a reader takes for an outage rather
+    /// than for stale data. Half the window leaves room for one missed
+    /// request.
+    /// </remarks>
+    public static TimeSpan RefreshInterval(TimeSpan onlineWithin, TimeSpan? requested = null)
+    {
+        TimeSpan window = onlineWithin > TimeSpan.Zero ? onlineWithin : DefaultOnlineWithin;
+        TimeSpan interval = requested is { } asked && asked > TimeSpan.Zero
+            ? asked
+            : TimeSpan.FromSeconds(window.TotalSeconds / 2);
+
+        return interval >= window
+            ? TimeSpan.FromSeconds(window.TotalSeconds / 2)
+            : interval;
+    }
+
     public static MemberPresenceState Resolve(
         DateTimeOffset? lastSeen,
         DateTimeOffset now,

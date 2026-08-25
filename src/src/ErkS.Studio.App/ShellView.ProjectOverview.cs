@@ -411,6 +411,14 @@ internal sealed partial class ShellView
         }
 
         presenceOnlineWithin = TimeSpan.FromSeconds(seconds);
+
+        // How often to ask again, also the server's to decide - kept below the
+        // online window so nobody blinks offline between fetches.
+        presenceRefreshEvery = MemberPresence.RefreshInterval(
+            presenceOnlineWithin,
+            presence.Values.TryGetValue("heartbeatIntervalSeconds", out long interval)
+                ? TimeSpan.FromSeconds(interval)
+                : null);
     }
 
     /// <summary>
@@ -426,8 +434,57 @@ internal sealed partial class ShellView
     /// The call also counts as this device being heard from, so opening a
     /// project is itself a sign of life.
     /// </remarks>
+    private DateTimeOffset lastPresenceFetchUtc = DateTimeOffset.MinValue;
+    private TimeSpan presenceRefreshEvery = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Keeps the dots current while somebody is looking at them.
+    /// </summary>
+    /// <remarks>
+    /// Presence was fetched once, when the project opened, and the cards are
+    /// rebuilt on any refresh of the page - so the same timestamps were being
+    /// judged against a later and later "now". Past the threshold the whole
+    /// team turned red at once, including the person reading the screen, who
+    /// was plainly present. Old facts re-evaluated are worse than no facts:
+    /// they look like an answer.
+    ///
+    /// This rides the notification timer rather than adding one. That timer is
+    /// already talking to the server every 45 seconds; the only new cost is one
+    /// request, spaced by what the server's rules ask for.
+    /// </remarks>
+    private async Task RefreshTeamPresenceIfVisibleAsync()
+    {
+        if (!projectWorkspaceOpen ||
+            activePage != StudioPage.Foundation ||
+            !state.HasOpenProject ||
+            !account.IsSignedIn)
+        {
+            return;
+        }
+
+        string projectId = state.Project.Cloud.ServerProjectId;
+        if (projectId.Length == 0)
+            return;
+
+        if (DateTimeOffset.UtcNow - lastPresenceFetchUtc < presenceRefreshEvery)
+            return;
+
+        try
+        {
+            await RefreshTeamPresenceAsync(projectId);
+        }
+        catch (Exception exception) when (
+            exception is StudioAccountException or System.Net.Http.HttpRequestException or TaskCanceledException)
+        {
+            // A missed refresh leaves the dots as they were, which is the last
+            // thing actually known. Saying so on screen every minute would be
+            // noise; the next tick tries again.
+        }
+    }
+
     private async Task RefreshTeamPresenceAsync(string projectId)
     {
+        lastPresenceFetchUtc = DateTimeOffset.UtcNow;
         StudioCloudProjectDetail detail = await account.GetProjectAsync(projectId);
         state.ParticipantPresence.Clear();
         foreach (StudioCloudParticipant participant in detail.Participants ?? [])

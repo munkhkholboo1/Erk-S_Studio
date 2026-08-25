@@ -65,6 +65,35 @@ public sealed class MemberPresenceTests
             MemberPresence.Resolve(Now.AddMinutes(3), Now));
     }
 
+    [Fact]
+    public void TheServersInterval180And60IsUsedAsGiven()
+    {
+        Assert.Equal(
+            TimeSpan.FromSeconds(60),
+            MemberPresence.RefreshInterval(TimeSpan.FromSeconds(180), TimeSpan.FromSeconds(60)));
+    }
+
+    [Fact]
+    public void AnIntervalAtOrAboveTheWindowIsBroughtUnderIt()
+    {
+        // Asking every 180s when 180s is the cutoff means the whole team blinks
+        // offline just before each refresh - which reads as an outage, not as
+        // stale data.
+        TimeSpan window = TimeSpan.FromSeconds(180);
+
+        Assert.True(MemberPresence.RefreshInterval(window, window) < window);
+        Assert.True(MemberPresence.RefreshInterval(window, TimeSpan.FromSeconds(600)) < window);
+    }
+
+    [Fact]
+    public void NoIntervalGivenStillLandsUnderTheWindow()
+    {
+        TimeSpan window = TimeSpan.FromSeconds(180);
+
+        Assert.True(MemberPresence.RefreshInterval(window) < window);
+        Assert.True(MemberPresence.RefreshInterval(window) > TimeSpan.Zero);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-30)]
