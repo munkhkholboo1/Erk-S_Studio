@@ -325,6 +325,76 @@ try {
 
 Write-JsonFile -Path $historyPath -Value $history
 
+# Record the release in the version ledger.
+#
+# STUDIO-RELEASE-MANIFEST-INDEX.json is the answer to "which bytes were ever
+# called V0.001.n". It was maintained by hand, and by 2026-08-25 it had stopped
+# at V0.001.52 while 53, 54 and 55 were live - a gap nothing reported, because
+# forgetting to add a row looks exactly like a row that was never due.
+#
+# The hash written here is measured from the file that was actually published a
+# few lines above, not copied out of release.json. A ledger that repeats a claim
+# can only confirm the claim; one that measures can contradict it.
+#
+# Failing to record must not fail a release that has already gone out - the
+# upload is done by this point and reversing it would be worse. The warning is
+# the loud part.
+try {
+    $ledgerPath = Join-Path $productRoot "docs\STUDIO-RELEASE-MANIFEST-INDEX.json"
+    if (-not (Test-Path -LiteralPath $ledgerPath -PathType Leaf)) {
+        throw "The release ledger is missing: $ledgerPath"
+    }
+
+    # ConvertFrom-Json hands a JSON array to the pipeline as ONE object rather
+    # than as its elements, so @(...) around it wraps instead of unrolling and
+    # every existing row collapses into a single entry. Writing that back turns
+    # a ledger of fifty-six releases into a file with one. Assign first, then
+    # enumerate.
+    $ledgerJson = Get-Content -Raw -LiteralPath $ledgerPath | ConvertFrom-Json
+    $ledger = New-Object System.Collections.Generic.List[object]
+    foreach ($row in $ledgerJson) { $ledger.Add($row) }
+
+    $ledgerCountBefore = $ledger.Count
+    if ($ledgerCountBefore -lt 1) {
+        throw "The release ledger read back empty; refusing to overwrite it."
+    }
+
+    $alreadyRecorded = $false
+    foreach ($row in $ledger) {
+        if ([string]::Equals([string]$row.version, $versions.Artifact, [StringComparison]::OrdinalIgnoreCase)) {
+            $alreadyRecorded = $true
+            break
+        }
+    }
+
+    if ($alreadyRecorded) {
+        Write-Host "  Ledger: $($versions.Artifact) already recorded"
+    }
+    else {
+        $ledger.Add([pscustomobject][ordered]@{
+            version = $versions.Artifact
+            setupFile = Split-Path -Leaf $setupSource
+            sha256 = $downloadHash.ToUpperInvariant()
+            sizeBytes = (Get-Item -LiteralPath $downloadPath).Length
+            generatedAtUtc = [string]$releaseManifest.generatedAtUtc
+            publisher = [string]$releaseManifest.publisher
+            signingCertificateThumbprint = [string]$releaseManifest.signingCertificateThumbprint
+            signingCertificateSha256 = [string]$releaseManifest.signingCertificateSha256
+            signingTrust = [string]$releaseManifest.signingTrust
+            recovered = $false
+        })
+
+        if ($ledger.Count -ne ($ledgerCountBefore + 1)) {
+            throw "The ledger would have gone from $ledgerCountBefore rows to $($ledger.Count); refusing to write."
+        }
+
+        Write-JsonFile -Path $ledgerPath -Value $ledger.ToArray()
+        Write-Host "  Ledger: recorded $($versions.Artifact), $($ledger.Count) releases"
+    }
+} catch {
+    Write-Warning "Could not record the release in the version ledger: $($_.Exception.Message)"
+}
+
 Write-Host "Published Erk-S Studio Demo $($versions.Artifact) to $serverRoot"
 Write-Host "  Setup: $downloadPath"
 Write-Host "  Update: $updatePath"
