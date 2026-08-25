@@ -209,21 +209,52 @@ internal sealed partial class ShellView
         menuButton.SetValue(DockPanel.DockProperty, Dock.Right);
         row.AppendChild(menuButton);
 
+        // What kind of thing this is, said in one glyph on the left.
+        //
+        // Without it every row looked alike and the list read as an
+        // undifferentiated pile - a Revit model, a set of AutoCAD sheets and a
+        // folder of renders all presented as the same grey line. Kind is the
+        // first question a reader has, so it sits where reading starts.
+        var badge = new FrameworkElementFactory(typeof(Border));
+        badge.SetValue(FrameworkElement.WidthProperty, 26.0);
+        badge.SetValue(FrameworkElement.HeightProperty, 26.0);
+        badge.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        badge.SetValue(Border.BackgroundProperty, StudioTheme.PanelAltBrush);
+        badge.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 1, 9, 0));
+        badge.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Top);
+        badge.SetValue(DockPanel.DockProperty, Dock.Left);
+        badge.SetValue(FrameworkElement.ToolTipProperty,
+            new Binding(nameof(SourceWorkspaceItem.CategoryLabel)));
+
+        var glyph = new FrameworkElementFactory(typeof(TextBlock));
+        glyph.SetBinding(TextBlock.TextProperty, new Binding(nameof(SourceWorkspaceItem.CategoryGlyph)));
+        glyph.SetValue(TextBlock.FontFamilyProperty, StudioWidgets.GlyphFont);
+        glyph.SetValue(TextBlock.FontSizeProperty, 13.0);
+        glyph.SetValue(TextBlock.ForegroundProperty, StudioTheme.AccentSoftBrush);
+        glyph.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        glyph.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        badge.AppendChild(glyph);
+        row.AppendChild(badge);
+
         var root = new FrameworkElementFactory(typeof(StackPanel));
 
         var name = new FrameworkElementFactory(typeof(TextBlock));
         name.SetBinding(TextBlock.TextProperty, new Binding(nameof(SourceWorkspaceItem.Name)));
         name.SetValue(TextBlock.FontSizeProperty, 12.5);
         name.SetValue(TextBlock.ForegroundProperty, StudioTheme.TextBrush);
-        name.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        // Wrapped, not trimmed. A source whose name ends in "…" cannot be told
+        // apart from the next one that starts the same way, and these names are
+        // often long by design - the user could not read their own rows.
+        name.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         root.AppendChild(name);
 
         var detail = new FrameworkElementFactory(typeof(TextBlock));
         detail.SetBinding(TextBlock.TextProperty, new Binding(nameof(SourceWorkspaceItem.Summary)));
         detail.SetValue(TextBlock.FontSizeProperty, 10.5);
         detail.SetValue(TextBlock.ForegroundProperty, StudioTheme.MutedTextBrush);
-        detail.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-        detail.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 2, 0, 0));
+        detail.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        detail.SetValue(TextBlock.LineHeightProperty, 14.0);
+        detail.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 3, 0, 0));
         root.AppendChild(detail);
 
         row.AppendChild(root);

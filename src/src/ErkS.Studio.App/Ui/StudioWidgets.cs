@@ -10,7 +10,7 @@ namespace ErkS.Studio;
 /// </summary>
 internal static class StudioWidgets
 {
-    private static readonly FontFamily GlyphFont = new("Segoe MDL2 Assets");
+    internal static readonly FontFamily GlyphFont = new("Segoe MDL2 Assets");
 
     /// <summary>Resolves an icon asset shipped next to this assembly (Assets folder).</summary>
     public static string GetAssetPath(string assetName)

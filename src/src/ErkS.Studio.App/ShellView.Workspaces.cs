@@ -157,7 +157,7 @@ internal sealed partial class ShellView
         root.Children.Add(BuildSourceRibbon());
 
         var workspace = new Grid { Background = StudioTheme.WindowBackgroundBrush };
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
         workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 360 });
         workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(270) });
         Grid.SetRow(workspace, 1);
@@ -1493,7 +1493,10 @@ internal sealed partial class ShellView
                     // is signed in now.
                     OwnerEmail: sharedSource is null
                         ? ""
-                        : SourceWorkspaceItem.OwnerOfShared(sharedSource)));
+                        : SourceWorkspaceItem.OwnerOfShared(sharedSource))
+                {
+                    Application = source.Kind.ToString(),
+                });
                 continue;
             }
 
@@ -1507,7 +1510,7 @@ internal sealed partial class ShellView
                 sharedSource,
                 component,
                 cloudName,
-                $"Cloud | {immutableOwner} | Локал payload энэ бүртгэл/төхөөрөмжид баталгаажаагүй | Зөвхөн харах"));
+                $"Cloud | {immutableOwner} | Локал payload энэ бүртгэл/төхөөрөмжид баталгаажаагүй | Зөвхөн харах") with { Application = source.Kind.ToString() });
         }
         foreach (ProjectCloudSourceReference cloudSource in
                  (state.Project.Cloud.SharedSources ?? []).OfType<ProjectCloudSourceReference>())
@@ -1540,7 +1543,7 @@ internal sealed partial class ShellView
                 component,
                 name,
                 $"{cloudSource.SourceApplication} | {cloudSource.OwnerEmail} | " +
-                $"{cloudSource.SheetCount} sheet | {placement} | Зөвхөн харах"));
+                $"{cloudSource.SheetCount} sheet | {placement} | Зөвхөн харах") with { Application = cloudSource.SourceApplication });
         }
         foreach (ProjectCloudAlbumComponentReference component in
                  sharedComponents)
@@ -5715,6 +5718,33 @@ internal sealed partial class ShellView
         /// </summary>
         public SourceOwnerGroup Owner { get; init; } = SourceOwnerGroup.ThisDevice;
 
+        /// <summary>What produced this source, as its record reports it.</summary>
+        public string Application { get; init; } = "";
+
+        /// <summary>
+        /// The kind badge: the first thing a reader wants from a row.
+        /// </summary>
+        public DesignSourceCategory Category => DesignSourceCategories.Classify(
+            Application,
+            IsVisualization,
+            HasLocalPayload);
+
+        public string CategoryLabel => DesignSourceCategories.Label(Category);
+
+        /// <summary>
+        /// Segoe MDL2, the same face the rest of the shell uses for icons.
+        /// </summary>
+        public string CategoryGlyph => Category switch
+        {
+            DesignSourceCategory.Revit => "",
+            DesignSourceCategory.AutoCad => "",
+            DesignSourceCategory.Visualization => "",
+            DesignSourceCategory.CityGen => "",
+            DesignSourceCategory.Pdf => "",
+            DesignSourceCategory.Cloud => "",
+            _ => "",
+        };
+
         /// <summary>
         /// The second line of the row: the same facts, without the pipes and
         /// without the owner's address.
@@ -5728,7 +5758,12 @@ internal sealed partial class ShellView
             " · ",
             Detail
                 .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(part => !part.Contains('@', StringComparison.Ordinal)));
+                .Where(part => !part.Contains('@', StringComparison.Ordinal))
+                // The badge already says what kind this is, in a glyph that
+                // costs no width. Repeating it in words spends the line on
+                // something the reader has taken in before reaching it.
+                .Where(part => !part.Equals(CategoryLabel, StringComparison.OrdinalIgnoreCase))
+                .Where(part => !part.Equals(Application, StringComparison.OrdinalIgnoreCase)));
 
         public bool IsCloudPlaceholder => !IsVisualization &&
             !HasLocalPayload &&
