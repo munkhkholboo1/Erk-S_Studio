@@ -677,26 +677,51 @@ internal sealed partial class ShellView
         itemStyle.Triggers.Add(inactiveTrigger);
         receivedSheetsWorkspaceList.ItemContainerStyle = itemStyle;
 
-        var view = new GridView();
-        var headerStyle = new Style(typeof(GridViewColumnHeader));
-        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, StudioTheme.PanelAltBrush));
-        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.MutedTextBrush));
-        headerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
-        headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 5, 7, 5)));
-        view.ColumnHeaderContainerStyle = headerStyle;
-        view.Columns.Add(new GridViewColumn
-        {
-            Header = "Хуудас",
-            Width = 174,
-            CellTemplate = CreateSourceSheetThumbnailTemplate(),
-        });
-        view.Columns.Add(new GridViewColumn { Header = "Дугаар", Width = 72, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Number)) });
-        view.Columns.Add(new GridViewColumn { Header = "Нэр", Width = 230, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Name)) });
-        view.Columns.Add(new GridViewColumn { Header = "Барилга", Width = 150, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Building)) });
-        view.Columns.Add(new GridViewColumn { Header = "Эх файл", Width = 150, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Application)) });
-        view.Columns.Add(new GridViewColumn { Header = "Format", Width = 90, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Size)) });
-        view.Columns.Add(new GridViewColumn { Header = "Төлөв", Width = 100, DisplayMemberBinding = new Binding(nameof(SheetWorkspaceItem.Status)) });
-        receivedSheetsWorkspaceList.View = view;
+        // The same gallery as the visualisation images, for the same reason:
+        // these are drawings, and six text columns under a header bar made the
+        // drawing the smallest thing in its own row.
+        receivedSheetsWorkspaceList.View = null;
+        receivedSheetsWorkspaceList.ItemTemplate = CreateSheetCardTemplate();
+        receivedSheetsWorkspaceList.ItemsPanel = CreateWrapPanelTemplate();
+        ScrollViewer.SetHorizontalScrollBarVisibility(
+            receivedSheetsWorkspaceList,
+            ScrollBarVisibility.Disabled);
+    }
+
+    /// <summary>One received sheet, as a card.</summary>
+    private static DataTemplate CreateSheetCardTemplate()
+    {
+        var card = new FrameworkElementFactory(typeof(StackPanel));
+        card.SetValue(FrameworkElement.WidthProperty, 186.0);
+        card.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 10, 12));
+
+        var frame = new FrameworkElementFactory(typeof(Border));
+        frame.SetValue(FrameworkElement.HeightProperty, 124.0);
+        frame.SetValue(Border.BackgroundProperty, StudioTheme.PanelAltBrush);
+        frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        frame.SetValue(Border.PaddingProperty, new Thickness(5));
+        frame.SetValue(UIElement.ClipToBoundsProperty, true);
+        frame.AppendChild(CreateSourceSheetThumbnailFactory());
+        card.AppendChild(frame);
+
+        var title = new FrameworkElementFactory(typeof(TextBlock));
+        title.SetBinding(TextBlock.TextProperty, new Binding(nameof(SheetWorkspaceItem.CardTitle)));
+        title.SetValue(TextBlock.FontSizeProperty, 11.5);
+        title.SetValue(TextBlock.ForegroundProperty, StudioTheme.TextBrush);
+        title.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        title.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 6, 2, 0));
+        title.SetValue(FrameworkElement.ToolTipProperty, new Binding(nameof(SheetWorkspaceItem.CardTitle)));
+        card.AppendChild(title);
+
+        var facts = new FrameworkElementFactory(typeof(TextBlock));
+        facts.SetBinding(TextBlock.TextProperty, new Binding(nameof(SheetWorkspaceItem.CardFacts)));
+        facts.SetValue(TextBlock.FontSizeProperty, 10.0);
+        facts.SetValue(TextBlock.ForegroundProperty, StudioTheme.MutedTextBrush);
+        facts.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        facts.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 2, 2, 0));
+        card.AppendChild(facts);
+
+        return new DataTemplate(typeof(SheetWorkspaceItem)) { VisualTree = card };
     }
 
     private void ConfigureReceivedSheetsWorkspace()
@@ -732,7 +757,10 @@ internal sealed partial class ShellView
         receivedSheetsWorkspaceHost.Children.Add(receivedSheetsWorkspaceList);
     }
 
-    private static DataTemplate CreateSourceSheetThumbnailTemplate()
+    private static DataTemplate CreateSourceSheetThumbnailTemplate() =>
+        new() { VisualTree = CreateSourceSheetThumbnailFactory() };
+
+    private static FrameworkElementFactory CreateSourceSheetThumbnailFactory()
     {
         var host = new FrameworkElementFactory(typeof(Border));
         host.SetValue(FrameworkElement.WidthProperty, 154.0);
@@ -763,7 +791,7 @@ internal sealed partial class ShellView
         image.SetValue(FrameworkElement.MarginProperty, new Thickness(1));
         content.AppendChild(image);
         host.AppendChild(content);
-        return new DataTemplate { VisualTree = host };
+        return host;
     }
 
     private void AddDesignSourceFromDialog()
@@ -5807,6 +5835,25 @@ internal sealed partial class ShellView
         public string Size { get; }
         public bool IsActive { get; }
         public string Status { get; }
+
+        /// <summary>The sheet's own name, with its number when it has one.</summary>
+        public string CardTitle => string.IsNullOrWhiteSpace(Number)
+            ? Name
+            : $"{Number} · {Name}";
+
+        /// <summary>
+        /// The line under a card: what the four text columns used to hold.
+        /// </summary>
+        /// <remarks>
+        /// Status is left out while the sheet is in the album, which is the
+        /// ordinary case - a line ending the same way on every card is a line
+        /// the eye learns to skip, and then misses on the one card where it
+        /// changed.
+        /// </remarks>
+        public string CardFacts => string.Join(
+            " · ",
+            new[] { Building, Application, Size, IsActive ? "" : Status }
+                .Where(part => !string.IsNullOrWhiteSpace(part)));
         public ImageSource? ThumbnailSource
         {
             get => thumbnailSource;

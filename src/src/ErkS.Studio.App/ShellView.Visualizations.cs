@@ -132,47 +132,75 @@ internal sealed partial class ShellView
         var itemStyle = new Style(typeof(ListViewItem));
         itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
         itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-        itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(5, 5, 5, 5)));
+        itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(4)));
         visualizationImagesWorkspaceList.ItemContainerStyle = itemStyle;
 
-        var view = new GridView();
-        var headerStyle = new Style(typeof(GridViewColumnHeader));
-        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, StudioTheme.PanelAltBrush));
-        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.MutedTextBrush));
-        headerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
-        headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 5, 7, 5)));
-        view.ColumnHeaderContainerStyle = headerStyle;
-        view.Columns.Add(new GridViewColumn
-        {
-            Header = "Preview",
-            Width = 104,
-            CellTemplate = CreateVisualizationThumbnailTemplate(),
-        });
-        view.Columns.Add(new GridViewColumn
-        {
-            Header = "Файл",
-            Width = 230,
-            DisplayMemberBinding = new Binding(nameof(VisualizationImageWorkspaceItem.FileName)),
-        });
-        view.Columns.Add(new GridViewColumn
-        {
-            Header = "Чиглэл",
-            Width = 90,
-            DisplayMemberBinding = new Binding(nameof(VisualizationImageWorkspaceItem.Orientation)),
-        });
-        view.Columns.Add(new GridViewColumn
-        {
-            Header = "Хэмжээ",
-            Width = 120,
-            DisplayMemberBinding = new Binding(nameof(VisualizationImageWorkspaceItem.Dimensions)),
-        });
-        view.Columns.Add(new GridViewColumn
-        {
-            Header = "Төлөв",
-            Width = 128,
-            DisplayMemberBinding = new Binding(nameof(VisualizationImageWorkspaceItem.Status)),
-        });
-        visualizationImagesWorkspaceList.View = view;
+        // A gallery, not a table.
+        //
+        // These are pictures, and they were being listed the way a database
+        // lists rows: a "Preview" column 88 pixels wide beside four columns of
+        // text, under a header bar. The user called it medieval and they were
+        // right - the thumbnail is the thing being chosen, and it was the
+        // smallest part of its own row.
+        //
+        // Now each image is a card that shows the picture at a size worth
+        // looking at, with its facts underneath. No header row, no empty
+        // columns, and the pane reflows to whatever width it is given.
+        visualizationImagesWorkspaceList.View = null;
+        visualizationImagesWorkspaceList.ItemTemplate = CreateVisualizationCardTemplate();
+        visualizationImagesWorkspaceList.ItemsPanel = CreateWrapPanelTemplate();
+        ScrollViewer.SetHorizontalScrollBarVisibility(
+            visualizationImagesWorkspaceList,
+            ScrollBarVisibility.Disabled);
+    }
+
+    /// <summary>Lays items out left to right, wrapping to the pane's width.</summary>
+    private static ItemsPanelTemplate CreateWrapPanelTemplate()
+    {
+        var panel = new FrameworkElementFactory(typeof(WrapPanel));
+        panel.SetValue(WrapPanel.OrientationProperty, Orientation.Horizontal);
+        return new ItemsPanelTemplate { VisualTree = panel };
+    }
+
+    /// <summary>One image, as a card.</summary>
+    private static DataTemplate CreateVisualizationCardTemplate()
+    {
+        var card = new FrameworkElementFactory(typeof(StackPanel));
+        card.SetValue(FrameworkElement.WidthProperty, 168.0);
+        card.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 10, 12));
+
+        var frame = new FrameworkElementFactory(typeof(Border));
+        frame.SetValue(FrameworkElement.HeightProperty, 108.0);
+        frame.SetValue(Border.BackgroundProperty, StudioTheme.PanelAltBrush);
+        frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        frame.SetValue(Border.PaddingProperty, new Thickness(4));
+        frame.SetValue(UIElement.ClipToBoundsProperty, true);
+
+        var image = new FrameworkElementFactory(typeof(Image));
+        image.SetBinding(Image.SourceProperty, new Binding(nameof(VisualizationImageWorkspaceItem.Thumbnail)));
+        image.SetValue(Image.StretchProperty, Stretch.Uniform);
+        image.SetValue(RenderOptions.BitmapScalingModeProperty, BitmapScalingMode.HighQuality);
+        frame.AppendChild(image);
+        card.AppendChild(frame);
+
+        var name = new FrameworkElementFactory(typeof(TextBlock));
+        name.SetBinding(TextBlock.TextProperty, new Binding(nameof(VisualizationImageWorkspaceItem.FileName)));
+        name.SetValue(TextBlock.FontSizeProperty, 11.5);
+        name.SetValue(TextBlock.ForegroundProperty, StudioTheme.TextBrush);
+        name.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        name.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 6, 2, 0));
+        name.SetValue(FrameworkElement.ToolTipProperty, new Binding(nameof(VisualizationImageWorkspaceItem.FileName)));
+        card.AppendChild(name);
+
+        var facts = new FrameworkElementFactory(typeof(TextBlock));
+        facts.SetBinding(TextBlock.TextProperty, new Binding(nameof(VisualizationImageWorkspaceItem.CardFacts)));
+        facts.SetValue(TextBlock.FontSizeProperty, 10.0);
+        facts.SetValue(TextBlock.ForegroundProperty, StudioTheme.MutedTextBrush);
+        facts.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        facts.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 2, 2, 0));
+        card.AppendChild(facts);
+
+        return new DataTemplate(typeof(VisualizationImageWorkspaceItem)) { VisualTree = card };
     }
 
     private static DataTemplate CreateVisualizationThumbnailTemplate()
@@ -204,7 +232,16 @@ internal sealed partial class ShellView
             "Нэг хуудсанд",
             visualizationImagesPerPageBox));
 
-        var actions = new WrapPanel { Margin = new Thickness(0, 7, 0, 4) };
+        // Kept in the tree, out of sight: these four now appear in the ⋯ menu on
+        // the source, and the menu reads their IsEnabled to know when each
+        // applies. Collapsing them one by one would take the menu entries down
+        // with them; collapsing the row they sit in leaves that reasoning
+        // untouched. The panel beside the list is for information now.
+        var actions = new WrapPanel
+        {
+            Margin = new Thickness(0, 7, 0, 4),
+            Visibility = Visibility.Collapsed,
+        };
         addVisualizationImagesButton.Click += (_, _) => AddVisualizationImages();
         relinkVisualizationImageButton.Click += (_, _) => RelinkSelectedVisualizationImage();
         excludeVisualizationImagesButton.Click += (_, _) => ExcludeSelectedVisualizationImages();
@@ -841,6 +878,27 @@ internal sealed partial class ShellView
                 ? "Босоо"
                 : "Дөрвөлжин";
         public string Dimensions => $"{Image.PixelWidth} × {Image.PixelHeight} px";
+
+        /// <summary>
+        /// The line under a card: everything the table used four columns for.
+        /// </summary>
+        /// <remarks>
+        /// Status is included only when it says something. In the ordinary case
+        /// it repeats what the picture already shows, and a card that ends in
+        /// the same words on every tile teaches the eye to skip that line -
+        /// including on the one tile where it matters.
+        /// </remarks>
+        public string CardFacts
+        {
+            get
+            {
+                string facts = $"{Orientation} · {Dimensions}";
+                string status = Status;
+                return string.IsNullOrWhiteSpace(status) || Image.IsAvailable && Image.IsIncludedInAlbum
+                    ? facts
+                    : $"{facts} · {status}";
+            }
+        }
         public string Status => !Image.IsAvailable
             ? "Эх файл олдсонгүй"
             : Image.IsIncludedInAlbum

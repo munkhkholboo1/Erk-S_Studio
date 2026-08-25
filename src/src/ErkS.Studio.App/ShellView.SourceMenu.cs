@@ -31,8 +31,8 @@ internal sealed partial class ShellView
             return sourceActionsMenu;
 
         var menu = new ContextMenu();
-        foreach ((string header, Button button) in SourceActionButtons())
-            menu.Items.Add(CreateSourceActionItem(header, button));
+        foreach ((string header, Button button, UIElement? gate) in SourceActionButtons())
+            menu.Items.Add(CreateSourceActionItem(header, button, gate));
 
         // Read the buttons as the menu opens: their state is settled by the
         // selection, and the selection is settled by the click that opened this.
@@ -40,11 +40,17 @@ internal sealed partial class ShellView
         {
             foreach (object entry in menu.Items)
             {
-                if (entry is MenuItem item && item.Tag is Button source)
-                {
-                    item.IsEnabled = source.IsEnabled;
-                    item.Visibility = source.Visibility;
-                }
+                if (entry is not MenuItem item || item.Tag is not SourceActionBinding binding)
+                    continue;
+
+                // Some actions belong to one kind of source and are hidden by
+                // the panel that holds them rather than by their own Visibility
+                // - the visualisation controls work that way. Reading only the
+                // button would offer "Зураг нэмэх" on a Revit source.
+                bool applies = binding.Button.Visibility == Visibility.Visible &&
+                    (binding.Gate is null || binding.Gate.Visibility == Visibility.Visible);
+                item.Visibility = applies ? Visibility.Visible : Visibility.Collapsed;
+                item.IsEnabled = binding.Button.IsEnabled;
             }
         };
 
@@ -52,19 +58,30 @@ internal sealed partial class ShellView
         return menu;
     }
 
-    private (string Header, Button Button)[] SourceActionButtons() =>
+    /// <summary>What an entry watches to decide whether it applies.</summary>
+    private sealed record SourceActionBinding(Button Button, UIElement? Gate);
+
+    private (string Header, Button Button, UIElement? Gate)[] SourceActionButtons() =>
     [
-        ("Эх файл нээх", openNativeSourceButton),
-        ("Хавтас нээх", openSourceFolderButton),
-        ("Эх файлыг солих", relinkNativeSourceButton),
-        ("Cloud эх үүсвэртэй холбох", bindCloudSourceButton),
-        ("Хариуцагч шилжүүлэх", transferSourceCustodyButton),
-        ("Бүртгэлээс хасах", removeDesignSourceButton),
+        ("Эх файл нээх", openNativeSourceButton, null),
+        ("Хавтас нээх", openSourceFolderButton, null),
+        ("Эх файлыг солих", relinkNativeSourceButton, null),
+        ("Cloud эх үүсвэртэй холбох", bindCloudSourceButton, null),
+        ("Хариуцагч шилжүүлэх", transferSourceCustodyButton, null),
+        ("Бүртгэлээс хасах", removeDesignSourceButton, null),
+
+        // The visualisation source's own actions. They were a second column of
+        // buttons in the panel, outside the tidying entirely - the user pointed
+        // at them by name.
+        ("Зураг нэмэх", addVisualizationImagesButton, visualizationSourceControls),
+        ("Эх файлыг дахин заах", relinkVisualizationImageButton, visualizationSourceControls),
+        ("Хуудаснаас хасах", excludeVisualizationImagesButton, visualizationSourceControls),
+        ("Хуудсанд оруулах", includeVisualizationImagesButton, visualizationSourceControls),
     ];
 
-    private static MenuItem CreateSourceActionItem(string header, Button button)
+    private static MenuItem CreateSourceActionItem(string header, Button button, UIElement? gate)
     {
-        var item = new MenuItem { Header = header, Tag = button };
+        var item = new MenuItem { Header = header, Tag = new SourceActionBinding(button, gate) };
         item.Click += (_, _) =>
             button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         return item;
