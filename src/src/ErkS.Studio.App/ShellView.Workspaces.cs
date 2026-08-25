@@ -156,14 +156,37 @@ internal sealed partial class ShellView
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.Children.Add(BuildSourceRibbon());
 
+        // Room for the names people actually use.
+        //
+        // A real row reads "Erin_Apartment_Type_1_Sheet.rvt" over
+        // "Revit · Архитектур · Локал · Холбогдсон · Альбум #3" - which needs
+        // roughly twice the 230 pixels this started with. Widened, and made
+        // draggable: no single number fits every project, and the middle pane
+        // is mostly empty on projects with few sources anyway.
+        var sourceColumn = new ColumnDefinition
+        {
+            Width = new GridLength(420),
+            MinWidth = 260,
+            MaxWidth = 720,
+        };
         var workspace = new Grid { Background = StudioTheme.WindowBackgroundBrush };
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 360 });
+        workspace.ColumnDefinitions.Add(sourceColumn);
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 320 });
         workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(270) });
         Grid.SetRow(workspace, 1);
         root.Children.Add(workspace);
 
         designSourcesWorkspaceList.BorderThickness = new Thickness(0);
+        // Without this the rows never wrap.
+        //
+        // A ListBox lets its items grow past the viewport and scroll sideways,
+        // so a TextBlock set to wrap has infinite width to wrap into and simply
+        // runs off the edge - which is what the user kept seeing after the
+        // wrapping was "fixed". Disabling the horizontal scroll is what makes
+        // the wrap instruction mean anything.
+        ScrollViewer.SetHorizontalScrollBarVisibility(
+            designSourcesWorkspaceList,
+            ScrollBarVisibility.Disabled);
         designSourcesWorkspaceList.ItemTemplate = CreateSourceItemTemplate();
         designSourcesWorkspaceList.GroupStyle.Add(new GroupStyle
         {
@@ -200,6 +223,21 @@ internal sealed partial class ShellView
         var sheetsPane = BuildPane(sourceContentTitle, sourceContentHost, new Thickness(0, 0, 1, 0));
         Grid.SetColumn(sheetsPane, 1);
         workspace.Children.Add(sheetsPane);
+
+        // Sits on the seam, four pixels wide, so the column can be taken wider
+        // still for a project whose names run long.
+        var sourceColumnSplitter = new GridSplitter
+        {
+            Width = 4,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Background = Brushes.Transparent,
+            Cursor = System.Windows.Input.Cursors.SizeWE,
+            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
+            ResizeDirection = GridResizeDirection.Columns,
+        };
+        Grid.SetColumn(sourceColumnSplitter, 1);
+        workspace.Children.Add(sourceColumnSplitter);
 
         sourceDetailsText.Foreground = StudioTheme.MutedTextBrush;
         sourceDetailsText.Margin = new Thickness(2, 4, 2, 10);
@@ -5754,16 +5792,7 @@ internal sealed partial class ShellView
         /// that group is noise - and it was the longest thing on the line,
         /// pushing everything else out of view.
         /// </remarks>
-        public string Summary => string.Join(
-            " · ",
-            Detail
-                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(part => !part.Contains('@', StringComparison.Ordinal))
-                // The badge already says what kind this is, in a glyph that
-                // costs no width. Repeating it in words spends the line on
-                // something the reader has taken in before reaching it.
-                .Where(part => !part.Equals(CategoryLabel, StringComparison.OrdinalIgnoreCase))
-                .Where(part => !part.Equals(Application, StringComparison.OrdinalIgnoreCase)));
+        public string Summary => SourceSummaryLine.Compose(Detail, CategoryLabel, Application);
 
         public bool IsCloudPlaceholder => !IsVisualization &&
             !HasLocalPayload &&
