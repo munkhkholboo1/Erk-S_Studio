@@ -617,94 +617,11 @@ internal sealed partial class ShellView
         receivedSheetsWorkspaceList.SelectionChanged += (_, _) =>
             RefreshSourceSheetActionState();
 
-        var itemStyle = new Style(typeof(ListViewItem));
-        itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
-        itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-        itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(5, 4, 5, 4)));
-        itemStyle.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
-
-        var itemTemplate = new ControlTemplate(typeof(ListViewItem));
-        var rowBackground = new FrameworkElementFactory(typeof(Border), "RowBackground");
-        rowBackground.SetBinding(
-            Border.BackgroundProperty,
-            new Binding(nameof(Control.Background))
-            {
-                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
-            });
-        rowBackground.SetBinding(
-            Border.PaddingProperty,
-            new Binding(nameof(Control.Padding))
-            {
-                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
-            });
-        rowBackground.SetBinding(
-            System.Windows.Documents.TextElement.ForegroundProperty,
-            new Binding(nameof(Control.Foreground))
-            {
-                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
-            });
-        rowBackground.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
-
-        var rowPresenter = new FrameworkElementFactory(typeof(GridViewRowPresenter));
-        rowPresenter.SetBinding(
-            GridViewRowPresenter.ContentProperty,
-            new Binding(nameof(ContentControl.Content))
-            {
-                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
-            });
-        rowPresenter.SetBinding(
-            GridViewRowPresenter.ColumnsProperty,
-            new Binding($"{nameof(ListView.View)}.{nameof(GridView.Columns)}")
-            {
-                RelativeSource = new RelativeSource(
-                    RelativeSourceMode.FindAncestor,
-                    typeof(ListView),
-                    1),
-            });
-        rowPresenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
-        rowPresenter.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-        rowPresenter.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
-        rowBackground.AppendChild(rowPresenter);
-        itemTemplate.VisualTree = rowBackground;
-
-        var hoverTrigger = new Trigger
-        {
-            Property = UIElement.IsMouseOverProperty,
-            Value = true,
-        };
-        hoverTrigger.Setters.Add(new Setter(
-            Border.BackgroundProperty,
-            new SolidColorBrush(Color.FromRgb(29, 40, 54)),
-            "RowBackground"));
-        hoverTrigger.Setters.Add(new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
-        itemTemplate.Triggers.Add(hoverTrigger);
-
-        var focusedSelectionTrigger = new MultiTrigger();
-        focusedSelectionTrigger.Conditions.Add(
-            new System.Windows.Condition(ListBoxItem.IsSelectedProperty, true));
-        focusedSelectionTrigger.Conditions.Add(
-            new System.Windows.Condition(Selector.IsSelectionActiveProperty, true));
-        focusedSelectionTrigger.Setters.Add(new Setter(
-            Border.BackgroundProperty,
-            new SolidColorBrush(Color.FromRgb(25, 79, 132)),
-            "RowBackground"));
-        focusedSelectionTrigger.Setters.Add(
-            new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
-        itemTemplate.Triggers.Add(focusedSelectionTrigger);
-
-        var unfocusedSelectionTrigger = new MultiTrigger();
-        unfocusedSelectionTrigger.Conditions.Add(
-            new System.Windows.Condition(ListBoxItem.IsSelectedProperty, true));
-        unfocusedSelectionTrigger.Conditions.Add(
-            new System.Windows.Condition(Selector.IsSelectionActiveProperty, false));
-        unfocusedSelectionTrigger.Setters.Add(new Setter(
-            Border.BackgroundProperty,
-            new SolidColorBrush(Color.FromRgb(35, 57, 82)),
-            "RowBackground"));
-        unfocusedSelectionTrigger.Setters.Add(
-            new Setter(Control.ForegroundProperty, StudioTheme.TextBrush));
-        itemTemplate.Triggers.Add(unfocusedSelectionTrigger);
-        itemStyle.Setters.Add(new Setter(Control.TemplateProperty, itemTemplate));
+        // The gallery container, because this list is a gallery. The table
+        // container it used to carry drew its rows through a
+        // GridViewRowPresenter, which has no columns to lay out once View is
+        // null - and no interest in ItemTemplate either. See StudioGalleryList.
+        Style itemStyle = StudioGalleryList.CreateItemContainerStyle();
 
         var inactiveTrigger = new DataTrigger
         {
@@ -720,7 +637,7 @@ internal sealed partial class ShellView
         // drawing the smallest thing in its own row.
         receivedSheetsWorkspaceList.View = null;
         receivedSheetsWorkspaceList.ItemTemplate = CreateSheetCardTemplate();
-        receivedSheetsWorkspaceList.ItemsPanel = CreateWrapPanelTemplate();
+        receivedSheetsWorkspaceList.ItemsPanel = StudioGalleryList.CreateWrapPanel();
         ScrollViewer.SetHorizontalScrollBarVisibility(
             receivedSheetsWorkspaceList,
             ScrollBarVisibility.Disabled);

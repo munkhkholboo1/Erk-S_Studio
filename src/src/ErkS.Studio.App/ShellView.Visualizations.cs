@@ -148,18 +148,10 @@ internal sealed partial class ShellView
         // columns, and the pane reflows to whatever width it is given.
         visualizationImagesWorkspaceList.View = null;
         visualizationImagesWorkspaceList.ItemTemplate = CreateVisualizationCardTemplate();
-        visualizationImagesWorkspaceList.ItemsPanel = CreateWrapPanelTemplate();
+        visualizationImagesWorkspaceList.ItemsPanel = StudioGalleryList.CreateWrapPanel();
         ScrollViewer.SetHorizontalScrollBarVisibility(
             visualizationImagesWorkspaceList,
             ScrollBarVisibility.Disabled);
-    }
-
-    /// <summary>Lays items out left to right, wrapping to the pane's width.</summary>
-    private static ItemsPanelTemplate CreateWrapPanelTemplate()
-    {
-        var panel = new FrameworkElementFactory(typeof(WrapPanel));
-        panel.SetValue(WrapPanel.OrientationProperty, Orientation.Horizontal);
-        return new ItemsPanelTemplate { VisualTree = panel };
     }
 
     /// <summary>One image, as a card.</summary>

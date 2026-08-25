@@ -5,6 +5,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!--
+      StudioGalleryRenderTests renders real WPF controls, so this project needs
+      the desktop runtime rather than just a reference to its assemblies. A bare
+      FrameworkReference is not enough: the theme dictionaries that supply every
+      control its default template are resolved beside PresentationFramework at
+      run time, and when they are missing a ListView simply has no template and
+      draws nothing - failing the same silent way as the bug under test.
+    -->
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +24,9 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- UseWPF swaps in the desktop implicit-using set, which drops these two. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
   </ItemGroup>
 
   <ItemGroup>
