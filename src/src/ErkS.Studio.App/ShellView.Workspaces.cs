@@ -21,6 +21,20 @@ namespace ErkS.Studio;
 internal sealed partial class ShellView
 {
     private readonly ListBox designSourcesWorkspaceList = new();
+    private readonly TextBlock sourceListEmptyNotice = new()
+    {
+        Text = "Эх үүсвэр бүртгэгдээгүй байна.\n\nДээд мөрний «Эх үүсвэр нэмэх» товчоор "
+            + "Revit эсвэл AutoCAD-ын багц хүлээн авах хавтас үүсгэнэ.",
+        FontSize = 11.5,
+        Foreground = StudioTheme.MutedTextBrush,
+        TextWrapping = TextWrapping.Wrap,
+        TextAlignment = TextAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(18),
+        MaxWidth = 190,
+        Visibility = Visibility.Collapsed,
+    };
     private readonly ListView receivedSheetsWorkspaceList = new();
     private readonly Grid receivedSheetsWorkspaceHost = new();
     private readonly StackPanel sourceSheetActionsPanel = new()
@@ -169,7 +183,13 @@ internal sealed partial class ShellView
             RefreshReceivedSheetWorkspace();
             RefreshSourceDetails();
         };
-        workspace.Children.Add(BuildPane("Эх үүсвэрүүд", designSourcesWorkspaceList, new Thickness(0, 0, 1, 0)));
+        // An empty pane reads as "still loading". Saying what is missing, and
+        // what to press, costs one line and answers the question the blank
+        // space raises.
+        var sourceListHost = new Grid();
+        sourceListHost.Children.Add(designSourcesWorkspaceList);
+        sourceListHost.Children.Add(sourceListEmptyNotice);
+        workspace.Children.Add(BuildPane("Эх үүсвэрүүд", sourceListHost, new Thickness(0, 0, 1, 0)));
 
         ConfigureReceivedSheetsList();
         ConfigureReceivedSheetsWorkspace();
@@ -1534,6 +1554,11 @@ internal sealed partial class ShellView
         var grouped = new CollectionViewSource { Source = ordered };
         grouped.GroupDescriptions.Add(
             new PropertyGroupDescription(nameof(SourceWorkspaceItem.Owner)));
+        _ = FetchMissingSourceAvatarsAsync(
+            ordered.Select(item => item.Owner).Distinct().ToList());
+        sourceListEmptyNotice.Visibility = ordered.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         bindingSourceWorkspaceSelection = true;
         try

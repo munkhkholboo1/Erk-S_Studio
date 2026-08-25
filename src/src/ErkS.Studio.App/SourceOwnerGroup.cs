@@ -25,6 +25,18 @@ internal sealed record SourceOwnerGroup(
     public static readonly SourceOwnerGroup ThisDevice =
         new("", "Энэ төхөөрөмж дээр", "", "");
 
+    /// <summary>
+    /// Their photograph, once it has been fetched.
+    /// </summary>
+    /// <remarks>
+    /// Null until the download finishes, and null forever for anyone who has
+    /// not set one - the initials sit underneath and show through, so the
+    /// heading never has a hole in it. Deliberately outside the record's
+    /// equality: the same person is the same group whether or not their picture
+    /// has arrived yet, and grouping must not split when it does.
+    /// </remarks>
+    public System.Windows.Media.ImageSource? Avatar { get; init; }
+
     public bool IsDevice => Email.Length == 0;
 
     // Grouping compares these, and two records built from different sources for

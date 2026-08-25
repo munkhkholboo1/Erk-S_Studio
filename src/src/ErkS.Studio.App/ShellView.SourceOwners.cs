@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -43,12 +44,71 @@ internal sealed partial class ShellView
         string initials = string.IsNullOrWhiteSpace(presence?.Initials)
             ? StudioOrganizationCrest.Initials(displayName)
             : presence!.Initials;
+        string imageUrl = presence?.ProfileImageUrl ?? "";
 
-        return new SourceOwnerGroup(
-            email,
-            displayName,
-            initials,
-            presence?.ProfileImageUrl ?? "");
+        // Taken from the cache the team cards already fill. A photograph that
+        // has not been fetched yet leaves this null and the initials show
+        // instead; FetchMissingSourceAvatarsAsync then downloads it and rebuilds
+        // the list once, so the heading fills in rather than staying a monogram
+        // for a face the server knows.
+        teamAvatarCache.TryGetValue(imageUrl, out ImageSource? avatar);
+
+        return new SourceOwnerGroup(email, displayName, initials, imageUrl)
+        {
+            Avatar = imageUrl.Length == 0 ? null : avatar,
+        };
+    }
+
+    /// <summary>
+    /// Downloads the photographs the source list wants and does not have yet.
+    /// </summary>
+    /// <remarks>
+    /// Runs once per refresh and rebuilds the list only if something actually
+    /// arrived; without that check a failed download would rebuild forever.
+    /// </remarks>
+    private async Task FetchMissingSourceAvatarsAsync(IEnumerable<SourceOwnerGroup> owners)
+    {
+        string[] missing =
+        [
+            .. owners
+                .Select(owner => owner.ProfileImageUrl)
+                .Where(url => url.Length > 0)
+                .Where(url => !teamAvatarCache.ContainsKey(url))
+                .Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
+        if (missing.Length == 0)
+            return;
+
+        bool fetched = false;
+        foreach (string url in missing)
+        {
+            try
+            {
+                byte[]? bytes = await account.DownloadProjectChatAssetAsync(url);
+                if (bytes is null || bytes.Length == 0)
+                    continue;
+
+                using var stream = new MemoryStream(bytes, writable: false);
+                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = stream;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                teamAvatarCache[url] = bitmap;
+                fetched = true;
+            }
+            catch (Exception exception) when (
+                exception is StudioAccountException or System.Net.Http.HttpRequestException
+                    or TaskCanceledException or NotSupportedException or IOException)
+            {
+                // A missing photograph is not worth a message; the initials
+                // already say who this is.
+            }
+        }
+
+        if (fetched && state.HasOpenProject)
+            RefreshSourceWorkspace();
     }
 
     /// <summary>
@@ -67,6 +127,12 @@ internal sealed partial class ShellView
         avatar.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 8, 0));
         avatar.SetValue(DockPanel.DockProperty, Dock.Left);
 
+        // Initials underneath, photograph on top. A null Source draws nothing,
+        // so the monogram shows through for anyone without a picture and for
+        // anyone whose picture has not been fetched yet - the heading is never
+        // blank while waiting.
+        var avatarLayers = new FrameworkElementFactory(typeof(Grid));
+
         var monogram = new FrameworkElementFactory(typeof(TextBlock));
         monogram.SetBinding(TextBlock.TextProperty, new Binding("Name.Initials"));
         monogram.SetValue(TextBlock.FontSizeProperty, 9.0);
@@ -74,7 +140,17 @@ internal sealed partial class ShellView
         monogram.SetValue(TextBlock.ForegroundProperty, StudioTheme.MutedTextBrush);
         monogram.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         monogram.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-        avatar.AppendChild(monogram);
+        avatarLayers.AppendChild(monogram);
+
+        var photo = new FrameworkElementFactory(typeof(Image));
+        photo.SetBinding(Image.SourceProperty, new Binding("Name.Avatar"));
+        photo.SetValue(Image.StretchProperty, Stretch.UniformToFill);
+        photo.SetValue(FrameworkElement.WidthProperty, 22.0);
+        photo.SetValue(FrameworkElement.HeightProperty, 22.0);
+        photo.SetValue(UIElement.ClipProperty, new EllipseGeometry(new Rect(0, 0, 22, 22)));
+        avatarLayers.AppendChild(photo);
+
+        avatar.AppendChild(avatarLayers);
         row.AppendChild(avatar);
 
         var count = new FrameworkElementFactory(typeof(TextBlock));
