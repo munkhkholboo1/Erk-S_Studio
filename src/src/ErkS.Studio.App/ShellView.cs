@@ -6072,6 +6072,15 @@ internal sealed partial class ShellView : IDisposable
         {
             SetStatus($"Source-ийн өөрчлөлт хүлээн авлаа: {Path.GetFileName(result.ManifestPath)} ({result.Manifest.Sheets.Count} sheet)");
         }
+
+        // A sheet that duplicates a page Studio composes is kept out of the
+        // album, and saying so is the whole point: the bug this replaced was
+        // two covers in one album, found by whoever printed it. Reported after
+        // the arrival line so it is the last thing left on screen.
+        if (recorded?.StudioComposedPagesSkipped is { Count: > 0 })
+        {
+            SetStatus(string.Join(" ", recorded.StudioComposedPagesSkipped));
+        }
     }
 
     private static StackPanel FoundationForm() => new()

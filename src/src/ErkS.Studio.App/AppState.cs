@@ -10,7 +10,14 @@ public sealed record PackageRecordResult(
     string SourceId,
     int RemovedAlbumPageCount,
     int CreatedPortfolioItemCount = 0,
-    int UpdatedPortfolioItemCount = 0)
+    int UpdatedPortfolioItemCount = 0,
+
+    /// <summary>
+    /// Sheets kept out of the album because they duplicate a page Studio
+    /// composes. Empty on every well-formed package; not empty is worth saying
+    /// out loud, which is what it is carried here for.
+    /// </summary>
+    IReadOnlyList<string>? StudioComposedPagesSkipped = null)
 {
     public bool BroughtPortfolioPages =>
         CreatedPortfolioItemCount > 0 || UpdatedPortfolioItemCount > 0;

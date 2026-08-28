@@ -6,7 +6,8 @@ namespace ErkS.Platform.Core;
 
 public sealed record ProjectPackageReconciliationResult(
     string SourceId,
-    int RemovedAlbumPageCount);
+    int RemovedAlbumPageCount,
+    IReadOnlyList<string> StudioComposedPagesSkipped);
 
 /// <summary>
 /// Applies an already verified package to project metadata and album pages.
@@ -113,6 +114,7 @@ public static class ProjectPackageReconciliationService
             project.Identity.ProjectType,
             project.Identity.StageCode);
         int removedAlbumPageCount = 0;
+        var studioComposedSkipped = new List<string>();
         if (manifest.PackageScope == SheetPackageScope.FullSnapshot &&
             library.IsCurrentAuthoritativeSnapshot(manifest, source.Id))
         {
@@ -165,13 +167,13 @@ public static class ProjectPackageReconciliationService
                 continue;
             }
 
-            SynchronizeActiveSheet(
+            AddIfAny(studioComposedSkipped, SynchronizeActiveSheet(
                 album,
                 entry,
                 key,
                 usesConceptTemplate,
                 usesUrbanPlanningTemplate,
-                usesWorkingDrawingTemplate);
+                usesWorkingDrawingTemplate));
         }
 
         // A source is recognised as a building only here, once its package is read, so it
@@ -227,7 +229,10 @@ public static class ProjectPackageReconciliationService
             OrderUrbanPlanningPages(album, albumSheets, packageSource, source.Id);
         }
 
-        return new ProjectPackageReconciliationResult(source.Id, removedAlbumPageCount);
+        return new ProjectPackageReconciliationResult(
+            source.Id,
+            removedAlbumPageCount,
+            studioComposedSkipped);
     }
 
     public static int SetSheetActivity(
@@ -303,7 +308,13 @@ public static class ProjectPackageReconciliationService
 
                 foreach (SheetRecord record in sheetRecords)
                 {
-                    SynchronizeActiveSheet(
+                    // Re-activating a sheet can hit the same collision, and the
+                    // guard has to hold here too. The message is dropped: this
+                    // method answers with a count, and a package's problems are
+                    // reported where the package arrives. Written as a discard
+                    // rather than left implicit, because a silently absent
+                    // album page is the thing being prevented.
+                    _ = SynchronizeActiveSheet(
                         album,
                         record.Entry,
                         record.Key,
@@ -359,7 +370,7 @@ public static class ProjectPackageReconciliationService
         return removedPageCount;
     }
 
-    private static void SynchronizeActiveSheet(
+    private static string? SynchronizeActiveSheet(
         AlbumDefinition album,
         SheetPackageEntry entry,
         string key,
@@ -370,13 +381,24 @@ public static class ProjectPackageReconciliationService
         List<AlbumPageDefinition> pages = album.Pages
             .Where(page => string.Equals(page.SheetKey, key, StringComparison.Ordinal))
             .ToList();
+
+        // A sheet that stands in for a page Studio composes gets no album page.
+        // It keeps its place in the library and the source list; what it must
+        // not do is print beside the page it duplicates. Checked before the
+        // page is created rather than after, so there is nothing to undo.
+        if (StudioComposedPageCollision.Find(album, entry) is { } composed)
+        {
+            foreach (AlbumPageDefinition duplicate in pages)
+                album.Pages.Remove(duplicate);
+            return StudioComposedPageCollision.Describe(entry, composed);
+        }
+
         if ((usesConceptTemplate || usesUrbanPlanningTemplate || usesWorkingDrawingTemplate) && pages.Count == 0)
         {
             var newPage = new AlbumPageDefinition { SheetKey = key };
             album.Pages.Add(newPage);
             pages.Add(newPage);
         }
-
         foreach (AlbumPageDefinition page in pages)
         {
             page.SourceBuildingIdSnapshot = (entry.BuildingId ?? "").Trim();
@@ -432,6 +454,15 @@ public static class ProjectPackageReconciliationService
                 entry,
                 forceStudioChrome: usesWorkingDrawingTemplate);
         }
+
+        return null;
+    }
+
+    /// <summary>Keeps the two call sites above from repeating a null check.</summary>
+    private static void AddIfAny(List<string> messages, string? message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+            messages.Add(message);
     }
 
     private static void OrderUrbanPlanningPages(
