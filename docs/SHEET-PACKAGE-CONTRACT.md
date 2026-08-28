@@ -89,6 +89,40 @@ caption, layout, and focal point stay untouched. The page is placed full-bleed b
 already carries its own margin, and an imported page of a different size is fitted whole,
 never cropped.
 
+## Producer-optional fields with no reader yet
+
+A producer may write these. Studio parses none of them today, and
+`System.Text.Json` drops what it does not recognise without a word, so they are
+listed here to keep that silence out of the contract. Nothing may depend on
+Studio acting on them.
+
+- `viewports` — per-sheet array written by the AutoCAD producer. Reserved for
+  the competition-board composer: a board draws a scale bar and a north arrow
+  beside a plan, and neither can be recovered from the PDF. Studio's board
+  composer exists (`BoardScaleBar`, `BoardPlanImportService`) but is fed from
+  the CityGen board channel, not from sheet packages. Whether AutoCAD sheets
+  should also become board plans is an open product decision.
+
+  Two things must be settled before that channel could be joined, recorded here
+  so they are not rediscovered:
+
+  - The "north is known" flag means different norths on the two sides. The
+    sheet package writes `northSource: geographic | assumed`; the CityGen board
+    manifest writes `NorthAngleSource: utm-grid | assumed`. UTM grid north and
+    true north differ by the meridian convergence - about 2.2° at the edge of a
+    zone at Mongolian latitudes, under 1° near its central meridian. Small, and
+    a trap precisely because it is small: two flags that read the same word mean
+    two different directions.
+  - The sheet package carries no north angle at all. Its `twistAngleDegrees` is
+    the viewport's own rotation, which is not the angle a north arrow needs;
+    deriving one from the other requires the model's north, which is not sent.
+
+- `levelId`, `levelName` — written by producers, read by nothing.
+- `drawingAssetId`, `drawingAssetVersion`, `drawingAssetSha256` — no producer
+  populates them (AutoCAD and Revit both send empty strings, because neither
+  delivers a vector source file). `drawingAssetSha256` is described elsewhere as
+  the hash a released album page pins; no code implements that.
+
 ## Package scope
 
 - `Delta` updates only sheets present in the package and never implies deletion.
@@ -145,6 +179,20 @@ Building working-drawing album (`BuildingWorkingDrawingAlbumTemplate.cs`):
 `ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ`. In the current Blueprint workflow these two
 remain producer-owned on the Revit side; when working-drawing albums move to
 Studio composition, producers update their block lists together with this table.
+
+> **Under review, 2026-08-29.** The sentence above no longer describes the code.
+> `BuildingWorkingDrawingAlbumTemplate` marks both slots
+> `AlbumCompositionKind.Generated`, and `PdfSharpAlbumWriter` draws a
+> working-drawing cover of its own (`UsesGeneratedWorkingDrawingFormat`). The
+> move this paragraph anticipates has already happened on the Studio side, and
+> the producers were never told - which is the notification this paragraph asked
+> for, owed in the other direction.
+>
+> The rule is left standing rather than quietly rewritten, because it is what
+> PFR's export boundary follows: changing it changes what Revit exports, and
+> that is not a decision to take inside a document edit. Until it is settled, a
+> working-drawing model containing its own cover sheet will deliver one beside
+> the one Studio draws.
 
 ## Path and file security
 
