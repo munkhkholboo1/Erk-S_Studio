@@ -205,16 +205,51 @@ public static class UrbanPlanningAlbumTemplate
         return definition;
     }
 
+    /// <summary>
+    /// The composition slot an arriving sheet belongs in.
+    /// </summary>
+    /// <param name="templateSlotId">
+    /// What the producer says the slot is. Tried first, because it is the only
+    /// one of these arguments that is an answer rather than a clue: the AutoCAD
+    /// side chose the slot when the sheet was drawn into it, and writes the id
+    /// it chose.
+    ///
+    /// It went unread until 2026-08-29, while the number and the name were used
+    /// to work the answer out again. That looked harmless - across three real
+    /// packages, 63 sheets, the guess agreed with the producer every time - but
+    /// agreement on data that matches is not evidence of anything: both routes
+    /// return the same slot until a sheet is renumbered or retitled, which is a
+    /// thing users do. Then the guess moves the sheet and the answer is sitting
+    /// in the manifest, unread.
+    ///
+    /// Empty from a producer with no composition to place sheets in, which is
+    /// every building package and everything Revit sends, so the clues below
+    /// stay in service rather than becoming a fallback nobody exercises.
+    /// </param>
     public static AlbumCompositionItem? FindSourceSlot(
         AlbumDefinition definition,
         string? number,
         string? contentKind,
-        string? name)
+        string? name,
+        string? templateSlotId = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         List<AlbumCompositionItem> sourceSlots = definition.Composition
             .Where(item => item.Kind == AlbumCompositionKind.SourceSlot)
             .ToList();
+
+        string declaredSlotId = (templateSlotId ?? "").Trim();
+        if (declaredSlotId.Length > 0)
+        {
+            // An unrecognised id is not an error: the producer may carry slots
+            // this album does not have - a nomenclature sheet is one - and
+            // those still have to reach the clues below.
+            AlbumCompositionItem? declared = sourceSlots.FirstOrDefault(item =>
+                item.Id.Equals(declaredSlotId, StringComparison.OrdinalIgnoreCase));
+            if (declared is not null)
+                return declared;
+        }
+
         string normalizedContentKind = (contentKind ?? "").Trim();
         AlbumCompositionItem? classified = sourceSlots.FirstOrDefault(item =>
             item.MatchContentKinds.Any(candidate => candidate.Equals(

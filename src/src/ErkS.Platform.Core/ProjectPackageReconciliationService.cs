@@ -402,7 +402,8 @@ public static class ProjectPackageReconciliationService
                     album,
                     entry.Number,
                     AlbumPageSourceMetadata.ResolveContentKind(page, entry),
-                    entry.Name);
+                    entry.Name,
+                    entry.TemplateSlotId);
                 if (slot is not null)
                 {
                     page.TemplateSlotId = slot.Id;
