@@ -175,24 +175,32 @@ Building-architecture concept album
 | `site-context` | 03 | `БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ` | Ерөнхий төлөвлөгөө |
 
 Building working-drawing album (`BuildingWorkingDrawingAlbumTemplate.cs`):
-`cover` / 00 / `НҮҮР ХУУДАС` and `drawing-list-and-notes` / 01 /
-`ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ`. In the current Blueprint workflow these two
-remain producer-owned on the Revit side; when working-drawing albums move to
-Studio composition, producers update their block lists together with this table.
 
-> **Under review, 2026-08-29.** The sentence above no longer describes the code.
-> `BuildingWorkingDrawingAlbumTemplate` marks both slots
-> `AlbumCompositionKind.Generated`, and `PdfSharpAlbumWriter` draws a
-> working-drawing cover of its own (`UsesGeneratedWorkingDrawingFormat`). The
-> move this paragraph anticipates has already happened on the Studio side, and
-> the producers were never told - which is the notification this paragraph asked
-> for, owed in the other direction.
+| Slot id | № | Title | Section |
+| --- | --- | --- | --- |
+| `cover` | 00 | `НҮҮР ХУУДАС` | Ажлын зураг |
+| `drawing-list-and-notes` | 01 | `ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ` | Ажлын зураг |
+
+Both are composed by Studio, which draws the working-drawing cover through its
+own page format (`PdfSharpAlbumWriter`, `UsesGeneratedWorkingDrawingFormat`).
+Producers MUST NOT deliver either.
+
+> **Corrected 2026-08-29.** This paragraph previously said these two remained
+> producer-owned on the Revit side, and asked producers to update their block
+> lists on the day that changed. The day had already passed: Studio had taken
+> both slots, and nobody told the producers - the notification this paragraph
+> asked for, never sent, in the direction it did not anticipate.
 >
-> The rule is left standing rather than quietly rewritten, because it is what
-> PFR's export boundary follows: changing it changes what Revit exports, and
-> that is not a decision to take inside a document edit. Until it is settled, a
-> working-drawing model containing its own cover sheet will deliver one beside
-> the one Studio draws.
+> It was found by a test written to fire on that future day, which failed on its
+> first run. The rule was left standing and flagged rather than rewritten in
+> place, until PFR confirmed the effect from their side, because this paragraph
+> is what their export boundary follows.
+>
+> The effect was real and is one page, not two. PFR's default working-drawing
+> album template creates `НҮҮР ХУУДАС` and its export boundary passes it, so an
+> album carried two covers: the one Revit sent and the one Studio drew. PFR does
+> not generate a drawing-list sheet, so that slot was only ever at risk if
+> someone named a sheet by hand.
 
 ## Path and file security
 
