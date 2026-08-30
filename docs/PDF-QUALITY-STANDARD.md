@@ -115,6 +115,11 @@ merges shadows into rasters up to 3906x2598, and AutoCAD's plot rasteriser drops
 pieces of a merge that large. PFA's test export had small rasters, which is why it
 was clean and why the wrong conclusion looked measured.
 
+The file carrying the holes, so the claim can be checked rather than believed:
+`Documents\Erk-S Platform\Studio Projects\STUDIO-20260722-1906\sources\AutoCAD -
+Layout\deliveries\20260830-175150-15b89e39\001-00 ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ-70503.pdf`.
+Measured by PFA, not here - work on a copy.
+
 So the triangle the user saw came from the file. What follows is a **second,
 separate defect**, found while looking for the first one and real on its own
 terms - it is measured on CityGen's sample pair, which carries no such hole.
