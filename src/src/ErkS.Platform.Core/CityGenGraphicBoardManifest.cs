@@ -27,16 +27,26 @@ public static class CityGenGraphicBoardContract
     /// <summary>Drawing space, planar. Not longitude and latitude.</summary>
     public const string ExpectedCoordinateSpace = "drawing";
 
-    /// <summary>The drawing declares a coordinate system, so north is known.</summary>
+    /// <summary>
+    /// The drawing declares a UTM coordinate system that CityGen recognised, so
+    /// north is known and known to be grid north.
+    /// </summary>
     /// <remarks>
-    /// The name says UTM and the meaning does not: it is written whenever the
-    /// drawing declares a coordinate system at all. A drawing on a
-    /// Gauss-Kruger grid arrives labelled "utm-grid" and nobody notices, which
-    /// PFA pointed out while settling the vocabulary for their own viewport
-    /// field on 2026-08-30. The value is what CityGen writes today, so it stays
-    /// until both sides change together; the name is left alone rather than
-    /// corrected here, because a constant whose name disagrees with its wire
-    /// value would be worse than one that disagrees with its meaning.
+    /// The summary above used to say "declares a coordinate system", which is
+    /// what made this look like the mis-naming PFA found in their own field:
+    /// a name saying UTM over a meaning covering any projection. Read against
+    /// CityGen's parser on 2026-08-30, it is the other way round - the name is
+    /// exact and the old wording was the loose part.
+    ///
+    /// UtmCoordinateReference.TryParse accepts only EPSG:326xx or a name
+    /// carrying a zone number followed by N, and only zones 45 to 50 - the
+    /// range Mongolia spans. A Gauss-Kruger grid, a southern-hemisphere zone,
+    /// and a northern zone outside that range all fall through to "assumed".
+    /// So this value is never written for a projection CityGen did not
+    /// identify, and it carries strictly more than <see cref="NorthFromProjectedGrid"/>
+    /// does: not merely grid north, but which grid.
+    ///
+    /// That is why both values stay rather than one replacing the other.
     /// </remarks>
     public const string NorthFromUtmGrid = "utm-grid";
 
@@ -51,6 +61,11 @@ public static class CityGenGraphicBoardContract
     /// assumed - and an assumed north is not drawn until the user confirms it.
     /// A better value would have quietly cost the user a confirmation and an
     /// arrow. Widening what is accepted costs nothing and removes that.
+    ///
+    /// It is the weaker of the two: it says north came from a projected grid
+    /// without saying which. A source that can name the projection should send
+    /// the name, so nothing here should ever start writing this in place of
+    /// <see cref="NorthFromUtmGrid"/>.
     /// </remarks>
     public const string NorthFromProjectedGrid = "grid";
 
