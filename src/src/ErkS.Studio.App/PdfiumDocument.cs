@@ -21,6 +21,9 @@ internal sealed class PdfiumDocument : IDisposable
 
     private readonly object gate = new();
     private readonly Dictionary<PageKey, BitmapSource> rendered = [];
+
+    /// <summary>Least recently rendered first; what Retain evicts from.</summary>
+    private readonly List<PageKey> order = [];
     private GCHandle pinnedBytes;
     private IntPtr document;
     private bool disposed;
@@ -72,6 +75,37 @@ internal sealed class PdfiumDocument : IDisposable
     }
 
     /// <summary>The page's height divided by its width.</summary>
+    /// <summary>
+    /// The page's own width in PDF points, or zero when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// Callers need this to decide how many pixels 300 DPI is for this
+    /// particular sheet. Zero rather than a guessed A1: a page whose size is
+    /// unknown is a reason to rasterise conservatively.
+    /// </remarks>
+    public double GetPageWidthPoints(int pageNumber)
+    {
+        lock (gate)
+        {
+            if (disposed || pageNumber < 1 || pageNumber > PageCount)
+                return 0;
+
+            IntPtr page = PdfiumInterop.LoadPage(document, pageNumber - 1);
+            if (page == IntPtr.Zero)
+                return 0;
+
+            try
+            {
+                float width = PdfiumInterop.GetPageWidth(page);
+                return width > 0 ? width : 0;
+            }
+            finally
+            {
+                PdfiumInterop.ClosePage(page);
+            }
+        }
+    }
+
     public double GetPageAspect(int pageNumber)
     {
         lock (gate)
@@ -173,7 +207,7 @@ internal sealed class PdfiumDocument : IDisposable
                         buffer,
                         stride);
                     image.Freeze();
-                    rendered[key] = image;
+                    Retain(key, image);
                     return image;
                 }
                 finally
@@ -243,6 +277,43 @@ internal sealed class PdfiumDocument : IDisposable
         return IntPtr.Zero;
     }
 
+    /// <summary>
+    /// Keeps the newest images and lets older ones go.
+    /// </summary>
+    /// <remarks>
+    /// Every rendered page used to be kept for the life of the document. That
+    /// was affordable while every render was 2400 pixels wide - about 20 MB a
+    /// page. At 300 DPI an A1 sheet is roughly 9900 x 7000, which is 278 MB,
+    /// and the preview now renders a page at several widths as someone zooms.
+    /// Keeping them all would run a machine out of memory reading one album.
+    ///
+    /// A small budget rather than a count: the images differ in size by two
+    /// orders of magnitude, so "keep four" means something very different for
+    /// four thumbnails than for four full-resolution sheets.
+    ///
+    /// Called with the lock held.
+    /// </remarks>
+    private void Retain(PageKey key, BitmapSource image)
+    {
+        const long budgetBytes = 700L * 1024 * 1024;
+
+        rendered[key] = image;
+        order.Remove(key);
+        order.Add(key);
+
+        long held = order.Sum(entry => Bytes(rendered[entry]));
+        while (order.Count > 1 && held > budgetBytes)
+        {
+            PageKey oldest = order[0];
+            order.RemoveAt(0);
+            if (rendered.Remove(oldest, out BitmapSource? dropped))
+                held -= Bytes(dropped);
+        }
+    }
+
+    private static long Bytes(BitmapSource image) =>
+        (long)image.PixelWidth * image.PixelHeight * 4;
+
     public void Dispose()
     {
         lock (gate)
@@ -252,6 +323,7 @@ internal sealed class PdfiumDocument : IDisposable
 
             disposed = true;
             rendered.Clear();
+            order.Clear();
             if (document != IntPtr.Zero)
             {
                 PdfiumInterop.CloseDocument(document);

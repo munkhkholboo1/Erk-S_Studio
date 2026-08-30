@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 
@@ -31,7 +32,9 @@ internal sealed class SheetMarkupSurface : Grid
 {
     private const double MinimumZoom = 0.25;
     private const double MaximumZoom = 6d;
-    private const int RenderWidth = 2400;
+    private double pageWidthPoints;
+    private int renderedWidthPx;
+    private int renderGeneration;
     private const double ComposerWidth = 330;
 
     private readonly StudioAccountService account;
@@ -314,8 +317,55 @@ internal sealed class SheetMarkupSurface : Grid
         }
 
         pageAspect = document.GetPageAspect(albumPageNumber);
-        pageImage.Source = document.RenderPage(albumPageNumber, RenderWidth);
+        pageWidthPoints = document.GetPageWidthPoints(albumPageNumber);
+        renderedWidthPx = 0;
+        pageImage.Source = document.RenderPage(
+            albumPageNumber,
+            PreviewRenderResolution.FirstPassWidthPx);
+        renderedWidthPx = PreviewRenderResolution.FirstPassWidthPx;
         FitToWindow();
+    }
+
+    /// <summary>
+    /// Rasterises the page again when the zoom has outgrown the image on
+    /// screen, up to 300 DPI on the paper.
+    /// </summary>
+    /// <remarks>
+    /// Off the UI thread and without clearing what is displayed: a full-
+    /// resolution A1 takes a noticeable moment, and a blank sheet while it
+    /// renders reads as a bug. The old image stays, slightly soft, until the
+    /// sharper one is ready.
+    ///
+    /// The generation counter is what makes a zoom drag safe. Each change
+    /// starts a render; they finish in whatever order they finish, and without
+    /// it a slow early one could land after a fast later one and put a coarse
+    /// image back on a sheet the user has already zoomed past.
+    /// </remarks>
+    private async void RefreshPageResolution()
+    {
+        if (document is null)
+            return;
+
+        // pageHost.Width is in device-independent units. On a 150% display the
+        // sheet covers half again as many real pixels, and rendering to the
+        // DIP count would leave it soft on exactly the screens people run.
+        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        int wanted = PreviewRenderResolution.ForDisplay(
+            pageWidthPoints,
+            pageHost.Width * (dpiScale > 0 ? dpiScale : 1d));
+        if (wanted <= renderedWidthPx)
+            return;
+
+        int generation = ++renderGeneration;
+        PdfiumDocument open = document;
+        int pageNumber = albumPageNumber;
+
+        BitmapSource? sharper = await Task.Run(() => open.RenderPage(pageNumber, wanted));
+        if (sharper is null || generation != renderGeneration)
+            return;
+
+        pageImage.Source = sharper;
+        renderedWidthPx = wanted;
     }
 
     /// <summary>
@@ -347,6 +397,7 @@ internal sealed class SheetMarkupSurface : Grid
         pageHost.Width = width;
         pageHost.Height = Math.Max(120d, width * pageAspect);
         zoomText.Text = $"{Math.Round(zoom * 100)}%";
+        RefreshPageResolution();
         RenderMarkups();
         RepositionComposer();
     }
