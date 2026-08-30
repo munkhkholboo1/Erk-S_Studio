@@ -94,7 +94,8 @@ internal sealed class PdfiumDocument : IDisposable
     /// <remarks>
     /// Callers need this to decide how many pixels 300 DPI is for this
     /// <summary>
-    /// The text drawn on a page, or null when it carries none.
+    /// The text drawn on a page: the words, "" when the page carries none, and
+    /// null when the page could not be read at all.
     /// </summary>
     /// <remarks>
     /// A content probe that counts font references cannot tell a sheet whose
@@ -116,15 +117,22 @@ internal sealed class PdfiumDocument : IDisposable
             IntPtr textPage = IntPtr.Zero;
             try
             {
+                // Three different answers, and they must not collapse into one.
+                // "The page has no lettering" is a finding about the sheet;
+                // "the text layer would not load" is a finding about the
+                // reader. A single null would let a caller report the second as
+                // the first - and the caller here is a check for empty sheets,
+                // where that mistake is the whole failure being guarded against.
                 textPage = PdfiumInterop.TextLoadPage(page);
                 if (textPage == IntPtr.Zero)
                     return null;
 
                 int count = PdfiumInterop.TextCountChars(textPage);
-                if (count <= 0)
+                if (count == 0)
+                    return "";
+                if (count < 0)
                     return null;
 
-                // One extra for the terminator Pdfium writes.
                 // One extra for the terminator Pdfium writes.
                 var buffer = new ushort[count + 1];
                 int copied = PdfiumInterop.TextGetText(textPage, 0, count, buffer);

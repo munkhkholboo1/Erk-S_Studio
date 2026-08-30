@@ -61,7 +61,9 @@ public sealed class PdfPageTextTests
             using PdfiumDocument? document = PdfiumDocument.Open(path);
             Assert.NotNull(document);
 
-            Assert.True(string.IsNullOrWhiteSpace(document!.ReadPageText(1)));
+            // Empty string, not null: the page read fine and had no lettering.
+            // Null would mean the read failed, which is a different report.
+            Assert.Equal("", document!.ReadPageText(1));
         }
         finally
         {
