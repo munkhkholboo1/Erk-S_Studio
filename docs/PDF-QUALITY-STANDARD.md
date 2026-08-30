@@ -148,10 +148,12 @@ keeps at others - present at one pixel size and gone at another, which is the
 signature of resampling rather than of the file. Deterministic: repeated runs give
 identical numbers.
 
-**2400 is not the cause, though it is where the user meets it.**
-`PreviewRenderResolution.FirstPassWidthPx` is 2400, so the first image of any page
-is rendered at one of the widths that loses the most. The width is not the
-mechanism - several others lose it too, and several nearby ones do not.
+**2400 is not the cause.** `PreviewRenderResolution.FirstPassWidthPx` is 2400, so
+the first image of any page happens to be rendered at one of the widths that loses
+the most - but the width is not the mechanism: several others lose it too and
+several nearby ones do not. This coincidence was briefly reported as the strongest
+lead, on the assumption that the user's gaps came from here. They did not, so it
+is only a coincidence worth knowing, not evidence of anything.
 
 **The display stage adds nothing.** Scaling the 2400 raster to 1000 and 1400 pixels
 carries the defect through at reduced length (36 and 89 pixels) and introduces no
