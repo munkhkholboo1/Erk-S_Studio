@@ -98,3 +98,61 @@ Every deliverable revision records its PDF SHA-256. Released and archived hashes
 Do not stretch, skip, rasterize, substitute, or continue silently. Report the source, sheet, expected
 geometry, observed geometry, and corrective export action. A golden reference may change only with
 an intentional, reviewed contract or design change.
+
+## On-screen rendering: a translucent shadow loses coverage
+
+Measured 2026-08-31 while tracing gaps a user saw in the shadows of a general-plan
+sheet. The gaps are not in the file: PFA expanded all 255 soft masks in the export
+and flood-filled them, finding no enclosed hole. They appear in Studio's preview.
+
+**The path.** `PdfiumDocument.RenderPage` renders through Pdfium
+(`FPDF_RenderPageBitmap`) into a white-filled BGRA32 bitmap with
+`FPDF_ANNOT | FPDF_LCD_TEXT`, and WPF then scales that bitmap to the size on
+screen. Pdfium composites the JPEG and its soft mask itself; Studio never touches
+alpha.
+
+**Method.** CityGen exported the same drawing twice - once with translucent
+shadows (255 soft masks) and once blended to opaque vector. Rendering both at the
+same width and comparing *coverage* - is this pixel darker than paper - isolates
+what the alpha path costs, because the two pages carry the same geometry.
+
+A first attempt counted near-white pixels enclosed by grey and found hundreds. The
+opaque control returned the same count at the same coordinates, so the measurement
+was finding white shapes inside shadowed areas - the drawing, not a defect. Kept
+here because the number looked like evidence.
+
+**What the comparison shows.** Across eleven raster widths from 2200 to 2600, the
+translucent render is bare where the opaque one is covered far more often than the
+reverse - 752/91, 668/199, 767/304 and so on, asymmetric at every width. Most of it
+is single pixels along edges. But at some widths a long unbroken run appears:
+153 pixels at 2400, 86 at 2410, 92 at 2600, and nothing longer than 22 at 2250,
+2350, 2390, 2450, 2500 or 2550. Scaling the coordinates shows 2400, 2410 and 2600
+are the same feature at different severities.
+
+So this is a thin feature the translucent path drops at some sampling scales and
+keeps at others - present at one pixel size and gone at another, which is the
+signature of resampling rather than of the file. Deterministic: repeated runs give
+identical numbers.
+
+**2400 is not the cause, though it is where the user meets it.**
+`PreviewRenderResolution.FirstPassWidthPx` is 2400, so the first image of any page
+is rendered at one of the widths that loses the most. The width is not the
+mechanism - several others lose it too, and several nearby ones do not.
+
+**The display stage adds nothing.** Scaling the 2400 raster to 1000 and 1400 pixels
+carries the defect through at reduced length (36 and 89 pixels) and introduces no
+new one. `BitmapScalingMode` makes no difference at all - `Unspecified`,
+`LowQuality` and `HighQuality` give byte-identical results, because
+`App.xaml.cs` sets `RenderOptions.ProcessRenderMode = SoftwareOnly` and the mode is
+a GPU hint. `SheetMarkupSurface` is the one preview surface that does not set
+`HighQuality`, and that turns out not to matter.
+
+**The link to "the quality is terrible, is it still 78 dpi".** The same asymmetry
+explains it. A shadow at 40% over white, sampled coarsely, rounds to paper; the
+opaque blend does not. The complaint and the gaps are one effect at two
+severities, which is why raising the plot DPI did not answer it - the plot was
+already at 400.
+
+Not fixed. The candidate directions - first-pass width, render flags, rendering
+finer and downsampling - are not chosen yet, and a fix must be measured the same
+way rather than argued.
