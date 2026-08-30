@@ -1,0 +1,162 @@
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using ErkS.Studio;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
+
+namespace ErkS.Studio.App.Tests;
+
+/// <summary>
+/// Whether the stripes reported across the solar-exposure sheet's shadows can
+/// come from Studio's rasteriser, or only from the drawing itself.
+/// </summary>
+/// <remarks>
+/// Two explanations were in play. CGA's: a shadow whose outline cannot be kept
+/// clean is drawn as triangulated translucent solids, so every shared edge is
+/// painted twice and blends to a darker line. Studio's: the preview rasterises
+/// at what used to be about 72 DPI, and thin features break up at that size.
+///
+/// They are distinguishable, and the distinction does not need the user's file.
+/// A double-blended seam is in the PDF - it is darker ink, present at every
+/// resolution. A rasterisation artefact is not: it appears at one pixel size
+/// and goes at another.
+///
+/// So this builds both kinds of page and measures them through Studio's own
+/// Pdfium path at both resolutions. What it establishes is which explanation
+/// each symptom belongs to, not which one produced the user's sheet.
+/// </remarks>
+public sealed class ShadowSeamRasterTests
+{
+    private const int LowWidth = 900;    // about what the old preview gave a sheet
+    private const int HighWidth = 3600;  // the same page rendered four times finer
+
+    [Fact]
+    public void ATranslucentSeamIsDarkerInkAndSurvivesEveryResolution()
+    {
+        string path = WritePdf(seamed: true);
+        try
+        {
+            double low = SeamContrast(path, LowWidth);
+            double high = SeamContrast(path, HighWidth);
+
+            // Present at both. Rendering finer does not remove ink that is
+            // actually in the page, which is what makes this the signature of
+            // the drawing rather than of the viewer.
+            Assert.True(low > 8, $"low-resolution seam contrast was {low:0.0}");
+            Assert.True(high > 8, $"high-resolution seam contrast was {high:0.0}");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void OneUndividedShadowHasNoSeamAtEitherResolution()
+    {
+        // The counter-example, and the reason the first test means anything: if
+        // both pages showed a seam, the measurement would be finding something
+        // about the rasteriser instead.
+        string path = WritePdf(seamed: false);
+        try
+        {
+            Assert.True(SeamContrast(path, LowWidth) < 4);
+            Assert.True(SeamContrast(path, HighWidth) < 4);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// How much darker the middle of the shape is than its two sides, in 0-255
+    /// grey levels, read down the line where the two halves meet.
+    /// </summary>
+    private static double SeamContrast(string pdfPath, int pixelWidth)
+    {
+        using PdfiumDocument? document = PdfiumDocument.Open(pdfPath);
+        Assert.NotNull(document);
+
+        BitmapSource? image = document!.RenderPage(1, pixelWidth);
+        Assert.NotNull(image);
+
+        var converted = new FormatConvertedBitmap(image!, PixelFormats.Bgra32, null, 0);
+        int stride = converted.PixelWidth * 4;
+        var pixels = new byte[stride * converted.PixelHeight];
+        converted.CopyPixels(pixels, stride, 0);
+
+        double Grey(int x, int y)
+        {
+            int offset = y * stride + x * 4;
+            return (pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3d;
+        }
+
+        // The shape spans the middle half of the page and the seam runs down
+        // its centre. Sample several rows so a single stray pixel cannot decide
+        // the answer.
+        int centreX = converted.PixelWidth / 2;
+        // Far enough out to be clear of the overlap band, which spans 190-210
+        // of the 400-point page: a sample on its edge reads as no seam at all,
+        // which is how the first run of this came back zero.
+        int sideOffset = Math.Max(8, converted.PixelWidth / 10);
+        double worst = 0;
+        for (int step = 1; step <= 8; step++)
+        {
+            int y = converted.PixelHeight * step / 9;
+            double seam = Grey(centreX, y);
+            double left = Grey(centreX - sideOffset, y);
+            double right = Grey(centreX + sideOffset, y);
+            worst = Math.Max(worst, (left + right) / 2d - seam);
+        }
+
+        return worst;
+    }
+
+    /// <summary>
+    /// A page carrying one translucent shadow, drawn either as a single shape
+    /// or as two halves that share their long edge.
+    /// </summary>
+    private static string WritePdf(bool seamed)
+    {
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"erks-shadow-seam-{(seamed ? "split" : "whole")}-{Guid.NewGuid():N}.pdf");
+
+        using var document = new PdfDocument();
+        PdfPage page = document.AddPage();
+        page.Width = XUnit.FromPoint(400);
+        page.Height = XUnit.FromPoint(400);
+
+        using (XGraphics gfx = XGraphics.FromPdfPage(page))
+        {
+            gfx.DrawRectangle(XBrushes.White, 0, 0, 400, 400);
+            var shadow = new XSolidBrush(XColor.FromArgb(120, 40, 40, 40));
+
+            // Overlapping by two points, not merely touching: "the joined edge
+            // is painted twice" is what produces the darker line. Abutting
+            // shapes were measured first and produced no seam at all.
+            if (seamed)
+            {
+                gfx.DrawPolygon(
+                    shadow,
+                    [new XPoint(100, 40), new XPoint(210, 40), new XPoint(210, 360), new XPoint(100, 360)],
+                    XFillMode.Winding);
+                gfx.DrawPolygon(
+                    shadow,
+                    [new XPoint(190, 40), new XPoint(300, 40), new XPoint(300, 360), new XPoint(190, 360)],
+                    XFillMode.Winding);
+            }
+            else
+            {
+                gfx.DrawPolygon(
+                    shadow,
+                    [new XPoint(100, 40), new XPoint(300, 40), new XPoint(300, 360), new XPoint(100, 360)],
+                    XFillMode.Winding);
+            }
+        }
+
+        document.Save(path);
+        return path;
+    }
+}
