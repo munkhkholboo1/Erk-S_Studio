@@ -2296,36 +2296,9 @@ internal sealed partial class ShellView : IDisposable
             }
 
             if (scan.ErrorCount > 0)
-            {
                 SetStatus($"Source background scan: {scan.ErrorCount} алдаа илэрлээ.");
-            }
-            else if (scan.SkippedForeignManifestCount > 0)
-            {
-                // Never normal for a correctly linked source: the folder holds
-                // a package whose sourceId or projectId is not this source's.
-                // It is dropped, and until now nothing said so - which is
-                // exactly what "Studio is not picking up my new sheets" looks
-                // like from the outside.
-                SetStatus(
-                    $"Эх үүсвэрийн хавтсанд өөр эх үүсвэр/төслийн "
-                    + $"{scan.SkippedForeignManifestCount} багц байна — хүлээж аваагүй. "
-                    + "Дахин холбогдсон эх үүсвэр байж магадгүй.");
-            }
-            else if (scan.SkippedHistoricalManifestCount > 0 && scan.ChangedPackageCount == 0)
-            {
-                // Said only when nothing else changed. A source folder keeps
-                // its old exports and skipping them is routine; the one time it
-                // is worth reporting is when the scan found nothing new, so the
-                // user can see the newest package was not treated as newest.
-                SetStatus(
-                    $"Шинэ багц олдсонгүй. {scan.SkippedHistoricalManifestCount} багцыг "
-                    + "хуучин гэж үзэж алгассан — шинэ экспортын огноо хамгийн сүүлийн "
-                    + "snapshot-оос хойш байгаа эсэхийг шалгана уу.");
-            }
             else if (scan.SilentlyHydratedManifestCount > 0 && activePage == StudioPage.Sources)
-            {
                 RefreshSourceWorkspace();
-            }
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or InvalidDataException)
