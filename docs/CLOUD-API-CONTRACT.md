@@ -276,12 +276,17 @@ These live outside `/api/cloud-era/v1` and outside the OpenAPI snapshot:
   release label with a space, an old numbering scheme, and a string that is not
   a version at all. It is also load-bearing as something else: the `-dev`
   suffix in it is how Studio decides it is a development build and skips
-  licence enforcement (`VERSIONING.md`). SRV offered `hostApplication` /
-  `hostVersion` on 2026-08-30 with `hostVersion` meant to be a raw version;
-  Studio has no such value to hand at runtime. The clean numbers live in
-  `Studio.Version.props` and reach the assembly only through this label, so
-  adopting the field means deciding where a raw version comes from, not
-  forwarding `appVersion` into a second name.
+  licence enforcement (`VERSIONING.md`).
+- **`hostApplication` / `hostVersion`** (added by SRV 2026-08-30, adopted the
+  same day): `"Studio"` and that same label, sent whole. The first draft of
+  this note said Studio had nothing clean to put in `hostVersion` and should
+  wait; SRV's rule then settled it the other way - the host sends what it
+  reports for itself and the server stores the string without parsing it, so a
+  label with a space in it is an answer rather than a malformed version.
+  Both are defaults on the request base, not per-call assignments, because
+  they state a fact about the running program rather than claiming anything a
+  person did - the opposite of the boundary header above. `appVersion` keeps
+  its old meaning and carries the same string, from one reader.
 - **Companion licence**: `activate` and `session` may carry a nullable
   `entitlements` object (`platformTier`, `cityGenTier`, `studioCompanion`,
   `companionExpiresAtUtc`, `features`). Studio is free but opens only for an
