@@ -192,6 +192,68 @@ public sealed class ProjectFileCrossProductContractTests
     }
 
     [Fact]
+    public void AVersionOneFileStillOpens()
+    {
+        // Version 1 is not history. PFR swept the disk and found a live one -
+        // E:\Erk-S test\project.erksproject, written 2026-07-16 and never
+        // reopened since, which is exactly how a file keeps an old version:
+        // Studio raises it only on the next save.
+        //
+        // "Older files must keep working" was the rule the whole version
+        // contract rests on, and nothing guarded it. This is the shape a
+        // version 1 file has - eleven top-level fields where there are now
+        // twenty-odd, everything since then absent.
+        const string versionOne = """
+            {
+              "formatVersion": 1,
+              "projectId": "81cfa7e8",
+              "identity": { "name": "Test", "projectType": "BuildingArchitectureConcept" },
+              "cloud": { "origin": "Local" },
+              "foundation": { "version": 1 },
+              "sources": [],
+              "deliverables": {
+                "albums": [
+                  {
+                    "id": "building-architecture-concept",
+                    "isPrimary": true,
+                    "documentPath": "albums/building-architecture-concept.erksalbum"
+                  }
+                ]
+              },
+              "archive": {},
+              "migration": null,
+              "createdAtUtc": "2026-07-16T00:00:00+00:00",
+              "updatedAtUtc": "2026-07-16T00:00:00+00:00"
+            }
+            """;
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            "erks-v1-" + Guid.NewGuid().ToString("N") + ".erksproject");
+        File.WriteAllText(path, versionOne, Encoding.UTF8);
+        try
+        {
+            ProjectWorkspace project = ProjectWorkspaceStore.Load(path);
+
+            // Everything added since version 1 has to arrive empty rather than
+            // null: a reader that has to null-check each of them would find the
+            // omissions one crash at a time.
+            Assert.NotNull(project.Stages);
+            Assert.NotNull(project.BuildingGroups);
+            Assert.NotNull(project.SheetBuildingAssignments);
+            Assert.NotNull(project.AlbumStyle);
+            Assert.NotNull(project.SiteContext);
+            Assert.NotNull(project.Boards);
+
+            // The one that throws rather than returning null if it is missing.
+            Assert.NotNull(project.PrimaryAlbum);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void AFileWithNoVersionAtAllIsTakenAsTheCurrentOne()
     {
         // Recorded because it is a trap rather than a decision: an absent
