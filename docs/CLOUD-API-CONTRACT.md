@@ -63,7 +63,10 @@ The actual client is layered, and this is deliberate:
   surface. `CloudEraGeneratedContractClient` wraps the typed subset Studio uses
   through it (project list/create/detail, design-organization assignment, stage
   advance, participant roles, concept architect, design packages, albums,
-  ensure-album, source-package registration).
+  ensure-album, source-package registration). Generated operations Studio does
+  not call are listed under "Generated but unused" below rather than left out,
+  so a reader comparing this document against the OpenAPI surface can tell an
+  omission from a deliberate non-use.
 - **Hand-written calls** (`StudioAccountService`, `CloudEraChunkedAlbumUploader`,
   `CloudEraAlbumComponentUploader`) — everything needing `If-Match`,
   `If-None-Match`, multipart forms, or streamed binaries, plus session-critical
@@ -220,6 +223,19 @@ Cloud source-package APIs accept manifest identity, hashes, sheet metadata, and
 controlled PDF deliverables. They MUST reject or omit RVT, DWG, and other
 native-source payloads. A custody change updates metadata only; actual file
 handover remains off-platform.
+
+## Generated but unused
+
+`GET /api/cloud-era/v1/projects/{projectId}/basis-sources`
+(`ListCloudEraBasisSourcesAsync`, returning `CloudEraBasisSourceDto`) exists in
+the generated client and Studio never calls it. The project's basis-source
+fields reach Studio through the project detail payload instead, and are edited
+through project information.
+
+Recorded rather than omitted. An unlisted route reads as an oversight in this
+document; a route listed as unused says the omission was checked. If Studio
+starts calling it, move it into the generated-client list above in the same
+change.
 
 ## Non-Cloud-ERA channels
 
