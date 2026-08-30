@@ -140,6 +140,35 @@ public sealed class ProjectFileCrossProductContractTests
     }
 
     [Fact]
+    public void RaisingTheProjectFormatVersionIsAThreeProductChange()
+    {
+        // The anchor PFR asked for, and they were right to: Studio promised to
+        // tell PFA and PFR before raising this, and a promise is not a
+        // mechanism. The change happens in Studio's code, so the reminder
+        // belongs in Studio's tests.
+        //
+        // Three constants in this codebase carry the same name and different
+        // numbers, which is how PFR nearly built its gate on the wrong one.
+        // Pinned together so the next reader meets all three at once:
+        Assert.Equal(3, ProjectWorkspace.CurrentFormatVersion);      // project.erksproject
+        Assert.Equal(2, StudioAlbumDocument.CurrentFormatVersion);   // .erksalbum
+        Assert.Equal(2, AlbumProject.CurrentFormatVersion);          // legacy .erksalbum
+
+        // Only the first of those crosses a product boundary. If it is what
+        // changed, tell PFA and PFR before this ships: their readers declare
+        // their own SupportedProjectFormatVersion and will refuse the new file
+        // outright - which is the agreed behaviour, and useless as a surprise.
+        // If one of the album numbers changed, this test is only in the way;
+        // update it and carry on.
+        Assert.True(
+            ProjectWorkspace.CurrentFormatVersion == 3,
+            "ProjectWorkspace.CurrentFormatVersion changed. project.erksproject is read by "
+            + "AutoCAD and Revit, each holding its own SupportedProjectFormatVersion, and both "
+            + "refuse a file newer than they know. Tell PFA and PFR before this ships, then "
+            + "update this test. See docs/PROJECT-FILE-READER-CONTRACT.md.");
+    }
+
+    [Fact]
     public void AFileFromANewerStudioIsRefusedRatherThanReadWithOldMeanings()
     {
         string body =
