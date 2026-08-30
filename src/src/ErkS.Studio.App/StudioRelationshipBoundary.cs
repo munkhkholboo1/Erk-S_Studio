@@ -14,6 +14,20 @@ internal enum StudioRelationshipAction
     RequestProjectExit,
     DecideProjectExit,
     IssueProjectCreationGrant,
+
+    /// <summary>
+    /// Declared, labelled, and never reached: Studio issues creation grants but
+    /// has no operation that redeems one, so nothing passes this to
+    /// <see cref="StudioRelationshipBoundary.Confirm"/>. Every other member of
+    /// this enum has exactly one call site.
+    ///
+    /// Left in place rather than deleted because the label and notice below are
+    /// the wording that operation will need. Whoever implements it: the
+    /// acknowledgement header is attached to every request from a constant, so
+    /// the boundary dialog is what makes the acknowledgement true - calling the
+    /// endpoint without going through Confirm first would claim a consent the
+    /// user never gave, and nothing would report it.
+    /// </summary>
     RedeemProjectCreationGrant,
     AssignDesignOrganization,
     TransferSourceCustody,
