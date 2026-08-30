@@ -276,25 +276,28 @@ public sealed class StudioReleasePipelineTests
         return count;
     }
 
-    private static string FindRepositoryRoot()
+    [Fact]
+    public void NothingElseInTheTreeClaimsToBeTheVersion()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string scriptPath = Path.Combine(
-                directory.FullName,
-                "src",
-                "scripts",
-                "Publish-Studio-Demo.ps1");
-            if (File.Exists(scriptPath))
-            {
-                return directory.FullName;
-            }
+        // There used to be a VERSION file at the root as well, on its own
+        // numbering: it read 0.1.0-dev.28 while Studio.Version.props read
+        // 0.001.46. Nothing consumed it, so the two drifted apart for months
+        // without anything failing, and the ONE audit found them by reading
+        // both. It was deleted on 2026-08-23.
+        //
+        // A second file like that is harmless right up until someone updates
+        // the wrong one before a release, so its absence is asserted rather
+        // than trusted. VERSIONING.md names Studio.Version.props as the only
+        // source; this is that sentence with teeth.
+        string root = FindRepositoryRoot();
 
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException(
-            "Could not locate the Erk-S Studio repository root.");
+        Assert.False(
+            File.Exists(Path.Combine(root, "VERSION")),
+            "A VERSION file is back at the repository root. src/Studio.Version.props is the "
+            + "only source of the version a build carries - see docs/VERSIONING.md. If this "
+            + "file is wanted for something else, give it a name that does not read as a "
+            + "second answer to the same question.");
     }
+
+    private static string FindRepositoryRoot() => TestRepository.FindRoot();
 }

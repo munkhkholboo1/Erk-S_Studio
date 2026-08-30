@@ -168,6 +168,19 @@ ErkS.CloudEra.Client     ErkS.Studio.App
 Core has no WPF dependency. PDF composition is behind `IAlbumPdfWriter`. UI workspaces consume
 canonical core state and service boundaries; they do not define package trust or cloud authority.
 
+### `ErkS.Platform.Core` is not the platform's `core/`
+
+The name collides with the `core/` directory at the root of the Erk-S Platform tree, and the ONE
+integration audit of 2026-08-23 raised it (STU-4). They are unrelated: `ErkS.Platform.Core` is
+Studio's own domain assembly and has no dependency on, and no relationship to, the platform `core/`.
+The collision is historical - the assembly was named before the platform tree had a `core/` - and
+there is no plan to merge them.
+
+Master's decision, 2026-08-30: **do not rename.** The assembly is referenced by every project in the
+solution, by the release scripts, and by `InternalsVisibleTo` declarations; the risk of that refactor
+is larger than the benefit of the clearer name. Recorded here so the question is answered rather than
+re-opened by each reader who notices it.
+
 ## Verification layers
 
 1. Unit and regression tests for contracts, security, lifecycle, and sync policy.

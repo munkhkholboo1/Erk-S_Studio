@@ -12,6 +12,24 @@ namespace ErkS.Studio;
 /// re-ordered and merged constantly - a comment that pointed at "page 7" would
 /// be pointing at a different drawing by the afternoon.
 /// </summary>
+/// <remarks>
+/// These values are also written out in the server's own SheetCommentRules, by
+/// hand, because the published contract does not carry them: cloud-era-v1
+/// declares the comment types but gives no enum for kind, status or shape and
+/// no maxLength for the text, so a generated client cannot know any of it.
+/// Until that changes, a copy is the only way a client can know the rules at
+/// all - and StudioSheetCommentContractTests holds the copy to the values and
+/// reports the day the contract starts publishing them.
+///
+/// The copy had already drifted when it was checked. The server cleans a
+/// comment before storing it, and the four cleaning rules were not all here, so
+/// what the author saw was not what was kept: runs of blank lines survived a
+/// paste locally and were collapsed on the server, an over-long page label was
+/// truncated, and a slowly-drawn cloud came back thinned from 900 points to
+/// 400. None of it failed; the mark simply changed shape on the next reload.
+/// The cleaning is now done identically on both sides, so what is shown is what
+/// is stored.
+/// </remarks>
 internal static class StudioSheetCommentRules
 {
     public const string KindNote = "Note";
@@ -66,6 +84,42 @@ internal static class StudioSheetCommentRules
     };
 
     public const int MaximumBodyLength = 4000;
+
+    /// <summary>A mark may not carry more points than a hand can usefully draw.</summary>
+    public const int MaximumShapePoints = 400;
+
+    public const int MaximumPageLabelLength = 240;
+
+    /// <summary>
+    /// Brings an over-long path down to the limit by thinning it across its
+    /// whole length, keeping the first and last point.
+    ///
+    /// Cutting it off at the limit instead would keep the beginning of the mark
+    /// and lose its return, so a cloud drawn around a detail would come back as
+    /// an arc across the sheet. The server does exactly this on receipt; doing
+    /// it here as well means the drawing on screen is the drawing that is kept,
+    /// and a path already at or under the limit passes through untouched, so
+    /// the two thinnings never compound.
+    /// </summary>
+    public static IReadOnlyList<T> Thin<T>(IReadOnlyList<T> points)
+    {
+        if (points.Count <= MaximumShapePoints)
+            return points;
+
+        var kept = new List<T>(MaximumShapePoints);
+        double step = (points.Count - 1) / (double)(MaximumShapePoints - 1);
+        for (int index = 0; index < MaximumShapePoints; index++)
+            kept.Add(points[(int)Math.Round(index * step)]);
+        return kept;
+    }
+
+    public static string CleanPageLabel(string? value)
+    {
+        string label = (value ?? "").Trim();
+        return label.Length <= MaximumPageLabelLength
+            ? label
+            : label[..MaximumPageLabelLength].TrimEnd();
+    }
 
     /// <summary>The kinds in the order they are offered and read.</summary>
     public static IReadOnlyList<string> Kinds { get; } =
@@ -151,9 +205,17 @@ internal static class StudioSheetCommentRules
         return name.Length == 0 ? page : page + " · " + name;
     }
 
+    /// <summary>
+    /// The body as it will be stored: trimmed, with the runs of blank lines a
+    /// paste tends to carry collapsed, and never longer than the limit. The
+    /// collapsing matches the server's, so the text shown after writing is the
+    /// text that comes back.
+    /// </summary>
     public static string CleanBody(string? value)
     {
         string body = (value ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        while (body.Contains("\n\n\n", StringComparison.Ordinal))
+            body = body.Replace("\n\n\n", "\n\n", StringComparison.Ordinal);
         return body.Length <= MaximumBodyLength ? body : body[..MaximumBodyLength].TrimEnd();
     }
 

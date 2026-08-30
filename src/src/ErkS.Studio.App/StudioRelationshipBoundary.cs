@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using ErkS.CloudEra.Client.Generated;
 
 namespace ErkS.Studio;
 
@@ -22,8 +23,14 @@ internal enum StudioRelationshipAction
 
 internal static class StudioRelationshipBoundary
 {
-    public const string PolicyVersion = "ERKS-RELATIONSHIP-BOUNDARY-2026-07-17";
-    public const string HeaderName = "X-ErkS-Relationship-Boundary";
+    // Defined once, in the client that sends it. Studio has a second HTTP path
+    // of its own (StudioAccountService) which must name the same policy, and
+    // two literals meant two ways to get it wrong.
+    public const string PolicyVersion =
+        CloudEraGeneratedClient.CurrentRelationshipBoundaryPolicyVersion;
+
+    public const string HeaderName =
+        CloudEraGeneratedClient.RelationshipBoundaryHeaderName;
 
     public static bool Confirm(
         Window? owner,

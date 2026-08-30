@@ -134,7 +134,8 @@ internal sealed class SheetMarkupSurface : Grid
     {
         albumPageNumber = Math.Max(1, pageNumber);
         pageIdentity = (identity ?? "").Trim();
-        pageLabel = StudioSheetCommentRules.PageLabel(pageNumberText, pageTitle);
+        pageLabel = StudioSheetCommentRules.CleanPageLabel(
+            StudioSheetCommentRules.PageLabel(pageNumberText, pageTitle));
         titleText.Text = pageLabel.Length == 0
             ? $"{albumPageNumber}-р хуудас"
             : $"{albumPageNumber}-р хуудас  ·  {pageLabel}";
@@ -944,7 +945,9 @@ internal sealed class SheetMarkupSurface : Grid
             AnchorX = anchor.X,
             AnchorY = anchor.Y,
             Shape = activeTool,
-            ShapePoints = drawing
+            // Thinned here rather than left to the server, so the mark that is
+            // stored is the mark that was just drawn on screen.
+            ShapePoints = StudioSheetCommentRules.Thin(drawing)
                 .Select(point => new StudioSheetCommentPoint { X = point.X, Y = point.Y })
                 .ToList(),
             Kind = SelectedKind,

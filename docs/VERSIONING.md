@@ -8,6 +8,10 @@
   It holds the published version and its assembly version, plus the development
   version used by every ordinary build. Nothing else in the tree decides a
   build's version, so this is the file a release updates.
+  There used to be a `VERSION` file at the root as well, on its own numbering. Nothing read it,
+  so it drifted: it said `0.1.0-dev.28` while `Studio.Version.props` said `0.001.46`, and the ONE
+  integration audit found the pair. It was deleted on 2026-08-23, and
+  `StudioReleasePipelineTests.NothingElseInTheTreeClaimsToBeTheVersion` fails if one comes back.
 - `CHANGELOG.md` describes product and architecture milestones.
 - Build output, installer payloads, local projects, native design files, credentials, and license data are never source history.
 
