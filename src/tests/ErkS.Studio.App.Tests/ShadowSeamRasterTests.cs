@@ -68,11 +68,113 @@ public sealed class ShadowSeamRasterTests
             File.Delete(path);
         }
     }
+    [Fact]
+    public void AbuttingBandsShowNoSeamAtAll()
+    {
+        // The result this file was built to find, and it came back negative.
+        //
+        // CGA's shadows are not overlapped triangles: they read their own
+        // tessellator and it emits horizontal scanline bands whose edges meet
+        // at exactly the same Y. Their direction matches the user's report -
+        // "тасалдалтай хөндлөн зураас" - so the obvious theory was that
+        // abutting edges show up as seams when rasterised coarsely.
+        //
+        // They do not. Not darker, not lighter, at either resolution: Pdfium
+        // composites the shared edge cleanly. The deviation is measured in both
+        // directions here because the first version of this file could only see
+        // darker seams, and a lighter hairline - the usual abutting artefact -
+        // would have read as zero and looked like proof.
+        //
+        // So the tessellation alone does not explain the stripes. Something
+        // else does, and this rules out one answer rather than supplying one.
+        string path = WriteBandedPdf();
+        try
+        {
+            Assert.True(SeamDeviation(path, LowWidth) < 3);
+            Assert.True(SeamDeviation(path, HighWidth) < 3);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 
     /// <summary>
-    /// How much darker the middle of the shape is than its two sides, in 0-255
-    /// grey levels, read down the line where the two halves meet.
+    /// The largest departure - in either direction - of a band boundary from
+    /// the rows either side of it.
     /// </summary>
+    private static double SeamDeviation(string pdfPath, int pixelWidth)
+    {
+        using PdfiumDocument? document = PdfiumDocument.Open(pdfPath);
+        Assert.NotNull(document);
+        BitmapSource? image = document!.RenderPage(1, pixelWidth);
+        Assert.NotNull(image);
+
+        var converted = new FormatConvertedBitmap(image!, PixelFormats.Bgra32, null, 0);
+        int stride = converted.PixelWidth * 4;
+        var pixels = new byte[stride * converted.PixelHeight];
+        converted.CopyPixels(pixels, stride, 0);
+
+        double Grey(int x, int y)
+        {
+            int offset = y * stride + x * 4;
+            return (pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3d;
+        }
+
+        int x = converted.PixelWidth / 2;
+        double worst = 0;
+        for (int boundaryPoints = 80; boundaryPoints <= 320; boundaryPoints += 40)
+        {
+            int y = (int)Math.Round(boundaryPoints / 400d * converted.PixelHeight);
+            int span = Math.Max(2, converted.PixelHeight / 60);
+            if (y - span < 0 || y + span >= converted.PixelHeight)
+                continue;
+
+            worst = Math.Max(
+                worst,
+                Math.Abs((Grey(x, y - span) + Grey(x, y + span)) / 2d - Grey(x, y)));
+        }
+
+        return worst;
+    }
+
+    /// <summary>
+    /// One translucent shadow cut into horizontal bands that meet exactly, the
+    /// way a scanline tessellation leaves them.
+    /// </summary>
+    private static string WriteBandedPdf()
+    {
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"erks-shadow-bands-{Guid.NewGuid():N}.pdf");
+
+        using var document = new PdfDocument();
+        PdfPage page = document.AddPage();
+        page.Width = XUnit.FromPoint(400);
+        page.Height = XUnit.FromPoint(400);
+
+        using (XGraphics gfx = XGraphics.FromPdfPage(page))
+        {
+            gfx.DrawRectangle(XBrushes.White, 0, 0, 400, 400);
+            var shadow = new XSolidBrush(XColor.FromArgb(120, 40, 40, 40));
+            for (double top = 40; top < 360; top += 40)
+            {
+                gfx.DrawPolygon(
+                    shadow,
+                    [
+                        new XPoint(100, top),
+                        new XPoint(300, top),
+                        new XPoint(300, top + 40),
+                        new XPoint(100, top + 40),
+                    ],
+                    XFillMode.Winding);
+            }
+        }
+
+        document.Save(path);
+        return path;
+    }
+
     private static double SeamContrast(string pdfPath, int pixelWidth)
     {
         using PdfiumDocument? document = PdfiumDocument.Open(pdfPath);
