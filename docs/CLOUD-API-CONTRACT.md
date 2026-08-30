@@ -263,9 +263,14 @@ These live outside `/api/cloud-era/v1` and outside the OpenAPI snapshot:
   (`StudioAccountService.CommitSession`). If a current server ever answered
   `null` for an account whose licence has lapsed, enforcement would fail open
   and nothing would say so. Raised with SRV on 2026-08-30 after their
-  two-licence probe returned `entitlements: null` for an unlicensed account:
-  that response also carried `isValid: false`, which refuses on its own, so
-  the probe is consistent - but it is one field away from not being.
+  two-licence probe returned `entitlements: null` for an unlicensed account.
+  SRV measured it the same day and the hole is not there: `/api/studio/session`
+  states the entitlement even for an account with no licence at all
+  (`studioCompanion: false`, tiers `None`, no features), both construction
+  sites call the builder unconditionally, and a resolver test holds it. The
+  null they showed comes only from `activate`/`validate`, which carry
+  `isValid: false` and refuse on their own. SRV has written the invariant into
+  their own contract as well, so it is no longer stated on one side only.
 - **Updates**: `/api/updates/latest` — governed by `UPDATE-SIGNING.md`
   (transport gate, SHA-256, Authenticode chain, publisher pin).
 - **Program catalog**: `/api/products/catalog`, `/api/installers/latest` —
