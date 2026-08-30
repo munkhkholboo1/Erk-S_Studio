@@ -68,6 +68,32 @@ public sealed class ShadowSeamRasterTests
             File.Delete(path);
         }
     }
+    [Fact]
+    public void TheBandMeasurementCanSeeASeamWhenThereIsOne()
+    {
+        // The positive control for SeamDeviation, and it was missing.
+        //
+        // That measurement had only ever returned zero - on abutting bands -
+        // and large numbers on real drawings, where the large numbers were
+        // drawn lines. A metric that has never been shown to detect the thing
+        // it looks for cannot support the conclusion "there is none here": the
+        // zero could equally mean the metric is blind.
+        //
+        // The overlap test above validates a different measurement, on a
+        // different axis. This one validates the one the abutting test uses.
+        string path = WriteBandedPdf(overlapPoints: 6);
+        try
+        {
+            Assert.True(
+                SeamDeviation(path, LowWidth) > 8,
+                $"the metric read {SeamDeviation(path, LowWidth):0.0} on bands that do overlap");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
 
     // 120 is 47% opacity, which is what this file measured first. 112 is the
     // 56% transparency CGA measured in their own shadow fill. Close, and
@@ -149,7 +175,7 @@ public sealed class ShadowSeamRasterTests
     /// One translucent shadow cut into horizontal bands that meet exactly, the
     /// way a scanline tessellation leaves them.
     /// </summary>
-    private static string WriteBandedPdf(int alpha = 120)
+    private static string WriteBandedPdf(int alpha = 120, double overlapPoints = 0)
     {
         string path = Path.Combine(
             Path.GetTempPath(),
@@ -171,8 +197,8 @@ public sealed class ShadowSeamRasterTests
                     [
                         new XPoint(100, top),
                         new XPoint(300, top),
-                        new XPoint(300, top + 40),
-                        new XPoint(100, top + 40),
+                        new XPoint(300, top + 40 + overlapPoints),
+                        new XPoint(100, top + 40 + overlapPoints),
                     ],
                     XFillMode.Winding);
             }
