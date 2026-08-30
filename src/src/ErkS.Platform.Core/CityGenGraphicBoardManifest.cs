@@ -131,6 +131,27 @@ public sealed class CityGenBoardOrigin
 /// <summary>One classified outline of the general plan.</summary>
 public sealed class CityGenBoardObject
 {
+    /// <summary>
+    /// Identifies this object within its own manifest, and no further.
+    /// </summary>
+    /// <remarks>
+    /// It is used for one thing: pairing an island with the area it is cut out
+    /// of, so a path crossing a lawn becomes a hole in the grass. The lookup is
+    /// rebuilt from each file as it is read.
+    ///
+    /// It carries no guarantee across files. CityGen derives it from the
+    /// drawing's entity handle, and until CGA's element-level regeneration
+    /// lands those handles are new on every Generate - the same lawn is a
+    /// different id each time. Studio does not notice, because it compares
+    /// whole-file hashes rather than objects, and stores no ids at all.
+    ///
+    /// Recorded because both halves of that will change and the change will be
+    /// silent. When element-level regeneration ships, these strings become
+    /// stable in practice - and practice is not a contract. Anyone who wants to
+    /// track an object between exports needs CGA to promise stability first;
+    /// reading it from observed behaviour would work until the day a drawing is
+    /// rebuilt from scratch.
+    /// </remarks>
     public string Id { get; set; } = "";
 
     /// <summary>
