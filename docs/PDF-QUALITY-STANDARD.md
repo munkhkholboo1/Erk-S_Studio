@@ -102,8 +102,22 @@ an intentional, reviewed contract or design change.
 ## On-screen rendering: a translucent shadow loses coverage
 
 Measured 2026-08-31 while tracing gaps a user saw in the shadows of a general-plan
-sheet. The gaps are not in the file: PFA expanded all 255 soft masks in the export
-and flood-filled them, finding no enclosed hole. They appear in Studio's preview.
+sheet.
+
+**The premise this section was written on was wrong, and the correction matters
+more than the finding.** It opened by saying the gaps were not in the file,
+because PFA had expanded all 255 soft masks of *a test export* and found no
+enclosed hole. PFA then found the user's *own* export and expanded that one: three
+of its 250 masks do have enclosed holes, one of them with a fill ratio of 0.51 -
+a triangle, the shape the user described - and another a 200x326 rectangle, all
+three in the shadow layer. Their cause is on the producing side: that drawing
+merges shadows into rasters up to 3906x2598, and AutoCAD's plot rasteriser drops
+pieces of a merge that large. PFA's test export had small rasters, which is why it
+was clean and why the wrong conclusion looked measured.
+
+So the triangle the user saw came from the file. What follows is a **second,
+separate defect**, found while looking for the first one and real on its own
+terms - it is measured on CityGen's sample pair, which carries no such hole.
 
 **The path.** `PdfiumDocument.RenderPage` renders through Pdfium
 (`FPDF_RenderPageBitmap`) into a white-filled BGRA32 bitmap with
@@ -156,3 +170,10 @@ already at 400.
 Not fixed. The candidate directions - first-pass width, render flags, rendering
 finer and downsampling - are not chosen yet, and a fix must be measured the same
 way rather than argued.
+
+**Where this leaves the finding.** CGA has been asked to make blended-vector
+materialisation the export default, which removes translucent rasters from
+general-plan sheets - and with them the content this defect acts on. What remains
+raster-and-translucent is small: cycle hatches and the like. The measurement is
+kept because that content still goes through the same path, and because a fix
+proposed later should be held to the same comparison rather than argued.
