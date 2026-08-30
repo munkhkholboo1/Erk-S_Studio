@@ -103,4 +103,18 @@ internal static class PdfiumInterop
 
     [DllImport(Library, EntryPoint = "FPDFText_CountChars", CharSet = CharSet.Ansi)]
     public static extern int TextCountChars(IntPtr textPage);
+
+    /// <summary>
+    /// Copies UTF-16 characters out of a text page. Added to answer a question
+    /// no count could: whether the text on a sheet is the frame's own lettering
+    /// or the drawing's labels. A page can carry a font reference and still be
+    /// empty of drawing, which is what a content probe counting markers cannot
+    /// tell apart.
+    /// </summary>
+    [DllImport(Library, EntryPoint = "FPDFText_GetText", CharSet = CharSet.Ansi)]
+    public static extern int TextGetText(
+        IntPtr textPage,
+        int startIndex,
+        int count,
+        [Out] char[] result);
 }

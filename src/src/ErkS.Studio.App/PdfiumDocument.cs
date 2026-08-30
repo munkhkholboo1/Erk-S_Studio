@@ -80,6 +80,51 @@ internal sealed class PdfiumDocument : IDisposable
     /// </summary>
     /// <remarks>
     /// Callers need this to decide how many pixels 300 DPI is for this
+    /// <summary>
+    /// The text drawn on a page, or null when it carries none.
+    /// </summary>
+    /// <remarks>
+    /// A content probe that counts font references cannot tell a sheet whose
+    /// drawing is missing from one whose frame simply has lettering on it. The
+    /// words themselves can: "Erk-S Standard" is the frame, a building's label
+    /// is the drawing.
+    /// </remarks>
+    public string? ReadPageText(int pageNumber)
+    {
+        lock (gate)
+        {
+            if (disposed || pageNumber < 1 || pageNumber > PageCount)
+                return null;
+
+            IntPtr page = PdfiumInterop.LoadPage(document, pageNumber - 1);
+            if (page == IntPtr.Zero)
+                return null;
+
+            IntPtr textPage = IntPtr.Zero;
+            try
+            {
+                textPage = PdfiumInterop.TextLoadPage(page);
+                if (textPage == IntPtr.Zero)
+                    return null;
+
+                int count = PdfiumInterop.TextCountChars(textPage);
+                if (count <= 0)
+                    return null;
+
+                // One extra for the terminator Pdfium writes.
+                var buffer = new char[count + 1];
+                int copied = PdfiumInterop.TextGetText(textPage, 0, count, buffer);
+                return copied <= 0 ? null : new string(buffer, 0, Math.Min(copied, count));
+            }
+            finally
+            {
+                if (textPage != IntPtr.Zero)
+                    PdfiumInterop.TextClosePage(textPage);
+                PdfiumInterop.ClosePage(page);
+            }
+        }
+    }
+
     /// particular sheet. Zero rather than a guessed A1: a page whose size is
     /// unknown is a reason to rasterise conservatively.
     /// </remarks>
