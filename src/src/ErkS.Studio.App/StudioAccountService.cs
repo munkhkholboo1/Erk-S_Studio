@@ -2584,10 +2584,10 @@ internal sealed class StudioAccountService :
         return null;
     }
 
-    private static string AppVersion => typeof(StudioAccountService).Assembly
-        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-        ?? typeof(StudioAccountService).Assembly.GetName().Version?.ToString()
-        ?? "dev";
+    // The same string the request base sends as HostVersion. Read once, in one
+    // place: two readers of the same attribute would agree until one of them
+    // was "tidied".
+    private static string AppVersion => StudioHost.Version;
 
     private sealed class StudioAccountMetadata
     {

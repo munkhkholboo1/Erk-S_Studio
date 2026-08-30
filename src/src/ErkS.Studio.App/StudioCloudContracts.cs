@@ -86,6 +86,49 @@ internal abstract class StudioDeviceBoundRequest
     public string LegacyDeviceFingerprint { get; set; } = "";
     public string DeviceName { get; set; } = "";
     public string AppVersion { get; set; } = "";
+
+    /// <summary>
+    /// Which program is asking, and the version it reports for itself.
+    /// </summary>
+    /// <remarks>
+    /// Defaulted here rather than set at each call site, and the difference
+    /// from the relationship-boundary header - which must not be attached
+    /// automatically - is what these two things are. That header is a claim
+    /// that a person consented, so it may only follow a person's action. This
+    /// is a fact about the running program, true on every request whether or
+    /// not anyone is watching, so a default in the type is the honest place
+    /// for it and a new call site cannot forget it.
+    ///
+    /// The version is sent exactly as Studio reports it, under SRV's
+    /// read-do-not-compute rule of 2026-08-30: it can be "Demo V0.001.55",
+    /// "0.001.56-dev", or "CI Smoke", each with the commit appended. Those are
+    /// not three malformed versions - they are what this build is called, and
+    /// normalising them would replace what Studio knows with a guess. The
+    /// server stores the string and does not parse it.
+    /// </remarks>
+    public string HostApplication { get; set; } = StudioHost.Application;
+
+    public string HostVersion { get; set; } = StudioHost.Version;
+}
+
+/// <summary>What this program calls itself when a server asks.</summary>
+internal static class StudioHost
+{
+    public const string Application = "Studio";
+
+    /// <summary>
+    /// The assembly's informational version - a build label rather than a
+    /// number, and load-bearing as one: its "-dev" suffix is how Studio decides
+    /// it is a development build and does not enforce its companion licence.
+    /// See docs/VERSIONING.md.
+    /// </summary>
+    public static string Version { get; } =
+        System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(
+                typeof(StudioHost).Assembly)
+            ?.InformationalVersion
+        ?? typeof(StudioHost).Assembly.GetName().Version?.ToString()
+        ?? "dev";
 }
 
 internal sealed class StudioLicenseActivateRequest : StudioDeviceBoundRequest
