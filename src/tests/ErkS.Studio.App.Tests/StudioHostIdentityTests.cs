@@ -56,6 +56,28 @@ public sealed class StudioHostIdentityTests
     }
 
     [Fact]
+    public void TheLabelStillFitsInWhatTheServerStores()
+    {
+        // The server truncates these at 80 characters
+        // (Program.RecordActivationHost). It was 40 until SRV measured this
+        // build's shape: "Demo V0.001.30+<40 hex sha>" is 55 characters, and a
+        // 40-character bound would have cut fifteen characters off the sha -
+        // storing one build's label under another build's name, which is worse
+        // than storing nothing.
+        //
+        // 80 leaves 25 characters of headroom, and all of it is in the label:
+        // the commit suffix is a fixed 41. So this guards the one thing that
+        // can still grow. A release label longer than 39 characters would be
+        // truncated in silence on the server; here it fails out loud instead.
+        Assert.True(
+            StudioHost.Version.Length <= 80,
+            $"The version label is {StudioHost.Version.Length} characters and the licence "
+            + "server stores 80. Past that it truncates silently, so two builds can be "
+            + "recorded under the same name. Shorten the release label, or agree a longer "
+            + "bound with SRV first.");
+    }
+
+    [Fact]
     public void BothFieldsSurviveSerialisationUnderTheNamesTheServerReads()
     {
         // The server reads hostApplication and hostVersion. The DTO is
