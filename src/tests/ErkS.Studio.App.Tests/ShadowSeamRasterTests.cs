@@ -68,8 +68,15 @@ public sealed class ShadowSeamRasterTests
             File.Delete(path);
         }
     }
-    [Fact]
-    public void AbuttingBandsShowNoSeamAtAll()
+
+    // 120 is 47% opacity, which is what this file measured first. 112 is the
+    // 56% transparency CGA measured in their own shadow fill. Close, and
+    // "close" is exactly the reasoning that would leave the difference
+    // untested, so both run.
+    [Theory]
+    [InlineData(120)]
+    [InlineData(112)]
+    public void AbuttingBandsShowNoSeamAtAll(int alpha)
     {
         // The result this file was built to find, and it came back negative.
         //
@@ -87,7 +94,7 @@ public sealed class ShadowSeamRasterTests
         //
         // So the tessellation alone does not explain the stripes. Something
         // else does, and this rules out one answer rather than supplying one.
-        string path = WriteBandedPdf();
+        string path = WriteBandedPdf(alpha);
         try
         {
             Assert.True(SeamDeviation(path, LowWidth) < 3);
@@ -142,7 +149,7 @@ public sealed class ShadowSeamRasterTests
     /// One translucent shadow cut into horizontal bands that meet exactly, the
     /// way a scanline tessellation leaves them.
     /// </summary>
-    private static string WriteBandedPdf()
+    private static string WriteBandedPdf(int alpha = 120)
     {
         string path = Path.Combine(
             Path.GetTempPath(),
@@ -156,7 +163,7 @@ public sealed class ShadowSeamRasterTests
         using (XGraphics gfx = XGraphics.FromPdfPage(page))
         {
             gfx.DrawRectangle(XBrushes.White, 0, 0, 400, 400);
-            var shadow = new XSolidBrush(XColor.FromArgb(120, 40, 40, 40));
+            var shadow = new XSolidBrush(XColor.FromArgb(alpha, 40, 40, 40));
             for (double top = 40; top < 360; top += 40)
             {
                 gfx.DrawPolygon(
