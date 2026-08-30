@@ -308,10 +308,21 @@ public sealed class CityGenBoardLoadResult
     public IReadOnlyList<string> Issues { get; init; } = [];
 
     /// <summary>
-    /// Objects that arrived but cannot be drawn. These do not refuse the file -
-    /// one unusable outline should not cost a plan its other eight hundred -
-    /// but they are counted so their absence is never silent.
+    /// Complaints that do not refuse the file - one unusable outline should not
+    /// cost a plan its other eight hundred - reported so nothing goes missing
+    /// in silence.
     /// </summary>
+    /// <remarks>
+    /// One line per kind of complaint, not one per object, and the name is
+    /// narrower than the contents: a header whose object count disagrees with
+    /// the body is reported here too, and that is not a skipped object at all.
+    /// So the length of this list is a number of complaints. Reading it as a
+    /// number of lost outlines would be wrong - CGA's first shadow sample
+    /// produced one line here while losing nothing.
+    ///
+    /// Every consumer passes the strings through as warnings rather than
+    /// counting them, which is why this is a note instead of a rename.
+    /// </remarks>
     public IReadOnlyList<string> SkippedObjects { get; init; } = [];
 
     public bool IsLoaded => Manifest is not null && Issues.Count == 0;
