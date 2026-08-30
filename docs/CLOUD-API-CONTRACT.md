@@ -215,6 +215,32 @@ user confirmation; a client path that attaches it unconditionally MUST NOT be
 used for relationship-changing routes. The server records actor, action,
 counterparty reference, policy version, and timestamp.
 
+**Studio does not yet meet that second sentence, and the gap is worth naming.**
+Every relationship-changing operation is gated behind
+`StudioRelationshipBoundary.Confirm` at thirteen call sites, so none is reached
+without the dialog. But the header itself is attached by
+`CloudEraGeneratedClient.PrepareRequest` to *every* request, unconditionally -
+it is a constant on the client, not something the confirmation produces. The
+discipline lives in the thirteen call sites, not in the transport. Nothing
+would stop a future background retry of one of those routes from carrying an
+acknowledgement with no user present.
+
+**The hard-coded policy version is currently what binds the two together.**
+It sits beside the text the dialog displays, so what the user reads and what
+the header claims cannot drift apart. That makes it a duplicate worth keeping
+until something better exists: replacing it with a value read from
+`/capabilities` would let Studio acknowledge a policy the user has never seen -
+and precisely at the moment the policy changed, which is the moment consent
+should be asked again. SRV raised the same hazard from their side on
+2026-08-30. The order matters: store what was shown and acknowledged first,
+send only that, and only then stop hard-coding.
+
+One asymmetry to know when that work happens: the server's declared
+`consentText` is a single sentence saying an acknowledgement is required. It is
+not the policy. Studio's dialog carries the five paragraphs that are the actual
+reminder, so adopting the declared text verbatim would show the user *less*,
+not something different.
+
 See `RELATIONSHIP-BOUNDARY.md` for the neutral platform boundary.
 
 ## Native source rule
