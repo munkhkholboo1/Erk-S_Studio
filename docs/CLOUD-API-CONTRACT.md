@@ -269,6 +269,19 @@ These live outside `/api/cloud-era/v1` and outside the OpenAPI snapshot:
 
 - **Session/license**: `/api/license/activate`, `/api/studio/session`,
   `/api/studio/session/refresh`, `/api/studio/profile/photo`.
+- **`appVersion` is a label, not a version.** Studio sends its assembly's
+  `InformationalVersion`, and that is whatever the build was labelled plus the
+  commit SourceLink appends. Measured across built artifacts: `Demo
+  V0.001.30+e979b9e…`, `0.1.0-dev+302f49c…`, and `CI Smoke+775461c…` - a
+  release label with a space, an old numbering scheme, and a string that is not
+  a version at all. It is also load-bearing as something else: the `-dev`
+  suffix in it is how Studio decides it is a development build and skips
+  licence enforcement (`VERSIONING.md`). SRV offered `hostApplication` /
+  `hostVersion` on 2026-08-30 with `hostVersion` meant to be a raw version;
+  Studio has no such value to hand at runtime. The clean numbers live in
+  `Studio.Version.props` and reach the assembly only through this label, so
+  adopting the field means deciding where a raw version comes from, not
+  forwarding `appVersion` into a second name.
 - **Companion licence**: `activate` and `session` may carry a nullable
   `entitlements` object (`platformTier`, `cityGenTier`, `studioCompanion`,
   `companionExpiresAtUtc`, `features`). Studio is free but opens only for an
