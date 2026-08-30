@@ -183,6 +183,18 @@ public static class BuildingArchitectureConceptAlbumTemplate
         Generated("design-organization", 1, "01", "ЗУРАГ ТӨСӨЛ БОЛОВСРУУЛСАН БАЙГУУЛЛАГА", "Ерөнхий хэсэг", AlbumGeneratedPageKind.DesignOrganization),
         Generated("planning-task", 2, "02", "БАТЛАГДСАН АРХИТЕКТУР ТӨЛӨВЛӨЛТИЙН ДААЛГАВАР", "Ерөнхий хэсэг", AlbumGeneratedPageKind.PlanningTask),
         Generated("site-context", 3, "03", "БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ", "Ерөнхий төлөвлөгөө", AlbumGeneratedPageKind.SiteContext),
+        // The four general-plan sheets run ХС - НБ - НЭ - ЕТ, and that reads
+        // backwards on purpose.
+        //
+        // The general plan belongs at the front of this section: it is the
+        // sheet the others elaborate, and every instinct puts it first. The
+        // city-planning standards authority requires the movement scheme
+        // first, so the album follows the authority rather than the instinct.
+        //
+        // Written down because the order looks like a mistake. PFA read it as
+        // one and sent the sheets ЕТ - НЭ - ХС - НБ; without this note the next
+        // reader would "fix" the numbers here and quietly put the album out of
+        // compliance.
         Source("planning-proposal", 4, "04", "ТӨЛӨВЛӨЛТИЙН САНАА", "Ерөнхий төлөвлөгөө", false, [], ["ТӨЛӨВЛӨЛТИЙН САНАА"]),
         Source("traffic-scheme", 5, "05", "ХӨДӨЛГӨӨНИЙ СХЕМ", "Ерөнхий төлөвлөгөө", false, [], ["ХӨДӨЛГӨӨНИЙ СХЕМ"]),
         Source("landscaping", 6, "06", "НОГООН БАЙГУУЛАМЖ", "Ерөнхий төлөвлөгөө", false, [], ["НОГООН БАЙГУУЛАМЖ"]),
