@@ -19,7 +19,20 @@ internal sealed class PdfiumDocument : IDisposable
     private static readonly object LibraryGate = new();
     private static bool libraryReady;
 
-    private readonly object gate = new();
+    /// <summary>
+    /// Static, not per document: Pdfium is one native library with global
+    /// state, and it is not thread-safe. A per-instance lock serialises calls
+    /// about the SAME document and leaves two documents free to call into it
+    /// at once, which corrupts its heap.
+    ///
+    /// This was a latent hazard until the preview started rendering a sharper
+    /// page on a background thread while the rest of the app kept drawing
+    /// thumbnails on the UI thread. It surfaced as the test host crashing
+    /// mid-run - and the run still printed "Passed!" for the tests it had
+    /// already finished, so it read as a green suite that was quietly losing
+    /// a hundred tests.
+    /// </summary>
+    private static readonly object gate = new();
     private readonly Dictionary<PageKey, BitmapSource> rendered = [];
 
     /// <summary>Least recently rendered first; what Retain evicts from.</summary>
@@ -112,9 +125,17 @@ internal sealed class PdfiumDocument : IDisposable
                     return null;
 
                 // One extra for the terminator Pdfium writes.
-                var buffer = new char[count + 1];
+                // One extra for the terminator Pdfium writes.
+                var buffer = new ushort[count + 1];
                 int copied = PdfiumInterop.TextGetText(textPage, 0, count, buffer);
-                return copied <= 0 ? null : new string(buffer, 0, Math.Min(copied, count));
+                if (copied <= 0)
+                    return null;
+
+                int length = Math.Min(copied, count);
+                var characters = new char[length];
+                for (int index = 0; index < length; index++)
+                    characters[index] = (char)buffer[index];
+                return new string(characters);
             }
             finally
             {

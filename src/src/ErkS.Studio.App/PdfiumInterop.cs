@@ -110,11 +110,18 @@ internal static class PdfiumInterop
     /// or the drawing's labels. A page can carry a font reference and still be
     /// empty of drawing, which is what a content probe counting markers cannot
     /// tell apart.
+    ///
+    /// The buffer is ushort, not char. This import declares CharSet.Ansi, under
+    /// which char[] marshals one byte per element - and Pdfium writes two. The
+    /// first version of this overran the buffer and crashed the test host on
+    /// every run, while the run still printed "Passed!" for the tests it had
+    /// finished. UTF-16 units, converted here, leave nothing for the character
+    /// set to decide.
     /// </summary>
     [DllImport(Library, EntryPoint = "FPDFText_GetText", CharSet = CharSet.Ansi)]
     public static extern int TextGetText(
         IntPtr textPage,
         int startIndex,
         int count,
-        [Out] char[] result);
+        [Out] ushort[] result);
 }
