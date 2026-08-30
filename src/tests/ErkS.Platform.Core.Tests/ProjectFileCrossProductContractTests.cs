@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 
 namespace ErkS.Platform.Core.Tests;
@@ -26,6 +27,13 @@ namespace ErkS.Platform.Core.Tests;
 /// </remarks>
 public sealed class ProjectFileCrossProductContractTests
 {
+    /// <summary>
+    /// The metadata entry both products look inside a source for. PFR named it
+    /// when it sent its reader's real behaviour; the first draft of this file
+    /// guessed "buildingGroupId" and was wrong.
+    /// </summary>
+    private const string BuildingGroupMetadataKey = "source.buildingGroupId";
+
     [Fact]
     public void EveryFieldTheOtherTwoProductsReadIsStillWritten()
     {
@@ -79,6 +87,42 @@ public sealed class ProjectFileCrossProductContractTests
         // renaming a member renames a wire value in two other products.
         Assert.Equal("Revit", DesignSourceKind.Revit.ToString());
         Assert.Equal("AutoCad", DesignSourceKind.AutoCad.ToString());
+    }
+
+    [Fact]
+    public void TheTwoKeysInsideTheFileAreShapedTheWayTheOtherProductsParseThem()
+    {
+        // Two of the file's values are themselves formats rather than plain
+        // strings, and both were guessed wrong when this file was first
+        // written. PFR reported its reader's real behaviour and corrected them.
+        //
+        // Pinned by asking Studio to produce them rather than by repeating a
+        // literal, so this follows the code if the shape ever moves - and
+        // fails, which is the point.
+        var source = new ProjectDesignSource { Id = "revit-source-001" };
+        ProjectDesignSourceClassification.SetExplicitPurpose(
+            source,
+            ProjectDesignSourcePurpose.Building,
+            "group-a");
+
+        Assert.True(
+            source.Metadata.ContainsKey(BuildingGroupMetadataKey),
+            $"Both products read a source's building through metadata['{BuildingGroupMetadataKey}']. "
+            + "Renaming that key is a three-product change.");
+
+        // The sheet-assignment key is the source's identity and the sheet id
+        // joined, lower-cased. PFR matches it by the "{sourceId}|" prefix - a
+        // sheet number on its own would match nothing.
+        string key = SheetRecord.MakeKey(
+            new SheetPackageSource
+            {
+                Application = SheetSourceApplication.Revit,
+                DocumentPath = @"C:\p\BuildingA.rvt",
+            },
+            new SheetPackageEntry { SheetId = "A-01" },
+            "revit-source-001");
+
+        Assert.Equal("revit-source-001|a-01", key);
     }
 
     [Fact]
@@ -187,7 +231,7 @@ public sealed class ProjectFileCrossProductContractTests
             InboxFolder = @"C:\projects\P-CON-001\sources\Revit\deliveries",
             StageId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
             WorkPackageId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-            Metadata = { ["buildingGroupId"] = "group-a" },
+            Metadata = { [BuildingGroupMetadataKey] = "group-a" },
         });
 
         project.Sources.Add(new ProjectDesignSource
@@ -200,7 +244,12 @@ public sealed class ProjectFileCrossProductContractTests
         });
 
         project.BuildingGroups.Add(new ProjectBuildingGroup { Id = "group-a", Name = "Барилга А" });
-        project.SheetBuildingAssignments["A-01"] = "group-a";
+
+        // Not a sheet number: the key is the sheet's own identity, source and
+        // sheet id joined and lower-cased, which is what PFR matches by prefix.
+        // The first draft of this file used "A-01" and would have shipped a
+        // sample whose keys no reader could have parsed.
+        project.SheetBuildingAssignments["revit-source-001|a-01"] = "group-a";
 
         return project;
     }
