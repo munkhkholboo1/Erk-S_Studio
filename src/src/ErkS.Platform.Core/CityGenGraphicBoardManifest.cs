@@ -28,10 +28,42 @@ public static class CityGenGraphicBoardContract
     public const string ExpectedCoordinateSpace = "drawing";
 
     /// <summary>The drawing declares a coordinate system, so north is known.</summary>
+    /// <remarks>
+    /// The name says UTM and the meaning does not: it is written whenever the
+    /// drawing declares a coordinate system at all. A drawing on a
+    /// Gauss-Kruger grid arrives labelled "utm-grid" and nobody notices, which
+    /// PFA pointed out while settling the vocabulary for their own viewport
+    /// field on 2026-08-30. The value is what CityGen writes today, so it stays
+    /// until both sides change together; the name is left alone rather than
+    /// corrected here, because a constant whose name disagrees with its wire
+    /// value would be worse than one that disagrees with its meaning.
+    /// </remarks>
     public const string NorthFromUtmGrid = "utm-grid";
+
+    /// <summary>
+    /// The same thing said the way AutoCAD says it - north from a projected
+    /// grid, whichever projection. Accepted, never written by anything here.
+    /// </summary>
+    /// <remarks>
+    /// Accepted in advance on purpose. <see cref="CityGenBoardManifest.NorthIsAssumed"/>
+    /// used to be the negation of one literal, so the day a source started
+    /// sending the more accurate word its north would have been read as
+    /// assumed - and an assumed north is not drawn until the user confirms it.
+    /// A better value would have quietly cost the user a confirmation and an
+    /// arrow. Widening what is accepted costs nothing and removes that.
+    /// </remarks>
+    public const string NorthFromProjectedGrid = "grid";
 
     /// <summary>Nothing declares it; the angle is only CityGen's convention.</summary>
     public const string NorthAssumed = "assumed";
+
+    /// <summary>The values that mean the source knew which way north is.</summary>
+    public static bool DeclaresNorth(string? source)
+    {
+        string value = (source ?? "").Trim();
+        return value.Equals(NorthFromUtmGrid, StringComparison.OrdinalIgnoreCase) ||
+            value.Equals(NorthFromProjectedGrid, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>The board file beside a drawing, or "" if there cannot be one.</summary>
     public static string ResolveSidecarPath(string? nativeDocumentPath)
@@ -250,9 +282,7 @@ public sealed class CityGenBoardManifest
     public List<CityGenBoardObject> Objects { get; set; } = [];
 
     [JsonIgnore]
-    public bool NorthIsAssumed => !CityGenGraphicBoardContract.NorthFromUtmGrid.Equals(
-        NorthAngleSource,
-        StringComparison.OrdinalIgnoreCase);
+    public bool NorthIsAssumed => !CityGenGraphicBoardContract.DeclaresNorth(NorthAngleSource);
 }
 
 public sealed class CityGenBoardLoadResult

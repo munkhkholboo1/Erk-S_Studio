@@ -341,4 +341,30 @@ public sealed class CityGenGraphicBoardReaderTests : IDisposable
 
     private static CityGenBoardVertex Vertex(double x, double y) =>
         new() { X = x, Y = y, IsPolylineVertex = true };
+
+    [Theory]
+    [InlineData("utm-grid", false)]     // what CityGen writes today
+    [InlineData("grid", false)]         // the same thing in AutoCAD's words
+    [InlineData("GRID", false)]         // matched without regard to case
+    [InlineData("assumed", true)]
+    [InlineData("", true)]
+    [InlineData("gauss-kruger", true)]  // not a word anyone has agreed on
+    public void OnlyAnAgreedWordCountsAsKnowingWhereNorthIs(string source, bool assumed)
+    {
+        // Both spellings read as known, and everything else as assumed.
+        //
+        // The second row is the one worth having. This used to be the negation
+        // of a single literal, so a source that started sending the more
+        // accurate word would have had its north read as assumed - and an
+        // assumed north is not drawn until the user confirms it. A better value
+        // would have cost the user a confirmation and an arrow, silently.
+        //
+        // The last row keeps the widening honest: unknown still means assumed.
+        // Guessing that an unrecognised word means "known" would print an arrow
+        // nobody vouched for, which is the failure this whole rule exists to
+        // avoid - a wrong arrow looks exactly like a right one.
+        var manifest = new CityGenBoardManifest { NorthAngleSource = source };
+
+        Assert.Equal(assumed, manifest.NorthIsAssumed);
+    }
 }
