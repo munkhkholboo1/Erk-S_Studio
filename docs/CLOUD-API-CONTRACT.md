@@ -256,6 +256,16 @@ These live outside `/api/cloud-era/v1` and outside the OpenAPI snapshot:
   is off for development builds and loopback servers, with no switch that
   turns it off for an official build against the live server. Server-side
   contract: `Erk-S-Server/docs/TASK-STU-STUDIO-COMPANION-CONTRACT.md`.
+- **A server that knows the field must always state it.** The asymmetry above
+  only works while `null` means one thing. `/api/studio/session` carries no
+  `isValid`, so on that route a null `entitlements` is the *only* signal, and
+  Studio reads it as an older deployment and opens
+  (`StudioAccountService.CommitSession`). If a current server ever answered
+  `null` for an account whose licence has lapsed, enforcement would fail open
+  and nothing would say so. Raised with SRV on 2026-08-30 after their
+  two-licence probe returned `entitlements: null` for an unlicensed account:
+  that response also carried `isValid: false`, which refuses on its own, so
+  the probe is consistent - but it is one field away from not being.
 - **Updates**: `/api/updates/latest` — governed by `UPDATE-SIGNING.md`
   (transport gate, SHA-256, Authenticode chain, publisher pin).
 - **Program catalog**: `/api/products/catalog`, `/api/installers/latest` —
