@@ -5,6 +5,28 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.56] - 2026-08-31
+
+- Sharpen a drawing as it is zoomed into, instead of magnifying the same coarse image. Every page was rasterised once at a fixed width, which is fine while the whole sheet is on screen and wrong the moment anyone leans in: on an A1 sheet that width is about 72 dots per inch, and this surface magnifies to six times, so the picture was stretched across six times more screen than it had detail for. The rendering width now follows the zoom, up to 300 dots per inch of the paper, and a sharper pass replaces the first one as it finishes. A page of unknown size renders conservatively rather than guessing a large sheet.
+- Show a comment the way it will be stored. The server cleans a comment before keeping it - it collapses the runs of blank lines a paste carries, shortens an over-long page label, and thins a mark drawn with more points than the limit - and Studio did none of those, so what the author saw was not what came back. A cloud drawn slowly returned with a different outline on the next reload, and nothing failed or said why. The same cleaning now happens here first, so the mark on screen is the mark that is kept.
+- Stop the sheet list from taking Studio down with it. Reading the text of a page could crash the whole application, twice over: a text buffer was measured in the wrong unit and overran, and PDF rendering was guarded per document while the library underneath is one shared thing. Both are fixed, and a page whose text cannot be read is now reported as unreadable rather than as a page with no text on it - two different things that looked identical.
+- Accept a north direction described in AutoCAD's words as well as CityGen's. Studio recognised exactly one spelling for "north came from a projected grid" and treated everything else as assumed - and an assumed north is not drawn until the user confirms it. A source that started saying the same thing more precisely would therefore have lost its arrow and gained a confirmation step, with nothing to explain why. Both spellings are now recognised; an unfamiliar one still counts as assumed, because an arrow nobody vouched for looks exactly like one that is right.
+- Tell the licence server which program is asking and what it calls itself. The request carried a version and left the program unstated, so the server could only infer it. Both are sent now, exactly as this build reports them.
+- Keep the four general-plan sheets in the order the city-planning standards authority requires, with the reason recorded where it will be read. The movement scheme comes before the general plan, which looks backwards and is not; a test now states the consequence at the moment someone tries to tidy it.
+
+## [0.001.53 – 0.001.55] - 2026-08-25
+
+These entries sat under "Unreleased" until 0.001.56 was prepared, and they were
+not unreleased: they were written on 24 August and 0.001.53, 0.001.54 and
+0.001.55 were all published the next day. They are grouped rather than split
+because the record does not say which of the three carried which - and splitting
+them by guess would read as history.
+
+Versions 0.001.48 through 0.001.52 have no entries here at all. What they
+contained is in the release ledger (`docs/STUDIO-RELEASE-MANIFEST-INDEX.json`)
+and in the commit history; reconstructing notes from commits now would be a guess
+presented as a record.
+
 - Recognise this device in every place its name is written. The source binding was not the only copy: a controlled document and a visualization image each carry their own record of the account and device that hold them, compared the same exact way, and broken the same way by the fingerprint change. All of them now accept either form for the same machine through one rule.
 - Say why a package was not taken in. A package can be verified and still not belong to this project - the wrong project, a source nobody registered, a source bound to another account or device, a file outside the source's own inbox. None of those is a bad package, so nothing quarantines one and nothing recorded it; the project simply showed nothing new, which is exactly what it shows when nothing was ever sent. Each refusal now names its own reason, and the reason reaches the user with the file it concerns.
 - Keep taking in deliveries after the device fingerprint changed. Moving to the shared platform fingerprint left every source bound before the change naming this machine by its old value, and a package is only accepted from a source bound to this account and this device - so the two stopped matching and every delivery was refused. Nothing was quarantined and nothing was said, because a refused source is not a bad package: the project simply showed nothing new, exactly as if the drawing had never been sent. Both forms of the fingerprint are now accepted for the same machine, and a binding that named it by the old one is rewritten to the current one the next time a delivery is taken in. Nobody has to relink a source.
