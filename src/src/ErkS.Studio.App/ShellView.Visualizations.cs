@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -886,16 +886,19 @@ internal sealed partial class ShellView
             {
                 string facts = $"{Orientation} · {Dimensions}";
                 string status = Status;
-                return string.IsNullOrWhiteSpace(status) || Image.IsAvailable && Image.IsIncludedInAlbum
+                bool ordinary = Image.IsAvailable && Image.IsIncludedInAlbum && !Image.LinkedSourceMissing;
+                return string.IsNullOrWhiteSpace(status) || ordinary
                     ? facts
                     : $"{facts} · {status}";
             }
         }
         public string Status => !Image.IsAvailable
             ? "Эх файл олдсонгүй"
-            : Image.IsIncludedInAlbum
-                ? "Альбумд орсон"
-                : "Идэвхгүй";
+            : Image.LinkedSourceMissing
+                ? "Эх файлтай холбоо тасарсан"
+                : Image.IsIncludedInAlbum
+                    ? "Альбумд орсон"
+                    : "Идэвхгүй";
     }
 
     private sealed record ImagesPerPageChoice(int Value)

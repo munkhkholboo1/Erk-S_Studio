@@ -1,4 +1,4 @@
-# `project.erksproject` — гурван бүтээгдэхүүний уншигчийн гэрээ
+﻿# `project.erksproject` — гурван бүтээгдэхүүний уншигчийн гэрээ
 
 - Огноо: 2026-08-30
 - Эзэн: STU (Erk-S Studio) — файлыг бичдэг тал
@@ -145,8 +145,8 @@ PFA `IsAutoCadKind(...)`. Танихгүй утга нь «энэ эх сурв�
 | Тал | Хувилбар шалгадаг уу |
 | --- | --- |
 | STU | **Тийм.** `ProjectWorkspaceStore.Load` нь `formatVersion > CurrentFormatVersion` үед `InvalidDataException` шиднэ |
-| PFA | Үгүй |
-| PFR | Үгүй |
+| PFA | **Тийм** (`SupportedProjectFormatVersion = 3`, `StudioSourceBindingResolver.cs:76,357`) |
+| PFR | **Тийм** (`SupportedProjectFormatVersion = 3`, `StudioSourceBindingCatalog.cs:74,164`) |
 
 Хоёр уншигч хоёулаа Studio-гийн ирээдүйн хувилбарын файлыг **өнөөдрийн
 утгаар** уншина. Хэрэв v4-т жишээ нь `inboxFolder`-ийн утга харьцангуй зам
@@ -334,10 +334,13 @@ binding гарахгүй, «эвдэрсэн» гэж ч мэдээлэхгүй.
 ## Төслүүд хаана байдаг вэ — `ERKS_STUDIO_PROJECTS_ROOT` дэмжигдэхгүй
 
 PFR-ийн аудитын Б2: `ERKS_STUDIO_PROJECTS_ROOT` орчны хувьсагчийг **PFA ба
-PFR уншдаг, Studio огт уншдаггүй**. Studio-гийн root хатуу кодтой
+PFR уншдаг байсан, Studio огт уншдаггүй**. Studio-гийн root хатуу кодтой
 (`ProjectWorkspacePaths.DefaultRoot`).
 
-**Шийдвэр: Studio дэмжихгүй, үйлдвэрлэгчид уншилтаа хасна.** Гэрээний утга:
+**Шийдвэр: Studio дэмжихгүй, үйлдвэрлэгчид уншилтаа хасна — ✅ ХАСАГДСАН
+(хэмжигдсэн 2026-09-03):** PFA-д зөвхөн тайлбарт «deliberately NOT the shared
+ERKS_STUDIO_PROJECTS_ROOT» гэж, PFR-д «used to honour … no longer» гэж үлдсэн;
+хоёулаа уншдаггүй. Гэрээний утга:
 
 ```
 %USERPROFILE%\Documents\Erk-S Platform\Studio Projects
@@ -410,5 +413,9 @@ STU-ийн санал: **гэрээгээр тэгшлэх**, нэг файл х
 бүрдээ уншиж, өөрсдийн дэмжих хувилбараа өөрсдөө зарлана.
 
 Хэрэв PFA эсвэл PFR энэ саналтай санал нийлэхгүй бол код бичихээс өмнө хэлнэ
-үү. PFR аль алинд бэлэн гэдгээ хэлсэн; PFA-гийн санал хараахан ирээгүй, тэр
-ирэхээс өмнө хэн ч хэрэгжүүлж эхлэхгүй байхыг хүсье.
+үү. ~~PFR аль алинд бэлэн гэдгээ хэлсэн; PFA-гийн санал хараахан ирээгүй~~
+
+**Байдал 2026-09-03 (хэмжигдсэн):** хоёулаа хэрэгжүүлсэн — PFA
+`StudioSourceBindingResolver.cs:76,357` ба PFR `StudioSourceBindingCatalog.cs:74,164`
+хоёулаа `SupportedProjectFormatVersion = 3`-аар хаалт хийж, шинэ хувилбарыг
+нэрлэсэн алдаагаар татгалздаг.

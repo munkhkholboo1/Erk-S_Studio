@@ -30,14 +30,6 @@ internal readonly record struct StudioRuntimeIdentity(
     public string OwnerEmail =>
         string.IsNullOrEmpty(SeatEmail) ? SessionEmail : SeatEmail;
 
-    public bool HasSeat => !string.IsNullOrEmpty(SeatEmail);
-
-    /// <summary>The ordinary case: this machine works as whoever is signed in.</summary>
-    public static StudioRuntimeIdentity ForSession(
-        string? sessionEmail,
-        string? deviceFingerprint) =>
-        new("", Normalize(deviceFingerprint), Normalize(sessionEmail));
-
     /// <summary>
     /// The machine keeps receiving for <paramref name="seatEmail"/> whoever is
     /// signed in. Used by the device seat; the session still decides what the

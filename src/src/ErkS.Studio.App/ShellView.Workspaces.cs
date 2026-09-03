@@ -591,6 +591,11 @@ internal sealed partial class ShellView
         }
         if (scan.RejectedPackageCount > 0)
             summary += $", Rejected package: {scan.RejectedPackageCount}";
+        // Accepted, not rejected: an old-schema manifest names no source of its
+        // own, so the ownership check could not have refused it. Said out loud
+        // so a package that landed in the wrong inbox is not adopted unnoticed.
+        if (scan.UnattributedManifestCount > 0)
+            summary += $", хуучин схем — эзэн шалгагдаагүй: {scan.UnattributedManifestCount}";
         int updatedAssets = assets.UpdatedDocumentCount + assets.UpdatedVisualizationCount;
         int missingAssets = assets.MissingDocumentCount + assets.MissingVisualizationCount;
         int restoredAssets = assets.RestoredDocumentCount + assets.RestoredVisualizationCount;

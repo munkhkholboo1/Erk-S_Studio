@@ -1,4 +1,4 @@
-using ErkS.Platform.Contracts;
+﻿using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Studio;
 
@@ -231,6 +231,23 @@ public sealed class StudioRuntimeSourceScopeTests : IDisposable
 
         Assert.Empty(state.Intake.WatchedFolders);
         Assert.Equal(persistedBeforeSwitch, File.ReadAllText(projectPath));
+
+        // §33: a seated machine keeps receiving for its seat while someone
+        // else is signed in. This is the delivery path the defect was about —
+        // the asset-watcher test covers documents and images, this covers the
+        // sheet inbox itself.
+        state.ConfigureSourceRuntimeContext(Owner, DeviceOne);
+        state.ConfigureDeviceSeat(Owner);
+        state.ConfigureSourceRuntimeContext(Other, DeviceOne);
+
+        Assert.Equal(
+            Path.GetFullPath(local.InboxFolder),
+            Assert.Single(state.Intake.WatchedFolders));
+        Assert.Equal(persistedBeforeSwitch, File.ReadAllText(projectPath));
+
+        state.ConfigureDeviceSeat(null);
+
+        Assert.Empty(state.Intake.WatchedFolders);
     }
 
     [Fact]

@@ -170,6 +170,22 @@ public sealed class ProjectAssetSourceReconcilerTests : IDisposable
     }
 
     [Fact]
+    public void CloneCarriesTheBrokenLinkMark()
+    {
+        // The other tests only ever see this flag copied as false, which a
+        // Clone() that forgot the field would also produce.
+        var image = new ProjectVisualizationImage
+        {
+            OwnerProjectId = "p",
+            RelativePath = "assets/x.png",
+            LinkedSourcePath = @"C:/gone/x.png",
+            LinkedSourceMissing = true,
+        };
+
+        Assert.True(image.Clone().LinkedSourceMissing);
+    }
+
+    [Fact]
     public void ARestoredLinkClearsTheBrokenLinkMark()
     {
         string projectPath = ProjectPath();

@@ -1,9 +1,15 @@
-# Version History
+﻿# Version History
 
 This file records product milestones from the first Git source baseline onward.
 Older implementation work predates this repository and is not represented as fabricated commits.
 
 ## [Unreleased]
+
+- Keep a copied project's inbox with it. A project folder copied to another computer still named the folder it was registered on, so Studio watched an empty folder at the old path while the deliveries carried along sat unread inside the copy - with no error to show for it. On open, an inbox outside the project is now relocated inside it and the change is saved, since the exporting plugins read the same file to decide where to write. The old path is kept in the source's metadata.
+- Keep a copied project's renders in its album. A visualization whose watched original was not on this machine was treated as missing and dropped from the album, even though the project's own copy was intact and verifiable. The image now stays; only the link is marked broken, and that is reported separately from a genuinely missing file. Approved planning-task documents deliberately keep their stricter rule.
+- Find a moved drawing again. When a source's native document is no longer at the recorded path but exactly one file of that name sits inside the project folder, the source is relinked to it on open. Two or more candidates are left alone rather than guessed between.
+- Count legacy packages that name no owner. A manifest of schema 3 or older can omit its source id, in which case the ownership check compares the registration with itself and passes; such packages were accepted silently. They are still accepted, and are now counted and reported.
+- Separate the device's seat from the signed-in person. What a machine owns and receives followed whoever was signed in, which is right for a personal machine and wrong for one that holds an organisation's seat. The seat is now an explicit override that survives a sign-in change; with no seat set, behaviour is unchanged.
 
 ## [0.001.56] - 2026-08-31
 

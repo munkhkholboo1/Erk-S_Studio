@@ -173,11 +173,6 @@ public static class ProjectAssetSourceReconciler
             // the album even though the owned copy survives on disk, and three
             // tests hold that line. Whether an official document should behave
             // like a render is a decision above this layer, not a defect here.
-            if (document.LinkedSourceMissing && FileExists(linkedPath))
-            {
-                document.LinkedSourceMissing = false;
-                result.RecordDocumentChange(document);
-            }
 
             string inspectionPath = hasLinkedSource ? linkedPath : storedPath;
             if (string.IsNullOrWhiteSpace(inspectionPath) || !File.Exists(inspectionPath))
