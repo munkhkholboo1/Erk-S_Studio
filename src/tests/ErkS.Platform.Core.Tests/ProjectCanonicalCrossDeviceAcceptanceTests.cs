@@ -1,9 +1,60 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 
 namespace ErkS.Platform.Core.Tests;
 
 public sealed class ProjectCanonicalCrossDeviceAcceptanceTests
 {
+    [Fact]
+    public void CopyingAWholeProjectToAnotherMachineKeepsTheOriginalInboxPath()
+    {
+        // What happens when someone copies the whole project folder to another
+        // computer. Nothing re-homes an existing source on load, so the inbox
+        // still names the machine it was registered on. Documented, not liked:
+        // the delivered PDFs travel inside the project while the folder Studio
+        // watches stays behind.
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "erks-project-portability-tests",
+            Guid.NewGuid().ToString("N"));
+        string originalFolder = Path.Combine(root, "machine-a", "ATD-001");
+        string copiedFolder = Path.Combine(root, "machine-b", "ATD-001");
+        string originalInbox = Path.Combine(originalFolder, "sources", "autocad", "deliveries");
+        Directory.CreateDirectory(originalFolder);
+        Directory.CreateDirectory(copiedFolder);
+
+        try
+        {
+            var project = new ProjectWorkspace();
+            project.Sources.Add(new ProjectDesignSource
+            {
+                Name = "AutoCAD",
+                Kind = DesignSourceKind.AutoCad,
+                NativeDocumentPath = Path.Combine(originalFolder, "drawing.dwg"),
+                InboxFolder = originalInbox,
+            });
+            string originalPath = Path.Combine(originalFolder, ProjectWorkspace.DefaultFileName);
+            ProjectWorkspaceStore.Save(project, originalPath);
+
+            // The copy: same bytes, new folder — exactly what a USB stick does.
+            string copiedPath = Path.Combine(copiedFolder, ProjectWorkspace.DefaultFileName);
+            File.Copy(originalPath, copiedPath);
+            ProjectWorkspace copied = ProjectWorkspaceStore.Load(copiedPath);
+
+            ProjectDesignSource source = Assert.Single(copied.Sources);
+            Assert.Equal(originalInbox, source.InboxFolder);
+            Assert.False(
+                ProjectWorkspacePaths.IsInside(copiedFolder, source.InboxFolder),
+                "the inbox of a copied project points outside it, so deliveries carried along are not seen");
+            // The native document reference travels the same way.
+            Assert.StartsWith(originalFolder, source.NativeDocumentPath, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void TwoDeviceMirrorsConvergeOnCanonicalMetadataWithoutLosingLocalSources()
     {
