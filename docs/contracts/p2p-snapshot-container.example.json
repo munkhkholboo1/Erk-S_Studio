@@ -1,0 +1,157 @@
+{
+  "_comment": [
+    "PROPOSAL, not implemented. P2P Stage 1. The snapshot: what one member's press of the",
+    "sync button produces, and what every other device stores.",
+    "",
+    "Ledger decisions it encodes (2026-09-04):",
+    "  - sync is a member's deliberate act, not a watcher: one press = one NAMED snapshot",
+    "  - what travels is derived output (sheet packages, meta, quantities, reports), never",
+    "    the source file, and in program-readable form - PDF is how it LOOKS, not how it",
+    "    travels",
+    "  - one writer per unit: the output's writer is the source's owner bot. So there is no",
+    "    merge, only replace-by-owner-version; union across writers",
+    "  - the snapshot is one self-describing, signed, encrypted blob - independent of how",
+    "    it travels (LAN, reachable core, USB stick, e-mail, someone's cloud drive)",
+    "  - received snapshots are forwarded on (gossip), so the founder's device need not be",
+    "    on; 'everyone off' = everyone pending"
+  ],
+
+  "container": {
+    "extension": ".erkspack",
+    "_extension": [
+      "Same container family as the succession package (PROJECT-PACKAGE-SUCCESSION §1),",
+      "distinguished by `kind`. A package moves a whole project between a person's devices;",
+      "a snapshot moves one writer's units between members. Same zip, same signing, same",
+      "encryption; different kind, different rules on receipt. One reader, two kinds - not",
+      "two formats."
+    ],
+    "layout": [
+      "snapshot.json        manifest, CLEAR, signed (fields below)",
+      "ring.json            escrow ring as of this snapshot, CLEAR, owner-signed (fallback copy)",
+      "payload.bin          AES-256-GCM under the project key of `keyVersion`",
+      "payload.bin.nonce",
+      "signature.bin        Ed25519 by the writer over sha256(snapshot.json) || sha256(payload.bin)"
+    ],
+    "_clearManifest": [
+      "The manifest is not encrypted, deliberately: a device must be able to answer 'do I",
+      "want this, do I already have it, may this writer write these units' BEFORE it has the",
+      "key - e.g. a file-carrier drop from a project it is not a member of. The manifest",
+      "names codes, counts and hashes; it names no content. Same boundary as the server's:",
+      "statistics yes, content no."
+    ]
+  },
+
+  "manifest": {
+    "kind": "snapshot",
+    "formatVersion": 1,
+    "_formatVersion": "Readers accept N and N-1. Not advice - the fingerprint migration (0.001.53-55) is why.",
+
+    "projectCode": "prj_4d81e2a7c3f0",
+    "writerBotCode": "bot_c21e0a9b7d4f6e31",
+    "writerPublicKey": "<Ed25519, base64 - so a receiver can verify before it has the ring>",
+    "snapshotNumber": 17,
+    "_snapshotNumber": [
+      "Per WRITER, monotonic, never reused. (writerBotCode, snapshotNumber) is the snapshot's",
+      "identity everywhere. A receiver that holds 17 discards a second 17; one that holds 16",
+      "and receives 18 stores 18 and marks 17 as missing - it may still arrive by another",
+      "route. Numbers, not clocks: device clocks are not trusted for ordering."
+    ],
+    "createdAtUtc": "2026-09-04T11:20:00Z",
+    "_createdAtUtc": "Display only. Never used to order or to resolve anything.",
+    "keyVersion": 3,
+    "label": "Барилга-А, 1-р давхрын шинэчлэл",
+    "_label": "What the member typed when pressing sync. The commit message. Shown to everyone.",
+
+    "units": [
+      {
+        "unitKey": "sheet-package|src_7c1a90",
+        "unitKind": "SheetPackage",
+        "sourceId": "src_7c1a90",
+        "_sourceId": "The design source this output derives from. The writer must be that source's owner bot - checked against the ring on receipt.",
+        "version": 9,
+        "_version": "Per unit, per writer, monotonic. Replace-by-owner-version: a receiver keeps the highest version it has seen for (writerBotCode, unitKey).",
+        "contentSha256": "9f2c…c41a",
+        "bytes": 4183220,
+        "manifestId": "manifest-7c1a90-9",
+        "_shape": "Inside payload.bin this is the existing sheet package as-is (the *.erks-sheets.json manifest plus its PDFs). Nothing new to parse: the intake that reads a plugin delivery reads this."
+      },
+      {
+        "unitKey": "quantities|src_7c1a90",
+        "unitKind": "Quantities",
+        "sourceId": "src_7c1a90",
+        "version": 4,
+        "contentSha256": "41ab…770e",
+        "bytes": 12040
+      },
+      {
+        "unitKey": "source-meta|src_7c1a90",
+        "unitKind": "SourceMeta",
+        "sourceId": "src_7c1a90",
+        "version": 9,
+        "contentSha256": "77e0…1c2d",
+        "bytes": 2210,
+        "_shape": "The ProjectDesignSource row minus device-local fields (inboxFolder, nativeDocumentPath, local bindings). What another device needs to know the source exists and whose it is - not where it sits on the writer's disk."
+      }
+    ],
+    "_unitKinds": [
+      "SheetPackage, Quantities, Report, SourceMeta, Visualization. The list is the",
+      "'what may travel' contract the ledger asked for first: a unit kind not on it does not",
+      "travel, whatever a file is called. Source files (DWG/RVT/MAX) have no kind here and",
+      "never will. Project meta and org info are NOT units either - they are the live layer,",
+      "server-carried, not snapshot-carried."
+    ],
+
+    "acknowledgements": [
+      { "botCode": "bot_7f3a91c4e85b4d2f", "receivedAtUtc": "2026-09-04T11:21:04Z", "via": "lan" }
+    ],
+    "_acknowledgements": [
+      "Appended by receivers as they forward (gossip). The writer sees 'reached M of N'.",
+      "An ack is a fact about delivery, not about reading: a device can hold a snapshot it",
+      "cannot yet open (no key version yet). Acks are not signed by the writer - they are",
+      "signed by each acker, or they are noise."
+    ]
+  },
+
+  "onReceipt": {
+    "_comment": "What a device does with a snapshot, in order. Every refusal is named; nothing is dropped silently.",
+    "steps": [
+      "1. verify signature.bin with writerPublicKey; refuse `snapshot_bad_signature`",
+      "2. sha256(writerPublicKey) must equal writerBotCode; refuse `snapshot_writer_code_mismatch`",
+      "3. projectCode must be a project this device is a member of (ring present); else `snapshot_not_a_member` - keep the file in a holding folder, do NOT delete: the ring may arrive later",
+      "4. writerBotCode must be in the ring; else `snapshot_writer_not_in_ring`",
+      "5. for every unit: the ring must show writerBotCode as the owner of unit.sourceId; else `snapshot_writer_not_source_owner` - the single-writer rule, enforced at the door",
+      "6. keyVersion must be one this device holds; else store, mark `snapshot_key_version_unknown`, retry when the ring updates",
+      "7. decrypt; verify each unit's contentSha256; refuse `snapshot_payload_hash_mismatch`",
+      "8. for each unit: keep if version > held version for (writer, unitKey); else discard as already-held",
+      "9. append own ack; forward to other online members (gossip); keep the blob for later carriers"
+    ],
+    "_holdingFolder": [
+      "Steps 3 and 6 hold rather than refuse. A snapshot that arrives before its ring or",
+      "key is the NORMAL case for a device that was off - the carrier path has no ordering.",
+      "Holding is bounded (N days, then named as stale), never silent."
+    ]
+  },
+
+  "merge": {
+    "_comment": [
+      "There is no merge. State on a device = for every (writerBotCode, unitKey), the highest",
+      "version received. Two writers never own one unit, so two versions of one unit from",
+      "different writers cannot exist. This is what the ledger's 'нэгтгэл = бүрдүүлэлт' means:",
+      "the project is COMPOSED from single-owner units, not merged.",
+      "",
+      "The one thing a device keeps per peer: 'last snapshot number received from each",
+      "writer' - shown in the UI as who is behind whom. The ledger's named residual risk:",
+      "a writer's device dies before its latest snapshot reached anyone; that snapshot is",
+      "gone. The product shows 'last synced with X: <date>' so the risk is visible, not",
+      "removed."
+    ]
+  },
+
+  "_whatThisDoesNotCover": [
+    "How the blob moves - p2p-transport-lan-and-carrier.example.json.",
+    "The key and ring - p2p-project-key-escrow.example.json.",
+    "The live layer (project/org meta) - server-carried, separate contract with SRV.",
+    "Album composition (which pages, what order) - live layer by decision; the snapshot",
+    "carries pages, the server carries the list. Stated so the seam is not assumed away."
+  ]
+}

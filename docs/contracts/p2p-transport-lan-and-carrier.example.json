@@ -1,0 +1,141 @@
+{
+  "_comment": [
+    "PROPOSAL, not implemented. P2P Stage 1 transport: how a snapshot blob gets from one",
+    "member's device to another's. Three routes, ONE mechanism - the blob and its checks",
+    "are identical on every route (p2p-snapshot-container); only delivery differs.",
+    "",
+    "Stage 1 by decision: LAN + a reachable core + a file carrier. NO hole punching, NO",
+    "relay through erk-s.mn. Two laptops both behind NAT do not connect directly in",
+    "Stage 1; they use the core or a carrier, and the product says so by name.",
+    "",
+    "Addressing rule (user's principle, 2026-09-04): 'ip д найдаж болохгүй. төсөл болон",
+    "гишүүдийг кодолж тэр кодоороо холбох.' A connection is NAMED by codes and VERIFIED",
+    "by keys. An IP is a routing fact for one attempt and is never stored, never trusted,",
+    "never an authority."
+  ],
+
+  "session": {
+    "_comment": "Common to all three routes. The transport establishes WHO; the container decides WHAT.",
+    "protocol": "TLS 1.3, mutual, self-signed certificates",
+    "certificate": "Each bot presents a certificate whose public key is its Ed25519 signing key (or one it signs). The peer computes the bot code from the presented key and compares it to the code it MEANT to talk to.",
+    "_codeVerified": [
+      "So a wrong address costs nothing: connect to the wrong machine and the code does not",
+      "match, the session is dropped, nothing was sent. An addressing error cannot become a",
+      "privacy error. This is why IPs may be discovered casually (mDNS, a typed hostname) -",
+      "they are never what grants anything."
+    ],
+    "handshake": {
+      "hello": { "botCode": "bot_c21e0a9b7d4f6e31", "projectCodes": ["<hmac-sha256(projectCode, botCode)>"], "formatVersion": 1 },
+      "_projectCodes": [
+        "Project codes are NOT sent in the clear even inside TLS to a peer that has not",
+        "proven membership yet: each is HMAC'd with the peer's own bot code, so a peer can",
+        "check 'do we share a project' only for projects it is itself in. A stranger learns",
+        "nothing about what projects this device holds."
+      ],
+      "have": { "projectCode": "prj_4d81e2a7c3f0", "writers": { "bot_c21e0a9b7d4f6e31": 17, "bot_7f3a91c4e85b4d2f": 42 } },
+      "_have": "Per shared project: highest snapshot number held per writer. The peer answers with what it has that we lack; both sides send the difference. Numbers, not timestamps."
+    }
+  },
+
+  "routes": {
+    "lan": {
+      "_comment": "The office case. No third party at all.",
+      "discovery": {
+        "mechanism": "mDNS / DNS-SD",
+        "service": "_erks-peer._tcp.local",
+        "instanceName": "bot_c21e0a9b7d4f6e31",
+        "txt": { "v": "1", "code": "bot_c21e0a9b7d4f6e31" },
+        "_announcesOnly": [
+          "The announcement carries the bot code and nothing else - no project codes, no",
+          "names. Knowing a bot exists on the LAN is not knowing what it works on. Membership",
+          "is established inside the TLS session (handshake above)."
+        ]
+      },
+      "connect": "TCP to the announced host:port, TLS as in `session`, code check, then exchange.",
+      "_whenItDoesNotWork": [
+        "Client isolation on guest Wi-Fi, mDNS blocked by policy, different subnets. Named",
+        "to the user as 'no members found on this network' - not as an error, because it",
+        "is the normal state of a coffee shop."
+      ]
+    },
+
+    "reachableCore": {
+      "_comment": [
+        "A member's device with a stable address: fixed IP, port forward, or the user's own",
+        "DNS/DDNS name. Typically the founder's office machine. Every other member connects",
+        "OUTBOUND to it, which works from any NAT, any hotel, any country - the user's own",
+        "site experiment showed exactly this (client → server always succeeds).",
+        "",
+        "The core is not special in the protocol. It is an ordinary peer that happens to be",
+        "reachable, and it gossips like any other. If it is off, everyone is pending; when it",
+        "returns, queues drain. It holds no authority - the ring does."
+      ],
+      "address": { "host": "office.erk-s-design.mn", "port": 47210 },
+      "_address": "Stored in the project's live layer (server) as 'this project's reachable members', AND remembered locally from the last successful connection. The user's own DDNS name, not ours. If it changes and there is no server, the user types the new one once.",
+      "connect": "Same as LAN after resolution. The code check is what makes a stale DNS entry harmless."
+    },
+
+    "fileCarrier": {
+      "_comment": [
+        "The blob is opaque, so ANY medium carries it: USB stick, e-mail attachment, the",
+        "user's own cloud drive, a chat app. Studio never touches those; it watches a folder",
+        "and accepts a drop.",
+        "",
+        "This is the route that works when nothing else does, and it is the honest answer to",
+        "'both laptops behind NAT' in Stage 1."
+      ],
+      "outbox": "<project>/sync/outbox/prj_4d81e2a7c3f0-bot_c21e…-17.erkspack",
+      "_outbox": "Every snapshot the device produces is written here as a file, whether or not a live route delivered it. The user can copy it anywhere.",
+      "inbox": "<project>/sync/inbox/",
+      "_inbox": "Watched folder + drag-and-drop target. A dropped file goes through the same onReceipt steps as a LAN delivery. A file for a project this device is not in is held, named, not deleted (see container `_holdingFolder`).",
+      "acknowledgement": "None in real time. The receiver's ack rides on its NEXT snapshot or its next live session with anyone. The sender sees 'reached' late or never - and the UI says 'delivered by file: unconfirmed' rather than showing a tick it cannot back."
+    }
+  },
+
+  "queue": {
+    "_comment": [
+      "The ledger's 'pending sync'. Not a watcher process - a list.",
+      "",
+      "Per project, per peer: which of my writer-numbers this peer has confirmed. Anything",
+      "above that is pending for that peer. Drains on any successful session over any",
+      "route. Survives restarts (it is a file). Visible in the UI as 'X is behind by N'."
+    ],
+    "pending": [
+      { "toBotCode": "bot_7f3a91c4e85b4d2f", "projectCode": "prj_4d81e2a7c3f0", "fromSnapshot": 16, "toSnapshot": 17 }
+    ]
+  },
+
+  "serverHelp": {
+    "_comment": [
+      "OPTIONAL in Stage 1, and the peer layer is built not to know whether it exists.",
+      "The one thing the server may add: a 'code → current address' lookup, refreshed by",
+      "each bot when it starts (the SSO identity record already carries the device; only",
+      "an address:port and a last-seen timestamp are new - the presence contract's raw",
+      "lastSeenAtUtc, nothing derived). The server sees codes and addresses, never content.",
+      "",
+      "Without it: LAN works, a core with the user's own DNS works, carriers work. With it:",
+      "a core whose address changed is found again without typing. That is the whole gain."
+    ],
+    "lookup": { "botCode": "bot_7f3a91c4e85b4d2f", "address": "203.0.113.7:47210", "lastSeenAtUtc": "2026-09-04T11:19:50Z" },
+    "_notInStage1": "Hole punching signaling. Even with the lookup, two NAT'd laptops do not connect directly in Stage 1."
+  },
+
+  "refusals": {
+    "peer_code_mismatch": "Connected somewhere, but it is not the bot I meant. Dropped before anything was sent.",
+    "peer_no_shared_project": "We are both real, we share nothing. Nothing exchanged.",
+    "peer_ring_older_than_mine": "The peer's ring for this project is behind mine; I send my ring first (owner-signed, so they can verify it), then continue.",
+    "lan_no_members_found": "Normal on a foreign network. Not an error.",
+    "core_unreachable": "The reachable core did not answer. Queue kept; carrier suggested.",
+    "carrier_file_not_for_this_device": "A dropped file for a project this device is not in. Held, not deleted.",
+    "_everyOneNamesTheWayForward": "Same rule as the SSO refusals: a refusal that does not say what to do next is an obstacle, not a message."
+  },
+
+  "_limitsStatedOnce": [
+    "Two devices both behind NAT, not on one LAN, no reachable core: NO direct route in",
+    "Stage 1. The product does not pretend otherwise; it offers the carrier.",
+    "A snapshot only ever reaches devices that come online while some holder is online,",
+    "or that receive a carrier file. 'Everyone off' is 'everyone pending', by design.",
+    "A writer's device that dies before its latest snapshot left it loses that snapshot.",
+    "Visible as 'last synced with …', not preventable here."
+  ]
+}

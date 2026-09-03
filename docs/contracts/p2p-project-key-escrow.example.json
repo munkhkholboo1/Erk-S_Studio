@@ -1,0 +1,175 @@
+{
+  "_comment": [
+    "PROPOSAL, not implemented. P2P Stage 1, first slice. The project key: who holds it,",
+    "how a member gets it, how the owner rotates it, what happens when a member leaves.",
+    "",
+    "Started here because it is the one place a whole project can be lost. Every other",
+    "failure in the design loses a snapshot or a connection; losing the key loses",
+    "everything ever encrypted under it.",
+    "",
+    "Authority: ledger decisions of 2026-09-04 (d6758d5..3647b8a). Terms from there:",
+    "  эх үүсвэр                        = the working file (DWG/RVT/MAX). Never travels.",
+    "  эх үүсвэрээс гаралтай мэдээлэл   = derived output (sheet package, meta, quantities).",
+    "                                     This is what travels, encrypted under the project key.",
+    "",
+    "Server (erk-s.mn) holds licence, membership, the live layer and statistics. It never",
+    "sees output content. The escrow ring below is membership data, not content: it holds",
+    "WRAPPED keys the server cannot open."
+  ],
+
+  "identities": {
+    "_comment": [
+      "Addressing is by code, never by IP. A bot's code is the hash of its own public key,",
+      "so it certifies itself: whoever can sign with the key IS that code. One key pair per",
+      "bot, kept in Windows Credential Manager under the seated Windows user - the same",
+      "boundary the SSO identity record uses (one Windows user = one device)."
+    ],
+    "botCode": "bot_7f3a91c4e85b4d2f",
+    "_botCode": "= base32(sha256(botPublicKey))[0..16]. Server-registered too (SRV bot identity), but verifiable without the server.",
+    "botPublicKey": "<Ed25519 public key, 32 bytes, base64>",
+    "botKeyAgreementKey": "<X25519 public key, 32 bytes, base64>",
+    "_twoKeys": "Ed25519 signs (snapshots, invitations). X25519 wraps (the project key). Never the same key for both.",
+    "projectCode": "prj_4d81e2a7c3f0",
+    "_projectCode": [
+      "The project's stable name across every device and network. Derived from the founder's",
+      "signing key + a random salt at creation, so two founders cannot collide and a code",
+      "cannot be guessed from a name. NOT the local Guid.NewGuid in project.erksproject",
+      "(RFC-003 §35: that one is user-authored and proves nothing) and NOT the server's",
+      "srv_prj id (that one needs the server). This code works offline and on a LAN."
+    ]
+  },
+
+  "projectKey": {
+    "_comment": [
+      "One symmetric key per project per key version. Encrypts every snapshot payload.",
+      "It exists in the clear ONLY inside a running Studio that has unwrapped it - never in",
+      "a file, never on the server, never in a snapshot."
+    ],
+    "algorithm": "AES-256-GCM",
+    "keyVersion": 3,
+    "_keyVersion": [
+      "Monotonic per project. Rotated by the owner (below). Every snapshot names the version",
+      "it was sealed under, and a device keeps the history of versions it was given, so old",
+      "snapshots stay readable after a rotation. Nothing is re-encrypted on rotation."
+    ]
+  },
+
+  "escrowRing": {
+    "_comment": [
+      "WHERE THE KEY LIVES: wrapped once per member, to that member's X25519 key. The ring",
+      "is the project's membership list with a wrapped key beside each entry.",
+      "",
+      "The ring is stored in the LIVE LAYER on the server (membership is server-owned, and",
+      "joining/leaving is exactly when the ring changes) AND carried inside every snapshot",
+      "manifest, so a device that is offline for a month still has the ring as of its last",
+      "snapshot. Two copies, one meaning: the server's is canon, the snapshot's is the",
+      "offline fallback."
+    ],
+    "projectCode": "prj_4d81e2a7c3f0",
+    "keyVersion": 3,
+    "ringSequence": 41,
+    "_ringSequence": "Server-issued counter (the live layer's CAS). An edit based on a stale sequence is refused; the owner pulls and redoes it. Offline, the ring is read-only.",
+    "owner": "bot_7f3a91c4e85b4d2f",
+    "members": [
+      {
+        "botCode": "bot_7f3a91c4e85b4d2f",
+        "role": "Owner",
+        "wrappedKey": "<AES key sealed to this bot's X25519 key, HPKE, base64>",
+        "wrappedAtUtc": "2026-09-04T09:00:00Z",
+        "wrappedBy": "bot_7f3a91c4e85b4d2f"
+      },
+      {
+        "botCode": "bot_c21e0a9b7d4f6e31",
+        "role": "Member",
+        "wrappedKey": "<sealed to bot_c21e...'s X25519 key>",
+        "wrappedAtUtc": "2026-09-04T09:05:00Z",
+        "wrappedBy": "bot_7f3a91c4e85b4d2f"
+      }
+    ],
+    "ringSignature": "<Ed25519 over (projectCode, keyVersion, ringSequence, members[]) by the owner>",
+    "_ringSignature": [
+      "The owner signs the ring. A member accepts a ring only if it is signed by the owner",
+      "key it already trusts for this project (learned from the invitation). So the server",
+      "cannot add a member, and a member cannot add a member - only the owner's key can,",
+      "wherever the ring happens to be stored. [[self-declared-fields-prove-nothing]]"
+    ]
+  },
+
+  "invitation": {
+    "_comment": [
+      "How a member gets in. The owner signs an invitation naming the invitee's bot code;",
+      "the invitee presents it; the owner (or the server's live layer, on the owner's behalf",
+      "using the owner's pre-signed ring update) adds the wrapped key. The invitee's device",
+      "key never leaves the invitee's machine - only its PUBLIC half travels."
+    ],
+    "projectCode": "prj_4d81e2a7c3f0",
+    "inviteeBotCode": "bot_c21e0a9b7d4f6e31",
+    "inviteeKeyAgreementKey": "<X25519 public, base64>",
+    "role": "Member",
+    "issuedBy": "bot_7f3a91c4e85b4d2f",
+    "issuedAtUtc": "2026-09-04T09:04:00Z",
+    "expiresAtUtc": "2026-09-11T09:04:00Z",
+    "signature": "<Ed25519 by the owner over all fields above>",
+    "_deliveredAs": "A QR code or a short code typed in. Contains the fields, not the project key - the key arrives only as a wrapped entry in the ring, sealed to the invitee's own key.",
+    "_acceptance": "Two-sided, same rule as RFC-003 §3: the owner invites, the person accepts on their own device. Nobody accepts on someone's behalf."
+  },
+
+  "leaving": {
+    "_comment": [
+      "A member leaves (or is removed). Their ring entry is deleted AND the owner rotates:",
+      "new keyVersion, new AES key, re-wrapped for every remaining member, new ring sequence.",
+      "",
+      "Why rotate and not just delete the entry: the departed device still holds the old",
+      "key in memory/history and can read any snapshot sealed under it. Deleting the entry",
+      "stops them getting FUTURE keys; rotation stops them reading FUTURE snapshots. Both",
+      "are needed; neither is enough alone."
+    ],
+    "revokedBotCode": "bot_c21e0a9b7d4f6e31",
+    "revokedAtUtc": "2026-09-20T14:00:00Z",
+    "newKeyVersion": 4,
+    "_whatTheyKeep": [
+      "Everything they already received, readable, forever. Stated plainly because 'remove",
+      "from project' will be read as 'take back what they have', and no key design can do",
+      "that. Revocation protects what comes next, not what already went out."
+    ],
+    "_offlineRevocation": [
+      "Revocation reaches a device through the ring (server pull, or the ring inside the",
+      "next snapshot it receives). A revoked device that never reconnects never learns -",
+      "and never receives anything new either, because nobody has its wrapped key for v4.",
+      "So the limit is symmetric: it cannot read new, it cannot be told. Acceptable."
+    ]
+  },
+
+  "ownerKeyLoss": {
+    "_comment": [
+      "The founder's device is lost/wiped. This is ledger case (в) - the one case the server",
+      "is 'help' for. Without something, the project has no owner key: nobody can rotate,",
+      "invite, or sign a ring. The wrapped keys remain, so MEMBERS keep working; what is",
+      "lost is administration.",
+      "",
+      "Mechanism, same pattern as the package passphrase (PROJECT-PACKAGE-SUCCESSION §8):",
+      "at project creation the owner's signing key is sealed to a one-time recovery code",
+      "shown once. The sealed blob is kept in the live layer (server holds it, cannot open",
+      "it). Recovery = new device + code. No code, no recovery - the product says so at",
+      "creation, once, in one sentence."
+    ],
+    "recoverySealedOwnerKey": "<owner Ed25519 private key sealed to a key derived from the recovery code, base64>",
+    "recoveryCodeShownOnce": "7K4M-92XR-1TBD-Q5WN",
+    "_noStrengthMeter": "Generated, not chosen. No complexity rules - the PIN rule, applied again."
+  },
+
+  "_whatThisDoesNotCover": [
+    "The live layer itself (project name, members, album composition, org info) - that is",
+    "server-canon, writer pushes, reader pulls, online-only. This file only says where the",
+    "escrow RING sits inside it.",
+    "",
+    "Transport of snapshots - see p2p-transport-lan-and-carrier.example.json.",
+    "The snapshot container - see p2p-snapshot-container.example.json.",
+    "",
+    "Hole punching / NAT traversal - out of Stage 1 by decision.",
+    "",
+    "Whether SRV's botId and this botCode are the same value: they should be (one identity),",
+    "and the self-certifying form is the one that must win, because it works without the",
+    "server. To agree with SRV before code."
+  ]
+}
