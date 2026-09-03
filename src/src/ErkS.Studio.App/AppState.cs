@@ -171,6 +171,7 @@ public sealed class AppState : IDisposable
         LastOpenMigratedLegacyProject = false;
         bool recoveredSiteContextSnapshots = false;
         bool relocatedSourceInboxes = false;
+        bool relinkedNativeDocuments = false;
         if (string.Equals(Path.GetExtension(path), ProjectWorkspace.FileExtension, StringComparison.OrdinalIgnoreCase))
         {
             project = ProjectWorkspaceStore.Load(path);
@@ -180,6 +181,8 @@ public sealed class AppState : IDisposable
             // landing on one folder are still separated.
             relocatedSourceInboxes =
                 ProjectWorkspaceStore.RelocateSourceInboxesInsideProject(project, path);
+            relinkedNativeDocuments =
+                ProjectWorkspaceStore.RelinkNativeDocumentsInsideProject(project, path);
             ProjectPath = path;
             AlbumPath = ProjectWorkspacePaths.ResolveInsideProject(path, project.PrimaryAlbum.DocumentPath);
             if (File.Exists(AlbumPath))
@@ -231,6 +234,7 @@ public sealed class AppState : IDisposable
         }
         if (EnsureUniqueSourceInboxes(RuntimeSources()) ||
             relocatedSourceInboxes ||
+            relinkedNativeDocuments ||
             reconciledSite ||
             removedUnownedSourcePages ||
             recoveredSiteContextSnapshots ||

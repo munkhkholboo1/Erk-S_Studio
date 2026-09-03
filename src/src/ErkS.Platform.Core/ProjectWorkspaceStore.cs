@@ -79,6 +79,79 @@ public static class ProjectWorkspaceStore
         return changed;
     }
 
+    /// <summary>
+    /// Repoints a source whose native document is no longer at the recorded
+    /// path but is sitting inside the project folder — what happens when a
+    /// project and its drawings are moved together.
+    ///
+    /// Deliberately timid: it acts only when exactly one file in the project
+    /// carries that name. Zero matches leave the path alone so the source
+    /// still reports honestly that it is disconnected; several matches are an
+    /// ambiguity, and guessing between them would bind the project to the
+    /// wrong drawing without anyone being told.
+    /// </summary>
+    public static bool RelinkNativeDocumentsInsideProject(
+        ProjectWorkspace project,
+        string projectPath)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+
+        string projectFolder = Path.GetDirectoryName(Path.GetFullPath(projectPath)) ?? "";
+        if (string.IsNullOrWhiteSpace(projectFolder) || !Directory.Exists(projectFolder))
+        {
+            return false;
+        }
+
+        bool changed = false;
+        foreach (ProjectDesignSource source in project.Sources ?? [])
+        {
+            string recorded = source.NativeDocumentPath ?? "";
+            if (string.IsNullOrWhiteSpace(recorded) || File.Exists(recorded))
+            {
+                continue;
+            }
+
+            string fileName;
+            try
+            {
+                fileName = Path.GetFileName(recorded);
+            }
+            catch (ArgumentException)
+            {
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                continue;
+            }
+
+            string[] matches;
+            try
+            {
+                matches = Directory.GetFiles(projectFolder, fileName, SearchOption.AllDirectories);
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+            if (matches.Length != 1)
+            {
+                continue;
+            }
+
+            // The previous value is kept: "last seen path" is an observation,
+            // and replacing one without a record of the other loses the only
+            // clue to where the drawing used to live.
+            source.Metadata["previousNativeDocumentPath"] = recorded;
+            source.NativeDocumentPath = Path.GetFullPath(matches[0]);
+            changed = true;
+        }
+        return changed;
+    }
+
     public static bool RecoverSiteContextSnapshots(ProjectWorkspace project, string projectPath)
     {
         ArgumentNullException.ThrowIfNull(project);

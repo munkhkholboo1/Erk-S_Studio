@@ -63,6 +63,83 @@ public sealed class ProjectCanonicalCrossDeviceAcceptanceTests
     }
 
     [Fact]
+    public void AMovedDrawingIsFoundAgainWhenExactlyOneCandidateExists()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "erks-relink-tests",
+            Guid.NewGuid().ToString("N"));
+        string folder = Path.Combine(root, "ATD-003");
+        Directory.CreateDirectory(Path.Combine(folder, "drawings"));
+        string moved = Path.Combine(folder, "drawings", "tower.dwg");
+        File.WriteAllText(moved, "dwg");
+
+        try
+        {
+            const string gonePath = @"C:/gone/machine-a/tower.dwg";
+            var project = new ProjectWorkspace();
+            project.Sources.Add(new ProjectDesignSource
+            {
+                Name = "AutoCAD",
+                Kind = DesignSourceKind.AutoCad,
+                NativeDocumentPath = gonePath,
+            });
+            string path = Path.Combine(folder, ProjectWorkspace.DefaultFileName);
+            ProjectWorkspaceStore.Save(project, path);
+            ProjectWorkspace loaded = ProjectWorkspaceStore.Load(path);
+
+            Assert.True(ProjectWorkspaceStore.RelinkNativeDocumentsInsideProject(loaded, path));
+            ProjectDesignSource source = Assert.Single(loaded.Sources);
+            Assert.Equal(Path.GetFullPath(moved), source.NativeDocumentPath);
+            // The old value is kept: it is the only clue to where it used to live.
+            Assert.Equal(gonePath, source.Metadata["previousNativeDocumentPath"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TwoDrawingsWithTheSameNameAreNotGuessedBetween()
+    {
+        // Ambiguity must not be resolved silently: binding the project to the
+        // wrong drawing is worse than leaving it honestly disconnected.
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "erks-relink-tests",
+            Guid.NewGuid().ToString("N"));
+        string folder = Path.Combine(root, "ATD-004");
+        Directory.CreateDirectory(Path.Combine(folder, "a"));
+        Directory.CreateDirectory(Path.Combine(folder, "b"));
+        File.WriteAllText(Path.Combine(folder, "a", "tower.dwg"), "dwg");
+        File.WriteAllText(Path.Combine(folder, "b", "tower.dwg"), "dwg");
+
+        try
+        {
+            var project = new ProjectWorkspace();
+            project.Sources.Add(new ProjectDesignSource
+            {
+                Name = "AutoCAD",
+                Kind = DesignSourceKind.AutoCad,
+                NativeDocumentPath = @"C:/gone/tower.dwg",
+            });
+            string path = Path.Combine(folder, ProjectWorkspace.DefaultFileName);
+            ProjectWorkspaceStore.Save(project, path);
+            ProjectWorkspace loaded = ProjectWorkspaceStore.Load(path);
+
+            Assert.False(ProjectWorkspaceStore.RelinkNativeDocumentsInsideProject(loaded, path));
+            Assert.Equal(@"C:/gone/tower.dwg", Assert.Single(loaded.Sources).NativeDocumentPath);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AProjectSittingWhereItBelongsIsNotRewritten()
     {
         // The other direction: without this the relocation could fire on every
