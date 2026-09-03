@@ -247,6 +247,28 @@ public sealed class StudioAuxiliarySourceLocalityPolicyTests : IDisposable
             reconcileLinkedProjectAssets: false);
         Assert.Empty(unrelatedBuild.PlanningTask.Documents);
         Assert.Empty(unrelatedBuild.Visualizations.Images);
+
+        // A seated machine keeps working for its seat while someone signs in
+        // with their own account. Without this, a person opening their own
+        // project on an organization's machine silently stops it receiving.
+        state.ConfigureSourceRuntimeContext(Owner, DeviceOne);
+        state.ConfigureDeviceSeat(Owner);
+        state.ConfigureSourceRuntimeContext(Teammate, DeviceOne);
+
+        Assert.Equal(
+            [Path.GetFullPath(ownerDocumentPath), Path.GetFullPath(ownerImagePath)],
+            state.WatchedAssetPathsSnapshot().Order().ToArray());
+        Assert.Equal(
+            "owner-atd",
+            Assert.Single(state.CreateAlbumBuildProject(
+                reconcileLinkedProjectAssets: false).PlanningTask.Documents).Id);
+
+        // Handing the seat back restores the ordinary rule.
+        state.ConfigureDeviceSeat(null);
+
+        Assert.Equal(
+            [Path.GetFullPath(teammateDocumentPath), Path.GetFullPath(teammateImagePath)],
+            state.WatchedAssetPathsSnapshot().Order().ToArray());
     }
 
     [Fact]

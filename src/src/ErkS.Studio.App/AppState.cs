@@ -35,8 +35,7 @@ public sealed class AppState : IDisposable
     private readonly object assetWatcherGate = new();
     private readonly List<FileSystemWatcher> assetWatchers = [];
     private HashSet<string> watchedAssetPaths = new(StringComparer.OrdinalIgnoreCase);
-    private string runtimeAccountEmail = "";
-    private string runtimeDeviceFingerprint = "";
+    private StudioRuntimeIdentity runtimeIdentity = StudioRuntimeIdentity.None;
 
     public bool HasOpenProject => project is not null;
 
@@ -98,18 +97,40 @@ public sealed class AppState : IDisposable
             (currentAccountEmail ?? "").Trim().ToLowerInvariant();
         string deviceFingerprint =
             (currentDeviceFingerprint ?? "").Trim().ToLowerInvariant();
-        if (accountEmail.Equals(
-                runtimeAccountEmail,
-                StringComparison.OrdinalIgnoreCase) &&
-            deviceFingerprint.Equals(
-                runtimeDeviceFingerprint,
-                StringComparison.Ordinal))
+        // The seat survives a sign-in change: that is the whole point of it.
+        StudioRuntimeIdentity next = runtimeIdentity with
+        {
+            SessionEmail = accountEmail,
+            DeviceFingerprint = deviceFingerprint,
+        };
+        if (next == runtimeIdentity)
         {
             return;
         }
 
-        runtimeAccountEmail = accountEmail;
-        runtimeDeviceFingerprint = deviceFingerprint;
+        runtimeIdentity = next;
+        if (HasOpenProject)
+        {
+            _ = UpgradeSourceMetadata();
+            ResetRuntimeServices(scanExistingPackages: false);
+        }
+    }
+
+    /// <summary>
+    /// Binds this machine to a seat, so what it owns and receives stops
+    /// following whoever is signed in. Passing an empty value hands the seat
+    /// back to the session, which is the state every machine is in today.
+    /// </summary>
+    public void ConfigureDeviceSeat(string? seatEmail)
+    {
+        StudioRuntimeIdentity next =
+            runtimeIdentity.WithSeat(seatEmail);
+        if (next == runtimeIdentity)
+        {
+            return;
+        }
+
+        runtimeIdentity = next;
         if (HasOpenProject)
         {
             _ = UpgradeSourceMetadata();
@@ -692,8 +713,8 @@ public sealed class AppState : IDisposable
         StudioSourceMetadataUpgradeReport report =
             StudioSourceMetadataUpgradePolicy.Apply(
                 Project,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint,
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint,
                 source =>
                     StudioLocalSourceBindingPolicy
                         .HasVerifiedLegacyUpgradePayload(Project, source));
@@ -858,8 +879,8 @@ public sealed class AppState : IDisposable
         PackageAdmission admission = StudioRuntimeSourceScope.Admit(
             Project,
             result,
-            runtimeAccountEmail,
-            runtimeDeviceFingerprint);
+            runtimeIdentity.OwnerEmail,
+            runtimeIdentity.DeviceFingerprint);
         ProjectDesignSource? admittedSource = admission.Source;
         if (admittedSource is null)
         {
@@ -875,8 +896,8 @@ public sealed class AppState : IDisposable
         // being saved anyway.
         StudioLocalSourceBindingPolicy.TryMigrateBinding(
             admittedSource,
-            runtimeAccountEmail,
-            runtimeDeviceFingerprint);
+            runtimeIdentity.OwnerEmail,
+            runtimeIdentity.DeviceFingerprint);
 
         ProjectPackageReconciliationResult? reconciled =
             ProjectPackageReconciliationService.Apply(Project, Album, Library, result);
@@ -1105,8 +1126,8 @@ public sealed class AppState : IDisposable
             StudioAuxiliarySourceLocalityPolicy.LocalDocuments(
                 Project,
                 source.Documents,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint,
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint,
                 HasVerifiedPayload);
         return new PlanningTaskInformation
         {
@@ -1127,8 +1148,8 @@ public sealed class AppState : IDisposable
     private ProjectVisualizationSource CreateAlbumVisualizationSnapshot() =>
         StudioAuxiliarySourceLocalityPolicy.CreateLocalVisualizationSnapshot(
             Project,
-            runtimeAccountEmail,
-            runtimeDeviceFingerprint,
+            runtimeIdentity.OwnerEmail,
+            runtimeIdentity.DeviceFingerprint,
             HasVerifiedPayload);
 
     private static string FirstAlbumValue(params string?[] values) =>
@@ -1249,13 +1270,13 @@ public sealed class AppState : IDisposable
             document => StudioAuxiliarySourceLocalityPolicy.BindingMatches(
                 Project,
                 document,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint),
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint),
             image => StudioAuxiliarySourceLocalityPolicy.BindingMatches(
                 Project,
                 image,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint));
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint));
     }
 
     private CityGenProjectSiteReconciliationResult ReconcileCityGenProjectSiteCore()
@@ -1284,13 +1305,13 @@ public sealed class AppState : IDisposable
                     StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
                         Project,
                         document,
-                        runtimeAccountEmail,
-                        runtimeDeviceFingerprint,
+                        runtimeIdentity.OwnerEmail,
+                        runtimeIdentity.DeviceFingerprint,
                         HasVerifiedPayload(document)));
             MarkAuxiliaryAlbumComponentChanged(
                 ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint,
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint,
                 isRemoval: !hasLocalAtdPayload);
         }
 
@@ -1313,13 +1334,13 @@ public sealed class AppState : IDisposable
                         StudioAuxiliarySourceLocalityPolicy.IsLocalVisualizationImage(
                             Project,
                             image,
-                            runtimeAccountEmail,
-                            runtimeDeviceFingerprint,
+                            runtimeIdentity.OwnerEmail,
+                            runtimeIdentity.DeviceFingerprint,
                             HasVerifiedPayload(image)));
                 MarkAuxiliaryAlbumComponentChanged(
                     ProjectCloudSyncMetadata.VisualizationsComponentCode,
-                    runtimeAccountEmail,
-                    runtimeDeviceFingerprint,
+                    runtimeIdentity.OwnerEmail,
+                    runtimeIdentity.DeviceFingerprint,
                     isRemoval: !hasIncludedLocalPayload);
             }
         }
@@ -1508,8 +1529,8 @@ public sealed class AppState : IDisposable
                 StudioAuxiliarySourceLocalityPolicy.IsLocalDocument(
                     Project,
                     document,
-                    runtimeAccountEmail,
-                    runtimeDeviceFingerprint,
+                    runtimeIdentity.OwnerEmail,
+                    runtimeIdentity.DeviceFingerprint,
                     HasVerifiedPayload(document)))
             {
                 yield return document.LinkedSourcePath;
@@ -1521,8 +1542,8 @@ public sealed class AppState : IDisposable
                 StudioAuxiliarySourceLocalityPolicy.IsLocalVisualizationImage(
                     Project,
                     image,
-                    runtimeAccountEmail,
-                    runtimeDeviceFingerprint,
+                    runtimeIdentity.OwnerEmail,
+                    runtimeIdentity.DeviceFingerprint,
                     HasVerifiedPayload(image)))
             {
                 yield return image.LinkedSourcePath;
@@ -1715,8 +1736,8 @@ public sealed class AppState : IDisposable
         HasOpenProject
             ? StudioRuntimeSourceScope.AuthorizedSources(
                 Project,
-                runtimeAccountEmail,
-                runtimeDeviceFingerprint)
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint)
             : [];
 
     private bool IsRuntimeSource(ProjectDesignSource source) =>
@@ -1724,8 +1745,8 @@ public sealed class AppState : IDisposable
         StudioRuntimeSourceScope.IsAuthorizedLocal(
             Project,
             source,
-            runtimeAccountEmail,
-            runtimeDeviceFingerprint);
+            runtimeIdentity.OwnerEmail,
+            runtimeIdentity.DeviceFingerprint);
 
     private string ResolveUniqueSourceFolder(ProjectDesignSource source, IEnumerable<string> usedFolders)
     {
