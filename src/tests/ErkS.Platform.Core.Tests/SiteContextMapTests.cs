@@ -879,6 +879,63 @@ public sealed class SiteContextMapTests : IDisposable
     }
 
     [Fact]
+    public void RemovingTheSourceAlsoClearsTheHandPlacedMapWork()
+    {
+        // Confirmed with the user on 2026-09-03: "устгана. байршлын схем
+        // орчны тойм цэв цэвэрхэн дараагийн эх үүсвэр болон эрх бүхий
+        // гишүүнийг хүлээнэ."
+        //
+        // The landmarks and the measurements are the user's own work, made in
+        // Studio's map editor and not derived from CityGen, so it was worth
+        // asking before throwing them away. The answer is that both maps go
+        // fully blank: there is no half-cleared state, only a complete one or
+        // a complete source.
+        //
+        // Pinned because a later reader will notice the same thing I did -
+        // that this deletes work CityGen never supplied - and the comment
+        // alone would not tell them it was asked and answered.
+        string drawingPath = Path.Combine(workDirectory, "map-work.dwg");
+        string sidecarPath = Path.Combine(workDirectory, "map-work.erks-citygen-site.json");
+        File.WriteAllText(drawingPath, "test drawing placeholder");
+        WriteCityGenSidecar(sidecarPath, areaSquareMeters: 11_000, eastLongitude: 106.92);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("MAP-WORK", "Hand-placed map work");
+        var source = new ProjectDesignSource
+        {
+            Id = "citygen-map-work",
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = drawingPath,
+        };
+        project.Sources.Add(source);
+        Assert.True(CityGenProjectSiteReconciler.Reconcile(project).Imported);
+
+        project.SiteContext.LocationScheme.Landmarks.Add(new ProjectMapLandmark
+        {
+            Id = "school",
+            Number = 1,
+            Name = "Сургууль",
+            Coordinate = new ProjectGeoCoordinate { Longitude = 106.92, Latitude = 47.92 },
+        });
+        project.SiteContext.LocationScheme.Bearing = 42d;
+        project.SiteContext.SurroundingsOverview.Landmarks.Add(new ProjectMapLandmark
+        {
+            Id = "market",
+            Number = 1,
+            Name = "Зах",
+            Coordinate = new ProjectGeoCoordinate { Longitude = 106.93, Latitude = 47.93 },
+        });
+
+        project.Sources.Remove(source);
+        Assert.True(CityGenProjectSiteReconciler.Reconcile(project).Changed);
+
+        Assert.Empty(project.SiteContext.LocationScheme.Landmarks);
+        Assert.Empty(project.SiteContext.LocationScheme.DistanceMeasures);
+        Assert.Empty(project.SiteContext.LocationScheme.RadiusMeasures);
+        Assert.Empty(project.SiteContext.SurroundingsOverview.Landmarks);
+        Assert.Equal(0d, project.SiteContext.LocationScheme.Bearing);
+    }
+
+    [Fact]
     public void CityGenProjectSiteReconciler_KeepsSiteContextWhenTheManifestIsMerelyMissing()
     {
         // A source that is still registered is not a source that was removed.
