@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
@@ -139,13 +139,70 @@ public sealed class ProjectAssetSourceReconcilerTests : IDisposable
         ProjectAssetSourceReconciliationResult result =
             ProjectAssetSourceReconciler.ReconcileProject(project, projectPath);
 
-        Assert.Equal(1, result.MissingVisualizationCount);
-        Assert.False(Assert.Single(project.Visualizations.Images).IsAvailable);
+        // Changed deliberately in 0.001.57. This used to drop the image from
+        // the album, which meant a project copied to another machine lost the
+        // renders it carried with it. Album membership and link health are
+        // separate questions: the watched original is gone, the project's own
+        // copy is not.
+        Assert.Equal(0, result.MissingVisualizationCount);
+        Assert.Equal(1, result.BrokenLinkCount);
+        ProjectVisualizationImage stillThere = Assert.Single(project.Visualizations.Images);
+        Assert.True(stillThere.IsAvailable);
+        Assert.True(stillThere.LinkedSourceMissing);
         Assert.True(File.Exists(ownedPath));
+        Assert.NotEmpty(VisualizationPageLayoutPlanner.Create(
+            project.Visualizations,
+            project.ProjectId,
+            firstPageNumber: 10));
+
+        // And the other direction: nothing left at all is still a missing
+        // image, so a genuine removal is not quietly preserved.
+        File.Delete(ownedPath);
+        ProjectAssetSourceReconciliationResult afterOwnedCopyGone =
+            ProjectAssetSourceReconciler.ReconcileProject(project, projectPath);
+
+        Assert.Equal(1, afterOwnedCopyGone.MissingVisualizationCount);
+        Assert.False(Assert.Single(project.Visualizations.Images).IsAvailable);
         Assert.Empty(VisualizationPageLayoutPlanner.Create(
             project.Visualizations,
             project.ProjectId,
             firstPageNumber: 10));
+    }
+
+    [Fact]
+    public void ARestoredLinkClearsTheBrokenLinkMark()
+    {
+        string projectPath = ProjectPath();
+        string sourcePath = Path.Combine(workDirectory, "restored.png");
+        WriteTinyPng(sourcePath);
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("TEST-002", "Link restore test");
+        project.Visualizations.ConfigureForProject(project.ProjectId);
+        ProjectDocumentAssetInspection inspection = ProjectDocumentAssetInspector.Inspect(sourcePath);
+        string storedPath = ProjectVisualizationFileStore.StoreInsideProject(projectPath, sourcePath);
+        project.Visualizations.Images.Add(new ProjectVisualizationImage
+        {
+            OwnerProjectId = project.ProjectId,
+            OriginalFileName = Path.GetFileName(sourcePath),
+            LinkedSourcePath = Path.GetFullPath(sourcePath),
+            RelativePath = storedPath,
+            ContentType = inspection.ContentType,
+            SizeBytes = inspection.SizeBytes,
+            PixelWidth = inspection.PixelWidth,
+            PixelHeight = inspection.PixelHeight,
+            Sha256 = inspection.Sha256,
+        });
+
+        byte[] original = File.ReadAllBytes(sourcePath);
+        File.Delete(sourcePath);
+        ProjectAssetSourceReconciler.ReconcileProject(project, projectPath);
+        Assert.True(Assert.Single(project.Visualizations.Images).LinkedSourceMissing);
+
+        File.WriteAllBytes(sourcePath, original);
+        ProjectAssetSourceReconciler.ReconcileProject(project, projectPath);
+
+        ProjectVisualizationImage image = Assert.Single(project.Visualizations.Images);
+        Assert.False(image.LinkedSourceMissing);
+        Assert.True(image.IsAvailable);
     }
 
     [Fact]

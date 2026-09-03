@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 using ErkS.Studio;
 using PdfSharp.Drawing;
@@ -564,20 +564,26 @@ public sealed class StudioAuxiliarySourceLocalityPolicyTests : IDisposable
         ProjectAssetSourceReconciliationResult missing =
             state.ReconcileProjectAssetSources();
 
+        // The two events are not the same and must not be reported the same.
+        // An approved planning task whose source is gone leaves the album, and
+        // the cloud is told so. A visualization whose watched original is gone
+        // keeps its own copy, so nothing was removed and nothing is claimed as
+        // removed — only the link is marked broken.
         Assert.Equal(1, missing.MissingDocumentCount);
-        Assert.Equal(1, missing.MissingVisualizationCount);
+        Assert.Equal(0, missing.MissingVisualizationCount);
+        Assert.Equal(1, missing.BrokenLinkCount);
         ProjectLocalAlbumComponentClaim atdClaim = Assert.Single(
             state.Project.Cloud.PendingAlbumComponentClaims,
             claim => claim.ComponentCode.Equals(
                 ProjectCloudSyncMetadata.ApprovedAtdComponentCode,
                 StringComparison.OrdinalIgnoreCase));
-        ProjectLocalAlbumComponentClaim visualizationClaim = Assert.Single(
-            state.Project.Cloud.PendingAlbumComponentClaims,
-            claim => claim.ComponentCode.Equals(
-                ProjectCloudSyncMetadata.VisualizationsComponentCode,
-                StringComparison.OrdinalIgnoreCase));
         Assert.True(atdClaim.IsRemoval);
-        Assert.True(visualizationClaim.IsRemoval);
+        Assert.DoesNotContain(
+            state.Project.Cloud.PendingAlbumComponentClaims,
+            claim => claim.IsRemoval &&
+                claim.ComponentCode.Equals(
+                    ProjectCloudSyncMetadata.VisualizationsComponentCode,
+                    StringComparison.OrdinalIgnoreCase));
         Assert.Equal(Owner, atdClaim.OwnerEmail);
         Assert.Equal(DeviceOne, atdClaim.DeviceFingerprint);
 
@@ -594,7 +600,12 @@ public sealed class StudioAuxiliarySourceLocalityPolicyTests : IDisposable
             state.ReconcileProjectAssetSources();
 
         Assert.Equal(1, restored.RestoredDocumentCount);
-        Assert.Equal(1, restored.RestoredVisualizationCount);
+        // The visualization never left, so there is nothing to restore — the
+        // broken-link mark is what clears.
+        Assert.Equal(0, restored.RestoredVisualizationCount);
+        Assert.All(
+            state.Project.Visualizations.ImagesForProject(state.Project.ProjectId),
+            image => Assert.False(image.LinkedSourceMissing));
         Assert.All(
             state.Project.Cloud.PendingAlbumComponentClaims,
             claim => Assert.False(claim.IsRemoval));

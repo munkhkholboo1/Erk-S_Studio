@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 
 namespace ErkS.Platform.Pdf;
 
@@ -15,6 +15,12 @@ public sealed class ProjectAssetSourceReconciliationResult
     public int UpdatedVisualizationCount { get; internal set; }
     public int MissingVisualizationCount { get; internal set; }
     public int RestoredVisualizationCount { get; internal set; }
+
+    /// <summary>
+    /// Assets whose watched original is not on this machine while the project's
+    /// own copy is intact. They stay in the album; only the link is broken.
+    /// </summary>
+    public int BrokenLinkCount { get; internal set; }
     public int ErrorCount { get; internal set; }
     public IReadOnlyCollection<string> ChangedDocumentCategories =>
         changedDocumentCategories;
@@ -162,6 +168,17 @@ public static class ProjectAssetSourceReconciler
             string storedPath = resolveStoredPath(context, document);
             string linkedPath = ResolveOptionalFullPath(document.LinkedSourcePath);
             bool hasLinkedSource = !string.IsNullOrWhiteSpace(document.LinkedSourcePath);
+            // Documents deliberately do NOT follow the visualization rule below.
+            // An approved planning task whose source is gone stops appearing in
+            // the album even though the owned copy survives on disk, and three
+            // tests hold that line. Whether an official document should behave
+            // like a render is a decision above this layer, not a defect here.
+            if (document.LinkedSourceMissing && FileExists(linkedPath))
+            {
+                document.LinkedSourceMissing = false;
+                result.RecordDocumentChange(document);
+            }
+
             string inspectionPath = hasLinkedSource ? linkedPath : storedPath;
             if (string.IsNullOrWhiteSpace(inspectionPath) || !File.Exists(inspectionPath))
             {
@@ -259,6 +276,9 @@ public static class ProjectAssetSourceReconciler
         }
     }
 
+    private static bool FileExists(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+
     private static void ReconcileVisualizations(
         ProjectWorkspace project,
         string projectPath,
@@ -274,6 +294,22 @@ public static class ProjectAssetSourceReconciler
             string storedPath = ResolveProjectPath(projectPath, image.RelativePath);
             string linkedPath = ResolveOptionalFullPath(image.LinkedSourcePath);
             bool hasLinkedSource = !string.IsNullOrWhiteSpace(image.LinkedSourcePath);
+            if (hasLinkedSource && !FileExists(linkedPath) && FileExists(storedPath))
+            {
+                hasLinkedSource = false;
+                if (!image.LinkedSourceMissing)
+                {
+                    image.LinkedSourceMissing = true;
+                    result.BrokenLinkCount++;
+                    result.RecordVisualizationChange(image);
+                }
+            }
+            else if (image.LinkedSourceMissing && FileExists(linkedPath))
+            {
+                image.LinkedSourceMissing = false;
+                result.RecordVisualizationChange(image);
+            }
+
             string inspectionPath = hasLinkedSource ? linkedPath : storedPath;
             if (string.IsNullOrWhiteSpace(inspectionPath) || !File.Exists(inspectionPath))
             {

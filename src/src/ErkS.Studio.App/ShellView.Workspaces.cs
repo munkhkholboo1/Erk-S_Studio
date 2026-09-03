@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
@@ -600,6 +600,11 @@ internal sealed partial class ShellView
             summary += $", альбумаас хасагдсан source: {missingAssets}";
         if (restoredAssets > 0)
             summary += $", сэргэсэн source: {restoredAssets}";
+        // Not folded into "олдсонгүй": the asset is still in the album, only
+        // the watched original is not on this machine. Reporting it as missing
+        // would send the user looking for something that is not lost.
+        if (assets.BrokenLinkCount > 0)
+            summary += $", эх файлтай холбоо тасарсан: {assets.BrokenLinkCount}";
         if (site.Changed)
             summary += $", төслийн талбай шинэчлэгдсэн: {site.SourceDocumentName}";
         int otherErrors = Math.Max(0, scan.ErrorCount - scan.RejectedPackageCount) +

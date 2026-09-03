@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace ErkS.Platform.Core;
 
@@ -809,6 +809,12 @@ public sealed class ProjectFileReference
     /// generation and uses this link only to detect later source revisions.
     /// </summary>
     public string LinkedSourcePath { get; set; } = "";
+
+    /// <summary>
+    /// The watched original is not on this machine. See the same field on
+    /// ProjectVisualizationImage: a broken link, not a missing document.
+    /// </summary>
+    public bool LinkedSourceMissing { get; set; }
     public DateTimeOffset? LinkedSourceLastWriteTimeUtc { get; set; }
     /// <summary>
     /// Missing linked files remain registered but are excluded from generated
@@ -855,6 +861,7 @@ public sealed class ProjectFileReference
         LinkedSourcePath = LinkedSourcePath,
         LinkedSourceLastWriteTimeUtc = LinkedSourceLastWriteTimeUtc,
         IsAvailable = IsAvailable,
+        LinkedSourceMissing = LinkedSourceMissing,
         ContentType = ContentType,
         SizeBytes = SizeBytes,
         PageCount = PageCount,

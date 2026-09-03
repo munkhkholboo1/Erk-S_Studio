@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace ErkS.Platform.Core;
 
@@ -174,6 +174,14 @@ public sealed class ProjectVisualizationImage
     public string OriginalFileName { get; set; } = "";
     /// <summary>Local image selected by the user and watched for revisions.</summary>
     public string LinkedSourcePath { get; set; } = "";
+
+    /// <summary>
+    /// The watched original is not on this machine — typically a project copied
+    /// from another computer. The project's own payload is unaffected, so this
+    /// is a broken link, not a missing image: album membership and link health
+    /// are separate questions.
+    /// </summary>
+    public bool LinkedSourceMissing { get; set; }
     public DateTimeOffset? LinkedSourceLastWriteTimeUtc { get; set; }
     public bool IsAvailable { get; set; } = true;
     /// <summary>
@@ -209,6 +217,7 @@ public sealed class ProjectVisualizationImage
         LinkedSourcePath = LinkedSourcePath,
         LinkedSourceLastWriteTimeUtc = LinkedSourceLastWriteTimeUtc,
         IsAvailable = IsAvailable,
+        LinkedSourceMissing = LinkedSourceMissing,
         IsIncludedInAlbum = IsIncludedInAlbum,
         ContentType = ContentType,
         SizeBytes = SizeBytes,

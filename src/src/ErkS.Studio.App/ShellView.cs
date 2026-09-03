@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -5932,11 +5932,16 @@ internal sealed partial class ShellView : IDisposable
                 state.ReconcileCityGenProjectSite();
             if (assetResult.Changed)
             {
+                string brokenLinks = assetResult.BrokenLinkCount > 0
+                    ? $" {assetResult.BrokenLinkCount} зургийн эх файлтай холбоо тасарсан " +
+                      "(зураг нь төсөлд хэвээр)."
+                    : "";
                 SetStatus(
                     $"Холбосон физик эх үүсвэр шинэчлэгдлээ: " +
                     $"{assetResult.UpdatedDocumentCount + assetResult.RestoredDocumentCount} баримт, " +
                     $"{assetResult.UpdatedVisualizationCount + assetResult.RestoredVisualizationCount} зураг; " +
-                    $"{assetResult.MissingDocumentCount + assetResult.MissingVisualizationCount} файл олдсонгүй.");
+                    $"{assetResult.MissingDocumentCount + assetResult.MissingVisualizationCount} файл олдсонгүй." +
+                    brokenLinks);
             }
             else if (siteResult.Changed)
                 SetStatus(siteResult.Message);
