@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Platform.Core.ProjectTypes;
@@ -170,10 +170,16 @@ public sealed class AppState : IDisposable
         ClearAssetSourceWatchers();
         LastOpenMigratedLegacyProject = false;
         bool recoveredSiteContextSnapshots = false;
+        bool relocatedSourceInboxes = false;
         if (string.Equals(Path.GetExtension(path), ProjectWorkspace.FileExtension, StringComparison.OrdinalIgnoreCase))
         {
             project = ProjectWorkspaceStore.Load(path);
             recoveredSiteContextSnapshots = ProjectWorkspaceStore.RecoverSiteContextSnapshots(project, path);
+            // A project copied from another machine still names that machine's
+            // inbox. Runs before the uniqueness pass so two relocated sources
+            // landing on one folder are still separated.
+            relocatedSourceInboxes =
+                ProjectWorkspaceStore.RelocateSourceInboxesInsideProject(project, path);
             ProjectPath = path;
             AlbumPath = ProjectWorkspacePaths.ResolveInsideProject(path, project.PrimaryAlbum.DocumentPath);
             if (File.Exists(AlbumPath))
@@ -224,6 +230,7 @@ public sealed class AppState : IDisposable
             InvalidateBuiltAlbum();
         }
         if (EnsureUniqueSourceInboxes(RuntimeSources()) ||
+            relocatedSourceInboxes ||
             reconciledSite ||
             removedUnownedSourcePages ||
             recoveredSiteContextSnapshots ||

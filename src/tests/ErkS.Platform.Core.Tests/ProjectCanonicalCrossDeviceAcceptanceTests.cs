@@ -5,20 +5,19 @@ namespace ErkS.Platform.Core.Tests;
 public sealed class ProjectCanonicalCrossDeviceAcceptanceTests
 {
     [Fact]
-    public void CopyingAWholeProjectToAnotherMachineKeepsTheOriginalInboxPath()
+    public void CopyingAWholeProjectToAnotherMachineBringsTheInboxWithIt()
     {
-        // What happens when someone copies the whole project folder to another
-        // computer. Nothing re-homes an existing source on load, so the inbox
-        // still names the machine it was registered on. Documented, not liked:
-        // the delivered PDFs travel inside the project while the folder Studio
-        // watches stays behind.
+        // Copying the project folder to another computer used to leave the
+        // inbox naming the machine it was registered on: the watcher created
+        // that old path and waited there while the deliveries carried along sat
+        // unread inside the copy, with no error to show for it.
         string root = Path.Combine(
             Path.GetTempPath(),
             "erks-project-portability-tests",
             Guid.NewGuid().ToString("N"));
         string originalFolder = Path.Combine(root, "machine-a", "ATD-001");
         string copiedFolder = Path.Combine(root, "machine-b", "ATD-001");
-        string originalInbox = Path.Combine(originalFolder, "sources", "autocad", "deliveries");
+        string originalInbox = Path.Combine(originalFolder, "sources", "AutoCAD", "deliveries");
         Directory.CreateDirectory(originalFolder);
         Directory.CreateDirectory(copiedFolder);
 
@@ -38,15 +37,58 @@ public sealed class ProjectCanonicalCrossDeviceAcceptanceTests
             // The copy: same bytes, new folder — exactly what a USB stick does.
             string copiedPath = Path.Combine(copiedFolder, ProjectWorkspace.DefaultFileName);
             File.Copy(originalPath, copiedPath);
-            ProjectWorkspace copied = ProjectWorkspaceStore.Load(copiedPath);
 
-            ProjectDesignSource source = Assert.Single(copied.Sources);
-            Assert.Equal(originalInbox, source.InboxFolder);
-            Assert.False(
-                ProjectWorkspacePaths.IsInside(copiedFolder, source.InboxFolder),
-                "the inbox of a copied project points outside it, so deliveries carried along are not seen");
-            // The native document reference travels the same way.
-            Assert.StartsWith(originalFolder, source.NativeDocumentPath, StringComparison.OrdinalIgnoreCase);
+            ProjectWorkspace copied = ProjectWorkspaceStore.Load(copiedPath);
+            Assert.True(ProjectWorkspaceStore.RelocateSourceInboxesInsideProject(copied, copiedPath));
+            ProjectWorkspaceStore.Save(copied, copiedPath);
+
+            // Persisted, not only in memory: the exporting plugin reads this
+            // same file to decide where to write, so a memory-only fix would
+            // leave Studio watching one folder and AutoCAD writing to another.
+            ProjectWorkspace reopened = ProjectWorkspaceStore.Load(copiedPath);
+            ProjectDesignSource source = Assert.Single(reopened.Sources);
+            Assert.True(ProjectWorkspacePaths.IsInside(copiedFolder, source.InboxFolder));
+            Assert.Equal(originalInbox, source.Metadata["legacyExternalInbox"]);
+
+            // The original is untouched by its own copy being opened.
+            ProjectDesignSource stillHome = Assert.Single(
+                ProjectWorkspaceStore.Load(originalPath).Sources);
+            Assert.Equal(originalInbox, stillHome.InboxFolder);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AProjectSittingWhereItBelongsIsNotRewritten()
+    {
+        // The other direction: without this the relocation could fire on every
+        // project and the test above would still pass.
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "erks-project-portability-tests",
+            Guid.NewGuid().ToString("N"));
+        string folder = Path.Combine(root, "ATD-002");
+        Directory.CreateDirectory(folder);
+
+        try
+        {
+            var project = new ProjectWorkspace();
+            project.Sources.Add(new ProjectDesignSource
+            {
+                Name = "AutoCAD",
+                Kind = DesignSourceKind.AutoCad,
+                InboxFolder = Path.Combine(folder, "sources", "AutoCAD", "deliveries"),
+            });
+            string path = Path.Combine(folder, ProjectWorkspace.DefaultFileName);
+            ProjectWorkspaceStore.Save(project, path);
+
+            ProjectWorkspace loaded = ProjectWorkspaceStore.Load(path);
+            Assert.False(ProjectWorkspaceStore.RelocateSourceInboxesInsideProject(loaded, path));
+            Assert.DoesNotContain("legacyExternalInbox", Assert.Single(loaded.Sources).Metadata.Keys);
         }
         finally
         {

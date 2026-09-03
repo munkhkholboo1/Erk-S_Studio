@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
 using ErkS.Platform.Contracts;
@@ -28,6 +28,55 @@ public static class ProjectWorkspaceStore
         project.FormatVersion = ProjectWorkspace.CurrentFormatVersion;
         project.UpdatedAtUtc = DateTimeOffset.UtcNow;
         AtomicJsonFile.Write(path, project);
+    }
+
+    /// <summary>
+    /// Brings every source inbox back inside the project folder. A project
+    /// copied or moved to another machine still names the folder it was
+    /// registered on, and nothing else re-derives it: the watcher would create
+    /// that old path and wait there while the deliveries carried along sit
+    /// unread inside the copy.
+    ///
+    /// The caller must save the project afterwards. The exporting plugins read
+    /// this same file to decide where to write, so a fix that lived only in
+    /// memory would leave Studio reading one folder and AutoCAD writing to
+    /// another.
+    ///
+    /// Inbox folders never travel to the server, so relocating one cannot
+    /// reach anyone else's copy of the project.
+    /// </summary>
+    public static bool RelocateSourceInboxesInsideProject(
+        ProjectWorkspace project,
+        string projectPath)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+
+        string projectFolder = Path.GetDirectoryName(Path.GetFullPath(projectPath)) ?? "";
+        if (string.IsNullOrWhiteSpace(projectFolder))
+        {
+            return false;
+        }
+
+        bool changed = false;
+        foreach (ProjectDesignSource source in project.Sources ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(source.InboxFolder) ||
+                ProjectWorkspacePaths.IsInside(projectFolder, source.InboxFolder))
+            {
+                continue;
+            }
+
+            source.Metadata["legacyExternalInbox"] = source.InboxFolder;
+            source.InboxFolder = Path.Combine(
+                projectFolder,
+                "sources",
+                ProjectWorkspacePaths.SafeSegment(source.DisplayName),
+                "deliveries");
+            changed = true;
+        }
+        return changed;
     }
 
     public static bool RecoverSiteContextSnapshots(ProjectWorkspace project, string projectPath)
@@ -776,6 +825,17 @@ public static class ProjectWorkspacePaths
                candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Folder-name-safe form of a source's display name.</summary>
+    public static string SafeSegment(string value)
+    {
+        string result = string.IsNullOrWhiteSpace(value) ? "source" : value.Trim();
+        foreach (char invalid in Path.GetInvalidFileNameChars())
+        {
+            result = result.Replace(invalid, '_');
+        }
+        return result;
+    }
+
     public static string ToRelativePath(string projectPath, string candidatePath)
     {
         var root = GetProjectFolder(projectPath);
@@ -1126,15 +1186,8 @@ public static class LegacyAlbumProjectImporter
             : "";
     }
 
-    private static string SafePathSegment(string value)
-    {
-        var result = string.IsNullOrWhiteSpace(value) ? "source" : value.Trim();
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            result = result.Replace(invalid, '_');
-        }
-        return result;
-    }
+    private static string SafePathSegment(string value) =>
+        ProjectWorkspacePaths.SafeSegment(value);
 }
 
 internal static class AtomicJsonFile
