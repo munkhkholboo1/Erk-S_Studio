@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 

@@ -1,4 +1,4 @@
-using ErkS.Platform.Contracts;
+﻿using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Studio;
 
@@ -470,6 +470,35 @@ public sealed class StudioLocalCloudInvariantTests
         Assert.Contains(plan.Blocked, item =>
             item.Code == componentCode &&
             item.Detail.Contains("read-only", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void SiteContextComponent_AClearedContextMayBeSentFromAnyDeviceThatMayEdit()
+    {
+        // The positive half of the rule below. A cleared site context (no
+        // boundary, no snapshots) carries nothing device-bound, so a member
+        // who may edit sends it even without the exact local source - the
+        // clearing would otherwise be stuck on the machine that did it.
+        ProjectWorkspace project = CloudProject();
+        ProjectDesignSource source = LocalSource(project, OwnerA);
+        source.Kind = DesignSourceKind.CityGen;
+        project.Cloud.SharedSources = [SharedSource(OwnerA, OwnerA)];
+        StudioLocalSourceBindingPolicy.Bind(source, OwnerA, DeviceOne);
+        project.SiteContext.Boundary = new ProjectSiteBoundary { SourceId = source.Id };
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
+            project,
+            [ProjectCloudSyncMetadata.SiteContextComponentCode]);
+
+        CloudSyncPreviewPlan otherDevice = CloudSyncPreviewPlanner.Build(
+            project,
+            OwnerA,
+            "DEVICE-TWO",
+            new StudioCloudProjectRefreshResult(false, null),
+            DeviceTwo,
+            _ => true);
+
+        Assert.True(otherDevice.IsComponentAuthorized(
+            ProjectCloudSyncMetadata.SiteContextComponentCode));
     }
 
     [Fact]

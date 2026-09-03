@@ -1366,14 +1366,7 @@ internal sealed partial class ShellView
         List<ProjectCloudAlbumComponentReference> sharedComponents =
             (state.Project.Cloud.SharedAlbumComponents ?? [])
             .OfType<ProjectCloudAlbumComponentReference>()
-            .Where(item =>
-                string.Equals(
-                    item.ComponentKind,
-                    StudioAlbumComponentIdentity.SourceComponentKind,
-                    StringComparison.OrdinalIgnoreCase) ||
-                (item.Code ?? "").StartsWith(
-                    "source:",
-                    StringComparison.OrdinalIgnoreCase))
+            .Where(StudioAlbumComponentIdentity.IsSourceComponentReference)
             .ToList();
         var representedCloudSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         IReadOnlyList<ProjectVisualizationImage> currentVisualizationImages =

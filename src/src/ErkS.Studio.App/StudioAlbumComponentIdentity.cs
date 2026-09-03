@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.IO;
 using ErkS.Platform.Core;
@@ -270,6 +270,24 @@ internal static class StudioAlbumComponentIdentity
             return false;
         }
 
+        return string.Equals(
+                component.ComponentKind,
+                SourceComponentKind,
+                StringComparison.OrdinalIgnoreCase) ||
+            (component.Code ?? "").StartsWith(
+                "source:",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The shared-component rows the source workspace lists. Kept here rather
+    /// than inline in the view so the rule has a test: a site-context component
+    /// carries a SourceKey too, and listing it as a source was the bug this
+    /// predicate replaced.
+    /// </summary>
+    public static bool IsSourceComponentReference(ProjectCloudAlbumComponentReference component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
         return string.Equals(
                 component.ComponentKind,
                 SourceComponentKind,

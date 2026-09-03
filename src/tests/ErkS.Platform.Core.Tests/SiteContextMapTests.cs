@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 using PdfSharp.Pdf.IO;
 
@@ -758,6 +758,58 @@ public sealed class SiteContextMapTests : IDisposable
         Assert.Single(project.SiteContext.PlanFeatures.Buildings);
         AssertViewportCompositionEqual(savedLocation, project.SiteContext.LocationScheme);
         AssertViewportCompositionEqual(savedOverview, project.SiteContext.SurroundingsOverview);
+    }
+
+    [Fact]
+    public void CityGenProjectSiteReconciler_KeepsSiteContextWhileAnotherSourceCouldStillSupplyOne()
+    {
+        // Two sources: the CityGen one supplies the boundary; an ordinary
+        // AutoCAD drawing with no sidecar is also registered. Removing the
+        // CityGen source must NOT clear the site context, because the other
+        // source could still supply a manifest and the clearing rule keys on
+        // "no source could", not "none did". Boundary.SourceId keeps pointing
+        // at the removed source - that is the deliberate, data-preserving
+        // choice: an unmounted drive and a removed source look the same from
+        // here, and clearing deletes the only way back. Pinned so a change to
+        // the multi-source case is a decision, not an accident.
+        string cityGenDrawing = Path.Combine(workDirectory, "multi-citygen.dwg");
+        string cityGenSidecar = Path.Combine(workDirectory, "multi-citygen.erks-citygen-site.json");
+        string plainDrawing = Path.Combine(workDirectory, "multi-plain.dwg");
+        File.WriteAllText(cityGenDrawing, "test drawing placeholder");
+        File.WriteAllText(plainDrawing, "test drawing placeholder");
+        WriteCityGenSidecar(cityGenSidecar, areaSquareMeters: 9_000, eastLongitude: 106.92);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("MAP-MULTI", "Two sources");
+        var cityGen = new ProjectDesignSource
+        {
+            Id = "multi-citygen",
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = cityGenDrawing,
+        };
+        var plain = new ProjectDesignSource
+        {
+            Id = "multi-plain",
+            Kind = DesignSourceKind.AutoCad,
+            NativeDocumentPath = plainDrawing,
+        };
+        project.Sources.Add(cityGen);
+        project.Sources.Add(plain);
+
+        Assert.True(CityGenProjectSiteReconciler.Reconcile(project).Imported);
+        Assert.Equal("multi-citygen", project.SiteContext.Boundary.SourceId);
+
+        project.Sources.Remove(cityGen);
+        CityGenProjectSiteReconciliationResult afterRemoval =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.False(afterRemoval.Changed);
+        Assert.True(project.SiteContext.Boundary.HasGeometry);
+        Assert.Equal("multi-citygen", project.SiteContext.Boundary.SourceId);
+
+        // And the control: with the last candidate gone too, it clears.
+        project.Sources.Remove(plain);
+        Assert.True(CityGenProjectSiteReconciler.Reconcile(project).Changed);
+        Assert.False(project.SiteContext.Boundary.HasGeometry);
     }
 
     [Fact]

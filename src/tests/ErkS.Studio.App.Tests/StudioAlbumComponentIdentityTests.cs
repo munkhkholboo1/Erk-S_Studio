@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
@@ -332,6 +332,33 @@ public sealed class StudioAlbumComponentIdentityTests
         Assert.Equal(
             StudioAlbumComponentIdentity.BaseSourceCode(alias),
             StudioAlbumComponentIdentity.BaseSourceCode(actual));
+    }
+
+    [Fact]
+    public void IsSourceComponentReference_ListsSourcesAndNotASiteContextThatCarriesASourceKey()
+    {
+        // The source workspace filters shared components with this; before it
+        // was extracted the same rule lived inline in ShellView, where a
+        // site-context component with a SourceKey was listed as a source.
+        Assert.False(StudioAlbumComponentIdentity.IsSourceComponentReference(
+            new ProjectCloudAlbumComponentReference
+            {
+                ComponentKind = "site-context",
+                Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+                SourceKey = "citygen|general-plan.dwg",
+            }));
+        Assert.True(StudioAlbumComponentIdentity.IsSourceComponentReference(
+            new ProjectCloudAlbumComponentReference
+            {
+                ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
+                Code = "anything",
+            }));
+        Assert.True(StudioAlbumComponentIdentity.IsSourceComponentReference(
+            new ProjectCloudAlbumComponentReference
+            {
+                ComponentKind = "",
+                Code = "source:revit|building-a.rvt",
+            }));
     }
 
     [Fact]

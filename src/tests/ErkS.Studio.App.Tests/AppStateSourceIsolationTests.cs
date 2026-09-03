@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 using ErkS.Platform.Core.ProjectTypes;
 using ErkS.Platform.Pdf;
 using ErkS.Studio;
@@ -192,6 +192,65 @@ public sealed class AppStateSourceIsolationTests : IDisposable
             "remote-source|sheet-01",
             Assert.Single(persisted.Definition.Sections.First().SheetKeys));
     }
+
+    [Fact]
+    public void AddDesignSource_WhenCityGenSourceAdded_ImportsItsBoundary()
+    {
+        // The mirror of the removal test below: attaching a CityGen source is
+        // what brings the site context in, and nothing exercised that path.
+        string projectFolder = Path.Combine(workDirectory, "citygen-add-app");
+        Directory.CreateDirectory(projectFolder);
+        string drawingPath = Path.Combine(projectFolder, "site.dwg");
+        File.WriteAllText(drawingPath, "drawing content");
+        File.WriteAllText(Path.Combine(projectFolder, "site.erks-citygen-site.json"), FourPointSidecar);
+
+        var (projectPath, _) = WriteProject(sources: [], pageKeys: [], lastPdfPath: "");
+        using var state = new AppState();
+        state.ConfigureSourceRuntimeContext("architect@erks.local", "device-1");
+        state.OpenProject(projectPath);
+        Assert.False(state.Project.SiteContext.Boundary.HasGeometry);
+
+        var source = new ProjectDesignSource
+        {
+            Id = "citygen-added",
+            Kind = DesignSourceKind.CityGen,
+            Name = "CityGen source",
+            NativeDocumentTitle = "site.dwg",
+            NativeDocumentPath = drawingPath,
+            InboxFolder = Path.Combine(ProjectWorkspacePaths.GetProjectFolder(projectPath), "sources", "citygen", "deliveries"),
+        };
+        StudioLocalSourceBindingPolicy.Bind(source, "architect@erks.local", "device-1");
+
+        state.AddDesignSource(source);
+
+        Assert.True(state.Project.SiteContext.Boundary.HasGeometry);
+        Assert.Equal("citygen-added", state.Project.SiteContext.Boundary.SourceId);
+        Assert.True(ProjectWorkspaceStore.Load(projectPath).SiteContext.Boundary.HasGeometry);
+    }
+
+    private const string FourPointSidecar = """
+        {
+          "schema": "erks.citygen.project-site",
+          "schemaVersion": 1,
+          "sourceCrs": { "authority": "EPSG", "name": "UTM84-48N", "epsg": 32648 },
+          "coordinateMode": "direct-utm",
+          "areaSquareMeters": 15000.0,
+          "sourceDocument": { "name": "site.dwg" },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                    [106.90, 47.90],
+                    [106.91, 47.90],
+                    [106.91, 47.91],
+                    [106.90, 47.91],
+                    [106.90, 47.90]
+              ]
+            ]
+          },
+          "updatedAtUtc": "2026-07-22T12:00:00Z"
+        }
+        """;
 
     [Fact]
     public void RemoveDesignSource_WhenCityGenSourceRemoved_ClearsSiteContextAndDeletesSnapshots()

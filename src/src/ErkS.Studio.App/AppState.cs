@@ -1359,12 +1359,15 @@ public sealed class AppState : IDisposable
         // Only on the path that cleared the site context, which is the only one
         // that reports a change it did not import.
         //
-        // Keyed on "no boundary geometry" instead, this also fired on an
-        // import: a manifest whose ring is shorter than four points is a
-        // successful import with no geometry, and the snapshots would have been
-        // deleted underneath a project that had just taken one in. The files
-        // are what RecoverSiteContextSnapshots rebuilds a lost record from, so
-        // deleting them on the wrong path costs the only way back.
+        // Keyed on the PATH, not on "no boundary geometry": the two are equal
+        // today only because ConvertManifest refuses a ring with fewer than
+        // four points, so an import always carries geometry (a short ring is
+        // a read error, not a geometry-less import - measured 2026-09-03, and
+        // the earlier claim here that it imported cleanly was wrong). Should
+        // an import ever legitimately arrive without geometry, a geometry-keyed
+        // check would delete the snapshots underneath it; those files are what
+        // RecoverSiteContextSnapshots rebuilds a lost record from, so deleting
+        // them on the wrong path costs the only way back.
         if (!result.Imported &&
             !Project.SiteContext.Boundary.HasGeometry &&
             !string.IsNullOrWhiteSpace(ProjectPath))
