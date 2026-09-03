@@ -1,4 +1,4 @@
-using ErkS.Platform.Contracts;
+﻿using ErkS.Platform.Contracts;
 using System.Text.Json;
 
 namespace ErkS.Platform.Core;
@@ -16,6 +16,16 @@ public sealed class SheetIntakeScanResult
     public int ManifestCount { get; internal set; }
     public int SkippedHistoricalManifestCount { get; internal set; }
     public int SkippedForeignManifestCount { get; internal set; }
+
+    /// <summary>
+    /// Packages accepted through the legacy path: their manifest names no
+    /// source or project of its own, so the ownership check could only compare
+    /// the registration against itself and passed for that reason alone. The
+    /// compatibility is deliberate, the silence was not — a package landing in
+    /// the wrong inbox is adopted here, so the count makes that visible.
+    /// </summary>
+    public int UnattributedManifestCount { get; internal set; }
+
     public int SilentlyHydratedManifestCount { get; internal set; }
     public int ChangedPackageCount { get; internal set; }
     public int UpdatedSheetCount { get; internal set; }
@@ -28,6 +38,7 @@ public sealed class SheetIntakeScanResult
         ManifestCount += other.ManifestCount;
         SkippedHistoricalManifestCount += other.SkippedHistoricalManifestCount;
         SkippedForeignManifestCount += other.SkippedForeignManifestCount;
+        UnattributedManifestCount += other.UnattributedManifestCount;
         SilentlyHydratedManifestCount += other.SilentlyHydratedManifestCount;
         ChangedPackageCount += other.ChangedPackageCount;
         UpdatedSheetCount += other.UpdatedSheetCount;
@@ -271,10 +282,13 @@ public sealed class SheetIntakeService : IDisposable
                     SearchOption.AllDirectories)
                 .ToList();
             int skippedForeign = 0;
+            int unattributed = 0;
             IReadOnlyList<string> manifests = currentSnapshotsOnly
-                ? SelectCurrentPackageManifests(discovered, registration, out skippedForeign)
+                ? SelectCurrentPackageManifests(
+                    discovered, registration, out skippedForeign, out unattributed)
                 : discovered;
             scan.SkippedForeignManifestCount = skippedForeign;
+            scan.UnattributedManifestCount = unattributed;
             scan.SkippedHistoricalManifestCount =
                 discovered.Count - manifests.Count - skippedForeign;
 
@@ -330,9 +344,11 @@ public sealed class SheetIntakeService : IDisposable
     private static IReadOnlyList<string> SelectCurrentPackageManifests(
         IReadOnlyList<string> manifestPaths,
         WatcherRegistration registration,
-        out int skippedForeign)
+        out int skippedForeign,
+        out int unattributed)
     {
         skippedForeign = 0;
+        unattributed = 0;
         var unreadable = new List<string>();
         var candidates = new List<ManifestScanCandidate>();
         foreach (string path in manifestPaths)
@@ -349,6 +365,17 @@ public sealed class SheetIntakeService : IDisposable
                 }
 
                 manifest.Source ??= new SheetPackageSource();
+                if (string.IsNullOrWhiteSpace(manifest.Source.SourceId))
+                {
+                    // Legacy shape: the manifest does not name its own source, so
+                    // the check below compares the registration with itself and
+                    // cannot reject anything. Accepted for compatibility, counted
+                    // so it is not accepted silently. A missing project id is not
+                    // counted here — the verifier already rejects that loudly, and
+                    // a counter on an already-reported case only adds noise.
+                    unattributed++;
+                }
+
                 string? effectiveSourceId = string.IsNullOrWhiteSpace(manifest.Source.SourceId)
                     ? registration.SourceId
                     : manifest.Source.SourceId.Trim();

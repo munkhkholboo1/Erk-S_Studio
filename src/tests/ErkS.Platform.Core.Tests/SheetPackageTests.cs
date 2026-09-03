@@ -1,4 +1,4 @@
-using ErkS.Platform.Contracts;
+﻿using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 using PdfSharp.Drawing;
@@ -984,6 +984,66 @@ public sealed class SheetPackageTests : IDisposable
             .Select(record => record.Entry.SheetId)
             .OrderBy(value => value)
             .ToArray());
+    }
+
+    [Fact]
+    public void Intake_CountsALegacyManifestThatNamesNoOwnerOfItsOwn()
+    {
+        // The ownership check can only compare what the manifest declares. A
+        // an old-schema manifest declares no source of its own, so the check
+        // falls back to the registration and compares it with itself: nothing
+        // can be rejected. That compatibility stays, but it stops being silent.
+        var root = Path.Combine(workDirectory, "legacy-unattributed");
+        string manifestPath = WriteSourcePackage(
+            Path.Combine(root, "owned"),
+            "source-owned",
+            ["A1"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+
+        // Schema 4 and newer require a source id and are rejected by name when
+        // it is missing, so the silent window is exactly the older schemas.
+        var stripped = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        stripped["schemaVersion"] = 3;
+        stripped["source"]!.AsObject()["sourceId"] = "";
+        File.WriteAllText(manifestPath, stripped.ToJsonString());
+
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(root, "source-owned", "project-current", scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots();
+
+        Assert.Equal(1, scan.UnattributedManifestCount);
+        // Compatibility is the point of the legacy path: it still arrives.
+        Assert.Equal(1, scan.ManifestCount);
+        Assert.Equal(0, scan.SkippedForeignManifestCount);
+        Assert.Empty(intake.RejectedPackages);
+        Assert.Single(library.Snapshot());
+    }
+
+    [Fact]
+    public void Intake_DoesNotCallAFullyAttributedManifestUnattributed()
+    {
+        // The other direction. Without this the counter could report every
+        // package and the test above would still pass.
+        var root = Path.Combine(workDirectory, "legacy-unattributed-control");
+        WriteSourcePackage(
+            Path.Combine(root, "owned"),
+            "source-owned",
+            ["A1"],
+            SheetPackageScope.FullSnapshot,
+            DateTimeOffset.UtcNow,
+            projectId: "project-current");
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(root, "source-owned", "project-current", scanExisting: false);
+
+        SheetIntakeScanResult scan = intake.RescanCurrentSnapshots();
+
+        Assert.Equal(0, scan.UnattributedManifestCount);
+        Assert.Equal(1, scan.ManifestCount);
     }
 
     [Fact]
