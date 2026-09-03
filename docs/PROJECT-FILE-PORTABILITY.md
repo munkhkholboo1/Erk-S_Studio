@@ -54,7 +54,7 @@ public const string DefaultFileName = "project.erksproject";
 ## 3. Бүхэл төслийг өөр төхөөрөмж рүү хуулбал
 
 **Хэмжсэн тест:**
-`ProjectCanonicalCrossDeviceAcceptanceTests.CopyingAWholeProjectToAnotherMachineKeepsTheOriginalInboxPath`
+`ProjectCanonicalCrossDeviceAcceptanceTests.CopyingAWholeProjectToAnotherMachineBringsTheInboxWithIt`
 
 ### 3.1 Ажиллах зүйлс
 
