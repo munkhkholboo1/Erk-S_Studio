@@ -67,6 +67,32 @@ public static class ProjectWorkspaceStore
         return true;
     }
 
+    public static void DeleteSiteContextSnapshots(string projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            return;
+        string assetFolder = Path.Combine(
+            ProjectWorkspacePaths.GetProjectFolder(projectPath),
+            "assets",
+            "site-context");
+        if (!Directory.Exists(assetFolder))
+            return;
+        try
+        {
+            string locationFile = Path.Combine(assetFolder, "location-scheme.png");
+            if (File.Exists(locationFile))
+                File.Delete(locationFile);
+            string overviewFile = Path.Combine(assetFolder, "surroundings-overview.png");
+            if (File.Exists(overviewFile))
+                File.Delete(overviewFile);
+            if (Directory.GetFileSystemEntries(assetFolder).Length == 0)
+                Directory.Delete(assetFolder);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private static bool RecoverSiteContextSnapshot(
         string projectPath,
         ProjectMapViewport viewport,

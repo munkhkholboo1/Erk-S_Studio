@@ -334,6 +334,38 @@ public sealed class StudioAlbumComponentIdentityTests
             StudioAlbumComponentIdentity.BaseSourceCode(actual));
     }
 
+    [Fact]
+    public void IsSourceComponent_ReturnsFalseForSiteContextAndGeneratedComponents()
+    {
+        var siteContext = new StudioCloudAlbumSection
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            ComponentKind = StudioAlbumComponentIdentity.SiteContextComponentKind,
+            SourceKey = "general-plan.dwg",
+            Label = "БАЙРШЛЫН СХЕМ / ОРЧНЫ ТОЙМ",
+            PageNumbers = [3],
+        };
+        var cover = new StudioCloudAlbumSection
+        {
+            Code = "generated:cover:Cover",
+            ComponentKind = "Cover",
+            Label = "Нүүр хуудас",
+            PageNumbers = [1],
+        };
+        var sourceSection = new StudioCloudAlbumSection
+        {
+            Code = "source:architect@erks.local:building.rvt:Architecture",
+            ComponentKind = StudioAlbumComponentIdentity.SourceComponentKind,
+            SourceKey = "building.rvt",
+            Label = "Барилга",
+            PageNumbers = [4, 5],
+        };
+
+        Assert.False(StudioAlbumComponentIdentity.IsSourceComponent(siteContext));
+        Assert.False(StudioAlbumComponentIdentity.IsSourceComponent(cover));
+        Assert.True(StudioAlbumComponentIdentity.IsSourceComponent(sourceSection));
+    }
+
     private static ProjectWorkspace ProjectWithBuilding() => new()
     {
         BuildingGroups =

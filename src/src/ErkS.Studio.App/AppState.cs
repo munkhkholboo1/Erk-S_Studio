@@ -771,6 +771,11 @@ public sealed class AppState : IDisposable
             }
             source = existingSource;
         }
+
+        CityGenProjectSiteReconciliationResult siteResult =
+            ReconcileCityGenProjectSiteCore();
+        ApplyCityGenProjectSiteReconciliation(siteResult);
+
         SaveProject();
         if (IsRuntimeSource(source))
         {
@@ -804,6 +809,11 @@ public sealed class AppState : IDisposable
             RemoveAlbumPagesForSource(source, knownSourceKeys);
         if (removedBuildingAssignments)
             ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
+
+        CityGenProjectSiteReconciliationResult siteResult =
+            ReconcileCityGenProjectSiteCore();
+        ApplyCityGenProjectSiteReconciliation(siteResult);
+
         InvalidateBuiltAlbum();
         SaveProject();
         ResetRuntimeServices();
@@ -1314,6 +1324,21 @@ public sealed class AppState : IDisposable
     {
         if (!result.Changed)
             return false;
+        // Only on the path that cleared the site context, which is the only one
+        // that reports a change it did not import.
+        //
+        // Keyed on "no boundary geometry" instead, this also fired on an
+        // import: a manifest whose ring is shorter than four points is a
+        // successful import with no geometry, and the snapshots would have been
+        // deleted underneath a project that had just taken one in. The files
+        // are what RecoverSiteContextSnapshots rebuilds a lost record from, so
+        // deleting them on the wrong path costs the only way back.
+        if (!result.Imported &&
+            !Project.SiteContext.Boundary.HasGeometry &&
+            !string.IsNullOrWhiteSpace(ProjectPath))
+        {
+            ProjectWorkspaceStore.DeleteSiteContextSnapshots(ProjectPath);
+        }
         ProjectCloudSyncMetadata.MarkAlbumComponentsPending(
             Project,
             [ProjectCloudSyncMetadata.SiteContextComponentCode]);

@@ -67,8 +67,22 @@ public static class CityGenProjectSiteReconciler
 
         List<ManifestCandidate> candidates = [];
         var result = new CityGenProjectSiteReconciliationResult();
+
+        // Whether any source is still registered that could supply a manifest,
+        // separately from whether one actually did.
+        //
+        // These are not the same question, and the clearing below turns on the
+        // first. A source is removed by the user; a manifest goes missing for
+        // reasons that say nothing about intent - an unmounted drive, a moved
+        // drawing, CityGen part-way through rewriting the file, a read that
+        // failed. Treating an empty candidate list as "the source is gone"
+        // discards the boundary, the plan features and the map the user built,
+        // and deletes the snapshots that are the only way back.
+        bool anySourceCouldSupplyOne = false;
+
         foreach ((ProjectDesignSource source, string path) in EnumerateCandidatePaths(sources))
         {
+            anySourceCouldSupplyOne = true;
             if (!File.Exists(path))
                 continue;
             try
@@ -103,7 +117,9 @@ public static class CityGenProjectSiteReconciler
                         project,
                         candidate.Source))
                 .ToList();
-            if (candidates.Count == 0)
+            if (candidates.Count == 0 &&
+                project.Sources.Any(source =>
+                    !ProjectSiteContextEditingPolicy.MatchesCanonicalSource(project, source)))
             {
                 result.Message =
                     "Байршлын схем нь Cloud ERA-д бүртгэлтэй ерөнхий төлөвлөгөөний " +
@@ -115,6 +131,27 @@ public static class CityGenProjectSiteReconciler
 
         if (candidates.Count == 0)
         {
+            // Only when nothing is left to read from, and nothing failed while
+            // trying. A registered source with an unreadable manifest keeps
+            // what it last supplied; the error is already counted and reaches
+            // the caller, which is what a temporary failure deserves.
+            bool linkedSourceIsGone = !anySourceCouldSupplyOne && result.ErrorCount == 0;
+            if (linkedSourceIsGone &&
+                (project.SiteContext.Boundary.HasGeometry ||
+                 !string.IsNullOrWhiteSpace(project.SiteContext.Boundary.SourceId) ||
+                 project.SiteContext.PlanFeatures.HasGeometry))
+            {
+                project.SiteContext.Boundary = new ProjectSiteBoundary();
+                project.SiteContext.PlanFeatures = new ProjectSitePlanFeatures();
+                project.SiteContext.LocationScheme = ProjectMapViewport.CreateLocationScheme();
+                project.SiteContext.SurroundingsOverview = ProjectMapViewport.CreateSurroundingsOverview();
+                project.SiteContext.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                result.Changed = true;
+                result.Imported = false;
+                result.Message = "Холбосон CityGen төслийн талбай болон байршлын схемийг хаслаа.";
+                return result;
+            }
+
             if (string.IsNullOrWhiteSpace(result.Message))
                 result.Message = "Холбосон CityGen төслийн талбайн өөрчлөлт алга.";
             return result;

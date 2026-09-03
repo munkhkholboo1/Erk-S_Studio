@@ -194,6 +194,100 @@ public sealed class AppStateSourceIsolationTests : IDisposable
     }
 
     [Fact]
+    public void RemoveDesignSource_WhenCityGenSourceRemoved_ClearsSiteContextAndDeletesSnapshots()
+    {
+        string projectFolder = Path.Combine(workDirectory, "citygen-remove-app");
+        Directory.CreateDirectory(projectFolder);
+        string drawingPath = Path.Combine(projectFolder, "site.dwg");
+        string sidecarPath = Path.Combine(projectFolder, "site.erks-citygen-site.json");
+        File.WriteAllText(drawingPath, "drawing content");
+        File.WriteAllText(sidecarPath, """
+            {
+              "schema": "erks.citygen.project-site",
+              "schemaVersion": 1,
+              "sourceCrs": {
+                "authority": "EPSG",
+                "name": "UTM84-48N",
+                "epsg": 32648
+              },
+              "coordinateMode": "direct-utm",
+              "areaSquareMeters": 15000.0,
+              "sourceDocument": {
+                "name": "site.dwg"
+              },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [106.90, 47.90],
+                    [106.91, 47.90],
+                    [106.91, 47.91],
+                    [106.90, 47.91],
+                    [106.90, 47.90]
+                  ]
+                ]
+              },
+              "updatedAtUtc": "2026-07-22T12:00:00Z"
+            }
+            """);
+
+        var source = new ProjectDesignSource
+        {
+            Id = "citygen-src",
+            Kind = DesignSourceKind.CityGen,
+            Name = "CityGen source",
+            NativeDocumentTitle = "site.dwg",
+            NativeDocumentPath = drawingPath,
+            InboxFolder = Path.Combine(projectFolder, "inbox"),
+        };
+        StudioLocalSourceBindingPolicy.Bind(source, "architect@erks.local", "device-1");
+
+        var (projectPath, _) = WriteProject(
+            sources: [source],
+            pageKeys: ["citygen-src|sheet-01"],
+            lastPdfPath: "albums/stale.pdf");
+
+        string assetFolder = Path.Combine(
+            ProjectWorkspacePaths.GetProjectFolder(projectPath),
+            "assets",
+            "site-context");
+        Directory.CreateDirectory(assetFolder);
+        byte[] onePixelPng = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        string locationPng = Path.Combine(assetFolder, "location-scheme.png");
+        string overviewPng = Path.Combine(assetFolder, "surroundings-overview.png");
+        File.WriteAllBytes(locationPng, onePixelPng);
+        File.WriteAllBytes(overviewPng, onePixelPng);
+
+        using var state = new AppState();
+        state.ConfigureSourceRuntimeContext("architect@erks.local", "device-1");
+        state.OpenProject(projectPath);
+
+        Assert.True(state.Project.SiteContext.Boundary.HasGeometry);
+        Assert.Equal("citygen-src", state.Project.SiteContext.Boundary.SourceId);
+        state.Project.SiteContext.LocationScheme.SnapshotRelativePath = "assets/site-context/location-scheme.png";
+        state.Project.SiteContext.SurroundingsOverview.SnapshotRelativePath = "assets/site-context/surroundings-overview.png";
+        Assert.True(state.Project.SiteContext.LocationScheme.HasSnapshot);
+        Assert.True(File.Exists(locationPng));
+        Assert.True(File.Exists(overviewPng));
+
+        state.RemoveDesignSource(state.Project.Sources.Single(item => item.Id == "citygen-src"));
+
+        Assert.Empty(state.Project.Sources);
+        Assert.False(state.Project.SiteContext.Boundary.HasGeometry);
+        Assert.Empty(state.Project.SiteContext.Boundary.SourceId);
+        Assert.False(state.Project.SiteContext.LocationScheme.HasSnapshot);
+        Assert.False(state.Project.SiteContext.SurroundingsOverview.HasSnapshot);
+        Assert.False(File.Exists(locationPng));
+        Assert.False(File.Exists(overviewPng));
+
+        ProjectWorkspace reloaded = ProjectWorkspaceStore.Load(projectPath);
+        Assert.False(reloaded.SiteContext.Boundary.HasGeometry);
+        Assert.False(reloaded.SiteContext.LocationScheme.HasSnapshot);
+        Assert.False(reloaded.SiteContext.SurroundingsOverview.HasSnapshot);
+    }
+
+    [Fact]
     public void AddDesignSource_SameFileNameInDifferentLocationsRemainsDistinct()
     {
         var (projectPath, _) = WriteProject(sources: [], pageKeys: [], lastPdfPath: "");

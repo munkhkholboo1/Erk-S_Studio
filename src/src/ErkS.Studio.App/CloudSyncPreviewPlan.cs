@@ -460,10 +460,14 @@ internal static class CloudSyncPreviewPlanner
                     currentEmail,
                     currentDeviceFingerprint,
                     hasVerifiedPayload);
+            bool isCleared = !project.SiteContext.Boundary.HasGeometry &&
+                !project.SiteContext.LocationScheme.HasSnapshot &&
+                !project.SiteContext.SurroundingsOverview.HasSnapshot;
+            bool authorized = site.CanEdit && (hasExactLocalSource || isCleared);
             return new ComponentAuthority(
-                site.CanEdit && hasExactLocalSource,
+                authorized,
                 "Байршлын схем / Орчны тойм",
-                site.CanEdit && hasExactLocalSource
+                authorized
                     ? "Ерөнхий төлөвлөгөөний source owner-ийн өөрчлөлтийг илгээнэ"
                     : site.CanEdit
                         ? "SiteContext source нь энэ бүртгэл/төхөөрөмжийн баталгаатай локал payload биш. Cloud хувилбар read-only."

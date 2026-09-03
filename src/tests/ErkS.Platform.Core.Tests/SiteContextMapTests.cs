@@ -761,6 +761,90 @@ public sealed class SiteContextMapTests : IDisposable
     }
 
     [Fact]
+    public void CityGenProjectSiteReconciler_ClearsSiteContextWhenLinkedSourceIsRemoved()
+    {
+        string drawingPath = Path.Combine(workDirectory, "source-to-remove.dwg");
+        string sidecarPath = Path.Combine(workDirectory, "source-to-remove.erks-citygen-site.json");
+        File.WriteAllText(drawingPath, "test drawing placeholder");
+        WriteCityGenSidecar(sidecarPath, areaSquareMeters: 15_000, eastLongitude: 106.92, includePlanFeatures: true);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("MAP-REMOVE", "Remove source project");
+        var source = new ProjectDesignSource
+        {
+            Id = "source-to-remove",
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = drawingPath,
+        };
+        project.Sources.Add(source);
+
+        CityGenProjectSiteReconciliationResult imported =
+            CityGenProjectSiteReconciler.Reconcile(project);
+        Assert.True(imported.Changed);
+        Assert.True(imported.Imported);
+        Assert.True(project.SiteContext.Boundary.HasGeometry);
+        Assert.True(project.SiteContext.PlanFeatures.HasGeometry);
+        Assert.Equal("source-to-remove", project.SiteContext.Boundary.SourceId);
+
+        project.Sources.Remove(source);
+        CityGenProjectSiteReconciliationResult cleared =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.True(cleared.Changed);
+        Assert.False(cleared.Imported);
+        Assert.False(project.SiteContext.Boundary.HasGeometry);
+        Assert.False(project.SiteContext.PlanFeatures.HasGeometry);
+        Assert.Empty(project.SiteContext.Boundary.SourceId);
+        Assert.False(project.SiteContext.LocationScheme.HasSnapshot);
+        Assert.False(project.SiteContext.SurroundingsOverview.HasSnapshot);
+    }
+
+    [Fact]
+    public void CityGenProjectSiteReconciler_ClearsLockedSiteContextWhenSourceIsRemoved()
+    {
+        string drawingPath = Path.Combine(workDirectory, "canonical-to-remove.dwg");
+        string sidecarPath = Path.Combine(workDirectory, "canonical-to-remove.erks-citygen-site.json");
+        File.WriteAllText(drawingPath, "canonical placeholder");
+        WriteCityGenSidecar(sidecarPath, areaSquareMeters: 12_000, eastLongitude: 106.91);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("MAP-LOCKED-REMOVE", "Locked source remove");
+        ProjectDesignSource source = AddCloudSource(
+            project,
+            "canonical-source-1",
+            drawingPath,
+            "shared-general-plan",
+            "architect-a@erks.local");
+        project.Cloud.SharedSources.Add(new ProjectCloudSourceReference
+        {
+            SourceKey = "shared-general-plan",
+            RegisteredBy = "architect-a@erks.local",
+            OwnerEmail = "architect-a@erks.local",
+            Status = "Registered",
+        });
+        project.Cloud.SharedAlbumComponents.Add(new ProjectCloudAlbumComponentReference
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            SourceKey = "shared-general-plan",
+            OwnerEmail = "architect-a@erks.local",
+            ComponentKind = ProjectSiteContextEditingPolicy.SiteContextComponentKind,
+        });
+
+        CityGenProjectSiteReconciliationResult imported =
+            CityGenProjectSiteReconciler.Reconcile(project);
+        Assert.True(imported.Changed);
+        Assert.True(project.SiteContext.Boundary.HasGeometry);
+
+        project.Sources.Remove(source);
+        CityGenProjectSiteReconciliationResult cleared =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.True(cleared.Changed);
+        Assert.False(cleared.Imported);
+        Assert.False(project.SiteContext.Boundary.HasGeometry);
+        Assert.False(project.SiteContext.LocationScheme.HasSnapshot);
+        Assert.False(project.SiteContext.SurroundingsOverview.HasSnapshot);
+    }
+
+    [Fact]
     public void PdfBuild_IncludesStudioGeneratedSiteContextPageWithoutSnapshots()
     {
         string outputPath = Path.Combine(workDirectory, "site-context.pdf");
@@ -792,6 +876,71 @@ public sealed class SiteContextMapTests : IDisposable
         catch
         {
         }
+    }
+
+    [Fact]
+    public void CityGenProjectSiteReconciler_KeepsSiteContextWhenTheManifestIsMerelyMissing()
+    {
+        // A source that is still registered is not a source that was removed.
+        // Its manifest can be absent for reasons that have nothing to do with
+        // the user's intent - the drawing sits on a drive that is not mounted,
+        // CityGen is part-way through rewriting it, the file was moved. Reading
+        // that as "the source is gone" throws away the boundary, the plan
+        // features and the map the user built, and the snapshots on disk go
+        // with them, which is the one state nothing can recover from.
+        string drawingPath = Path.Combine(workDirectory, "manifest-missing.dwg");
+        string sidecarPath = Path.Combine(workDirectory, "manifest-missing.erks-citygen-site.json");
+        File.WriteAllText(drawingPath, "test drawing placeholder");
+        WriteCityGenSidecar(sidecarPath, areaSquareMeters: 9_000, eastLongitude: 106.93);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("MAP-GONE", "Manifest missing");
+        project.Sources.Add(new ProjectDesignSource
+        {
+            Id = "still-registered",
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = drawingPath,
+        });
+
+        Assert.True(CityGenProjectSiteReconciler.Reconcile(project).Imported);
+        Assert.True(project.SiteContext.Boundary.HasGeometry);
+
+        File.Delete(sidecarPath);
+        CityGenProjectSiteReconciliationResult second =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.False(second.Changed);
+        Assert.True(project.SiteContext.Boundary.HasGeometry);
+        Assert.Equal("still-registered", project.SiteContext.Boundary.SourceId);
+    }
+
+    [Fact]
+    public void CityGenProjectSiteReconciler_KeepsSiteContextWhenTheManifestCannotBeRead()
+    {
+        // The same, one step worse: the file is there and unreadable. The read
+        // failure is already counted, and counting it while clearing anyway
+        // means the count never reaches anyone.
+        string drawingPath = Path.Combine(workDirectory, "manifest-broken.dwg");
+        string sidecarPath = Path.Combine(workDirectory, "manifest-broken.erks-citygen-site.json");
+        File.WriteAllText(drawingPath, "test drawing placeholder");
+        WriteCityGenSidecar(sidecarPath, areaSquareMeters: 9_500, eastLongitude: 106.94);
+
+        ProjectWorkspace project = ProjectWorkspaceStore.Create("MAP-BROKEN", "Manifest unreadable");
+        project.Sources.Add(new ProjectDesignSource
+        {
+            Id = "still-registered",
+            Kind = DesignSourceKind.CityGen,
+            NativeDocumentPath = drawingPath,
+        });
+
+        Assert.True(CityGenProjectSiteReconciler.Reconcile(project).Imported);
+
+        File.WriteAllText(sidecarPath, "{ this is not json");
+        CityGenProjectSiteReconciliationResult second =
+            CityGenProjectSiteReconciler.Reconcile(project);
+
+        Assert.True(second.ErrorCount > 0);
+        Assert.False(second.Changed);
+        Assert.True(project.SiteContext.Boundary.HasGeometry);
     }
 
     private static void WriteCityGenSidecar(
