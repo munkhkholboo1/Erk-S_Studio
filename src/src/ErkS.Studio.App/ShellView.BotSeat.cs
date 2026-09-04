@@ -44,13 +44,14 @@ internal sealed partial class ShellView
         // the id is honest - showing nothing would leave the person guessing
         // which organisation handed them this machine.
         botLockScreen = new BotLockScreen(seat, seat.OrganizationId);
-        botLockScreen.Unlocked += identity =>
+        botLockScreen.Unlocked += async identity =>
         {
             unlockedSeatIdentity = identity;
             ApplyDeviceSeat();
             RemoveBotLock();
             UpdateAccountUi();
             SetStatus($"«{seat.DisplayName}» ботын суудлаар нээгдлээ.");
+            await ResumeAsBotAsync(seat);
         };
         botLockScreen.OwnerSignInRequested += async () =>
         {
@@ -80,11 +81,41 @@ internal sealed partial class ShellView
     /// bot token exists, so a failure here is reported and not hidden - the
     /// lock itself already holds locally.
     /// </summary>
+    /// <summary>
+    /// Picks up the seat's own credential and reads what it may open. Runs only
+    /// after the PIN, because the credential is what the PIN was guarding.
+    /// </summary>
+    private async Task ResumeAsBotAsync(StudioBotDeviceState seat)
+    {
+        try
+        {
+            await account.RequestBotTokenAsync();
+            StudioCloudBotStateResume resumed = await account.ResumeAsBotAsync();
+            if (resumed.PinLocked)
+            {
+                SetStatus("Энэ суудал серверт түгжээтэй байна. Эзэмшигч алсаас тайлна.");
+                return;
+            }
+            SetStatus(resumed.AssignedProjects.Count == 0
+                ? $"«{seat.DisplayName}» — томилогдсон төсөл алга."
+                : $"«{seat.DisplayName}» — {resumed.AssignedProjects.Count} төсөлд томилогдсон.");
+        }
+        catch (Exception exception)
+        {
+            // The machine is unlocked locally either way; what is missing is
+            // the server's half. Saying so beats a screen that looks ready and
+            // quietly has no assignments behind it.
+            SetStatus(BotSeatErrors.Describe(
+                exception,
+                "Ботын эрхээр сервертэй холбогдож чадсангүй. Локал ажил үргэлжилнэ."));
+        }
+    }
+
     private async Task ReportBotLockoutAsync()
     {
         try
         {
-            await account.ReportDeviceLockoutAsync();
+            await account.ReportBotLockoutAsync();
             SetStatus("Түгжигдсэнийг серверт мэдэгдэв. Эзэмшигч алсаас тайлна.");
         }
         catch (Exception exception)

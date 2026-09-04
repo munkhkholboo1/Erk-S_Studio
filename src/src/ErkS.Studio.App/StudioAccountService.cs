@@ -2499,24 +2499,6 @@ internal sealed class StudioAccountService :
             ?? throw new StudioAccountException("Сервер ботын төлөв буцаасангүй.");
     }
 
-    /// <summary>
-    /// Studio counts the wrong PIN attempts; the server never sees them, so it
-    /// is told when this device locks itself. The owner unlocks remotely.
-    /// </summary>
-    public async Task ReportDeviceLockoutAsync(CancellationToken cancellationToken = default)
-    {
-        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
-        _ = await PostAuthorizedAsync<StudioCloudBotPinLockoutRequest, object?>(
-            "/api/cloud-era/v1/bot-state/pin/lockout",
-            new StudioCloudBotPinLockoutRequest
-            {
-                DeviceFingerprint = fingerprints.Canonical,
-                LegacyDeviceFingerprint = fingerprints.Legacy,
-            },
-            cancellationToken).ConfigureAwait(true);
-    }
-
     public async Task<StudioCloudBotInvitation> InviteBotMemberAsync(
         string organizationId,
         string botId,
@@ -2604,6 +2586,144 @@ internal sealed class StudioAccountService :
         Current = null;
         CurrentCapabilities = null;
         metadata = null;
+    }
+
+    /// <summary>
+    /// The seat's own credential while this machine is unlocked as a bot. Held
+    /// in memory only: at rest it lives sealed under the PIN, so a machine that
+    /// has not been unlocked cannot act as the seat even with the file in hand.
+    /// </summary>
+    private StudioCloudBotStateToken? botToken;
+
+    public bool HasBotSession => botToken is not null &&
+        !string.IsNullOrWhiteSpace(botToken.AccessToken);
+
+    public void UseBotToken(StudioCloudBotStateToken? token) => botToken = token;
+
+    private StudioCloudBotStateToken RequireBotToken() =>
+        botToken ?? throw new StudioAccountException(
+            "Энэ төхөөрөмж ботын эрхээр нэвтрээгүй байна.");
+
+    /// <summary>
+    /// Bot-scoped calls carry the SEAT's credential, never the owner's - the
+    /// owner's is erased when the device is seated, and nothing turns one into
+    /// the other.
+    /// </summary>
+    private async Task<TResponse> PostBotAuthorizedAsync<TRequest, TResponse>(
+        string path,
+        TRequest value,
+        CancellationToken cancellationToken)
+    {
+        StudioCloudBotStateToken token = RequireBotToken();
+        using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(BotServerUrl, path))
+        {
+            Content = JsonContent.Create(value, options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            string.IsNullOrWhiteSpace(token.TokenType) ? "Bearer" : token.TokenType,
+            token.AccessToken);
+        using HttpResponseMessage response =
+            await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Where a seated machine talks to. There is no signed-in session to read a
+    /// server from, so the public address is used unless one was recorded.
+    /// </summary>
+    private string BotServerUrl =>
+        Current?.ServerUrl is { Length: > 0 } signedIn ? signedIn : PublicServerUrl;
+
+    /// <summary>
+    /// Asks for the seat's credential using nothing but the device's own
+    /// fingerprints - both forms, because one machine has two valid values and
+    /// a request carrying one proves nothing about a record stored under the
+    /// other. This is the call a locked machine makes after the PIN opens it.
+    /// </summary>
+    public async Task<StudioCloudBotStateToken> RequestBotTokenAsync(
+        CancellationToken cancellationToken = default)
+    {
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        var body = new StudioCloudBotStateResumeRequest
+        {
+            DeviceFingerprint = fingerprints.Canonical,
+            LegacyDeviceFingerprint = fingerprints.Legacy,
+        };
+        using HttpRequestMessage request = new(
+            HttpMethod.Post,
+            BuildUri(BotServerUrl, "/api/cloud-era/v1/bot-state/token"))
+        {
+            Content = JsonContent.Create(body, options: JsonOptions),
+        };
+        using HttpResponseMessage response =
+            await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        StudioCloudBotStateToken token =
+            await ReadResponseAsync<StudioCloudBotStateToken>(response, cancellationToken)
+                .ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ботын токен буцаасангүй.");
+        botToken = token;
+        return token;
+    }
+
+    /// <summary>
+    /// What this seat may open, read with the seat's own credential. The list
+    /// is the whole of it: a project absent from it is refused, whatever a
+    /// local file says.
+    /// </summary>
+    public async Task<StudioCloudBotStateResume> ResumeAsBotAsync(
+        CancellationToken cancellationToken = default)
+    {
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        return await PostBotAuthorizedAsync<StudioCloudBotStateResumeRequest, StudioCloudBotStateResume>(
+            "/api/cloud-era/v1/bot-state/resume",
+            new StudioCloudBotStateResumeRequest
+            {
+                DeviceFingerprint = fingerprints.Canonical,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ботын төлөв буцаасангүй.");
+    }
+
+    /// <summary>
+    /// Reports that this device locked itself after wrong PINs. Carries the
+    /// seat's credential, because by then there is no owner session here.
+    /// </summary>
+    public async Task ReportBotLockoutAsync(CancellationToken cancellationToken = default)
+    {
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        _ = await PostBotAuthorizedAsync<StudioCloudBotPinLockoutRequest, object?>(
+            "/api/cloud-era/v1/bot-state/pin/lockout",
+            new StudioCloudBotPinLockoutRequest
+            {
+                DeviceFingerprint = fingerprints.Canonical,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+            },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Deletes a seat. Owner only. A device sitting in it is released by the
+    /// deletion itself - the response says whether one was - and the seat's
+    /// history is kept: intervals and assignments hang off the bot id, which is
+    /// never reused, so dropping the row would leave them pointing at nothing.
+    /// </summary>
+    public async Task<StudioCloudBotSeatDeleted> DeleteBotSeatAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Delete,
+            BuildUri(session.ServerUrl, SeatPath(organizationId, botId)));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response =
+            await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        return await ReadResponseAsync<StudioCloudBotSeatDeleted>(response, cancellationToken)
+            .ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер суудал устгасан хариу буцаасангүй.");
     }
 
     private async Task<TResponse> GetAuthorizedAsync<TResponse>(string path, CancellationToken cancellationToken)

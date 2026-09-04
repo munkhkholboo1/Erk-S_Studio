@@ -247,6 +247,8 @@ internal sealed class BotSeatManagementDialog : Window
         invite.Click += async (_, _) => await InviteAsync();
         Button release = StudioWidgets.CreateDangerButton("Суудал чөлөөлөх");
         release.Click += async (_, _) => await ReleaseAsync();
+        Button delete = StudioWidgets.CreateDangerButton("Суудал устгах");
+        delete.Click += async (_, _) => await DeleteAsync();
         Button close = StudioWidgets.CreateButton("Хаах");
         close.IsCancel = true;
 
@@ -256,7 +258,7 @@ internal sealed class BotSeatManagementDialog : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 12, 0, 0),
         };
-        foreach (Button button in new[] { reveal, change, unlock, invite, release, close })
+        foreach (Button button in new[] { reveal, change, unlock, invite, release, delete, close })
         {
             actions.Children.Add(button);
         }
@@ -414,6 +416,42 @@ internal sealed class BotSeatManagementDialog : Window
             resultText.Text = dialog.ResultMessage;
         }
         await Task.CompletedTask;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!RequireSelection())
+            return;
+        if (StudioMessageDialog.Show(
+                this,
+                $"«{Selected!.DisplayName}» суудлыг устгах уу?" +
+                Environment.NewLine + Environment.NewLine +
+                "Суудалд төхөөрөмж сууж байвал устгал өөрөө чөлөөлнө — тэр машин " +
+                "ботын төлөвөөс гарна." +
+                Environment.NewLine + Environment.NewLine +
+                "Энэ суудлын карьерын түүх, төслийн " +
+                "томилолт УСТАХГҮЙ: тэдгээр нь ботын дугаар дээр тогтдог ба тэр " +
+                "дугаар дахин ашиглагдахгүй.",
+                "Суудал устгах",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+        try
+        {
+            StudioCloudBotSeatDeleted deleted =
+                await account.DeleteBotSeatAsync(organization.OrganizationId, Selected!.BotId);
+            resultText.Text = deleted.DeviceReleased
+                ? $"Суудал устлаа. Тэнд сууж байсан төхөөрөмж чөлөөлөгдөв. " +
+                  $"Эзэлсэн: {deleted.OccupiedSeats} / {deleted.DeviceRights}"
+                : $"Суудал устлаа. Эзэлсэн: {deleted.OccupiedSeats} / {deleted.DeviceRights}";
+            await RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Суудал устгагдсангүй.");
+        }
     }
 
     private async Task ReleaseAsync()

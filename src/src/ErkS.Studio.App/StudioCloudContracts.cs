@@ -1,4 +1,4 @@
-namespace ErkS.Studio;
+﻿namespace ErkS.Studio;
 
 internal sealed class StudioProjectChatResponse
 {
@@ -1264,6 +1264,13 @@ internal sealed class StudioCloudBotStateEnterResponse
     /// </summary>
     public StudioCloudOwnerCredentialRevocation? OwnerCredentialsRevoked { get; set; }
 
+    public string TokenType { get; set; } = "Bearer";
+
+    /// <summary>The seat's own credential, issued as the device is seated.</summary>
+    public string AccessToken { get; set; } = "";
+
+    public DateTimeOffset AccessTokenExpiresAtUtc { get; set; }
+
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
 
@@ -1280,6 +1287,10 @@ internal sealed class StudioCloudBotStateResume
     public string DisplayName { get; set; } = "";
     public string SeatStatus { get; set; } = "";
     public bool PinLocked { get; set; }
+
+    /// <summary>What this seat may open. The whole of it - a project absent here is refused.</summary>
+    public List<StudioCloudBotAssignedProject> AssignedProjects { get; set; } = [];
+
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
 
@@ -1334,5 +1345,50 @@ internal sealed class StudioCloudBotInvitationAccepted
     /// </summary>
     public bool OpenedNewInterval { get; set; }
 
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotAssignedProject
+{
+    public string ProjectId { get; set; } = "";
+    public List<string> Roles { get; set; } = [];
+    public DateTimeOffset AssignedAtUtc { get; set; }
+}
+
+/// <summary>
+/// The bot-scoped, device-bound credential a seated machine works with. It is
+/// never the owner's token and cannot become one: returning to owner state is
+/// a fresh owner sign-in and nothing else.
+/// </summary>
+internal sealed class StudioCloudBotStateToken
+{
+    public string TokenType { get; set; } = "Bearer";
+    public string AccessToken { get; set; } = "";
+    public DateTimeOffset AccessTokenExpiresAtUtc { get; set; }
+    public string BotId { get; set; } = "";
+    public string OrganizationId { get; set; } = "";
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotSeatDeleted
+{
+    public string BotId { get; set; } = "";
+    public string Status { get; set; } = "";
+
+    /// <summary>
+    /// Whether a device was sitting in the seat and has been released by the
+    /// deletion. The server does not hesitate; the person should still be told
+    /// what just happened to a machine somebody may be working at.
+    /// </summary>
+    public bool DeviceReleased { get; set; }
+
+    /// <summary>
+    /// Recounted by the server rather than decremented here: a client that
+    /// subtracts one from 7/10 disagrees with the server the day the counting
+    /// rule changes.
+    /// </summary>
+    public int OccupiedSeats { get; set; }
+
+    public int DeviceRights { get; set; }
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
