@@ -5,6 +5,8 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.57] - 2026-09-04
+
 - Keep a copied project's inbox with it. A project folder copied to another computer still named the folder it was registered on, so Studio watched an empty folder at the old path while the deliveries carried along sat unread inside the copy - with no error to show for it. On open, an inbox outside the project is now relocated inside it and the change is saved, since the exporting plugins read the same file to decide where to write. The old path is kept in the source's metadata.
 - Keep a copied project's renders in its album. A visualization whose watched original was not on this machine was treated as missing and dropped from the album, even though the project's own copy was intact and verifiable. The image now stays; only the link is marked broken, and that is reported separately from a genuinely missing file. Approved planning-task documents deliberately keep their stricter rule.
 - Find a moved drawing again. When a source's native document is no longer at the recorded path but exactly one file of that name sits inside the project folder, the source is relinked to it on open. Two or more candidates are left alone rather than guessed between.

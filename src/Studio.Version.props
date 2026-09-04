@@ -1,12 +1,12 @@
-<Project>
+﻿<Project>
   <PropertyGroup>
     <!--
       Update these four values together when a Demo release is published.
       DevelopmentVersion is always the next Studio version after PublishedVersion.
     -->
-    <StudioPublishedVersion>0.001.56</StudioPublishedVersion>
-    <StudioPublishedAssemblyVersion>0.0.1.56</StudioPublishedAssemblyVersion>
-    <StudioDevelopmentVersion>0.001.57-dev</StudioDevelopmentVersion>
-    <StudioDevelopmentAssemblyVersion>0.0.1.57</StudioDevelopmentAssemblyVersion>
+    <StudioPublishedVersion>0.001.57</StudioPublishedVersion>
+    <StudioPublishedAssemblyVersion>0.0.1.57</StudioPublishedAssemblyVersion>
+    <StudioDevelopmentVersion>0.001.58-dev</StudioDevelopmentVersion>
+    <StudioDevelopmentAssemblyVersion>0.0.1.58</StudioDevelopmentAssemblyVersion>
   </PropertyGroup>
 </Project>
