@@ -39,12 +39,17 @@ internal sealed partial class ShellView
         if (seat is null || botLockHost is null)
             return;
 
-        botLockScreen = new BotLockScreen(seat);
+        // The organisation id is what the seat carries offline; the readable
+        // name needs the server, which a locked machine cannot reach. Showing
+        // the id is honest - showing nothing would leave the person guessing
+        // which organisation handed them this machine.
+        botLockScreen = new BotLockScreen(seat, seat.OrganizationId);
         botLockScreen.Unlocked += identity =>
         {
             unlockedSeatIdentity = identity;
             ApplyDeviceSeat();
             RemoveBotLock();
+            UpdateAccountUi();
             SetStatus($"«{seat.DisplayName}» ботын суудлаар нээгдлээ.");
         };
         botLockScreen.OwnerSignInRequested += async () =>

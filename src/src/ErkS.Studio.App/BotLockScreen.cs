@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -45,7 +45,7 @@ internal sealed class BotLockScreen : Grid
     /// <summary>Raised when the attempts run out and the seat locks itself.</summary>
     public event Action? LockedOut;
 
-    public BotLockScreen(StudioBotDeviceState seat)
+    public BotLockScreen(StudioBotDeviceState seat, string organizationLabel = "")
     {
         this.seat = seat;
         Background = StudioTheme.WindowBackgroundBrush;
@@ -85,9 +85,16 @@ internal sealed class BotLockScreen : Grid
         });
         tile.Children.Add(new TextBlock
         {
-            Text = "Энэ төхөөрөмж ботын суудал",
+            // Name the seat AND its organisation: on a machine that could hold
+            // any seat, "this is a bot" is not enough to know which one.
+            Text = string.IsNullOrWhiteSpace(organizationLabel)
+                ? "Энэ төхөөрөмж ботын суудал"
+                : "Энэ төхөөрөмж «" + organizationLabel + "»-ийн ботын суудал",
             Foreground = StudioTheme.MutedTextBrush,
             HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 280,
             Margin = new Thickness(0, 2, 0, 0),
         });
 

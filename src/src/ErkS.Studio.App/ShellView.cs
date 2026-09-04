@@ -1992,15 +1992,28 @@ internal sealed partial class ShellView : IDisposable
         // it is re-applied every time the signed-in person does.
         ApplyDeviceSeat();
         string displayName = session is null ? "" : AccountDisplayName(session);
-        accountStatusText.Text = session is null
-            ? "Нэвтрээгүй"
-            : displayName;
-        accountLicenseText.Text = session is null
-            ? "Cloud ERA"
-            : string.IsNullOrWhiteSpace(session.LicenseType) ? "Cloud ERA" : session.LicenseType;
-        accountStatusText.ToolTip = session is null ? null : "Cloud ERA бүртгэл";
+        // A seated machine says so wherever the account is shown. Without it a
+        // bot device looks exactly like an ordinary one, and the person at it
+        // has no way to tell which identity their work is going out under.
+        StudioBotDeviceState? seatedAs = StudioBotDeviceStateStore.Read();
+        accountStatusText.Text = seatedAs is not null
+            ? "Бот: " + seatedAs.DisplayName
+            : session is null
+                ? "Нэвтрээгүй"
+                : displayName;
+        accountLicenseText.Text = seatedAs is not null
+            ? (unlockedSeatIdentity is null ? "түгжээтэй" : "төхөөрөмжийн суудал")
+            : session is null
+                ? "Cloud ERA"
+                : string.IsNullOrWhiteSpace(session.LicenseType) ? "Cloud ERA" : session.LicenseType;
+        accountStatusText.ToolTip = seatedAs is not null
+            ? "Энэ төхөөрөмж ботын суудал" +
+              (session is null ? "" : " · нэвтэрсэн: " + displayName)
+            : session is null ? null : "Cloud ERA бүртгэл";
         accountStatusText.Foreground = StudioTheme.TextBrush;
-        accountLicenseText.Foreground = session is null ? StudioTheme.WarningBrush : StudioTheme.SuccessBrush;
+        accountLicenseText.Foreground = seatedAs is not null
+            ? StudioTheme.AccentBrush
+            : session is null ? StudioTheme.WarningBrush : StudioTheme.SuccessBrush;
         accountButton.ToolTip = session is null
             ? "Cloud ERA бүртгэлээр нэвтрэх"
             : "Бүртгэлийн сонголт";

@@ -441,7 +441,8 @@ internal sealed class BotMemberInvitationDialog : Window
     private readonly StudioCloudOrganization organization;
     private readonly string botId;
     private readonly TextBox emailBox = new();
-    private readonly TextBox projectBox = new();
+    private readonly ComboBox projectBox = new();
+    private List<StudioCloudProjectSummary> projects = [];
     private readonly TextBox rolesBox = new() { Text = "Member" };
     private readonly TextBlock resultText = new()
     {
@@ -475,12 +476,12 @@ internal sealed class BotMemberInvitationDialog : Window
         Button cancel = StudioWidgets.CreateButton("Болих");
         cancel.IsCancel = true;
         emailBox.TextChanged += (_, _) => UpdateEnabled();
-        projectBox.TextChanged += (_, _) => UpdateEnabled();
+        projectBox.SelectionChanged += (_, _) => UpdateEnabled();
 
         var panel = new StackPanel { Margin = new Thickness(18) };
         panel.Children.Add(StudioWidgets.CreateTitle($"«{botDisplayName}» суудалд урих"));
         panel.Children.Add(StudioWidgets.CreateFormRow("Мэйл", emailBox));
-        panel.Children.Add(StudioWidgets.CreateFormRow("Төслийн дугаар", projectBox));
+        panel.Children.Add(StudioWidgets.CreateFormRow("Төсөл", projectBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Үүрэг", rolesBox));
         panel.Children.Add(StudioWidgets.CreateHint(
             "Урилгыг тэр хүн өөрийн төхөөрөмж дээрээ зөвшөөрнө. Өмнөөс нь зөвшөөрөх зам байхгүй."));
@@ -495,12 +496,41 @@ internal sealed class BotMemberInvitationDialog : Window
         buttons.Children.Add(sendButton);
         panel.Children.Add(buttons);
         Content = panel;
+        Loaded += async (_, _) => await LoadProjectsAsync();
     }
 
     private void UpdateEnabled() =>
         sendButton.IsEnabled =
             !string.IsNullOrWhiteSpace(emailBox.Text) &&
-            !string.IsNullOrWhiteSpace(projectBox.Text);
+            projectBox.SelectedIndex >= 0;
+
+    /// <summary>
+    /// Projects are chosen from the list rather than typed. A project id is
+    /// not something anyone knows by heart, and a mistyped one is refused by
+    /// the server with nothing to correct.
+    /// </summary>
+    private async Task LoadProjectsAsync()
+    {
+        try
+        {
+            projects = [.. await account.ListProjectsAsync()];
+            foreach (StudioCloudProjectSummary project in projects)
+            {
+                projectBox.Items.Add(string.IsNullOrWhiteSpace(project.ProjectCode)
+                    ? project.Name
+                    : project.ProjectCode + " · " + project.Name);
+            }
+            if (projectBox.Items.Count > 0)
+                projectBox.SelectedIndex = 0;
+            else
+                resultText.Text = "Урих төсөл олдсонгүй.";
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Төслийн жагсаалт уншигдсангүй.");
+        }
+        UpdateEnabled();
+    }
 
     private async Task SendAsync()
     {
@@ -513,7 +543,7 @@ internal sealed class BotMemberInvitationDialog : Window
             StudioCloudBotInvitation invitation = await account.InviteBotMemberAsync(
                 organization.OrganizationId,
                 botId,
-                projectBox.Text.Trim(),
+                projects[projectBox.SelectedIndex].ProjectId,
                 roles.Length == 0 ? ["Member"] : roles,
                 emailBox.Text.Trim());
             ResultMessage =
