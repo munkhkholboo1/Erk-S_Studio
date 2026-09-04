@@ -159,11 +159,11 @@ internal sealed class BotSeatCreateDialog : Window
         catch (Exception exception)
         {
             resultText.Foreground = StudioTheme.DangerBrush;
-            resultText.Text = exception is StudioAccountException
-                ? exception.Message
-                : "Бот болгож чадсангүй. Энэ машины нэвтрэлтийг устгаж чадаагүй тул " +
-                  "шилжилтийг зогсоов — хагас шилжсэн төхөөрөмж үлдээхгүйн тулд. " +
-                  "Studio-г дахин нээгээд оролдоно уу. (" + exception.Message + ")";
+            resultText.Text = BotSeatErrors.Describe(
+                exception,
+                "Бот болгож чадсангүй. Энэ машины нэвтрэлтийг устгаж чадаагүй тул " +
+                "шилжилтийг зогсоов — хагас шилжсэн төхөөрөмж үлдээхгүйн тулд. " +
+                "Studio-г дахин нээгээд оролдоно уу.");
             UpdateEnabled();
         }
     }
@@ -274,7 +274,7 @@ internal sealed class BotSeatManagementDialog : Window
         }
         catch (Exception exception)
         {
-            summaryText.Text = "Суудлын жагсаалт уншигдсангүй: " + exception.Message;
+            summaryText.Text = BotSeatErrors.Describe(exception, "Суудлын жагсаалт уншигдсангүй.");
         }
     }
 
@@ -300,7 +300,7 @@ internal sealed class BotSeatManagementDialog : Window
         }
         catch (Exception exception)
         {
-            resultText.Text = "ПИН харагдсангүй: " + exception.Message;
+            resultText.Text = BotSeatErrors.Describe(exception, "ПИН харагдсангүй.");
         }
     }
 
@@ -328,7 +328,7 @@ internal sealed class BotSeatManagementDialog : Window
         }
         catch (Exception exception)
         {
-            resultText.Text = "ПИН солигдсонгүй: " + exception.Message;
+            resultText.Text = BotSeatErrors.Describe(exception, "ПИН солигдсонгүй.");
         }
     }
 
@@ -343,7 +343,7 @@ internal sealed class BotSeatManagementDialog : Window
         }
         catch (Exception exception)
         {
-            resultText.Text = "Тайлагдсангүй: " + exception.Message;
+            resultText.Text = BotSeatErrors.Describe(exception, "Түгжээ тайлагдсангүй.");
         }
     }
 
@@ -384,7 +384,7 @@ internal sealed class BotSeatManagementDialog : Window
         }
         catch (Exception exception)
         {
-            resultText.Text = "Чөлөөлж чадсангүй: " + exception.Message;
+            resultText.Text = BotSeatErrors.Describe(exception, "Суудал чөлөөлөгдсөнгүй.");
         }
     }
 }
@@ -540,5 +540,30 @@ internal sealed class BotMemberInvitationDialog : Window
             resultText.Text = exception.Message;
             UpdateEnabled();
         }
+    }
+}
+
+/// <summary>
+/// Turns a failed bot call into something the person can act on.
+///
+/// 404 is the one worth naming: every bot route is new, so a server that has
+/// not been updated answers Not Found for all of them - and "404" on its own
+/// reads as a bug in Studio rather than as a server that does not have the
+/// feature yet.
+/// </summary>
+internal static class BotSeatErrors
+{
+    public static string Describe(Exception exception, string fallback)
+    {
+        if (exception is StudioAccountException { StatusCode: System.Net.HttpStatusCode.NotFound })
+        {
+            return "Сервер ботын боломжийг хараахан дэмжихгүй байна (404). " +
+                "Энэ нь Studio-гийн алдаа биш — серверийн шинэчлэл шаардлагатай.";
+        }
+        if (exception is StudioAccountException known)
+        {
+            return known.Message;
+        }
+        return fallback + " (" + exception.Message + ")";
     }
 }
