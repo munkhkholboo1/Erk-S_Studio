@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 
 namespace ErkS.Studio;
@@ -145,7 +145,12 @@ internal sealed class BotSeatCreateDialog : Window
                 DisplayName = string.IsNullOrWhiteSpace(seat.DisplayName)
                     ? nameBox.Text.Trim()
                     : seat.DisplayName,
-                SeatIdentity = StudioBotDeviceState.ResolveSeatIdentity(seat.BotId, seat.InternalEmail),
+                // Sealed, not stored in the clear: until the PIN is entered
+                // the machine does not act as the seat at all.
+                SealedSeat = Convert.ToBase64String(StudioBotPinVault.Seal(
+                    seat.BotId,
+                    pinBox.Text.Trim(),
+                    StudioBotDeviceState.ResolveSeatIdentity(seat.BotId, seat.InternalEmail)).Blob),
                 EnteredAtUtc = DateTimeOffset.UtcNow,
                 EnteredByEmail = account.Current?.Email ?? "",
             };

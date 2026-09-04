@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 
 namespace ErkS.Studio;
@@ -15,11 +15,82 @@ internal sealed partial class ShellView
     /// would collapse back into one and the seat would stop receiving the
     /// moment an employee looked at their own projects.
     /// </summary>
-    private void ApplyDeviceSeat()
+    /// <summary>
+    /// The seat identity, once the PIN has opened it in this run. Null on a
+    /// machine that holds no seat, and on a seated one that is still locked -
+    /// which is the point of sealing it: a locked machine does not act as the
+    /// seat at all.
+    /// </summary>
+    private string? unlockedSeatIdentity;
+
+    /// <summary>Holds the shell, and the bot lock on top of it while seated.</summary>
+    private Grid? botLockHost;
+    private BotLockScreen? botLockScreen;
+
+    /// <summary>
+    /// Covers the shell with the bot tile when this machine holds a seat. The
+    /// shell underneath is built and live either way - what the lock withholds
+    /// is the SEAT: until the PIN opens it, ConfigureDeviceSeat gets nothing
+    /// and the machine does not own or receive as the bot.
+    /// </summary>
+    private void InstallBotLockIfSeated()
     {
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
-        state.ConfigureDeviceSeat(seat?.SeatIdentity);
+        if (seat is null || botLockHost is null)
+            return;
+
+        botLockScreen = new BotLockScreen(seat);
+        botLockScreen.Unlocked += identity =>
+        {
+            unlockedSeatIdentity = identity;
+            ApplyDeviceSeat();
+            RemoveBotLock();
+            SetStatus($"«{seat.DisplayName}» ботын суудлаар нээгдлээ.");
+        };
+        botLockScreen.OwnerSignInRequested += async () =>
+        {
+            // Not a PIN: entering bot state erased the owner credential, so the
+            // way back is the full sign-in and nothing else.
+            if (await EnsureSignedInAsync())
+            {
+                RemoveBotLock();
+                SetStatus("Эзэмшигчээр нэвтэрлээ. Энэ төхөөрөмж ботын суудал хэвээр.");
+            }
+        };
+        botLockScreen.LockedOut += async () => await ReportBotLockoutAsync();
+        botLockHost.Children.Add(botLockScreen);
     }
+
+    private void RemoveBotLock()
+    {
+        if (botLockScreen is null || botLockHost is null)
+            return;
+        botLockHost.Children.Remove(botLockScreen);
+        botLockScreen = null;
+    }
+
+    /// <summary>
+    /// Tells the server this device locked itself, so the owner can clear it
+    /// remotely. Needs a session; on a seated machine there is none until the
+    /// bot token exists, so a failure here is reported and not hidden - the
+    /// lock itself already holds locally.
+    /// </summary>
+    private async Task ReportBotLockoutAsync()
+    {
+        try
+        {
+            await account.ReportDeviceLockoutAsync();
+            SetStatus("Түгжигдсэнийг серверт мэдэгдэв. Эзэмшигч алсаас тайлна.");
+        }
+        catch (Exception exception)
+        {
+            SetStatus(
+                "Энэ төхөөрөмж түгжигдлээ. Серверт мэдэгдэж чадсангүй (" +
+                exception.Message + ") — эзэмшигчид өөрөө хэлнэ үү.");
+        }
+    }
+
+    private void ApplyDeviceSeat() => state.ConfigureDeviceSeat(unlockedSeatIdentity);
 
     private static bool IsSeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 

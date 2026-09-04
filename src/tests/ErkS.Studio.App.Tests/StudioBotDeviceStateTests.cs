@@ -1,4 +1,4 @@
-using ErkS.Studio;
+﻿using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
 
@@ -38,6 +38,27 @@ public sealed class StudioBotDeviceStateTests : IDisposable
     }
 
     [Fact]
+    public void ALockedSeatYieldsNoIdentityUntilTheRightPinOpensIt()
+    {
+        // The point of sealing: a seated machine that has not been unlocked
+        // does not act as the seat at all, so a copied state file is not a
+        // working seat.
+        var seat = new StudioBotDeviceState
+        {
+            BotId = "bot_7f3a91c4e85b4d2f",
+            OrganizationId = "org_2a91f4c7",
+            DisplayName = "Зураг-1",
+            SealedSeat = Convert.ToBase64String(StudioBotPinVault.Seal(
+                "bot_7f3a91c4e85b4d2f",
+                "1234",
+                "zurag@erk-s.local").Blob),
+        };
+
+        Assert.Null(seat.TryUnlock("1235"));
+        Assert.Equal("zurag@erk-s.local", seat.TryUnlock("1234"));
+    }
+
+    [Fact]
     public void TheSeatSurvivesAWriteAndReadBack()
     {
         var seat = new StudioBotDeviceState
@@ -45,7 +66,7 @@ public sealed class StudioBotDeviceStateTests : IDisposable
             BotId = "bot_7f3a91c4e85b4d2f",
             OrganizationId = "org_2a91f4c7",
             DisplayName = "Зураг-1",
-            SeatIdentity = "zurag@erk-s.local",
+            SealedSeat = Convert.ToBase64String(StudioBotPinVault.Seal("bot_7f3a91c4e85b4d2f", "1234", "zurag@erk-s.local").Blob),
             EnteredAtUtc = DateTimeOffset.UnixEpoch,
             EnteredByEmail = "owner@erk-s.local",
         };
@@ -56,7 +77,7 @@ public sealed class StudioBotDeviceStateTests : IDisposable
         Assert.NotNull(read);
         Assert.Equal("bot_7f3a91c4e85b4d2f", read!.BotId);
         Assert.Equal("org_2a91f4c7", read.OrganizationId);
-        Assert.Equal("zurag@erk-s.local", read.SeatIdentity);
+        Assert.Equal("zurag@erk-s.local", read.TryUnlock("1234"));
         Assert.True(read.IsSeated);
 
         StudioBotDeviceStateStore.Clear();

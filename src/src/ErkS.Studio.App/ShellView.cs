@@ -336,13 +336,19 @@ internal sealed partial class ShellView : IDisposable
                 await RefreshProjectChatAsync(silent: true);
         };
 
+        // A seated machine opens into its bot tile rather than the shell. The
+        // shell is built either way and sits behind the lock, so unlocking is
+        // a matter of removing the cover instead of building the app twice.
+        botLockHost = new Grid();
+        botLockHost.Children.Add(BuildShell());
         var rootBorder = new Border
         {
             Background = StudioTheme.WindowBackgroundBrush,
-            Child = BuildShell(),
+            Child = botLockHost,
         };
         StudioTheme.ApplyToRoot(rootBorder);
         Root = rootBorder;
+        InstallBotLockIfSeated();
 
         state.Library.Changed += () => dispatcher.BeginInvoke(new Action(OnLibraryChanged));
         state.Intake.PackageProcessed += result => dispatcher.BeginInvoke(new Action(() => OnPackageProcessed(result)));

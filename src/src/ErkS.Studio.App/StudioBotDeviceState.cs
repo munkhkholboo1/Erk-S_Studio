@@ -11,6 +11,12 @@ namespace ErkS.Studio;
 /// together is what made every ownership check follow the signed-in person,
 /// and a machine holding an organisation's seat must keep receiving for that
 /// seat while an employee signs in with their own account.
+///
+/// The seat's identity - the address this machine owns and receives as - is
+/// SEALED under the PIN rather than stored in the clear. That is what makes
+/// the PIN mean something today: until it is entered, the machine does not act
+/// as the seat at all. When the server issues a bot-scoped token, it goes into
+/// the same sealed blob.
 /// </summary>
 internal sealed class StudioBotDeviceState
 {
@@ -18,22 +24,53 @@ internal sealed class StudioBotDeviceState
     public string OrganizationId { get; set; } = "";
     public string DisplayName { get; set; } = "";
 
-    /// <summary>
-    /// The address this machine owns and receives as. The seat's internal
-    /// e-mail when it has one; otherwise the bot id, which is unique and works
-    /// the same way - the comparison is a string match, not a mailbox.
-    /// </summary>
-    public string SeatIdentity { get; set; } = "";
+    /// <summary>The seat identity, sealed under the PIN. Base64 of the vault blob.</summary>
+    public string SealedSeat { get; set; } = "";
 
     public DateTimeOffset EnteredAtUtc { get; set; }
     public string EnteredByEmail { get; set; } = "";
 
+    /// <summary>
+    /// Wrong PIN attempts since the last success. Counted here because the
+    /// server never sees a PIN attempt - it is told only that this device
+    /// locked itself, and the owner clears it remotely.
+    /// </summary>
+    public int FailedPinAttempts { get; set; }
+
+    public DateTimeOffset? LockedAtUtc { get; set; }
+
     public bool IsSeated => !string.IsNullOrWhiteSpace(BotId);
+
+    public bool IsLocked => LockedAtUtc is not null;
+
+    public const int MaximumPinAttempts = 5;
 
     public static string ResolveSeatIdentity(string botId, string internalEmail) =>
         string.IsNullOrWhiteSpace(internalEmail)
             ? (botId ?? "").Trim().ToLowerInvariant()
             : internalEmail.Trim().ToLowerInvariant();
+
+    /// <summary>
+    /// Returns the seat identity when the PIN is right, otherwise null. The
+    /// caller records the failure; this method does not mutate, so a read is
+    /// never mistaken for an attempt.
+    /// </summary>
+    public string? TryUnlock(string pin)
+    {
+        if (!IsSeated || string.IsNullOrWhiteSpace(SealedSeat))
+            return null;
+        try
+        {
+            return StudioBotPinVault.TryOpen(
+                BotId,
+                pin,
+                new StudioBotPinVault.SealedBotCredential(Convert.FromBase64String(SealedSeat)));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
 }
 
 internal static class StudioBotDeviceStateStore
