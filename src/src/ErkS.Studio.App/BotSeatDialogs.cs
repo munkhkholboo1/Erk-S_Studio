@@ -100,7 +100,7 @@ internal sealed class BotSeatCreateDialog : Window
         UpdateEnabled();
     }
 
-    private static string OrganizationLabel(StudioCloudOrganization organization) =>
+    internal static string OrganizationLabel(StudioCloudOrganization organization) =>
         string.IsNullOrWhiteSpace(organization.DisplayName)
             ? string.IsNullOrWhiteSpace(organization.LegalName)
                 ? organization.OrganizationId
@@ -123,9 +123,31 @@ internal sealed class BotSeatCreateDialog : Window
         StudioCloudOrganization organization = organizations[organizationBox.SelectedIndex];
         try
         {
-            StudioCloudBotSeat seat = await account.CreateBotSeatAsync(
+            // A seat is created before the PIN is set and before the device is
+            // seated, so a failure in either later step used to leave one
+            // behind - and there is no way to delete a seat, so every retry
+            // added another. Reuse a seat of the same name instead: it is the
+            // one this owner made a moment ago for this very purpose.
+            string wantedName = nameBox.Text.Trim();
+            StudioCloudBotSeat? seat = null;
+            try
+            {
+                StudioCloudBotSeatListResponse existing =
+                    await account.ListBotSeatsAsync(organization.OrganizationId);
+                seat = existing.Items.FirstOrDefault(item =>
+                    item.DisplayName.Trim().Equals(wantedName, StringComparison.OrdinalIgnoreCase));
+                if (seat is not null)
+                    resultText.Text = "Ижил нэртэй суудал байсныг ашиглаж байна…";
+            }
+            catch (Exception)
+            {
+                // Could not look: fall through and create. A duplicate is
+                // recoverable; refusing to seat the machine is not.
+            }
+
+            seat ??= await account.CreateBotSeatAsync(
                 organization.OrganizationId,
-                nameBox.Text.Trim(),
+                wantedName,
                 emailBox.Text.Trim());
 
             resultText.Text = "ПИН тавьж байна…";
@@ -176,7 +198,7 @@ internal sealed class BotSeatCreateDialog : Window
 internal sealed class BotSeatManagementDialog : Window
 {
     private readonly StudioAccountService account;
-    private readonly StudioCloudOrganization organization;
+    private StudioCloudOrganization organization;
     private readonly ListView seatList = new();
     private readonly TextBlock summaryText = new()
     {
@@ -190,10 +212,16 @@ internal sealed class BotSeatManagementDialog : Window
         Margin = new Thickness(0, 8, 0, 0),
     };
 
-    public BotSeatManagementDialog(StudioAccountService account, StudioCloudOrganization organization)
+    private readonly ComboBox organizationBox = new();
+    private readonly IReadOnlyList<StudioCloudOrganization> organizations;
+
+    public BotSeatManagementDialog(
+        StudioAccountService account,
+        IReadOnlyList<StudioCloudOrganization> organizations)
     {
         this.account = account;
-        this.organization = organization;
+        this.organizations = organizations;
+        this.organization = organizations[0];
         Title = "Ботын удирдлага";
         Width = 720;
         Height = 560;
@@ -234,8 +262,27 @@ internal sealed class BotSeatManagementDialog : Window
         }
 
         var panel = new DockPanel { Margin = new Thickness(18) };
+        // The organisation is CHOSEN here, not assumed. Listing the first one
+        // silently was the bug: seats created under the organisation the owner
+        // picked did not appear under the one this dialog happened to read.
+        foreach (StudioCloudOrganization item in organizations)
+        {
+            organizationBox.Items.Add(BotSeatCreateDialog.OrganizationLabel(item));
+        }
+        organizationBox.SelectedIndex = 0;
+        organizationBox.SelectionChanged += async (_, _) =>
+        {
+            if (organizationBox.SelectedIndex >= 0)
+            {
+                organization = organizations[organizationBox.SelectedIndex];
+                await RefreshAsync();
+            }
+        };
+
         var header = new StackPanel();
         header.Children.Add(StudioWidgets.CreateTitle("Ботын удирдлага"));
+        if (organizations.Count > 1)
+            header.Children.Add(StudioWidgets.CreateFormRow("Байгууллага", organizationBox));
         header.Children.Add(summaryText);
         DockPanel.SetDock(header, Dock.Top);
         panel.Children.Add(header);
@@ -268,8 +315,15 @@ internal sealed class BotSeatManagementDialog : Window
                     seat.Status,
                     seat.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd")))
                 .ToList();
+            // An empty grid is not an answer. Say which organisation was read
+            // and that it has no seats, so "nothing here" cannot be mistaken
+            // for "nothing loaded".
             summaryText.Text =
-                $"Эзэлсэн суудал: {response.OccupiedSeats} / {response.DeviceRights}" +
+                BotSeatCreateDialog.OrganizationLabel(organization) + "  ·  " +
+                (response.Items.Count == 0
+                    ? "энэ байгууллагад ботын суудал алга"
+                    : $"{response.Items.Count} суудал") +
+                $"  ·  эзэлсэн: {response.OccupiedSeats} / {response.DeviceRights}" +
                 (response.LicenceActive ? "" : "  ·  ⚠ лиценз идэвхгүй");
         }
         catch (Exception exception)

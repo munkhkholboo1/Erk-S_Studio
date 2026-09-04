@@ -127,6 +127,26 @@ internal sealed partial class ShellView
         }
     }
 
+    private async Task<IReadOnlyList<StudioCloudOrganization>?> LoadOrganizationsAsync()
+    {
+        if (!await EnsureSignedInAsync())
+            return null;
+        try
+        {
+            IReadOnlyList<StudioCloudOrganization> organizations =
+                await account.ListOrganizationsAsync();
+            if (organizations.Count != 0)
+                return organizations;
+            SetStatus("Ботын суудал үүсгэхэд байгууллага шаардлагатай.");
+            return null;
+        }
+        catch (Exception exception)
+        {
+            SetStatus("Байгууллагын жагсаалт уншигдсангүй: " + exception.Message);
+            return null;
+        }
+    }
+
     private async Task<StudioCloudOrganization?> PickOrganizationAsync()
     {
         if (!await EnsureSignedInAsync())
@@ -151,10 +171,10 @@ internal sealed partial class ShellView
 
     private async Task ShowBotManagementAsync()
     {
-        StudioCloudOrganization? organization = await PickOrganizationAsync();
-        if (organization is null)
+        IReadOnlyList<StudioCloudOrganization>? organizations = await LoadOrganizationsAsync();
+        if (organizations is null)
             return;
-        var dialog = new BotSeatManagementDialog(account, organization)
+        var dialog = new BotSeatManagementDialog(account, organizations)
         {
             Owner = Window.GetWindow(Root),
         };
