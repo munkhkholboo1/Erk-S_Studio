@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": [
     "PROPOSAL, not implemented. P2P Stage 1 transport: how a snapshot blob gets from one",
     "member's device to another's. Three routes, ONE mechanism - the blob and its checks",
@@ -17,7 +17,7 @@
   "session": {
     "_comment": "Common to all three routes. The transport establishes WHO; the container decides WHAT.",
     "protocol": "TLS 1.3, mutual, self-signed certificates",
-    "certificate": "Each bot presents a certificate whose public key is its Ed25519 signing key (or one it signs). The peer computes the bot code from the presented key and compares it to the code it MEANT to talk to.",
+    "certificate": "Each bot presents a certificate whose public key is its ECDSA P-256 signing key (or one it signs). The peer computes the bot code from the presented key and compares it to the code it MEANT to talk to.",
     "_codeVerified": [
       "So a wrong address costs nothing: connect to the wrong machine and the code does not",
       "match, the session is dropped, nothing was sent. An addressing error cannot become a",

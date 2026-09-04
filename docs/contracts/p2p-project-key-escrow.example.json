@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": [
     "PROPOSAL, not implemented. P2P Stage 1, first slice. The project key: who holds it,",
     "how a member gets it, how the owner rotates it, what happens when a member leaves.",
@@ -25,10 +25,26 @@
       "boundary the SSO identity record uses (one Windows user = one device)."
     ],
     "botCode": "bot_7f3a91c4e85b4d2f",
-    "_botCode": "= base32(sha256(botPublicKey))[0..16]. Server-registered too (SRV bot identity), but verifiable without the server.",
-    "botPublicKey": "<Ed25519 public key, 32 bytes, base64>",
-    "botKeyAgreementKey": "<X25519 public key, 32 bytes, base64>",
-    "_twoKeys": "Ed25519 signs (snapshots, invitations). X25519 wraps (the project key). Never the same key for both.",
+    "_botCode": [
+      "= base32(sha256(signing public key))[0..16]. Server-registered too (SRV bot identity),",
+      "but verifiable without the server.",
+      "",
+      "OPEN with SRV: today the server ISSUES botId and the device does not choose it. The",
+      "self-certifying form is the one that works on a LAN with nobody to ask, so the two have",
+      "to be reconciled before either side depends on the other. Not resolved unilaterally."
+    ],
+    "botPublicKey": "<ECDSA P-256 SubjectPublicKeyInfo, base64>",
+    "botKeyAgreementKey": "<ECDH P-256 SubjectPublicKeyInfo, base64>",
+    "_twoKeys": [
+      "One signs (snapshots, invitations), one agrees (wrapping the project key). Never the",
+      "same key for both.",
+      "",
+      "CORRECTED 2026-09-04, measured rather than assumed: this file first named Ed25519 and",
+      "X25519, and .NET 9's BCL has neither. It has ECDSA and ECDH over the NIST curves,",
+      "AES-GCM and HKDF. Keeping the original names would have meant adding a crypto",
+      "dependency to the client for no property the design needs - it needs 'sign' and 'agree",
+      "on a shared secret', and P-256 gives both. Implemented in StudioDeviceKeyPair."
+    ],
     "projectCode": "prj_4d81e2a7c3f0",
     "_projectCode": [
       "The project's stable name across every device and network. Derived from the founder's",
@@ -56,7 +72,7 @@
 
   "escrowRing": {
     "_comment": [
-      "WHERE THE KEY LIVES: wrapped once per member, to that member's X25519 key. The ring",
+      "WHERE THE KEY LIVES: wrapped once per member, to that member's ECDH key. The ring",
       "is the project's membership list with a wrapped key beside each entry.",
       "",
       "The ring is stored in the LIVE LAYER on the server (membership is server-owned, and",
@@ -74,19 +90,19 @@
       {
         "botCode": "bot_7f3a91c4e85b4d2f",
         "role": "Owner",
-        "wrappedKey": "<AES key sealed to this bot's X25519 key, HPKE, base64>",
+        "wrappedKey": "<AES key sealed to this bot's ECDH P-256 key: ECDH -> HKDF -> AES-GCM, base64>",
         "wrappedAtUtc": "2026-09-04T09:00:00Z",
         "wrappedBy": "bot_7f3a91c4e85b4d2f"
       },
       {
         "botCode": "bot_c21e0a9b7d4f6e31",
         "role": "Member",
-        "wrappedKey": "<sealed to bot_c21e...'s X25519 key>",
+        "wrappedKey": "<sealed to bot_c21e...'s ECDH P-256 key>",
         "wrappedAtUtc": "2026-09-04T09:05:00Z",
         "wrappedBy": "bot_7f3a91c4e85b4d2f"
       }
     ],
-    "ringSignature": "<Ed25519 over (projectCode, keyVersion, ringSequence, members[]) by the owner>",
+    "ringSignature": "<ECDSA P-256 over (projectCode, keyVersion, ringSequence, members[]) by the owner>",
     "_ringSignature": [
       "The owner signs the ring. A member accepts a ring only if it is signed by the owner",
       "key it already trusts for this project (learned from the invitation). So the server",
@@ -104,12 +120,12 @@
     ],
     "projectCode": "prj_4d81e2a7c3f0",
     "inviteeBotCode": "bot_c21e0a9b7d4f6e31",
-    "inviteeKeyAgreementKey": "<X25519 public, base64>",
+    "inviteeKeyAgreementKey": "<ECDH P-256 SubjectPublicKeyInfo, base64>",
     "role": "Member",
     "issuedBy": "bot_7f3a91c4e85b4d2f",
     "issuedAtUtc": "2026-09-04T09:04:00Z",
     "expiresAtUtc": "2026-09-11T09:04:00Z",
-    "signature": "<Ed25519 by the owner over all fields above>",
+    "signature": "<ECDSA P-256 by the owner over all fields above>",
     "_deliveredAs": "A QR code or a short code typed in. Contains the fields, not the project key - the key arrives only as a wrapped entry in the ring, sealed to the invitee's own key.",
     "_acceptance": "Two-sided, same rule as RFC-003 §3: the owner invites, the person accepts on their own device. Nobody accepts on someone's behalf."
   },
@@ -153,7 +169,7 @@
       "it). Recovery = new device + code. No code, no recovery - the product says so at",
       "creation, once, in one sentence."
     ],
-    "recoverySealedOwnerKey": "<owner Ed25519 private key sealed to a key derived from the recovery code, base64>",
+    "recoverySealedOwnerKey": "<owner ECDSA P-256 private key sealed to a key derived from the recovery code, base64>",
     "recoveryCodeShownOnce": "7K4M-92XR-1TBD-Q5WN",
     "_noStrengthMeter": "Generated, not chosen. No complexity rules - the PIN rule, applied again."
   },

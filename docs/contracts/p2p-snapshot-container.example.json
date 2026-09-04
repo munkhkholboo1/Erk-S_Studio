@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": [
     "PROPOSAL, not implemented. P2P Stage 1. The snapshot: what one member's press of the",
     "sync button produces, and what every other device stores.",
@@ -30,7 +30,7 @@
       "ring.json            escrow ring as of this snapshot, CLEAR, owner-signed (fallback copy)",
       "payload.bin          AES-256-GCM under the project key of `keyVersion`",
       "payload.bin.nonce",
-      "signature.bin        Ed25519 by the writer over sha256(snapshot.json) || sha256(payload.bin)"
+      "signature.bin        ECDSA P-256 by the writer over sha256(snapshot.json) || sha256(payload.bin)"
     ],
     "_clearManifest": [
       "The manifest is not encrypted, deliberately: a device must be able to answer 'do I",
@@ -48,7 +48,7 @@
 
     "projectCode": "prj_4d81e2a7c3f0",
     "writerBotCode": "bot_c21e0a9b7d4f6e31",
-    "writerPublicKey": "<Ed25519, base64 - so a receiver can verify before it has the ring>",
+    "writerPublicKey": "<ECDSA P-256 SubjectPublicKeyInfo, base64 - so a receiver can verify before it has the ring>",
     "snapshotNumber": 17,
     "_snapshotNumber": [
       "Per WRITER, monotonic, never reused. (writerBotCode, snapshotNumber) is the snapshot's",
