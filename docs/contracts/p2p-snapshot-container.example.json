@@ -47,8 +47,20 @@
     "_formatVersion": "Readers accept N and N-1. Not advice - the fingerprint migration (0.001.53-55) is why.",
 
     "projectCode": "prj_4d81e2a7c3f0",
-    "writerBotCode": "bot_c21e0a9b7d4f6e31",
+    "writerBotId": "bot_c21e0a9b7d4f6e31",
+    "_writerBotId": [
+      "THE SEAT that wrote this, not the machine. Single-writer is a property of the seat:",
+      "the seat owns the source, so only it may write that source's output. A person who",
+      "changes laptops keeps writing as the same seat and their earlier snapshots stay",
+      "theirs - which is exactly what merging seat and machine would have destroyed."
+    ],
+    "writerDeviceKeyId": "P3XV8ZC1HFB6MRT4",
     "writerPublicKey": "<ECDSA P-256 SubjectPublicKeyInfo, base64 - so a receiver can verify before it has the ring>",
+    "_signedByTheMachine": [
+      "The signature is made by the DEVICE key, and the ring says which device key currently",
+      "belongs to this seat. So verification is two steps, and both are needed: the signature",
+      "proves the machine, the ring proves the machine is this seat's."
+    ],
     "snapshotNumber": 17,
     "_snapshotNumber": [
       "Per WRITER, monotonic, never reused. (writerBotCode, snapshotNumber) is the snapshot's",
@@ -69,7 +81,7 @@
         "sourceId": "src_7c1a90",
         "_sourceId": "The design source this output derives from. The writer must be that source's owner bot - checked against the ring on receipt.",
         "version": 9,
-        "_version": "Per unit, per writer, monotonic. Replace-by-owner-version: a receiver keeps the highest version it has seen for (writerBotCode, unitKey).",
+        "_version": "Per unit, per writer, monotonic. Replace-by-owner-version: a receiver keeps the highest version it has seen for (writerBotId, unitKey).",
         "contentSha256": "9f2c…c41a",
         "bytes": 4183220,
         "manifestId": "manifest-7c1a90-9",
@@ -102,7 +114,7 @@
     ],
 
     "acknowledgements": [
-      { "botCode": "bot_7f3a91c4e85b4d2f", "receivedAtUtc": "2026-09-04T11:21:04Z", "via": "lan" }
+      { "deviceKeyId": "K7QM4XR2TBD9WNJ5", "receivedAtUtc": "2026-09-04T11:21:04Z", "via": "lan" }
     ],
     "_acknowledgements": [
       "Appended by receivers as they forward (gossip). The writer sees 'reached M of N'.",
@@ -116,10 +128,10 @@
     "_comment": "What a device does with a snapshot, in order. Every refusal is named; nothing is dropped silently.",
     "steps": [
       "1. verify signature.bin with writerPublicKey; refuse `snapshot_bad_signature`",
-      "2. sha256(writerPublicKey) must equal writerBotCode; refuse `snapshot_writer_code_mismatch`",
+      "2. base32(sha256(writerPublicKey)) must equal writerDeviceKeyId; refuse `snapshot_writer_key_mismatch`",
       "3. projectCode must be a project this device is a member of (ring present); else `snapshot_not_a_member` - keep the file in a holding folder, do NOT delete: the ring may arrive later",
-      "4. writerBotCode must be in the ring; else `snapshot_writer_not_in_ring`",
-      "5. for every unit: the ring must show writerBotCode as the owner of unit.sourceId; else `snapshot_writer_not_source_owner` - the single-writer rule, enforced at the door",
+      "4. writerBotId must be in the ring, AND the ring must name writerDeviceKeyId as that seat's current device; else `snapshot_writer_not_in_ring` - this is where a seat that moved machines is recognised, and where an old machine still signing as that seat is refused",
+      "5. for every unit: the ring must show writerBotId as the owner of unit.sourceId; else `snapshot_writer_not_source_owner` - the single-writer rule, enforced at the door",
       "6. keyVersion must be one this device holds; else store, mark `snapshot_key_version_unknown`, retry when the ring updates",
       "7. decrypt; verify each unit's contentSha256; refuse `snapshot_payload_hash_mismatch`",
       "8. for each unit: keep if version > held version for (writer, unitKey); else discard as already-held",
@@ -134,7 +146,7 @@
 
   "merge": {
     "_comment": [
-      "There is no merge. State on a device = for every (writerBotCode, unitKey), the highest",
+      "There is no merge. State on a device = for every (writerBotId, unitKey), the highest",
       "version received. Two writers never own one unit, so two versions of one unit from",
       "different writers cannot exist. This is what the ledger's 'нэгтгэл = бүрдүүлэлт' means:",
       "the project is COMPOSED from single-owner units, not merged.",

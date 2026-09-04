@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
@@ -6,27 +6,27 @@ namespace ErkS.Studio.App.Tests;
 public sealed class StudioDeviceKeyPairTests
 {
     [Fact]
-    public void TheCodeIsDerivedFromThePublicKeyAndNothingElse()
+    public void TheKeyIdIsDerivedFromThePublicKeyAndNothingElse()
     {
         // Self-certifying is the whole point: a peer checks that whoever it is
-        // talking to owns the code, without asking a server. So the code must
-        // come from the key and be reproducible from the public half alone.
+        // talking to owns the id, without asking a server. So it must come from
+        // the key and be reproducible from the public half alone.
         StudioDeviceKeyPair device = StudioDeviceKeyPair.Create();
 
-        Assert.Equal(16, device.DeviceCode.Length);
-        Assert.Equal(device.DeviceCode, StudioDeviceKeyPair.DeriveCode(device.SigningPublicKey));
+        Assert.Equal(16, device.DeviceKeyId.Length);
+        Assert.Equal(device.DeviceKeyId, StudioDeviceKeyPair.DeriveKeyId(device.SigningPublicKey));
     }
 
     [Fact]
-    public void TwoDevicesDoNotShareACode()
+    public void TwoDevicesDoNotShareAKeyId()
     {
         Assert.NotEqual(
-            StudioDeviceKeyPair.Create().DeviceCode,
-            StudioDeviceKeyPair.Create().DeviceCode);
+            StudioDeviceKeyPair.Create().DeviceKeyId,
+            StudioDeviceKeyPair.Create().DeviceKeyId);
     }
 
     [Fact]
-    public void OnlyTheHolderOfThePrivateKeyCanSignForACode()
+    public void OnlyTheHolderOfThePrivateKeyCanSignForAKeyId()
     {
         StudioDeviceKeyPair device = StudioDeviceKeyPair.Create();
         StudioDeviceKeyPair impostor = StudioDeviceKeyPair.Create();

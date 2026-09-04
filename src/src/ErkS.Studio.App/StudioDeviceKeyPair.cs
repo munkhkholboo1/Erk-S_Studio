@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 
 namespace ErkS.Studio;
@@ -34,19 +34,25 @@ internal sealed class StudioDeviceKeyPair
     public required byte[] AgreementPrivateKey { get; init; }
 
     /// <summary>
-    /// The device's self-certifying code: whoever can sign with the key IS this
-    /// code. Base32 of the first 10 bytes of SHA-256 over the signing public
-    /// key, which is 16 characters a person can read out loud.
+    /// This device's peer identity: whoever can sign with the key IS this id.
+    /// Base32 of SHA-256 over the signing public key, 16 characters a person
+    /// can read out loud.
     ///
-    /// Self-certifying is the property that matters: a peer can check that the
-    /// party it is talking to owns the code without asking a server, so LAN
-    /// works with nobody's help and a wrong address costs nothing.
+    /// NOT the bot id, and the difference matters. A bot id is a SEAT: the
+    /// server issues it, and the assignments and career history hang off it, so
+    /// it outlives any one machine. A device key id is a MACHINE. Folding them
+    /// together would break a seat's history every time somebody changed
+    /// laptops (decided with SRV and Master, 2026-09-04).
+    ///
+    /// Self-certifying is the property that matters here: a peer can check that
+    /// the party it is talking to owns this id without asking a server, so a
+    /// LAN works with nobody's help and a wrong address costs nothing.
     /// </summary>
-    public string DeviceCode => DeriveCode(SigningPublicKey);
+    public string DeviceKeyId => DeriveKeyId(SigningPublicKey);
 
     private const string Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
-    public static string DeriveCode(byte[] signingPublicKey)
+    public static string DeriveKeyId(byte[] signingPublicKey)
     {
         ArgumentNullException.ThrowIfNull(signingPublicKey);
         byte[] digest = SHA256.HashData(signingPublicKey);

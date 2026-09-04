@@ -19,19 +19,33 @@
 
   "identities": {
     "_comment": [
-      "Addressing is by code, never by IP. A bot's code is the hash of its own public key,",
-      "so it certifies itself: whoever can sign with the key IS that code. One key pair per",
-      "bot, kept in Windows Credential Manager under the seated Windows user - the same",
-      "boundary the SSO identity record uses (one Windows user = one device)."
-    ],
-    "botCode": "bot_7f3a91c4e85b4d2f",
-    "_botCode": [
-      "= base32(sha256(signing public key))[0..16]. Server-registered too (SRV bot identity),",
-      "but verifiable without the server.",
+      "Addressing is by id, never by IP, and there are TWO ids that must not be merged:",
+      "a SEAT (botId, server-issued, outlives the machine) and a MACHINE (deviceKeyId, the",
+      "hash of its own signing key, self-certifying). One key pair per device, kept in",
+      "Windows Credential Manager under that Windows user - the same boundary the SSO",
+      "identity record uses (one Windows user = one device).",
       "",
-      "OPEN with SRV: today the server ISSUES botId and the device does not choose it. The",
-      "self-certifying form is the one that works on a LAN with nobody to ask, so the two have",
-      "to be reconciled before either side depends on the other. Not resolved unilaterally."
+      "A seat moves between machines; the wrapped key below therefore names BOTH, and moving",
+      "a seat to a new laptop means re-wrapping its entry to the new device key."
+    ],
+    "botId": "bot_7f3a91c4e85b4d2f",
+    "_botId": [
+      "THE SEAT. Issued by the server, and it OUTLIVES ANY ONE MACHINE: assignments and the",
+      "career record hang off it, so a person changing laptops keeps their history.",
+      "",
+      "RESOLVED 2026-09-04 with SRV and Master, correcting an earlier instruction that the bot",
+      "code should BE the public-key hash. Folding the two together would have broken a seat's",
+      "history on every device swap - the seat would have been reborn as a stranger."
+    ],
+    "deviceKeyId": "K7QM4XR2TBD9WNJ5",
+    "_deviceKeyId": [
+      "THE MACHINE. base32(sha256(signing public key)), 16 characters. One per device, chosen",
+      "by nobody: whoever can sign with the key IS this id, so a peer verifies it without",
+      "asking a server - which is what makes a LAN work with no help at all.",
+      "",
+      "This is the slot today's deviceFingerprint occupies. The name and shape stay; what",
+      "changes is where the value comes from - a hash of machine facts (copyable, unsignable)",
+      "becomes a key pair (neither). Implemented: StudioDeviceKeyPair."
     ],
     "botPublicKey": "<ECDSA P-256 SubjectPublicKeyInfo, base64>",
     "botKeyAgreementKey": "<ECDH P-256 SubjectPublicKeyInfo, base64>",
@@ -88,14 +102,16 @@
     "owner": "bot_7f3a91c4e85b4d2f",
     "members": [
       {
-        "botCode": "bot_7f3a91c4e85b4d2f",
+        "botId": "bot_7f3a91c4e85b4d2f",
+        "deviceKeyId": "K7QM4XR2TBD9WNJ5",
         "role": "Owner",
         "wrappedKey": "<AES key sealed to this bot's ECDH P-256 key: ECDH -> HKDF -> AES-GCM, base64>",
         "wrappedAtUtc": "2026-09-04T09:00:00Z",
         "wrappedBy": "bot_7f3a91c4e85b4d2f"
       },
       {
-        "botCode": "bot_c21e0a9b7d4f6e31",
+        "botId": "bot_c21e0a9b7d4f6e31",
+        "deviceKeyId": "P3XV8ZC1HFB6MRT4",
         "role": "Member",
         "wrappedKey": "<sealed to bot_c21e...'s ECDH P-256 key>",
         "wrappedAtUtc": "2026-09-04T09:05:00Z",
@@ -119,7 +135,8 @@
       "key never leaves the invitee's machine - only its PUBLIC half travels."
     ],
     "projectCode": "prj_4d81e2a7c3f0",
-    "inviteeBotCode": "bot_c21e0a9b7d4f6e31",
+    "inviteeBotId": "bot_c21e0a9b7d4f6e31",
+    "inviteeDeviceKeyId": "P3XV8ZC1HFB6MRT4",
     "inviteeKeyAgreementKey": "<ECDH P-256 SubjectPublicKeyInfo, base64>",
     "role": "Member",
     "issuedBy": "bot_7f3a91c4e85b4d2f",
@@ -184,8 +201,7 @@
     "",
     "Hole punching / NAT traversal - out of Stage 1 by decision.",
     "",
-    "Whether SRV's botId and this botCode are the same value: they should be (one identity),",
-    "and the self-certifying form is the one that must win, because it works without the",
-    "server. To agree with SRV before code."
+    "RESOLVED: botId and deviceKeyId are NOT one value, and merging them was the mistake -",
+    "see _botId / _deviceKeyId above."
   ]
 }

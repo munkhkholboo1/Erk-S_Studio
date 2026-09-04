@@ -17,7 +17,7 @@
   "session": {
     "_comment": "Common to all three routes. The transport establishes WHO; the container decides WHAT.",
     "protocol": "TLS 1.3, mutual, self-signed certificates",
-    "certificate": "Each bot presents a certificate whose public key is its ECDSA P-256 signing key (or one it signs). The peer computes the bot code from the presented key and compares it to the code it MEANT to talk to.",
+    "certificate": "Each bot presents a certificate whose public key is its ECDSA P-256 signing key (or one it signs). The peer computes the device key id from the presented key and compares it to the one it MEANT to talk to. A connection is between MACHINES; which seat a machine currently holds is the ring's answer, not the transport's.",
     "_codeVerified": [
       "So a wrong address costs nothing: connect to the wrong machine and the code does not",
       "match, the session is dropped, nothing was sent. An addressing error cannot become a",
@@ -25,10 +25,10 @@
       "they are never what grants anything."
     ],
     "handshake": {
-      "hello": { "botCode": "bot_c21e0a9b7d4f6e31", "projectCodes": ["<hmac-sha256(projectCode, botCode)>"], "formatVersion": 1 },
+      "hello": { "deviceKeyId": "P3XV8ZC1HFB6MRT4", "projectCodes": ["<hmac-sha256(projectCode, deviceKeyId)>"], "formatVersion": 1 },
       "_projectCodes": [
         "Project codes are NOT sent in the clear even inside TLS to a peer that has not",
-        "proven membership yet: each is HMAC'd with the peer's own bot code, so a peer can",
+        "proven membership yet: each is HMAC'd with the peer's own device key id, so a peer can",
         "check 'do we share a project' only for projects it is itself in. A stranger learns",
         "nothing about what projects this device holds."
       ],
@@ -43,10 +43,10 @@
       "discovery": {
         "mechanism": "mDNS / DNS-SD",
         "service": "_erks-peer._tcp.local",
-        "instanceName": "bot_c21e0a9b7d4f6e31",
-        "txt": { "v": "1", "code": "bot_c21e0a9b7d4f6e31" },
+        "instanceName": "P3XV8ZC1HFB6MRT4",
+        "txt": { "v": "1", "key": "P3XV8ZC1HFB6MRT4" },
         "_announcesOnly": [
-          "The announcement carries the bot code and nothing else - no project codes, no",
+          "The announcement carries the device key id and nothing else - no project codes, no",
           "names. Knowing a bot exists on the LAN is not knowing what it works on. Membership",
           "is established inside the TLS session (handshake above)."
         ]
@@ -101,7 +101,7 @@
       "route. Survives restarts (it is a file). Visible in the UI as 'X is behind by N'."
     ],
     "pending": [
-      { "toBotCode": "bot_7f3a91c4e85b4d2f", "projectCode": "prj_4d81e2a7c3f0", "fromSnapshot": 16, "toSnapshot": 17 }
+      { "toDeviceKeyId": "K7QM4XR2TBD9WNJ5", "projectCode": "prj_4d81e2a7c3f0", "fromSnapshot": 16, "toSnapshot": 17 }
     ]
   },
 
@@ -116,12 +116,12 @@
       "Without it: LAN works, a core with the user's own DNS works, carriers work. With it:",
       "a core whose address changed is found again without typing. That is the whole gain."
     ],
-    "lookup": { "botCode": "bot_7f3a91c4e85b4d2f", "address": "203.0.113.7:47210", "lastSeenAtUtc": "2026-09-04T11:19:50Z" },
+    "lookup": { "deviceKeyId": "K7QM4XR2TBD9WNJ5", "address": "203.0.113.7:47210", "lastSeenAtUtc": "2026-09-04T11:19:50Z" },
     "_notInStage1": "Hole punching signaling. Even with the lookup, two NAT'd laptops do not connect directly in Stage 1."
   },
 
   "refusals": {
-    "peer_code_mismatch": "Connected somewhere, but it is not the bot I meant. Dropped before anything was sent.",
+    "peer_key_mismatch": "Connected somewhere, but it is not the machine I meant. Dropped before anything was sent.",
     "peer_no_shared_project": "We are both real, we share nothing. Nothing exchanged.",
     "peer_ring_older_than_mine": "The peer's ring for this project is behind mine; I send my ring first (owner-signed, so they can verify it), then continue.",
     "lan_no_members_found": "Normal on a foreign network. Not an error.",
