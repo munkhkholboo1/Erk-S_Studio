@@ -1392,3 +1392,38 @@ internal sealed class StudioCloudBotSeatDeleted
     public int DeviceRights { get; set; }
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
+
+// ---------------------------------------------------------------------------
+// Device key registration. The device fingerprint stops being a claim the
+// client makes about itself and becomes the hash of a key only that machine
+// can sign with. Shape on the wire is unchanged: 64 uppercase hex.
+// ---------------------------------------------------------------------------
+
+internal sealed class StudioCloudDeviceKeyChallenge
+{
+    /// <summary>Base64url, single use, short lived. Bound to the account in the token, not to any fingerprint.</summary>
+    public string Nonce { get; set; } = "";
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudDeviceKeyRegisterRequest
+{
+    /// <summary>SubjectPublicKeyInfo DER, base64. P-256 only.</summary>
+    public string PublicKey { get; set; } = "";
+
+    public string Nonce { get; set; } = "";
+
+    /// <summary>IEEE P1363 (r||s, 64 bytes), base64 - not DER.</summary>
+    public string Signature { get; set; } = "";
+
+    /// <summary>Optional. Sent anyway so a client that computes it wrongly is refused rather than quietly corrected.</summary>
+    public string DeviceFingerprint { get; set; } = "";
+}
+
+internal sealed class StudioCloudDeviceKeyRegistration
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public DateTimeOffset RegisteredAtUtc { get; set; }
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}

@@ -2726,6 +2726,76 @@ internal sealed class StudioAccountService :
             ?? throw new StudioAccountException("Сервер суудал устгасан хариу буцаасангүй.");
     }
 
+    // -----------------------------------------------------------------------
+    // Device key registration. Turns this machine's fingerprint from a claim
+    // into a proof.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Registers this machine's key with the server, so that from then on the
+    /// device fingerprint is the hash of a key only this machine can sign with.
+    ///
+    /// ORDER MATTERS, and this is the one thing that must not be skipped: a
+    /// machine still known to the server by an older fingerprint has to be
+    /// adopted to the current trait-based one FIRST, by the ordinary sign-in
+    /// path that already does it. Registering the key before that and then
+    /// sending key-canonical alongside the oldest form would leave the
+    /// trait-based records behind as a separate, stranded device. So this runs
+    /// only with a live session in hand - which means the ordinary validate has
+    /// just happened.
+    /// </summary>
+    public async Task<StudioCloudDeviceKeyRegistration> RegisterDeviceKeyAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current
+            ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+
+        StudioCloudDeviceKeyChallenge challenge =
+            await PostAuthorizedAsync<StudioCloudDeviceKeyChallenge>(
+                "/api/cloud-era/v1/device/key/challenge",
+                cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер төхөөрөмжийн сорилт буцаасангүй.");
+
+        byte[] nonce = DecodeBase64Url(challenge.Nonce);
+        byte[] publicKey = StudioDeviceKeyStore.PublicKey();
+        byte[] signature = StudioDeviceKeyStore.SignRegistration(
+            nonce,
+            NormalizeEmail(session.Email));
+
+        StudioCloudDeviceKeyRegistration registered =
+            await PostAuthorizedAsync<StudioCloudDeviceKeyRegisterRequest, StudioCloudDeviceKeyRegistration>(
+                "/api/cloud-era/v1/device/key/register",
+                new StudioCloudDeviceKeyRegisterRequest
+                {
+                    PublicKey = Convert.ToBase64String(publicKey),
+                    Nonce = challenge.Nonce,
+                    Signature = Convert.ToBase64String(signature),
+                    // Sent so a mismatch is caught here rather than discovered
+                    // later. The server recomputes it and refuses on a
+                    // difference instead of correcting one - a silent fix would
+                    // hide a client that computes it wrongly.
+                    DeviceFingerprint = StudioDeviceKeyStore.FingerprintOf(publicKey),
+                },
+                cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер төхөөрөмжийн бүртгэлийн хариу буцаасангүй.");
+
+        StudioDeviceIdentity.UseRegisteredKeyFingerprint(registered.DeviceFingerprint);
+        return registered;
+    }
+
+    /// <summary>
+    /// The nonce travels base64url. Padding is optional there, so it is
+    /// restored before decoding rather than assumed present.
+    /// </summary>
+    private static byte[] DecodeBase64Url(string value)
+    {
+        string text = (value ?? "").Replace('-', '+').Replace('_', '/');
+        return Convert.FromBase64String(text.PadRight(
+            text.Length + ((4 - (text.Length % 4)) % 4),
+            '='));
+    }
+
     private async Task<TResponse> GetAuthorizedAsync<TResponse>(string path, CancellationToken cancellationToken)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
@@ -3032,7 +3102,35 @@ internal static class StudioDeviceIdentity
     private const string CanonicalSalt = "Erk-S device v1";
     private const string LegacyStudioSalt = "Erk-S Studio device v1";
 
-    public static StudioDeviceFingerprints Fingerprints { get; } = BuildFingerprints();
+    private static readonly StudioDeviceFingerprints TraitFingerprints = BuildFingerprints();
+    private static string registeredKeyFingerprint = "";
+
+    /// <summary>
+    /// What this machine sends as its identity.
+    ///
+    /// Once a device key is registered, the canonical form becomes the hash of
+    /// that key - a value the machine can prove rather than merely assert - and
+    /// the TRAIT-canonical value moves into the legacy slot so the server's
+    /// existing adoption carries the machine's records across.
+    ///
+    /// The trait-canonical form is what goes in the legacy slot, NOT the older
+    /// product salt. A machine still known only by that older value has to be
+    /// adopted to trait-canonical first, by the ordinary sign-in, or its
+    /// records would be stranded under a form nothing sends any more. That is
+    /// why registration runs only with a live session in hand.
+    /// </summary>
+    public static StudioDeviceFingerprints Fingerprints =>
+        string.IsNullOrWhiteSpace(registeredKeyFingerprint)
+            ? TraitFingerprints
+            : new StudioDeviceFingerprints(registeredKeyFingerprint, TraitFingerprints.Canonical);
+
+    /// <summary>The trait-based pair, whatever the key state. For diagnostics and migration.</summary>
+    public static StudioDeviceFingerprints TraitBasedFingerprints => TraitFingerprints;
+
+    internal static void UseRegisteredKeyFingerprint(string fingerprint) =>
+        registeredKeyFingerprint = (fingerprint ?? "").Trim().ToUpperInvariant();
+
+    internal static void ForgetRegisteredKeyFingerprint() => registeredKeyFingerprint = "";
 
     public static string Fingerprint => Fingerprints.Canonical;
 
