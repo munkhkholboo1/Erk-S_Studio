@@ -1486,7 +1486,13 @@ internal sealed partial class ShellView : IDisposable
         if (!IsOperationContextCurrent(operationContext))
             return;
         RefreshLocalProjectCompanySnapshotsFromCache();
-        List<ProjectCatalogItem> localProjects = new LocalProjectCatalog().ListProjects().ToList();
+        // A seated machine sees only what its seat is assigned. An unread
+        // assignment list hides everything rather than nothing - see
+        // StudioBotProjectVisibility.
+        List<ProjectCatalogItem> localProjects = new LocalProjectCatalog()
+            .ListProjects()
+            .Where(item => MaySeeProject(item.ProjectId))
+            .ToList();
         var rows = new List<ProjectRow>();
         string cloudError = "";
         try
@@ -2225,6 +2231,15 @@ internal sealed partial class ShellView : IDisposable
         if (!EnsureWorkspaceLifecycleChangeAllowed() ||
             projectOpenInProgress)
             return;
+
+        // Hiding a row is not a boundary: a path can be reached from a recent
+        // list, a command line, or a file dialog. The seat is checked here too,
+        // where opening actually happens.
+        if (SeatedAsBot && !MayOpenProjectAt(path))
+        {
+            SetStatus(StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds));
+            return;
+        }
 
         projectOpenInProgress = true;
         try

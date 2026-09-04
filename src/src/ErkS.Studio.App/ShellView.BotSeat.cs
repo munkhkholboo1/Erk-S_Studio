@@ -1,3 +1,4 @@
+using ErkS.Platform.Core;
 ﻿using System.Windows;
 using System.Windows.Controls;
 
@@ -22,6 +23,44 @@ internal sealed partial class ShellView
     /// seat at all.
     /// </summary>
     private string? unlockedSeatIdentity;
+
+    /// <summary>
+    /// What this seat is assigned to, as the server answered. NULL means the
+    /// answer is not in hand - and that hides everything, because "not read
+    /// yet" must never read as "no restriction".
+    /// </summary>
+    private IReadOnlySet<string>? botAssignedProjectIds;
+
+    /// <summary>True while this machine is seated, whether or not it is unlocked.</summary>
+    private bool SeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
+
+    private bool MaySeeProject(string? projectId) =>
+        StudioBotProjectVisibility.IsVisible(SeatedAsBot, botAssignedProjectIds, projectId);
+
+    /// <summary>
+    /// Whether the project file at <paramref name="path"/> may be opened by
+    /// this seat. Reads the file's own identity rather than trusting the row
+    /// that led here - the path may have come from a recent list or a file
+    /// dialog, neither of which went through the filtered catalogue.
+    ///
+    /// A file that cannot be read is refused. A machine holding a seat has no
+    /// business opening something it cannot identify.
+    /// </summary>
+    private bool MayOpenProjectAt(string path)
+    {
+        try
+        {
+            ProjectWorkspace project = ProjectWorkspaceStore.Load(path);
+            string identity = string.IsNullOrWhiteSpace(project.Cloud.ServerProjectId)
+                ? project.ProjectId
+                : project.Cloud.ServerProjectId;
+            return MaySeeProject(identity);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Holds the shell, and the bot lock on top of it while seated.</summary>
     private Grid? botLockHost;
@@ -96,6 +135,11 @@ internal sealed partial class ShellView
                 SetStatus("Энэ суудал серверт түгжээтэй байна. Эзэмшигч алсаас тайлна.");
                 return;
             }
+            botAssignedProjectIds = resumed.AssignedProjects
+                .Select(item => item.ProjectId?.Trim() ?? "")
+                .Where(item => item.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            await RefreshProjectsAsync();
             SetStatus(resumed.AssignedProjects.Count == 0
                 ? $"«{seat.DisplayName}» — томилогдсон төсөл алга."
                 : $"«{seat.DisplayName}» — {resumed.AssignedProjects.Count} төсөлд томилогдсон.");
