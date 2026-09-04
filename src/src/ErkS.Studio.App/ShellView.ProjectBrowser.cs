@@ -630,6 +630,9 @@ internal sealed partial class ShellView
             transparent ? new Thickness(0, 0, 2, 0) : new Thickness(0, 9, 9, 0));
         button.SetValue(FrameworkElement.CursorProperty, System.Windows.Input.Cursors.Hand);
         button.SetValue(FrameworkElement.ToolTipProperty, "Төслийн үйлдлүүд");
+        // Named so the list can tell a click on the handle from a click on the
+        // project it sits on: the handle means "menu", never "open".
+        button.SetValue(FrameworkElement.TagProperty, StudioProjectListGesture.ActionsHandleTag);
 
         var glyph = new FrameworkElementFactory(typeof(TextBlock));
         glyph.SetValue(TextBlock.TextProperty, "");

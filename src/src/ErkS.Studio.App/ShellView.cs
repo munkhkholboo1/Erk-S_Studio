@@ -1066,14 +1066,25 @@ internal sealed partial class ShellView : IDisposable
         InitializeProjectBrowser();
         ScrollViewer.SetHorizontalScrollBarVisibility(projectsList, ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(projectsList, ScrollBarVisibility.Auto);
-        projectsList.MouseDoubleClick += async (_, _) =>
+        projectsList.MouseDoubleClick += async (_, args) =>
         {
-            if (projectsList.SelectedItem is ProjectFolderRow folder)
+            // Opens the row the double-click landed ON. It used to open the
+            // SELECTED row, and a ListView raises this event for a click
+            // anywhere inside it - the space beside the last card, a stage
+            // heading, the scroll bar - so clicking about the catalogue opened
+            // whatever had been selected earlier. Landing on nothing now opens
+            // nothing.
+            switch (StudioProjectListGesture.ItemUnder(projectsList, args.OriginalSource))
             {
-                EnterProjectFolder(folder);
-                return;
+                case ProjectFolderRow folder:
+                    args.Handled = true;
+                    EnterProjectFolder(folder);
+                    break;
+                case ProjectRow row:
+                    args.Handled = true;
+                    await OpenProjectRowAsync(row);
+                    break;
             }
-            await OpenSelectedProjectAsync();
         };
         projectsList.SelectionChanged += (_, _) => UpdateSelectedProjectLifecycleAction();
         projectsList.KeyDown += async (_, args) =>
