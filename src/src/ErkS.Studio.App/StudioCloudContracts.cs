@@ -1197,6 +1197,18 @@ internal sealed class StudioCloudBotSeatListResponse
     public List<StudioCloudBotSeat> Items { get; set; } = [];
     public int OccupiedSeats { get; set; }
     public int DeviceRights { get; set; }
+    /// <summary>
+    /// Whether the licence sets no device limit at all. READ THIS, NOT THE
+    /// NUMBER: when it is true DeviceRights carries int.MaxValue, which renders
+    /// as "2147483647" and reads as a bug.
+    ///
+    /// A server that predates the flag sends nothing, so this is false and the
+    /// number is shown as it arrived. That is the honest answer - the server did
+    /// not say "unlimited" - and it is deliberately not patched up by guessing
+    /// at the sentinel again: the platform already carries three conventions for
+    /// this same idea, and each client inferring its own is how that happened.
+    /// </summary>
+    public bool DeviceRightsUnlimited { get; set; }
     public bool LicenceActive { get; set; }
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
@@ -1390,6 +1402,19 @@ internal sealed class StudioCloudBotSeatDeleted
     public int OccupiedSeats { get; set; }
 
     public int DeviceRights { get; set; }
+
+    /// <summary>
+    /// Whether the licence sets no device limit at all. READ THIS, NOT THE
+    /// NUMBER: when it is true DeviceRights carries int.MaxValue, which renders
+    /// as "2147483647" and reads as a bug.
+    ///
+    /// A server that predates the flag sends nothing, so this is false and the
+    /// number is shown as it arrived. That is the honest answer - the server did
+    /// not say "unlimited" - and it is deliberately not patched up by guessing
+    /// at the sentinel again: the platform already carries three conventions for
+    /// this same idea, and each client inferring its own is how that happened.
+    /// </summary>
+    public bool DeviceRightsUnlimited { get; set; }
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
 

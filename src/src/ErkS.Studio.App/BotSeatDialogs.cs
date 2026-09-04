@@ -326,7 +326,10 @@ internal sealed class BotSeatManagementDialog : Window
                     ? "энэ байгууллагад ботын суудал алга"
                     : $"{response.Items.Count} суудал") +
                 "  ·  эзэлсэн: " +
-                StudioBotSeatCounts.DescribeOccupancy(response.OccupiedSeats, response.DeviceRights) +
+                StudioBotSeatCounts.DescribeOccupancy(
+                    response.OccupiedSeats,
+                    response.DeviceRights,
+                    response.DeviceRightsUnlimited) +
                 (response.LicenceActive ? "" : "  ·  ⚠ лиценз идэвхгүй");
         }
         catch (Exception exception)
@@ -445,9 +448,15 @@ internal sealed class BotSeatManagementDialog : Window
                 await account.DeleteBotSeatAsync(organization.OrganizationId, Selected!.BotId);
             resultText.Text = deleted.DeviceReleased
                 ? $"Суудал устлаа. Тэнд сууж байсан төхөөрөмж чөлөөлөгдөв. " +
-                  "Эзэлсэн: " + StudioBotSeatCounts.DescribeOccupancy(deleted.OccupiedSeats, deleted.DeviceRights)
+                  "Эзэлсэн: " + StudioBotSeatCounts.DescribeOccupancy(
+                      deleted.OccupiedSeats,
+                      deleted.DeviceRights,
+                      deleted.DeviceRightsUnlimited)
                 : "Суудал устлаа. Эзэлсэн: " +
-                  StudioBotSeatCounts.DescribeOccupancy(deleted.OccupiedSeats, deleted.DeviceRights);
+                  StudioBotSeatCounts.DescribeOccupancy(
+                      deleted.OccupiedSeats,
+                      deleted.DeviceRights,
+                      deleted.DeviceRightsUnlimited);
             await RefreshAsync();
         }
         catch (Exception exception)
