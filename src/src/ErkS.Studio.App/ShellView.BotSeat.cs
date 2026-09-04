@@ -128,6 +128,61 @@ internal sealed partial class ShellView
 
     private void ApplyDeviceSeat() => state.ConfigureDeviceSeat(unlockedSeatIdentity);
 
+    /// <summary>
+    /// Registers this machine's device key, once per account.
+    ///
+    /// Runs right after a sign-in, deliberately: that is where a window and a
+    /// person are, so a failure can be shown and acted on. Inside a plugin
+    /// request there is no such place - and with SSO a plugin has no sign-in of
+    /// its own to fall back to, so a failure there would stop three products
+    /// with no button to press.
+    ///
+    /// A live session is also what makes the ordering safe: the ordinary
+    /// validate has just carried this machine onto the trait-canonical
+    /// fingerprint, so the key can be registered on top of it without stranding
+    /// the records held under the older form.
+    /// </summary>
+    private async Task EnsureDeviceKeyRegisteredAsync()
+    {
+        string email = account.Current?.Email ?? "";
+        if (string.IsNullOrWhiteSpace(email))
+            return;
+        string fingerprint;
+        try
+        {
+            fingerprint = StudioDeviceKeyStore.Fingerprint();
+        }
+        catch (Exception exception)
+        {
+            SetStatus("Энэ төхөөрөмжийн түлхүүр үүсгэгдсэнгүй: " + exception.Message);
+            return;
+        }
+        if (StudioDeviceKeyStore.IsRegistered(fingerprint, email))
+        {
+            StudioDeviceIdentity.UseRegisteredKeyFingerprint(fingerprint);
+            return;
+        }
+
+        try
+        {
+            StudioCloudDeviceKeyRegistration registered = await account.RegisterDeviceKeyAsync();
+            StudioDeviceKeyStore.MarkRegistered(registered.DeviceFingerprint, email);
+        }
+        catch (StudioAccountException exception)
+            when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // A server that has not been updated has no such route. Nothing is
+            // broken: this machine keeps using the fingerprint it always has.
+            SetStatus(
+                "Сервер төхөөрөмжийн түлхүүрийн бүртгэлийг дэмжихгүй байна — " +
+                "энэ хувилбарт өмнөх таних тэмдгээр үргэлжилнэ.");
+        }
+        catch (Exception exception)
+        {
+            SetStatus("Төхөөрөмжийн түлхүүр бүртгэгдсэнгүй: " + exception.Message);
+        }
+    }
+
     private static bool IsSeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
     /// <summary>

@@ -1975,6 +1975,7 @@ internal sealed partial class ShellView : IDisposable
             return false;
         }
         UpdateAccountUi();
+        await EnsureDeviceKeyRegisteredAsync();
         await RefreshProjectsAsync();
         SetStatus("Cloud ERA бүртгэлээр нэвтэрлээ.");
         return true;

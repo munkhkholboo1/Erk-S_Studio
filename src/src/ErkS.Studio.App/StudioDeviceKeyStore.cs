@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 
 namespace ErkS.Studio;
 
@@ -125,6 +125,65 @@ internal static class StudioDeviceKeyStore
             HashAlgorithmName.SHA256,
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
     }
+
+    /// <summary>
+    /// Which (fingerprint, account) pairs this machine has already registered.
+    ///
+    /// Keyed by account as well as key, because one Windows user can sign in
+    /// with two accounts and the server records both against the same key -
+    /// that is a confirmed, allowed case, not a conflict. Losing this file
+    /// costs two round trips and nothing else: registration is idempotent.
+    /// </summary>
+    private static string MarkerPath => System.IO.Path.Combine(
+        StudioAccountService.AccountDataRoot,
+        "device-key-registrations.json");
+
+    public static bool IsRegistered(string fingerprint, string accountEmail)
+    {
+        try
+        {
+            if (!System.IO.File.Exists(MarkerPath))
+                return false;
+            HashSet<string>? marks = System.Text.Json.JsonSerializer
+                .Deserialize<HashSet<string>>(System.IO.File.ReadAllText(MarkerPath));
+            return marks?.Contains(MarkerKey(fingerprint, accountEmail)) == true;
+        }
+        catch (Exception exception) when (
+            exception is System.IO.IOException
+                or System.Text.Json.JsonException
+                or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    public static void MarkRegistered(string fingerprint, string accountEmail)
+    {
+        try
+        {
+            HashSet<string> marks = [];
+            if (System.IO.File.Exists(MarkerPath))
+            {
+                marks = System.Text.Json.JsonSerializer
+                    .Deserialize<HashSet<string>>(System.IO.File.ReadAllText(MarkerPath)) ?? [];
+            }
+            marks.Add(MarkerKey(fingerprint, accountEmail));
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(MarkerPath)!);
+            System.IO.File.WriteAllText(
+                MarkerPath,
+                System.Text.Json.JsonSerializer.Serialize(marks));
+        }
+        catch (Exception exception) when (
+            exception is System.IO.IOException or UnauthorizedAccessException)
+        {
+            // Not being able to remember costs a repeat registration, which the
+            // server accepts idempotently. Nothing to report.
+        }
+    }
+
+    private static string MarkerKey(string fingerprint, string accountEmail) =>
+        (fingerprint ?? "").Trim().ToUpperInvariant() + "|" +
+        (accountEmail ?? "").Trim().ToLowerInvariant();
 
     /// <summary>
     /// Removes the key. Only for tests and for a device that is being reset -
