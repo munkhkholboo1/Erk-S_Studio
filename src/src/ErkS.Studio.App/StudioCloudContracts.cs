@@ -1171,3 +1171,168 @@ internal sealed class StudioSheetCommentPoint
     public double X { get; set; }
     public double Y { get; set; }
 }
+
+// ---------------------------------------------------------------------------
+// Bot seats, bot state, PIN and link invitations.
+//
+// Shapes mirror the server's OpenAPI snapshot exactly
+// (Erk-S-Server/src/ErkS.LicenseServer/openapi/ErkS.LicenseServer.json).
+// Both device fingerprint forms travel on every request that names a device:
+// one machine has two valid values, and a request carrying only one proves
+// nothing about a record stored under the other.
+// ---------------------------------------------------------------------------
+
+internal sealed class StudioCloudBotSeat
+{
+    public string BotId { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string InternalEmail { get; set; } = "";
+    public string Status { get; set; } = "";
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public string CreatedByEmail { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotSeatListResponse
+{
+    public List<StudioCloudBotSeat> Items { get; set; } = [];
+    public int OccupiedSeats { get; set; }
+    public int DeviceRights { get; set; }
+    public bool LicenceActive { get; set; }
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotSeatCreateRequest
+{
+    public string DisplayName { get; set; } = "";
+    public string InternalEmail { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotPinSetRequest
+{
+    public string Pin { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotPinSetResponse
+{
+    public string BotId { get; set; } = "";
+    public DateTimeOffset SetAtUtc { get; set; }
+
+    /// <summary>
+    /// The seated device must register again before the new PIN works. Carried
+    /// with the change, in one value, so the message can say both at once -
+    /// otherwise the employee types the new PIN, nothing happens, and the
+    /// reason appears nowhere.
+    /// </summary>
+    public bool DeviceMustReRegister { get; set; }
+
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotPinReveal
+{
+    public string BotId { get; set; } = "";
+    public string Pin { get; set; } = "";
+    public bool Locked { get; set; }
+    public DateTimeOffset SetAtUtc { get; set; }
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotStateEnterRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+    public string DeviceName { get; set; } = "";
+}
+
+internal sealed class StudioCloudOwnerCredentialRevocation
+{
+    public bool Revoked { get; set; }
+    public DateTimeOffset RevokedAtUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotStateEnterResponse
+{
+    public string BotId { get; set; } = "";
+    public string OrganizationId { get; set; } = "";
+    public string TokenId { get; set; } = "";
+    public DateTimeOffset EnteredAtUtc { get; set; }
+
+    /// <summary>
+    /// What the server did to the owner's session. Its half of the invariant;
+    /// the other half - erasing the credential on this machine - only Studio
+    /// can do, and a failure there must abort the transition.
+    /// </summary>
+    public StudioCloudOwnerCredentialRevocation? OwnerCredentialsRevoked { get; set; }
+
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotStateResumeRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotStateResume
+{
+    public string BotId { get; set; } = "";
+    public string OrganizationId { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string SeatStatus { get; set; } = "";
+    public bool PinLocked { get; set; }
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotPinLockoutRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotInvitation
+{
+    public string InvitationId { get; set; } = "";
+    public string BotId { get; set; } = "";
+    public string BotDisplayName { get; set; } = "";
+    public string OrganizationId { get; set; } = "";
+    public string ProjectId { get; set; } = "";
+    public List<string> Roles { get; set; } = [];
+    public string TargetEmail { get; set; } = "";
+    public string InvitedByEmail { get; set; } = "";
+    public DateTimeOffset InvitedAtUtc { get; set; }
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+
+    /// <summary>Sent / Accepted / Declined / Cancelled. Four, not five: expiry is read from ExpiresAtUtc against the server's clock, never stored.</summary>
+    public string State { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotInvitationListResponse
+{
+    public List<StudioCloudBotInvitation> Items { get; set; } = [];
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotInvitationCreateRequest
+{
+    public string ProjectId { get; set; } = "";
+    public List<string> Roles { get; set; } = [];
+    public string TargetEmail { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotInvitationAccepted
+{
+    public string BotId { get; set; } = "";
+    public string ProjectId { get; set; } = "";
+    public List<string> Roles { get; set; } = [];
+    public DateTimeOffset LinkedAtUtc { get; set; }
+
+    /// <summary>
+    /// True when this acceptance opened a new career interval - the person
+    /// joined. False when they were already linked and only gained a project.
+    /// Two different sentences to the owner; one message for both would have
+    /// them counting a working day twice.
+    /// </summary>
+    public bool OpenedNewInterval { get; set; }
+
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}

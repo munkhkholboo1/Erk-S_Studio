@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -124,6 +124,9 @@ internal sealed class StudioAccountService :
 
     public bool OrganizationRegistryImportConfigured { get; private set; }
     public string OrganizationRegistryImportMessage { get; private set; } = "ДАН холболтын төлөв тодорхойгүй байна.";
+
+    /// <summary>Where per-account and per-device state lives on this machine.</summary>
+    public static string AccountDataRoot => ResolveAccountDataRoot();
 
     private static string ResolveAccountDataRoot()
     {
@@ -2319,6 +2322,288 @@ internal sealed class StudioAccountService :
         {
             return [];
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Bot seats, bot state, PIN, link invitations.
+    // -----------------------------------------------------------------------
+
+    private static string OrgPath(string organizationId) =>
+        "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId);
+
+    private static string SeatPath(string organizationId, string botId) =>
+        OrgPath(organizationId) + "/bot-seats/" + Uri.EscapeDataString(botId);
+
+    public async Task<StudioCloudBotSeatListResponse> ListBotSeatsAsync(
+        string organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioCloudBotSeatListResponse>(
+            OrgPath(organizationId) + "/bot-seats",
+            cancellationToken).ConfigureAwait(true) ?? new StudioCloudBotSeatListResponse();
+    }
+
+    public async Task<StudioCloudBotSeat> CreateBotSeatAsync(
+        string organizationId,
+        string displayName,
+        string internalEmail,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioCloudBotSeatCreateRequest, StudioCloudBotSeat>(
+            OrgPath(organizationId) + "/bot-seats",
+            new StudioCloudBotSeatCreateRequest
+            {
+                DisplayName = displayName?.Trim() ?? "",
+                InternalEmail = internalEmail?.Trim() ?? "",
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ботын суудлын хариу буцаасангүй.");
+    }
+
+    /// <summary>
+    /// Sets or replaces a seat's PIN. Four digits, and nothing more is asked of
+    /// it: 0000 and 1234 are allowed on purpose. The response says whether the
+    /// seated device must register again, which the caller must show in the
+    /// same breath as the new PIN.
+    /// </summary>
+    public async Task<StudioCloudBotPinSetResponse> SetBotPinAsync(
+        string organizationId,
+        string botId,
+        string pin,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PutAuthorizedAsync<StudioCloudBotPinSetRequest, StudioCloudBotPinSetResponse>(
+            SeatPath(organizationId, botId) + "/pin",
+            new StudioCloudBotPinSetRequest { Pin = pin?.Trim() ?? "" },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ПИН-ий хариу буцаасангүй.");
+    }
+
+    /// <summary>Owner-only. The bot cannot read its own PIN and the employee never reads it.</summary>
+    public async Task<StudioCloudBotPinReveal> RevealBotPinAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioCloudBotPinReveal>(
+            SeatPath(organizationId, botId) + "/pin",
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ПИН буцаасангүй.");
+    }
+
+    public async Task UnlockBotPinAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        _ = await PostAuthorizedAsync<object?>(
+            SeatPath(organizationId, botId) + "/pin/unlock",
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task<StudioCloudBotStateEnterResponse> RequestBotStateAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        return await PostAuthorizedAsync<StudioCloudBotStateEnterRequest, StudioCloudBotStateEnterResponse>(
+            SeatPath(organizationId, botId) + "/state",
+            new StudioCloudBotStateEnterRequest
+            {
+                DeviceFingerprint = fingerprints.Canonical,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+                DeviceName = Environment.MachineName,
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ботын төлөвийн хариу буцаасангүй.");
+    }
+
+    /// <summary>
+    /// Enters bot state on this machine: the server seats the device, then the
+    /// stored owner credential is erased here.
+    ///
+    /// FAILING TO ERASE IS FAILING TO ENTER. The server cannot see this
+    /// machine's credential vault, so a half-done transition would leave it
+    /// believing the owner is out while a working refresh token sits on the
+    /// disk - and becoming a bot would be a switch the employee could flip
+    /// back. So the erase runs straight after the server call, and if it
+    /// throws, the seat is released again and the failure is raised.
+    /// </summary>
+    public async Task<StudioCloudBotStateEnterResponse> EnterBotStateAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken = default)
+    {
+        StudioCloudBotStateEnterResponse entered =
+            await RequestBotStateAsync(organizationId, botId, cancellationToken).ConfigureAwait(true);
+        try
+        {
+            EraseOwnerCredentialForBotState();
+        }
+        catch (Exception)
+        {
+            try
+            {
+                await LeaveBotStateAsync(organizationId, botId, CancellationToken.None)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception)
+            {
+                // The rollback failed too. The original failure is the one that
+                // must reach the user; it already says not to trust the state.
+            }
+            throw;
+        }
+        return entered;
+    }
+
+    public async Task LeaveBotStateAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken = default)
+    {
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Delete,
+            BuildUri(session.ServerUrl, SeatPath(organizationId, botId) + "/state"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response =
+            await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        _ = await ReadResponseAsync<object?>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// What a seated device asks at start-up: which seat is this, and is it
+    /// locked. Carries both fingerprint forms.
+    /// </summary>
+    public async Task<StudioCloudBotStateResume> ResumeBotStateAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        return await PostAuthorizedAsync<StudioCloudBotStateResumeRequest, StudioCloudBotStateResume>(
+            "/api/cloud-era/v1/bot-state/resume",
+            new StudioCloudBotStateResumeRequest
+            {
+                DeviceFingerprint = fingerprints.Canonical,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ботын төлөв буцаасангүй.");
+    }
+
+    /// <summary>
+    /// Studio counts the wrong PIN attempts; the server never sees them, so it
+    /// is told when this device locks itself. The owner unlocks remotely.
+    /// </summary>
+    public async Task ReportDeviceLockoutAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        _ = await PostAuthorizedAsync<StudioCloudBotPinLockoutRequest, object?>(
+            "/api/cloud-era/v1/bot-state/pin/lockout",
+            new StudioCloudBotPinLockoutRequest
+            {
+                DeviceFingerprint = fingerprints.Canonical,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+            },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioCloudBotInvitation> InviteBotMemberAsync(
+        string organizationId,
+        string botId,
+        string projectId,
+        IReadOnlyList<string> roles,
+        string targetEmail,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioCloudBotInvitationCreateRequest, StudioCloudBotInvitation>(
+            SeatPath(organizationId, botId) + "/invitations",
+            new StudioCloudBotInvitationCreateRequest
+            {
+                ProjectId = projectId?.Trim() ?? "",
+                Roles = [.. roles ?? []],
+                TargetEmail = targetEmail?.Trim() ?? "",
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер урилгын хариу буцаасангүй.");
+    }
+
+    public async Task<StudioCloudBotInvitationListResponse> ListMyBotInvitationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioCloudBotInvitationListResponse>(
+            "/api/cloud-era/v1/bot-invitations",
+            cancellationToken).ConfigureAwait(true) ?? new StudioCloudBotInvitationListResponse();
+    }
+
+    public async Task<StudioCloudBotInvitationAccepted> AcceptBotInvitationAsync(
+        string invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioCloudBotInvitationAccepted>(
+            "/api/cloud-era/v1/bot-invitations/" + Uri.EscapeDataString(invitationId) + "/accept",
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер урилга зөвшөөрсөн хариу буцаасангүй.");
+    }
+
+    public async Task DeclineBotInvitationAsync(
+        string invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        _ = await PostAuthorizedAsync<object?>(
+            "/api/cloud-era/v1/bot-invitations/" + Uri.EscapeDataString(invitationId) + "/decline",
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task CancelBotInvitationAsync(
+        string invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        _ = await PostAuthorizedAsync<object?>(
+            "/api/cloud-era/v1/bot-invitations/" + Uri.EscapeDataString(invitationId) + "/cancel",
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Erases this machine's stored owner credential. Deliberately NOT
+    /// SignOut(): that one swallows an IOException while removing the metadata,
+    /// which would leave credential-gone-metadata-present without saying so.
+    /// Here every failure throws, because the caller treats a failure as a
+    /// refusal to enter bot state.
+    /// </summary>
+    private void EraseOwnerCredentialForBotState()
+    {
+        StudioAccountMetadata? saved = metadata ?? ReadMetadata();
+        if (saved is not null)
+        {
+            // Throws if the vault refuses. A credential that was already absent
+            // is not a failure: the post-condition is that no owner credential
+            // remains on this machine.
+            credentialStore.Delete(CredentialTarget(saved));
+        }
+
+        if (File.Exists(metadataPath))
+        {
+            File.Delete(metadataPath);
+        }
+
+        Current = null;
+        CurrentCapabilities = null;
+        metadata = null;
     }
 
     private async Task<TResponse> GetAuthorizedAsync<TResponse>(string path, CancellationToken cancellationToken)

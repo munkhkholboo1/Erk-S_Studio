@@ -5,6 +5,9 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+- Create a bot seat from Studio. An owner can turn this machine into an organisation's bot: name it, give it a four-digit PIN, and the machine takes the seat. The owner's stored credential on this machine is erased in the same step, and a failure to erase it aborts the whole transition and releases the seat again - a half-seated machine would let the credential come back. Seat management shows the organisation's seats, reveals or changes a PIN, unlocks one this device locked, invites a person to work a seat, and releases a seat.
+- Keep working for the seat when somebody signs in. A seated machine now applies its seat wherever the account changes, so an employee opening their own projects on the organisation's machine does not silently stop it receiving what the seat is there for.
+
 ## [0.001.57] - 2026-09-04
 
 - Keep a copied project's inbox with it. A project folder copied to another computer still named the folder it was registered on, so Studio watched an empty folder at the old path while the deliveries carried along sat unread inside the copy - with no error to show for it. On open, an inbox outside the project is now relocated inside it and the change is saved, since the exporting plugins read the same file to decide where to write. The old path is kept in the source's metadata.

@@ -562,11 +562,14 @@ internal sealed partial class ShellView : IDisposable
 
         var signOut = new MenuItem { Header = "Гарах" };
         signOut.Click += async (_, _) => await ToggleAccountAsync();
-        accountButton.ContextMenu = new ContextMenu
+        var accountMenu = new ContextMenu { MinWidth = 190 };
+        foreach (MenuItem item in BuildBotMenuItems())
         {
-            MinWidth = 150,
-            Items = { signOut },
-        };
+            accountMenu.Items.Add(item);
+        }
+        accountMenu.Items.Add(new Separator());
+        accountMenu.Items.Add(signOut);
+        accountButton.ContextMenu = accountMenu;
         var accountPanel = new StackPanel();
         // The rail is on screen whatever page is open, so this is the one place
         // a waiting update can be seen from the home page and from inside a
@@ -1979,6 +1982,9 @@ internal sealed partial class ShellView : IDisposable
         state.ConfigureSourceRuntimeContext(
             session?.Email,
             StudioDeviceIdentity.Fingerprint);
+        // The seat is device state and must survive the session changing, so
+        // it is re-applied every time the signed-in person does.
+        ApplyDeviceSeat();
         string displayName = session is null ? "" : AccountDisplayName(session);
         accountStatusText.Text = session is null
             ? "Нэвтрээгүй"
