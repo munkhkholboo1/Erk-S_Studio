@@ -38,28 +38,56 @@ internal sealed partial class ShellView
         StudioBotProjectVisibility.IsVisible(SeatedAsBot, botAssignedProjectIds, projectId);
 
     /// <summary>
-    /// Whether the project file at <paramref name="path"/> may be opened by
-    /// this seat. Reads the file's own identity rather than trusting the row
-    /// that led here - the path may have come from a recent list or a file
-    /// dialog, neither of which went through the filtered catalogue.
-    ///
-    /// A file that cannot be read is refused. A machine holding a seat has no
-    /// business opening something it cannot identify.
+    /// The identity the project file at <paramref name="path"/> claims for
+    /// itself, or null when it cannot be read. Null refuses: a machine holding
+    /// a seat has no business opening something it cannot identify.
     /// </summary>
-    private bool MayOpenProjectAt(string path)
+    private static string? ReadProjectIdentity(string path)
     {
         try
         {
             ProjectWorkspace project = ProjectWorkspaceStore.Load(path);
-            string identity = string.IsNullOrWhiteSpace(project.Cloud.ServerProjectId)
+            return string.IsNullOrWhiteSpace(project.Cloud.ServerProjectId)
                 ? project.ProjectId
                 : project.Cloud.ServerProjectId;
-            return MaySeeProject(identity);
         }
         catch (Exception)
         {
-            return false;
+            return null;
         }
+    }
+
+    /// <summary>
+    /// Whether this seat may open the project a route is about to open. True
+    /// on a machine that holds no seat, so nothing changes for a person.
+    ///
+    /// EVERY route that ends with a project on screen calls this, and each one
+    /// calls it for itself rather than trusting the route before it. The first
+    /// version of the gate sat on the local-file route alone; the cloud route
+    /// branches away one line earlier, so a project that was never assigned
+    /// opened in full, album and all. A row on this screen is not a right to
+    /// the project, and neither is a file on this disk.
+    ///
+    /// The file is asked when there is one, because it carries its own
+    /// identity; a cloud-only project has no file yet, so there the row's
+    /// server id is all there is - and it is the id the server itself would
+    /// check.
+    /// </summary>
+    private bool SeatMayOpen(string? serverProjectId, string? path)
+    {
+        if (!SeatedAsBot)
+            return true;
+
+        bool hasFile = !string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path);
+        bool allowed = StudioBotProjectVisibility.MayOpen(
+            seatedAsBot: true,
+            botAssignedProjectIds,
+            hasFile,
+            hasFile ? ReadProjectIdentity(path!) : null,
+            serverProjectId);
+        if (!allowed)
+            SetStatus(StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds));
+        return allowed;
     }
 
     /// <summary>Holds the shell, and the bot lock on top of it while seated.</summary>

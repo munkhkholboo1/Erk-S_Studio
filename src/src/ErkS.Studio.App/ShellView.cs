@@ -1508,7 +1508,15 @@ internal sealed partial class ShellView : IDisposable
         string cloudError = "";
         try
         {
-            IReadOnlyList<StudioCloudProjectSummary> cloudProjects = await account.ListProjectsAsync();
+            // Filtered by the seat exactly as the local catalogue above is.
+            // Leaving the server's answer unfiltered was how an unassigned
+            // project stayed on screen with a working way in - and a client
+            // that shows a row the server would refuse is a client that
+            // depends on the server having been deployed.
+            IReadOnlyList<StudioCloudProjectSummary> cloudProjects =
+                (await account.ListProjectsAsync())
+                    .Where(item => MaySeeProject(item.ProjectId))
+                    .ToList();
             if (!IsOperationContextCurrent(operationContext))
                 return;
             var accessibleProjectIds = cloudProjects
@@ -1561,8 +1569,14 @@ internal sealed partial class ShellView : IDisposable
                 !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId) &&
                 !accessibleProjectIds.Contains(state.Project.Cloud.ServerProjectId))
             {
+                // A seat is shut out for a different reason than a person, and
+                // saying "your membership ended" to a machine whose assignment
+                // list simply has not been read would be a false report.
                 CloseCurrentCloudProjectAfterAccessEnded(
-                    "Төслийн гишүүний эрх дууссан тул Cloud төсөл таны жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+                    SeatedAsBot
+                        ? StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds) +
+                          " Локал эх файл болон mirror устгагдаагүй."
+                        : "Төслийн гишүүний эрх дууссан тул Cloud төсөл таны жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
                 // The close above is the intended workspace transition for
                 // this exact account response. Continue applying the already
                 // verified project list against the new no-project context.
@@ -1869,6 +1883,9 @@ internal sealed partial class ShellView : IDisposable
         if (!await EnsureSignedInAsync())
             return;
 
+        if (!SeatMayOpen(row.ServerProjectId, row.Path))
+            return;
+
         if (row.IsCloudOnly)
         {
             await OpenCloudProjectAsync(row);
@@ -1880,6 +1897,10 @@ internal sealed partial class ShellView : IDisposable
     private async Task OpenCloudProjectAsync(ProjectRow row)
     {
         if (!EnsureWorkspaceLifecycleChangeAllowed())
+            return;
+        // Asked here too, not only by the caller. This is where a project that
+        // was never assigned to the seat actually opened.
+        if (!SeatMayOpen(row.ServerProjectId, row.Path))
             return;
         projectOpenInProgress = true;
         long accountEpoch = account.SessionEpoch;
@@ -2246,11 +2267,8 @@ internal sealed partial class ShellView : IDisposable
         // Hiding a row is not a boundary: a path can be reached from a recent
         // list, a command line, or a file dialog. The seat is checked here too,
         // where opening actually happens.
-        if (SeatedAsBot && !MayOpenProjectAt(path))
-        {
-            SetStatus(StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds));
+        if (!SeatMayOpen(serverProjectId: null, path))
             return;
-        }
 
         projectOpenInProgress = true;
         try

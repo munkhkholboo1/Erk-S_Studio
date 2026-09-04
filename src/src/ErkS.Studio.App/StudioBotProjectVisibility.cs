@@ -38,6 +38,38 @@ internal static class StudioBotProjectVisibility
     }
 
     /// <summary>
+    /// Whether a seat may OPEN a project, given what the route about to open it
+    /// knows.
+    ///
+    /// Hiding a row is not a boundary - a project can be reached from the home
+    /// page, a recent card, a file dialog, or the cloud list - so every route
+    /// asks this before it opens anything.
+    ///
+    /// <paramref name="hasFile"/> says whether there is a project file on this
+    /// disk to read. When there is, IT is the authority and the row that led
+    /// here is ignored: a row came from a list, and a list is not evidence.
+    /// That includes a file whose identity could not be read - it yields no
+    /// identity and is refused, because falling back to the row there would
+    /// open an unreadable file on the strength of a list entry.
+    ///
+    /// When there is no file the row's server id is all there is, which is the
+    /// cloud-only case: nothing has been mirrored yet. That case is why this
+    /// method exists. The gate had been written on the local-file route alone,
+    /// and the cloud route branches away one line earlier - so a project never
+    /// assigned to the seat opened in full, album and all.
+    /// </summary>
+    public static bool MayOpen(
+        bool seatedAsBot,
+        IReadOnlySet<string>? assignedProjectIds,
+        bool hasFile,
+        string? fileIdentity,
+        string? rowProjectId) =>
+        IsVisible(
+            seatedAsBot,
+            assignedProjectIds,
+            hasFile ? fileIdentity : rowProjectId);
+
+    /// <summary>
     /// Why a project is not visible, in the words the person needs. Only ever
     /// called for a project that failed <see cref="IsVisible"/>.
     /// </summary>

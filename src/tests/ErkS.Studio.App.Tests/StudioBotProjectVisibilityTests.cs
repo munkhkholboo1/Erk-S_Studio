@@ -61,6 +61,60 @@ public sealed class StudioBotProjectVisibilityTests
     }
 
     [Fact]
+    public void ACloudProjectWithNoMirrorYetIsJudgedByTheRowItCameFrom()
+    {
+        // The defect. A cloud-only project has no file on this disk, and the
+        // route that opens it branches away BEFORE the file-based gate - so an
+        // unassigned project opened in full, album and all.
+        IReadOnlySet<string> assigned = Assigned("srv_prj_A");
+
+        Assert.True(StudioBotProjectVisibility.MayOpen(
+            seatedAsBot: true, assigned, hasFile: false,
+            fileIdentity: null, rowProjectId: "srv_prj_A"));
+        Assert.False(StudioBotProjectVisibility.MayOpen(
+            seatedAsBot: true, assigned, hasFile: false,
+            fileIdentity: null, rowProjectId: "srv_prj_NEVER_ASSIGNED"));
+    }
+
+    [Fact]
+    public void TheFileOnDiskOutranksTheRowThatLedToIt()
+    {
+        // A row came from a list. A list is not evidence, and the lists this
+        // machine holds were filled while it belonged to somebody else.
+        Assert.False(StudioBotProjectVisibility.MayOpen(
+            seatedAsBot: true,
+            Assigned("srv_prj_A"),
+            hasFile: true,
+            fileIdentity: "srv_prj_OTHER",
+            rowProjectId: "srv_prj_A"));
+    }
+
+    [Fact]
+    public void AFileThatCannotBeIdentifiedIsRefusedRatherThanFallingBackToTheRow()
+    {
+        // An unreadable file yields no identity. Reading the row instead would
+        // open it on the strength of a list entry - the same mistake as
+        // treating "not read yet" as "no restriction".
+        Assert.False(StudioBotProjectVisibility.MayOpen(
+            seatedAsBot: true,
+            Assigned("srv_prj_A"),
+            hasFile: true,
+            fileIdentity: null,
+            rowProjectId: "srv_prj_A"));
+    }
+
+    [Fact]
+    public void AnUnseatedMachineOpensWhatItAlwaysDid()
+    {
+        Assert.True(StudioBotProjectVisibility.MayOpen(
+            seatedAsBot: false,
+            assignedProjectIds: null,
+            hasFile: false,
+            fileIdentity: null,
+            rowProjectId: "srv_prj_anything"));
+    }
+
+    [Fact]
     public void TheTwoWaysOfSeeingNothingAreExplainedDifferently()
     {
         // "Nothing is assigned to you" and "I could not find out" are different
