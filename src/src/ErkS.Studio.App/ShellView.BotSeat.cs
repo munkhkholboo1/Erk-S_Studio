@@ -34,6 +34,48 @@ internal sealed partial class ShellView
     /// <summary>True while this machine is seated, whether or not it is unlocked.</summary>
     private bool SeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
+    /// <summary>
+    /// True once the OWNER has proved themselves on this seated machine in this
+    /// run, through the passport link on the lock screen - the one door that
+    /// asks for the owner's own credential rather than the seat's PIN.
+    ///
+    /// Deliberately not inferred from "somebody is signed in": a bot session can
+    /// end up with a signed-in account for its own reasons, and a seat that can
+    /// talk itself into owner rights is not a boundary. Deliberately not
+    /// inferred from "no bot token either": a machine whose token request failed
+    /// would then be MORE privileged than one whose succeeded, which is the
+    /// unknown-means-allow shape this codebase keeps having to undo.
+    /// </summary>
+    private bool ownerVerifiedOnSeatedDevice;
+
+    /// <summary>
+    /// Whether seat management may be offered at all: creating, releasing,
+    /// deleting, changing the PIN, inviting members. These are the LICENCE
+    /// OWNER's actions - the owner contains the bot, never the other way round -
+    /// so on a seated machine they exist only for a verified owner.
+    ///
+    /// The way back in on a machine with nobody at the owner end is the lock
+    /// screen's passport link, which is why leaving bot state is behind this
+    /// too: a seat that can release itself is a seat that manages itself.
+    /// </summary>
+    private bool MayManageSeats => !SeatedAsBot || ownerVerifiedOnSeatedDevice;
+
+    /// <summary>
+    /// Refuses a seat-management action and says why. Called by each action for
+    /// itself: a hidden menu item is not a boundary.
+    /// </summary>
+    private bool RefuseSeatManagementWhenSeated()
+    {
+        if (MayManageSeats)
+            return false;
+
+        SetStatus(
+            "Энэ төхөөрөмж ботын суудалд байна. Суудлын удирдлагыг " +
+            "зөвхөн лиценз эзэмшигч хийнэ — түгжээний дэлгэцээс " +
+            "«Эзэмшигчээр нэвтрэх»-ээр орно уу.");
+        return true;
+    }
+
     private bool MaySeeProject(string? projectId) =>
         StudioBotProjectVisibility.IsVisible(SeatedAsBot, botAssignedProjectIds, projectId);
 
@@ -126,7 +168,9 @@ internal sealed partial class ShellView
             // way back is the full sign-in and nothing else.
             if (await EnsureSignedInAsync())
             {
+                ownerVerifiedOnSeatedDevice = true;
                 RemoveBotLock();
+                UpdateAccountUi();
                 SetStatus("Эзэмшигчээр нэвтэрлээ. Энэ төхөөрөмж ботын суудал хэвээр.");
             }
         };
@@ -267,6 +311,12 @@ internal sealed partial class ShellView
     /// </summary>
     private IEnumerable<MenuItem> BuildBotMenuItems()
     {
+        // Nothing at all on a seated machine until an owner has proved
+        // themselves - not even "leave bot state", which is the same authority
+        // as releasing the seat from the other end.
+        if (!MayManageSeats)
+            yield break;
+
         var manage = new MenuItem { Header = "Ботын удирдлага…" };
         manage.Click += async (_, _) => await ShowBotManagementAsync();
         yield return manage;
@@ -329,6 +379,8 @@ internal sealed partial class ShellView
 
     private async Task ShowBotManagementAsync()
     {
+        if (RefuseSeatManagementWhenSeated())
+            return;
         IReadOnlyList<StudioCloudOrganization>? organizations = await LoadOrganizationsAsync();
         if (organizations is null)
             return;
@@ -341,6 +393,8 @@ internal sealed partial class ShellView
 
     private async Task SeatThisDeviceAsync()
     {
+        if (RefuseSeatManagementWhenSeated())
+            return;
         if (!await EnsureSignedInAsync())
             return;
         IReadOnlyList<StudioCloudOrganization> organizations;
@@ -379,6 +433,8 @@ internal sealed partial class ShellView
 
     private async Task LeaveBotStateAsync()
     {
+        if (RefuseSeatManagementWhenSeated())
+            return;
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
         if (seat is null)
             return;
