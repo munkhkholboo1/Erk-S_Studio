@@ -6656,6 +6656,15 @@ internal sealed partial class ShellView : IDisposable
         public override string ToString() => Label;
     }
 
+    /// <summary>
+    /// A person on the project team as the roster shows them.
+    ///
+    /// Status is the SENTENCE shown to a person; IsLeaving is the fact. They
+    /// used to be one field: the sentence was built from a boolean and then
+    /// another screen compared it back against the Mongolian literal
+    /// "Идэвхтэй" to recover it. Rewording the label - or a stray
+    /// look-alike letter - would have silently flipped that screen.
+    /// </summary>
     private sealed record MemberRow(
         string Name,
         string Roles,
@@ -6663,7 +6672,8 @@ internal sealed partial class ShellView : IDisposable
         string Identifier = "",
         string Status = "Идэвхтэй",
         bool IsInvitation = false,
-        string[]? RoleCodes = null);
+        string[]? RoleCodes = null,
+        bool IsLeaving = false);
     private sealed record ReportRow(string Type, string Title, string Status, int Version);
     private sealed record ArchiveRow(string Type, string Title, string Status, string ArchivedAt);
 }

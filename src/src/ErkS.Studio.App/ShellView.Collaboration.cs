@@ -1074,7 +1074,10 @@ internal sealed partial class ShellView
                     ? "Гарах хүсэлт хүлээгдэж байна"
                     : "Идэвхтэй",
                 false,
-                member.Roles.ToArray()))
+                member.Roles.ToArray(),
+                // The fact travels beside the sentence. Reading it back out of
+                // the sentence is how a reworded label becomes a wrong screen.
+                pendingExitEmails.Contains(member.Email)))
             .ToList();
     }
 

@@ -243,7 +243,23 @@ public static class ConceptCoverApprovalResolver
         return entries;
     }
 
+    /// <summary>
+    /// Whether an authority member is the chief architect.
+    ///
+    /// The role CODE is tried first, through the same normaliser the rest of
+    /// the product uses: "MajorArchitect" - the value actually stored for design
+    /// company members - matched none of the spellings below, because they all
+    /// carry a space. A matcher that only recognises display text is the defect
+    /// PFR measured, where «Erk-S Стандарт» could never meet «Erk-S Standard».
+    ///
+    /// The display spellings stay, INCLUDING the Mongolian one, and that is
+    /// deliberate: these are ATD authority members, and no project on this disk
+    /// has any stored, so their vocabulary is unmeasured. Removing a matcher
+    /// whose real inputs nobody has seen would be trading a known-safe widening
+    /// for an unknown loss.
+    /// </summary>
     private static bool IsChiefArchitect(ProjectMember member) => member.Roles.Any(role =>
+        ProjectRoleSemantics.IsAppointedArchitect(role) ||
         role.Contains("Chief Architect", StringComparison.OrdinalIgnoreCase) ||
         role.Contains("Major Architect", StringComparison.OrdinalIgnoreCase) ||
         role.Contains("Ерөнхий архитектор", StringComparison.OrdinalIgnoreCase));

@@ -640,7 +640,10 @@ internal sealed partial class ShellView
         // The membership note is separate information and outranks presence:
         // somebody on their way out of the project matters more than whether
         // their Studio happens to be open.
-        bool leaving = !member.Status.Equals("Идэвхтэй", StringComparison.Ordinal);
+        // The fact, not the sentence. This used to compare the displayed text
+        // against "Идэвхтэй" - so rewording the label, or one look-alike
+        // letter in it, would have marked everybody as leaving.
+        bool leaving = member.IsLeaving;
         if (leaving)
         {
             line.Children.Add(new TextBlock
