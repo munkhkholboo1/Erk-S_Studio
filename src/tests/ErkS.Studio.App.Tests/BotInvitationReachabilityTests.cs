@@ -98,6 +98,11 @@ public sealed class BotInvitationReachabilityTests
         Assert.Contains("ListProjectRolesAsync", dialogs, StringComparison.Ordinal);
         Assert.Contains("ProjectMemberRoleDialog", dialogs, StringComparison.Ordinal);
         Assert.DoesNotContain("rolesBox", dialogs, StringComparison.Ordinal);
+
+        // And the invitation no longer sets them at all: a project and roles
+        // belong to the SEAT's assignment, and the server refuses an invitation
+        // that carries them.
+        Assert.DoesNotContain("selectedRoleCodes", dialogs, StringComparison.Ordinal);
     }
 
     [Fact]

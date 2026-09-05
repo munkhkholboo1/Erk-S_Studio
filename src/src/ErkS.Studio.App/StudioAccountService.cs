@@ -2562,11 +2562,19 @@ internal sealed class StudioAccountService :
         await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Invites somebody to fill a seat. Only that - WHICH projects the seat
+    /// works on is set separately by AssignBotProjectAsync.
+    ///
+    /// The invitation carried a project and roles until 2026-09-05, which is
+    /// what made it impossible to put a seat on a project without hiring
+    /// somebody for it. The server now REFUSES an invitation that still carries
+    /// them, by name, so sending them would break the flow rather than be
+    /// ignored.
+    /// </summary>
     public async Task<StudioCloudBotInvitation> InviteBotMemberAsync(
         string organizationId,
         string botId,
-        string projectId,
-        IReadOnlyList<string> roles,
         string targetEmail,
         CancellationToken cancellationToken = default)
     {
@@ -2575,8 +2583,6 @@ internal sealed class StudioAccountService :
             SeatPath(organizationId, botId) + "/invitations",
             new StudioCloudBotInvitationCreateRequest
             {
-                ProjectId = projectId?.Trim() ?? "",
-                Roles = [.. roles ?? []],
                 TargetEmail = targetEmail?.Trim() ?? "",
             },
             cancellationToken).ConfigureAwait(true)

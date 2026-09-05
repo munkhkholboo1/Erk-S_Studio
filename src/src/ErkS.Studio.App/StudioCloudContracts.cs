@@ -1401,8 +1401,12 @@ internal sealed class StudioCloudBotInvitationListResponse
 
 internal sealed class StudioCloudBotInvitationCreateRequest
 {
-    public string ProjectId { get; set; } = "";
-    public List<string> Roles { get; set; } = [];
+    /// <summary>
+    /// The invitation says WHO fills the seat, not what the seat works on.
+    /// Project and roles were removed on 2026-09-05: the server refuses an
+    /// invitation that still carries them, because carrying them is what made
+    /// assigning an empty seat impossible.
+    /// </summary>
     public string TargetEmail { get; set; } = "";
 }
 
