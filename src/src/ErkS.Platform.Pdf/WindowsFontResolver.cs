@@ -27,6 +27,18 @@ public sealed class WindowsFontResolver : IFontResolver
         ["segoe ui#b"] = "segoeuib.ttf",
         ["segoe ui#i"] = "segoeuii.ttf",
         ["segoe ui#bi"] = "segoeuiz.ttf",
+        // ISOCPEUR MON IS SHIPPED WITH STUDIO ON PURPOSE, AND MUST STAY THAT WAY.
+        //
+        // Windows' own ISOCPEUR - the obvious "why do we carry a font?"
+        // replacement - has no glyph for Ө or Ү, the two letters that are
+        // Mongolian and nothing else. Measured 2026-09-06 by reading the cmap
+        // of all three candidates: this file and Arial cover them, stock
+        // ISOCPEUR does not.
+        //
+        // Swapping to the system font would not fail. It would print every
+        // other word correctly and drop those two letters, which is the worst
+        // shape a fault can take: complete breakage is noticed at once,
+        // partial breakage is noticed after it has been printed and signed.
         ["isocpeur mon#"] = "Fonts/isocpeu_mon_3.ttf",
         ["isocpeur mon#b"] = "Fonts/isocpeu_mon_3.ttf",
         ["isocpeur mon#i"] = "Fonts/isocpeui_mon_3.ttf",
@@ -77,9 +89,18 @@ public sealed class WindowsFontResolver : IFontResolver
             return new FontResolverInfo(face);
         }
 
-        // Unknown family: fall back to Arial with the requested style.
-        var fallback = MakeFaceKey("arial", bold, italic);
-        return new FontResolverInfo(Files.ContainsKey(fallback) ? fallback : "arial#");
+        // An unmapped family used to become Arial without a word, and the only
+        // trace was that the text looked different. Adding a font name in the
+        // drawing code and forgetting the map above is an ordinary slip; having
+        // it silently print in another face is not an ordinary consequence.
+        //
+        // The families asked for here are all named in this file, so an unknown
+        // one means the map and the caller have drifted apart. That is a fault
+        // to report, not to paper over.
+        throw new InvalidOperationException(
+            $"PDF font family '{familyName}' is not registered in {nameof(WindowsFontResolver)}. " +
+            "Add it to the file map instead of letting it fall back to another face - " +
+            "a substituted font changes how the sheet reads and reports nothing.");
     }
 
     public byte[]? GetFont(string faceName)
