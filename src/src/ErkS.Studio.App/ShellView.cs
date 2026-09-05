@@ -1909,6 +1909,41 @@ internal sealed partial class ShellView : IDisposable
         await OpenProjectAsync(row.Path);
     }
 
+    /// <summary>
+    /// Asks which folder to open when more than one on this disk claims the
+    /// same project. Returns an empty string when the person cancels.
+    ///
+    /// It only ever OPENS one. Merging two folders, or deleting either, is the
+    /// user's decision to make with their own files in front of them - not
+    /// something to do on their behalf inside an open.
+    /// </summary>
+    private async Task<string> ChooseProjectHomeAsync(string code, ProjectFolderPlan plan)
+    {
+        await Task.CompletedTask;
+        string preferred = ProjectWorkspacePaths.GetProjectFolder(plan.ProjectPath);
+        string others = string.Join(
+            Environment.NewLine,
+            plan.RivalPaths.Select(path => "  • " + ProjectWorkspacePaths.GetProjectFolder(path)));
+
+        MessageBoxResult answer = StudioMessageDialog.Show(
+            Window.GetWindow(Root),
+            $"«{code}» төсөл энэ компьютер дээр нэгээс олон хавтастай байна." + Environment.NewLine + Environment.NewLine +
+            "Ажлын файлууд агуулсан нь:" + Environment.NewLine +
+            "  • " + preferred + Environment.NewLine + Environment.NewLine +
+            "Мөн ижил төсөл гэж бичигдсэн:" + Environment.NewLine + others + Environment.NewLine + Environment.NewLine +
+            "Эхнийхийг нээх үү? (Үгүй гэвэл юу ч нээхгүй. Хавтас нэгтгэх, устгах ажиллагаа хийгдэхгүй.)",
+            "Төслийн хавтас",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            SetStatus($"«{code}» төслийг нээгээгүй. Хавтаснуудыг өөрөө шалгаад дахин оролдоно уу.");
+            return "";
+        }
+        return plan.ProjectPath;
+    }
+
     private async Task OpenCloudProjectAsync(ProjectRow row)
     {
         if (!EnsureWorkspaceLifecycleChangeAllowed())
@@ -1932,12 +1967,43 @@ internal sealed partial class ShellView : IDisposable
                 return;
             }
             string folderCode = cloud.Project.ProjectCode;
-            string expectedPath = Path.Combine(
-                ProjectWorkspacePaths.DefaultRoot,
-                SafePathSegment(folderCode),
-                ProjectWorkspace.DefaultFileName);
-            if (File.Exists(expectedPath))
-                folderCode += "-" + cloud.Project.ProjectId[..Math.Min(8, cloud.Project.ProjectId.Length)];
+            string forkedCode = folderCode + "-" +
+                cloud.Project.ProjectId[..Math.Min(8, cloud.Project.ProjectId.Length)];
+            // Where this project lives is decided by ProjectFolderPlanner, on
+            // the project's identity. Deciding it here, by whether a folder of
+            // that NAME existed, is what gave six projects an empty twin and
+            // then hid the folder holding every source behind it.
+            ProjectFolderPlan plan = ProjectFolderPlanner.Plan(
+                cloud.Project.ProjectId,
+                Path.Combine(
+                    ProjectWorkspacePaths.DefaultRoot,
+                    SafePathSegment(folderCode),
+                    ProjectWorkspace.DefaultFileName),
+                Path.Combine(
+                    ProjectWorkspacePaths.DefaultRoot,
+                    SafePathSegment(forkedCode),
+                    ProjectWorkspace.DefaultFileName),
+                new LocalProjectCatalog().ListProjectFolders());
+
+            if (plan.Decision == ProjectFolderDecision.OpenExistingHome)
+            {
+                // It already lives here. Opening the local workspace is the
+                // whole point - creating another one beside it is what lost the
+                // user their sources. Nothing is moved, merged or deleted; a
+                // second folder claiming the same project is offered, not acted
+                // on.
+                string home = plan.RivalPaths.Count == 0
+                    ? plan.ProjectPath
+                    : await ChooseProjectHomeAsync(row.Code, plan);
+                if (home.Length == 0)
+                    return;
+
+                await OpenProjectAsync(home);
+                return;
+            }
+
+            if (plan.Decision == ProjectFolderDecision.CreateBesideDifferentProject)
+                folderCode = forkedCode;
             string clientEmail = cloud.Participants
                 .FirstOrDefault(item => item.Roles.Contains("Client", StringComparer.OrdinalIgnoreCase))?.AccountEmail ?? "";
             string initiatorType = string.IsNullOrWhiteSpace(cloud.Project.PlanningAuthorityName)

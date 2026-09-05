@@ -42,6 +42,46 @@ public sealed class LocalProjectCatalog : IProjectCatalog
         this.rootDirectory = rootDirectory;
     }
 
+    /// <summary>
+    /// Every project folder on this disk, ONE ROW PER FOLDER.
+    ///
+    /// Deliberately not ListProjects: that groups by project id and keeps only
+    /// the most recently written folder, which is exactly what hid a project's
+    /// real home behind an empty twin. A planner deciding where a project lives
+    /// has to see both.
+    /// </summary>
+    public IReadOnlyList<LocalProjectFolder> ListProjectFolders()
+    {
+        if (!Directory.Exists(rootDirectory))
+            return [];
+
+        var folders = new List<LocalProjectFolder>();
+        foreach (string path in Directory.EnumerateFiles(
+                     rootDirectory,
+                     "*" + ProjectWorkspace.FileExtension,
+                     SearchOption.AllDirectories)
+                 .Where(path => !IsBackupMirrorPath(path)))
+        {
+            try
+            {
+                ProjectWorkspace project = ProjectWorkspaceStore.Load(path);
+                folders.Add(new LocalProjectFolder(
+                    Path.GetFullPath(path),
+                    string.IsNullOrWhiteSpace(project.Cloud.ServerProjectId)
+                        ? project.ProjectId
+                        : project.Cloud.ServerProjectId,
+                    project.Sources.Count,
+                    File.GetLastWriteTimeUtc(path)));
+            }
+            catch
+            {
+                // One unreadable project must not hide the rest.
+            }
+        }
+
+        return folders;
+    }
+
     public IReadOnlyList<ProjectCatalogItem> ListProjects()
     {
         if (!Directory.Exists(rootDirectory))
