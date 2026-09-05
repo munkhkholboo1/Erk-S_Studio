@@ -47,8 +47,18 @@ public sealed partial class PdfSharpAlbumWriter
 
     /// <summary>
     /// Y on this sheet is measured from the BOTTOM, like the contract and like
-    /// the DWG. The shared cover helpers cannot be reused: they flip against a
-    /// hard-coded A3 height, and this page is A4.
+    /// the DWG.
+    ///
+    /// 🔴 THE SHARED COVER HELPERS CANNOT BE REUSED, and the reason is a trap
+    /// rather than a limitation: DrawCoverLine and CoverRect flip against
+    /// BuildingArchitectureConceptPageLayout.PageHeightMm, which is a CONSTANT
+    /// 297. They read as page-relative and are A3-only. A second A4 sheet
+    /// written by somebody who reaches for them will land 87 mm off the page,
+    /// and the drawing will look empty rather than wrong.
+    ///
+    /// Making the page height a parameter of those helpers is a separate change
+    /// - every existing caller passes A3 today and would have to be checked -
+    /// so this is a note rather than a fix.
     /// </summary>
     private static double ConceptCover2026Y(double millimetresFromBottom) =>
         Mm(ConceptCoverSheetGrid.PageHeightMm - millimetresFromBottom);
