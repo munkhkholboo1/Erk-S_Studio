@@ -428,7 +428,8 @@ internal sealed partial class ShellView
             notificationExitRequests.Requested.Count(item =>
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationBotInvitations.Items.Count(item =>
-                item.State.Equals("Sent", StringComparison.OrdinalIgnoreCase));
+                item.State.Equals("Sent", StringComparison.OrdinalIgnoreCase) &&
+                item.ExpiresAtUtc > DateTimeOffset.UtcNow);
         notificationsButton.IsEnabled = account.IsSignedIn;
         notificationsRailButton.IsEnabled = account.IsSignedIn;
         notificationsRailBadgeText.Text = count > 99

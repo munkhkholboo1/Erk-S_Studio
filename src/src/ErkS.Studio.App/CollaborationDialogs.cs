@@ -384,6 +384,10 @@ internal sealed class StudioNotificationsDialog : Window
         // the server - one side could invite and nobody could answer.
         rows.AddRange(botInvitationData.Items
             .Where(item => item.State.Equals("Sent", StringComparison.OrdinalIgnoreCase))
+            // Expiry is read against the clock, never stored, and nothing on the
+            // server sweeps it. Shown as pending, an expired invitation is a row
+            // whose only two buttons both fail - so it is not shown as pending.
+            .Where(item => item.ExpiresAtUtc > DateTimeOffset.UtcNow)
             .Select(item => new NotificationRow(
                 "Ботын суудлын урилга",
                 $"«{item.BotDisplayName}» бот  ·  {item.ProjectId}",
