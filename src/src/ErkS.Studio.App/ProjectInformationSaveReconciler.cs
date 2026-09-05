@@ -154,7 +154,7 @@ internal static class ProjectInformationSaveReconciler
             IsAvailable = true,
             SourceType = Clean(request.Foundation.SourceType),
             RequestNumber = Clean(request.Foundation.RequestNumber),
-            ClientType = ProjectClientTypes.Normalize(request.Foundation.ClientType),
+            ClientType = ProjectClientTypes.Recognize(request.Foundation.ClientType),
             ClientEmail = Clean(request.Foundation.ClientEmail),
             ClientRepresentativePosition = Clean(request.Foundation.ClientRepresentativePosition),
             ClientRepresentativeName = Clean(request.Foundation.ClientRepresentativeName),
@@ -307,7 +307,7 @@ internal sealed class ProjectFoundationEditDraft
         Name = Clean(name);
         BasisSourceType = Clean(basisSourceType);
         RequestNumber = Clean(requestNumber);
-        ClientType = ProjectClientTypes.Normalize(clientType);
+        ClientType = ProjectClientTypes.Recognize(clientType);
         ClientName = Clean(clientName);
         ClientEmail = Clean(clientEmail);
         ClientRepresentativePosition = Clean(clientRepresentativePosition);

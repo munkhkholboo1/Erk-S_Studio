@@ -50,7 +50,7 @@ public static class AlbumProjectStore
         }
         project.InitiationBasis ??= new ProjectInitiationBasis();
         project.InitiationBasis.Documents ??= [];
-        project.InitiationBasis.ClientType = ProjectClientTypes.Normalize(
+        project.InitiationBasis.ClientType = ProjectClientTypes.Recognize(
             project.InitiationBasis.ClientType);
         project.InitiationBasis.ClientOrganizationSnapshot ??= new CompanyProfile();
         project.InitiationBasis.ClientOrganizationSnapshot.Normalize();

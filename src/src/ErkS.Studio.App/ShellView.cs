@@ -2654,7 +2654,7 @@ internal sealed partial class ShellView : IDisposable
     {
         if (!clientEditorInitialized)
             _ = BuildClientTypeEditor();
-        string normalized = ProjectClientTypes.Normalize(value);
+        string normalized = ProjectClientTypes.Recognize(value);
         clientTypeBox.SelectedItem = clientTypeBox.Items
             .OfType<ClientTypeOption>()
             .FirstOrDefault(option => option.Value.Equals(normalized, StringComparison.Ordinal));
@@ -3312,7 +3312,7 @@ internal sealed partial class ShellView : IDisposable
 
     private ProjectFoundationEditDraft CaptureFoundationEditDraft()
     {
-        string clientType = ProjectClientTypes.Normalize(SelectedClientType);
+        string clientType = ProjectClientTypes.Recognize(SelectedClientType);
         string clientLogoPath = state.Project.Foundation.InitiationBasis
             .ClientOrganizationSnapshot.LogoPath;
         string clientLogoOriginalFileName = state.Project.Foundation.InitiationBasis
@@ -3364,7 +3364,7 @@ internal sealed partial class ShellView : IDisposable
             !string.Equals(project.Identity.Name, draft.Name, StringComparison.Ordinal) ||
             !string.Equals(basis.SourceType, draft.BasisSourceType, StringComparison.Ordinal) ||
             !string.Equals(basis.RequestNumber, draft.RequestNumber, StringComparison.Ordinal) ||
-            !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
+            !string.Equals(ProjectClientTypes.Recognize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
             !string.Equals(basis.ClientName, draft.ClientName, StringComparison.Ordinal) ||
             !string.Equals(basis.ClientEmail, draft.ClientEmail, StringComparison.Ordinal) ||
             !string.Equals(basis.ClientRepresentativePosition, draft.ClientRepresentativePosition, StringComparison.Ordinal) ||
@@ -3390,7 +3390,7 @@ internal sealed partial class ShellView : IDisposable
         bool changed =
             !string.Equals(basis.SourceType, draft.BasisSourceType, StringComparison.Ordinal) ||
             !string.Equals(basis.RequestNumber, draft.RequestNumber, StringComparison.Ordinal) ||
-            !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
+            !string.Equals(ProjectClientTypes.Recognize(basis.ClientType), draft.ClientType, StringComparison.Ordinal) ||
             !string.Equals(basis.ClientEmail, draft.ClientEmail, StringComparison.Ordinal) ||
             !string.Equals(basis.ClientRepresentativePosition, draft.ClientRepresentativePosition, StringComparison.Ordinal) ||
             !string.Equals(basis.ClientRepresentativeName, draft.ClientRepresentativeName, StringComparison.Ordinal) ||
@@ -6014,7 +6014,7 @@ internal sealed partial class ShellView : IDisposable
         _ = ApplySelectedCornerTable();
         basis.SourceType = basisSourceBox.Text.Trim();
         basis.RequestNumber = requestNumberBox.Text.Trim();
-        basis.ClientType = ProjectClientTypes.Normalize(SelectedClientType);
+        basis.ClientType = ProjectClientTypes.Recognize(SelectedClientType);
         basis.ClientName = clientNameBox.Text.Trim();
         basis.ClientEmail = clientEmailBox.Text.Trim();
         basis.ClientRepresentativePosition = ProjectClientTypes.UsesLogo(basis.ClientType)

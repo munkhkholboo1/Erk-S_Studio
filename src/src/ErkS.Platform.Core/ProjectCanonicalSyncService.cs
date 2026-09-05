@@ -107,9 +107,9 @@ public static class ProjectCanonicalSyncService
             Clean(serverBasis.RequestNumber),
             Clean(previousBasis.RequestNumber),
             basis.RequestNumber);
-        string clientType = ProjectClientTypes.Normalize(Resolve(
-            ProjectClientTypes.Normalize(serverBasis.ClientType),
-            ProjectClientTypes.Normalize(previousBasis.ClientType),
+        string clientType = ProjectClientTypes.Recognize(Resolve(
+            ProjectClientTypes.Recognize(serverBasis.ClientType),
+            ProjectClientTypes.Recognize(previousBasis.ClientType),
             basis.ClientType));
         string clientEmail = Resolve(
             Clean(serverBasis.ClientEmail),
@@ -155,7 +155,7 @@ public static class ProjectCanonicalSyncService
             (applyFoundationDetails &&
                 (!string.Equals(basis.SourceType, basisSourceType, StringComparison.Ordinal) ||
                  !string.Equals(basis.RequestNumber, requestNumber, StringComparison.Ordinal) ||
-                 !string.Equals(ProjectClientTypes.Normalize(basis.ClientType), clientType, StringComparison.Ordinal) ||
+                 !string.Equals(ProjectClientTypes.Recognize(basis.ClientType), clientType, StringComparison.Ordinal) ||
                  !string.Equals(basis.ClientEmail, clientEmail, StringComparison.OrdinalIgnoreCase) ||
                  !string.Equals(basis.ClientRepresentativePosition, clientRepresentativePosition, StringComparison.Ordinal) ||
                  !string.Equals(basis.ClientRepresentativeName, clientRepresentativeName, StringComparison.Ordinal) ||
@@ -270,7 +270,7 @@ public static class ProjectCanonicalSyncService
                     SourceType = Clean(serverBasis.SourceType),
                     RequestNumber = Clean(serverBasis.RequestNumber),
                     RequestedAtUtc = serverBasis.RequestedAtUtc,
-                    ClientType = ProjectClientTypes.Normalize(serverBasis.ClientType),
+                    ClientType = ProjectClientTypes.Recognize(serverBasis.ClientType),
                     ClientName = Clean(serverBasis.ClientName),
                     ClientEmail = Clean(serverBasis.ClientEmail),
                     ClientRepresentativePosition = Clean(serverBasis.ClientRepresentativePosition),
@@ -335,7 +335,7 @@ public static class ProjectCanonicalSyncService
         ProjectServerFoundationUpdate foundation = pending.Foundation ?? new();
         bool onlyDefaultClientType =
             string.IsNullOrWhiteSpace(foundation.ClientType) ||
-            ProjectClientTypes.Normalize(foundation.ClientType)
+            ProjectClientTypes.Recognize(foundation.ClientType)
                 .Equals(ProjectClientTypes.Citizen, StringComparison.OrdinalIgnoreCase);
         return string.IsNullOrWhiteSpace(pending.BaseConcurrencyToken) &&
             string.IsNullOrWhiteSpace(pending.Name) &&

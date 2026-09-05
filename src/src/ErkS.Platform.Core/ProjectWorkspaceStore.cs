@@ -346,7 +346,7 @@ public static class ProjectWorkspaceStore
                         : designOrganizationCreated
                             ? ProjectInitiationSourceTypes.DesignOrganizationCreated
                             : ProjectInitiationSourceTypes.AtdRequest,
-                    ClientType = ProjectClientTypes.Normalize(request.ClientType),
+                    ClientType = ProjectClientTypes.Recognize(request.ClientType),
                     ClientName = request.ClientName.Trim(),
                     ClientEmail = request.ClientEmail.Trim(),
                     SiteAddress = request.SiteAddress.Trim(),

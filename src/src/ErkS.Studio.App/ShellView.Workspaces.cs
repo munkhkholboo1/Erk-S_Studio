@@ -5266,7 +5266,7 @@ internal sealed partial class ShellView
 
         var representativeName = representative?.FullName ?? "";
         ProjectInitiationBasis initiationBasis = state.Project.Foundation.InitiationBasis;
-        string clientType = ProjectClientTypes.Normalize(initiationBasis.ClientType);
+        string clientType = ProjectClientTypes.Recognize(initiationBasis.ClientType);
         string clientRole = ProjectClientTypes.ResolveCoverRole(
             clientType,
             initiationBasis.ClientName,

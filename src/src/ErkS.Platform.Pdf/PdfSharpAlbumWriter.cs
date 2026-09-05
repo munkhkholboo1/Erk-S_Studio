@@ -2194,7 +2194,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         var canonicalClientName = string.IsNullOrWhiteSpace(initiationBasis.ClientName)
             ? request.Project.ClientName
             : initiationBasis.ClientName;
-        string clientType = ProjectClientTypes.Normalize(initiationBasis.ClientType);
+        string clientType = ProjectClientTypes.Recognize(initiationBasis.ClientType);
         string clientRole = ProjectClientTypes.ResolveCoverRole(
             clientType,
             canonicalClientName,

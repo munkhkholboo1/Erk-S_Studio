@@ -540,13 +540,33 @@ public static class ProjectClientTypes
     public const string Organization = "Organization";
     public const string GovernmentAuthority = "GovernmentAuthority";
 
-    public static string Normalize(string? value)
+    /// <summary>
+    /// The client type this value names, or EMPTY when it names none.
+    ///
+    /// This used to be Normalize, and anything it did not recognise came back
+    /// as Citizen. That is a silent answer to an unanswered question: an
+    /// unfamiliar value, a typo, a field that was never filled and a client type
+    /// from a newer server all became "a private citizen", and the cover page
+    /// said so. PFR hit the same shape from the other side, where an English
+    /// enum met a Mongolian comparison and every organisation client was printed
+    /// as a citizen.
+    ///
+    /// Unknown is now unknown, and each caller decides what to do with it -
+    /// print nothing, say "not specified", leave it out of a filter. There is
+    /// no single right answer here, which is exactly why this must not choose.
+    ///
+    /// Measured before the change: all 24 projects on this machine hold one of
+    /// the three codes, so no stored project reads differently because of it.
+    /// </summary>
+    public static string Recognize(string? value)
     {
+        if (string.Equals(value, Citizen, StringComparison.OrdinalIgnoreCase))
+            return Citizen;
         if (string.Equals(value, Organization, StringComparison.OrdinalIgnoreCase))
             return Organization;
         if (string.Equals(value, GovernmentAuthority, StringComparison.OrdinalIgnoreCase))
             return GovernmentAuthority;
-        return Citizen;
+        return "";
     }
 
     /// <summary>
@@ -575,20 +595,37 @@ public static class ProjectClientTypes
         return Citizen;
     }
 
-    public static string DisplayName(string? value) => Normalize(value) switch
+    /// <summary>
+    /// What to call this client type on screen. Each of these four decides for
+    /// ITSELF what an unrecognised type means - the recogniser no longer decides
+    /// for them, and the four answers are deliberately not the same.
+    /// </summary>
+    public static string DisplayName(string? value) => Recognize(value) switch
     {
         Organization => "Байгууллага",
         GovernmentAuthority => "Төрийн байгууллага",
-        _ => "Иргэн",
+        Citizen => "Иргэн",
+        // Not "Иргэн": saying nothing is better than naming the wrong party on
+        // a cover page.
+        _ => "",
     };
 
+    /// <summary>
+    /// A logo belongs to an organisation. An unknown type is not known to have
+    /// one, so it does not get a logo frame.
+    /// </summary>
     public static bool UsesLogo(string? value) =>
-        !Normalize(value).Equals(Citizen, StringComparison.Ordinal);
+        Recognize(value) is Organization or GovernmentAuthority;
 
+    /// <summary>Only a citizen's own name stands in for the client.</summary>
     public static bool ShowsDirectClientName(string? value) =>
-        Normalize(value).Equals(Citizen, StringComparison.Ordinal);
+        Recognize(value).Equals(Citizen, StringComparison.Ordinal);
 
-    public static string ClientNameFieldLabel(string? value) => Normalize(value) switch
+    /// <summary>
+    /// The form label. Here the neutral wording is right for an unknown type -
+    /// a field still needs a name, and "Захиалагчийн нэр" claims nothing.
+    /// </summary>
+    public static string ClientNameFieldLabel(string? value) => Recognize(value) switch
     {
         Organization => "Захиалагч байгууллагын нэр",
         GovernmentAuthority => "Төрийн байгууллагын нэр",
@@ -605,7 +642,7 @@ public static class ProjectClientTypes
         string? clientName,
         string? representativePosition)
     {
-        string normalized = Normalize(clientType);
+        string normalized = Recognize(clientType);
         if (normalized.Equals(Citizen, StringComparison.Ordinal))
             return DisplayName(normalized);
 
