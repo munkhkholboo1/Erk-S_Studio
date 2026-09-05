@@ -2385,7 +2385,14 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawCoverCellText(gfx, clientRole, CoverCompanyRoleLeftMm, tableBottomMm, CoverCompanyRoleRightMm, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
         DrawCoverCellText(gfx, ValueOrDash(clientRepresentativeName), CoverCompanyRoleRightMm, tableBottomMm, CoverCompanyNameRightMm, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
-        DrawCoverText(gfx, "Улаанбаатар хот", CoverCenteredRect(210.0, 26.125, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
+        // The DESIGN ORGANISATION's registered city, not the project's location -
+        // decided in corner-table-space-contract-2026-09-06.json. It was a
+        // constant, so every cover this program has ever produced said
+        // Ulaanbaatar, including one issued by a company registered anywhere
+        // else. Empty when the organisation has not recorded one: PFR removed
+        // the identical default on their side (a9541d1) rather than inventing a
+        // city, and the two covers have to say the same thing.
+        DrawCoverText(gfx, company.RegisteredCity, CoverCenteredRect(210.0, 26.125, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
         DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, 15.625, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
     }
 

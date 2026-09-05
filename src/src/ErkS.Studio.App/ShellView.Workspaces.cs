@@ -5382,7 +5382,10 @@ internal sealed partial class ShellView
         AddCoverPreviewCell(canvas, clientRole, logoRightMm, tableBottomMm, processedRoleRightMm, bottomHeaderBottomMm);
         AddCoverPreviewCell(canvas, clientRepresentativeName, processedRoleRightMm, tableBottomMm, processedNameRightMm, bottomHeaderBottomMm);
 
-        AddCoverPreviewText(canvas, "Улаанбаатар хот",
+        // Changed WITH the writer, never after it: the preview and the printed
+        // cover are two drawings of one page, and a constant left in one of
+        // them would show a city the album does not contain.
+        AddCoverPreviewText(canvas, company.RegisteredCity,
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 26.125, 200, 12), bodyTextHeightMm, FontWeights.Normal);
         AddCoverPreviewText(canvas, $"{DateTime.Now:yyyy} он",
             BuildingArchitectureConceptPageLayout.CenteredFromBottomLeft(210, 15.625, 90, 12), bodyTextHeightMm, FontWeights.Normal);

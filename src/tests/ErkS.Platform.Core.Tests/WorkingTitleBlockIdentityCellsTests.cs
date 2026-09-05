@@ -124,6 +124,45 @@ public sealed class WorkingTitleBlockIdentityCellsTests
         Assert.DoesNotContain("Year = DateTime.Now", restamp, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void NoCoverPrintsAHardCodedCity()
+    {
+        // Every cover this program produced said «Улаанбаатар хот», including
+        // one issued by a company registered anywhere else. The contract of
+        // 2026-09-06 names the field: the DESIGN ORGANISATION's registered
+        // city, not the project's location. PFR deleted the same constant on
+        // their side (a9541d1); a constant surviving on either side makes the
+        // two covers disagree.
+        string writer = ReadPdfSource("PdfSharpAlbumWriter.cs");
+
+        Assert.DoesNotContain("\"Улаанбаатар", writer, StringComparison.Ordinal);
+        Assert.Contains("company.RegisteredCity", writer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ThePREVIEWOfTheCoverReadsTheSameFieldAsTheWriter()
+    {
+        // Two drawings of one page. A constant left in the preview would show a
+        // city the printed album does not contain, and the difference would be
+        // found by whoever printed it rather than by whoever looked.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        string? shell = null;
+        while (directory is not null && shell is null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Studio.App", "ShellView.Workspaces.cs");
+            if (File.Exists(candidate))
+                shell = candidate;
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(shell);
+        string preview = File.ReadAllText(shell!, Encoding.UTF8);
+
+        Assert.DoesNotContain("\"Улаанбаатар", preview, StringComparison.Ordinal);
+        Assert.Contains("company.RegisteredCity", preview, StringComparison.Ordinal);
+    }
+
     /// <summary>One writer source file, read from disk.</summary>
     private static string ReadPdfSource(string fileName)
     {
