@@ -11,6 +11,8 @@ internal sealed partial class ShellView
     private readonly StackPanel endorsedByRowsPanel = new();
     private readonly List<ApprovalEditorRow> approvedByEditorRows = [];
     private readonly List<ApprovalEditorRow> endorsedByEditorRows = [];
+    private readonly StackPanel concurredByRowsPanel = new();
+    private readonly List<ApprovalEditorRow> concurredByEditorRows = [];
     private readonly Button addApprovedByButton = StudioWidgets.CreateGlyphTextButton(
         "\uE710",
         "Батлах албан тушаалтан нэмэх",
@@ -19,6 +21,10 @@ internal sealed partial class ShellView
         "\uE710",
         "Зөвшөөрөлцөх албан тушаалтан нэмэх",
         "ЗӨВШӨӨРӨЛЦСӨН хэсэгт мөр нэмэх");
+    private readonly Button addConcurredByButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE710",
+        "Зөвшилцөх байгууллага нэмэх",
+        "ЗӨВШИЛЦСӨН хэсэгт мөр нэмэх");
     private bool approvalEditorInitialized;
 
     private UIElement BuildConceptApprovalEditor()
@@ -27,6 +33,7 @@ internal sealed partial class ShellView
         {
             addApprovedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ApprovedBy);
             addEndorsedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.EndorsedBy);
+            addConcurredByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ConcurredBy);
             approvalEditorInitialized = true;
         }
 
@@ -54,7 +61,13 @@ internal sealed partial class ShellView
 
         root.Children.Add(StudioWidgets.CreateSectionHeader("ЗӨВШИЛЦСӨН"));
         root.Children.Add(StudioWidgets.CreateHint(
-            "ЗӨВШИЛЦСӨН нь ЗАГВАР ЗУРГИЙН шатны жагсаалт: онцгой байдал, эрүүл мэндийн байгууллагууд загвар зургийг зөвшилцдөг. Эдгээр мөр загвар зургийн нүүр хуудсанд БАТЛАВ, ЗӨВШӨӨРӨЛЦСӨН-ий адил хэвлэгдэнэ."));
+            "ЗӨВШИЛЦСӨН нь ЗАГВАР ЗУРГИЙН шатны жагсаалт: онцгой байдал, эрүүл мэндийн " +
+            "байгууллагууд загвар зургийг зөвшилцдөг. Эдгээр мөр 2026 оны загвар зургийн " +
+            "нүүр хуудасны зүүн дээд хүснэгтэд хэвлэгдэнэ."));
+        root.Children.Add(BuildApprovalColumnHeader(ApprovalRosterKind.ConcurredBy));
+        root.Children.Add(concurredByRowsPanel);
+        addConcurredByButton.HorizontalAlignment = HorizontalAlignment.Left;
+        root.Children.Add(addConcurredByButton);
 
         if (state.HasOpenProject)
             BindConceptApprovalEditor();
@@ -69,7 +82,21 @@ internal sealed partial class ShellView
         AddHeader("Байгууллага", 1);
         AddHeader("Албан тушаал", 2);
         AddHeader("Нэр", 3);
-        AddHeader(kind == ApprovalRosterKind.ApprovedBy ? "Нүүр тал" : "Нүүр талын ХЯНАВ", 4, TextAlignment.Center);
+        // «ХЯНАСАН» and «ХЯНАВ» are NOT the same thing, and the concept cover
+        // is where they part: ХЯНАСАН is its own table on that sheet, while
+        // ХЯНАВ is a flag on a ЗӨВШӨӨРӨЛЦСӨН row of the elevation header.
+        // ЗӨВШИЛЦСӨН carries neither - its rows go to a table of their own -
+        // so the column is left unlabelled rather than borrowing a word that
+        // means something else two sections away.
+        AddHeader(
+            kind switch
+            {
+                ApprovalRosterKind.ApprovedBy => "Нүүр тал",
+                ApprovalRosterKind.EndorsedBy => "Нүүр талын ХЯНАВ",
+                _ => "",
+            },
+            4,
+            TextAlignment.Center);
 
         void AddHeader(string text, int column, TextAlignment alignment = TextAlignment.Left)
         {
@@ -98,6 +125,9 @@ internal sealed partial class ShellView
             state.Project.Foundation.PlanningTask);
         ReplaceApprovalRows(ApprovalRosterKind.ApprovedBy, snapshot.ApprovedBy);
         ReplaceApprovalRows(ApprovalRosterKind.EndorsedBy, snapshot.EndorsedBy);
+        ReplaceApprovalRows(
+            ApprovalRosterKind.ConcurredBy,
+            state.Project.Foundation.ApprovalWorkflow.ConceptDesign.ConcurredBy);
         RefreshConceptApprovalEditorUi();
     }
 
@@ -106,6 +136,7 @@ internal sealed partial class ShellView
         IsConfigured = true,
         ApprovedBy = ReadApprovalEntries(approvedByEditorRows),
         EndorsedBy = ReadApprovalEntries(endorsedByEditorRows),
+        ConcurredBy = ReadApprovalEntries(concurredByEditorRows),
     };
 
     private static bool ConceptApprovalDiffers(
@@ -115,7 +146,8 @@ internal sealed partial class ShellView
         ConceptDesignApprovalRoster current = workflow.ConceptDesign;
         return current.IsConfigured != draft.IsConfigured ||
             EntriesDiffer(current.ApprovedBy, draft.ApprovedBy) ||
-            EntriesDiffer(current.EndorsedBy, draft.EndorsedBy);
+            EntriesDiffer(current.EndorsedBy, draft.EndorsedBy) ||
+            EntriesDiffer(current.ConcurredBy, draft.ConcurredBy);
     }
 
     private static bool EntriesDiffer(
@@ -261,6 +293,12 @@ internal sealed partial class ShellView
             IsChecked = kind == ApprovalRosterKind.ApprovedBy || entry.IncludeInElevationHeader,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
+            // ЗӨВШИЛЦСӨН has no elevation-header flag: its rows print in their
+            // own table on the concept cover, not as a marked subset of another
+            // section. Showing the box would offer a choice with no effect.
+            Visibility = kind == ApprovalRosterKind.ConcurredBy
+                ? Visibility.Collapsed
+                : Visibility.Visible,
             ToolTip = kind == ApprovalRosterKind.ApprovedBy
                 ? "Нүүр хуудсан дээрх БАТЛАВ албан тушаалтан нүүр талын хуудсанд мөн орно."
                 : "Сонговол энэ албан тушаалтан нүүр талын ХЯНАВ хэсэгт орно.",
@@ -350,29 +388,56 @@ internal sealed partial class ShellView
         return grid;
     }
 
-    private List<ApprovalEditorRow> RowsFor(ApprovalRosterKind kind) =>
-        kind == ApprovalRosterKind.ApprovedBy ? approvedByEditorRows : endorsedByEditorRows;
+    // SWITCHES, NOT TERNARIES. Every one of these read "ApprovedBy ? a : b",
+    // so the moment a third roster existed it would have been silently treated
+    // as ЗӨВШӨӨРӨЛЦСӨН - its rows written into another list, its limits taken
+    // from another section, its label naming another block. A ternary answers
+    // a two-valued question and keeps answering it after the question changes.
+    private List<ApprovalEditorRow> RowsFor(ApprovalRosterKind kind) => kind switch
+    {
+        ApprovalRosterKind.ApprovedBy => approvedByEditorRows,
+        ApprovalRosterKind.EndorsedBy => endorsedByEditorRows,
+        ApprovalRosterKind.ConcurredBy => concurredByEditorRows,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
-    private StackPanel PanelFor(ApprovalRosterKind kind) =>
-        kind == ApprovalRosterKind.ApprovedBy ? approvedByRowsPanel : endorsedByRowsPanel;
+    private StackPanel PanelFor(ApprovalRosterKind kind) => kind switch
+    {
+        ApprovalRosterKind.ApprovedBy => approvedByRowsPanel,
+        ApprovalRosterKind.EndorsedBy => endorsedByRowsPanel,
+        ApprovalRosterKind.ConcurredBy => concurredByRowsPanel,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
-    private static int MinimumFor(ApprovalRosterKind kind) =>
-        kind == ApprovalRosterKind.ApprovedBy
-            ? ProjectApprovalRosterLimits.MinApprovedBy
-            : ProjectApprovalRosterLimits.MinEndorsedBy;
+    private static int MinimumFor(ApprovalRosterKind kind) => kind switch
+    {
+        ApprovalRosterKind.ApprovedBy => ProjectApprovalRosterLimits.MinApprovedBy,
+        ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MinEndorsedBy,
+        ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MinConcurredBy,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
-    private static int MaximumFor(ApprovalRosterKind kind) =>
-        kind == ApprovalRosterKind.ApprovedBy
-            ? ProjectApprovalRosterLimits.MaxApprovedBy
-            : ProjectApprovalRosterLimits.MaxEndorsedBy;
+    private static int MaximumFor(ApprovalRosterKind kind) => kind switch
+    {
+        ApprovalRosterKind.ApprovedBy => ProjectApprovalRosterLimits.MaxApprovedBy,
+        ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MaxEndorsedBy,
+        ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MaxConcurredBy,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
-    private static string RosterLabel(ApprovalRosterKind kind) =>
-        kind == ApprovalRosterKind.ApprovedBy ? "БАТЛАВ" : "ЗӨВШӨӨРӨЛЦСӨН";
+    private static string RosterLabel(ApprovalRosterKind kind) => kind switch
+    {
+        ApprovalRosterKind.ApprovedBy => "БАТЛАВ",
+        ApprovalRosterKind.EndorsedBy => "ЗӨВШӨӨРӨЛЦСӨН",
+        ApprovalRosterKind.ConcurredBy => "ЗӨВШИЛЦСӨН",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
     private enum ApprovalRosterKind
     {
         ApprovedBy,
         EndorsedBy,
+        ConcurredBy,
     }
 
     private sealed record ApprovalEditorRow(

@@ -149,6 +149,15 @@ public static class ProjectApprovalRosterLimits
     public const int MaxApprovedBy = 3;
     public const int MinEndorsedBy = 2;
     public const int MaxEndorsedBy = 6;
+
+    /// <summary>
+    /// ЗӨВШИЛЦСӨН has no floor: a project may need none, and the 2026 concept
+    /// cover shows the table with two rows and with three. The ceiling is the
+    /// drawing's own - its body is a fixed 40 mm, so past a handful of rows the
+    /// text stops being readable rather than the table growing.
+    /// </summary>
+    public const int MinConcurredBy = 0;
+    public const int MaxConcurredBy = 6;
 }
 
 public sealed record ConceptCoverApprovalSnapshot(
