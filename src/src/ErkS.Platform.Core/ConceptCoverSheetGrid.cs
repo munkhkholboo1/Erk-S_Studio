@@ -36,23 +36,28 @@ public static class ConceptCoverSheetGrid
     public const double FrameWidthMm = 279.32;
     public const double FrameHeightMm = 202.95;
 
-    /// <summary>Both table pairs start and end here.</summary>
-    public const double TablesLeftMm = 32.77;
-    public const double TablesRightMm = 274.34;
+    /// <summary>
+    /// The vertical division between the left and right tables: the frame's
+    /// exact centre.
+    ///
+    /// DECIDED, not measured - and the measurement is what makes it safe. The
+    /// drawing's divider already sits at 153.80, which IS the frame's centre,
+    /// while its two halves come out at 121.03 and 120.54. A divider placed on
+    /// centre with unequal halves is somebody aiming at symmetry and missing by
+    /// half a millimetre, not somebody meaning one side to be wider.
+    /// </summary>
+    public const double TablesMiddleMm = FrameLeftMm + FrameWidthMm / 2;
 
     /// <summary>
-    /// The vertical division between the left and right tables.
-    ///
-    /// DECIDED, not measured. The drawing puts the left table at 121.03 mm and
-    /// the right at 120.54 - and its logo columns at 14.38 and 15.20 - which is
-    /// the hand of whoever drew it rather than an intention. Reproducing a
-    /// half-millimetre wobble would make every future reader wonder which side
-    /// was meant to be wider.
+    /// Width of one of the two tables: half the measured total of 241.57 mm.
+    /// Centring that total moves each outer edge by 0.245 mm and changes
+    /// nothing else.
     /// </summary>
-    public const double TablesMiddleMm = (TablesLeftMm + TablesRightMm) / 2;
+    public const double TableWidthMm = 120.785;
 
-    /// <summary>Width of one of the two tables after that decision.</summary>
-    public const double TableWidthMm = (TablesRightMm - TablesLeftMm) / 2;
+    /// <summary>Both table pairs start and end here.</summary>
+    public const double TablesLeftMm = TablesMiddleMm - TableWidthMm;
+    public const double TablesRightMm = TablesMiddleMm + TableWidthMm;
 
     // ---- upper pair: ЗӨВШИЛЦСӨН | ХЯНАСАН ----------------------------------
 
@@ -91,9 +96,11 @@ public static class ConceptCoverSheetGrid
     /// between the two rows stops at its edge and does not cross it.
     ///
     /// DECIDED width: the drawing has 14.38 on the left and 15.20 on the right,
-    /// the same asymmetry as the tables above.
+    /// the same asymmetry as the tables above. 15.0 sits inside that range and
+    /// is a whole number; if the user prefers the midpoint it becomes 14.79 and
+    /// nothing else moves.
     /// </summary>
-    public const double LogoColumnMm = 14.79;
+    public const double LogoColumnMm = 15.0;
 
     /// <summary>Position column of the lower pair - the remainder after the logo.</summary>
     public const double LowerRoleColumnMm =
@@ -106,25 +113,37 @@ public static class ConceptCoverSheetGrid
     /// Where the horizontal divisions of the upper table's body fall, top-down,
     /// for a given number of rows.
     ///
-    /// TWO and THREE are the drawing's own: 20/20, and 16/12/12. The second is
-    /// NOT an even split - 40/3 would be 13.33 - and reproducing it is the
-    /// point, because that is what the drawing shows.
+    /// ALWAYS AN EVEN DIVISION, and this DEPARTS from the drawing on purpose.
     ///
-    /// FOUR AND ABOVE ARE DECIDED, because the drawing does not show them. An
-    /// even division is the only rule that cannot be mistaken for a measurement
-    /// somebody forgot to record.
+    /// The drawing's three-row variant is 16/12/12, which is not 40/3. An
+    /// earlier version of this file reproduced it, on the reasoning that a
+    /// measurement beats a rule. The decision of 2026-09-06 reversed that, and
+    /// the reason is worth keeping: reproducing 16/12/12 means a lookup table
+    /// per row count, and a lookup table makes row height a DISCONTINUOUS
+    /// function of the count - add a party and the whole table jumps. An even
+    /// split is continuous, and at two rows it agrees with the drawing exactly.
+    ///
+    /// The same rule serves both sides. The drawing happens to show ХЯНАСАН
+    /// with two rows in both of its variants; that is an observation about two
+    /// examples, not a rule that it always has two, and giving it a special
+    /// case would freeze an accident into the code.
     /// </summary>
     public static IReadOnlyList<double> UpperRowHeights(int rowCount)
     {
         int rows = Math.Max(1, rowCount);
-        return rows switch
-        {
-            1 => [UpperBodyHeightMm],
-            2 => [20.0, 20.0],
-            3 => [16.0, 12.0, 12.0],
-            _ => Enumerable.Repeat(UpperBodyHeightMm / rows, rows).ToList(),
-        };
+        return Enumerable.Repeat(UpperBodyHeightMm / rows, rows).ToList();
     }
+
+    /// <summary>
+    /// Rows past this fit, and stop being readable: at seven the row is 5.7 mm
+    /// and the text inside it smaller still.
+    ///
+    /// The table is NOT refused past it and the rows are NOT quietly squeezed -
+    /// the roster editor says so where the rows are typed, and the sheet draws
+    /// what it was given. Refusing to draw and drawing something unreadable
+    /// without comment are both worse than drawing it and saying so.
+    /// </summary>
+    public const int ComfortableRowLimit = 6;
 
     /// <summary>
     /// Row boundaries of the upper table's body, from its top edge downwards.

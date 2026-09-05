@@ -8,15 +8,17 @@ namespace ErkS.Platform.Core.Tests;
 /// Most of what is pinned here is a measurement. Three things are not, and each
 /// is a deliberate departure from the drawing:
 ///
-///   the left/right split      the drawing is 0.49 mm lopsided; that is a hand,
-///                             not an intention
-///   the logo column           likewise, 14.38 against 15.20
-///   four rows and above       the drawing shows two and three only, so any
-///                             fourth value would be invented either way
+///   the divider          centred on the frame, which the drawing already was;
+///                        its two halves were 0.49 mm apart, which the aim was
+///                        not
+///   the logo column      14.38 against 15.20 in the drawing, 15.0 here
+///   the row division     always 40/N, so the drawing's 16/12/12 is NOT
+///                        reproduced - see the test that says why
 ///
 /// Marking which is which is the work. A reader who cannot tell a measurement
 /// from a decision will eventually "fix" the decision back into the drawing's
-/// own imprecision, and be sure they are restoring fidelity.
+/// own imprecision, and be sure they are restoring fidelity. This file has
+/// already held the opposite of its third departure, so the danger is real.
 /// </summary>
 public sealed class ConceptCoverSheetGridTests
 {
@@ -45,16 +47,23 @@ public sealed class ConceptCoverSheetGridTests
     }
 
     [Fact]
-    public void TheTwoTablesAreEQUAL_WhichTheDrawingIsNot()
+    public void TheDividerSitsOnTheFramesCENTRE_WhichTheDrawingAlreadyDid()
     {
-        // The decision, stated as a test so it cannot be undone by accident.
-        // 121.03 against 120.54 in the drawing; here both halves of 241.57.
+        // The measurement is what makes the decision safe rather than merely
+        // tidy: the drawing's divider is already at 153.80, which is exactly
+        // the frame's centre, while its halves come out 121.03 and 120.54. A
+        // divider on centre with unequal halves is an aim that missed by half a
+        // millimetre, not an intention that one side be wider.
+        Assert.Equal(153.80, ConceptCoverSheetGrid.TablesMiddleMm, 3);
         Assert.Equal(120.785, ConceptCoverSheetGrid.TableWidthMm, 3);
-        Assert.Equal(153.555, ConceptCoverSheetGrid.TablesMiddleMm, 3);
+        Assert.Equal(33.015, ConceptCoverSheetGrid.TablesLeftMm, 3);
+        Assert.Equal(274.585, ConceptCoverSheetGrid.TablesRightMm, 3);
+
+        // The measured total width is kept; only the edges move, by 0.245 mm.
         Assert.Equal(
+            241.57,
             ConceptCoverSheetGrid.TablesRightMm - ConceptCoverSheetGrid.TablesLeftMm,
-            ConceptCoverSheetGrid.TableWidthMm * 2,
-            6);
+            3);
     }
 
     [Fact]
@@ -104,40 +113,56 @@ public sealed class ConceptCoverSheetGridTests
     }
 
     [Fact]
-    public void TWOAndTHREERowsKeepTheDrawingsOwnUnEVENDivision()
+    public void EveryRowCountDividesEVENLY_IncludingTheOneTheDrawingDisagreesWith()
     {
-        // 40/3 is 13.33; the drawing says 16/12/12. Reproducing it is the point.
-        // A later reader seeing an uneven split will want to "tidy" it, and this
-        // test is the answer.
+        // A DELIBERATE DEPARTURE, and this file used to hold the opposite.
+        // The drawing's three-row variant is 16/12/12, and reproducing it means
+        // a lookup table per row count - which makes row height a discontinuous
+        // function of the count, so adding one party jumps the whole table.
+        // The even split is continuous, and at two rows it matches the drawing
+        // exactly.
         Assert.Equal(new[] { 20.0, 20.0 }, ConceptCoverSheetGrid.UpperRowHeights(2));
-        Assert.Equal(new[] { 16.0, 12.0, 12.0 }, ConceptCoverSheetGrid.UpperRowHeights(3));
-        Assert.NotEqual(
-            ConceptCoverSheetGrid.UpperRowHeights(3)[0],
-            ConceptCoverSheetGrid.UpperRowHeights(3)[1]);
-    }
-
-    [Fact]
-    public void FOURRowsAndAboveDivideEVENLY_WhichIsADecision()
-    {
-        // The drawing shows two and three. Anything past that had to be chosen,
-        // and an even split is the one choice that cannot be mistaken for a
-        // measurement somebody forgot to write down.
+        Assert.All(
+            ConceptCoverSheetGrid.UpperRowHeights(3),
+            height => Assert.Equal(40.0 / 3, height, 6));
         Assert.All(
             ConceptCoverSheetGrid.UpperRowHeights(4),
             height => Assert.Equal(10.0, height, 6));
-        Assert.All(
-            ConceptCoverSheetGrid.UpperRowHeights(5),
-            height => Assert.Equal(8.0, height, 6));
+    }
+
+    [Fact]
+    public void ONERuleServesBothSides_WithNoSpecialCaseForХЯНАСАН()
+    {
+        // The drawing shows ХЯНАСАН with two rows in both of its variants. Two
+        // examples are an observation, not a rule, and a special case would
+        // freeze the accident: the day a project has three reviewers the table
+        // would be wrong in a way traceable to a comment nobody wrote.
+        for (int rows = 1; rows <= 8; rows++)
+        {
+            Assert.All(
+                ConceptCoverSheetGrid.UpperRowHeights(rows),
+                height => Assert.Equal(ConceptCoverSheetGrid.UpperBodyHeightMm / rows, height, 6));
+        }
+    }
+
+    [Fact]
+    public void PastTheComfortableLimitTheRowsStillDraw()
+    {
+        // Neither refused nor silently squeezed. Seven rows fit - at 5.7 mm
+        // each - and the roster editor is where the reader is told they will be
+        // tight, because that is where the count is chosen.
+        Assert.Equal(6, ConceptCoverSheetGrid.ComfortableRowLimit);
+        Assert.Equal(7, ConceptCoverSheetGrid.UpperRowHeights(7).Count);
+        Assert.Equal(40.0, ConceptCoverSheetGrid.UpperRowHeights(7).Sum(), 6);
     }
 
     [Fact]
     public void TheRowBoundariesWalkDownFromTheHeaderToTheTablesFoot()
     {
-        IReadOnlyList<double> boundaries = ConceptCoverSheetGrid.UpperRowBoundaries(3);
+        IReadOnlyList<double> boundaries = ConceptCoverSheetGrid.UpperRowBoundaries(2);
 
         Assert.Equal(97.0, boundaries[0], 2);
-        Assert.Equal(81.0, boundaries[1], 2);
-        Assert.Equal(69.0, boundaries[2], 2);
+        Assert.Equal(77.0, boundaries[1], 2);
         Assert.Equal(ConceptCoverSheetGrid.UpperBottomMm, boundaries[^1], 2);
     }
 
