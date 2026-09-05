@@ -345,11 +345,20 @@ public sealed partial class PdfSharpAlbumWriter
 
         if (logoOwner is not null)
         {
-            DrawCompanyLogoOrMark(
+            // LOGO ONLY. The other covers fall back to an Erk-S mark and the
+            // words «Лого байршуул» - an instruction addressed to whoever is
+            // filling the template in, not to whoever reads the finished sheet.
+            // This one is signed and stamped, and "put a logo here" printed on
+            // a signed document is a fault in the document.
+            //
+            // The absence is not hidden either: the organisation editor says a
+            // logo has not been set. Same shape as the other two gaps on this
+            // sheet - past six rows, and an empty ХЯНАСАН - the document is
+            // left honest and the person is told plainly.
+            DrawCompanyLogoOnly(
                 gfx,
                 logoOwner,
-                ConceptCover2026Rect(leftMm, bottom, logoRight, top),
-                2.0);
+                ConceptCover2026Rect(leftMm, bottom, logoRight, top));
         }
     }
 

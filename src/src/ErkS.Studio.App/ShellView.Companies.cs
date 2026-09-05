@@ -254,6 +254,10 @@ internal sealed partial class ShellView
         form.Children.Add(StudioWidgets.CreateFormRow("Нэр", libraryCompanyArchitectNameBox, 155));
         form.Children.Add(libraryCompanyArchitectHint);
         form.Children.Add(StudioWidgets.CreateSectionHeader("Лого"));
+        form.Children.Add(StudioWidgets.CreateHint(
+            "Лого сонгоогүй бол 2026 оны загвар зургийн нүүрэн дээрх логоны нүд " +
+            "ХООСОН хэвлэгдэнэ. Гарын үсэг зурагдах баримт дээр «энд лого тавь» " +
+            "гэсэн заавар хэвлэгдэхгүй — дутууг нь энд хэлж, хуудсыг зөв үлдээнэ."));
         form.Children.Add(BuildCompanyLogoEditor());
         return StudioWidgets.CreateScrollHost(form);
     }
