@@ -423,6 +423,7 @@ public sealed class ProjectServerInitiationBasis
     public string ClientRepresentativePosition { get; set; } = "";
     public string ClientRepresentativeName { get; set; } = "";
     public string ClientLogoUrl { get; set; } = "";
+
     public string SiteAddress { get; set; } = "";
     public string LandReference { get; set; } = "";
     public string SourceOrganizationName { get; set; } = "";
@@ -721,7 +722,19 @@ public sealed class ProjectInitiationBasis
     /// <summary>Non-citizen client's representative name printed on the cover.</summary>
     public string ClientRepresentativeName { get; set; } = "";
     public CompanyProfile ClientOrganizationSnapshot { get; set; } = new();
+    /// <summary>
+    /// The address as TYPED. Kept exactly as it is, including on projects that
+    /// later choose a structured location: the two live side by side and the
+    /// typed line is never parsed into the chosen fields.
+    /// </summary>
     public string SiteAddress { get; set; } = "";
+
+    /// <summary>
+    /// The address as CHOSEN, from the published catalogue of administrative
+    /// units. Empty on every project that predates it, and empty is not a
+    /// prompt to guess - see <see cref="ProjectSiteLocation"/>.
+    /// </summary>
+    public ProjectSiteLocation SiteLocation { get; set; } = new();
     public string LandReference { get; set; } = "";
     public string SourceOrganizationName { get; set; } = "";
     public string ServerRecordId { get; set; } = "";
