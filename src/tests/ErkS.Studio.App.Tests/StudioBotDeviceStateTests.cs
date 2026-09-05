@@ -2,6 +2,7 @@
 
 namespace ErkS.Studio.App.Tests;
 
+[Collection(StudioDataRootCollection.Name)]
 public sealed class StudioBotDeviceStateTests : IDisposable
 {
     private readonly string dataRoot = Path.Combine(

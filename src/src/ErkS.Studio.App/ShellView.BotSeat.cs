@@ -34,19 +34,6 @@ internal sealed partial class ShellView
     /// <summary>True while this machine is seated, whether or not it is unlocked.</summary>
     private bool SeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
-    /// <summary>
-    /// True once the OWNER has proved themselves on this seated machine in this
-    /// run, through the passport link on the lock screen - the one door that
-    /// asks for the owner's own credential rather than the seat's PIN.
-    ///
-    /// Deliberately not inferred from "somebody is signed in": a bot session can
-    /// end up with a signed-in account for its own reasons, and a seat that can
-    /// talk itself into owner rights is not a boundary. Deliberately not
-    /// inferred from "no bot token either": a machine whose token request failed
-    /// would then be MORE privileged than one whose succeeded, which is the
-    /// unknown-means-allow shape this codebase keeps having to undo.
-    /// </summary>
-    private bool ownerVerifiedOnSeatedDevice;
 
     /// <summary>
     /// Whether seat management may be offered at all: creating, releasing,
@@ -54,11 +41,21 @@ internal sealed partial class ShellView
     /// OWNER's actions - the owner contains the bot, never the other way round -
     /// so on a seated machine they exist only for a verified owner.
     ///
-    /// The way back in on a machine with nobody at the owner end is the lock
-    /// screen's passport link, which is why leaving bot state is behind this
-    /// too: a seat that can release itself is a seat that manages itself.
+    /// The way back in is the passport - the FULL sign-in, never the PIN. On a
+    /// seated machine that is exactly what an owner session means: entering bot
+    /// state erases the owner credential, and the seat's own token is not a
+    /// session at all, so account.IsSignedIn can only have become true because
+    /// somebody typed their whole passport at this keyboard.
+    ///
+    /// This used to be a separate latch that one method set. The latch was true
+    /// and the menu still showed the old entries, because the menu was built
+    /// once at start-up - so the door opened onto nothing. A fact that is read
+    /// where it is needed cannot go stale that way.
+    ///
+    /// Leaving bot state sits behind this too: a seat that can release itself is
+    /// a seat that manages itself.
     /// </summary>
-    private bool MayManageSeats => !SeatedAsBot || ownerVerifiedOnSeatedDevice;
+    private bool MayManageSeats => !SeatedAsBot || account.IsSignedIn;
 
     /// <summary>
     /// Refuses a seat-management action and says why. Called by each action for
@@ -303,39 +300,26 @@ internal sealed partial class ShellView
     /// </summary>
     private IEnumerable<MenuItem> BuildBotMenuItems()
     {
-        // On a seated machine the management entries stay hidden until an owner
-        // has proved themselves - not even "leave bot state", which is the same
-        // authority as releasing the seat from the other end.
-        //
-        // What is ALWAYS here is the door to prove it. Hiding the door as well
-        // left a machine unlocked with its PIN in this run with no way back at
-        // all: the lock screen carried the only passport link, and RemoveBotLock
-        // had taken it away. A door is not a right - this one asks for the whole
-        // passport, exactly as the lock screen did, while the PIN opens only the
-        // seat.
-        if (!MayManageSeats)
+        // The rule itself lives in StudioBotMenuPlan, where it can be stated in
+        // a test. This method only turns entries into controls.
+        foreach (BotMenuEntry entry in StudioBotMenuPlan.For(SeatedAsBot, account.IsSignedIn))
         {
-            var passport = new MenuItem { Header = "Эзэмшигчээр нэвтрэх…" };
-            passport.Click += async (_, _) => await VerifyOwnerOnSeatedDeviceAsync();
-            yield return passport;
-            yield break;
+            MenuItem item = entry switch
+            {
+                BotMenuEntry.OwnerPassport => Item("Эзэмшигчээр нэвтрэх…", VerifyOwnerOnSeatedDeviceAsync),
+                BotMenuEntry.ManageSeats => Item("Ботын удирдлага…", ShowBotManagementAsync),
+                BotMenuEntry.SeatThisDevice => Item("Энэ төхөөрөмжийг бот болгох…", SeatThisDeviceAsync),
+                BotMenuEntry.LeaveBotState => Item("Ботын төлөвөөс гарах…", LeaveBotStateAsync),
+                _ => throw new InvalidOperationException("Unknown bot menu entry: " + entry),
+            };
+            yield return item;
         }
 
-        var manage = new MenuItem { Header = "Ботын удирдлага…" };
-        manage.Click += async (_, _) => await ShowBotManagementAsync();
-        yield return manage;
-
-        if (!IsSeatedAsBot)
+        static MenuItem Item(string header, Func<Task> action)
         {
-            var seat = new MenuItem { Header = "Энэ төхөөрөмжийг бот болгох…" };
-            seat.Click += async (_, _) => await SeatThisDeviceAsync();
-            yield return seat;
-        }
-        else
-        {
-            var leave = new MenuItem { Header = "Ботын төлөвөөс гарах…" };
-            leave.Click += async (_, _) => await LeaveBotStateAsync();
-            yield return leave;
+            var item = new MenuItem { Header = header };
+            item.Click += async (_, _) => await action();
+            return item;
         }
     }
 
@@ -355,7 +339,6 @@ internal sealed partial class ShellView
             return;
         }
 
-        ownerVerifiedOnSeatedDevice = true;
         RemoveBotLock();
         UpdateAccountUi();
         SetStatus("Эзэмшигчээр баталгаажлаа. Энэ төхөөрөмж ботын суудал хэвээр.");

@@ -8,6 +8,7 @@ namespace ErkS.Studio.App.Tests;
 /// occupied server-side with nothing on the device pointing at it - which is the
 /// same defect one layer over. These pin the note that keeps it visible.
 /// </summary>
+[Collection(StudioDataRootCollection.Name)]
 public sealed class StudioPendingBotSeatReleaseTests : IDisposable
 {
     private readonly string dataRoot = Path.Combine(

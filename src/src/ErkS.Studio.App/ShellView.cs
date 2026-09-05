@@ -535,7 +535,12 @@ internal sealed partial class ShellView : IDisposable
         accountButton.VerticalAlignment = VerticalAlignment.Center;
         accountButton.Click += async (_, _) =>
         {
-            if (!account.IsSignedIn)
+            // A seated machine holds NO owner session - entering bot state
+            // erased the credential - so this used to answer every click with a
+            // login dialog and never open the menu at all. That is the machine
+            // with no way out of bot state: the exit lives in the menu, and the
+            // menu could not be reached.
+            if (!account.IsSignedIn && !SeatedAsBot)
             {
                 await ToggleAccountAsync();
                 return;
@@ -543,6 +548,10 @@ internal sealed partial class ShellView : IDisposable
 
             if (accountButton.ContextMenu is { } menu)
             {
+                // Rebuilt on every open. Built once at start-up, it kept
+                // whatever the seat state was at launch, so signing in as the
+                // owner changed the rules and not the menu.
+                PopulateAccountMenu(menu);
                 menu.PlacementTarget = accountButton;
                 menu.Placement = PlacementMode.Top;
                 menu.IsOpen = true;
@@ -579,15 +588,8 @@ internal sealed partial class ShellView : IDisposable
         row.Children.Add(details);
         accountButton.Content = row;
 
-        var signOut = new MenuItem { Header = "Гарах" };
-        signOut.Click += async (_, _) => await ToggleAccountAsync();
         var accountMenu = new ContextMenu { MinWidth = 190 };
-        foreach (MenuItem item in BuildBotMenuItems())
-        {
-            accountMenu.Items.Add(item);
-        }
-        accountMenu.Items.Add(new Separator());
-        accountMenu.Items.Add(signOut);
+        PopulateAccountMenu(accountMenu);
         accountButton.ContextMenu = accountMenu;
         var accountPanel = new StackPanel();
         // The rail is on screen whatever page is open, so this is the one place
@@ -2034,6 +2036,30 @@ internal sealed partial class ShellView : IDisposable
         await RefreshProjectsAsync();
         SetStatus("Cloud ERA бүртгэлээр нэвтэрлээ.");
         return true;
+    }
+
+    /// <summary>
+    /// Fills the account menu with what is true NOW.
+    ///
+    /// The entries used to be added once, while the shell was being built. On a
+    /// seated machine that froze the menu in the state the app launched in, so
+    /// the owner could sign in, gain every right the menu is gated on, and
+    /// still be looking at the entries of a machine that had none.
+    /// </summary>
+    private void PopulateAccountMenu(ContextMenu menu)
+    {
+        ArgumentNullException.ThrowIfNull(menu);
+        menu.Items.Clear();
+        foreach (MenuItem item in BuildBotMenuItems())
+            menu.Items.Add(item);
+
+        menu.Items.Add(new Separator());
+        var signOut = new MenuItem
+        {
+            Header = account.IsSignedIn ? "Гарах" : "Нэвтрэх",
+        };
+        signOut.Click += async (_, _) => await ToggleAccountAsync();
+        menu.Items.Add(signOut);
     }
 
     private void UpdateAccountUi()
