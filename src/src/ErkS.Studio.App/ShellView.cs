@@ -2094,7 +2094,7 @@ internal sealed partial class ShellView : IDisposable
             return false;
         }
         UpdateAccountUi();
-        await EnsureDeviceKeyRegisteredAsync();
+        _ = await EnsureDeviceKeyRegisteredAsync();
         // A seat this machine left while the server was unreachable is still
         // occupied there. An owner session is the credential that releases it,
         // and this is the moment one arrives.

@@ -247,11 +247,20 @@ internal sealed partial class ShellView
     /// fingerprint, so the key can be registered on top of it without stranding
     /// the records held under the older form.
     /// </summary>
-    private async Task EnsureDeviceKeyRegisteredAsync()
+    /// <summary>
+    /// Registers this machine's key with the server if it is not already, and
+    /// says whether the machine now HAS a registered key.
+    ///
+    /// The answer matters because seating a device is irreversible without it:
+    /// a seated machine has no session left to register with. Everywhere else
+    /// the result is ignored - an unregistered machine keeps working exactly as
+    /// it did before keys existed.
+    /// </summary>
+    private async Task<bool> EnsureDeviceKeyRegisteredAsync()
     {
         string email = account.Current?.Email ?? "";
         if (string.IsNullOrWhiteSpace(email))
-            return;
+            return false;
         string fingerprint;
         try
         {
@@ -260,31 +269,36 @@ internal sealed partial class ShellView
         catch (Exception exception)
         {
             SetStatus("Энэ төхөөрөмжийн түлхүүр үүсгэгдсэнгүй: " + exception.Message);
-            return;
+            return false;
         }
         if (StudioDeviceKeyStore.IsRegistered(fingerprint, email))
         {
             StudioDeviceIdentity.UseRegisteredKeyFingerprint(fingerprint);
-            return;
+            return true;
         }
 
         try
         {
             StudioCloudDeviceKeyRegistration registered = await account.RegisterDeviceKeyAsync();
             StudioDeviceKeyStore.MarkRegistered(registered.DeviceFingerprint, email);
+            return true;
         }
         catch (StudioAccountException exception)
             when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             // A server that has not been updated has no such route. Nothing is
-            // broken: this machine keeps using the fingerprint it always has.
+            // broken for ordinary work: this machine keeps using the fingerprint
+            // it always has. Seating, however, must not go ahead - the device
+            // would have no way to prove itself after a restart.
             SetStatus(
                 "Сервер төхөөрөмжийн түлхүүрийн бүртгэлийг дэмжихгүй байна — " +
                 "энэ хувилбарт өмнөх таних тэмдгээр үргэлжилнэ.");
+            return false;
         }
         catch (Exception exception)
         {
             SetStatus("Төхөөрөмжийн түлхүүр бүртгэгдсэнгүй: " + exception.Message);
+            return false;
         }
     }
 
@@ -410,6 +424,19 @@ internal sealed partial class ShellView
             return;
         if (!await EnsureSignedInAsync())
             return;
+        // The device key must be registered BEFORE the machine is seated: a
+        // seated machine has no Cloud ERA session left to register with, so it
+        // could never repair this itself - the owner would have to release the
+        // seat and start again. EnsureSignedInAsync returns early when somebody
+        // is already signed in, and registration lives inside it, so a person
+        // who seats a device without signing in afresh would skip it entirely.
+        if (!await EnsureDeviceKeyRegisteredAsync())
+        {
+            SetStatus(
+                "Төхөөрөмжийн түлхүүр бүртгэгдээгүй тул ботын суудал үүсгэсэнгүй. " +
+                "Суудалтай болсны дараа үүнийг засах боломжгүй болно.");
+            return;
+        }
         IReadOnlyList<StudioCloudOrganization> organizations;
         try
         {

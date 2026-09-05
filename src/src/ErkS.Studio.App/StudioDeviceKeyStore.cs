@@ -76,6 +76,28 @@ internal static class StudioDeviceKeyStore
         }
     }
 
+    /// <summary>
+    /// Opens the key ONLY if this machine already has one, and returns null
+    /// otherwise. The caller disposes what it gets.
+    ///
+    /// Open() creates on first use, which is right when a machine is registering
+    /// itself and wrong everywhere else: a seated device asking for its bot
+    /// session with a freshly minted key would send a fingerprint the server has
+    /// never seen, and be told it is an UNKNOWN DEVICE rather than a device
+    /// whose key was never registered. Two different problems, one of which the
+    /// owner can fix and the other of which reads as a security event.
+    /// </summary>
+    public static ECDsa? TryOpenExisting()
+    {
+        lock (Gate)
+        {
+            if (!Exists())
+                return null;
+            CngKey opened = CngKey.Open(KeyName, CngProvider.MicrosoftSoftwareKeyStorageProvider);
+            return new ECDsaCng(opened);
+        }
+    }
+
     public static byte[] PublicKey()
     {
         using ECDsa key = Open();

@@ -697,17 +697,36 @@ internal sealed class BotMemberInvitationDialog : Window
 /// </summary>
 internal static class BotSeatErrors
 {
+    /// <summary>
+    /// Turns a failure into the sentence the person needs.
+    ///
+    /// A 404 used to be rewritten wholesale as "this server does not support
+    /// bots yet". That is true of a route that is not there, and false of every
+    /// 404 the bot routes themselves answer - "this seat no longer exists" would
+    /// have been reported as an out-of-date server, sending the owner to look in
+    /// entirely the wrong place. A server that speaks names its reason in the
+    /// error code; a route that is missing cannot. So the CODE decides, and the
+    /// status only stands in when there is none.
+    /// </summary>
     public static string Describe(Exception exception, string fallback)
     {
-        if (exception is StudioAccountException { StatusCode: System.Net.HttpStatusCode.NotFound })
+        if (exception is not StudioAccountException known)
+            return fallback + " (" + exception.Message + ")";
+
+        // The server spoke. Its own words are more specific than anything that
+        // can be reconstructed from a status code - and for a released seat they
+        // are the difference between "the owner released this device", "the seat
+        // was deleted" and "it was handed back", which are three different
+        // things to do next.
+        if (!string.IsNullOrWhiteSpace(known.ErrorCode))
+            return known.Message;
+
+        if (known.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return "Сервер ботын боломжийг хараахан дэмжихгүй байна (404). " +
                 "Энэ нь Studio-гийн алдаа биш — серверийн шинэчлэл шаардлагатай.";
         }
-        if (exception is StudioAccountException known)
-        {
-            return known.Message;
-        }
-        return fallback + " (" + exception.Message + ")";
+
+        return known.Message;
     }
 }
