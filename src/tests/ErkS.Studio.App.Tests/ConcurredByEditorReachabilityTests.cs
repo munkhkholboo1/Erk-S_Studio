@@ -82,6 +82,36 @@ public sealed class ConcurredByEditorReachabilityTests
         Assert.Contains("Visibility.Collapsed", view, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PassingTheLimitWARNS_ItDoesNotBLOCK()
+    {
+        // A ceiling and a comfort limit are different things. БАТЛАВ and
+        // ЗӨВШӨӨРӨЛЦСӨН print into fixed slots, so a further row has nowhere to
+        // go. ЗӨВШИЛЦСӨН divides a fixed height by however many rows exist, so a
+        // seventh party is cramped - and refusing it would leave a project that
+        // genuinely has seven unable to produce its cover at all.
+        string view = ReadApprovalsView();
+
+        Assert.Contains("RefusesBeyondMaximum(kind)", view, StringComparison.Ordinal);
+        Assert.Contains("ApprovalRosterKind.ConcurredBy => false,", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ROWSAreNotSilentlyTruncatedOnLoad()
+    {
+        // The row list was built with Take(maximum). For a roster that only
+        // warns, that deletes a party the moment the project is opened - before
+        // anybody could read the warning about it.
+        string view = ReadApprovalsView();
+
+        Assert.Contains("? source.Take(MaximumFor(kind))", view, StringComparison.Ordinal);
+        Assert.Contains(": source;", view, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "foreach (ProjectApprovalEntry sourceEntry in source.Take(MaximumFor(kind)))",
+            view,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadApprovalsView()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

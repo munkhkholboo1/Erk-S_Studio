@@ -183,8 +183,22 @@ internal sealed partial class ShellView
         List<ProjectApprovalEntry> entries = ReadApprovalEntries(rows);
         if (entries.Count >= maximum)
         {
-            SetStatus($"{RosterLabel(kind)} хэсэг хамгийн ихдээ {maximum} мөртэй байна.");
-            return;
+            // A CEILING and a COMFORT LIMIT are different things. БАТЛАВ and
+            // ЗӨВШӨӨРӨЛЦСӨН print into a fixed number of slots on the cover, so
+            // a further row has nowhere to go and refusing is the truth.
+            // ЗӨВШИЛЦСӨН divides a fixed height by however many rows there are,
+            // so a seventh party is merely cramped - and a project that really
+            // has seven would otherwise be unable to produce its cover at all,
+            // with no way round it. Cramped is ugly; blocked is a dead end.
+            if (RefusesBeyondMaximum(kind))
+            {
+                SetStatus($"{RosterLabel(kind)} хэсэг хамгийн ихдээ {maximum} мөртэй байна.");
+                return;
+            }
+
+            SetStatus(
+                $"{RosterLabel(kind)} хэсэгт {entries.Count + 1} мөр боллоо — " +
+                $"нүүр хуудсанд {maximum}-аас олон мөр нягт харагдана.");
         }
 
         entries.Add(new ProjectApprovalEntry());
@@ -236,7 +250,13 @@ internal sealed partial class ShellView
         rows.Clear();
         panel.Children.Clear();
 
-        foreach (ProjectApprovalEntry sourceEntry in source.Take(MaximumFor(kind)))
+        // NOT truncated for a roster that only warns: cutting the list here
+        // would delete a party the moment the project was opened, and the row
+        // would be gone before anyone read the warning about it.
+        IEnumerable<ProjectApprovalEntry> incoming = RefusesBeyondMaximum(kind)
+            ? source.Take(MaximumFor(kind))
+            : source;
+        foreach (ProjectApprovalEntry sourceEntry in incoming)
         {
             ProjectApprovalEntry entry = sourceEntry.Clone();
             entry.Normalize();
@@ -422,6 +442,18 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => ProjectApprovalRosterLimits.MaxApprovedBy,
         ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MaxEndorsedBy,
         ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MaxConcurredBy,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    /// <summary>
+    /// Whether passing the maximum is refused, or allowed with a visible
+    /// warning. See <see cref="AddApprovalRow"/> for why the two rosters differ.
+    /// </summary>
+    private static bool RefusesBeyondMaximum(ApprovalRosterKind kind) => kind switch
+    {
+        ApprovalRosterKind.ApprovedBy => true,
+        ApprovalRosterKind.EndorsedBy => true,
+        ApprovalRosterKind.ConcurredBy => false,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
