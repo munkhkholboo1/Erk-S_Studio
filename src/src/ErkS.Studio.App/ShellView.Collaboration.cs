@@ -48,6 +48,7 @@ internal sealed partial class ShellView
         "Төслийн үйлдэл",
         "Сонгосон төслийг устгах эсвэл гарах хүсэлт илгээх");
     private StudioProjectMembershipInvitationListResponse notificationInvitations = new();
+    private StudioCloudBotInvitationListResponse notificationBotInvitations = new();
     private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
     private long notificationAccountEpoch = -1;
     private bool refreshingNotifications;
@@ -375,8 +376,16 @@ internal sealed partial class ShellView
                 await account.ListMembershipExitRequestsAsync();
             if (!IsOperationContextCurrent(operationContext))
                 return;
+            // A bot seat invitation arrives in the invitee's own account. It was
+            // read by nothing until now, so an invitation could be sent and
+            // never answered - the whole flow stopped here.
+            StudioCloudBotInvitationListResponse botInvitations =
+                await account.ListMyBotInvitationsAsync();
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             notificationInvitations = invitations;
             notificationExitRequests = exitRequests;
+            notificationBotInvitations = botInvitations;
             notificationAccountEpoch = account.SessionEpoch;
             UpdateNotificationsButton();
         }
@@ -406,6 +415,7 @@ internal sealed partial class ShellView
             new StudioProjectMembershipInvitationListResponse();
         notificationExitRequests =
             new StudioProjectMembershipExitRequestListResponse();
+        notificationBotInvitations = new StudioCloudBotInvitationListResponse();
         UpdateNotificationsButton();
     }
 
@@ -416,7 +426,9 @@ internal sealed partial class ShellView
             notificationExitRequests.AwaitingApproval.Count(item =>
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationExitRequests.Requested.Count(item =>
-                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase));
+                item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
+            notificationBotInvitations.Items.Count(item =>
+                item.State.Equals("Sent", StringComparison.OrdinalIgnoreCase));
         notificationsButton.IsEnabled = account.IsSignedIn;
         notificationsRailButton.IsEnabled = account.IsSignedIn;
         notificationsRailBadgeText.Text = count > 99
@@ -460,7 +472,8 @@ internal sealed partial class ShellView
         var dialog = new StudioNotificationsDialog(
             account,
             notificationInvitations,
-            notificationExitRequests)
+            notificationExitRequests,
+            notificationBotInvitations)
         {
             Owner = Window.GetWindow(Root),
         };

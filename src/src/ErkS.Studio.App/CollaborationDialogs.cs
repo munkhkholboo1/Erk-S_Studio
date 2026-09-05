@@ -284,17 +284,20 @@ internal sealed class StudioNotificationsDialog : Window
     private readonly Button declineButton = StudioWidgets.CreateButton("Татгалзах");
     private StudioProjectMembershipInvitationListResponse invitationData;
     private StudioProjectMembershipExitRequestListResponse exitRequestData;
+    private StudioCloudBotInvitationListResponse botInvitationData;
 
     public bool ProjectsChanged { get; private set; }
 
     public StudioNotificationsDialog(
         StudioAccountService account,
         StudioProjectMembershipInvitationListResponse invitations,
-        StudioProjectMembershipExitRequestListResponse exitRequests)
+        StudioProjectMembershipExitRequestListResponse exitRequests,
+        StudioCloudBotInvitationListResponse botInvitations)
     {
         this.account = account;
         invitationData = invitations;
         exitRequestData = exitRequests;
+        botInvitationData = botInvitations;
         Title = "Мэдэгдэл";
         Width = 820;
         Height = 540;
@@ -375,6 +378,20 @@ internal sealed class StudioNotificationsDialog : Window
                 item.RequestedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 null,
                 null)));
+        // A bot seat invitation reaches the person in their OWN account, which
+        // is the point: the seat belongs to the organisation, the membership
+        // behind it belongs to them. Sent but never shown, it existed only on
+        // the server - one side could invite and nobody could answer.
+        rows.AddRange(botInvitationData.Items
+            .Where(item => item.State.Equals("Sent", StringComparison.OrdinalIgnoreCase))
+            .Select(item => new NotificationRow(
+                "Ботын суудлын урилга",
+                $"«{item.BotDisplayName}» бот  ·  {item.ProjectId}",
+                string.Join(", ", item.Roles),
+                item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                null,
+                null,
+                item)));
         notifications.ItemsSource = rows;
         status.Text = rows.Count == 0
             ? "Шинэ мэдэгдэл алга."
@@ -385,7 +402,9 @@ internal sealed class StudioNotificationsDialog : Window
     private void RefreshActions()
     {
         NotificationRow? selected = notifications.SelectedItem as NotificationRow;
-        bool decisionSelected = selected?.Invitation is not null || selected?.ExitRequest is not null;
+        bool decisionSelected = selected?.Invitation is not null ||
+            selected?.ExitRequest is not null ||
+            selected?.BotInvitation is not null;
         acceptButton.IsEnabled = decisionSelected;
         declineButton.IsEnabled = decisionSelected;
     }
@@ -395,6 +414,11 @@ internal sealed class StudioNotificationsDialog : Window
         NotificationRow? selected = notifications.SelectedItem as NotificationRow;
         StudioProjectMembershipInvitation? invitation = selected?.Invitation;
         StudioProjectMembershipExitRequest? exitRequest = selected?.ExitRequest;
+        if (selected?.BotInvitation is { } botInvitation)
+        {
+            await AcceptBotInvitationAsync(botInvitation);
+            return;
+        }
         if (invitation is null && exitRequest is null)
             return;
         StudioRelationshipAction action = invitation is not null
@@ -443,6 +467,11 @@ internal sealed class StudioNotificationsDialog : Window
         NotificationRow? selected = notifications.SelectedItem as NotificationRow;
         StudioProjectMembershipInvitation? invitation = selected?.Invitation;
         StudioProjectMembershipExitRequest? exitRequest = selected?.ExitRequest;
+        if (selected?.BotInvitation is { } botInvitation)
+        {
+            await DeclineBotInvitationAsync(botInvitation);
+            return;
+        }
         if (invitation is null && exitRequest is null)
             return;
         if (exitRequest is not null && !StudioRelationshipBoundary.Confirm(
@@ -495,13 +524,78 @@ internal sealed class StudioNotificationsDialog : Window
             RefreshActions();
     }
 
+    /// <summary>
+    /// Accepting a bot seat invitation. ONE call, and the appointment is what
+    /// comes back from it - the server answers with the bot, the project and
+    /// the roles already linked. Nothing is written here afterwards, so there is
+    /// no gap in which acceptance could exist without the appointment.
+    /// </summary>
+    private async Task AcceptBotInvitationAsync(StudioCloudBotInvitation invitation)
+    {
+        if (!StudioRelationshipBoundary.Confirm(
+                this,
+                StudioRelationshipAction.AcceptProjectMembership,
+                invitation.InvitedByEmail))
+        {
+            return;
+        }
+
+        SetBusy(true, "Ботын суудлын урилгыг зөвшөөрч байна...");
+        try
+        {
+            StudioCloudBotInvitationAccepted accepted =
+                await account.AcceptBotInvitationAsync(invitation.InvitationId);
+            botInvitationData.Items.RemoveAll(item =>
+                item.InvitationId.Equals(invitation.InvitationId, StringComparison.OrdinalIgnoreCase));
+            ProjectsChanged = true;
+            RefreshRows();
+            // Two sentences, not one: joining and gaining another project are
+            // different events to the person reading this.
+            status.Text = accepted.OpenedNewInterval
+                ? $"«{invitation.BotDisplayName}» ботын суудалд нэгдлээ. Үүрэг: " +
+                  $"{string.Join(", ", accepted.Roles)}"
+                : $"«{invitation.BotDisplayName}» ботын суудалд {accepted.ProjectId} төсөл нэмэгдлээ. " +
+                  $"Үүрэг: {string.Join(", ", accepted.Roles)}";
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = BotSeatErrors.Describe(exception, "Урилгыг зөвшөөрч чадсангүй.");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private async Task DeclineBotInvitationAsync(StudioCloudBotInvitation invitation)
+    {
+        SetBusy(true, "Ботын суудлын урилгаас татгалзаж байна...");
+        try
+        {
+            await account.DeclineBotInvitationAsync(invitation.InvitationId);
+            botInvitationData.Items.RemoveAll(item =>
+                item.InvitationId.Equals(invitation.InvitationId, StringComparison.OrdinalIgnoreCase));
+            RefreshRows();
+            status.Text = $"«{invitation.BotDisplayName}» ботын суудлын урилгаас татгалзлаа.";
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = BotSeatErrors.Describe(exception, "Татгалзлыг хадгалж чадсангүй.");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     private sealed record NotificationRow(
         string Type,
         string Title,
         string Detail,
         string Expires,
         StudioProjectMembershipInvitation? Invitation,
-        StudioProjectMembershipExitRequest? ExitRequest);
+        StudioProjectMembershipExitRequest? ExitRequest,
+        StudioCloudBotInvitation? BotInvitation = null);
 }
 
 internal sealed class ProjectDeletionDialog : Window
