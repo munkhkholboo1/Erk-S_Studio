@@ -51,6 +51,21 @@ public static class BuildingArchitectureConceptPageLayout
 
     // Canonical cover approval table. PDF export and the live Studio preview
     // must use these same boundaries so the cover never changes between views.
+    //
+    // 🔴 FOUR OF THESE ARE DISPUTED as of 2026-09-06 and are NOT to be changed
+    // until the dispute is settled. PFR's cover contract
+    // (_shared/cover-sheet-contract-2026-09-06.json) gives a different interior
+    // split of the same 155.45 mm span:
+    //
+    //            logo   role    name    signature
+    //   here     30.0   58.70   41.75   25.0      <- ConceptPageFormat_MatchesRevitSketchA3Geometry
+    //   contract 30.0   66.70   28.75   30.0      <- read from PFR's cover code
+    //
+    // The outer bounds agree exactly, which is why nothing could see it: the
+    // table looks right and its columns sit elsewhere. Both cannot be a
+    // reproduction of the same drawing, and the test here was written from a
+    // Revit measurement - so the contract is not automatically the newer truth.
+    // Settle it against the drawing, not against whichever side spoke last.
     public const double CoverTableLeftMm = 68.275;
     public const double CoverReviewRoleRightMm = 131.275;
     public const double CoverReviewNameRightMm = 171.275;
