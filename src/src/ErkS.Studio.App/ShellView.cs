@@ -145,6 +145,8 @@ internal sealed partial class ShellView : IDisposable
     private readonly ComboBox projectStageBox = new();
     private readonly ComboBox cornerTableBox = new();
     private readonly TextBlock cornerTableHint = StudioWidgets.CreateHint("");
+    private readonly ComboBox conceptCoverBox = new();
+    private readonly TextBlock conceptCoverHint = StudioWidgets.CreateHint("");
 
     /// <summary>
     /// Things worth saying as a project opens, held until the code that opened
@@ -2585,6 +2587,10 @@ internal sealed partial class ShellView : IDisposable
         cornerTableBox.SelectionChanged += (_, _) => RefreshCornerTableHint();
         form.Children.Add(StudioWidgets.CreateFormRow("Булангийн хүснэгт", cornerTableBox));
         form.Children.Add(cornerTableHint);
+        conceptCoverBox.ItemsSource = ProjectConceptCoverChoices.All;
+        conceptCoverBox.SelectionChanged += (_, _) => RefreshConceptCoverHint();
+        form.Children.Add(StudioWidgets.CreateFormRow("Загварын нүүр хуудас", conceptCoverBox));
+        form.Children.Add(conceptCoverHint);
         form.Children.Add(StudioWidgets.CreateFormRow("Үндэслэлийн төрөл", basisSourceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Хүсэлтийн дугаар", requestNumberBox));
         form.Children.Add(StudioWidgets.CreateSectionHeader("Байршил"));
@@ -3060,6 +3066,7 @@ internal sealed partial class ShellView : IDisposable
         // refresh them.
         bool cornerTableChanged = ApplySelectedCornerTable();
         foundationContentChanged |= cornerTableChanged;
+        foundationContentChanged |= ApplySelectedConceptCover();
         string baseConcurrencyToken = "";
         if (linked)
         {
@@ -5228,6 +5235,27 @@ internal sealed partial class ShellView : IDisposable
             "Нээлттэй байгаа AutoCAD, Revit төслөө дахин ачаалах хүртэл хуучин хүснэгтээр зурсаар байна.");
     }
 
+    /// <summary>
+    /// Writes the chosen concept cover into the project and says whether it
+    /// changed. Same shape as the corner table beside it, and for the same
+    /// reason: the value lives in the project file, so the choice has to be
+    /// stored rather than held in the control.
+    /// </summary>
+    private bool ApplySelectedConceptCover()
+    {
+        string chosen = AlbumConceptCoverStyles.Normalize(
+            (conceptCoverBox.SelectedItem as ProjectConceptCoverChoice)?.Value);
+        if (string.Equals(state.Project.AlbumStyle.ConceptCover, chosen, StringComparison.Ordinal))
+            return false;
+
+        state.Project.AlbumStyle.ConceptCover = chosen;
+        return true;
+    }
+
+    private void RefreshConceptCoverHint() =>
+        conceptCoverHint.Text = ProjectConceptCoverChoices.Explain(
+            (conceptCoverBox.SelectedItem as ProjectConceptCoverChoice)?.Value);
+
     private void RefreshCornerTableHint() =>
         cornerTableHint.Text = ProjectCornerTableChoices.Explain(
             (cornerTableBox.SelectedItem as ProjectCornerTableChoice)?.Value);
@@ -5964,6 +5992,9 @@ internal sealed partial class ShellView : IDisposable
         cornerTableBox.SelectedItem =
             ProjectCornerTableChoices.Resolve(project.AlbumStyle.CornerTable);
         RefreshCornerTableHint();
+        conceptCoverBox.SelectedItem =
+            ProjectConceptCoverChoices.Resolve(project.AlbumStyle.ConceptCover);
+        RefreshConceptCoverHint();
         basisSourceBox.Text = basis.SourceType;
         requestNumberBox.Text = basis.RequestNumber;
         SelectClientType(ProjectClientTypes.ResolveStoredType(
@@ -6018,6 +6049,7 @@ internal sealed partial class ShellView : IDisposable
         var basis = project.Foundation.InitiationBasis;
         // One implementation, because the two save paths must not drift.
         _ = ApplySelectedCornerTable();
+        _ = ApplySelectedConceptCover();
         basis.SourceType = basisSourceBox.Text.Trim();
         basis.RequestNumber = requestNumberBox.Text.Trim();
         basis.ClientType = ProjectClientTypes.Recognize(SelectedClientType);
@@ -6123,6 +6155,7 @@ internal sealed partial class ShellView : IDisposable
         technicalDesignCipherBox.ToolTip = generalDesignCipherBox.ToolTip;
         sheetDatePicker.ToolTip = "Хуудсан дээр хэвлэгдэх огноо. Файлын огноо биш, дахин үүсгэхэд өөрчлөгдөхгүй.";
         cornerTableBox.IsEnabled = fieldsEditable;
+        conceptCoverBox.IsEnabled = fieldsEditable;
         projectTypeBox.IsEnabled = classificationEditable;
         projectStageBox.IsEnabled = classificationEditable;
         string classificationTip = classificationEditable

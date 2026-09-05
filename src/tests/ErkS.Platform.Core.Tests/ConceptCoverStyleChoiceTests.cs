@@ -97,6 +97,42 @@ public sealed class ConceptCoverStyleChoiceTests
         Assert.Contains("Project.AlbumStyle.ConceptCover", appState!, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheChoiceIsREACHABLEFromTheProjectPage()
+    {
+        // «Солигдож болдгоор хийх хэрэгтэй» - a setting the user changes and
+        // changes back. A value that can only be set by editing the project
+        // file does not meet that, and it is also how the two covers would
+        // never be compared side by side.
+        //
+        // Four connections, each forgotten somewhere in this codebase already:
+        // offered, filled from the project, written back on save, and written
+        // back on the OTHER save path - there are two, and they must not drift.
+        string shell = ReadShellSource();
+
+        Assert.Contains("conceptCoverBox.ItemsSource = ProjectConceptCoverChoices.All;", shell, StringComparison.Ordinal);
+        Assert.Contains("ProjectConceptCoverChoices.Resolve(project.AlbumStyle.ConceptCover)", shell, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            shell.Split("ApplySelectedConceptCover()").Length - 1 - 1);
+    }
+
+    private static string ReadShellSource()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Studio.App", "ShellView.cs");
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("ShellView.cs was not found; this test reads it from source");
+        return "";
+    }
+
     private static string ReadWriterSource()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
