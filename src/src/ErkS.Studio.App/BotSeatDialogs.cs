@@ -447,7 +447,11 @@ internal sealed class BotSeatManagementDialog : Window
             StudioCloudBotSeatDeleted deleted =
                 await account.DeleteBotSeatAsync(organization.OrganizationId, Selected!.BotId);
             resultText.Text = deleted.DeviceReleased
-                ? $"Суудал устлаа. Тэнд сууж байсан төхөөрөмж чөлөөлөгдөв. " +
+                // Same correction as the release above: the SEAT is released on
+                // the server; the machine that sat in it still has to be taken
+                // out of bot state by its owner, at that machine.
+                ? $"Суудал устлаа. Тэнд сууж байсан төхөөрөмжийн эрх цуцлагдав; " +
+                  "ботын төлөвөөс нь тэр машин дээр эзэмшигч гаргана. " +
                   "Эзэлсэн: " + StudioBotSeatCounts.DescribeOccupancy(
                       deleted.OccupiedSeats,
                       deleted.DeviceRights,
@@ -471,8 +475,15 @@ internal sealed class BotSeatManagementDialog : Window
             return;
         if (StudioMessageDialog.Show(
                 this,
-                $"«{Selected!.DisplayName}» суудлыг чөлөөлөх үү? Тэр төхөөрөмж дараагийн " +
-                "холболтдоо чөлөөлөгдсөнөө мэдэж, ботын төлөвөөс гарна.",
+                // Says what the code does. It used to promise that the device
+                // would learn of the release and leave bot state by itself, and
+                // nothing anywhere does that: the seat file on that machine is
+                // untouched by this call, and the device cannot even ask - its
+                // resume carries no credential the server will accept. A promise
+                // the code does not keep is worse than a plainer sentence.
+                $"«{Selected!.DisplayName}» суудлыг чөлөөлөх үү? Сервер дээрх эрх нь шууд " +
+                "цуцлагдана. Харин тэр төхөөрөмж дээрх ботын төлөв өөрөө унтрахгүй — тэнд " +
+                "эзэмшигч нэвтэрч «Ботын төлөвөөс гарах» дарж гаргана.",
                 "Суудал чөлөөлөх",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning) != MessageBoxResult.OK)

@@ -2401,7 +2401,7 @@ internal sealed class StudioAccountService :
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        _ = await PostAuthorizedAsync<object?>(
+        await PostAuthorizedNoContentAsync(
             SeatPath(organizationId, botId) + "/pin/unlock",
             cancellationToken).ConfigureAwait(true);
     }
@@ -2476,7 +2476,10 @@ internal sealed class StudioAccountService :
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response =
             await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
-        _ = await ReadResponseAsync<object?>(response, cancellationToken).ConfigureAwait(true);
+        // The seat release answers 204. Reading a body here is what told a
+        // person their device could not leave bot state AFTER the server had
+        // released it.
+        await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -2545,7 +2548,7 @@ internal sealed class StudioAccountService :
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        _ = await PostAuthorizedAsync<object?>(
+        await PostAuthorizedNoContentAsync(
             "/api/cloud-era/v1/bot-invitations/" + Uri.EscapeDataString(invitationId) + "/decline",
             cancellationToken).ConfigureAwait(true);
     }
@@ -2555,7 +2558,7 @@ internal sealed class StudioAccountService :
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        _ = await PostAuthorizedAsync<object?>(
+        await PostAuthorizedNoContentAsync(
             "/api/cloud-era/v1/bot-invitations/" + Uri.EscapeDataString(invitationId) + "/cancel",
             cancellationToken).ConfigureAwait(true);
     }
@@ -2627,6 +2630,25 @@ internal sealed class StudioAccountService :
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>Posts with the seat's credential to a route that answers 204.</summary>
+    private async Task PostBotAuthorizedNoContentAsync<TRequest>(
+        string path,
+        TRequest value,
+        CancellationToken cancellationToken)
+    {
+        StudioCloudBotStateToken token = RequireBotToken();
+        using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(BotServerUrl, path))
+        {
+            Content = JsonContent.Create(value, options: JsonOptions),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            string.IsNullOrWhiteSpace(token.TokenType) ? "Bearer" : token.TokenType,
+            token.AccessToken);
+        using HttpResponseMessage response =
+            await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
+    }
+
     /// <summary>
     /// Where a seated machine talks to. There is no signed-in session to read a
     /// server from, so the public address is used unless one was recorded.
@@ -2692,7 +2714,7 @@ internal sealed class StudioAccountService :
     public async Task ReportBotLockoutAsync(CancellationToken cancellationToken = default)
     {
         StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
-        _ = await PostBotAuthorizedAsync<StudioCloudBotPinLockoutRequest, object?>(
+        await PostBotAuthorizedNoContentAsync(
             "/api/cloud-era/v1/bot-state/pin/lockout",
             new StudioCloudBotPinLockoutRequest
             {
@@ -2835,6 +2857,18 @@ internal sealed class StudioAccountService :
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>Posts to a route that answers 204 No Content on success.</summary>
+    private async Task PostAuthorizedNoContentAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(session.ServerUrl, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
+    }
+
     private async Task<TResponse> PutAuthorizedAsync<TRequest, TResponse>(
         string path,
         TRequest value,
@@ -2918,32 +2952,64 @@ internal sealed class StudioAccountService :
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        if (!response.IsSuccessStatusCode)
-        {
-            StudioCloudApiError? error = null;
-            try
-            {
-                error = await response.Content.ReadFromJsonAsync<StudioCloudApiError>(JsonOptions, cancellationToken).ConfigureAwait(true);
-            }
-            catch (JsonException)
-            {
-            }
-            string? message = error?.Message;
-            if (string.IsNullOrWhiteSpace(message))
-                message = $"Cloud ERA server алдаа: {(int)response.StatusCode} {response.ReasonPhrase}";
-            throw new StudioAccountException(
-                message,
-                response.StatusCode,
-                error?.Code ?? "",
-                StudioCloudTraceIdentifier.Resolve(response, error),
-                error?.FieldErrors,
-                error?.CurrentSourceId ?? "",
-                error?.CurrentRevisionId ?? "",
-                error?.CurrentOrganizationConcurrencyToken ?? "");
-        }
+        await ThrowIfFailedAsync(response, cancellationToken).ConfigureAwait(true);
 
+        // A caller that asked for a TResponse and got nothing HAS been failed by
+        // the server. That stays an error - see ReadNoContentResponseAsync for
+        // the routes where an empty body is the correct answer.
         TResponse? value = await response.Content.ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken).ConfigureAwait(true);
         return value ?? throw new StudioAccountException("Cloud ERA server хоосон хариу өглөө.");
+    }
+
+    /// <summary>
+    /// Reads a response that carries NO BODY on success, and says so in its name
+    /// because that expectation has to be visible at the call site.
+    ///
+    /// Five bot routes answer 204 No Content - release a seat, unlock a PIN,
+    /// report a lockout, decline and cancel an invitation - and every one of
+    /// them was read with ReadResponseAsync&lt;object?&gt;, which deserialises an
+    /// empty body to null and throws "Cloud ERA server хоосон хариу өглөө.".
+    /// So the server did the work and the person was told it had failed. Leaving
+    /// bot state was one of them, which is why a device that HAD been released
+    /// reported that it could not be.
+    /// </summary>
+    internal static async Task ReadNoContentResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        await ThrowIfFailedAsync(response, cancellationToken).ConfigureAwait(true);
+
+        // Nothing else to do. A success with a body here is not an error either:
+        // the caller wanted none, so reading one would only invent a way to fail.
+    }
+
+    private static async Task ThrowIfFailedAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        StudioCloudApiError? error = null;
+        try
+        {
+            error = await response.Content.ReadFromJsonAsync<StudioCloudApiError>(JsonOptions, cancellationToken).ConfigureAwait(true);
+        }
+        catch (JsonException)
+        {
+        }
+        string? message = error?.Message;
+        if (string.IsNullOrWhiteSpace(message))
+            message = $"Cloud ERA server алдаа: {(int)response.StatusCode} {response.ReasonPhrase}";
+        throw new StudioAccountException(
+            message,
+            response.StatusCode,
+            error?.Code ?? "",
+            StudioCloudTraceIdentifier.Resolve(response, error),
+            error?.FieldErrors,
+            error?.CurrentSourceId ?? "",
+            error?.CurrentRevisionId ?? "",
+            error?.CurrentOrganizationConcurrencyToken ?? "");
     }
 
     private StudioAccountMetadata? ReadMetadata()
