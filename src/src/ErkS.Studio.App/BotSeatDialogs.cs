@@ -233,6 +233,8 @@ internal sealed class BotSeatManagementDialog : Window
         var view = new GridView();
         view.Columns.Add(new GridViewColumn { Header = "Нэр", Width = 200, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.DisplayName)) });
         view.Columns.Add(new GridViewColumn { Header = "Дотоод мэйл", Width = 210, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.InternalEmail)) });
+        view.Columns.Add(new GridViewColumn { Header = "Гишүүн", Width = 210, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Member)) });
+        view.Columns.Add(new GridViewColumn { Header = "Төхөөрөмж", Width = 150, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Device)) });
         view.Columns.Add(new GridViewColumn { Header = "Төлөв", Width = 120, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Status)) });
         view.Columns.Add(new GridViewColumn { Header = "Үүсгэсэн", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Created)) });
         seatList.View = view;
@@ -304,7 +306,23 @@ internal sealed class BotSeatManagementDialog : Window
         Loaded += async (_, _) => await RefreshAsync();
     }
 
-    private sealed record SeatRow(string BotId, string DisplayName, string InternalEmail, string Status, string Created);
+    /// <summary>
+    /// One seat as the owner needs to see it.
+    ///
+    /// Member and Device are two facts, kept apart on purpose: the seat belongs
+    /// to the organisation, the person staffed on it can change without the seat
+    /// moving, and the machine sitting on it is a third thing again. The server
+    /// has published all three for a while; this window showed none of them, so
+    /// an owner could not tell which seat to release or who was on it.
+    /// </summary>
+    private sealed record SeatRow(
+        string BotId,
+        string DisplayName,
+        string InternalEmail,
+        string Status,
+        string Created,
+        string Member,
+        string Device);
 
     private SeatRow? Selected => seatList.SelectedItem as SeatRow;
 
@@ -320,7 +338,19 @@ internal sealed class BotSeatManagementDialog : Window
                     seat.DisplayName,
                     seat.InternalEmail,
                     seat.Status,
-                    seat.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd")))
+                    seat.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd"),
+                    string.IsNullOrWhiteSpace(seat.MemberEmail)
+                        ? "—"
+                        : seat.MemberEmail +
+                          (seat.MemberSinceUtc is { } since
+                              ? $" ({since.ToLocalTime():yyyy-MM-dd})"
+                              : ""),
+                    seat.DeviceSeated
+                        ? "сууж байна" +
+                          (seat.DeviceSeatedAtUtc is { } seated
+                              ? $" ({seated.ToLocalTime():yyyy-MM-dd})"
+                              : "")
+                        : "—"))
                 .ToList();
             // An empty grid is not an answer. Say which organisation was read
             // and that it has no seats, so "nothing here" cannot be mistaken

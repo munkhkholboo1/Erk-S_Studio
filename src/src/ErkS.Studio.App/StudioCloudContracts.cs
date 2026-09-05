@@ -1190,6 +1190,28 @@ internal sealed class StudioCloudBotSeat
     public string Status { get; set; } = "";
     public DateTimeOffset CreatedAtUtc { get; set; }
     public string CreatedByEmail { get; set; } = "";
+
+    /// <summary>Whether a machine is sitting on this seat right now.</summary>
+    public bool DeviceSeated { get; set; }
+
+    /// <summary>When that machine entered bot state; null when none is on the seat.</summary>
+    public DateTimeOffset? DeviceSeatedAtUtc { get; set; }
+
+    /// <summary>
+    /// Who put the MACHINE into bot state - an act, at one moment. Not the same
+    /// fact as MemberEmail, and reading one for the other shows the wrong name
+    /// the first time an owner seats a machine on somebody else's behalf.
+    /// </summary>
+    public string DeviceSeatedByEmail { get; set; } = "";
+
+    /// <summary>
+    /// Who is staffed on the SEAT - a relationship, over an interval. Empty
+    /// when nobody is, which is a normal state for a seat that exists and has
+    /// not been filled.
+    /// </summary>
+    public string MemberEmail { get; set; } = "";
+
+    public DateTimeOffset? MemberSinceUtc { get; set; }
 }
 
 internal sealed class StudioCloudBotSeatListResponse
