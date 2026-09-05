@@ -149,6 +149,55 @@ internal static class StudioDeviceKeyStore
     }
 
     /// <summary>
+    /// What a bot session signs: nonce ‖ SHA256(SPKI). Thirty-two bytes and
+    /// thirty-two bytes, concatenated, nothing between them.
+    ///
+    /// SHORTER than the registration payload, and deliberately so: there is no
+    /// e-mail here. A seated device does not act for a person, and putting an
+    /// address in would have the machine announce an account it no longer holds
+    /// - entering bot state erased that credential. The device proves WHICH
+    /// MACHINE it is; which seat that machine holds is the server's own record
+    /// to read, not something the caller gets to assert.
+    ///
+    /// Agreed with SRV on 2026-09-05 and verified against their side byte for
+    /// byte before either half was called in anger.
+    /// </summary>
+    public static byte[] BotSessionPayload(byte[] nonce, byte[] subjectPublicKeyInfo)
+    {
+        ArgumentNullException.ThrowIfNull(nonce);
+        ArgumentNullException.ThrowIfNull(subjectPublicKeyInfo);
+        byte[] digest = SHA256.HashData(subjectPublicKeyInfo);
+        byte[] payload = new byte[nonce.Length + digest.Length];
+        nonce.CopyTo(payload, 0);
+        digest.CopyTo(payload, nonce.Length);
+        return payload;
+    }
+
+    /// <summary>
+    /// Signs the bot-session challenge with this machine's key, or returns null
+    /// when this machine has no key.
+    ///
+    /// Null rather than a new key: Open() creates on first use, and a freshly
+    /// minted key here would send the server a fingerprint it has never seen.
+    /// The answer would then be "unknown device" instead of "this device's key
+    /// was never registered" - two different problems, and only one of them is
+    /// something the owner can put right.
+    /// </summary>
+    public static byte[]? SignBotSession(byte[] nonce)
+    {
+        ArgumentNullException.ThrowIfNull(nonce);
+        using ECDsa? key = TryOpenExisting();
+        if (key is null)
+            return null;
+
+        byte[] publicKey = key.ExportSubjectPublicKeyInfo();
+        return key.SignData(
+            BotSessionPayload(nonce, publicKey),
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+    }
+
+    /// <summary>
     /// Which (fingerprint, account) pairs this machine has already registered.
     ///
     /// Keyed by account as well as key, because one Windows user can sign in
