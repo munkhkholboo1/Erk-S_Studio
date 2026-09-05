@@ -1036,6 +1036,66 @@ public static class AlbumCornerTableStyles
 }
 
 /// <summary>
+/// Which concept-album cover a project prints.
+///
+/// The 2026 sheet is a different DRAWING, not a restyling: four tables in two
+/// pairs, a logo cell spanning two rows, and a ЗӨВШИЛЦСӨН table fed from the
+/// project's roster. Both remain available because the user asked for the older
+/// one to stay - "солигдож болдгоор хийх хэрэгтэй", a setting they can change
+/// and change back, not a migration.
+/// </summary>
+public static class AlbumConceptCoverStyles
+{
+    /// <summary>The A3 approval cover Studio has always drawn.</summary>
+    public const string Classic = "concept-cover-a3-approval";
+
+    /// <summary>The A4 landscape cover measured from the user's 2026 template.</summary>
+    public const string Sheet2026 = "concept-cover-a4-2026";
+
+    /// <summary>
+    /// What an unset value means: the cover this album already draws.
+    ///
+    /// Not "the newest one". Every project on disk predates the setting, and a
+    /// blank that quietly chose the new sheet would reprint two dozen albums
+    /// differently the next time they were built - a change nobody asked for,
+    /// arriving without being chosen.
+    /// </summary>
+    public const string TemplateDecides = "";
+
+    /// <summary>
+    /// Whether this version recognises the value as written. It deliberately
+    /// does not consult <see cref="Normalize"/>, for the same reason its
+    /// neighbour does not: normalising answers everything, so the question
+    /// would answer itself.
+    /// </summary>
+    public static bool IsKnown(string? value)
+    {
+        string cleaned = (value ?? "").Trim();
+        return cleaned.Length == 0 ||
+            cleaned.Equals(Classic, StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Equals(Sheet2026, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string Normalize(string? value)
+    {
+        string cleaned = (value ?? "").Trim();
+        if (cleaned.Length == 0)
+            return TemplateDecides;
+
+        return cleaned.Equals(Classic, StringComparison.OrdinalIgnoreCase) ? Classic
+            : cleaned.Equals(Sheet2026, StringComparison.OrdinalIgnoreCase) ? Sheet2026
+            // A style from a newer Studio is not guessed at. Leaving the album
+            // as it draws today is the one answer that cannot silently reprint
+            // somebody's cover as a document they have never seen.
+            : TemplateDecides;
+    }
+
+    /// <summary>Whether the 2026 sheet was actually chosen. Blank never means yes.</summary>
+    public static bool UsesSheet2026(string? value) =>
+        Normalize(value).Equals(Sheet2026, StringComparison.Ordinal);
+}
+
+/// <summary>
 /// Choices about how a project's sheets look, as opposed to what is on them.
 /// Kept in the project file because AutoCAD and Revit draw their own sheets
 /// and have to agree with Studio about this.
@@ -1043,6 +1103,12 @@ public static class AlbumCornerTableStyles
 public sealed class ProjectAlbumStyle
 {
     public string CornerTable { get; set; } = AlbumCornerTableStyles.TemplateDecides;
+
+    /// <summary>
+    /// Which concept-album cover to print. Blank means the one this album
+    /// already prints - see <see cref="AlbumConceptCoverStyles.TemplateDecides"/>.
+    /// </summary>
+    public string ConceptCover { get; set; } = AlbumConceptCoverStyles.TemplateDecides;
 }
 
 public sealed class ProjectAlbumRecord

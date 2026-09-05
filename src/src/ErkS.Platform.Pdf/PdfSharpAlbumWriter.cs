@@ -2403,6 +2403,16 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildRequest request,
         AlbumCompositionItem item)
     {
+        // The choice is made here and nowhere else. Blank is NOT "the newest
+        // sheet": every album on disk predates the setting, and a default that
+        // chose the 2026 cover would reprint two dozen projects as a document
+        // their owners have never seen.
+        if (AlbumConceptCoverStyles.UsesSheet2026(request.Project.ConceptCoverStyle))
+        {
+            DrawConceptCoverSheet2026(document, request, item);
+            return;
+        }
+
         DrawCanonicalA3ApprovalCoverPage(
             document,
             request,

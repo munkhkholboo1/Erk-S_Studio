@@ -66,6 +66,9 @@ public sealed class AlbumProject
     /// </summary>
     public string CornerTableStyle { get; set; } = AlbumCornerTableStyles.TemplateDecides;
 
+    /// <summary>Which concept-album cover to print. Blank keeps the current one.</summary>
+    public string ConceptCoverStyle { get; set; } = AlbumConceptCoverStyles.TemplateDecides;
+
     public ProjectInitiationBasis InitiationBasis { get; set; } = new();
 
     public PlanningTaskInformation PlanningTask { get; set; } = new();
