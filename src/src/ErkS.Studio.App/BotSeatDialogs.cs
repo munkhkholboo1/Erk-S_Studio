@@ -475,6 +475,13 @@ internal sealed class BotSeatManagementDialog : Window
             return;
         if (StudioMessageDialog.Show(
                 this,
+                // PENDING (STU+SRV): when the initial bot-session route exists
+                // (SRV contract docs/contracts/bot-session-initial-issue.example.json)
+                // the device WILL learn of its release on the next start, and
+                // this sentence goes back to promising it. Restore it only once
+                // the client acts on bot_state_released_remotely by clearing the
+                // local seat - not before, or the promise is empty again.
+                //
                 // Says what the code does. It used to promise that the device
                 // would learn of the release and leave bot state by itself, and
                 // nothing anywhere does that: the seat file on that machine is

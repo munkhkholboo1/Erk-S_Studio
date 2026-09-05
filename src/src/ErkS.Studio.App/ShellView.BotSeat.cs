@@ -424,17 +424,19 @@ internal sealed partial class ShellView
             return;
         if (!await EnsureSignedInAsync())
             return;
-        // The device key must be registered BEFORE the machine is seated: a
-        // seated machine has no Cloud ERA session left to register with, so it
-        // could never repair this itself - the owner would have to release the
-        // seat and start again. EnsureSignedInAsync returns early when somebody
-        // is already signed in, and registration lives inside it, so a person
-        // who seats a device without signing in afresh would skip it entirely.
-        if (!await EnsureDeviceKeyRegisteredAsync())
+
+        // The requirements are checked here, together, against facts read now.
+        // The device key one used to ride along inside EnsureSignedInAsync,
+        // which returns early when somebody is already signed in - so seating a
+        // machine without a fresh sign-in skipped it silently, and the machine
+        // only found out after a restart, when it could no longer be repaired.
+        BotSeatingRefusal refusal = StudioBotSeatingRequirements.Check(
+            alreadySeated: SeatedAsBot,
+            ownerSignedIn: account.IsSignedIn,
+            deviceKeyRegistered: await EnsureDeviceKeyRegisteredAsync());
+        if (refusal != BotSeatingRefusal.None)
         {
-            SetStatus(
-                "Төхөөрөмжийн түлхүүр бүртгэгдээгүй тул ботын суудал үүсгэсэнгүй. " +
-                "Суудалтай болсны дараа үүнийг засах боломжгүй болно.");
+            SetStatus(StudioBotSeatingRequirements.Describe(refusal));
             return;
         }
         IReadOnlyList<StudioCloudOrganization> organizations;
