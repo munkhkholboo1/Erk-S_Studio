@@ -2360,8 +2360,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         foreach (var row in reviewRows)
         {
-            DrawCoverCellText(gfx, ConceptCoverApprovalResolver.DisplayPosition(row.Entry), grid.TableLeft, row.BottomMm, grid.ReviewRoleRight, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
-            DrawCoverCellText(gfx, row.Entry.PersonName, grid.ReviewRoleRight, row.BottomMm, grid.ReviewNameRight, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
+            DrawCoverCellText(gfx, ConceptCoverApprovalResolver.DisplayPosition(row.Entry), grid.TableLeft, row.BottomMm, grid.ReviewRoleRight, row.TopMm, row.RoleTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
+            DrawCoverCellText(gfx, row.Entry.PersonName, grid.ReviewRoleRight, row.BottomMm, grid.ReviewNameRight, row.TopMm, row.NameTextHeightMm, false, XStringFormats.Center);
         }
 
         DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedTopSectionTitle, grid.ReviewRight, processedColumn.TopHeaderBottomMm, grid.CompanyLogoRight, BuildingArchitectureConceptPageLayout.CoverTableTopMm, bodyTextHeightMm, false, XStringFormats.Center);
@@ -2846,12 +2846,31 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         CoverApprovalTableGrid grid,
         IReadOnlyList<ProjectApprovalEntry> approvals)
     {
-        const double rowsTopMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
-        const double baseRowsHeightMm = BuildingArchitectureConceptPageLayout.CoverReviewRowsBaseHeightMm;
+        double rowsTopMm = grid.ReviewRowsTop;
+        double baseRowsHeightMm = grid.ReviewRowsSpan;
         double roleTextWidthMm = grid.ReviewRoleRight - grid.TableLeft - 2.4;
         double nameTextWidthMm = grid.ReviewNameRight - grid.ReviewRoleRight - 2.4;
         const double cellVerticalPaddingMm = 1.2;
-        const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
+
+        // SHRINK FIRST, THEN GROW - the decision of 2026-09-06. Revit shrinks to
+        // a floor and lets anything still too long overflow its cell; this side
+        // has always grown the row instead. Doing the shrink reproduces Revit's
+        // size wherever the shrink is enough, and the growth that follows means
+        // a long name lengthens the table rather than spilling out of it.
+        //
+        // Not a hypothetical: the one exported cover on disk sits AT the 1.80 mm
+        // floor, so copying Revit unchanged would have started overflowing on
+        // real projects immediately.
+        double roleTextHeightMm = grid.ShrinksReviewTextToFit
+            ? CoverReviewTextFitting.FitColumn(
+                approvals.Select(entry => ConceptCoverApprovalResolver.DisplayPosition(entry)),
+                grid.ReviewRoleRight - grid.TableLeft)
+            : BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
+        double nameTextHeightMm = grid.ShrinksReviewTextToFit
+            ? CoverReviewTextFitting.FitColumn(
+                approvals.Select(entry => entry.PersonName),
+                grid.ReviewNameRight - grid.ReviewRoleRight)
+            : BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
         var baseRowHeightMm = baseRowsHeightMm / Math.Max(1, approvals.Count);
         var rows = new List<CoverReviewRow>(approvals.Count);
         var topMm = rowsTopMm;
@@ -2862,16 +2881,16 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 gfx,
                 ConceptCoverApprovalResolver.DisplayPosition(entry),
                 roleTextWidthMm,
-                bodyTextHeightMm);
+                roleTextHeightMm);
             var nameHeightMm = MeasureCoverTextHeightMm(
                 gfx,
                 entry.PersonName,
                 nameTextWidthMm,
-                bodyTextHeightMm);
+                nameTextHeightMm);
             var requiredHeightMm = Math.Max(roleHeightMm, nameHeightMm) + cellVerticalPaddingMm;
             var rowHeightMm = Math.Max(baseRowHeightMm, requiredHeightMm);
             var bottomMm = topMm - rowHeightMm;
-            rows.Add(new CoverReviewRow(entry, bottomMm, topMm));
+            rows.Add(new CoverReviewRow(entry, bottomMm, topMm, roleTextHeightMm, nameTextHeightMm));
             topMm = bottomMm;
         }
 
@@ -2938,7 +2957,19 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private sealed record CoverApprovedRow(ProjectApprovalEntry Entry, double BottomMm, double TopMm);
 
-    private sealed record CoverReviewRow(ProjectApprovalEntry Entry, double BottomMm, double TopMm);
+    /// <summary>
+    /// One review row, carrying the text sizes its COLUMNS were fitted to.
+    ///
+    /// The sizes travel with the row because the row's height was computed from
+    /// them: measuring at one size and drawing at another is how a row ends up
+    /// exactly tall enough for text that is not the text being drawn.
+    /// </summary>
+    private sealed record CoverReviewRow(
+        ProjectApprovalEntry Entry,
+        double BottomMm,
+        double TopMm,
+        double RoleTextHeightMm,
+        double NameTextHeightMm);
 
     private sealed record CoverProcessedColumn(
         double TopHeaderBottomMm,

@@ -43,6 +43,14 @@ namespace ErkS.Platform.Core;
 /// <param name="RowBottom">The bottom edge the last signature row rests on.</param>
 /// <param name="CityCenterY">Centre of the footer's city line.</param>
 /// <param name="YearCenterY">Centre of the footer's year line.</param>
+/// <param name="ReviewRowsTop">Top edge of the first review row.</param>
+/// <param name="ReviewRowsSpan">Height the review rows divide between them.</param>
+/// <param name="ShrinksReviewTextToFit">
+/// Whether long review text is shrunk before the row is allowed to grow. Revit
+/// shrinks to a floor and then lets the text overflow; Studio's concept cover
+/// grows the row instead. The working cover does BOTH - see
+/// <see cref="CoverReviewTextFitting"/> for why.
+/// </param>
 /// <remarks>
 /// The footer lines are not part of the table, and they travel with it anyway:
 /// they are measured from the same drawing and must follow the same skin. A
@@ -63,7 +71,10 @@ public sealed record CoverApprovalTableGrid(
     double ColumnHeaderBottom,
     double RowBottom,
     double CityCenterY,
-    double YearCenterY)
+    double YearCenterY,
+    double ReviewRowsTop,
+    double ReviewRowsSpan,
+    bool ShrinksReviewTextToFit)
 {
     /// <summary>
     /// The concept album's cover, unchanged, pinned by
@@ -85,7 +96,12 @@ public sealed record CoverApprovalTableGrid(
         ColumnHeaderBottom: BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm,
         RowBottom: 93.86,
         CityCenterY: 26.125,
-        YearCenterY: 15.625);
+        YearCenterY: 15.625,
+        ReviewRowsTop: BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm,
+        ReviewRowsSpan: BuildingArchitectureConceptPageLayout.CoverReviewRowsBaseHeightMm,
+        // The concept cover keeps full-size text and lets the row grow. Nobody
+        // asked for it to change, and it has never overflowed.
+        ShrinksReviewTextToFit: false);
 
     /// <summary>
     /// The working-drawing cover, from
@@ -116,7 +132,14 @@ public sealed record CoverApprovalTableGrid(
         // makes that a 6 mm difference, and the contract's own wording did not
         // say which until asked.
         CityCenterY: 65.0,
-        YearCenterY: 46.0);
+        YearCenterY: 46.0,
+        // The left block's rows start one millimetre lower than the right
+        // block's header and divide 59.00 mm evenly - measured off the exported
+        // cover, where four rows fell exactly on 152.86 / 138.11 / 123.36 /
+        // 108.61 / 93.86.
+        ReviewRowsTop: 152.86,
+        ReviewRowsSpan: 59.0,
+        ShrinksReviewTextToFit: true);
 
     /// <summary>Picks the grid by the skin being drawn, so the choice is made once.</summary>
     public static CoverApprovalTableGrid For(bool workingDrawing) =>
