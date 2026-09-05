@@ -35,6 +35,7 @@ internal static class StudioSharedSourceProjection
             Status = source.Status,
             SourceOwnerKind = source.SourceOwnerKind,
             SourceOwnerRef = source.SourceOwnerRef,
+            SourceOwnerDisplayName = source.SourceOwnerDisplayName,
             RegisteredBy = ImmutableOwner(source),
             RegisteredAtUtc = source.RegisteredAtUtc,
             CustodianEmail = FirstNonEmpty(

@@ -1078,6 +1078,12 @@ internal sealed class StudioCloudSourcePackage
     /// <summary>A botId when the kind is Bot, an account email when Person.</summary>
     public string SourceOwnerRef { get; set; } = "";
 
+    /// <summary>
+    /// The owner's name, resolved server-side for BOTH kinds. Empty means the
+    /// server could not resolve one, not that the source is unowned.
+    /// </summary>
+    public string SourceOwnerDisplayName { get; set; } = "";
+
     /// <summary>EMPTY on a bot-owned source. Read SourceOwnerKind first.</summary>
     public string RegisteredBy { get; set; } = "";
     public DateTimeOffset RegisteredAtUtc { get; set; }

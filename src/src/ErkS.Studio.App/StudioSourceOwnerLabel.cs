@@ -12,11 +12,20 @@ namespace ErkS.Studio;
 ///
 /// A botId is never shown. "bot_7f3a91c4e85b4d2f" on the owner line is the same
 /// defect as an email there - a machine identifier where a reader expects a
-/// party - and the seat's display name is not reachable from here for everyone:
-/// listing seats needs organisation-management rights, so a plain project
-/// member, and a seated machine itself, cannot resolve one. Until SRV publishes
-/// a name that every reader of a source can obtain, the honest line names the
-/// KIND of owner rather than inventing an identity for it.
+/// party. From SRV 941f472 the record carries a resolved name for BOTH kinds,
+/// on every route that returns a source, so the name is finally reachable by
+/// every reader rather than only by an organisation administrator.
+///
+/// THE FALLBACK IS ASYMMETRIC, DELIBERATELY. When no name comes back:
+///
+///   a PERSON falls back to their email, because an email identifies a person
+///   a SEAT falls back to naming its KIND, because its reference is a machine
+///   identifier that would read as somebody's name and could not be told apart
+///   from one
+///
+/// The two are not the same question wearing different clothes, and answering
+/// them with one rule would put "bot_7f3a91c4e85b4d2f" on the owner line the
+/// first time a seat was deleted.
 /// </summary>
 internal static class StudioSourceOwnerLabel
 {
@@ -29,15 +38,22 @@ internal static class StudioSourceOwnerLabel
     /// <summary>Shown when the record names no owner at all.</summary>
     public const string Nobody = "-";
 
+    /// <param name="sourceOwnerDisplayName">
+    /// The name the SERVER resolved. Empty means it could not resolve one - a
+    /// deleted seat, an unregistered email - and not that the source is
+    /// unowned.
+    /// </param>
     /// <param name="seatDisplayName">
-    /// The seat's own name when the caller happens to hold it - the bot-seat
-    /// dialog does. Empty everywhere else, and empty is not an error.
+    /// A seat name the caller already holds, used only when the server sent
+    /// none. The bot-seat dialog holds one; everywhere else this is empty, and
+    /// empty is not an error.
     /// </param>
     public static string Describe(
         string? sourceOwnerKind,
         string? sourceOwnerRef,
         string? registeredBy,
         string? ownerEmail = null,
+        string? sourceOwnerDisplayName = null,
         string? seatDisplayName = null)
     {
         ProjectSourceOwner owner = ProjectSourceOwnership.Of(
@@ -48,6 +64,11 @@ internal static class StudioSourceOwnerLabel
 
         if (owner.IsUnknownKind)
             return UnreadableKind;
+
+        string resolved = (sourceOwnerDisplayName ?? "").Trim();
+        if (resolved.Length > 0)
+            return resolved;
+
         if (owner.IsBotOwned)
         {
             string name = (seatDisplayName ?? "").Trim();
@@ -68,5 +89,6 @@ internal static class StudioSourceOwnerLabel
                 source.SourceOwnerRef,
                 source.RegisteredBy,
                 source.OwnerEmail,
+                source.SourceOwnerDisplayName,
                 seatDisplayName);
 }

@@ -381,6 +381,7 @@ public sealed class AppState : IDisposable
                 SourceOwnerKind = (source.SourceOwnerKind ?? "").Trim(),
                 // Not lowercased: a botId is an identifier, not an email.
                 SourceOwnerRef = (source.SourceOwnerRef ?? "").Trim(),
+                SourceOwnerDisplayName = (source.SourceOwnerDisplayName ?? "").Trim(),
                 RegisteredBy = (source.RegisteredBy ?? "").Trim().ToLowerInvariant(),
                 CustodianEmail = (source.CustodianEmail ?? "").Trim().ToLowerInvariant(),
                 OwnerEmail = (string.IsNullOrWhiteSpace(source.CustodianEmail)

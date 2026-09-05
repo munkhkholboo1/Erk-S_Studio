@@ -770,6 +770,18 @@ public sealed class ProjectCloudSourceReference
     public string SourceOwnerRef { get; set; } = "";
 
     /// <summary>
+    /// How the owner is WRITTEN - a seat's name, a person's name - resolved by
+    /// the server for both kinds. A convenience beside the two facts above, and
+    /// never a key: two seats may be renamed to the same word, and display text
+    /// used for matching is a defect this codebase has paid for more than once.
+    ///
+    /// Empty means the SERVER could not resolve a name (a deleted seat, an
+    /// unregistered email). It does NOT mean unowned - the kind and the
+    /// reference are what say that.
+    /// </summary>
+    public string SourceOwnerDisplayName { get; set; } = "";
+
+    /// <summary>
     /// Stable contributor identity that originally registered this source
     /// stream. EMPTY on a bot-owned source, by the server's decision: it keeps
     /// this field honestly personal rather than putting a seat id in it. Read

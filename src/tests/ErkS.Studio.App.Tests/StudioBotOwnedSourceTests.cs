@@ -107,13 +107,24 @@ public sealed class StudioBotOwnedSourceTests
     }
 
     [Fact]
-    public void TheOwnerLineNamesTheKindOfOwner_NeverTheBotId()
+    public void TheSEATSOWNNAMEIsShownWhenTheServerResolvesOne()
     {
-        // A botId on the owner line is the same defect as an email there: a
-        // machine identifier where a reader expects a party. And the seat's
-        // NAME is not reachable from here - listing seats needs organisation
-        // management rights, which a plain member and a seated machine both
-        // lack - so the honest line says what kind of owner it is.
+        // SRV 941f472 resolves a name for both kinds on every route that
+        // returns a source, so this is the ordinary case rather than the lucky
+        // one.
+        ProjectCloudSourceReference source = BotOwned();
+        source.SourceOwnerDisplayName = "Архитектор-1";
+
+        Assert.Equal("Архитектор-1", StudioSourceOwnerLabel.Describe(source));
+    }
+
+    [Fact]
+    public void ASEATWithNoResolvedNameNamesItsKIND_NeverItsBotId()
+    {
+        // The server could not resolve one - a deleted seat. Falling back to
+        // the reference the way a PERSON falls back to their email would print
+        // "bot_7f3a91c4e85b4d2f" where a reader expects a party, and nothing on
+        // the line would say it was a machine identifier rather than a name.
         string label = StudioSourceOwnerLabel.Describe(BotOwned());
 
         Assert.Equal(StudioSourceOwnerLabel.UnnamedSeat, label);
@@ -121,10 +132,64 @@ public sealed class StudioBotOwnedSourceTests
     }
 
     [Fact]
-    public void TheSeatsRealNameIsUsedWhereverTheCallerHoldsIt()
+    public void APERSONWithNoResolvedNameFallsBackToTheirEmail()
     {
-        // The bot-seat dialog does hold it. One rule, so the two screens cannot
-        // drift into naming the same seat differently.
+        // The asymmetry, stated as its own case: an email identifies a person,
+        // so falling back to it loses nothing. One rule for both kinds would
+        // have to pick which of these two to get wrong.
+        var person = new ProjectCloudSourceReference
+        {
+            SourceOwnerKind = "Person",
+            SourceOwnerRef = "b.enkhbat@example.com",
+        };
+
+        Assert.Equal("b.enkhbat@example.com", StudioSourceOwnerLabel.Describe(person));
+    }
+
+    [Fact]
+    public void APERSONSResolvedNameIsPreferredToTheirEmail()
+    {
+        var person = new ProjectCloudSourceReference
+        {
+            SourceOwnerKind = "Person",
+            SourceOwnerRef = "b.enkhbat@example.com",
+            SourceOwnerDisplayName = "Б. Энхбат",
+        };
+
+        Assert.Equal("Б. Энхбат", StudioSourceOwnerLabel.Describe(person));
+    }
+
+    [Fact]
+    public void ANameIsNEVERAKey_TwoSeatsRenamedAlikeStayTwoOwners()
+    {
+        // Display text used for matching is a defect this codebase has paid for
+        // more than once - «Erk-S Стандарт» could never meet «Erk-S Standard».
+        // Renaming two seats to the same word must not merge their sources.
+        ProjectCloudSourceReference first = BotOwned(botId: "bot_aaa");
+        ProjectCloudSourceReference second = BotOwned(botId: "bot_bbb");
+        first.SourceOwnerDisplayName = "Архитектор";
+        second.SourceOwnerDisplayName = "Архитектор";
+
+        Assert.NotEqual(
+            ProjectSourceOwnership.OwnerKey(first),
+            ProjectSourceOwnership.OwnerKey(second));
+        Assert.Equal(
+            2,
+            StudioCloudSourcePackageReconciliation.ActiveCanonical(
+                StudioSharedSourceProjection.Create([first, second])).Count);
+    }
+
+    [Fact]
+    public void ASeatNameTheCallerHoldsIsUsedONLYWhenTheServerSentNone()
+    {
+        // The bot-seat dialog holds one. The server's answer wins when it has
+        // one, so two screens cannot name the same seat differently.
+        ProjectCloudSourceReference resolved = BotOwned();
+        resolved.SourceOwnerDisplayName = "Архитектор-1";
+
+        Assert.Equal(
+            "Архитектор-1",
+            StudioSourceOwnerLabel.Describe(resolved, seatDisplayName: "Хуучин нэр"));
         Assert.Equal(
             "Архитектор-1",
             StudioSourceOwnerLabel.Describe(BotOwned(), seatDisplayName: "Архитектор-1"));
