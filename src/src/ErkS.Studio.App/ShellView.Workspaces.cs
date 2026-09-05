@@ -1985,10 +1985,25 @@ internal sealed partial class ShellView
                     ? ""
                     : ProjectCloudSyncMetadata.CloudSourceKey(localBinding));
             int itemCount = component?.PageNumbers.Count ?? cloudSource?.SheetCount ?? 0;
+            // Who OWNS a source and who OPERATES it are two facts, and the
+            // record has kept them apart all along: RegisteredBy is "the
+            // identity that registered this stream" and does not move, while
+            // CustodianEmail is "the participant allowed to work it now" and
+            // does. One line called «Эзэмшигч» showed only the first and read
+            // as though the second did not exist - so a source looked as if it
+            // belonged to whoever last touched it.
+            //
+            // The owner becomes the SEAT rather than a person once SRV's
+            // sourceOwnerKind/sourceOwnerRef arrive; the shape here does not
+            // change then, only what fills the first line.
+            string custodian = cloudSource?.CustodianEmail ?? "";
+            bool custodianDiffers = custodian.Length > 0 &&
+                !custodian.Equals(owner, StringComparison.OrdinalIgnoreCase);
             sourceDetailsText.Text =
                 $"Төлөв: Cloud эх үүсвэр\n" +
                 $"Эх үүсвэр: {selected.Name}\n" +
                 $"Эзэмшигч: {(string.IsNullOrWhiteSpace(owner) ? "-" : owner)}\n" +
+                (custodianDiffers ? $"Ажиллуулагч: {custodian}\n" : "") +
                 $"Source key: {(string.IsNullOrWhiteSpace(sourceKey) ? "-" : sourceKey)}\n" +
                 $"Альбумын дараалал: {(component?.Order.ToString() ?? "-")}\n" +
                 $"Хуудас / sheet: {itemCount}";

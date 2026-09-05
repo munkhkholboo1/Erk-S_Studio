@@ -26,7 +26,15 @@ public enum StudioSessionKind
 ///
 /// A consequence worth stating because it looks like a bug: on a seated machine
 /// somebody may be able to do LESS than they could on the web with their own
-/// account. That difference is the design working.
+/// account. That difference is the design working, not something to soften with
+/// a fallback.
+///
+/// A SEAT SCOPE IS A CLAIM, NOT A GUARANTEE. The server publishes what a seat
+/// may do; whether every endpoint behind it honours a seat rather than a person
+/// is a separate question, and in September 2026 it did not - the flags said
+/// "you may write sources" while the routes still asked what the PERSON could
+/// do. So a granted scope can still be refused, and the refusal is the server's
+/// to explain. Do not compensate here by widening what a seat is given.
 ///
 /// Kept out of the shell deliberately. Three rules of exactly this shape were
 /// wrong this week while living inside methods that build WPF controls, where
