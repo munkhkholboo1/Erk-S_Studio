@@ -100,6 +100,42 @@ public sealed class CoverApprovalTableGridTests
     }
 
     [Fact]
+    public void TheFOOTERFollowsTheSkinTooAndTheTwoAreFarApart()
+    {
+        // 39 mm apart, and both were drawn by one line reading one constant.
+        // The footer is not part of the table and travels with it anyway: a
+        // second selector for "the rest of the cover" is how two halves of one
+        // page end up drawing two different covers.
+        Assert.Equal(65.0, CoverApprovalTableGrid.WorkingDrawing.CityCenterY, 3);
+        Assert.Equal(46.0, CoverApprovalTableGrid.WorkingDrawing.YearCenterY, 3);
+        Assert.Equal(26.125, CoverApprovalTableGrid.Concept.CityCenterY, 3);
+        Assert.Equal(15.625, CoverApprovalTableGrid.Concept.YearCenterY, 3);
+    }
+
+    [Fact]
+    public void TheWorkingTableReachesEightMillimetresHigher()
+    {
+        // The contract's table top is 169.86; the concept skin stops at 161.86
+        // and draws its headers above that line anyway. Same band, two names -
+        // which is exactly the kind of agreement that hides a difference.
+        Assert.Equal(169.86, CoverApprovalTableGrid.WorkingDrawing.TableTop, 3);
+        Assert.Equal(161.86, CoverApprovalTableGrid.Concept.TableTop, 3);
+    }
+
+    [Fact]
+    public void TheWriterReadsTheTableTopAndFooterFromTheGrid()
+    {
+        // Each of these was a literal in the drawing code, so the working cover
+        // kept the concept table's height and footer whatever the grid said.
+        string writer = ReadWriterSource();
+
+        Assert.Contains("double y1 = grid.TableTop;", writer, StringComparison.Ordinal);
+        Assert.Contains("grid.CityCenterY", writer, StringComparison.Ordinal);
+        Assert.Contains("grid.YearCenterY", writer, StringComparison.Ordinal);
+        Assert.DoesNotContain("CoverCenteredRect(210.0, 26.125", writer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheWriterACTUALLYPicksTheGridFromTheSkin()
     {
         // The grids are worth having only where they are asked. Until this

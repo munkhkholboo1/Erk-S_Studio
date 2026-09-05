@@ -14,10 +14,20 @@ namespace ErkS.Platform.Core;
 ///
 /// The two sets AGREE on the table's outer bounds and disagree by 5 to 8 mm on
 /// four interior columns. That is why nothing could see the difference: the
-/// table looks correct either way, and its columns sit somewhere else. It also
-/// explains what looked at first like a contradiction between Studio's Revit
-/// measurement and PFR's contract - they are measurements of two different
-/// covers, and neither was wrong.
+/// table looks correct either way, and its columns sit somewhere else.
+///
+/// WHY BOTH SETS ARE KEPT. Only one of them is a measurement: PFR read the
+/// eight vertical rules off a cover Revit actually exported and every one
+/// agrees with the working-drawing set to within 0.02 mm. The concept set has
+/// no such provenance - it entered the file in an unrelated commit four days
+/// AFTER that cover existed, and no exported concept cover exists to check it
+/// against. The reading that fits the evidence is that it was a failed attempt
+/// at the same drawing.
+///
+/// It is kept because the user was asked and answered on 2026-09-06 that the
+/// concept cover's different split is deliberate. That is a decision, not a
+/// measurement, and it is the only thing holding this set up - which is worth
+/// knowing before anyone "corrects" it.
 /// </summary>
 /// <param name="TableLeft">The table's left edge.</param>
 /// <param name="ReviewRoleRight">End of the left block's position column.</param>
@@ -31,6 +41,14 @@ namespace ErkS.Platform.Core;
 /// <param name="ColumnHeaderTop">Top of the column-header strip.</param>
 /// <param name="ColumnHeaderBottom">Bottom of the column-header strip.</param>
 /// <param name="RowBottom">The bottom edge the last signature row rests on.</param>
+/// <param name="CityCenterY">Centre of the footer's city line.</param>
+/// <param name="YearCenterY">Centre of the footer's year line.</param>
+/// <remarks>
+/// The footer lines are not part of the table, and they travel with it anyway:
+/// they are measured from the same drawing and must follow the same skin. A
+/// second selector for "the rest of the cover" is how two halves of one page
+/// end up disagreeing about which cover they are drawing.
+/// </remarks>
 public sealed record CoverApprovalTableGrid(
     double TableLeft,
     double ReviewRoleRight,
@@ -43,12 +61,15 @@ public sealed record CoverApprovalTableGrid(
     double TableTop,
     double ColumnHeaderTop,
     double ColumnHeaderBottom,
-    double RowBottom)
+    double RowBottom,
+    double CityCenterY,
+    double YearCenterY)
 {
     /// <summary>
-    /// The concept album's cover, unchanged. Measured from the Revit sketch A3
-    /// family and pinned by ConceptPageFormat_MatchesRevitSketchA3Geometry.
-    /// The user produces these albums today and did not ask for them to move.
+    /// The concept album's cover, unchanged, pinned by
+    /// ConceptPageFormat_MatchesRevitSketchA3Geometry - a test whose NAME
+    /// claims a Revit measurement that nothing in the history records. The user
+    /// produces these albums today and confirmed the difference is deliberate.
     /// </summary>
     public static CoverApprovalTableGrid Concept { get; } = new(
         TableLeft: BuildingArchitectureConceptPageLayout.CoverTableLeftMm,
@@ -62,7 +83,9 @@ public sealed record CoverApprovalTableGrid(
         TableTop: BuildingArchitectureConceptPageLayout.CoverTableTopMm,
         ColumnHeaderTop: 161.86,
         ColumnHeaderBottom: BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm,
-        RowBottom: 93.86);
+        RowBottom: 93.86,
+        CityCenterY: 26.125,
+        YearCenterY: 15.625);
 
     /// <summary>
     /// The working-drawing cover, from
@@ -87,7 +110,13 @@ public sealed record CoverApprovalTableGrid(
         TableTop: 169.86,
         ColumnHeaderTop: 161.86,
         ColumnHeaderBottom: 153.86,
-        RowBottom: 93.86);
+        RowBottom: 93.86,
+        // work.Y0 + 55 and + 36, with work.Y0 = 10 on an A3 sheet bound on the
+        // left. PFR confirmed these are box CENTRES, not bottoms - a 12 mm box
+        // makes that a 6 mm difference, and the contract's own wording did not
+        // say which until asked.
+        CityCenterY: 65.0,
+        YearCenterY: 46.0);
 
     /// <summary>Picks the grid by the skin being drawn, so the choice is made once.</summary>
     public static CoverApprovalTableGrid For(bool workingDrawing) =>

@@ -2394,8 +2394,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // else. Empty when the organisation has not recorded one: PFR removed
         // the identical default on their side (a9541d1) rather than inventing a
         // city, and the two covers have to say the same thing.
-        DrawCoverText(gfx, company.RegisteredCity, CoverCenteredRect(210.0, 26.125, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, 15.625, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverText(gfx, company.RegisteredCity, CoverCenteredRect(210.0, grid.CityCenterY, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, grid.YearCenterY, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
     }
 
     private static void DrawConceptCoverPage(
@@ -2553,9 +2553,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         double x0 = grid.TableLeft;
         var y0 = tableBottomMm;
         double x1 = grid.TableRight;
-        const double y1 = BuildingArchitectureConceptPageLayout.CoverTableTopMm;
+        double y1 = grid.TableTop;
         double rightX0 = grid.ReviewRight;
-        const double headerY0 = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
+        double headerY0 = grid.ColumnHeaderBottom;
 
         DrawCoverLine(gfx, border, x0, y0, x1, y0);
         DrawCoverLine(gfx, border, x0, y1, x1, y1);
