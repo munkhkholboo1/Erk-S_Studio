@@ -1993,16 +1993,22 @@ internal sealed partial class ShellView
             // as though the second did not exist - so a source looked as if it
             // belonged to whoever last touched it.
             //
-            // The owner becomes the SEAT rather than a person once SRV's
-            // sourceOwnerKind/sourceOwnerRef arrive; the shape here does not
-            // change then, only what fills the first line.
+            // The owner IS the seat now, not a person, on anything a bot
+            // registered. ImmutableOwner answers "" for those - honestly, since
+            // no person registered them - so the line is written by the rule
+            // that knows the difference rather than by an emptiness check here.
+            string ownerLabel = cloudSource is not null
+                ? StudioSourceOwnerLabel.Describe(cloudSource)
+                : string.IsNullOrWhiteSpace(owner)
+                    ? StudioSourceOwnerLabel.Nobody
+                    : owner;
             string custodian = cloudSource?.CustodianEmail ?? "";
             bool custodianDiffers = custodian.Length > 0 &&
                 !custodian.Equals(owner, StringComparison.OrdinalIgnoreCase);
             sourceDetailsText.Text =
                 $"Төлөв: Cloud эх үүсвэр\n" +
                 $"Эх үүсвэр: {selected.Name}\n" +
-                $"Эзэмшигч: {(string.IsNullOrWhiteSpace(owner) ? "-" : owner)}\n" +
+                $"Эзэмшигч: {ownerLabel}\n" +
                 (custodianDiffers ? $"Ажиллуулагч: {custodian}\n" : "") +
                 $"Source key: {(string.IsNullOrWhiteSpace(sourceKey) ? "-" : sourceKey)}\n" +
                 $"Альбумын дараалал: {(component?.Order.ToString() ?? "-")}\n" +

@@ -378,6 +378,9 @@ public sealed class AppState : IDisposable
                 ContentHash = source.ContentHash ?? "",
                 SheetCount = source.SheetCount,
                 Status = source.Status ?? "",
+                SourceOwnerKind = (source.SourceOwnerKind ?? "").Trim(),
+                // Not lowercased: a botId is an identifier, not an email.
+                SourceOwnerRef = (source.SourceOwnerRef ?? "").Trim(),
                 RegisteredBy = (source.RegisteredBy ?? "").Trim().ToLowerInvariant(),
                 CustodianEmail = (source.CustodianEmail ?? "").Trim().ToLowerInvariant(),
                 OwnerEmail = (string.IsNullOrWhiteSpace(source.CustodianEmail)

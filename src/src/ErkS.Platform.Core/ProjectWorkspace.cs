@@ -755,7 +755,28 @@ public sealed class ProjectCloudSourceReference
     public string ContentHash { get; set; } = "";
     public int SheetCount { get; set; }
     public string Status { get; set; } = "";
-    /// <summary>Stable contributor identity that originally registered this source stream.</summary>
+    /// <summary>
+    /// Which KIND of party owns this stream: "Bot", "Person", or empty for a
+    /// row written before seats could own sources. Empty is person-owned; an
+    /// unrecognised word is not - see <see cref="ProjectSourceOwnerKinds"/>.
+    /// </summary>
+    public string SourceOwnerKind { get; set; } = "";
+
+    /// <summary>
+    /// The owner itself: a botId when the kind is Bot, an account email when it
+    /// is Person. Deliberately NOT folded into <see cref="RegisteredBy"/> - a
+    /// botId in an email field is a field every reader has to guess about.
+    /// </summary>
+    public string SourceOwnerRef { get; set; } = "";
+
+    /// <summary>
+    /// Stable contributor identity that originally registered this source
+    /// stream. EMPTY on a bot-owned source, by the server's decision: it keeps
+    /// this field honestly personal rather than putting a seat id in it. Read
+    /// <see cref="SourceOwnerKind"/> first - through
+    /// <see cref="ProjectSourceOwnership"/> - and never treat this being empty
+    /// as "nobody owns it".
+    /// </summary>
     public string RegisteredBy { get; set; } = "";
     /// <summary>Current participant allowed to operate the source after an approved transfer.</summary>
     public string CustodianEmail { get; set; } = "";

@@ -1131,6 +1131,52 @@ public sealed class SiteContextMapTests : IDisposable
         File.WriteAllText(path, json);
     }
 
+    [Fact]
+    public void SiteContextEditingPolicy_RefusesAPersonOnASeatOwnedGeneralPlan()
+    {
+        // A bot seat owns the general plan. The person-shaped fields on that
+        // row are empty by SRV's design, and the owner chain here ended at the
+        // email stored in the LOCAL file - this machine's own user - so the
+        // gate compared that against the current user, found them equal, and
+        // opened the site scheme for editing. The local file is left carrying
+        // the architect's email on purpose: it is what made the leak silent.
+        ProjectWorkspace project = CloudProjectWithSiteBoundary(
+            "site-source",
+            "general-plan",
+            "architect-a@erks.local");
+        project.Cloud.SharedSources.Add(new ProjectCloudSourceReference
+        {
+            SourceId = "cloud-source-a",
+            SourceKey = "general-plan",
+            SourceOwnerKind = "Bot",
+            SourceOwnerRef = "bot_7f3a91c4e85b4d2f",
+            RegisteredBy = "",
+            CustodianEmail = "",
+            OwnerEmail = "",
+            Status = "Registered",
+        });
+        project.Cloud.SharedAlbumComponents.Add(new ProjectCloudAlbumComponentReference
+        {
+            Code = ProjectCloudSyncMetadata.SiteContextComponentCode,
+            SourceKey = "general-plan",
+            OwnerEmail = "architect-a@erks.local",
+            ComponentKind = ProjectSiteContextEditingPolicy.SiteContextComponentKind,
+        });
+
+        ProjectSiteContextEditAuthority architect =
+            ProjectSiteContextEditingPolicy.Resolve(project, "architect-a@erks.local");
+
+        Assert.False(architect.CanEdit);
+        Assert.Contains("бот суудал", architect.Message);
+        // The lock must not name a person for a seat's source either - that
+        // string is read back as "the owner" elsewhere.
+        ProjectSiteContextSourceLock? sourceLock =
+            ProjectSiteContextEditingPolicy.ResolveCanonicalSourceLock(project);
+        Assert.NotNull(sourceLock);
+        Assert.Equal("", sourceLock!.OwnerEmail);
+        Assert.Equal("", sourceLock.SourceOwnerEmail);
+    }
+
     private static ProjectWorkspace CloudProjectWithSiteBoundary(
         string sourceId,
         string sourceKey,

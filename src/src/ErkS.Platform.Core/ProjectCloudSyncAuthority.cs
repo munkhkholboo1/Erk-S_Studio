@@ -77,7 +77,37 @@ public static class ProjectCloudSyncAuthority
             matching,
             localOwner,
             currentEmail);
-        string controller = EffectiveController(shared);
+        // Ask WHO OWNS IT before asking whether the owner is you. The check
+        // below compares emails and lets an empty one through, which was right
+        // while every source belonged to a person: empty meant no registry row
+        // and nothing to defend. A bot-owned row is also empty in every
+        // person-shaped field - the server empties registeredBy and
+        // custodianEmail deliberately - so it walked straight past this gate
+        // and the caller was told the source was theirs to publish. The server
+        // still refused it, which made the lie a silent one: an enabled button
+        // and an unexplained failure later.
+        ProjectSourceOwner owner = ProjectSourceOwnership.Of(shared);
+        if (owner.IsBotOwned)
+        {
+            return Denied(
+                sourceKey,
+                "",
+                "Энэ эх үүсвэрийг байгууллагын бот суудал эзэмшдэг. " +
+                "Суудлын эх үүсвэрийг хүн өөрийн бүртгэлээр шинэчилж чадахгүй.");
+        }
+        if (owner.IsUnknownKind)
+        {
+            // A kind from a newer server. Refusing is the honest answer;
+            // guessing "person" would hand a seat's stream to whoever this row
+            // happens to name.
+            return Denied(
+                sourceKey,
+                "",
+                "Энэ эх үүсвэрийн эзэмшигчийн төрлийг энэ хувилбар танихгүй байна. " +
+                "Studio-г шинэчилнэ үү.");
+        }
+
+        string controller = ProjectSourceOwnership.ControllingPersonEmail(shared);
 
         if (!string.IsNullOrWhiteSpace(controller) &&
             !controller.Equals(currentEmail, StringComparison.OrdinalIgnoreCase))
@@ -136,18 +166,14 @@ public static class ProjectCloudSyncAuthority
         return current ?? matching.FirstOrDefault();
     }
 
-    private static string EffectiveController(ProjectCloudSourceReference? source)
-    {
-        if (source is null)
-            return "";
-        string custodian = NormalizeEmail(source.CustodianEmail);
-        if (!string.IsNullOrWhiteSpace(custodian))
-            return custodian;
-        string owner = NormalizeEmail(source.OwnerEmail);
-        return string.IsNullOrWhiteSpace(owner)
-            ? NormalizeEmail(source.RegisteredBy)
-            : owner;
-    }
+    /// <summary>
+    /// Kept as a name this file already used, now answered in one place for
+    /// every policy. It returns empty for a bot-owned source on purpose, and
+    /// callers must have asked <see cref="ProjectSourceOwnership.Of"/> first -
+    /// empty here means "no PERSON controls it", not "nobody does".
+    /// </summary>
+    private static string EffectiveController(ProjectCloudSourceReference? source) =>
+        ProjectSourceOwnership.ControllingPersonEmail(source);
 
     private static ProjectSourceEditAuthority Allowed(
         string sourceKey,

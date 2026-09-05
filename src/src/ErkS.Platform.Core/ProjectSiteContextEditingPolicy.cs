@@ -42,6 +42,14 @@ public static class ProjectSiteContextEditingPolicy
             project,
             sourceKey,
             sourceOwnerEmail);
+        ProjectSourceOwner lockOwner = ProjectSourceOwnership.Of(sharedSource);
+        if (!lockOwner.IsPersonOwned)
+        {
+            // A seat owns it, or its kind is unreadable. Either way no email
+            // belongs in this lock: the component's own OwnerEmail is a local
+            // value and naming it here would put a person on a seat's source.
+            return new ProjectSiteContextSourceLock(sourceKey, "", "");
+        }
         if (!string.IsNullOrWhiteSpace(sharedSource?.RegisteredBy))
             sourceOwnerEmail = NormalizeEmail(sharedSource.RegisteredBy);
         string currentCustodian = EffectiveController(sharedSource);
@@ -153,6 +161,31 @@ public static class ProjectSiteContextEditingPolicy
             project,
             sourceKey,
             canonicalSourceOwnerEmail);
+
+        // Ownership is asked BEFORE the fallback chain below, because that
+        // chain cannot express "a seat owns this". It walks registry owner ->
+        // canonical owner -> the email stored in the LOCAL file, and on a
+        // bot-owned row the first two are empty by the server's design, so it
+        // ended at a local value - usually this very machine's user - and the
+        // gate then compared that against the same user and let them through.
+        // A person would have been told they controlled a seat's drawing.
+        ProjectSourceOwner owner = ProjectSourceOwnership.Of(sharedSource);
+        if (owner.IsBotOwned)
+        {
+            return Denied(
+                "Энэ ерөнхий төлөвлөгөөний эх үүсвэрийг байгууллагын бот суудал эзэмшдэг. " +
+                "Байршлын схемийг тухайн суудлаас засна.",
+                localSource.Id,
+                sourceKey);
+        }
+        if (owner.IsUnknownKind)
+        {
+            return Denied(
+                "Энэ эх үүсвэрийн эзэмшигчийн төрлийг энэ хувилбар танихгүй байна. Studio-г шинэчилнэ үү.",
+                localSource.Id,
+                sourceKey);
+        }
+
         string ownerEmail = EffectiveController(sharedSource);
         if (string.IsNullOrWhiteSpace(ownerEmail))
             ownerEmail = canonicalOwnerEmail;
@@ -294,18 +327,13 @@ public static class ProjectSiteContextEditingPolicy
         return matches.Count == 1 ? matches[0] : null;
     }
 
-    private static string EffectiveController(ProjectCloudSourceReference? source)
-    {
-        if (source is null)
-            return "";
-        string custodian = NormalizeEmail(source.CustodianEmail);
-        if (!string.IsNullOrWhiteSpace(custodian))
-            return custodian;
-        string owner = NormalizeEmail(source.OwnerEmail);
-        return string.IsNullOrWhiteSpace(owner)
-            ? NormalizeEmail(source.RegisteredBy)
-            : owner;
-    }
+    /// <summary>
+    /// Empty means "no PERSON controls this", which on a bot-owned source is
+    /// the truth and not an absence. Callers ask
+    /// <see cref="ProjectSourceOwnership.Of"/> first.
+    /// </summary>
+    private static string EffectiveController(ProjectCloudSourceReference? source) =>
+        ProjectSourceOwnership.ControllingPersonEmail(source);
 
     private static ProjectSiteContextEditAuthority Denied(
         string message,

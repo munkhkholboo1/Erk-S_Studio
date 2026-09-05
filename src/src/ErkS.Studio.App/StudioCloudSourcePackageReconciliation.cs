@@ -1,3 +1,5 @@
+using ErkS.Platform.Core;
+
 namespace ErkS.Studio;
 
 internal static class StudioCloudSourcePackageReconciliation
@@ -11,8 +13,13 @@ internal static class StudioCloudSourcePackageReconciliation
             .ToList();
         List<StudioCloudSourcePackage> keyed = active
             .Where(source => !string.IsNullOrWhiteSpace(source.SourceKey))
+            // Grouped by the RESOLVED owner, not by registeredBy. That field is
+            // empty on every bot-owned row by the server's design, so keying on
+            // it put all of them in one bucket - and this grouping keeps a
+            // single survivor per bucket, so two seats owning the same source
+            // key would have lost one of the two with nothing said.
             .GroupBy(
-                source => $"{(source.RegisteredBy ?? "").Trim()}\n{source.SourceKey.Trim()}",
+                source => $"{OwnerKeyOf(source)}\n{source.SourceKey.Trim()}",
                 StringComparer.OrdinalIgnoreCase)
             .Select(group => group
                 .OrderBy(EffectiveTimestamp)
@@ -59,9 +66,11 @@ internal static class StudioCloudSourcePackageReconciliation
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(legacy.RegisteredBy) &&
-            !string.IsNullOrWhiteSpace(current.RegisteredBy) &&
-            !legacy.RegisteredBy.Equals(current.RegisteredBy, StringComparison.OrdinalIgnoreCase))
+        // Same question, same resolver: a legacy snapshot and its successor are
+        // the same stream only when the same party owns both.
+        if (HasOwner(legacy) &&
+            HasOwner(current) &&
+            !OwnerKeyOf(legacy).Equals(OwnerKeyOf(current), StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -70,6 +79,20 @@ internal static class StudioCloudSourcePackageReconciliation
         DateTimeOffset currentAt = EffectiveTimestamp(current);
         return legacyAt == default || currentAt == default || currentAt >= legacyAt;
     }
+
+    private static string OwnerKeyOf(StudioCloudSourcePackage source) =>
+        ProjectSourceOwnership.OwnerKey(
+            source.SourceOwnerKind,
+            source.SourceOwnerRef,
+            source.RegisteredBy,
+            ownerEmail: null);
+
+    private static bool HasOwner(StudioCloudSourcePackage source) =>
+        ProjectSourceOwnership.Of(
+            source.SourceOwnerKind,
+            source.SourceOwnerRef,
+            source.RegisteredBy,
+            ownerEmail: null).Reference.Length > 0;
 
     private static string NormalizeReference(string? value)
     {

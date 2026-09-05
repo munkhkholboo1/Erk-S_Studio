@@ -1071,6 +1071,14 @@ internal sealed class StudioCloudSourcePackage
     public string ContentHash { get; set; } = "";
     public string Status { get; set; } = "";
     public string OwnerOrganizationSnapshotId { get; set; } = "";
+
+    /// <summary>"Bot", "Person", or empty for a row written before seats could own sources.</summary>
+    public string SourceOwnerKind { get; set; } = "";
+
+    /// <summary>A botId when the kind is Bot, an account email when Person.</summary>
+    public string SourceOwnerRef { get; set; } = "";
+
+    /// <summary>EMPTY on a bot-owned source. Read SourceOwnerKind first.</summary>
     public string RegisteredBy { get; set; } = "";
     public DateTimeOffset RegisteredAtUtc { get; set; }
     public string CustodianParticipantId { get; set; } = "";
