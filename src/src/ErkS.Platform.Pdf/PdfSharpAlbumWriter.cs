@@ -1823,6 +1823,22 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawFittedText(gfx, "Масштаб:", X(145) + pad, Y(8) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
         DrawFittedText(gfx, "Огноо:", X(165) + pad, Y(8) + pad, rect.Right - X(165) - pad * 2, Mm(7) - pad * 2, 4.8, false);
         DrawFittedText(gfx, "ТГ шифр:", X(105) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
+        // The values beside the two cipher labels and the date. They were drawn
+        // as labels with nothing next to them: three cells that looked like a
+        // rendering fault and were in fact three fields nobody had. Empty stays
+        // empty - a cipher is issued outside Studio and a date from the clock
+        // would change on every rebuild.
+        DrawFittedText(gfx, project.GeneralDesignCipher, X(125) + pad, Y(8) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5, false);
+        DrawFittedText(gfx, project.TechnicalDesignCipher, X(125) + pad, Y(22) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5, false);
+        DrawFittedText(
+            gfx,
+            project.SheetDateUtc is { } sheetDate ? sheetDate.ToLocalTime().ToString("yyyy-MM-dd") : "",
+            X(165) + pad,
+            Y(15) + pad,
+            rect.Right - X(165) - pad * 2,
+            Mm(7) - pad * 2,
+            5,
+            false);
         DrawFittedText(gfx, "Зургийн марк:", X(125) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
         DrawFittedText(gfx, "Хуудас:", X(145) + pad, Y(15) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 4.8, false);
         DrawFittedText(gfx, buildPage.Sheet.Entry.ScaleText, X(145) + pad, Y(22) + pad, Mm(20) - pad * 2, Mm(7) - pad * 2, 5.5, true, XStringFormats.Center);

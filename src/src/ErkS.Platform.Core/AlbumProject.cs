@@ -23,6 +23,22 @@ public sealed class AlbumProject
     /// <summary>Project code stamped on covers and used for publishing, e.g. "ERKS-2026-014".</summary>
     public string Code { get; set; } = "";
 
+    /// <summary>
+    /// The official ciphers printed in the working-drawing corner table, and the
+    /// date printed on the sheet. All three are ENTERED by a person and copied
+    /// here unchanged - the corner table drew their labels with nothing beside
+    /// them until 2026-09-06, on this side and in Revit alike.
+    ///
+    /// Empty means not entered, and the cell stays empty. Nothing derives them:
+    /// a cipher is issued outside Studio, and a date taken from the clock at
+    /// draw time would change every time the album was rebuilt.
+    /// </summary>
+    public string GeneralDesignCipher { get; set; } = "";
+
+    public string TechnicalDesignCipher { get; set; } = "";
+
+    public DateTimeOffset? SheetDateUtc { get; set; }
+
     public string Description { get; set; } = "";
 
     /// <summary>

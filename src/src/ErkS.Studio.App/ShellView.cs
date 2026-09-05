@@ -134,6 +134,13 @@ internal sealed partial class ShellView : IDisposable
     // Foundation: initiation basis
     private readonly TextBox projectNameBox = new();
     private readonly TextBox projectCodeBox = new();
+
+    // The official ciphers and the sheet date are ENTERED, never derived: they
+    // are issued outside Studio and printed on the sheet. Their corner-table
+    // cells were drawn with labels and no values, on both this side and PFR's.
+    private readonly TextBox generalDesignCipherBox = new();
+    private readonly TextBox technicalDesignCipherBox = new();
+    private readonly DatePicker sheetDatePicker = new();
     private readonly ComboBox projectTypeBox = new();
     private readonly ComboBox projectStageBox = new();
     private readonly ComboBox cornerTableBox = new();
@@ -2568,6 +2575,9 @@ internal sealed partial class ShellView : IDisposable
         projectTypeBox.SelectionChanged += (_, _) => RefreshExistingProjectStageOptions();
         var form = FoundationForm();
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн код", projectCodeBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("ЕГ шифр", generalDesignCipherBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("ТГ шифр", technicalDesignCipherBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Хуудасны огноо", sheetDatePicker));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн нэр", projectNameBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн төрөл", projectTypeBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Үе шат", projectStageBox));
@@ -5940,6 +5950,9 @@ internal sealed partial class ShellView : IDisposable
         PlanningTaskInformation atd = project.Foundation.PlanningTask;
         projectNameBox.Text = project.Name;
         projectCodeBox.Text = project.Code;
+        generalDesignCipherBox.Text = project.Identity.GeneralDesignCipher;
+        technicalDesignCipherBox.Text = project.Identity.TechnicalDesignCipher;
+        sheetDatePicker.SelectedDate = project.Identity.SheetDateUtc?.ToLocalTime().Date;
         IStudioProjectTypeDefinition selectedType = StudioProjectTypeRegistry.Resolve(project.Identity.ProjectType);
         projectTypeBox.SelectedItem = selectedType;
         RefreshExistingProjectStageOptions(project.Identity.StageCode);
@@ -5987,6 +6000,13 @@ internal sealed partial class ShellView : IDisposable
         var project = state.Project;
         project.Identity.Name = projectNameBox.Text.Trim();
         project.Identity.Code = projectCodeBox.Text.Trim();
+        project.Identity.GeneralDesignCipher = generalDesignCipherBox.Text.Trim();
+        project.Identity.TechnicalDesignCipher = technicalDesignCipherBox.Text.Trim();
+        // Kept as the date somebody chose, not as "now". Cleared means the cell
+        // stays empty on the sheet, which is the honest answer to "not entered".
+        project.Identity.SheetDateUtc = sheetDatePicker.SelectedDate is { } chosen
+            ? new DateTimeOffset(chosen.Date, TimeSpan.Zero)
+            : null;
         project.Identity.Description = basisSummaryBox.Text;
         ApplySelectedProjectClassification();
         var basis = project.Foundation.InitiationBasis;
@@ -6064,6 +6084,8 @@ internal sealed partial class ShellView : IDisposable
                  {
                      projectNameBox,
                      projectCodeBox,
+                     generalDesignCipherBox,
+                     technicalDesignCipherBox,
                      basisSourceBox,
                      requestNumberBox,
                      clientNameBox,
@@ -6081,9 +6103,18 @@ internal sealed partial class ShellView : IDisposable
             box.IsReadOnly = !fieldsEditable;
         }
 
+        // The project code is Studio's own number. The corner table's «ЕГ шифр»
+        // has its own field now - it is issued outside Studio and must not be
+        // stood in for by anything Studio generates.
         projectCodeBox.ToolTip = fieldsEditable
-            ? "Энэ утга ажлын зургийн булангийн хүснэгтийн ЕГ шифрт хэрэглэгдэнэ."
+            ? "Studio-гийн дотоод дугаар. Албан ёсны ЕГ шифрийг доор тусад нь бичнэ."
             : null;
+        generalDesignCipherBox.IsReadOnly = !fieldsEditable;
+        technicalDesignCipherBox.IsReadOnly = !fieldsEditable;
+        sheetDatePicker.IsEnabled = fieldsEditable;
+        generalDesignCipherBox.ToolTip = "Ажлын зургийн булангийн хүснэгтэд хэвлэгдэнэ. Хоосон бол нүд хоосон үлдэнэ.";
+        technicalDesignCipherBox.ToolTip = generalDesignCipherBox.ToolTip;
+        sheetDatePicker.ToolTip = "Хуудсан дээр хэвлэгдэх огноо. Файлын огноо биш, дахин үүсгэхэд өөрчлөгдөхгүй.";
         cornerTableBox.IsEnabled = fieldsEditable;
         projectTypeBox.IsEnabled = classificationEditable;
         projectStageBox.IsEnabled = classificationEditable;

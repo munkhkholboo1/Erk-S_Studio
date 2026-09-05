@@ -156,6 +156,29 @@ public sealed class ProjectIdentity
     public string ProjectType { get; set; } = ProjectWorkspace.BuildingArchitectureConcept;
     public string StageCode { get; set; } = ProjectWorkspace.ConceptDesignStage;
     public string StageName { get; set; } = "Загвар зураг";
+
+    /// <summary>
+    /// The official general-design cipher printed in the working-drawing corner
+    /// table («ЕГ шифр»). NOT the same thing as Code, which is Studio's own
+    /// project number: the cipher is issued outside Studio and appears on the
+    /// sheet, so it can never be invented or derived - empty means the person
+    /// has not entered it, and the cell stays empty.
+    /// </summary>
+    public string GeneralDesignCipher { get; set; } = "";
+
+    /// <summary>The official technical-design cipher («ТГ шифр»). Same rule.</summary>
+    public string TechnicalDesignCipher { get; set; } = "";
+
+    /// <summary>
+    /// The date PRINTED ON THE SHEET - not when the file was made, not when the
+    /// album was last built.
+    ///
+    /// It is entered by a person and does not move on its own. Anything that
+    /// recomputes it turns a document date into "whenever this was last
+    /// regenerated", which is why the corner table cannot be filled from the
+    /// clock at draw time.
+    /// </summary>
+    public DateTimeOffset? SheetDateUtc { get; set; }
 }
 
 public sealed class ProjectCloudLink
