@@ -1,4 +1,5 @@
 using System.Text;
+using ErkS.Platform.Core;
 
 namespace ErkS.Studio.App.Tests;
 
@@ -34,11 +35,50 @@ public sealed class SiteLocationEditorTests
     }
 
     [Fact]
+    public void AHeadingNoRuleCouldHaveINVENTEDComesBackUnchanged()
+    {
+        // THE MECHANISM CHECK, beside the name check rather than instead of it.
+        //
+        // Forbidding the words «Хороо», «Баг» and «Дүүрэг» in the view catches
+        // the obvious regression and searches by NAME - a heading computed
+        // under a different spelling, read from a resource or built by
+        // concatenation would walk straight past it.
+        //
+        // This asks the question the other way round: hand it a heading nothing
+        // could have derived and see whether that exact string survives. Any
+        // computation at all fails, and the test needs to know none of the
+        // legitimate words to say so.
+        var choices = new AdministrativeUnitChoices("ZZZ-ТЕСТ-9137", []);
+
+        Assert.Equal("ZZZ-ТЕСТ-9137", SiteLocationLabels.HeadingFor(choices));
+        Assert.True(SiteLocationLabels.HeadingIsShown(choices));
+    }
+
+    [Fact]
+    public void ALevelWithNoParentChosenHasNoHeadingToShow()
+    {
+        var empty = new AdministrativeUnitChoices("", []);
+
+        Assert.Equal("", SiteLocationLabels.HeadingFor(empty));
+        Assert.False(SiteLocationLabels.HeadingIsShown(empty));
+    }
+
+    [Fact]
+    public void TheVIEWAsksForTheHeadingRatherThanBuildingOne()
+    {
+        string view = ReadSiteLocationView();
+
+        Assert.Contains("SiteLocationLabels.HeadingFor(choices)", view, StringComparison.Ordinal);
+        Assert.Contains("SiteLocationLabels.HeadingIsShown(choices)", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheHeadingsAndListsCOMEFromThePicker()
     {
         string view = ReadSiteLocationView();
 
-        Assert.Contains("choices.LabelMn", view, StringComparison.Ordinal);
+        // The heading itself moved to SiteLocationLabels so it could be measured
+        // rather than only described - see the test above it.
         Assert.Contains("sitePicker.ProvinceChoices()", view, StringComparison.Ordinal);
         Assert.Contains("sitePicker.DistrictChoices()", view, StringComparison.Ordinal);
         Assert.Contains("sitePicker.WardChoices()", view, StringComparison.Ordinal);

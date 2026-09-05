@@ -98,14 +98,10 @@ internal sealed partial class ShellView
         {
             if (label is not null)
             {
-                // The heading comes from the picker, which read it from the
-                // catalogue. Working it out here - «capital means khoroo» - is
-                // wrong for Erdenet and Darkhan and for every word the
-                // catalogue grows next.
-                label.Text = choices.LabelMn;
-                label.Visibility = choices.LabelMn.Length == 0
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                label.Text = SiteLocationLabels.HeadingFor(choices);
+                label.Visibility = SiteLocationLabels.HeadingIsShown(choices)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
 
             box.ItemsSource = choices.Units;
