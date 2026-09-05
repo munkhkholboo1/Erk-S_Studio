@@ -169,8 +169,53 @@ public sealed class ProjectApprovalWorkflowTests : IDisposable
         Assert.Equal("А.Даш", loaded.Foundation.ApprovalWorkflow.ConceptDesign.ApprovedBy[1].PersonName);
         Assert.True(loaded.Foundation.ApprovalWorkflow.ConceptDesign.EndorsedBy[0].IncludeInElevationHeader);
         Assert.False(loaded.Foundation.ApprovalWorkflow.ConceptDesign.EndorsedBy[1].IncludeInElevationHeader);
+        // Written under the old name and read back from the concept roster:
+        // the move is one-way, so the old list is empty afterwards and the two
+        // can never both hold a copy.
         Assert.Equal("Э.Нэр", Assert.Single(
-            loaded.Foundation.ApprovalWorkflow.WorkingDrawingConsultedBy).PersonName);
+            loaded.Foundation.ApprovalWorkflow.ConceptDesign.ConcurredBy).PersonName);
+        Assert.Empty(loaded.Foundation.ApprovalWorkflow.WorkingDrawingConsultedBy);
+    }
+
+    [Fact]
+    public void ConcurringBodiesBelongToTheCONCEPTStage()
+    {
+        // The field was called WorkingDrawingConsultedBy, and the name decided
+        // two things that were therefore both wrong: which stage's data it was
+        // stored with, and whether it reached the concept cover. The user
+        // corrected it on 2026-09-06 - emergency management and health concur
+        // with the CONCEPT design, not the working drawings.
+        var workflow = new ProjectApprovalWorkflow
+        {
+            WorkingDrawingConsultedBy =
+            [
+                Entry("Онцгой байдлын газар", "Дарга", "О.Бат"),
+            ],
+        };
+
+        workflow.Normalize();
+
+        Assert.Equal("О.Бат", Assert.Single(workflow.ConceptDesign.ConcurredBy).PersonName);
+        Assert.Empty(workflow.WorkingDrawingConsultedBy);
+    }
+
+    [Fact]
+    public void TheMoveHappensONCE_AndCannotLeaveTwoCopies()
+    {
+        // Normalize runs on every load and every save. If it copied instead of
+        // moving, a row would multiply quietly on each pass and the two lists
+        // would drift into disagreeing about who concurred.
+        var workflow = new ProjectApprovalWorkflow
+        {
+            WorkingDrawingConsultedBy = [Entry("Эрүүл мэндийн газар", "Дарга", "Э.Нэр")],
+        };
+
+        workflow.Normalize();
+        workflow.Normalize();
+        workflow.Normalize();
+
+        Assert.Single(workflow.ConceptDesign.ConcurredBy);
+        Assert.Empty(workflow.WorkingDrawingConsultedBy);
     }
 
     [Fact]

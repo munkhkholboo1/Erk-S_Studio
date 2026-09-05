@@ -10,15 +10,19 @@ public sealed class ProjectApprovalWorkflow
     public ConceptDesignApprovalRoster ConceptDesign { get; set; } = new();
 
     /// <summary>
-    /// Ажлын зургийн шатны ЗӨВШИЛЦСӨН талууд.
+    /// ХУУЧИН НЭР, зөвхөн уншихад. Шинэ бичилт <see cref="ConceptDesignApprovalRoster.ConcurredBy"/>
+    /// руу орно, ба <see cref="Normalize"/> энд байсан мөрүүдийг тийш нь зөөнө.
     ///
-    /// ХУУЧИН НҮҮР эдгээр мөрийг дүрслэхгүй — тэр нь хэвээр. Харин 2026-09-06-нд
-    /// хэрэглэгчийн өгсөн ШИНЭ загвар зургийн нүүрэнд «ЗӨВШИЛЦСӨН» хүснэгт
-    /// байгаа бөгөөд түүнийг энэ жагсаалт дүүргэнэ. Тиймээс энд бичигдсэн
-    /// хязгаарлалт нь бүх нүүрт биш, зөвхөн хуучинд нь хамаарна.
+    /// Нэр нь БУРУУ ШАТЫГ заасан байв: «ажлын зургийн» гэж. Хэрэглэгч
+    /// 2026-09-06-нд тодруулав — онцгой байдал, эрүүл мэндийн байгууллагууд
+    /// нь **загвар зургийг** зөвшилцдөг, ажлын зургийг биш. Нэр нь буруу
+    /// байсан тул түүн дээр тулгуурласан бүх шийдвэр (нүүрэнд орох эсэх,
+    /// аль шатны багцад хадгалагдах) буруу тийш нь чиглэсэн.
     ///
-    /// Энэ ойлголт нь Studio-гийнх: PFR-ийн кодод «ЗӨВШИЛЦСӨН» гэсэн текст
-    /// ганц газар байсан ба тэр метод нь дуудагчгүй байв.
+    /// Диск дээрх 24 төслийн аль нь ч энэ талбарыг агуулаагүй (хэмжсэн:
+    /// approvalWorkflow түлхүүр огт бичигдээгүй) тул зөөх нь өгөгдөл
+    /// алдагдуулахгүй. Уншилтын зам үлдээсэн нь энд харагдаагүй файлуудад
+    /// зориулсан.
     /// </summary>
     public List<ProjectApprovalEntry> WorkingDrawingConsultedBy { get; set; } = [];
 
@@ -34,8 +38,17 @@ public sealed class ProjectApprovalWorkflow
     {
         ConceptDesign ??= new ConceptDesignApprovalRoster();
         WorkingDrawingConsultedBy ??= [];
+
+        // ONE-WAY MOVE, not a fallback. Rows written under the old name belong
+        // to the concept roster; once moved they are gone from here, so the two
+        // lists can never both hold a copy and disagree.
+        if (WorkingDrawingConsultedBy.Count > 0)
+        {
+            ConceptDesign.ConcurredBy.AddRange(WorkingDrawingConsultedBy);
+            WorkingDrawingConsultedBy.Clear();
+        }
+
         ConceptDesign.Normalize();
-        NormalizeEntries(WorkingDrawingConsultedBy);
     }
 
     internal static void NormalizeEntries(List<ProjectApprovalEntry> entries)
@@ -67,19 +80,33 @@ public sealed class ConceptDesignApprovalRoster
     /// <summary>ЗӨВШӨӨРӨЛЦСӨН: concept-stage officials, in printed order.</summary>
     public List<ProjectApprovalEntry> EndorsedBy { get; set; } = [];
 
+    /// <summary>
+    /// ЗӨВШИЛЦСӨН: the bodies that concur with the CONCEPT design - emergency
+    /// management, health, and where a protected area is used, environment.
+    ///
+    /// It sat outside this roster under a name that said "working drawing",
+    /// and the user corrected that on 2026-09-06: these bodies concur with the
+    /// concept, not the working drawings. The name decided where the rows were
+    /// stored and whether they reached the cover, so both were wrong with it.
+    /// </summary>
+    public List<ProjectApprovalEntry> ConcurredBy { get; set; } = [];
+
     public ConceptDesignApprovalRoster Clone() => new()
     {
         IsConfigured = IsConfigured,
         ApprovedBy = ApprovedBy.Select(entry => entry.Clone()).ToList(),
         EndorsedBy = EndorsedBy.Select(entry => entry.Clone()).ToList(),
+        ConcurredBy = ConcurredBy.Select(entry => entry.Clone()).ToList(),
     };
 
     public void Normalize()
     {
         ApprovedBy ??= [];
         EndorsedBy ??= [];
+        ConcurredBy ??= [];
         ProjectApprovalWorkflow.NormalizeEntries(ApprovedBy);
         ProjectApprovalWorkflow.NormalizeEntries(EndorsedBy);
+        ProjectApprovalWorkflow.NormalizeEntries(ConcurredBy);
     }
 }
 

@@ -54,7 +54,7 @@ internal sealed partial class ShellView
 
         root.Children.Add(StudioWidgets.CreateSectionHeader("ЗӨВШИЛЦСӨН"));
         root.Children.Add(StudioWidgets.CreateHint(
-            "ЗӨВШИЛЦСӨН нь ажлын зургийн шатны тусдаа roster. Загвар зургийн нүүр хуудсанд орохгүй бөгөөд ажлын зургийн бүтэц нээгдэхэд эндээс тусдаа тохируулна."));
+            "ЗӨВШИЛЦСӨН нь ЗАГВАР ЗУРГИЙН шатны жагсаалт: онцгой байдал, эрүүл мэндийн байгууллагууд загвар зургийг зөвшилцдөг. Эдгээр мөр загвар зургийн нүүр хуудсанд БАТЛАВ, ЗӨВШӨӨРӨЛЦСӨН-ий адил хэвлэгдэнэ."));
 
         if (state.HasOpenProject)
             BindConceptApprovalEditor();
