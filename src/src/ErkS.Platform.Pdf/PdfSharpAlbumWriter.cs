@@ -1901,13 +1901,45 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         }
 
         double metadataFont = standardTextSize;
-        DrawFittedText(gfx, $"\u0415\u0413 \u0448\u0438\u0444\u0440: {project.Code}", X(101) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        // The project CODE is Studio's own number (STUDIO-20260722-1906) and
+        // not an official cipher; printing it here said a code had been issued
+        // when none had. The cipher is entered, and an unfilled cell keeps its
+        // label so it reads as a form field rather than a rendering fault.
+        DrawFittedText(gfx, LabelledCell("\u0415\u0413 \u0448\u0438\u0444\u0440", project.GeneralDesignCipher), X(101) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, $"\u041c\u0430\u0441\u0448\u0442\u0430\u0431: {buildPage.ScaleText}", X(127) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, $"\u041e\u0433\u043d\u043e\u043e: {DateTime.Now:yyyy.MM}", X(153) + pad, Y(17) + pad, rect.Right - X(153) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, "\u0422\u0413 \u0448\u0438\u0444\u0440:", X(101) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        // Taken from the CLOCK, this moved every time the album was rebuilt -
+        // a document date that meant "whenever this was last regenerated".
+        // The sheet date is entered and stored for exactly that reason.
+        DrawFittedText(gfx, LabelledCell("\u041e\u0433\u043d\u043e\u043e", SheetDateText(project)), X(153) + pad, Y(17) + pad, rect.Right - X(153) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        DrawFittedText(gfx, LabelledCell("\u0422\u0413 \u0448\u0438\u0444\u0440", project.TechnicalDesignCipher), X(101) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, $"\u0417\u0443\u0440\u0433\u0438\u0439\u043d \u043c\u0430\u0440\u043a: {buildPage.Sheet.Entry.Discipline}", X(127) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
         DrawFittedText(gfx, $"\u0425\u0443\u0443\u0434\u0430\u0441: {buildPage.Number}", X(153) + pad, Y(26.5) + pad, rect.Right - X(153) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
     }
+
+    /// <summary>
+    /// A corner-table cell that is a LABELLED FIELD: the label always prints,
+    /// the value joins it when there is one.
+    ///
+    /// Dropping the label with the value would leave a blank rectangle that
+    /// reads as a rendering fault - which is how three of these cells were
+    /// reported. Inventing a value to fill it is the other way to be wrong, and
+    /// the more expensive one on a document somebody signs.
+    /// </summary>
+    internal static string LabelledCell(string label, string? value)
+    {
+        string text = (value ?? "").Trim();
+        return text.Length == 0 ? label + ":" : label + ": " + text;
+    }
+
+    /// <summary>
+    /// The sheet date as ENTERED, never as measured now. Empty when it has not
+    /// been entered: a date is a fact about the document, and a rebuild is not
+    /// an event that changes it.
+    /// </summary>
+    internal static string SheetDateText(AlbumProject project) =>
+        project.SheetDateUtc is { } sheetDate
+            ? sheetDate.ToLocalTime().ToString("yyyy.MM.dd")
+            : "";
 
     internal static IReadOnlyList<string> ResolveCanonicalHorizontalWorkingTitleBlockNames(
         AlbumProject project,
