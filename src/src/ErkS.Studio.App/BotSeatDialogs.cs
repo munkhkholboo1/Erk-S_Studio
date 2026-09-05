@@ -588,6 +588,16 @@ internal sealed class BotMemberInvitationDialog : Window
         VerticalAlignment = VerticalAlignment.Center,
     };
     private readonly Button chooseRolesButton = StudioWidgets.CreateButton("Үүрэг сонгох…");
+
+    // Cancelling reaches only the invitation THIS dialog just sent, because the
+    // id is the only handle there is: the server has no route that lists a
+    // seat's outstanding invitations, so a sender cannot find one again after
+    // closing this window. Named here rather than left implicit - it is a real
+    // limit, not a design.
+    private StudioCloudBotInvitation? sentInvitation;
+    private readonly Button cancelInvitationButton =
+        StudioWidgets.CreateDangerButton("Илгээсэн урилгыг цуцлах");
+    private readonly Button closeButton = StudioWidgets.CreateButton("Болих");
     private readonly TextBlock resultText = new()
     {
         Foreground = StudioTheme.MutedTextBrush,
@@ -617,8 +627,7 @@ internal sealed class BotMemberInvitationDialog : Window
         sendButton.IsDefault = true;
         sendButton.IsEnabled = false;
         sendButton.Click += async (_, _) => await SendAsync();
-        Button cancel = StudioWidgets.CreateButton("Болих");
-        cancel.IsCancel = true;
+        closeButton.IsCancel = true;
         emailBox.TextChanged += (_, _) => UpdateEnabled();
         projectBox.SelectionChanged += (_, _) => UpdateEnabled();
         chooseRolesButton.Click += (_, _) => ChooseRoles();
@@ -641,7 +650,10 @@ internal sealed class BotMemberInvitationDialog : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 14, 0, 0),
         };
-        buttons.Children.Add(cancel);
+        cancelInvitationButton.Visibility = Visibility.Collapsed;
+        cancelInvitationButton.Click += async (_, _) => await CancelSentAsync();
+        buttons.Children.Add(cancelInvitationButton);
+        buttons.Children.Add(closeButton);
         buttons.Children.Add(sendButton);
         panel.Children.Add(buttons);
         Content = panel;
@@ -719,6 +731,28 @@ internal sealed class BotMemberInvitationDialog : Window
         UpdateEnabled();
     }
 
+    private async Task CancelSentAsync()
+    {
+        if (sentInvitation is null)
+            return;
+
+        cancelInvitationButton.IsEnabled = false;
+        resultText.Text = "Урилгыг цуцалж байна…";
+        try
+        {
+            await account.CancelBotInvitationAsync(sentInvitation.InvitationId);
+            ResultMessage = $"{sentInvitation.TargetEmail} рүү илгээсэн урилга цуцлагдлаа.";
+            resultText.Text = ResultMessage;
+            sentInvitation = null;
+            cancelInvitationButton.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Урилга цуцлагдсангүй.");
+            cancelInvitationButton.IsEnabled = true;
+        }
+    }
+
     private async Task SendAsync()
     {
         sendButton.IsEnabled = false;
@@ -735,7 +769,18 @@ internal sealed class BotMemberInvitationDialog : Window
             ResultMessage =
                 $"{invitation.TargetEmail} рүү урилга илгээгдлээ " +
                 $"({invitation.ExpiresAtUtc.ToLocalTime():yyyy-MM-dd} хүртэл).";
-            DialogResult = true;
+
+            // The window stays open so the invitation can be taken back at
+            // once. It closes on "Хаах", which is where DialogResult is set.
+            sentInvitation = invitation;
+            resultText.Text = ResultMessage;
+            cancelInvitationButton.Visibility = Visibility.Visible;
+            emailBox.IsEnabled = false;
+            projectBox.IsEnabled = false;
+            chooseRolesButton.IsEnabled = false;
+            closeButton.Content = "Хаах";
+            closeButton.IsCancel = false;
+            closeButton.Click += (_, _) => DialogResult = true;
         }
         catch (StudioAccountException exception)
         {

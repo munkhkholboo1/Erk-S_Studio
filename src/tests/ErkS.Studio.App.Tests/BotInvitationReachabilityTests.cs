@@ -43,12 +43,36 @@ public sealed class BotInvitationReachabilityTests
         return files;
     }
 
+    /// <summary>
+    /// Every public bot method on the service layer, found by REFLECTION rather
+    /// than from a list somebody remembers to extend. A hand-kept list protects
+    /// exactly the methods that were already noticed; the next one added
+    /// silently goes dark the same way these did.
+    /// </summary>
+    public static TheoryData<string> PublicBotServiceMethods()
+    {
+        var data = new TheoryData<string>();
+        foreach (string name in typeof(StudioAccountService)
+            .GetMethods(System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.Static |
+                        System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .Select(method => method.Name)
+            .Where(name => name.Contains("Bot", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal))
+        {
+            data.Add(name);
+        }
+
+        Assert.True(data.Count > 5, $"only {data.Count} bot methods were found; the reflection is wrong");
+        return data;
+    }
+
     [Theory]
-    [InlineData("ListMyBotInvitationsAsync")]
-    [InlineData("AcceptBotInvitationAsync")]
-    [InlineData("DeclineBotInvitationAsync")]
-    [InlineData("InviteBotMemberAsync")]
-    public void EveryStepOfTheInvitationFlowIsReachedFromOutsideTheServiceLayer(string method)
+    [MemberData(nameof(PublicBotServiceMethods))]
+    public void EveryPublicBotMethodIsReachedFromOutsideTheServiceLayer(string method)
     {
         List<string> callers = [.. SourcesOutsideAccountService()
             .Where(path => File.ReadAllText(path).Contains(method + "(", StringComparison.Ordinal))

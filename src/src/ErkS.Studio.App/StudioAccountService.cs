@@ -2482,26 +2482,6 @@ internal sealed class StudioAccountService :
         await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
     }
 
-    /// <summary>
-    /// What a seated device asks at start-up: which seat is this, and is it
-    /// locked. Carries both fingerprint forms.
-    /// </summary>
-    public async Task<StudioCloudBotStateResume> ResumeBotStateAsync(
-        CancellationToken cancellationToken = default)
-    {
-        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
-        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
-        return await PostAuthorizedAsync<StudioCloudBotStateResumeRequest, StudioCloudBotStateResume>(
-            "/api/cloud-era/v1/bot-state/resume",
-            new StudioCloudBotStateResumeRequest
-            {
-                DeviceFingerprint = fingerprints.Canonical,
-                LegacyDeviceFingerprint = fingerprints.Legacy,
-            },
-            cancellationToken).ConfigureAwait(true)
-            ?? throw new StudioAccountException("Сервер ботын төлөв буцаасангүй.");
-    }
-
     public async Task<StudioCloudBotInvitation> InviteBotMemberAsync(
         string organizationId,
         string botId,
