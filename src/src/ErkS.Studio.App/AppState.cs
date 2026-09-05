@@ -83,6 +83,13 @@ public sealed class AppState : IDisposable
     public event Action? ProjectReplaced;
     public event Action? AssetSourcesChanged;
 
+    /// <summary>
+    /// A source whose delivery watch could not be established, with the reason.
+    /// Nothing that arrives for that source will be noticed until it is fixed,
+    /// so somebody has to be told.
+    /// </summary>
+    public event Action<ProjectDesignSource, Exception>? SourceWatchFailed;
+
     public AppState()
     {
         Intake = new SheetIntakeService(Library);
@@ -1450,9 +1457,14 @@ public sealed class AppState : IDisposable
                         scanExisting: scanExistingPackages);
                 }
             }
-            catch
+            catch (Exception exception)
             {
-                // The source remains visible so the user can repair its link.
+                // The source remains visible so the user can repair its link -
+                // but it used to remain visible and SILENT, looking connected
+                // while nothing it received could ever arrive. A watch that
+                // could not be established is reported; zero deliveries is a
+                // suspicious value, not an answer.
+                SourceWatchFailed?.Invoke(source, exception);
             }
         }
     }

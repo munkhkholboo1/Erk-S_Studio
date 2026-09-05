@@ -146,6 +146,14 @@ internal sealed partial class ShellView : IDisposable
     private readonly List<string> pendingOpenNotices = [];
 
     /// <summary>
+    /// The workspace this shell has already reported waiting deliveries for.
+    /// Counted by OPEN rather than by project id: the same project opened again
+    /// is a new chance for a delivery to be waiting, and -1 is a value no epoch
+    /// takes, so the first bind always reports.
+    /// </summary>
+    private long reportedDeliveriesForWorkspaceEpoch = -1;
+
+    /// <summary>
     /// Why the assigned company's certificate and licence are missing, when
     /// they are. Blank when there is nothing to explain.
     /// </summary>
@@ -356,6 +364,11 @@ internal sealed partial class ShellView : IDisposable
             dispatcher.BeginInvoke(new Action(() => OnVisualPackageProcessed(arrival)));
         state.Intake.IntakeError += message => dispatcher.BeginInvoke(new Action(() => SetStatus(message)));
         state.AssetSourcesChanged += () => dispatcher.BeginInvoke(new Action(OnAssetSourcesChanged));
+        // A source whose watch never started receives nothing for ever, and it
+        // used to do so without a word.
+        state.SourceWatchFailed += (source, exception) => dispatcher.BeginInvoke(new Action(() =>
+            SetStatus($"«{source.DisplayName}» эх үүсвэрийн хүлээн авалт эхлээгүй тул " +
+                      $"шинэ багц ирэхийг мэдэхгүй: {exception.Message}")));
         state.ProjectReplaced += () =>
         {
             bool skipUiBind = Volatile.Read(ref projectReplacedUiBindSuppressionDepth) > 0;
@@ -2014,6 +2027,10 @@ internal sealed partial class ShellView : IDisposable
         }
         UpdateAccountUi();
         await EnsureDeviceKeyRegisteredAsync();
+        // A seat this machine left while the server was unreachable is still
+        // occupied there. An owner session is the credential that releases it,
+        // and this is the moment one arrives.
+        await FlushPendingBotSeatReleasesAsync();
         await RefreshProjectsAsync();
         SetStatus("Cloud ERA бүртгэлээр нэвтэрлээ.");
         return true;
@@ -5181,13 +5198,20 @@ internal sealed partial class ShellView : IDisposable
         {
             ResetAlbumPreviewForProjectChange();
             boundAlbumProjectId = state.Project.ProjectId;
-            // Deliveries that arrived while this project was closed are the one
-            // thing a user cannot discover by looking: the project simply shows
-            // nothing new. Say it once, as the project opens.
-            ReportPendingDeliveriesOnOpen();
             ReportAlbumTemplateFallbackOnOpen();
-            FlushOpenNoticesAfterCallerFinishes();
         }
+
+        // Deliveries that arrived while this project was closed are the one
+        // thing a user cannot discover by looking: the project simply shows
+        // nothing new. Said once per OPEN, not once per project - reopening the
+        // SAME project is exactly when a delivery has had time to arrive, and
+        // the id-based gate above stayed silent through all of it.
+        if (reportedDeliveriesForWorkspaceEpoch != state.WorkspaceEpoch)
+        {
+            reportedDeliveriesForWorkspaceEpoch = state.WorkspaceEpoch;
+            ReportPendingDeliveriesOnOpen();
+        }
+        FlushOpenNoticesAfterCallerFinishes();
         DiscardStaleCanonicalTitleBlockPreview();
         lastAlbumPath = ResolveCurrentProjectAlbumPath();
         foundationEditMode = false;

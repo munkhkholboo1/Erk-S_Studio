@@ -2095,7 +2095,7 @@ internal sealed partial class ShellView
             ? newest.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
             : "";
         string when = arrived.Length > 0 ? $" (сүүлийнх {arrived})" : "";
-        return $"26A0 {pending.Count} шинэ багц хүлээгдэж байна{when}. " +
+        return $"⚠ {pending.Count} шинэ багц хүлээгдэж байна{when}. " +
             "«Эх үүсвэрээс шинэчлэх» дарвал хуудаснууд орж ирнэ.";
     }
 

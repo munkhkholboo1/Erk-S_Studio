@@ -162,18 +162,10 @@ internal sealed partial class ShellView
             SetStatus($"«{seat.DisplayName}» ботын суудлаар нээгдлээ.");
             await ResumeAsBotAsync(seat);
         };
+        // The same door as the account menu's, in the place a locked machine
+        // shows it. One step, so the two cannot drift apart.
         botLockScreen.OwnerSignInRequested += async () =>
-        {
-            // Not a PIN: entering bot state erased the owner credential, so the
-            // way back is the full sign-in and nothing else.
-            if (await EnsureSignedInAsync())
-            {
-                ownerVerifiedOnSeatedDevice = true;
-                RemoveBotLock();
-                UpdateAccountUi();
-                SetStatus("Эзэмшигчээр нэвтэрлээ. Энэ төхөөрөмж ботын суудал хэвээр.");
-            }
-        };
+            await VerifyOwnerOnSeatedDeviceAsync();
         botLockScreen.LockedOut += async () => await ReportBotLockoutAsync();
         botLockHost.Children.Add(botLockScreen);
     }
@@ -311,11 +303,23 @@ internal sealed partial class ShellView
     /// </summary>
     private IEnumerable<MenuItem> BuildBotMenuItems()
     {
-        // Nothing at all on a seated machine until an owner has proved
-        // themselves - not even "leave bot state", which is the same authority
-        // as releasing the seat from the other end.
+        // On a seated machine the management entries stay hidden until an owner
+        // has proved themselves - not even "leave bot state", which is the same
+        // authority as releasing the seat from the other end.
+        //
+        // What is ALWAYS here is the door to prove it. Hiding the door as well
+        // left a machine unlocked with its PIN in this run with no way back at
+        // all: the lock screen carried the only passport link, and RemoveBotLock
+        // had taken it away. A door is not a right - this one asks for the whole
+        // passport, exactly as the lock screen did, while the PIN opens only the
+        // seat.
         if (!MayManageSeats)
+        {
+            var passport = new MenuItem { Header = "Эзэмшигчээр нэвтрэх…" };
+            passport.Click += async (_, _) => await VerifyOwnerOnSeatedDeviceAsync();
+            yield return passport;
             yield break;
+        }
 
         var manage = new MenuItem { Header = "Ботын удирдлага…" };
         manage.Click += async (_, _) => await ShowBotManagementAsync();
@@ -333,6 +337,29 @@ internal sealed partial class ShellView
             leave.Click += async (_, _) => await LeaveBotStateAsync();
             yield return leave;
         }
+    }
+
+    /// <summary>
+    /// Asks for the owner's own credential on a seated machine and, if it is
+    /// given, opens seat management for this run.
+    ///
+    /// The condition is deliberately the FULL sign-in and not the PIN: the PIN
+    /// opens the seat, the passport opens the owner. Making the door reachable
+    /// from the account menu changes WHERE it is, not what it asks for.
+    /// </summary>
+    private async Task VerifyOwnerOnSeatedDeviceAsync()
+    {
+        if (!await EnsureSignedInAsync())
+        {
+            SetStatus("Эзэмшигчээр нэвтрээгүй тул суудлын удирдлага нээгдсэнгүй.");
+            return;
+        }
+
+        ownerVerifiedOnSeatedDevice = true;
+        RemoveBotLock();
+        UpdateAccountUi();
+        SetStatus("Эзэмшигчээр баталгаажлаа. Энэ төхөөрөмж ботын суудал хэвээр.");
+        await FlushPendingBotSeatReleasesAsync();
     }
 
     private async Task<IReadOnlyList<StudioCloudOrganization>?> LoadOrganizationsAsync()
@@ -381,6 +408,9 @@ internal sealed partial class ShellView
     {
         if (RefuseSeatManagementWhenSeated())
             return;
+        // Seats this machine left behind are the owner's business, and this is
+        // the screen they came to for exactly that.
+        await FlushPendingBotSeatReleasesAsync();
         IReadOnlyList<StudioCloudOrganization>? organizations = await LoadOrganizationsAsync();
         if (organizations is null)
             return;
@@ -448,22 +478,90 @@ internal sealed partial class ShellView
         {
             return;
         }
+        // The owner still has to prove themselves - that condition is the whole
+        // point of the seat and does not change here. What changes is what
+        // happens AFTER: the device leaves whether or not the server answers.
         if (!await EnsureSignedInAsync())
         {
             SetStatus("Ботын төлөвөөс гарахад эзэмшигч нэвтрэх шаардлагатай.");
             return;
         }
+
+        // LOCAL FIRST. The old order called the server and cleared the seat only
+        // on success, so an unreachable server locked the machine in bot state
+        // for good - the one state a person cannot get themselves out of.
+        StudioBotDeviceStateStore.Clear();
+        account.UseBotToken(null);
+        unlockedSeatIdentity = null;
+        botAssignedProjectIds = null;
+        ApplyDeviceSeat();
+        UpdateAccountUi();
+
         try
         {
             await account.LeaveBotStateAsync(seat.OrganizationId, seat.BotId);
-            StudioBotDeviceStateStore.Clear();
-            ApplyDeviceSeat();
-            UpdateAccountUi();
+            StudioPendingBotSeatReleases.Forget(seat.OrganizationId, seat.BotId);
             SetStatus("Ботын төлөвөөс гарлаа.");
         }
         catch (Exception exception)
         {
-            SetStatus("Ботын төлөвөөс гарч чадсангүй: " + exception.Message);
+            // The device is out. The SEAT is not - it is still occupied on the
+            // server, and a seat nobody can see is the same defect one layer
+            // over. So it is written down and retried, and if even the note
+            // cannot be written the user is told the id to release by hand.
+            bool noted = StudioPendingBotSeatReleases.Record(new PendingBotSeatRelease
+            {
+                OrganizationId = seat.OrganizationId,
+                BotId = seat.BotId,
+                DisplayName = seat.DisplayName,
+                DeviceFingerprint = StudioDeviceIdentity.Fingerprints.Canonical,
+                LeftAtUtc = DateTimeOffset.UtcNow,
+                LastFailure = exception.Message,
+            });
+            SetStatus(noted
+                ? "Ботын төлөвөөс гарлаа. Суудал серверт цуцлагдаагүй байна " +
+                  $"({exception.Message}) — дараа нэвтэрэхэд дахин оролдоно."
+                : "Ботын төлөвөөс гарлаа, ГЭХДЭЭ суудал серверт цуцлагдаагүй бөгөөд " +
+                  $"тэмдэглэл ч хадгалагдсангүй. Эзэмшигч гараар чөлөөлнө үү: botId = {seat.BotId}");
         }
+    }
+
+    /// <summary>
+    /// Retries the seat releases this machine left behind. Runs whenever an
+    /// owner session is in hand, because that is the credential the release
+    /// needs and the moment it is most likely to work.
+    ///
+    /// Silence is only correct when there is nothing to do: a retry that fails
+    /// keeps its note and says so.
+    /// </summary>
+    private async Task FlushPendingBotSeatReleasesAsync()
+    {
+        IReadOnlyList<PendingBotSeatRelease> pending = StudioPendingBotSeatReleases.Read();
+        if (pending.Count == 0 || !account.IsSignedIn)
+            return;
+
+        int released = 0;
+        var stillHeld = new List<string>();
+        foreach (PendingBotSeatRelease item in pending)
+        {
+            try
+            {
+                await account.LeaveBotStateAsync(item.OrganizationId, item.BotId);
+                StudioPendingBotSeatReleases.Forget(item.OrganizationId, item.BotId);
+                released++;
+            }
+            catch (Exception exception)
+            {
+                stillHeld.Add($"«{item.DisplayName}» ({exception.Message})");
+            }
+        }
+
+        if (stillHeld.Count > 0)
+        {
+            SetStatus($"Цуцлагдаагүй ботын суудал: {string.Join(", ", stillHeld)}");
+            return;
+        }
+        if (released > 0)
+            SetStatus($"Өмнө цуцлагдаагүй {released} ботын суудал серверт чөлөөлөгдлөө.");
     }
 }
