@@ -215,6 +215,35 @@ internal sealed class BotSeatManagementDialog : Window
     private readonly ComboBox organizationBox = new();
     private readonly IReadOnlyList<StudioCloudOrganization> organizations;
 
+    // Assignment is its own act. A seat is put ON a project by the owner;
+    // WHO fills the seat is a separate question, answered by an invitation.
+    // They used to be one step - the invitation created the assignment - so an
+    // empty seat could not be assigned at all, and nobody could see which seat
+    // worked on what.
+    private readonly ListView assignmentList = new() { Height = 150 };
+    private readonly TextBlock assignmentSummary = new()
+    {
+        Foreground = StudioTheme.MutedTextBrush,
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new Thickness(0, 8, 0, 4),
+    };
+    private List<StudioCloudBotAssignment> assignments = [];
+    private readonly Button assignButton = StudioWidgets.CreateButton("Төсөлд томилох");
+    private readonly Button changeRolesButton = StudioWidgets.CreateButton("Үүрэг солих");
+    private readonly Button unassignButton = StudioWidgets.CreateButton("Томилолт хасах");
+
+    private StudioCloudBotAssignment? SelectedAssignment =>
+        assignmentList.SelectedItem is AssignmentRow row
+            ? assignments.FirstOrDefault(item =>
+                item.AssignmentId.Equals(row.AssignmentId, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    private sealed record AssignmentRow(
+        string AssignmentId,
+        string Project,
+        string Roles,
+        string Assigned);
+
     public BotSeatManagementDialog(
         StudioAccountService account,
         IReadOnlyList<StudioCloudOrganization> organizations)
@@ -300,6 +329,33 @@ internal sealed class BotSeatManagementDialog : Window
         footer.Children.Add(actions);
         DockPanel.SetDock(footer, Dock.Bottom);
         panel.Children.Add(footer);
+        var assignmentActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 6, 0, 0),
+        };
+        assignButton.Click += async (_, _) => await AssignProjectAsync();
+        changeRolesButton.Click += async (_, _) => await ChangeAssignmentRolesAsync();
+        unassignButton.Click += async (_, _) => await RemoveAssignmentAsync();
+        foreach (Button button in new[] { assignButton, changeRolesButton, unassignButton })
+            assignmentActions.Children.Add(button);
+
+        var assignmentView = new GridView();
+        assignmentView.Columns.Add(new GridViewColumn { Header = "Төсөл", Width = 300, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.Project)) });
+        assignmentView.Columns.Add(new GridViewColumn { Header = "Үүрэг", Width = 250, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.Roles)) });
+        assignmentView.Columns.Add(new GridViewColumn { Header = "Томилсон", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.Assigned)) });
+        assignmentList.View = assignmentView;
+        assignmentList.SelectionChanged += (_, _) => RefreshAssignmentActions();
+
+        var assignmentPanel = new StackPanel();
+        assignmentPanel.Children.Add(assignmentSummary);
+        assignmentPanel.Children.Add(assignmentList);
+        assignmentPanel.Children.Add(assignmentActions);
+        DockPanel.SetDock(assignmentPanel, Dock.Bottom);
+        panel.Children.Add(assignmentPanel);
+
+        seatList.SelectionChanged += async (_, _) => await RefreshAssignmentsAsync();
         panel.Children.Add(seatList);
         Content = panel;
 
@@ -325,6 +381,183 @@ internal sealed class BotSeatManagementDialog : Window
         string Device);
 
     private SeatRow? Selected => seatList.SelectedItem as SeatRow;
+
+    /// <summary>
+    /// The projects the selected seat works on. Read whenever the selection
+    /// moves, because "which seat is on which project" is the question this
+    /// window is for.
+    /// </summary>
+    private async Task RefreshAssignmentsAsync()
+    {
+        assignments = [];
+        assignmentList.ItemsSource = null;
+        if (Selected is null)
+        {
+            assignmentSummary.Text = "Суудлаа сонгоно уу.";
+            RefreshAssignmentActions();
+            return;
+        }
+
+        assignmentSummary.Text = $"«{Selected.DisplayName}» — томилолт уншиж байна…";
+        try
+        {
+            StudioCloudBotAssignmentListResponse response =
+                await account.ListBotAssignmentsAsync(organization.OrganizationId, Selected.BotId);
+            assignments = [.. response.Assignments];
+            assignmentList.ItemsSource = assignments
+                .Select(item => new AssignmentRow(
+                    item.AssignmentId,
+                    string.IsNullOrWhiteSpace(item.ProjectName) ? item.ProjectId : item.ProjectName,
+                    item.Roles.Count == 0 ? "—" : string.Join(", ", item.Roles),
+                    item.AssignedAtUtc.ToLocalTime().ToString("yyyy-MM-dd")))
+                .ToList();
+            // Nothing assigned is an answer, not an empty screen to wonder at.
+            assignmentSummary.Text = assignments.Count == 0
+                ? $"«{Selected.DisplayName}» ямар ч төсөлд томилогдоогүй байна."
+                : $"«{Selected.DisplayName}» — {assignments.Count} төсөлд томилогдсон.";
+        }
+        catch (Exception exception)
+        {
+            assignmentSummary.Text = BotSeatErrors.Describe(exception, "Томилолт уншигдсангүй.");
+        }
+        RefreshAssignmentActions();
+    }
+
+    private void RefreshAssignmentActions()
+    {
+        assignButton.IsEnabled = Selected is not null;
+        bool hasAssignment = SelectedAssignment is not null;
+        changeRolesButton.IsEnabled = hasAssignment;
+        unassignButton.IsEnabled = hasAssignment;
+    }
+
+    private async Task<IReadOnlyList<StudioProjectRole>> RoleCatalogueAsync()
+    {
+        try
+        {
+            return await account.ListProjectRolesAsync();
+        }
+        catch (Exception exception)
+        {
+            assignmentSummary.Text = BotSeatErrors.Describe(exception, "Үүргийн жагсаалт уншигдсангүй.");
+            return [];
+        }
+    }
+
+    private async Task AssignProjectAsync()
+    {
+        if (!RequireSelection())
+            return;
+
+        var dialog = new BotAssignmentDialog(
+            Selected!.DisplayName,
+            await ProjectChoicesAsync(),
+            await RoleCatalogueAsync())
+        {
+            Owner = this,
+        };
+        if (dialog.ShowDialog() != true || dialog.ProjectId.Length == 0)
+            return;
+
+        try
+        {
+            StudioCloudBotAssignment created = await account.AssignBotProjectAsync(
+                organization.OrganizationId,
+                Selected!.BotId,
+                dialog.ProjectId,
+                dialog.Roles);
+            resultText.Text =
+                $"«{Selected!.DisplayName}» — {(string.IsNullOrWhiteSpace(created.ProjectName) ? created.ProjectId : created.ProjectName)} " +
+                $"төсөлд томилогдлоо ({string.Join(", ", created.Roles)}).";
+            await RefreshAssignmentsAsync();
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Томилолт үүсээгүй.");
+        }
+    }
+
+    private async Task<IReadOnlyList<StudioCloudProjectSummary>> ProjectChoicesAsync()
+    {
+        try
+        {
+            return await account.ListProjectsAsync();
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Төслийн жагсаалт уншигдсангүй.");
+            return [];
+        }
+    }
+
+    private async Task ChangeAssignmentRolesAsync()
+    {
+        if (SelectedAssignment is not { } assignment)
+            return;
+
+        // The same catalogue and the same picker the team roster uses.
+        var dialog = new ProjectMemberRoleDialog(
+            Selected!.DisplayName,
+            string.IsNullOrWhiteSpace(assignment.ProjectName) ? assignment.ProjectId : assignment.ProjectName,
+            await RoleCatalogueAsync(),
+            assignment.Roles)
+        {
+            Owner = this,
+        };
+        if (dialog.ShowDialog() != true || dialog.Draft is null)
+            return;
+
+        try
+        {
+            StudioCloudBotAssignment changed = await account.ChangeBotAssignmentRolesAsync(
+                organization.OrganizationId,
+                Selected!.BotId,
+                assignment.AssignmentId,
+                dialog.Draft.Roles);
+            resultText.Text = $"Үүрэг шинэчлэгдлээ: {string.Join(", ", changed.Roles)}.";
+            await RefreshAssignmentsAsync();
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Үүрэг солигдсонгүй.");
+        }
+    }
+
+    private async Task RemoveAssignmentAsync()
+    {
+        if (SelectedAssignment is not { } assignment)
+            return;
+
+        string project = string.IsNullOrWhiteSpace(assignment.ProjectName)
+            ? assignment.ProjectId
+            : assignment.ProjectName;
+        if (StudioMessageDialog.Show(
+                this,
+                $"«{Selected!.DisplayName}» суудлыг «{project}» төслөөс хасах уу?" +
+                Environment.NewLine + Environment.NewLine +
+                "Суудал, түүний гишүүн, ба энэ суудлын үүсгэсэн ЭХ ҮҮСВЭРҮҮД хэвээр " +
+                "үлдэнэ — ажил зогссоноос эзэмшил шилждэггүй.",
+                "Томилолт хасах",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            await account.RemoveBotAssignmentAsync(
+                organization.OrganizationId,
+                Selected!.BotId,
+                assignment.AssignmentId);
+            resultText.Text = $"«{project}» төслөөс хасагдлаа.";
+            await RefreshAssignmentsAsync();
+        }
+        catch (Exception exception)
+        {
+            resultText.Text = BotSeatErrors.Describe(exception, "Томилолт хасагдсангүй.");
+        }
+    }
 
     private async Task RefreshAsync()
     {
@@ -875,5 +1108,125 @@ internal static class BotSeatErrors
         }
 
         return known.Message;
+    }
+}
+
+/// <summary>
+/// Puts a seat on a project: which project, and with which roles.
+///
+/// Separate from inviting somebody, because they are separate acts. An empty
+/// seat can hold assignments, one seat can hold several, and filling the seat
+/// later neither creates nor moves them.
+/// </summary>
+internal sealed class BotAssignmentDialog : Window
+{
+    private readonly ComboBox projectBox = new();
+    private readonly IReadOnlyList<StudioCloudProjectSummary> projects;
+    private readonly IReadOnlyList<StudioProjectRole> roleCatalogue;
+    private readonly List<string> selectedRoles = [];
+    private readonly TextBlock rolesText = new()
+    {
+        Foreground = StudioTheme.TextBrush,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Button chooseRolesButton = StudioWidgets.CreateButton("Үүрэг сонгох…");
+    private readonly Button assignButton;
+
+    public string ProjectId { get; private set; } = "";
+
+    public IReadOnlyList<string> Roles => selectedRoles;
+
+    public BotAssignmentDialog(
+        string seatName,
+        IReadOnlyList<StudioCloudProjectSummary> projects,
+        IReadOnlyList<StudioProjectRole> roleCatalogue)
+    {
+        this.projects = projects;
+        this.roleCatalogue = roleCatalogue;
+        Title = "Төсөлд томилох";
+        Width = 520;
+        Height = 320;
+        MinWidth = 460;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        StudioTheme.Apply(this);
+
+        assignButton = StudioWidgets.CreatePrimaryButton("Томилох");
+        assignButton.IsDefault = true;
+        assignButton.IsEnabled = false;
+        assignButton.Click += (_, _) => Accept();
+        Button cancel = StudioWidgets.CreateButton("Болих");
+        cancel.IsCancel = true;
+        chooseRolesButton.Click += (_, _) => ChooseRoles();
+        projectBox.SelectionChanged += (_, _) => UpdateEnabled();
+
+        foreach (StudioCloudProjectSummary project in projects)
+        {
+            projectBox.Items.Add(string.IsNullOrWhiteSpace(project.ProjectCode)
+                ? project.Name
+                : project.ProjectCode + " · " + project.Name);
+        }
+        if (projectBox.Items.Count > 0)
+            projectBox.SelectedIndex = 0;
+
+        var panel = new StackPanel { Margin = new Thickness(18) };
+        panel.Children.Add(StudioWidgets.CreateTitle($"«{seatName}» суудлыг төсөлд томилох"));
+        panel.Children.Add(StudioWidgets.CreateFormRow("Төсөл", projectBox));
+        var rolesRow = new DockPanel();
+        DockPanel.SetDock(chooseRolesButton, Dock.Right);
+        rolesRow.Children.Add(chooseRolesButton);
+        rolesRow.Children.Add(rolesText);
+        panel.Children.Add(StudioWidgets.CreateFormRow("Үүрэг", rolesRow));
+        panel.Children.Add(StudioWidgets.CreateHint(
+            "Томилолт нь СУУДЛЫНХ. Гишүүн солигдоход энэ томилолт хэвээр үлдэнэ."));
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 14, 0, 0),
+        };
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(assignButton);
+        panel.Children.Add(buttons);
+        Content = panel;
+        UpdateEnabled();
+    }
+
+    private void UpdateEnabled()
+    {
+        rolesText.Text = selectedRoles.Count == 0
+            ? "Сонгоогүй"
+            : string.Join(", ", selectedRoles.Select(code =>
+                roleCatalogue.FirstOrDefault(role =>
+                    role.Code.Equals(code, StringComparison.OrdinalIgnoreCase)) is { } known &&
+                !string.IsNullOrWhiteSpace(known.Label) ? known.Label : code));
+        chooseRolesButton.IsEnabled = roleCatalogue.Count > 0;
+        assignButton.IsEnabled = projectBox.SelectedIndex >= 0 && selectedRoles.Count > 0;
+    }
+
+    private void ChooseRoles()
+    {
+        var dialog = new ProjectMemberRoleDialog(
+            "Ботын суудал",
+            projectBox.SelectedIndex >= 0 ? (string)projectBox.Items[projectBox.SelectedIndex]! : "",
+            roleCatalogue,
+            selectedRoles)
+        {
+            Owner = this,
+        };
+        if (dialog.ShowDialog() != true || dialog.Draft is null)
+            return;
+
+        selectedRoles.Clear();
+        selectedRoles.AddRange(dialog.Draft.Roles);
+        UpdateEnabled();
+    }
+
+    private void Accept()
+    {
+        if (projectBox.SelectedIndex < 0 || selectedRoles.Count == 0)
+            return;
+        ProjectId = projects[projectBox.SelectedIndex].ProjectId;
+        DialogResult = true;
     }
 }

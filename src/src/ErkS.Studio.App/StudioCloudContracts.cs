@@ -1214,6 +1214,41 @@ internal sealed class StudioCloudBotSeat
     public DateTimeOffset? MemberSinceUtc { get; set; }
 }
 
+/// <summary>
+/// One project a seat is assigned to, with the roles it holds there.
+///
+/// The assignment belongs to the SEAT, not to whoever is staffed on it: a
+/// member leaving closes their interval and leaves the assignment standing.
+/// </summary>
+internal sealed class StudioCloudBotAssignment
+{
+    public string AssignmentId { get; set; } = "";
+    public string ProjectId { get; set; } = "";
+
+    /// <summary>
+    /// Resolved by the server. A screen showing only srv_prj_4d81e2a7 is a
+    /// screen nobody can use, and the client cannot look up a project it is not
+    /// a member of.
+    /// </summary>
+    public string ProjectName { get; set; } = "";
+
+    public List<string> Roles { get; set; } = [];
+    public DateTimeOffset AssignedAtUtc { get; set; }
+    public string AssignedByEmail { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotAssignmentListResponse
+{
+    public List<StudioCloudBotAssignment> Assignments { get; set; } = [];
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+internal sealed class StudioCloudBotAssignmentWriteRequest
+{
+    public string ProjectId { get; set; } = "";
+    public List<string> Roles { get; set; } = [];
+}
+
 internal sealed class StudioCloudBotSeatListResponse
 {
     public List<StudioCloudBotSeat> Items { get; set; } = [];

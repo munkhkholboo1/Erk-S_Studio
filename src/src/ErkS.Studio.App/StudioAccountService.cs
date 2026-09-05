@@ -2334,6 +2334,86 @@ internal sealed class StudioAccountService :
     private static string SeatPath(string organizationId, string botId) =>
         OrgPath(organizationId) + "/bot-seats/" + Uri.EscapeDataString(botId);
 
+    /// <summary>
+    /// Which projects a seat is assigned to, and with which roles.
+    ///
+    /// Reading is administration, so it follows the organisation's management
+    /// rule; the three writes below are the licence owner's.
+    /// </summary>
+    public async Task<StudioCloudBotAssignmentListResponse> ListBotAssignmentsAsync(
+        string organizationId,
+        string botId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioCloudBotAssignmentListResponse>(
+            SeatPath(organizationId, botId) + "/assignments",
+            cancellationToken).ConfigureAwait(true)
+            ?? new StudioCloudBotAssignmentListResponse();
+    }
+
+    /// <summary>
+    /// Puts a seat on a project. Independent of whether anybody is staffed on
+    /// it - an empty seat can hold assignments, and filling the seat later does
+    /// not create or move them.
+    /// </summary>
+    public async Task<StudioCloudBotAssignment> AssignBotProjectAsync(
+        string organizationId,
+        string botId,
+        string projectId,
+        IReadOnlyList<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioCloudBotAssignmentWriteRequest, StudioCloudBotAssignment>(
+            SeatPath(organizationId, botId) + "/assignments",
+            new StudioCloudBotAssignmentWriteRequest
+            {
+                ProjectId = projectId?.Trim() ?? "",
+                Roles = [.. roles ?? []],
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер томилолтын хариу буцаасангүй.");
+    }
+
+    public async Task<StudioCloudBotAssignment> ChangeBotAssignmentRolesAsync(
+        string organizationId,
+        string botId,
+        string assignmentId,
+        IReadOnlyList<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PutAuthorizedAsync<StudioCloudBotAssignmentWriteRequest, StudioCloudBotAssignment>(
+            SeatPath(organizationId, botId) + "/assignments/" +
+                Uri.EscapeDataString(assignmentId) + "/roles",
+            new StudioCloudBotAssignmentWriteRequest { Roles = [.. roles ?? []] },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер томилолтын хариу буцаасангүй.");
+    }
+
+    /// <summary>
+    /// Takes a seat off a project. The seat, its member and its SOURCES are
+    /// untouched: ownership does not move because the work stopped.
+    /// </summary>
+    public async Task RemoveBotAssignmentAsync(
+        string organizationId,
+        string botId,
+        string assignmentId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Delete,
+            BuildUri(session.ServerUrl, SeatPath(organizationId, botId) + "/assignments/" +
+                Uri.EscapeDataString(assignmentId)));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response =
+            await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudBotSeatListResponse> ListBotSeatsAsync(
         string organizationId,
         CancellationToken cancellationToken = default)
