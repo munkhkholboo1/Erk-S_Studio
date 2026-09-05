@@ -60,7 +60,21 @@ public static class AdministrativeUnits
         return code.Length is 3 or 5 or 7 && code.All(char.IsDigit);
     }
 
-    /// <summary>The parent's code, derived from the prefix. Empty at the top.</summary>
+    /// <summary>
+    /// The parent's code, DERIVED from the prefix - a second opinion, not the
+    /// first.
+    ///
+    /// The catalogue publishes `parentUnitCode` for exactly this reason: the
+    /// prefix rule is derivable, and two readers who each derive it can derive
+    /// it differently. So the chain is checked against the units' own published
+    /// parents wherever the units are in hand (see <see cref="ChainIsConsistent"/>),
+    /// and this prefix rule is used where only codes survive - in a stored
+    /// project, which keeps codes and names but not the catalogue rows they
+    /// came from.
+    ///
+    /// Having both is the point: they are independent, so a disagreement is a
+    /// finding rather than a silent choice between them.
+    /// </summary>
     public static string ParentCodeOf(string? unitCode)
     {
         string code = (unitCode ?? "").Trim();
@@ -70,6 +84,27 @@ public static class AdministrativeUnits
             5 => code[..3],
             _ => "",
         };
+    }
+
+    /// <summary>
+    /// Whether a chosen province → district → ward chain holds together,
+    /// checked against the units' OWN published parents rather than against
+    /// their codes.
+    ///
+    /// This is the check that runs while the catalogue rows are in hand. The
+    /// stored project keeps only codes, so it falls back to the prefix rule -
+    /// two independent statements of the same relationship, which is why a
+    /// disagreement between them means something.
+    /// </summary>
+    public static bool ChainIsConsistent(
+        AdministrativeUnit? province,
+        AdministrativeUnit? district,
+        AdministrativeUnit? ward)
+    {
+        if (province is null || district is null || ward is null)
+            return false;
+        return district.ParentUnitCode.Equals(province.UnitCode, StringComparison.Ordinal) &&
+            ward.ParentUnitCode.Equals(district.UnitCode, StringComparison.Ordinal);
     }
 }
 

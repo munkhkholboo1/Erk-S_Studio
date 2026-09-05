@@ -129,6 +129,77 @@ public sealed class ProjectSiteLocationTests
     }
 
     [Fact]
+    public void TheCHAINIsCheckedAgainstThePublishedParents()
+    {
+        // The catalogue prints parentUnitCode even though the prefix gives it
+        // away, and the reason is that two readers deriving the same rule can
+        // derive it differently. Where the rows are in hand, the published
+        // parent is what is asked; the prefix rule stays as a second, separate
+        // opinion for the stored project, which keeps codes and nothing else.
+        var orkhon = new AdministrativeUnit("261", AdministrativeUnits.Aimag, "", "Орхон", "Сум");
+        var bayanUndur = new AdministrativeUnit("26101", AdministrativeUnits.Sum, "261", "Баян-Өндөр", "Баг");
+        var zest = new AdministrativeUnit("2610151", AdministrativeUnits.Bag, "26101", "1-р баг, Зэст", "");
+
+        Assert.True(AdministrativeUnits.ChainIsConsistent(orkhon, bayanUndur, zest));
+
+        var elsewhere = new AdministrativeUnit("1830151", AdministrativeUnits.Bag, "18301", "1-р баг, Хуст арал", "");
+        Assert.False(AdministrativeUnits.ChainIsConsistent(orkhon, bayanUndur, elsewhere));
+
+        // THE CASE THAT SEPARATES THE TWO SOURCES. A first version of this test
+        // used rows whose prefixes and published parents agreed, so deriving
+        // the prefix instead passed it - the test named the rule and did not
+        // hold it. Here the row's code says one district and its published
+        // parent says another, which is exactly the disagreement the catalogue
+        // prints parentUnitCode to make visible.
+        var disagreeing = new AdministrativeUnit(
+            "2610151",
+            AdministrativeUnits.Bag,
+            ParentUnitCode: "18301",
+            "1-р баг, Зэст",
+            "");
+        Assert.Equal("26101", AdministrativeUnits.ParentCodeOf(disagreeing.UnitCode));
+        Assert.False(AdministrativeUnits.ChainIsConsistent(orkhon, bayanUndur, disagreeing));
+    }
+
+    [Fact]
+    public void ERDENETSWardsAreBAG_AndNothingInTheCodeDecidesThat()
+    {
+        // Orkhon's centre is a city, and its wards are «баг». Any rule of the
+        // shape "city means khoroo" answers this wrong - and answers it wrong
+        // only here and in Darkhan, so a test built from Ulaanbaatar and one
+        // aimag would have stayed green over it.
+        var bayanUndur = new AdministrativeUnit("26101", AdministrativeUnits.Sum, "261", "Баян-Өндөр", "Баг");
+
+        Assert.Equal("Баг", bayanUndur.ChildPickerLabelMn);
+        Assert.True(bayanUndur.HasChildren);
+    }
+
+    [Fact]
+    public void ATHIRDLabelSurvivesUntouched()
+    {
+        // The catalogue is allowed to grow a word this build has never seen.
+        // Collapsing an unfamiliar label to whichever of two is nearer would
+        // rename a place on a printed sheet, and would do it silently.
+        var invented = new AdministrativeUnit("99901", AdministrativeUnits.Sum, "999", "Шинэ", "Тосгон");
+        var location = new ProjectSiteLocation
+        {
+            ProvinceCode = "999",
+            ProvinceName = "Шинэ аймаг",
+            DistrictCode = "99901",
+            DistrictName = "Шинэ",
+            WardCode = "9990151",
+            WardName = "Хатгал тосгон",
+            WardLabelMn = invented.ChildPickerLabelMn,
+        };
+
+        location.Normalize();
+
+        Assert.Equal("Тосгон", location.WardLabelMn);
+        Assert.Equal("Хатгал тосгон", location.WardName);
+        Assert.True(location.IsChosen);
+    }
+
+    [Fact]
     public void TENSortsAfterTWO_TheCaseEveryPlainComparerGetsWrong()
     {
         // The example to test with, and not the one first reached for. Plain
