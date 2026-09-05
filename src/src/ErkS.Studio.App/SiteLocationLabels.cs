@@ -33,4 +33,25 @@ internal static class SiteLocationLabels
     /// </summary>
     public static bool HeadingIsShown(AdministrativeUnitChoices choices) =>
         HeadingFor(choices).Length > 0;
+
+    /// <summary>
+    /// What to say when a level offers nothing.
+    ///
+    /// 🔴 THE TWO EMPTY LISTS ARE NOT THE SAME. A level whose parent has not
+    /// been chosen is simply waiting. A level whose parent WAS chosen and which
+    /// still lists nothing is a real answer: three sums - Хатгал, Бэрх,
+    /// Гурванбаян - carry «Баг» as their child label with no bags published.
+    ///
+    /// Both end in an empty combo box, so without saying which is which the
+    /// reader is told the catalogue failed when it is complete and correct.
+    /// </summary>
+    public static string EmptyNoticeFor(AdministrativeUnitChoices choices)
+    {
+        if (choices is null || choices.IsWaitingForParent)
+            return "";
+        return choices.IsEmptyByData
+            ? $"Энэ нэгжид бүртгэгдсэн «{HeadingFor(choices)}» алга байна " +
+              "(каталог бүрэн, зүгээр л хоосон)."
+            : "";
+    }
 }

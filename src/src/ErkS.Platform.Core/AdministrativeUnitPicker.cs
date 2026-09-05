@@ -23,7 +23,16 @@ public interface IAdministrativeUnitCatalogue
     IReadOnlyList<AdministrativeUnit> ChildrenOf(string? parentUnitCode);
 }
 
-/// <summary>One level of the cascade: what to call it, and what it offers.</summary>
+/// <summary>
+/// One level of the cascade: what to call it, and what it offers.
+///
+/// «Nothing to offer» and «nothing loaded» are DIFFERENT, and the difference is
+/// real data: three sums carry «Баг» as their child label with no bags
+/// published yet. Both states end in an empty list, so the state has to be
+/// carried rather than inferred - otherwise the reader is told the catalogue
+/// failed when in fact the catalogue is complete and that sum simply has no
+/// bags recorded.
+/// </summary>
 /// <param name="LabelMn">
 /// The heading, taken from the PARENT's published label. Never worked out from
 /// the parent's kind: Erdenet and Darkhan are cities whose wards are called
@@ -31,7 +40,18 @@ public interface IAdministrativeUnitCatalogue
 /// </param>
 public sealed record AdministrativeUnitChoices(
     string LabelMn,
-    IReadOnlyList<AdministrativeUnit> Units);
+    IReadOnlyList<AdministrativeUnit> Units,
+    bool ParentIsChosen = true)
+{
+    /// <summary>Nothing to show because nothing above it has been chosen yet.</summary>
+    public bool IsWaitingForParent => !ParentIsChosen;
+
+    /// <summary>
+    /// A parent WAS chosen and the catalogue lists nothing under it. Not a
+    /// failure - three real sums are in exactly this state.
+    /// </summary>
+    public bool IsEmptyByData => ParentIsChosen && Units.Count == 0;
+}
 
 /// <summary>
 /// The cascading choice of a site's location: province, then district, then
@@ -94,7 +114,7 @@ public sealed class AdministrativeUnitPicker
     /// </summary>
     public AdministrativeUnitChoices DistrictChoices() =>
         Province is null
-            ? new AdministrativeUnitChoices("", [])
+            ? new AdministrativeUnitChoices("", [], ParentIsChosen: false)
             : new AdministrativeUnitChoices(
                 Province.ChildPickerLabelMn,
                 Sorted(catalogue.ChildrenOf(Province.UnitCode)));
@@ -106,7 +126,7 @@ public sealed class AdministrativeUnitPicker
     /// </summary>
     public AdministrativeUnitChoices WardChoices() =>
         District is null
-            ? new AdministrativeUnitChoices("", [])
+            ? new AdministrativeUnitChoices("", [], ParentIsChosen: false)
             : new AdministrativeUnitChoices(
                 District.ChildPickerLabelMn,
                 Sorted(catalogue.ChildrenOf(District.UnitCode)));

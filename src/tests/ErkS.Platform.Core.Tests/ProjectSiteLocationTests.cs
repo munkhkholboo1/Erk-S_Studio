@@ -168,8 +168,19 @@ public sealed class ProjectSiteLocationTests
         // shape "city means khoroo" answers this wrong - and answers it wrong
         // only here and in Darkhan, so a test built from Ulaanbaatar and one
         // aimag would have stayed green over it.
-        var bayanUndur = new AdministrativeUnit("26101", AdministrativeUnits.Sum, "261", "Баян-Өндөр", "Баг");
+        var bayanUndur = new AdministrativeUnit(
+            "26101",
+            AdministrativeUnits.Sum,
+            "261",
+            "Баян-Өндөр",
+            "Баг",
+            HasChildren: true);
 
+        // TWO SEPARATE FACTS, and this test used to conflate them: HasChildren
+        // was derived from the label being non-empty, so «has a name for its
+        // children» and «has children» were the same statement. Three real sums
+        // are the counter-example - «Баг» with no bags published - and the
+        // fixture now has to say which it means.
         Assert.Equal("Баг", bayanUndur.ChildPickerLabelMn);
         Assert.True(bayanUndur.HasChildren);
     }

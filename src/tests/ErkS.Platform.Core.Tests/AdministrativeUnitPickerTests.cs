@@ -171,6 +171,51 @@ public sealed class AdministrativeUnitPickerTests
     }
 
     [Fact]
+    public void ASUMWithNoBagsYetIsEMPTY_NotBroken()
+    {
+        // 🔴 REAL ROWS. Хатгал, Бэрх and Гурванбаян carry «Баг» as their child
+        // label and have no bags published - they are the three units the
+        // user's own file was missing, and SRV's test went red on them.
+        //
+        // The label is a property of the LEVEL below, not of the data: a sum
+        // with no bags recorded is still a sum. Deriving "has children" from
+        // "has a label" - which this side did until now - calls the catalogue
+        // broken when it is complete.
+        AdministrativeUnitPicker picker = Picker();
+        picker.ChooseProvince(new AdministrativeUnit("267", "Aimag", "", "Хөвсгөл", "Сум", true));
+        picker.ChooseDistrict(new AdministrativeUnit("26770", "Sum", "267", "Хатгал", "Баг", false));
+
+        AdministrativeUnitChoices wards = picker.WardChoices();
+
+        Assert.Equal("Баг", wards.LabelMn);
+        Assert.Empty(wards.Units);
+        Assert.True(wards.IsEmptyByData);
+        Assert.False(wards.IsWaitingForParent);
+    }
+
+    [Fact]
+    public void ALevelWhoseParentIsUnchosenIsWAITING_NotEmpty()
+    {
+        // The other empty list, and the one that must not be described the same
+        // way. Both render as a combo with nothing in it.
+        AdministrativeUnitPicker picker = Picker();
+
+        Assert.True(picker.DistrictChoices().IsWaitingForParent);
+        Assert.False(picker.DistrictChoices().IsEmptyByData);
+    }
+
+    [Fact]
+    public void HAVINGALabelDoesNotMeanHavingChildren()
+    {
+        // The false equivalence itself, stated once so it cannot creep back.
+        var childless = new AdministrativeUnit("42355", "Sum", "423", "Бэрх", "Баг", false);
+        var bearing = new AdministrativeUnit("18301", "Sum", "183", "Өлгий", "Баг", true);
+
+        Assert.Equal(childless.ChildPickerLabelMn, bearing.ChildPickerLabelMn);
+        Assert.NotEqual(childless.HasChildren, bearing.HasChildren);
+    }
+
+    [Fact]
     public void ChangingTheProvinceCLEARSWhatWasBelowIt()
     {
         // Leaving a district from the previous province in place is how one

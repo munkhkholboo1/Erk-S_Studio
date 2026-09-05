@@ -13,15 +13,23 @@ namespace ErkS.Platform.Core;
 /// What to call the NEXT picker - «Сум», «Дүүрэг», «Баг», «Хороо». It comes
 /// from the data, never from a branch in this code.
 /// </param>
+/// <param name="HasChildren">
+/// Whether the catalogue actually lists anything under this unit.
+///
+/// 🔴 NOT DERIVABLE FROM THE LABEL, which is what this used to do. Three sums -
+/// Хатгал, Бэрх and Гурванбаян - carry «Баг» as their child label and have no
+/// bags published yet: the label describes the LEVEL below them, and a sum with
+/// no bags recorded is still a sum. SRV's own test asserted "label present means
+/// children present" and went red on the real data; this side held the same
+/// false equivalence.
+/// </param>
 public sealed record AdministrativeUnit(
     string UnitCode,
     string Level,
     string ParentUnitCode,
     string NameMn,
-    string ChildPickerLabelMn)
-{
-    public bool HasChildren => ChildPickerLabelMn.Length > 0;
-}
+    string ChildPickerLabelMn,
+    bool HasChildren = false);
 
 /// <summary>
 /// Reading the published catalogue, and the two traps in it.

@@ -24,6 +24,8 @@ internal sealed partial class ShellView
     private readonly TextBlock siteDistrictLabel = StudioWidgets.CreateHint("");
     private readonly TextBlock siteWardLabel = StudioWidgets.CreateHint("");
     private readonly TextBlock siteLocationMessage = StudioWidgets.CreateHint("");
+    private readonly TextBlock siteDistrictEmptyNotice = StudioWidgets.CreateHint("");
+    private readonly TextBlock siteWardEmptyNotice = StudioWidgets.CreateHint("");
     private readonly IAdministrativeUnitCatalogue administrativeUnits =
         StudioAdministrativeUnitCatalogue.Unavailable;
     private AdministrativeUnitPicker? sitePicker;
@@ -36,8 +38,10 @@ internal sealed partial class ShellView
         panel.Children.Add(StudioWidgets.CreateFormRow("Хот, аймаг", siteProvinceBox));
         panel.Children.Add(siteDistrictLabel);
         panel.Children.Add(siteDistrictBox);
+        panel.Children.Add(siteDistrictEmptyNotice);
         panel.Children.Add(siteWardLabel);
         panel.Children.Add(siteWardBox);
+        panel.Children.Add(siteWardEmptyNotice);
 
         siteProvinceBox.SelectionChanged += (_, _) => OnSiteLevelChosen(
             unit => sitePicker?.ChooseProvince(unit),
@@ -82,8 +86,18 @@ internal sealed partial class ShellView
                 : Visibility.Visible;
 
             Fill(siteProvinceBox, sitePicker.ProvinceChoices(), sitePicker.Province);
-            Fill(siteDistrictBox, sitePicker.DistrictChoices(), sitePicker.District, siteDistrictLabel);
-            Fill(siteWardBox, sitePicker.WardChoices(), sitePicker.Ward, siteWardLabel);
+            Fill(
+                siteDistrictBox,
+                sitePicker.DistrictChoices(),
+                sitePicker.District,
+                siteDistrictLabel,
+                siteDistrictEmptyNotice);
+            Fill(
+                siteWardBox,
+                sitePicker.WardChoices(),
+                sitePicker.Ward,
+                siteWardLabel,
+                siteWardEmptyNotice);
         }
         finally
         {
@@ -94,8 +108,17 @@ internal sealed partial class ShellView
             ComboBox box,
             AdministrativeUnitChoices choices,
             AdministrativeUnit? selected,
-            TextBlock? label = null)
+            TextBlock? label = null,
+            TextBlock? emptyNotice = null)
         {
+            if (emptyNotice is not null)
+            {
+                emptyNotice.Text = SiteLocationLabels.EmptyNoticeFor(choices);
+                emptyNotice.Visibility = emptyNotice.Text.Length == 0
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+            }
+
             if (label is not null)
             {
                 label.Text = SiteLocationLabels.HeadingFor(choices);

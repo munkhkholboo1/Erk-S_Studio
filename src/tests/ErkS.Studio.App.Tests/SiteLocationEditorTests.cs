@@ -64,6 +64,33 @@ public sealed class SiteLocationEditorTests
     }
 
     [Fact]
+    public void ANEMPTYLevelSaysWHICHKindOfEmptyItIs()
+    {
+        // Two states, one appearance: a combo with nothing in it. One means the
+        // level above has not been chosen; the other means the catalogue is
+        // complete and this unit genuinely has nothing under it - three real
+        // sums, «Баг» with no bags published.
+        //
+        // Told apart in words, because told apart nowhere else the reader
+        // concludes the download failed.
+        var waiting = new AdministrativeUnitChoices("", [], ParentIsChosen: false);
+        var emptyByData = new AdministrativeUnitChoices("Баг", [], ParentIsChosen: true);
+
+        Assert.Equal("", SiteLocationLabels.EmptyNoticeFor(waiting));
+        Assert.Contains("Баг", SiteLocationLabels.EmptyNoticeFor(emptyByData), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ALevelThatHasUnitsSaysNothingExtra()
+    {
+        var filled = new AdministrativeUnitChoices(
+            "Хороо",
+            [new AdministrativeUnit("5110151", "Khoroo", "51101", "1-р хороо", "", false)]);
+
+        Assert.Equal("", SiteLocationLabels.EmptyNoticeFor(filled));
+    }
+
+    [Fact]
     public void TheVIEWAsksForTheHeadingRatherThanBuildingOne()
     {
         string view = ReadSiteLocationView();
