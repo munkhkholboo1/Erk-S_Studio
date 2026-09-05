@@ -61,6 +61,22 @@ public sealed class BotInvitationReachabilityTests
     }
 
     [Fact]
+    public void TheInvitationRolesComeFromTheServerCatalogue_NotFromTypedText()
+    {
+        // Roles were a comma-separated TextBox defaulting to "Member" - a code
+        // that is not in the server's catalogue at all - while the real
+        // catalogue and its picker were a few lines away in the same product.
+        // SRV confirmed nothing validates the field yet, so whatever was typed
+        // became the record.
+        string dialogs = File.ReadAllText(
+            Path.Combine(AppSourceDirectory(), "BotSeatDialogs.cs"));
+
+        Assert.Contains("ListProjectRolesAsync", dialogs, StringComparison.Ordinal);
+        Assert.Contains("ProjectMemberRoleDialog", dialogs, StringComparison.Ordinal);
+        Assert.DoesNotContain("rolesBox", dialogs, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheInviteeSideIsReachedFromTheNotificationRail()
     {
         // Not just "somewhere": the invitation has to surface where a person

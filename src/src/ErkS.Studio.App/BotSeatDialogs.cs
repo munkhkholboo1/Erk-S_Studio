@@ -564,7 +564,21 @@ internal sealed class BotMemberInvitationDialog : Window
     private readonly TextBox emailBox = new();
     private readonly ComboBox projectBox = new();
     private List<StudioCloudProjectSummary> projects = [];
-    private readonly TextBox rolesBox = new() { Text = "Member" };
+
+    // Roles are CHOSEN from the server's catalogue, never typed. A free-text
+    // box sat here while ProjectMemberRoleDialog and GET /project-roles - the
+    // real catalogue, already used for ordinary team members - were a few lines
+    // away. Whatever was typed went to the server unchecked and stayed in the
+    // record; SRV confirmed nothing validates it yet.
+    private readonly List<StudioProjectRole> roleCatalogue = [];
+    private readonly List<string> selectedRoleCodes = [];
+    private readonly TextBlock rolesText = new()
+    {
+        Foreground = StudioTheme.TextBrush,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Button chooseRolesButton = StudioWidgets.CreateButton("Үүрэг сонгох…");
     private readonly TextBlock resultText = new()
     {
         Foreground = StudioTheme.MutedTextBrush,
@@ -598,12 +612,17 @@ internal sealed class BotMemberInvitationDialog : Window
         cancel.IsCancel = true;
         emailBox.TextChanged += (_, _) => UpdateEnabled();
         projectBox.SelectionChanged += (_, _) => UpdateEnabled();
+        chooseRolesButton.Click += (_, _) => ChooseRoles();
 
         var panel = new StackPanel { Margin = new Thickness(18) };
         panel.Children.Add(StudioWidgets.CreateTitle($"«{botDisplayName}» суудалд урих"));
         panel.Children.Add(StudioWidgets.CreateFormRow("Мэйл", emailBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Төсөл", projectBox));
-        panel.Children.Add(StudioWidgets.CreateFormRow("Үүрэг", rolesBox));
+        var rolesRow = new DockPanel();
+        DockPanel.SetDock(chooseRolesButton, Dock.Right);
+        rolesRow.Children.Add(chooseRolesButton);
+        rolesRow.Children.Add(rolesText);
+        panel.Children.Add(StudioWidgets.CreateFormRow("Үүрэг", rolesRow));
         panel.Children.Add(StudioWidgets.CreateHint(
             "Урилгыг тэр хүн өөрийн төхөөрөмж дээрээ зөвшөөрнө. Өмнөөс нь зөвшөөрөх зам байхгүй."));
         panel.Children.Add(resultText);
@@ -620,10 +639,46 @@ internal sealed class BotMemberInvitationDialog : Window
         Loaded += async (_, _) => await LoadProjectsAsync();
     }
 
-    private void UpdateEnabled() =>
+    private void UpdateEnabled()
+    {
+        rolesText.Text = selectedRoleCodes.Count == 0
+            ? "Сонгоогүй"
+            : string.Join(", ", selectedRoleCodes.Select(DescribeRole));
+        chooseRolesButton.IsEnabled = roleCatalogue.Count > 0;
+        // No role, no invitation. The old default sent "Member" whether anyone
+        // meant it or not.
         sendButton.IsEnabled =
             !string.IsNullOrWhiteSpace(emailBox.Text) &&
-            projectBox.SelectedIndex >= 0;
+            projectBox.SelectedIndex >= 0 &&
+            selectedRoleCodes.Count > 0;
+    }
+
+    private string DescribeRole(string code) =>
+        roleCatalogue.FirstOrDefault(role =>
+            role.Code.Equals(code, StringComparison.OrdinalIgnoreCase)) is { } known &&
+        !string.IsNullOrWhiteSpace(known.Label)
+            ? known.Label
+            : code;
+
+    private void ChooseRoles()
+    {
+        // The same dialog the ordinary team roster uses, over the same
+        // catalogue. One place decides what a role is.
+        var dialog = new ProjectMemberRoleDialog(
+            string.IsNullOrWhiteSpace(emailBox.Text) ? "Ботын суудлын гишүүн" : emailBox.Text.Trim(),
+            emailBox.Text.Trim(),
+            roleCatalogue,
+            selectedRoleCodes)
+        {
+            Owner = this,
+        };
+        if (dialog.ShowDialog() != true || dialog.Draft is null)
+            return;
+
+        selectedRoleCodes.Clear();
+        selectedRoleCodes.AddRange(dialog.Draft.Roles);
+        UpdateEnabled();
+    }
 
     /// <summary>
     /// Projects are chosen from the list rather than typed. A project id is
@@ -635,6 +690,8 @@ internal sealed class BotMemberInvitationDialog : Window
         try
         {
             projects = [.. await account.ListProjectsAsync()];
+            roleCatalogue.Clear();
+            roleCatalogue.AddRange(await account.ListProjectRolesAsync());
             foreach (StudioCloudProjectSummary project in projects)
             {
                 projectBox.Items.Add(string.IsNullOrWhiteSpace(project.ProjectCode)
@@ -659,13 +716,12 @@ internal sealed class BotMemberInvitationDialog : Window
         resultText.Text = "Илгээж байна…";
         try
         {
-            string[] roles = (rolesBox.Text ?? "")
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            string[] roles = [.. selectedRoleCodes];
             StudioCloudBotInvitation invitation = await account.InviteBotMemberAsync(
                 organization.OrganizationId,
                 botId,
                 projects[projectBox.SelectedIndex].ProjectId,
-                roles.Length == 0 ? ["Member"] : roles,
+                roles,
                 emailBox.Text.Trim());
             ResultMessage =
                 $"{invitation.TargetEmail} рүү урилга илгээгдлээ " +
