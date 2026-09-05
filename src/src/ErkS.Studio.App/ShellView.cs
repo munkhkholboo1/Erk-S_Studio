@@ -2587,6 +2587,11 @@ internal sealed partial class ShellView : IDisposable
         form.Children.Add(cornerTableHint);
         form.Children.Add(StudioWidgets.CreateFormRow("Үндэслэлийн төрөл", basisSourceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Хүсэлтийн дугаар", requestNumberBox));
+        form.Children.Add(StudioWidgets.CreateSectionHeader("Байршил"));
+        form.Children.Add(BuildSiteLocationEditor());
+        // The typed line stays. It is what every project on disk has, it is what
+        // is shown while no catalogue has been downloaded, and it is never
+        // parsed into the chosen fields above it.
         form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Газрын холбоос", landReferenceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Эх байгууллага", basisSourceOrganizationBox));
@@ -5972,6 +5977,7 @@ internal sealed partial class ShellView : IDisposable
         clientLogoRemovalPending = false;
         RefreshClientLogoEditor();
         siteAddressBox.Text = basis.SiteAddress;
+        BindSiteLocationEditor();
         landReferenceBox.Text = basis.LandReference;
         basisSourceOrganizationBox.Text = basis.SourceOrganizationName;
         basisSummaryBox.Text = basis.Summary;
@@ -6026,6 +6032,7 @@ internal sealed partial class ShellView : IDisposable
         basis.ClientOrganizationSnapshot.Name = basis.ClientName;
         basis.ClientOrganizationSnapshot.DisplayName = basis.ClientName;
         basis.SiteAddress = siteAddressBox.Text.Trim();
+        basis.SiteLocation = CaptureSiteLocationDraft();
         basis.LandReference = landReferenceBox.Text.Trim();
         basis.SourceOrganizationName = basisSourceOrganizationBox.Text.Trim();
         basis.Summary = basisSummaryBox.Text;

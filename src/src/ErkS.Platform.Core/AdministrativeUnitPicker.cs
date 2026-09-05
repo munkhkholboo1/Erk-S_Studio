@@ -62,6 +62,28 @@ public sealed class AdministrativeUnitPicker
 
     public AdministrativeUnit? Ward { get; private set; }
 
+    /// <summary>
+    /// Whether there is a catalogue to choose from at all.
+    ///
+    /// A real runtime state, not a development gap: the catalogue is served and
+    /// cached, so a first run, an offline machine or a server that is down all
+    /// arrive here. The view needs to say so plainly instead of showing three
+    /// empty boxes, and the decision belongs on this side - a View that works
+    /// out for itself when to hide something is where four of this platform's
+    /// rules went to stop being testable.
+    /// </summary>
+    public bool CatalogueIsAvailable => ProvinceChoices().Units.Count > 0;
+
+    /// <summary>
+    /// What to tell somebody who cannot choose yet. Empty when they can.
+    /// </summary>
+    public string UnavailableMessageMn =>
+        CatalogueIsAvailable
+            ? ""
+            : "Засаг захиргааны нэгжийн жагсаалт татагдаагүй байна. " +
+              "Холбогдсоны дараа сонгох боломжтой болно; тэр хүртэл доорх " +
+              "хаягийн мөрөнд бичнэ үү.";
+
     /// <summary>The top level. Its heading is fixed - nothing above it names it.</summary>
     public AdministrativeUnitChoices ProvinceChoices() =>
         new("Хот, аймаг", Sorted(catalogue.ChildrenOf("")));
