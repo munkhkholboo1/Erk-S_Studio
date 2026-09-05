@@ -2266,7 +2266,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             request.Project.ProjectFolder,
             clientOrganization.LogoPath);
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
-        const double projectNameTextHeightMm = BuildingArchitectureConceptPageLayout.CoverProjectNameTextHeightMm;
+        double projectNameTextHeightMm = grid.TitleTextHeight;
         IReadOnlyList<CoverApprovedRow> approvedRows = BuildCoverApprovedRows(gfx, approvalSnapshot.ApprovedBy);
         var reviewRows = BuildCoverReviewRows(gfx, grid, approvalSnapshot.EndorsedBy);
         var processedColumn = BuildCoverProcessedColumn(
@@ -2314,7 +2314,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             gfx,
             ValueOrDash(request.Project.InitiationBasis.SiteAddress),
             CoverCenteredRect(210.0, 220.510, 180.0, 8.0),
-            bodyTextHeightMm,
+            grid.AddressTextHeight,
             false,
             XStringFormats.Center);
         DrawCoverText(
@@ -2394,8 +2394,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // else. Empty when the organisation has not recorded one: PFR removed
         // the identical default on their side (a9541d1) rather than inventing a
         // city, and the two covers have to say the same thing.
-        DrawCoverText(gfx, company.RegisteredCity, CoverCenteredRect(210.0, grid.CityCenterY, 200.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, grid.YearCenterY, 90.0, 12.0), bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverText(gfx, company.RegisteredCity, CoverCenteredRect(210.0, grid.CityCenterY, 200.0, 12.0), grid.FooterTextHeight, false, XStringFormats.Center);
+        DrawCoverText(gfx, $"{DateTime.Now:yyyy} он", CoverCenteredRect(210.0, grid.YearCenterY, 90.0, 12.0), grid.FooterTextHeight, false, XStringFormats.Center);
     }
 
     private static void DrawConceptCoverPage(

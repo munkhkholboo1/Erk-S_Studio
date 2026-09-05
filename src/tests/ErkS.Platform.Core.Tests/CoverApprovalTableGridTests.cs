@@ -136,6 +136,52 @@ public sealed class CoverApprovalTableGridTests
     }
 
     [Fact]
+    public void TheWorkingCoversTEXTSizesAreTheMeasuredOnes()
+    {
+        // Read out of the exported cover as em sizes and converted at Arial's
+        // cap ratio: 8.47 / 2.82 / 5.29 mm em become 5.8 / 2.0 / 3.8 mm cap,
+        // which are exactly the contract's compact title, tiny and label. Two
+        // independent readings agreeing is what turned "the contract says 5.8"
+        // into "the drawing is 5.8".
+        CoverApprovalTableGrid grid = CoverApprovalTableGrid.WorkingDrawing;
+
+        Assert.Equal(5.8, grid.TitleTextHeight, 2);
+        Assert.Equal(2.0, grid.AddressTextHeight, 2);
+        Assert.Equal(3.8, grid.FooterTextHeight, 2);
+    }
+
+    [Fact]
+    public void TheConceptCoversTextSizesAreUntouched()
+    {
+        // The project name grows from 4.0 to 5.8 mm on the WORKING cover only.
+        // That is a visible change, and it belongs to the cover being made to
+        // reproduce Revit - not to the one nobody asked to change.
+        CoverApprovalTableGrid grid = CoverApprovalTableGrid.Concept;
+
+        Assert.Equal(4.0, grid.TitleTextHeight, 2);
+        Assert.Equal(2.5, grid.AddressTextHeight, 2);
+        Assert.Equal(2.5, grid.FooterTextHeight, 2);
+    }
+
+    [Fact]
+    public void TheWriterReadsEveryTextHeightFromTheGrid()
+    {
+        // Each of these was a shared constant, so the working cover printed the
+        // concept cover's sizes however the grid was set. The rule and its use
+        // are different things - a lesson this file has now learnt three times.
+        string writer = ReadWriterSource();
+
+        Assert.Contains("double projectNameTextHeightMm = grid.TitleTextHeight;", writer, StringComparison.Ordinal);
+        Assert.Contains("grid.AddressTextHeight", writer, StringComparison.Ordinal);
+
+        // BOTH footer lines, counted. A first attempt only asked whether the
+        // name appeared at all, and reverting the city line alone left the year
+        // line to satisfy it - the test passed while half the footer was wrong.
+        Assert.Contains("grid.CityCenterY, 200.0, 12.0), grid.FooterTextHeight", writer, StringComparison.Ordinal);
+        Assert.Contains("grid.YearCenterY, 90.0, 12.0), grid.FooterTextHeight", writer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheWriterACTUALLYPicksTheGridFromTheSkin()
     {
         // The grids are worth having only where they are asked. Until this

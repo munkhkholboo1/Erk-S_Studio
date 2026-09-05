@@ -45,6 +45,9 @@ namespace ErkS.Platform.Core;
 /// <param name="YearCenterY">Centre of the footer's year line.</param>
 /// <param name="ReviewRowsTop">Top edge of the first review row.</param>
 /// <param name="ReviewRowsSpan">Height the review rows divide between them.</param>
+/// <param name="TitleTextHeight">Cap height of the project name.</param>
+/// <param name="AddressTextHeight">Cap height of the site address line.</param>
+/// <param name="FooterTextHeight">Cap height of the city and year lines.</param>
 /// <param name="ShrinksReviewTextToFit">
 /// Whether long review text is shrunk before the row is allowed to grow. Revit
 /// shrinks to a floor and then lets the text overflow; Studio's concept cover
@@ -74,7 +77,10 @@ public sealed record CoverApprovalTableGrid(
     double YearCenterY,
     double ReviewRowsTop,
     double ReviewRowsSpan,
-    bool ShrinksReviewTextToFit)
+    bool ShrinksReviewTextToFit,
+    double TitleTextHeight,
+    double AddressTextHeight,
+    double FooterTextHeight)
 {
     /// <summary>
     /// The concept album's cover, unchanged, pinned by
@@ -101,7 +107,10 @@ public sealed record CoverApprovalTableGrid(
         ReviewRowsSpan: BuildingArchitectureConceptPageLayout.CoverReviewRowsBaseHeightMm,
         // The concept cover keeps full-size text and lets the row grow. Nobody
         // asked for it to change, and it has never overflowed.
-        ShrinksReviewTextToFit: false);
+        ShrinksReviewTextToFit: false,
+        TitleTextHeight: BuildingArchitectureConceptPageLayout.CoverProjectNameTextHeightMm,
+        AddressTextHeight: BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm,
+        FooterTextHeight: BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm);
 
     /// <summary>
     /// The working-drawing cover, from
@@ -139,7 +148,16 @@ public sealed record CoverApprovalTableGrid(
         // 108.61 / 93.86.
         ReviewRowsTop: 152.86,
         ReviewRowsSpan: 59.0,
-        ShrinksReviewTextToFit: true);
+        ShrinksReviewTextToFit: true,
+        // Read off the exported cover and converted from the em sizes the PDF
+        // carries: 8.47 / 2.82 / 5.29 mm em, which at Arial's cap ratio are
+        // 5.8 / 2.0 / 3.8 - the contract's compact title, tiny and label. A3
+        // landscape is compact by the contract's own rule (work 390 x 277 mm),
+        // and the measurement agrees, which is what makes this a reading rather
+        // than an assumption.
+        TitleTextHeight: 5.8,
+        AddressTextHeight: 2.0,
+        FooterTextHeight: 3.8);
 
     /// <summary>Picks the grid by the skin being drawn, so the choice is made once.</summary>
     public static CoverApprovalTableGrid For(bool workingDrawing) =>
