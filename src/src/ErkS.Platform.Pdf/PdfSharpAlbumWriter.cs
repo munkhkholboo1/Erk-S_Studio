@@ -2213,14 +2213,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             XStringFormats.Center);
     }
 
-    private const double CoverTableLeftMm = BuildingArchitectureConceptPageLayout.CoverTableLeftMm;
-    private const double CoverReviewRoleRightMm = BuildingArchitectureConceptPageLayout.CoverReviewRoleRightMm;
-    private const double CoverReviewNameRightMm = BuildingArchitectureConceptPageLayout.CoverReviewNameRightMm;
-    private const double CoverReviewRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedLeftMm;
-    private const double CoverCompanyRoleLeftMm = BuildingArchitectureConceptPageLayout.CoverProcessedLogoRightMm;
-    private const double CoverCompanyRoleRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedRoleRightMm;
-    private const double CoverCompanyNameRightMm = BuildingArchitectureConceptPageLayout.CoverProcessedNameRightMm;
-    private const double CoverTableRightMm = BuildingArchitectureConceptPageLayout.CoverTableRightMm;
+
 
     private static void DrawCanonicalA3ApprovalCoverPage(
         PdfDocument document,
@@ -2235,6 +2228,14 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             new CoverFontContext(drawWorkingDrawingEtalon ? WorkingDrawingFontName : FontName));
         var border = new XPen(XColors.Black, Mm(0.25));
         var fine = new XPen(XColors.Black, Mm(0.10));
+        // The skin picks the geometry, once, here. One routine draws two covers
+        // that answer to different authorities: the working-drawing cover
+        // reproduces what Revit drew - PFR measured its eight vertical rules off
+        // a real exported sheet, and every one agrees with the contract to
+        // within 0.02 mm - while the concept album's cover is Studio's own and
+        // the user confirmed on 2026-09-06 that its different column split is
+        // deliberate, not a mistake.
+        CoverApprovalTableGrid grid = CoverApprovalTableGrid.For(drawWorkingDrawingEtalon);
         CompanyProfile company = ResolveDesignCompanyProfile(request.Project);
         ConceptCoverApprovalSnapshot approvalSnapshot = ConceptCoverApprovalResolver.Resolve(
             request.Project.ApprovalWorkflow,
@@ -2267,9 +2268,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
         const double projectNameTextHeightMm = BuildingArchitectureConceptPageLayout.CoverProjectNameTextHeightMm;
         IReadOnlyList<CoverApprovedRow> approvedRows = BuildCoverApprovedRows(gfx, approvalSnapshot.ApprovedBy);
-        var reviewRows = BuildCoverReviewRows(gfx, approvalSnapshot.EndorsedBy);
+        var reviewRows = BuildCoverReviewRows(gfx, grid, approvalSnapshot.EndorsedBy);
         var processedColumn = BuildCoverProcessedColumn(
             gfx,
+            grid,
             companyRole,
             companyRepresentative.Name,
             clientRole,
@@ -2347,43 +2349,43 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             bodyTextHeightMm,
             false,
             XStringFormats.CenterLeft);
-        DrawSketchCoverApprovalTable(gfx, border, fine, reviewRows, processedColumn, tableBottomMm);
+        DrawSketchCoverApprovalTable(gfx, grid, border, fine, reviewRows, processedColumn, tableBottomMm);
 
-        DrawCoverCellText(gfx, "Албан тушаал", CoverTableLeftMm, 153.86, CoverReviewRoleRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", CoverReviewRoleRightMm, 153.86, CoverReviewNameRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", CoverReviewNameRightMm, 153.86, CoverReviewRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Албан тушаал", CoverCompanyRoleLeftMm, 153.86, CoverCompanyRoleRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", CoverCompanyRoleRightMm, 153.86, CoverCompanyNameRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", CoverCompanyNameRightMm, 153.86, CoverTableRightMm, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", grid.TableLeft, 153.86, grid.ReviewRoleRight, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", grid.ReviewRoleRight, 153.86, grid.ReviewNameRight, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", grid.ReviewNameRight, 153.86, grid.ReviewRight, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", grid.CompanyLogoRight, 153.86, grid.CompanyRoleRight, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", grid.CompanyRoleRight, 153.86, grid.CompanyNameRight, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", grid.CompanyNameRight, 153.86, grid.TableRight, 161.86, bodyTextHeightMm, false, XStringFormats.Center);
 
         foreach (var row in reviewRows)
         {
-            DrawCoverCellText(gfx, ConceptCoverApprovalResolver.DisplayPosition(row.Entry), CoverTableLeftMm, row.BottomMm, CoverReviewRoleRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
-            DrawCoverCellText(gfx, row.Entry.PersonName, CoverReviewRoleRightMm, row.BottomMm, CoverReviewNameRightMm, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
+            DrawCoverCellText(gfx, ConceptCoverApprovalResolver.DisplayPosition(row.Entry), grid.TableLeft, row.BottomMm, grid.ReviewRoleRight, row.TopMm, bodyTextHeightMm, false, XStringFormats.CenterLeft, 2.0);
+            DrawCoverCellText(gfx, row.Entry.PersonName, grid.ReviewRoleRight, row.BottomMm, grid.ReviewNameRight, row.TopMm, bodyTextHeightMm, false, XStringFormats.Center);
         }
 
-        DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedTopSectionTitle, CoverReviewRightMm, processedColumn.TopHeaderBottomMm, CoverCompanyRoleLeftMm, BuildingArchitectureConceptPageLayout.CoverTableTopMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCompanyLogoOrMark(gfx, company, CoverRect(CoverReviewRightMm, processedColumn.TopDataBottomMm, CoverCompanyRoleLeftMm, processedColumn.TopHeaderBottomMm), bodyTextHeightMm);
-        DrawCoverCellText(gfx, companyRole, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm, CoverCompanyRoleRightMm, processedColumn.TopHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, companyRepresentative.Name, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm, CoverCompanyNameRightMm, processedColumn.TopHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedTopSectionTitle, grid.ReviewRight, processedColumn.TopHeaderBottomMm, grid.CompanyLogoRight, BuildingArchitectureConceptPageLayout.CoverTableTopMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCompanyLogoOrMark(gfx, company, CoverRect(grid.ReviewRight, processedColumn.TopDataBottomMm, grid.CompanyLogoRight, processedColumn.TopHeaderBottomMm), bodyTextHeightMm);
+        DrawCoverCellText(gfx, companyRole, grid.CompanyLogoRight, processedColumn.TopDataBottomMm, grid.CompanyRoleRight, processedColumn.TopHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, companyRepresentative.Name, grid.CompanyRoleRight, processedColumn.TopDataBottomMm, grid.CompanyNameRight, processedColumn.TopHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
-        DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedBottomSectionTitle, CoverReviewRightMm, processedColumn.BottomHeaderBottomMm, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Албан тушаал", CoverCompanyRoleLeftMm, processedColumn.BottomHeaderBottomMm, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Нэр", CoverCompanyRoleRightMm, processedColumn.BottomHeaderBottomMm, CoverCompanyNameRightMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, "Гарын үсэг", CoverCompanyNameRightMm, processedColumn.BottomHeaderBottomMm, CoverTableRightMm, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, BuildingArchitectureConceptPageLayout.CoverProcessedBottomSectionTitle, grid.ReviewRight, processedColumn.BottomHeaderBottomMm, grid.CompanyLogoRight, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Албан тушаал", grid.CompanyLogoRight, processedColumn.BottomHeaderBottomMm, grid.CompanyRoleRight, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Нэр", grid.CompanyRoleRight, processedColumn.BottomHeaderBottomMm, grid.CompanyNameRight, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, "Гарын үсэг", grid.CompanyNameRight, processedColumn.BottomHeaderBottomMm, grid.TableRight, processedColumn.TopDataBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
         if (ProjectClientTypes.UsesLogo(clientType))
         {
             DrawCompanyLogoOnly(
                 gfx,
                 clientOrganization,
                 CoverRect(
-                    CoverReviewRightMm,
+                    grid.ReviewRight,
                     tableBottomMm,
-                    CoverCompanyRoleLeftMm,
+                    grid.CompanyLogoRight,
                     processedColumn.BottomHeaderBottomMm));
         }
-        DrawCoverCellText(gfx, clientRole, CoverCompanyRoleLeftMm, tableBottomMm, CoverCompanyRoleRightMm, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
-        DrawCoverCellText(gfx, ValueOrDash(clientRepresentativeName), CoverCompanyRoleRightMm, tableBottomMm, CoverCompanyNameRightMm, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, clientRole, grid.CompanyLogoRight, tableBottomMm, grid.CompanyRoleRight, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
+        DrawCoverCellText(gfx, ValueOrDash(clientRepresentativeName), grid.CompanyRoleRight, tableBottomMm, grid.CompanyNameRight, processedColumn.BottomHeaderBottomMm, bodyTextHeightMm, false, XStringFormats.Center);
 
         // The DESIGN ORGANISATION's registered city, not the project's location -
         // decided in corner-table-space-contract-2026-09-06.json. It was a
@@ -2541,17 +2543,18 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static void DrawSketchCoverApprovalTable(
         XGraphics gfx,
+        CoverApprovalTableGrid grid,
         XPen border,
         XPen fine,
         IReadOnlyList<CoverReviewRow> reviewRows,
         CoverProcessedColumn processedColumn,
         double tableBottomMm)
     {
-        const double x0 = CoverTableLeftMm;
+        double x0 = grid.TableLeft;
         var y0 = tableBottomMm;
-        const double x1 = CoverTableRightMm;
+        double x1 = grid.TableRight;
         const double y1 = BuildingArchitectureConceptPageLayout.CoverTableTopMm;
-        const double rightX0 = CoverReviewRightMm;
+        double rightX0 = grid.ReviewRight;
         const double headerY0 = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
 
         DrawCoverLine(gfx, border, x0, y0, x1, y0);
@@ -2561,14 +2564,14 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawCoverLine(gfx, border, x0, headerY0, x1, headerY0);
         DrawCoverLine(gfx, border, rightX0, y0, rightX0, y1);
 
-        DrawCoverLine(gfx, fine, CoverReviewRoleRightMm, y0, CoverReviewRoleRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverReviewNameRightMm, y0, CoverReviewNameRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm, CoverCompanyRoleLeftMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm, CoverCompanyRoleRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, processedColumn.TopDataBottomMm, CoverCompanyNameRightMm, y1);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleLeftMm, y0, CoverCompanyRoleLeftMm, processedColumn.TopDataBottomMm);
-        DrawCoverLine(gfx, fine, CoverCompanyRoleRightMm, y0, CoverCompanyRoleRightMm, processedColumn.TopDataBottomMm);
-        DrawCoverLine(gfx, fine, CoverCompanyNameRightMm, y0, CoverCompanyNameRightMm, processedColumn.TopDataBottomMm);
+        DrawCoverLine(gfx, fine, grid.ReviewRoleRight, y0, grid.ReviewRoleRight, y1);
+        DrawCoverLine(gfx, fine, grid.ReviewNameRight, y0, grid.ReviewNameRight, y1);
+        DrawCoverLine(gfx, fine, grid.CompanyLogoRight, processedColumn.TopDataBottomMm, grid.CompanyLogoRight, y1);
+        DrawCoverLine(gfx, fine, grid.CompanyRoleRight, processedColumn.TopDataBottomMm, grid.CompanyRoleRight, y1);
+        DrawCoverLine(gfx, fine, grid.CompanyNameRight, processedColumn.TopDataBottomMm, grid.CompanyNameRight, y1);
+        DrawCoverLine(gfx, fine, grid.CompanyLogoRight, y0, grid.CompanyLogoRight, processedColumn.TopDataBottomMm);
+        DrawCoverLine(gfx, fine, grid.CompanyRoleRight, y0, grid.CompanyRoleRight, processedColumn.TopDataBottomMm);
+        DrawCoverLine(gfx, fine, grid.CompanyNameRight, y0, grid.CompanyNameRight, processedColumn.TopDataBottomMm);
 
         DrawCoverLine(gfx, fine, rightX0, processedColumn.TopDataBottomMm, x1, processedColumn.TopDataBottomMm);
         DrawCoverLine(gfx, fine, rightX0, processedColumn.BottomHeaderBottomMm, x1, processedColumn.BottomHeaderBottomMm);
@@ -2840,12 +2843,13 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static IReadOnlyList<CoverReviewRow> BuildCoverReviewRows(
         XGraphics gfx,
+        CoverApprovalTableGrid grid,
         IReadOnlyList<ProjectApprovalEntry> approvals)
     {
         const double rowsTopMm = BuildingArchitectureConceptPageLayout.CoverColumnHeaderBottomMm;
         const double baseRowsHeightMm = BuildingArchitectureConceptPageLayout.CoverReviewRowsBaseHeightMm;
-        const double roleTextWidthMm = CoverReviewRoleRightMm - CoverTableLeftMm - 2.4;
-        const double nameTextWidthMm = CoverReviewNameRightMm - CoverReviewRoleRightMm - 2.4;
+        double roleTextWidthMm = grid.ReviewRoleRight - grid.TableLeft - 2.4;
+        double nameTextWidthMm = grid.ReviewNameRight - grid.ReviewRoleRight - 2.4;
         const double cellVerticalPaddingMm = 1.2;
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
         var baseRowHeightMm = baseRowsHeightMm / Math.Max(1, approvals.Count);
@@ -2876,6 +2880,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
     private static CoverProcessedColumn BuildCoverProcessedColumn(
         XGraphics gfx,
+        CoverApprovalTableGrid grid,
         string companyRole,
         string companyRepresentativeName,
         string clientTypeLabel,
@@ -2885,8 +2890,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         const double titleHeightMm = BuildingArchitectureConceptPageLayout.CoverSectionHeaderHeightMm;
         const double baseClientDataHeightMm = BuildingArchitectureConceptPageLayout.CoverClientDataBaseHeightMm;
         const double baseCompanyDataHeightMm = BuildingArchitectureConceptPageLayout.CoverCompanyDataBaseHeightMm;
-        const double roleTextWidthMm = CoverCompanyRoleRightMm - CoverCompanyRoleLeftMm - 2.4;
-        const double nameTextWidthMm = CoverCompanyNameRightMm - CoverCompanyRoleRightMm - 2.4;
+        double roleTextWidthMm = grid.CompanyRoleRight - grid.CompanyLogoRight - 2.4;
+        double nameTextWidthMm = grid.CompanyNameRight - grid.CompanyRoleRight - 2.4;
         const double cellVerticalPaddingMm = 1.2;
         const double bodyTextHeightMm = BuildingArchitectureConceptPageLayout.CoverBodyTextHeightMm;
 

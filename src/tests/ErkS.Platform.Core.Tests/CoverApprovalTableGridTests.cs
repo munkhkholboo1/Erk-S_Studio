@@ -100,6 +100,50 @@ public sealed class CoverApprovalTableGridTests
     }
 
     [Fact]
+    public void TheWriterACTUALLYPicksTheGridFromTheSkin()
+    {
+        // The grids are worth having only where they are asked. Until this
+        // commit the writer held its own file-level constants aliasing the
+        // CONCEPT numbers, so the working-drawing cover was drawn with the
+        // concept column split no matter what any grid said - and a unit test
+        // of the grids alone stays green through exactly that.
+        string writer = ReadWriterSource();
+
+        Assert.Contains(
+            "CoverApprovalTableGrid.For(drawWorkingDrawingEtalon)",
+            writer,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheWriterKeepsNoPrivateCopyOfTheCoverColumns()
+    {
+        // The aliases that made the two covers share one geometry. A new one
+        // would restore the defect silently: the table would still look right.
+        string writer = ReadWriterSource();
+
+        Assert.DoesNotContain("private const double CoverTableLeftMm", writer, StringComparison.Ordinal);
+        Assert.DoesNotContain("private const double CoverCompanyRoleRightMm", writer, StringComparison.Ordinal);
+        Assert.DoesNotContain("private const double CoverReviewRoleRightMm", writer, StringComparison.Ordinal);
+    }
+
+    private static string ReadWriterSource()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Platform.Pdf", "PdfSharpAlbumWriter.cs");
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("PdfSharpAlbumWriter.cs was not found; this test reads it from source");
+        return "";
+    }
+
+    [Fact]
     public void TheSkinChoosesTheGrid_AndNothingElseDoes()
     {
         Assert.Same(CoverApprovalTableGrid.WorkingDrawing, CoverApprovalTableGrid.For(workingDrawing: true));
