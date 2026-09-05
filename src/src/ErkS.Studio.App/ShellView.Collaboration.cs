@@ -738,13 +738,22 @@ internal sealed partial class ShellView
         }
     }
 
+    /// <summary>
+    /// Whether this session may manage the open project's team.
+    ///
+    /// Asked of the SESSION's authority, not of whoever is signed in: a seated
+    /// machine is judged by its seat's assignment. It used to read
+    /// account.Current?.Email, which on a seated machine is null - so every
+    /// team action went dark, not by any rule but because the question was put
+    /// to an identity that was not there. A member appointed as an admin gets
+    /// the admin's buttons; the seat's scopes say so, and the server decides
+    /// what those scopes are.
+    /// </summary>
     private bool CanManageProjectTeam() =>
         state.HasOpenProject &&
-        account.IsSignedIn &&
+        (account.IsSignedIn || SeatedAsBot) &&
         state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
-        state.Project.Cloud.HasScope(
-            "team.manage",
-            account.Current?.Email);
+        HasProjectScope("team.manage");
 
     private bool CanEditProjectContent()
     {
@@ -752,10 +761,10 @@ internal sealed partial class ShellView
             return false;
         if (!state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase))
             return true;
-        return account.IsSignedIn &&
-            state.Project.Cloud.HasScope(
-                "concept.write",
-                account.Current?.Email);
+        // Same question, same authority: the seat's assignment on a seated
+        // machine, the person's own participation otherwise.
+        return (account.IsSignedIn || SeatedAsBot) &&
+            HasProjectScope("concept.write");
     }
 
     private bool CanEditProjectInformation()

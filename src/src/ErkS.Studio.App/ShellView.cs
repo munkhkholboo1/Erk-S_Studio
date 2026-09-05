@@ -2150,7 +2150,16 @@ internal sealed partial class ShellView : IDisposable
                 ? "Нэвтрээгүй"
                 : displayName;
         accountLicenseText.Text = seatedAs is not null
-            ? (unlockedSeatIdentity is null ? "түгжээтэй" : "төхөөрөмжийн суудал")
+            ? (unlockedSeatIdentity is null
+                ? "түгжээтэй"
+                // Who is appointed to the seat, when the seat has said. Two
+                // different facts: the seat is the organisation's, the person
+                // behind it is a member who can change without the seat moving.
+                : botSeatMember is null
+                    ? "төхөөрөмжийн суудал · гишүүн томилогдоогүй"
+                    : "гишүүн: " + (string.IsNullOrWhiteSpace(botSeatMember.DisplayName)
+                        ? botSeatMember.AccountEmail
+                        : botSeatMember.DisplayName))
             : session is null
                 ? "Cloud ERA"
                 : string.IsNullOrWhiteSpace(session.LicenseType) ? "Cloud ERA" : session.LicenseType;

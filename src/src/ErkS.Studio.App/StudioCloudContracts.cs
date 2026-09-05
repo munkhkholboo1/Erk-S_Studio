@@ -1300,6 +1300,13 @@ internal sealed class StudioCloudBotStateResume
     public string SeatStatus { get; set; } = "";
     public bool PinLocked { get; set; }
 
+    /// <summary>
+    /// Who is appointed to this seat, or null when nobody is yet. Null is a
+    /// NORMAL state - a seat created, a machine seated, no invitation accepted
+    /// yet - and is not an error.
+    /// </summary>
+    public StudioCloudBotSeatMember? Member { get; set; }
+
     /// <summary>What this seat may open. The whole of it - a project absent here is refused.</summary>
     public List<StudioCloudBotAssignedProject> AssignedProjects { get; set; } = [];
 
@@ -1363,8 +1370,38 @@ internal sealed class StudioCloudBotInvitationAccepted
 internal sealed class StudioCloudBotAssignedProject
 {
     public string ProjectId { get; set; } = "";
+
+    /// <summary>
+    /// For showing, never for deciding. What the seat MAY do is Scopes below -
+    /// resolved by the server. Reading a role list and concluding "an admin may
+    /// invite" is the same defect as a client-side HasFeature, which is how
+    /// PFR's auto-dimension drifted.
+    /// </summary>
     public List<string> Roles { get; set; } = [];
+
+    /// <summary>
+    /// What this seat may do in this project, in the server's own scope words -
+    /// the same vocabulary a signed-in person's currentUserScopes uses, so no
+    /// translation table exists on either side.
+    ///
+    /// project.delete and project.leave never appear here: a machine does not
+    /// leave a project on somebody's behalf, and deleting one is the owner's.
+    /// </summary>
+    public List<string> Scopes { get; set; } = [];
+
     public DateTimeOffset AssignedAtUtc { get; set; }
+}
+
+/// <summary>
+/// The person appointed to a seat - NOT whoever put the machine into bot state.
+/// Usually the same, but they part company the first time an owner seats a
+/// machine for somebody else, and only one of them is a relationship.
+/// </summary>
+internal sealed class StudioCloudBotSeatMember
+{
+    public string AccountEmail { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public DateTimeOffset MemberSinceUtc { get; set; }
 }
 
 /// <summary>

@@ -126,6 +126,28 @@ public sealed class StudioEffectiveAuthorityTests
     }
 
     [Fact]
+    public void TheShellActuallyASKSThisRule_ItIsNotWrittenAndUnused()
+    {
+        // A rule nothing calls protects nothing. Four service methods sat fully
+        // written and uncalled this week, and every other kind of check passed
+        // on them.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        string? source = null;
+        while (directory is not null && source is null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Studio.App", "ShellView.BotSeat.cs");
+            if (File.Exists(candidate))
+                source = candidate;
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(source);
+        string shell = File.ReadAllText(source!);
+        Assert.Contains("StudioEffectiveAuthority.Allows", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AskingForOneScopeFollowsTheSameRule()
     {
         Assert.False(StudioEffectiveAuthority.Allows(

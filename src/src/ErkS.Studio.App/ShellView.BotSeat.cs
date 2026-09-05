@@ -31,6 +31,59 @@ internal sealed partial class ShellView
     /// </summary>
     private IReadOnlySet<string>? botAssignedProjectIds;
 
+    /// <summary>
+    /// What the SEAT may do, project by project, in the server's own scope
+    /// words. Null until the seat has resumed - and null means nothing is
+    /// granted, never "fall back to whoever is signed in".
+    /// </summary>
+    private IReadOnlyDictionary<string, IReadOnlyCollection<string>>? botAssignedProjectScopes;
+
+    /// <summary>Who is appointed to this seat, or null when nobody is yet.</summary>
+    private StudioCloudBotSeatMember? botSeatMember;
+
+    /// <summary>
+    /// Which authority this session acts with. The seat's, whenever the machine
+    /// holds one - never a blend of the two.
+    /// </summary>
+    private StudioSessionKind SessionKind =>
+        SeatedAsBot ? StudioSessionKind.BotSeat : StudioSessionKind.Personal;
+
+    /// <summary>
+    /// Whether the CURRENT session may do something in the open project.
+    ///
+    /// One place, so the rule cannot be spelled differently in two windows: a
+    /// seated machine is judged by its seat's assignment, a person by their own
+    /// participation, and neither borrows from the other.
+    /// </summary>
+    private bool HasProjectScope(string scope)
+    {
+        if (!state.HasOpenProject)
+            return false;
+
+        string projectId = state.Project.Cloud.ServerProjectId ?? "";
+        IReadOnlyCollection<string>? seatScopes = null;
+        if (botAssignedProjectScopes is not null &&
+            !string.IsNullOrWhiteSpace(projectId) &&
+            botAssignedProjectScopes.TryGetValue(projectId.Trim(), out IReadOnlyCollection<string>? found))
+        {
+            seatScopes = found;
+        }
+        else if (botAssignedProjectScopes is not null)
+        {
+            // The seat has answered and this project is not in the answer.
+            // That is "nothing here", not "unknown".
+            seatScopes = [];
+        }
+
+        return StudioEffectiveAuthority.Allows(
+            SessionKind,
+            state.Project.Cloud.PermissionSnapshotBelongsTo(account.Current?.Email)
+                ? state.Project.Cloud.CurrentUserScopes
+                : null,
+            seatScopes,
+            scope);
+    }
+
     /// <summary>True while this machine is seated, whether or not it is unlocked.</summary>
     private bool SeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
@@ -200,6 +253,14 @@ internal sealed partial class ShellView
                 .Select(item => item.ProjectId?.Trim() ?? "")
                 .Where(item => item.Length > 0)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            botSeatMember = resumed.Member;
+            botAssignedProjectScopes = resumed.AssignedProjects
+                .Where(item => !string.IsNullOrWhiteSpace(item.ProjectId))
+                .GroupBy(item => item.ProjectId.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyCollection<string>)[.. group.SelectMany(item => item.Scopes)],
+                    StringComparer.OrdinalIgnoreCase);
             await RefreshProjectsAsync();
             SetStatus(resumed.AssignedProjects.Count == 0
                 ? $"«{seat.DisplayName}» — томилогдсон төсөл алга."
@@ -506,6 +567,8 @@ internal sealed partial class ShellView
         account.UseBotToken(null);
         unlockedSeatIdentity = null;
         botAssignedProjectIds = null;
+        botAssignedProjectScopes = null;
+        botSeatMember = null;
         ApplyDeviceSeat();
         UpdateAccountUi();
 
