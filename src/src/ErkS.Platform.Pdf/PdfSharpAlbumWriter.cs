@@ -2115,7 +2115,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                         BuildingWorkingDrawingAlbumTemplate.TemplateId,
                         StringComparison.OrdinalIgnoreCase))
                 {
-                    DrawWorkingDrawingTableOfContents(document, request, plan.Component);
+                    DrawWorkingDrawingTableOfContents(document, request, plan);
                 }
                 else
                 {
@@ -3759,10 +3759,51 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             new XRect(0, height - 70, width, 16), XStringFormats.Center);
     }
 
+    /// <summary>
+    /// Draws ONE page of the drawing list - the one this plan entry reserved.
+    ///
+    /// The planner already decided how many pages the list needs, because that
+    /// decision is what every later sheet's number is built on. Breaking here by
+    /// separate arithmetic would put the two out of step, so this asks the same
+    /// rule for the same slice.
+    /// </summary>
     private static void DrawWorkingDrawingTableOfContents(
         PdfDocument document,
         AlbumBuildRequest request,
-        AlbumCompositionItem item)
+        ConceptGeneratedPagePlan plan)
+    {
+        PageFormatDefinition sliceFormat = UsesGeneratedWorkingDrawingFormat(request.Project.Album)
+            ? WorkingDrawingAlbumFormatFactory.Resolve(request.Project.Album)
+            : PageFormatCatalog.DefaultWorkingDrawing;
+        int rowsPerPage = DrawingListPagination.RowsPerPage(
+            WorkingDrawingPageLayout.Resolve(sliceFormat));
+        List<AlbumBuildPage> allRows = request.Sections
+            .SelectMany(section => section.Pages)
+            .ToList();
+        int pageCount = Math.Max(1, plan.BatchCount);
+        (int skip, int take) = DrawingListPagination.Slice(
+            Math.Max(0, plan.BatchNumber - 1),
+            rowsPerPage,
+            allRows.Count,
+            pageCount);
+        DrawWorkingDrawingTableOfContentsPage(
+            document,
+            request,
+            plan.Component,
+            allRows.Skip(skip).Take(take).ToList(),
+            skip,
+            Math.Max(0, plan.BatchNumber - 1),
+            pageCount);
+    }
+
+    private static void DrawWorkingDrawingTableOfContentsPage(
+        PdfDocument document,
+        AlbumBuildRequest request,
+        AlbumCompositionItem item,
+        IReadOnlyList<AlbumBuildPage> rows,
+        int firstRowNumber,
+        int pageIndex,
+        int pageCount)
     {
         PageFormatDefinition format = UsesGeneratedWorkingDrawingFormat(request.Project.Album)
             ? WorkingDrawingAlbumFormatFactory.Resolve(request.Project.Album)
@@ -3776,7 +3817,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumBuildPage generatedPage = CreateWorkingGeneratedPage(
             format,
             item.Number,
-            "ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ",
+            pageCount > 1 && pageIndex > 0
+                // A continuation sheet says so. Two identically titled pages in
+                // a row read as a duplicate rather than as one list.
+                ? "ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ (үргэлжлэл)"
+                : "ЗУРГИЙН ЖАГСААЛТ, ТАЙЛБАР БИЧИГ",
             item.RoleAssignments);
         DrawWorkingDrawingSheetChrome(gfx, page, request.Project, generatedPage);
 
@@ -3812,15 +3857,21 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         }
 
         gfx.DrawLine(linePen, left, y, right, y);
-        DrawRow("Д/д", "Дугаар", "Хуудсны нэр", "Эх үүсвэр", true);
-        int index = 1;
-        foreach (AlbumBuildPage buildPage in request.Sections.SelectMany(section => section.Pages))
+        // The header repeats on every page: a continuation sheet with unlabelled
+        // columns is one somebody has to hold next to the first.
+        DrawRow("Д/д", "Дугаар", "Хуудсны нэр", "Марк", true);
+        int index = firstRowNumber + 1;
+        foreach (AlbumBuildPage buildPage in rows)
         {
             DrawRow(
                 index.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 buildPage.Number,
                 buildPage.Title,
-                buildPage.Sheet.Source.Application.ToString(),
+                // Was the source APPLICATION, printed as an English enum name -
+                // "Revit", "AutoCad", "Manual" - on a Mongolian sheet. Which
+                // program produced a drawing is an internal fact and does not
+                // belong on a document; the discipline mark does.
+                buildPage.Sheet.Entry.Discipline,
                 false);
             index++;
         }

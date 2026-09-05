@@ -111,7 +111,13 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                     drafts.Add(PageDraft.Empty(component, component.Title));
                     break;
                 default:
-                    drafts.Add(PageDraft.Empty(component, component.Title));
+                    // The drawing list is the one generated component whose
+                    // length depends on the album's own contents, so it is the
+                    // one that can need more than a page. Reserving them HERE is
+                    // what keeps every later sheet's number right: this count
+                    // feeds the sequencer, and the writer breaks by the same
+                    // rule rather than by its own arithmetic.
+                    AddDrawingListPages(drafts, component, project);
                     break;
             }
         }
@@ -185,6 +191,35 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
                 DocumentPages = pages.Skip(taken).Take(take).ToList(),
             });
             taken += take;
+        }
+    }
+
+    private static void AddDrawingListPages(
+        ICollection<PageDraft> target,
+        AlbumCompositionItem component,
+        AlbumProject project)
+    {
+        if (!DrawingListPagination.UsesWorkingDrawingFormat(project.Album))
+        {
+            // Every other family draws a single list page - the older A4 one,
+            // which does its own paging inside one component.
+            target.Add(PageDraft.Empty(component, component.Title));
+            return;
+        }
+
+        int rowsPerPage = DrawingListPagination.RowsPerPage(
+            WorkingDrawingPageLayout.Resolve(
+                WorkingDrawingAlbumFormatFactory.Resolve(project.Album)));
+        int pageCount = DrawingListPagination.PageCount(project.Album.Pages.Count, rowsPerPage);
+        for (int index = 0; index < pageCount; index++)
+        {
+            target.Add(new PageDraft
+            {
+                Component = component,
+                Title = component.Title,
+                BatchNumber = index + 1,
+                BatchCount = pageCount,
+            });
         }
     }
 
