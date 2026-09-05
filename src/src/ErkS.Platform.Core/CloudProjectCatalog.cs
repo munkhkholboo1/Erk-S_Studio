@@ -15,6 +15,13 @@ public sealed class ProjectCatalogItem
     public required string SyncStatus { get; init; }
     public required DateTime LastWriteTimeUtc { get; init; }
     public bool IsLegacyProject { get; init; }
+
+    /// <summary>
+    /// How many design sources the folder holds. Carried so two folders claiming
+    /// the same project can be ranked by which one holds the work - see
+    /// ProjectFolderPlanner.Rank.
+    /// </summary>
+    public int LocalSourceCount { get; init; }
 }
 
 public interface IProjectCatalog
@@ -137,10 +144,41 @@ public sealed class LocalProjectCatalog : IProjectCatalog
                     ? $"{item.ProjectCode}|{Path.GetDirectoryName(item.ProjectPath)}"
                     : item.ProjectId,
                 StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderBy(item => item.IsLegacyProject).ThenByDescending(item => item.LastWriteTimeUtc).First())
+            .Select(Preferred)
             .OrderByDescending(project => project.LastWriteTimeUtc)
             .ThenBy(project => project.ProjectCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>
+    /// Which of several folders claiming one project the catalogue shows.
+    ///
+    /// The rule is ProjectFolderPlanner's, not a second copy of it: the list and
+    /// the open flow disagreeing about which folder is the project is precisely
+    /// how a folder holding every source vanished from the catalogue behind an
+    /// empty twin that a cloud refresh had just touched.
+    /// </summary>
+    private static ProjectCatalogItem Preferred(IEnumerable<ProjectCatalogItem> group)
+    {
+        List<ProjectCatalogItem> items = [.. group];
+        if (items.Count == 1)
+            return items[0];
+
+        // A real workspace still outranks a legacy album document, as before.
+        List<ProjectCatalogItem> pool = [.. items.Where(item => !item.IsLegacyProject)];
+        if (pool.Count == 0)
+            pool = items;
+
+        IReadOnlyList<LocalProjectFolder> ranked = ProjectFolderPlanner.Rank(
+            pool.Select(item => new LocalProjectFolder(
+                item.ProjectPath,
+                item.ProjectId,
+                item.LocalSourceCount,
+                item.LastWriteTimeUtc)));
+        return pool.First(item => string.Equals(
+            item.ProjectPath,
+            ranked[0].ProjectPath,
+            StringComparison.OrdinalIgnoreCase));
     }
 
     private static ProjectCatalogItem FromWorkspace(string path, ProjectWorkspace project) => new()
@@ -162,6 +200,7 @@ public sealed class LocalProjectCatalog : IProjectCatalog
         SyncStatus = project.Cloud.SyncStatus,
         LastWriteTimeUtc = File.GetLastWriteTimeUtc(path),
         IsLegacyProject = false,
+        LocalSourceCount = project.Sources.Count,
     };
 
     private static ProjectCatalogItem FromLegacy(string path, AlbumProject project) => new()

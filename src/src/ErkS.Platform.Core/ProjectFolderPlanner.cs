@@ -78,17 +78,7 @@ public static class ProjectFolderPlanner
 
         if (homes.Count > 0)
         {
-            // Ranked by what the person is actually looking for: the folder that
-            // holds their work. A twin is always the empty one, so counting
-            // sources separates them without anyone having to guess from names
-            // or timestamps - and the newest write is precisely the wrong signal
-            // here, because a cloud refresh touches the empty twin.
-            List<LocalProjectFolder> ranked = [.. homes
-                .OrderByDescending(folder => folder.LocalSourceCount)
-                .ThenBy(folder => IsSamePath(folder.ProjectPath, defaultProjectPath) ? 0 : 1)
-                .ThenByDescending(folder => folder.LastWriteTimeUtc)
-                .ThenBy(folder => folder.ProjectPath, StringComparer.OrdinalIgnoreCase)];
-
+            IReadOnlyList<LocalProjectFolder> ranked = Rank(homes, defaultProjectPath);
             return new ProjectFolderPlan(
                 ProjectFolderDecision.OpenExistingHome,
                 ranked[0].ProjectPath,
@@ -103,6 +93,33 @@ public static class ProjectFolderPlanner
         return defaultTaken
             ? new ProjectFolderPlan(ProjectFolderDecision.CreateBesideDifferentProject, forkedProjectPath, [])
             : new ProjectFolderPlan(ProjectFolderDecision.CreateAtDefaultPath, defaultProjectPath, []);
+    }
+
+    /// <summary>
+    /// Orders folders that all claim the same project, best first.
+    ///
+    /// Ranked by what the person is actually looking for: the folder that holds
+    /// their work. A twin is always the empty one, so counting sources separates
+    /// them without anyone guessing from names or timestamps - and the newest
+    /// write is precisely the WRONG signal here, because a cloud refresh touches
+    /// the empty twin every time it is opened. The project list used exactly
+    /// that signal, which is how a folder holding every source disappeared from
+    /// the catalogue behind an empty one.
+    ///
+    /// Shared with the catalogue so the list and the open flow cannot disagree
+    /// about which folder is the project.
+    /// </summary>
+    public static IReadOnlyList<LocalProjectFolder> Rank(
+        IEnumerable<LocalProjectFolder> folders,
+        string? preferredPath = null)
+    {
+        ArgumentNullException.ThrowIfNull(folders);
+        return [.. folders
+            .OrderByDescending(folder => folder.LocalSourceCount)
+            .ThenBy(folder => !string.IsNullOrWhiteSpace(preferredPath) &&
+                              IsSamePath(folder.ProjectPath, preferredPath) ? 0 : 1)
+            .ThenByDescending(folder => folder.LastWriteTimeUtc)
+            .ThenBy(folder => folder.ProjectPath, StringComparer.OrdinalIgnoreCase)];
     }
 
     private static bool IsSamePath(string left, string right) =>

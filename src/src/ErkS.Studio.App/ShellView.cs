@@ -5256,6 +5256,87 @@ internal sealed partial class ShellView : IDisposable
             }));
     }
 
+    /// <summary>
+    /// Offers to open the folder that actually holds this project's work, when
+    /// the one on screen is not it.
+    ///
+    /// Fixing the OPEN flow was not enough: a person already sitting inside the
+    /// empty twin never reaches that flow again. Their project is open, it shows
+    /// no sources, and nothing on screen connects that to a folder they have
+    /// never heard of. So the offer is made here, where they are - as a question
+    /// with a button, not a line in the status bar nobody reads.
+    ///
+    /// It offers. It does not move, merge or delete anything.
+    /// </summary>
+    private void OfferBetterProjectFolderOnOpen()
+    {
+        if (!state.HasOpenProject)
+            return;
+
+        string current = state.ProjectPath ?? "";
+        string identity = string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId)
+            ? state.Project.ProjectId
+            : state.Project.Cloud.ServerProjectId;
+        if (current.Length == 0 || string.IsNullOrWhiteSpace(identity))
+            return;
+
+        int openSourceCount = state.Project.Sources.Count;
+        LocalProjectFolder? better;
+        try
+        {
+            better = ProjectFolderPlanner
+                .Rank(new LocalProjectCatalog()
+                    .ListProjectFolders()
+                    .Where(folder => folder.ServerProjectId.Trim().Equals(
+                        identity.Trim(),
+                        StringComparison.OrdinalIgnoreCase)))
+                .FirstOrDefault();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        // Only when the other folder genuinely holds more of the user's work.
+        // Equal or fewer sources is not a reason to send anyone anywhere.
+        if (better is null ||
+            better.LocalSourceCount <= openSourceCount ||
+            string.Equals(
+                Path.GetFullPath(better.ProjectPath),
+                Path.GetFullPath(current),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        string betterFolder = ProjectWorkspacePaths.GetProjectFolder(better.ProjectPath);
+        string openFolder = ProjectWorkspacePaths.GetProjectFolder(current);
+        Root.Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(async () =>
+            {
+                if (!state.HasOpenProject)
+                    return;
+                if (StudioMessageDialog.Show(
+                        Window.GetWindow(Root),
+                        "Энэ төслийн ажлын файлууд өөр хавтсанд байна." + Environment.NewLine + Environment.NewLine +
+                        $"Одоо нээлттэй: {openFolder}" + Environment.NewLine +
+                        $"    эх үүсвэр: {openSourceCount}" + Environment.NewLine + Environment.NewLine +
+                        $"Ажлын файлтай: {betterFolder}" + Environment.NewLine +
+                        $"    эх үүсвэр: {better.LocalSourceCount}" + Environment.NewLine + Environment.NewLine +
+                        "Ажлын файлтай хавтсыг нээх үү? (Хавтас нэгтгэх, устгах ажиллагаа хийгдэхгүй.)",
+                        "Төслийн хавтас",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                {
+                    SetStatus($"Ажлын файлтай хавтас: {betterFolder}");
+                    return;
+                }
+
+                await OpenProjectAsync(better.ProjectPath);
+            }));
+    }
+
     private void ReportPendingDeliveriesOnOpen()
     {
         int sources = 0;
@@ -5302,6 +5383,7 @@ internal sealed partial class ShellView : IDisposable
         {
             reportedDeliveriesForWorkspaceEpoch = state.WorkspaceEpoch;
             ReportPendingDeliveriesOnOpen();
+            OfferBetterProjectFolderOnOpen();
         }
         FlushOpenNoticesAfterCallerFinishes();
         DiscardStaleCanonicalTitleBlockPreview();
