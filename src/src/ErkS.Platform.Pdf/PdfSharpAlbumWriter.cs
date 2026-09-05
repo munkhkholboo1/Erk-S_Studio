@@ -1188,7 +1188,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawCellText(gfx, "Загвар", x4, y0, x5, y1, false, XStringFormats.Center);
         DrawCellText(gfx, scaleText, x4, y1, x5, y2, false, XStringFormats.Center);
         DrawCellText(gfx, $"Хуудас-{ValueOrDash(sheetNumber)}", x4, y2, x5, y3, false, XStringFormats.Center);
-        DrawCellText(gfx, $"{DateTime.Now:yyyy} он", x4, y3, x5, y4, false, XStringFormats.Center);
+        // The ENTERED sheet date decides the year when there is one. Read from
+        // the clock alone, a rebuild in January reissued a December album under
+        // the following year. The same expression feeds the restamp signature -
+        // see CornerTableYear - so the two cannot drift apart.
+        DrawCellText(gfx, $"{CornerTableYear(project)} он", x4, y3, x5, y4, false, XStringFormats.Center);
     }
 
     private static void DrawCanonicalConceptCornerMetadata(
@@ -1930,6 +1934,24 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         string text = (value ?? "").Trim();
         return text.Length == 0 ? label + ":" : label + ": " + text;
     }
+
+    /// <summary>
+    /// The year the corner table prints: the entered sheet date's year when
+    /// there is one, otherwise the current year.
+    ///
+    /// Unlike the labelled ЕГ/ТГ cells, this one is a bare value in a ruled
+    /// grid, where an empty cell reads as a broken table rather than as an
+    /// unfilled field - so the clock stays as the fallback here and the entered
+    /// date simply wins over it.
+    ///
+    /// USED IN TWO PLACES ON PURPOSE. The restamp signature hashes this year to
+    /// decide whether a built album still matches the project; if the signature
+    /// read the clock while the table read the sheet date, changing the date
+    /// would redraw the table without changing the signature, and the album
+    /// would be left stamped with the old year and reported as current.
+    /// </summary>
+    internal static int CornerTableYear(AlbumProject project) =>
+        project.SheetDateUtc?.ToLocalTime().Year ?? DateTime.Now.Year;
 
     /// <summary>
     /// The sheet date as ENTERED, never as measured now. Empty when it has not

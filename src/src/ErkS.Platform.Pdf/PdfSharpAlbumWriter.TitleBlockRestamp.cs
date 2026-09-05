@@ -167,7 +167,7 @@ public sealed partial class PdfSharpAlbumWriter
             company.LogoScale,
             company.LogoOffsetX,
             company.LogoOffsetY,
-            Year = DateTime.Now.Year,
+            Year = CornerTableYear(project),
         });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)))
             .ToLowerInvariant();

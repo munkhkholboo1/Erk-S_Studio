@@ -86,9 +86,64 @@ public sealed class WorkingTitleBlockIdentityCellsTests
         Assert.DoesNotContain("{project.Code}", body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheConceptTablesYEARFollowsTheEnteredSheetDate()
+    {
+        // The same clock defect lived next door under a different name: the
+        // sketch table printed {DateTime.Now:yyyy}, so a December album rebuilt
+        // in January was reissued under the following year. Searching for the
+        // MECHANISM rather than the wording is what found it.
+        var project = new AlbumProject
+        {
+            SheetDateUtc = new DateTimeOffset(2024, 11, 2, 0, 0, 0, TimeSpan.Zero),
+        };
+
+        Assert.Equal(2024, PdfSharpAlbumWriter.CornerTableYear(project));
+    }
+
+    [Fact]
+    public void WithNoSheetDateTheConceptTableStillPrintsAYear()
+    {
+        // A bare value in a ruled grid, not a labelled field: an empty cell
+        // here reads as a broken table. So the clock stays as the fallback and
+        // the entered date simply wins over it.
+        Assert.Equal(DateTime.Now.Year, PdfSharpAlbumWriter.CornerTableYear(new AlbumProject()));
+    }
+
+    [Fact]
+    public void TheRestampSignatureUsesTheSAMEYearAsTheTable()
+    {
+        // If the signature hashed the clock while the table drew the sheet
+        // date, changing the date would redraw the table without changing the
+        // signature - and a built album would keep the old year while being
+        // reported as current. Read from source, because the signature is a
+        // hash and cannot be asked which year went into it.
+        string restamp = ReadPdfSource("PdfSharpAlbumWriter.TitleBlockRestamp.cs");
+
+        Assert.Contains("Year = CornerTableYear(project)", restamp, StringComparison.Ordinal);
+        Assert.DoesNotContain("Year = DateTime.Now", restamp, StringComparison.Ordinal);
+    }
+
+    /// <summary>One writer source file, read from disk.</summary>
+    private static string ReadPdfSource(string fileName)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Platform.Pdf", fileName);
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail(fileName + " was not found; this test reads it from source");
+        return "";
+    }
+
     /// <summary>
     /// The body of the horizontal block the writer dispatches to, read from
-    /// source. Reading the file is what makes this test able to fail: the
+    /// source. Reading the file is what makes these tests able to fail: the
     /// drawing calls emit into a PDF and cannot be asked what they used.
     /// </summary>
     private static string LiveHorizontalTitleBlockBody()
