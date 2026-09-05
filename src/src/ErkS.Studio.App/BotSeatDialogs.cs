@@ -247,7 +247,12 @@ internal sealed class BotSeatManagementDialog : Window
         invite.Click += async (_, _) => await InviteAsync();
         Button release = StudioWidgets.CreateDangerButton("Суудал чөлөөлөх");
         release.Click += async (_, _) => await ReleaseAsync();
-        Button delete = StudioWidgets.CreateDangerButton("Суудал устгах");
+        Button delete = StudioWidgets.CreateDangerButton("Хоосон суудал устгах");
+        // The condition is on the button, not discovered by pressing it. A seat
+        // that still holds sources or a member is refused BY THE SERVER - this
+        // client does not guess at emptiness, it only says what the rule is.
+        delete.ToolTip = "Зөвхөн гишүүнгүй, эх үүсвэргүй суудлыг устгана. " +
+            "Эх үүсвэртэй суудлыг устгавал тэдгээр нь эзэнгүй үлдэх тул сервер татгалзана.";
         delete.Click += async (_, _) => await DeleteAsync();
         Button close = StudioWidgets.CreateButton("Хаах");
         close.IsCancel = true;
@@ -429,6 +434,10 @@ internal sealed class BotSeatManagementDialog : Window
         if (StudioMessageDialog.Show(
                 this,
                 $"«{Selected!.DisplayName}» суудлыг устгах уу?" +
+                Environment.NewLine + Environment.NewLine +
+                "Зөвхөн ГИШҮҮНГҮЙ, ЭХ ҮҮСВЭРГҮЙ суудал устана. Аль нэг нь байвал " +
+                "сервер татгалзаж, юу нь саад болсныг хэлнэ — эх үүсвэр ботын нэр " +
+                "дээр бүртгэгддэг тул суудал уствал тэдгээр эзэнгүй үлдэх байсан." +
                 Environment.NewLine + Environment.NewLine +
                 "Суудалд төхөөрөмж сууж байвал устгал өөрөө чөлөөлнө — тэр машин " +
                 "ботын төлөвөөс гарна." +
