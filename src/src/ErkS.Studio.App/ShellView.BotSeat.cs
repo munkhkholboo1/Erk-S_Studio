@@ -262,9 +262,28 @@ internal sealed partial class ShellView
                     group => (IReadOnlyCollection<string>)[.. group.SelectMany(item => item.Scopes)],
                     StringComparer.OrdinalIgnoreCase);
             await RefreshProjectsAsync();
+            // The roles are shown, never acted on. They are what the person
+            // asked for when they accepted, and seeing them is how anybody can
+            // tell the appointment arrived at all - the server does not yet
+            // GRANT anything through a seat, so nothing else would show it.
+            string appointment = string.Join(
+                "; ",
+                resumed.AssignedProjects
+                    .Take(3)
+                    .Select(item => item.Roles.Count == 0
+                        ? item.ProjectId
+                        : item.ProjectId + ": " + string.Join(", ", item.Roles)));
+            string more = resumed.AssignedProjects.Count > 3
+                ? $" (+{resumed.AssignedProjects.Count - 3})"
+                : "";
+            string member = resumed.Member is null
+                ? "гишүүн томилогдоогүй"
+                : "гишүүн: " + (string.IsNullOrWhiteSpace(resumed.Member.DisplayName)
+                    ? resumed.Member.AccountEmail
+                    : resumed.Member.DisplayName);
             SetStatus(resumed.AssignedProjects.Count == 0
-                ? $"«{seat.DisplayName}» — томилогдсон төсөл алга."
-                : $"«{seat.DisplayName}» — {resumed.AssignedProjects.Count} төсөлд томилогдсон.");
+                ? $"«{seat.DisplayName}» — {member} · томилогдсон төсөл алга."
+                : $"«{seat.DisplayName}» — {member} · {appointment}{more}");
         }
         catch (Exception exception)
         {
