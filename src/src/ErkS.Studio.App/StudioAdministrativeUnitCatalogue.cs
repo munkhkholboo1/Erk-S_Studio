@@ -28,4 +28,22 @@ internal sealed class StudioAdministrativeUnitCatalogue : IAdministrativeUnitCat
     public DateTimeOffset? AsOfUtc => null;
 
     public IReadOnlyList<AdministrativeUnit> ChildrenOf(string? parentUnitCode) => [];
+
+    /// <summary>
+    /// 🔴 SAYS WHAT IS TRUE, which the first wording did not.
+    ///
+    /// It read «Холбогдсоны дараа сонгох боломжтой болно» - connect and this
+    /// will work. Nothing in Studio fetches the catalogue: there is no HTTP
+    /// call and not even the route's name anywhere in this assembly, so
+    /// deploying the server changes nothing here. Somebody reading that
+    /// sentence would deploy, see three empty boxes, and look for the fault on
+    /// the wrong side of the wire.
+    ///
+    /// When the fetch is written, this class is what changes, and this sentence
+    /// changes with it - to «offline», «not downloaded yet», or whatever the
+    /// real reason is at that moment.
+    /// </summary>
+    public string UnavailableReasonMn =>
+        "Засаг захиргааны нэгжийн жагсаалтыг энэ хувилбар хараахан татдаггүй. " +
+        "Доорх хаягийн мөрөнд бичнэ үү.";
 }

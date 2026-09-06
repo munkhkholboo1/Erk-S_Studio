@@ -21,6 +21,18 @@ public interface IAdministrativeUnitCatalogue
     /// level when it is empty.
     /// </summary>
     IReadOnlyList<AdministrativeUnit> ChildrenOf(string? parentUnitCode);
+
+    /// <summary>
+    /// WHY there is nothing, in the reader's language. Empty when there is
+    /// something.
+    ///
+    /// The reason belongs to the catalogue because only the catalogue knows it:
+    /// never downloaded, downloaded and stale, this machine is offline, the
+    /// server answered an error, or - today - this build does not fetch it at
+    /// all. A single fixed sentence in the editor would have to guess between
+    /// those, and it would guess wrong the moment any of them changed.
+    /// </summary>
+    string UnavailableReasonMn { get; }
 }
 
 /// <summary>
@@ -98,11 +110,7 @@ public sealed class AdministrativeUnitPicker
     /// What to tell somebody who cannot choose yet. Empty when they can.
     /// </summary>
     public string UnavailableMessageMn =>
-        CatalogueIsAvailable
-            ? ""
-            : "Засаг захиргааны нэгжийн жагсаалт татагдаагүй байна. " +
-              "Холбогдсоны дараа сонгох боломжтой болно; тэр хүртэл доорх " +
-              "хаягийн мөрөнд бичнэ үү.";
+        CatalogueIsAvailable ? "" : catalogue.UnavailableReasonMn;
 
     /// <summary>The top level. Its heading is fixed - nothing above it names it.</summary>
     public AdministrativeUnitChoices ProvinceChoices() =>

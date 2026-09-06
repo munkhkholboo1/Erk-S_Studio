@@ -67,6 +67,8 @@ public sealed class AdministrativeUnitPickerTests
 
         public DateTimeOffset? AsOfUtc { get; } = new(2026, 9, 6, 0, 0, 0, TimeSpan.Zero);
 
+        public string UnavailableReasonMn => "";
+
         public IReadOnlyList<AdministrativeUnit> ChildrenOf(string? parentUnitCode) =>
             units
                 .Where(unit => unit.ParentUnitCode.Equals(
@@ -168,6 +170,40 @@ public sealed class AdministrativeUnitPickerTests
 
         Assert.Equal("Тосгон", picker.ToLocation().WardLabelMn);
         Assert.Equal("Хатгал тосгон", picker.ToLocation().WardName);
+    }
+
+    private sealed class EmptyCatalogue : IAdministrativeUnitCatalogue
+    {
+        public EmptyCatalogue(string reason) => UnavailableReasonMn = reason;
+
+        public DateTimeOffset? AsOfUtc => null;
+
+        public string UnavailableReasonMn { get; }
+
+        public IReadOnlyList<AdministrativeUnit> ChildrenOf(string? parentUnitCode) => [];
+    }
+
+    [Fact]
+    public void THECatalogueSaysWhyItIsEmpty_NotThePicker()
+    {
+        // The reason belongs to whoever knows it. Never downloaded, stale,
+        // offline, a server error, or a build that does not fetch at all - one
+        // fixed sentence in the editor would have to guess between them, and
+        // the first one did: it said «connect and this will work» while nothing
+        // in Studio fetched anything, so deploying the server would have
+        // changed nothing and the reader would have looked on the wrong side of
+        // the wire.
+        var picker = new AdministrativeUnitPicker(new EmptyCatalogue("ЯГ ЭНЭ ШАЛТГААН"));
+
+        Assert.False(picker.CatalogueIsAvailable);
+        Assert.Equal("ЯГ ЭНЭ ШАЛТГААН", picker.UnavailableMessageMn);
+    }
+
+    [Fact]
+    public void AWorkingCatalogueSaysNothing()
+    {
+        Assert.True(Picker().CatalogueIsAvailable);
+        Assert.Equal("", Picker().UnavailableMessageMn);
     }
 
     [Fact]

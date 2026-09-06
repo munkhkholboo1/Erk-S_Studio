@@ -151,6 +151,33 @@ public sealed class SiteLocationEditorTests
         Assert.Contains("public DateTimeOffset? AsOfUtc => null;", catalogue, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheUnavailableMessageDoesNotPROMISEWhatNoCodeDelivers()
+    {
+        // The first wording said «Холбогдсоны дараа сонгох боломжтой болно» -
+        // connect and this will work. Measured: this assembly contains no HTTP
+        // call for the catalogue and not even the route's name, so deploying
+        // the server changes nothing here. Somebody acting on that sentence
+        // would deploy, see three empty boxes, and hunt on the wrong side.
+        string catalogue = ReadAppSource("StudioAdministrativeUnitCatalogue.cs");
+
+        Assert.DoesNotContain("Холбогдсоны дараа", catalogue, StringComparison.Ordinal);
+        Assert.Contains("хараахан татдаггүй", catalogue, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NothingInThisAssemblyFetchesTheCatalogueYET()
+    {
+        // The claim behind the message above, checked rather than asserted in
+        // prose. When the fetch is written this test goes red, which is the
+        // moment the message has to be rewritten too - the two must not drift
+        // apart in either direction.
+        string catalogue = ReadAppSource("StudioAdministrativeUnitCatalogue.cs");
+
+        Assert.DoesNotContain("administrative-divisions", catalogue, StringComparison.Ordinal);
+        Assert.DoesNotContain("HttpClient", catalogue, StringComparison.Ordinal);
+    }
+
     private static string ReadSiteLocationView() => ReadAppSource("ShellView.SiteLocation.cs");
 
     private static string ReadShell() => ReadAppSource("ShellView.cs");
