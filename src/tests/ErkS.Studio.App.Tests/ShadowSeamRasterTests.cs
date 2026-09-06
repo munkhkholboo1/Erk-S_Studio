@@ -60,8 +60,17 @@ public sealed class ShadowSeamRasterTests
         string path = WritePdf(seamed: false);
         try
         {
-            Assert.True(SeamContrast(path, LowWidth) < 4);
-            Assert.True(SeamContrast(path, HighWidth) < 4);
+            // Measured into a local first, so a failure REPORTS THE NUMBER. The
+            // whole-shadow case failed once under a full parallel run and
+            // passed every time afterwards, which left nothing to work with:
+            // "below 4" and no reading tells us neither how close it was nor
+            // whether the threshold has any headroom. The next occurrence now
+            // leaves a measurement instead of a shrug.
+            double low = SeamContrast(path, LowWidth);
+            double high = SeamContrast(path, HighWidth);
+
+            Assert.True(low < 4, $"low-resolution seam contrast was {low:0.00} on an undivided shadow");
+            Assert.True(high < 4, $"high-resolution seam contrast was {high:0.00} on an undivided shadow");
         }
         finally
         {
@@ -84,9 +93,14 @@ public sealed class ShadowSeamRasterTests
         string path = WriteBandedPdf(overlapPoints: 6);
         try
         {
+            // Rasterised ONCE. It was measured twice - the assertion and the
+            // message - so a failure could report a different reading than the
+            // one that failed, which is the worst possible number to be handed.
+            double overlapping = SeamDeviation(path, LowWidth);
+
             Assert.True(
-                SeamDeviation(path, LowWidth) > 8,
-                $"the metric read {SeamDeviation(path, LowWidth):0.0} on bands that do overlap");
+                overlapping > 8,
+                $"the metric read {overlapping:0.00} on bands that do overlap");
         }
         finally
         {
@@ -123,8 +137,11 @@ public sealed class ShadowSeamRasterTests
         string path = WriteBandedPdf(alpha);
         try
         {
-            Assert.True(SeamDeviation(path, LowWidth) < 3);
-            Assert.True(SeamDeviation(path, HighWidth) < 3);
+            double low = SeamDeviation(path, LowWidth);
+            double high = SeamDeviation(path, HighWidth);
+
+            Assert.True(low < 3, $"low-resolution band deviation was {low:0.00}");
+            Assert.True(high < 3, $"high-resolution band deviation was {high:0.00}");
         }
         finally
         {
