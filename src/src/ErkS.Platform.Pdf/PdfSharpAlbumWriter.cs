@@ -2407,9 +2407,15 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // sheet": every album on disk predates the setting, and a default that
         // chose the 2026 cover would reprint two dozen projects as a document
         // their owners have never seen.
-        if (AlbumConceptCoverStyles.UsesSheet2026(request.Project.ConceptCoverStyle))
+        // One drawing, two layouts. Copying the routine and editing its
+        // constants would have been quicker and is the defect this codebase has
+        // catalogued several times over: every later fix would then have to be
+        // made twice, and one of the two would be forgotten.
+        ConceptCoverLayout? layout =
+            AlbumConceptCoverStyles.LayoutFor(request.Project.ConceptCoverStyle);
+        if (layout is not null)
         {
-            DrawConceptCoverSheet2026(document, request, item);
+            DrawConceptCoverSheet2026(document, request, item, layout);
             return;
         }
 

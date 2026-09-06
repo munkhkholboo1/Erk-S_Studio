@@ -27,14 +27,20 @@ namespace ErkS.Platform.Core;
 /// </summary>
 public static class ConceptCoverSheetGrid
 {
-    public const double PageWidthMm = 297.0;
-    public const double PageHeightMm = 210.0;
+    // ---- THE SHEET ------------------------------------------------------
+    //
+    // A4 remains the default sheet, and every value below that describes WHERE
+    // something sits now belongs to ConceptCoverLayout - one instance per sheet
+    // size. What stays here is everything a sheet size must NOT change.
 
-    /// <summary>Outer border of the sheet.</summary>
-    public const double FrameLeftMm = 14.14;
-    public const double FrameBottomMm = 3.54;
-    public const double FrameWidthMm = 279.32;
-    public const double FrameHeightMm = 202.95;
+    public static double PageWidthMm => ConceptCoverLayout.A4.PageWidthMm;
+    public static double PageHeightMm => ConceptCoverLayout.A4.PageHeightMm;
+
+    /// <summary>Outer border of the A4 sheet, measured off the drawing.</summary>
+    public static double FrameLeftMm => ConceptCoverLayout.A4.FrameLeftMm;
+    public static double FrameBottomMm => ConceptCoverLayout.A4.FrameBottomMm;
+    public static double FrameWidthMm => ConceptCoverLayout.A4.FrameWidthMm;
+    public static double FrameHeightMm => ConceptCoverLayout.A4.FrameHeightMm;
 
     /// <summary>
     /// The vertical division between the left and right tables: the frame's
@@ -46,23 +52,54 @@ public static class ConceptCoverSheetGrid
     /// centre with unequal halves is somebody aiming at symmetry and missing by
     /// half a millimetre, not somebody meaning one side to be wider.
     /// </summary>
-    public const double TablesMiddleMm = FrameLeftMm + FrameWidthMm / 2;
+    public static double TablesMiddleMm => ConceptCoverLayout.A4.TablesMiddleMm;
 
     /// <summary>
-    /// Width of one of the two tables: half the measured total of 241.57 mm.
-    /// Centring that total moves each outer edge by 0.245 mm and changes
-    /// nothing else.
+    /// Width of one of the two tables. On A4 this is 120.785 - half the measured
+    /// total of 241.57 - and it is now DERIVED from the frame and the inset
+    /// below rather than written down, so that A3 gets the same rule instead of
+    /// a second measurement.
     /// </summary>
-    public const double TableWidthMm = 120.785;
+    public static double TableWidthMm => ConceptCoverLayout.A4.TableWidthMm;
 
     /// <summary>Both table pairs start and end here.</summary>
-    public const double TablesLeftMm = TablesMiddleMm - TableWidthMm;
-    public const double TablesRightMm = TablesMiddleMm + TableWidthMm;
+    public static double TablesLeftMm => ConceptCoverLayout.A4.TablesLeftMm;
+    public static double TablesRightMm => ConceptCoverLayout.A4.TablesRightMm;
 
-    // ---- upper pair: ЗӨВШИЛЦСӨН | ХЯНАСАН ----------------------------------
+    // ---- WHAT A SHEET SIZE MUST NOT CHANGE -------------------------------
+    //
+    // 🔴 «Scale хийхгүй шүү». These are the values a bigger page is forbidden to
+    // touch, and they are single constants rather than per-sheet fields ON
+    // PURPOSE: a difference between A4 and A3 in any of them cannot be written
+    // down here at all, which is a stronger guarantee than a test that they
+    // happen to agree.
 
-    public const double UpperTopMm = 105.0;
-    public const double UpperBottomMm = 57.0;
+    /// <summary>
+    /// How far the tables sit inside the frame, each side. Measured on A4 -
+    /// 33.015 from the page less the frame's 14.14 - and applied to A3 as a
+    /// rule, which is what makes the pair widen with the sheet.
+    /// </summary>
+    public const double TableInsetFromFrameMm = 18.875;
+
+    /// <summary>
+    /// How far the signature block sits above the frame's bottom edge. Measured
+    /// on A4 (33.34 less 3.54) and the reason a taller sheet grows upwards:
+    /// every extra millimetre lands above the tables, not under them.
+    /// </summary>
+    public const double SignatureBlockAboveFrameMm = 29.80;
+
+    /// <summary>The clear strip between the two table pairs.</summary>
+    public const double GapBetweenTablesMm = 7.66;
+
+    /// <summary>Total height of the ЗӨВШИЛЦСӨН / ХЯНАСАН pair.</summary>
+    public const double UpperTableHeightMm = 48.0;
+
+    /// <summary>Total height of the ГҮЙЦЭТГЭГЧ / ЗАХИАЛАГЧ pair.</summary>
+    public const double LowerTableHeightMm = 16.0;
+
+    /// <summary>A4 top edge of the upper pair, kept for readers of this class.</summary>
+    public static double UpperTopMm => ConceptCoverLayout.A4.UpperTopMm;
+    public static double UpperBottomMm => ConceptCoverLayout.A4.UpperBottomMm;
 
     /// <summary>Height of the label strip carrying «ЗӨВШИЛЦСӨН.» and «ХЯНАСАН.».</summary>
     public const double UpperHeaderHeightMm = 8.0;
@@ -80,13 +117,13 @@ public static class ConceptCoverSheetGrid
     /// <summary>Name column width, both tables, both pairs.</summary>
     public const double NameColumnMm = 25.0;
 
-    /// <summary>Position column of the upper pair - the remainder.</summary>
-    public const double UpperRoleColumnMm = TableWidthMm - NameColumnMm - SignatureColumnMm;
+    /// <summary>Position column of the upper pair on A4 - the remainder.</summary>
+    public static double UpperRoleColumnMm => ConceptCoverLayout.A4.UpperRoleColumnMm;
 
     // ---- lower pair: ГҮЙЦЭТГЭГЧ | ЗАХИАЛАГЧ --------------------------------
 
-    public const double LowerTopMm = 49.34;
-    public const double LowerBottomMm = 33.34;
+    public static double LowerTopMm => ConceptCoverLayout.A4.LowerTopMm;
+    public static double LowerBottomMm => ConceptCoverLayout.A4.LowerBottomMm;
 
     /// <summary>Two rows of eight millimetres. The lower pair does not vary.</summary>
     public const double LowerRowHeightMm = 8.0;
@@ -102,9 +139,8 @@ public static class ConceptCoverSheetGrid
     /// </summary>
     public const double LogoColumnMm = 15.0;
 
-    /// <summary>Position column of the lower pair - the remainder after the logo.</summary>
-    public const double LowerRoleColumnMm =
-        TableWidthMm - LogoColumnMm - NameColumnMm - SignatureColumnMm;
+    /// <summary>Position column of the lower pair on A4 - the remainder after the logo.</summary>
+    public static double LowerRoleColumnMm => ConceptCoverLayout.A4.LowerRoleColumnMm;
 
     /// <summary>Every ruled line of both pairs. The drawing uses one weight.</summary>
     public const double LineWeightMm = 0.30;
@@ -150,11 +186,6 @@ public static class ConceptCoverSheetGrid
     /// The first entry is the top of the first row, the last is the bottom of
     /// the table.
     /// </summary>
-    public static IReadOnlyList<double> UpperRowBoundaries(int rowCount)
-    {
-        var boundaries = new List<double> { UpperTopMm - UpperHeaderHeightMm };
-        foreach (double height in UpperRowHeights(rowCount))
-            boundaries.Add(boundaries[^1] - height);
-        return boundaries;
-    }
+    public static IReadOnlyList<double> UpperRowBoundaries(int rowCount) =>
+        ConceptCoverLayout.A4.UpperRowBoundaries(rowCount);
 }

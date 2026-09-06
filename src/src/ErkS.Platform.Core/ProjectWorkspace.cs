@@ -1066,6 +1066,16 @@ public static class AlbumConceptCoverStyles
     public const string Sheet2026 = "concept-cover-a4-2026";
 
     /// <summary>
+    /// The same 2026 cover laid out again on A3 - NOT enlarged.
+    ///
+    /// «Scale хийхгүй шүү... А3 дээр дахин зохион байгуулна.» Text, line weight,
+    /// row heights and the hand-written columns keep their millimetres; only the
+    /// frame, the position column and the free area above the tables change. One
+    /// drawing routine serves both, so the two cannot drift.
+    /// </summary>
+    public const string Sheet2026A3 = "concept-cover-a3-2026";
+
+    /// <summary>
     /// What an unset value means: the cover this album already draws.
     ///
     /// Not "the newest one". Every project on disk predates the setting, and a
@@ -1086,7 +1096,8 @@ public static class AlbumConceptCoverStyles
         string cleaned = (value ?? "").Trim();
         return cleaned.Length == 0 ||
             cleaned.Equals(Classic, StringComparison.OrdinalIgnoreCase) ||
-            cleaned.Equals(Sheet2026, StringComparison.OrdinalIgnoreCase);
+            cleaned.Equals(Sheet2026, StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Equals(Sheet2026A3, StringComparison.OrdinalIgnoreCase);
     }
 
     public static string Normalize(string? value)
@@ -1097,15 +1108,37 @@ public static class AlbumConceptCoverStyles
 
         return cleaned.Equals(Classic, StringComparison.OrdinalIgnoreCase) ? Classic
             : cleaned.Equals(Sheet2026, StringComparison.OrdinalIgnoreCase) ? Sheet2026
+            : cleaned.Equals(Sheet2026A3, StringComparison.OrdinalIgnoreCase) ? Sheet2026A3
             // A style from a newer Studio is not guessed at. Leaving the album
             // as it draws today is the one answer that cannot silently reprint
             // somebody's cover as a document they have never seen.
             : TemplateDecides;
     }
 
-    /// <summary>Whether the 2026 sheet was actually chosen. Blank never means yes.</summary>
+    /// <summary>Whether the A4 2026 sheet was actually chosen. Blank never means yes.</summary>
     public static bool UsesSheet2026(string? value) =>
         Normalize(value).Equals(Sheet2026, StringComparison.Ordinal);
+
+    /// <summary>Whether the A3 2026 sheet was actually chosen.</summary>
+    public static bool UsesSheet2026A3(string? value) =>
+        Normalize(value).Equals(Sheet2026A3, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Which sheet the 2026 drawing should use, or null when this project does
+    /// not print the 2026 cover at all.
+    ///
+    /// THE ONE PLACE THAT MAPS A STORED STRING TO A SHEET. A second reader of
+    /// the same setting is how two covers end up disagreeing about which one is
+    /// selected - and here it would mean an album whose page size and whose
+    /// table positions came from different answers.
+    /// </summary>
+    public static ConceptCoverLayout? LayoutFor(string? value)
+    {
+        string style = Normalize(value);
+        if (style.Equals(Sheet2026, StringComparison.Ordinal))
+            return ConceptCoverLayout.A4;
+        return style.Equals(Sheet2026A3, StringComparison.Ordinal) ? ConceptCoverLayout.A3 : null;
+    }
 }
 
 /// <summary>

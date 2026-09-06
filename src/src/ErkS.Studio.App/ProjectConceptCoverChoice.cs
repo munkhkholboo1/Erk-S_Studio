@@ -26,6 +26,7 @@ public static class ProjectConceptCoverChoices
         new(AlbumConceptCoverStyles.TemplateDecides, "Одоогийн нүүр (анхдагч)"),
         new(AlbumConceptCoverStyles.Classic, "Хуучин нүүр — A3, нэг батлалтын хүснэгт"),
         new(AlbumConceptCoverStyles.Sheet2026, "2026 оны нүүр — A4, дөрвөн хүснэгт"),
+        new(AlbumConceptCoverStyles.Sheet2026A3, "2026 оны нүүр — A3, дөрвөн хүснэгт"),
     ];
 
     public static ProjectConceptCoverChoice Resolve(string? value)
@@ -46,6 +47,13 @@ public static class ProjectConceptCoverChoices
                 "A4 хэвтээ нүүр: дээд талд ЗӨВШИЛЦСӨН, ХЯНАСАН, доод талд ГҮЙЦЭТГЭГЧ, " +
                 "ЗАХИАЛАГЧ. ЗӨВШИЛЦСӨН мөрүүд төслийн жагсаалтаас ирнэ. " +
                 "ХЯНАСАН хүснэгт одоогоор хоосон хэвлэгдэнэ.",
+            AlbumConceptCoverStyles.Sheet2026A3 =>
+                // The consequence a reader cannot see from this page is that it
+                // is NOT the A4 sheet enlarged: the writing stays the size it
+                // is, and the sheet gains room rather than magnification.
+                "Дээрхтэй ЯГ ИЖИЛ нүүр, A3 хэвтээ дээр. Үсэг, шугам, мөрийн өндөр " +
+                "томрохгүй — «Албан тушаал» багана өргөсөж, гарчгийн дээд тал " +
+                "чөлөөтэй болно.",
             AlbumConceptCoverStyles.Classic =>
                 "A3 нүүр: нэг батлалтын хүснэгт, БАТЛАВ ба ЗӨВШӨӨРӨЛЦСӨН мөрүүдтэй.",
             _ =>

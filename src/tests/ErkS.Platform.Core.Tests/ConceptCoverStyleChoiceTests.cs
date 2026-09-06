@@ -66,13 +66,76 @@ public sealed class ConceptCoverStyleChoiceTests
         string writer = ReadWriterSource();
 
         Assert.Contains(
-            "AlbumConceptCoverStyles.UsesSheet2026(request.Project.ConceptCoverStyle)",
+            "AlbumConceptCoverStyles.LayoutFor(request.Project.ConceptCoverStyle)",
             writer,
             StringComparison.Ordinal);
         Assert.Contains(
-            "DrawConceptCoverSheet2026(document, request, item);",
+            "DrawConceptCoverSheet2026(document, request, item, layout);",
             writer,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ONEDrawingRoutineServesBOTHSheets()
+    {
+        // 🔴 THE REQUIREMENT THAT SHAPED THE WHOLE CHANGE. Copying
+        // DrawConceptCoverSheet2026 and editing its constants was the quick way
+        // to get A3, and it is the defect this codebase has now catalogued
+        // several times: two copies means every later fix has to be made twice,
+        // and one of the two is forgotten.
+        //
+        // Counted rather than described, because a second copy is exactly what
+        // a reader skimming for it would miss.
+        string writer = ReadWriterSource();
+        string sheet = ReadConceptCoverSource();
+
+        Assert.Equal(1, Occurrences(sheet, "private static void DrawConceptCoverSheet2026("));
+        Assert.Equal(1, Occurrences(writer + sheet, "DrawConceptCoverSheet2026(document, request, item, layout);"));
+
+        // And the sheet size reaches the drawing as DATA, never as a branch
+        // inside it. A single `if (a3)` here would be the copy back again, in
+        // one method instead of two files.
+        Assert.DoesNotContain("ConceptCoverLayout.A3", sheet, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sheet2026A3", sheet, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEA3SheetIsChosenTheSameWayAndBlankStillMeansNEITHER()
+    {
+        Assert.Equal(ConceptCoverLayout.A4, AlbumConceptCoverStyles.LayoutFor(AlbumConceptCoverStyles.Sheet2026));
+        Assert.Equal(ConceptCoverLayout.A3, AlbumConceptCoverStyles.LayoutFor(AlbumConceptCoverStyles.Sheet2026A3));
+        Assert.Equal(ConceptCoverLayout.A3, AlbumConceptCoverStyles.LayoutFor("  CONCEPT-COVER-A3-2026  "));
+
+        // The two dozen albums on disk are still untouched by a blank, and an
+        // unrecognised style still draws what it draws today.
+        Assert.Null(AlbumConceptCoverStyles.LayoutFor(null));
+        Assert.Null(AlbumConceptCoverStyles.LayoutFor(""));
+        Assert.Null(AlbumConceptCoverStyles.LayoutFor(AlbumConceptCoverStyles.Classic));
+        Assert.Null(AlbumConceptCoverStyles.LayoutFor("concept-cover-a2-2031"));
+        Assert.True(AlbumConceptCoverStyles.IsKnown(AlbumConceptCoverStyles.Sheet2026A3));
+    }
+
+    private static int Occurrences(string text, string needle) =>
+        text.Split(needle).Length - 1;
+
+    private static string ReadConceptCoverSource()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName,
+                "src",
+                "src",
+                "ErkS.Platform.Pdf",
+                "PdfSharpAlbumWriter.ConceptCover2026.cs");
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("PdfSharpAlbumWriter.ConceptCover2026.cs was not found; this test reads it from source");
+        return "";
     }
 
     [Fact]

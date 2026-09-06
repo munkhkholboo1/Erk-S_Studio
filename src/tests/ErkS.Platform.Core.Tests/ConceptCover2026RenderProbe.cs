@@ -14,8 +14,10 @@ namespace ErkS.Platform.Core.Tests;
 /// </summary>
 public sealed class ConceptCover2026RenderProbe
 {
-    [Fact]
-    public void RenderTheSheetForMeasurement()
+    [Theory]
+    [InlineData(AlbumConceptCoverStyles.Sheet2026, "concept-cover-2026.pdf")]
+    [InlineData(AlbumConceptCoverStyles.Sheet2026A3, "concept-cover-2026-a3.pdf")]
+    public void RenderTheSheetForMeasurement(string style, string fileName)
     {
         string directory = Path.Combine(
             Path.GetTempPath(), "erks-concept-cover-2026-" + Guid.NewGuid().ToString("N"));
@@ -28,7 +30,7 @@ public sealed class ConceptCover2026RenderProbe
             {
                 Name = "ХЭМЖИЛТИЙН ТӨСӨЛ",
                 ProjectFolder = directory,
-                ConceptCoverStyle = AlbumConceptCoverStyles.Sheet2026,
+                ConceptCoverStyle = style,
                 Company = new CompanyProfile
                 {
                     Name = "Зураг төслийн байгууллага",
@@ -66,14 +68,17 @@ public sealed class ConceptCover2026RenderProbe
                 });
             }
 
-            string outputPath = Path.Combine(directory, "concept-cover-2026.pdf");
+            string outputPath = Path.Combine(directory, fileName);
             new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, new SheetLibrary(), outputPath);
 
             Assert.True(File.Exists(outputPath));
             if (!string.IsNullOrWhiteSpace(probePath))
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(probePath)!);
-                File.Copy(outputPath, probePath, overwrite: true);
+                // One folder, one file per sheet - so a measuring pass can take
+                // BOTH apart and compare them, which is the only way to check
+                // that nothing was scaled.
+                Directory.CreateDirectory(probePath);
+                File.Copy(outputPath, Path.Combine(probePath, fileName), overwrite: true);
             }
         }
         finally

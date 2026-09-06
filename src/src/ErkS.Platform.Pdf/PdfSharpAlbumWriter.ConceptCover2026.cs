@@ -24,11 +24,12 @@ public sealed partial class PdfSharpAlbumWriter
     private static void DrawConceptCoverSheet2026(
         PdfDocument document,
         AlbumBuildRequest request,
-        AlbumCompositionItem item)
+        AlbumCompositionItem item,
+        ConceptCoverLayout layout)
     {
         PdfPage page = document.AddPage();
-        page.Width = XUnit.FromMillimeter(ConceptCoverSheetGrid.PageWidthMm);
-        page.Height = XUnit.FromMillimeter(ConceptCoverSheetGrid.PageHeightMm);
+        page.Width = XUnit.FromMillimeter(layout.PageWidthMm);
+        page.Height = XUnit.FromMillimeter(layout.PageHeightMm);
         page.Orientation = PdfSharp.PageOrientation.Landscape;
 
         using XGraphics gfx = XGraphics.FromPdfPage(page);
@@ -37,10 +38,10 @@ public sealed partial class PdfSharpAlbumWriter
 
         var pen = new XPen(XColors.Black, Mm(ConceptCoverSheetGrid.LineWeightMm));
 
-        DrawConceptCover2026Frame(gfx, pen);
-        DrawConceptCover2026TitleTexts(gfx, request.Project);
-        DrawConceptCover2026UpperPair(gfx, pen, request.Project);
-        DrawConceptCover2026LowerPair(gfx, pen, request.Project);
+        DrawConceptCover2026Frame(gfx, pen, layout);
+        DrawConceptCover2026TitleTexts(gfx, request.Project, layout);
+        DrawConceptCover2026UpperPair(gfx, pen, request.Project, layout);
+        DrawConceptCover2026LowerPair(gfx, pen, request.Project, layout);
 
         _ = item;
     }
@@ -60,30 +61,42 @@ public sealed partial class PdfSharpAlbumWriter
     /// - every existing caller passes A3 today and would have to be checked -
     /// so this is a note rather than a fix.
     /// </summary>
-    private static double ConceptCover2026Y(double millimetresFromBottom) =>
-        Mm(ConceptCoverSheetGrid.PageHeightMm - millimetresFromBottom);
+    private static double ConceptCover2026Y(ConceptCoverLayout layout, double millimetresFromBottom) =>
+        Mm(layout.PageHeightMm - millimetresFromBottom);
 
     private static void ConceptCover2026Line(
         XGraphics gfx,
         XPen pen,
+        ConceptCoverLayout layout,
         double x0Mm,
         double y0Mm,
         double x1Mm,
         double y1Mm) =>
-        gfx.DrawLine(pen, Mm(x0Mm), ConceptCover2026Y(y0Mm), Mm(x1Mm), ConceptCover2026Y(y1Mm));
+        gfx.DrawLine(
+            pen,
+            Mm(x0Mm),
+            ConceptCover2026Y(layout, y0Mm),
+            Mm(x1Mm),
+            ConceptCover2026Y(layout, y1Mm));
 
-    private static XRect ConceptCover2026Rect(double x0Mm, double bottomMm, double x1Mm, double topMm) =>
-        new(Mm(x0Mm), ConceptCover2026Y(topMm), Mm(x1Mm - x0Mm), Mm(topMm - bottomMm));
+    private static XRect ConceptCover2026Rect(
+        ConceptCoverLayout layout,
+        double x0Mm,
+        double bottomMm,
+        double x1Mm,
+        double topMm) =>
+        new(Mm(x0Mm), ConceptCover2026Y(layout, topMm), Mm(x1Mm - x0Mm), Mm(topMm - bottomMm));
 
-    private static void DrawConceptCover2026Frame(XGraphics gfx, XPen pen)
+    private static void DrawConceptCover2026Frame(XGraphics gfx, XPen pen, ConceptCoverLayout layout)
     {
         gfx.DrawRectangle(
             pen,
             ConceptCover2026Rect(
-                ConceptCoverSheetGrid.FrameLeftMm,
-                ConceptCoverSheetGrid.FrameBottomMm,
-                ConceptCoverSheetGrid.FrameLeftMm + ConceptCoverSheetGrid.FrameWidthMm,
-                ConceptCoverSheetGrid.FrameBottomMm + ConceptCoverSheetGrid.FrameHeightMm));
+                layout,
+                layout.FrameLeftMm,
+                layout.FrameBottomMm,
+                layout.FrameRightMm,
+                layout.FrameTopMm));
     }
 
     /// <summary>
@@ -96,9 +109,38 @@ public sealed partial class PdfSharpAlbumWriter
     /// is a field rather than an instruction: colour does not decide this, and
     /// sorting by colour would have got both of them wrong.
     /// </summary>
-    private static void DrawConceptCover2026TitleTexts(XGraphics gfx, AlbumProject project)
+    /// <summary>
+    /// The lines above the tables, placed by ANCHOR rather than by absolute
+    /// position, so that a bigger sheet moves them without resizing them.
+    ///
+    /// 🔴 TWO ANCHORS, because the block has two loyalties. Everything above
+    /// the tables keeps its offset from the frame's CENTRE and from the tables'
+    /// TOP EDGE, so the title stays with the tables it introduces and the extra
+    /// height of a taller sheet appears as clear space at the very top. The
+    /// footer keeps its offset from the frame's BOTTOM edge instead - it belongs
+    /// to the foot of the sheet, and anchoring it upwards would drag it into the
+    /// middle of A3.
+    ///
+    /// DECIDED, not measured: the contract fixes the tables and the free area
+    /// above them, and says nothing about where the title sits inside that
+    /// area. Anchoring to the frame centre keeps title and tables on one axis -
+    /// on A4 that is exactly where the drawing already has them, so nothing
+    /// moves there and the choice only shows up on A3. Reversible in one place.
+    /// </summary>
+    private static void DrawConceptCover2026TitleTexts(
+        XGraphics gfx,
+        AlbumProject project,
+        ConceptCoverLayout layout)
     {
         const double bodyTextMm = 2.475;
+
+        // The measured A4 positions travel as offsets from the two anchors.
+        double AboveX(double measuredA4XMm) =>
+            layout.TablesMiddleMm + (measuredA4XMm - ConceptCoverLayout.A4.TablesMiddleMm);
+        double AboveY(double measuredA4BaselineMm) =>
+            layout.UpperTopMm + (measuredA4BaselineMm - ConceptCoverLayout.A4.UpperTopMm);
+        double FootY(double measuredA4BaselineMm) =>
+            layout.FrameBottomMm + (measuredA4BaselineMm - ConceptCoverLayout.A4.FrameBottomMm);
 
         // 🔴 The measured text of this label is bare punctuation - the DXF pass
         // recovered ":" and the approver's name but not the words in between.
@@ -107,26 +149,29 @@ public sealed partial class PdfSharpAlbumWriter
         // completed and disagrees, this is the line to correct.
         DrawConceptCover2026Text(
             gfx,
+            layout,
             "БАТЛАВ:",
-            centreXMm: 159.75,
-            baselineMm: 188.49,
+            centreXMm: AboveX(159.75),
+            baselineMm: AboveY(188.49),
             widthMm: 60.0,
             heightMm: bodyTextMm);
         DrawConceptCover2026Text(
             gfx,
+            layout,
             ConceptCoverApprovalResolver
                 .Resolve(project.ApprovalWorkflow, project.PlanningTask)
                 .ApprovedBy.FirstOrDefault()?.PersonName ?? "",
-            centreXMm: 184.65,
-            baselineMm: 178.97,
+            centreXMm: AboveX(184.65),
+            baselineMm: AboveY(178.97),
             widthMm: 90.0,
             heightMm: bodyTextMm);
 
         DrawConceptCover2026Text(
             gfx,
+            layout,
             project.InitiationBasis.SiteAddress,
-            centreXMm: 141.47,
-            baselineMm: 149.18,
+            centreXMm: AboveX(141.47),
+            baselineMm: AboveY(149.18),
             widthMm: 200.0,
             heightMm: bodyTextMm);
 
@@ -134,25 +179,28 @@ public sealed partial class PdfSharpAlbumWriter
         // split to fit, and a real name wraps on its own.
         DrawConceptCover2026Text(
             gfx,
+            layout,
             ProjectDisplayName(project),
-            centreXMm: 148.5,
-            baselineMm: 130.0,
+            centreXMm: AboveX(148.5),
+            baselineMm: AboveY(130.0),
             widthMm: 230.0,
             heightMm: 8.0);
 
         DrawConceptCover2026Text(
             gfx,
+            layout,
             "/ЗАГВАР ЗУРАГ/",
-            centreXMm: 141.51,
-            baselineMm: 116.88,
+            centreXMm: AboveX(141.51),
+            baselineMm: AboveY(116.88),
             widthMm: 90.0,
             heightMm: bodyTextMm);
 
         DrawConceptCover2026Text(
             gfx,
+            layout,
             ConceptCover2026Footer(project),
-            centreXMm: 148.5,
-            baselineMm: 13.53,
+            centreXMm: AboveX(148.5),
+            baselineMm: FootY(13.53),
             widthMm: 200.0,
             heightMm: 2.829);
     }
@@ -171,6 +219,7 @@ public sealed partial class PdfSharpAlbumWriter
 
     private static void DrawConceptCover2026Text(
         XGraphics gfx,
+        ConceptCoverLayout layout,
         string? text,
         double centreXMm,
         double baselineMm,
@@ -181,7 +230,7 @@ public sealed partial class PdfSharpAlbumWriter
             text,
             new XRect(
                 Mm(centreXMm - widthMm / 2),
-                ConceptCover2026Y(baselineMm + heightMm),
+                ConceptCover2026Y(layout, baselineMm + heightMm),
                 Mm(widthMm),
                 Mm(heightMm * 2)),
             heightMm,
@@ -198,7 +247,8 @@ public sealed partial class PdfSharpAlbumWriter
     private static void DrawConceptCover2026UpperPair(
         XGraphics gfx,
         XPen pen,
-        AlbumProject project)
+        AlbumProject project,
+        ConceptCoverLayout layout)
     {
         IReadOnlyList<ProjectApprovalEntry> concurring =
             project.ApprovalWorkflow.ConceptDesign.ConcurredBy;
@@ -206,8 +256,9 @@ public sealed partial class PdfSharpAlbumWriter
         DrawConceptCover2026UpperTable(
             gfx,
             pen,
-            ConceptCoverSheetGrid.TablesLeftMm,
-            ConceptCoverSheetGrid.TablesMiddleMm,
+            layout,
+            layout.TablesLeftMm,
+            layout.TablesMiddleMm,
             "ЗӨВШИЛЦСӨН.",
             concurring);
 
@@ -218,8 +269,9 @@ public sealed partial class PdfSharpAlbumWriter
         DrawConceptCover2026UpperTable(
             gfx,
             pen,
-            ConceptCoverSheetGrid.TablesMiddleMm,
-            ConceptCoverSheetGrid.TablesRightMm,
+            layout,
+            layout.TablesMiddleMm,
+            layout.TablesRightMm,
             "ХЯНАСАН.",
             []);
     }
@@ -227,45 +279,47 @@ public sealed partial class PdfSharpAlbumWriter
     private static void DrawConceptCover2026UpperTable(
         XGraphics gfx,
         XPen pen,
+        ConceptCoverLayout layout,
         double leftMm,
         double rightMm,
         string label,
         IReadOnlyList<ProjectApprovalEntry> rows)
     {
-        double top = ConceptCoverSheetGrid.UpperTopMm;
-        double bottom = ConceptCoverSheetGrid.UpperBottomMm;
+        double top = layout.UpperTopMm;
+        double bottom = layout.UpperBottomMm;
         double headerBottom = top - ConceptCoverSheetGrid.UpperHeaderHeightMm;
-        double roleRight = leftMm + ConceptCoverSheetGrid.UpperRoleColumnMm;
+        double roleRight = leftMm + layout.UpperRoleColumnMm;
         double nameRight = roleRight + ConceptCoverSheetGrid.NameColumnMm;
 
-        gfx.DrawRectangle(pen, ConceptCover2026Rect(leftMm, bottom, rightMm, top));
-        ConceptCover2026Line(gfx, pen, leftMm, headerBottom, rightMm, headerBottom);
-        ConceptCover2026Line(gfx, pen, roleRight, bottom, roleRight, headerBottom);
-        ConceptCover2026Line(gfx, pen, nameRight, bottom, nameRight, headerBottom);
+        gfx.DrawRectangle(pen, ConceptCover2026Rect(layout, leftMm, bottom, rightMm, top));
+        ConceptCover2026Line(gfx, pen, layout, leftMm, headerBottom, rightMm, headerBottom);
+        ConceptCover2026Line(gfx, pen, layout, roleRight, bottom, roleRight, headerBottom);
+        ConceptCover2026Line(gfx, pen, layout, nameRight, bottom, nameRight, headerBottom);
 
-        DrawConceptCover2026Cell(gfx, label, leftMm, headerBottom, rightMm, top, bold: true);
+        DrawConceptCover2026Cell(gfx, layout, label, leftMm, headerBottom, rightMm, top, bold: true);
 
         // An empty table still has its rows: the sheet is signed by hand, so a
         // party with no name recorded needs a line to sign on.
         int rowCount = Math.Max(1, rows.Count);
-        IReadOnlyList<double> boundaries = ConceptCoverSheetGrid.UpperRowBoundaries(rowCount);
+        IReadOnlyList<double> boundaries = layout.UpperRowBoundaries(rowCount);
         for (int index = 0; index < rowCount; index++)
         {
             double rowTop = boundaries[index];
             double rowBottom = boundaries[index + 1];
             if (index > 0)
-                ConceptCover2026Line(gfx, pen, leftMm, rowTop, rightMm, rowTop);
+                ConceptCover2026Line(gfx, pen, layout, leftMm, rowTop, rightMm, rowTop);
             if (index >= rows.Count)
                 continue;
 
             DrawConceptCover2026Cell(
                 gfx,
+                layout,
                 ConceptCoverApprovalResolver.DisplayPosition(rows[index]),
                 leftMm,
                 rowBottom,
                 roleRight,
                 rowTop);
-            DrawConceptCover2026Cell(gfx, rows[index].PersonName, roleRight, rowBottom, nameRight, rowTop);
+            DrawConceptCover2026Cell(gfx, layout, rows[index].PersonName, roleRight, rowBottom, nameRight, rowTop);
         }
     }
 
@@ -277,7 +331,8 @@ public sealed partial class PdfSharpAlbumWriter
     private static void DrawConceptCover2026LowerPair(
         XGraphics gfx,
         XPen pen,
-        AlbumProject project)
+        AlbumProject project,
+        ConceptCoverLayout layout)
     {
         CompanyProfile company = ResolveDesignCompanyProfile(project);
         (string Role, string Name) representative = ResolveCompanyRepresentative(project);
@@ -286,8 +341,9 @@ public sealed partial class PdfSharpAlbumWriter
         DrawConceptCover2026LowerTable(
             gfx,
             pen,
-            ConceptCoverSheetGrid.TablesLeftMm,
-            ConceptCoverSheetGrid.TablesMiddleMm,
+            layout,
+            layout.TablesLeftMm,
+            layout.TablesMiddleMm,
             "ГҮЙЦЭТГЭГЧ.",
             representative.Role,
             representative.Name,
@@ -296,8 +352,9 @@ public sealed partial class PdfSharpAlbumWriter
         DrawConceptCover2026LowerTable(
             gfx,
             pen,
-            ConceptCoverSheetGrid.TablesMiddleMm,
-            ConceptCoverSheetGrid.TablesRightMm,
+            layout,
+            layout.TablesMiddleMm,
+            layout.TablesRightMm,
             "ЗАХИАЛАГЧ.",
             ProjectClientTypes.ResolveCoverRole(
                 clientType,
@@ -316,6 +373,7 @@ public sealed partial class PdfSharpAlbumWriter
     private static void DrawConceptCover2026LowerTable(
         XGraphics gfx,
         XPen pen,
+        ConceptCoverLayout layout,
         double leftMm,
         double rightMm,
         string label,
@@ -323,25 +381,25 @@ public sealed partial class PdfSharpAlbumWriter
         string? personName,
         CompanyProfile? logoOwner)
     {
-        double top = ConceptCoverSheetGrid.LowerTopMm;
-        double bottom = ConceptCoverSheetGrid.LowerBottomMm;
+        double top = layout.LowerTopMm;
+        double bottom = layout.LowerBottomMm;
         double middle = top - ConceptCoverSheetGrid.LowerRowHeightMm;
         double logoRight = leftMm + ConceptCoverSheetGrid.LogoColumnMm;
-        double roleRight = logoRight + ConceptCoverSheetGrid.LowerRoleColumnMm;
+        double roleRight = logoRight + layout.LowerRoleColumnMm;
         double nameRight = roleRight + ConceptCoverSheetGrid.NameColumnMm;
 
-        gfx.DrawRectangle(pen, ConceptCover2026Rect(leftMm, bottom, rightMm, top));
-        ConceptCover2026Line(gfx, pen, logoRight, bottom, logoRight, top);
-        ConceptCover2026Line(gfx, pen, roleRight, bottom, roleRight, top);
-        ConceptCover2026Line(gfx, pen, nameRight, bottom, nameRight, top);
+        gfx.DrawRectangle(pen, ConceptCover2026Rect(layout, leftMm, bottom, rightMm, top));
+        ConceptCover2026Line(gfx, pen, layout, logoRight, bottom, logoRight, top);
+        ConceptCover2026Line(gfx, pen, layout, roleRight, bottom, roleRight, top);
+        ConceptCover2026Line(gfx, pen, layout, nameRight, bottom, nameRight, top);
 
         // Starts at the logo cell's edge, not at the table's: crossing it would
         // cut the logo in half.
-        ConceptCover2026Line(gfx, pen, logoRight, middle, rightMm, middle);
+        ConceptCover2026Line(gfx, pen, layout, logoRight, middle, rightMm, middle);
 
-        DrawConceptCover2026Cell(gfx, label, logoRight, middle, roleRight, top, bold: true);
-        DrawConceptCover2026Cell(gfx, role, logoRight, bottom, roleRight, middle);
-        DrawConceptCover2026Cell(gfx, personName, roleRight, bottom, nameRight, middle);
+        DrawConceptCover2026Cell(gfx, layout, label, logoRight, middle, roleRight, top, bold: true);
+        DrawConceptCover2026Cell(gfx, layout, role, logoRight, bottom, roleRight, middle);
+        DrawConceptCover2026Cell(gfx, layout, personName, roleRight, bottom, nameRight, middle);
 
         if (logoOwner is not null)
         {
@@ -358,12 +416,13 @@ public sealed partial class PdfSharpAlbumWriter
             DrawCompanyLogoOnly(
                 gfx,
                 logoOwner,
-                ConceptCover2026Rect(leftMm, bottom, logoRight, top));
+                ConceptCover2026Rect(layout, leftMm, bottom, logoRight, top));
         }
     }
 
     private static void DrawConceptCover2026Cell(
         XGraphics gfx,
+        ConceptCoverLayout layout,
         string? text,
         double x0Mm,
         double bottomMm,
@@ -371,7 +430,7 @@ public sealed partial class PdfSharpAlbumWriter
         double topMm,
         bool bold = false)
     {
-        XRect rect = ConceptCover2026Rect(x0Mm, bottomMm, x1Mm, topMm);
+        XRect rect = ConceptCover2026Rect(layout, x0Mm, bottomMm, x1Mm, topMm);
         DrawWrappedCoverText(
             gfx,
             text,
