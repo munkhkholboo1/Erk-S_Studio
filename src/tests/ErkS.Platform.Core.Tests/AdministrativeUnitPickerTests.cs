@@ -24,22 +24,8 @@ public sealed class AdministrativeUnitPickerTests
 
         public ContractCatalogue()
         {
-            var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            string? contract = null;
-            while (directory is not null && contract is null)
-            {
-                string candidate = Path.Combine(
-                    directory.FullName,
-                    "_shared",
-                    "mongolia-admin-divisions-contract-2026-09-06.json");
-                if (File.Exists(candidate))
-                    contract = candidate;
-                directory = directory.Parent;
-            }
-
-            Assert.True(contract is not null, "the administrative divisions contract was not found");
-
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(contract!));
+            using JsonDocument document = JsonDocument.Parse(
+                SharedContractCopies.Read(SharedContractCopies.AdministrativeDivisions));
             JsonElement rows = document.RootElement.GetProperty("realRows");
             foreach (JsonProperty branch in rows.EnumerateObject())
             {

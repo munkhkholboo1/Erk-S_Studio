@@ -266,23 +266,8 @@ public sealed class AdministrativeUnitDocumentTests
         Assert.True(read.IsUsable);
     }
 
-    private static string ReadEnvelopeSample()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string candidate = Path.Combine(
-                directory.FullName,
-                "_shared",
-                "mongolia-admin-divisions-envelope-sample.json");
-            if (File.Exists(candidate))
-                return File.ReadAllText(candidate, Encoding.UTF8);
-            directory = directory.Parent;
-        }
-
-        Assert.Fail("SRV's envelope sample was not found; this test reads it from the shared folder");
-        return "";
-    }
+    private static string ReadEnvelopeSample() =>
+        SharedContractCopies.Read(SharedContractCopies.EnvelopeSample);
 
     private static string Envelope(string rows, string asOfUtc) =>
         "{\"asOfUtc\":\"" + asOfUtc + "\",\"units\":[" + rows + "]}";
@@ -296,23 +281,9 @@ public sealed class AdministrativeUnitDocumentTests
 
     private static IReadOnlyList<string> ContractRowsJson()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        string? contract = null;
-        while (directory is not null && contract is null)
-        {
-            string candidate = Path.Combine(
-                directory.FullName,
-                "_shared",
-                "mongolia-admin-divisions-contract-2026-09-06.json");
-            if (File.Exists(candidate))
-                contract = candidate;
-            directory = directory.Parent;
-        }
-
-        Assert.True(contract is not null, "the administrative divisions contract was not found");
-
         List<string> rows = [];
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(contract!, Encoding.UTF8));
+        using JsonDocument document = JsonDocument.Parse(
+            SharedContractCopies.Read(SharedContractCopies.AdministrativeDivisions));
         foreach (JsonProperty branch in document.RootElement.GetProperty("realRows").EnumerateObject())
         {
             if (branch.Value.ValueKind != JsonValueKind.Array)

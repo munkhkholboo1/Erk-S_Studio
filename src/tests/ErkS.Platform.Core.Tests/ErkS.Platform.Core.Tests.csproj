@@ -14,6 +14,22 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
+  <!--
+    Copies of the cross-product contracts these tests measure against.
+
+    THE ORIGINALS LIVE IN ANOTHER REPOSITORY (the platform root's _shared), and a
+    test that reads across a repository boundary passes on the machine where both
+    are checked out and fails everywhere else. SRV lost a CI run to exactly that
+    on 2026-09-07; these tests had the same dependency, introduced the same day.
+
+    So the tests read THESE, and SharedContractCopyTests compares them with the
+    originals whenever the originals are reachable - a copy that silently drifts
+    is the other half of the same defect.
+  -->
+  <ItemGroup>
+    <None Include="contracts\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

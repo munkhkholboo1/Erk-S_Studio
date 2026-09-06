@@ -1,0 +1,33 @@
+{
+  "asOfUtc": "2026-09-06T00:00:00+00:00",
+  "origin": "Bundled",
+  "sourceAuthority": "\u04AE\u043D\u0434\u044D\u0441\u043D\u0438\u0439 \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0438\u0439\u043D \u0445\u043E\u0440\u043E\u043E",
+  "sourceEndpoint": "https://data.1212.mn/api/v1/mn/NSO/Population, household/1_Population, household/DT_NSO_0300_068V2.px",
+  "unitCount": 2217,
+  "units": [
+    {
+      "unitCode": "265",
+      "parentUnitCode": null,
+      "level": "Aimag",
+      "nameMn": "\u0410\u0440\u0445\u0430\u043D\u0433\u0430\u0439",
+      "childPickerLabelMn": "\u0421\u0443\u043C",
+      "hasChildren": true
+    },
+    {
+      "unitCode": "26504",
+      "parentUnitCode": "265",
+      "level": "Sum",
+      "nameMn": "\u0411\u0430\u0442\u0446\u044D\u043D\u0433\u044D\u043B",
+      "childPickerLabelMn": "\u0411\u0430\u0433",
+      "hasChildren": true
+    },
+    {
+      "unitCode": "2650451",
+      "parentUnitCode": "26504",
+      "level": "Bag",
+      "nameMn": "1-\u0440 \u0431\u0430\u0433, \u0423\u043B\u0430\u0430\u043D\u0447\u0443\u043B\u0443\u0443",
+      "childPickerLabelMn": "",
+      "hasChildren": false
+    }
+  ]
+}
