@@ -139,53 +139,95 @@ public sealed class SiteLocationEditorTests
     }
 
     [Fact]
-    public void TheCatalogueHasONEReplacementPoint()
+    public void TheCatalogueIsSTILLTheOnlyThingThatKnowsWhereUnitsComeFrom()
     {
-        // The route does not exist yet, so the list is empty - a real state,
-        // reached by any offline machine once it does exist. What matters is
-        // that swapping it changes one class and no rule: the picker, the
-        // labels, the ordering and the restore all sit above the interface.
-        string catalogue = ReadAppSource("StudioAdministrativeUnitCatalogue.cs");
+        // The interface earned its keep here. The fetch, the cache and five
+        // failure sentences arrived in ONE class, and the picker, the labels, the
+        // ordering and the restore above it did not change a line - they had been
+        // finished and tested against fixtures months of decisions earlier.
+        //
+        // What this guards is the drift back: a view or a picker that starts
+        // asking about HTTP, caching or staleness has moved a rule to where
+        // nothing can reach it, which is where four of this platform's rules went
+        // to stop being testable.
+        string view = ReadSiteLocationView();
 
-        Assert.Contains("IAdministrativeUnitCatalogue", catalogue, StringComparison.Ordinal);
-        Assert.Contains("public DateTimeOffset? AsOfUtc => null;", catalogue, StringComparison.Ordinal);
+        Assert.DoesNotContain("HttpClient", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("administrative-divisions", view, StringComparison.Ordinal);
+        Assert.Contains("IAdministrativeUnitCatalogue", ReadCoreSource("AdministrativeUnitPicker.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TheUnavailableMessageDoesNotPROMISEWhatNoCodeDelivers()
+    public void TheMessageBeforeAnyDownloadSaysNOTYETRatherThanNEVER()
     {
-        // The first wording promised that connecting would make this work.
-        // Measured: this assembly makes no HTTP call for the catalogue and does
-        // not contain the route's name, so deploying the server changes nothing
-        // here - somebody acting on that sentence would deploy, see three empty
-        // boxes, and hunt on the wrong side of the wire.
+        // The first wording promised that connecting would make this work while
+        // no code fetched anything - «Холбогдсоны дараа сонгох боломжтой болно».
+        // The second said this build never fetches, which was true then and is
+        // false now. This is the third, and it is the one that has to move with
+        // the code: not downloaded YET.
         //
-        // Asked of the VALUE, not of the file. A first version searched the
-        // source text and went red on this test's own explanation quoting the
-        // old wording: the check has to look at what is shown, not at what is
+        // Asked of the VALUE, not of the file. An earlier version searched the
+        // source text and went red on this test's own explanation quoting the old
+        // wording - the check has to look at what is shown, not at what is
         // written about it.
-        string shown = StudioAdministrativeUnitCatalogue.Unavailable.UnavailableReasonMn;
+        string shown = StudioAdministrativeUnitCatalogue.Live.UnavailableReasonMn;
 
         Assert.DoesNotContain("Холбогдсоны дараа", shown, StringComparison.Ordinal);
-        Assert.Contains("хараахан татдаггүй", shown, StringComparison.Ordinal);
+        Assert.DoesNotContain("энэ хувилбар", shown, StringComparison.Ordinal);
+        Assert.Contains("хараахан татагдаагүй", shown, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void NothingInThisAssemblyFetchesTheCatalogueYET()
+    public void TheEditorACTUALLYAsksForTheCatalogueAndREBUILDSAfterwards()
     {
-        // The claim behind the message above, checked rather than asserted in
-        // prose. When the fetch is written this test goes red, which is the
-        // moment the message has to be rewritten too - the two must not drift
-        // apart in either direction.
-        string catalogue = ReadAppSource("StudioAdministrativeUnitCatalogue.cs");
+        // Two connections, and the second is the one that would be left out.
+        //
+        // A stored project keeps CODES; restoring one means finding those codes
+        // in a list. The list arrives after the picker was built, so a picker
+        // that is not rebuilt shows three empty boxes over a catalogue that is
+        // fully loaded - indistinguishable, on screen, from the download having
+        // failed. That is this session's recurring shape: both halves healthy,
+        // the step that joins them owned by nobody.
+        string view = ReadSiteLocationView();
 
-        Assert.DoesNotContain("administrative-divisions", catalogue, StringComparison.Ordinal);
-        Assert.DoesNotContain("HttpClient", catalogue, StringComparison.Ordinal);
+        Assert.Contains("_ = EnsureAdministrativeUnitsAsync();", view, StringComparison.Ordinal);
+        Assert.Contains("administrativeUnits.LoadAsync(account.SuggestedServerUrl)", view, StringComparison.Ordinal);
+        Assert.Contains("BindSiteLocationEditor();", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WhereTheListCameFromIsSHOWNEvenWhenTheBoxesAreFULL()
+    {
+        // UnavailableReasonMn is hidden the moment there is something to choose
+        // from, which is right - it exists to explain an empty box. Serving a
+        // cached copy is precisely the case where there IS something to choose
+        // from and the reader still has to be told, so it travels on its own
+        // channel and is shown whenever it has anything to say.
+        string view = ReadSiteLocationView();
+
+        Assert.Contains("siteLocationSource.Text = administrativeUnits.SourceNoticeMn;", view, StringComparison.Ordinal);
+        Assert.Contains("panel.Children.Add(siteLocationSource);", view, StringComparison.Ordinal);
     }
 
     private static string ReadSiteLocationView() => ReadAppSource("ShellView.SiteLocation.cs");
 
     private static string ReadShell() => ReadAppSource("ShellView.cs");
+
+    private static string ReadCoreSource(string fileName)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Platform.Core", fileName);
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail(fileName + " was not found; this test reads it from source");
+        return "";
+    }
 
     private static string ReadAppSource(string fileName)
     {
