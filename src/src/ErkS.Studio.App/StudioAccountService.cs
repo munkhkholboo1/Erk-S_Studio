@@ -2740,35 +2740,161 @@ internal sealed class StudioAccountService :
     private string BotServerUrl =>
         Current?.ServerUrl is { Length: > 0 } signedIn ? signedIn : PublicServerUrl;
 
+    // The renewal route (POST bot-state/token) has NO client here, on purpose.
+    //
+    // It proves possession of a token in order to extend it - one round trip
+    // instead of two - and that trade only pays if the token is kept. Studio
+    // keeps nothing: the credential lives in memory for the life of the process
+    // and a restart asks again with a signature, which is stronger evidence
+    // than a stored token rather than weaker.
+    //
+    // The wrapper used to exist and was called from the resume path, where it
+    // could never have worked: a machine that has just started holds no token
+    // to renew. Deleting it is what the reachability rule asked for when the
+    // caller moved to IssueBotSessionAsync - an unreachable credential method is
+    // exactly the shape that rule exists to catch.
+
     /// <summary>
-    /// Asks for the seat's credential using nothing but the device's own
-    /// fingerprints - both forms, because one machine has two valid values and
-    /// a request carrying one proves nothing about a record stored under the
-    /// other. This is the call a locked machine makes after the PIN opens it.
+    /// Gets this machine a seat credential from nothing but its own device key.
+    ///
+    /// TWO ROUND TRIPS, DELIBERATELY IN ONE METHOD. The server destroys the
+    /// nonce before it decides anything - grinding costs one challenge per
+    /// guess - so a 401 or a 403 can never be retried by sending the same nonce
+    /// again. Keeping both steps here, with the nonce never leaving the method,
+    /// is what makes "retry means start at /challenge" true by construction
+    /// rather than by everyone remembering it.
+    ///
+    /// 🔴 THE SIGNATURE IS THE CREDENTIAL. Neither call carries an
+    /// Authorization header: a seated device holds nothing to put in one, which
+    /// is the situation this route exists to solve.
+    ///
+    /// WHAT IS NOT SENT is as much of the design as what is. Not the public key
+    /// - the server has it from registration, and accepting one would let a
+    /// caller present a key of their own choosing. Not the bot id - the machine
+    /// proves which MACHINE it is and the server looks up which seat that is.
+    /// Not the PIN: it gates what the person may see and has never gated what
+    /// the machine may ask, and a route that answered "is this PIN right" would
+    /// turn it into a server credential.
+    ///
+    /// THE FINGERPRINT COMES FROM THE KEY, not from the registration marker
+    /// file. A seated machine has no account, so it may have no marker; and a
+    /// value read from a file is a value this side could get wrong, while the
+    /// key cannot lie about its own hash.
     /// </summary>
-    public async Task<StudioCloudBotStateToken> RequestBotTokenAsync(
+    /// <summary>
+    /// What a seated machine with no device key is told.
+    ///
+    /// A constant rather than a literal at the throw site so it can be asserted
+    /// on its VALUE. The first test of it searched the source text and failed
+    /// for a reason that had nothing to do with the message: the sentence is
+    /// built by concatenation, so the words either side of a line break never
+    /// appear together in the file.
+    ///
+    /// It names WHO CAN ACT. «бүртгэлгүй» would be true and useless - the person
+    /// holding this machine cannot register a key, because registering needs a
+    /// Cloud ERA session and being seated destroyed it. Only the owner can undo
+    /// this, so the sentence says so.
+    /// </summary>
+    internal const string NoDeviceKeyMessageMn =
+        "Энэ төхөөрөмжид төхөөрөмжийн түлхүүр бүртгэгдээгүй тул суудлаа " +
+        "баталгаажуулж чадахгүй байна. Эзэмшигч суудлыг чөлөөлж, дахин " +
+        "суулгах шаардлагатай.";
+
+    public async Task<StudioCloudBotStateToken> IssueBotSessionAsync(
         CancellationToken cancellationToken = default)
     {
+        string? keyFingerprint = StudioDeviceKeyStore.TryFingerprint();
+        if (keyFingerprint is null)
+        {
+            // Not "no key, make one". Registering needs a Cloud ERA session and
+            // a seated device has none, so this machine cannot recover on its
+            // own - the owner releases and re-seats it. Saying that is more use
+            // than any retry.
+            throw new StudioAccountException(NoDeviceKeyMessageMn);
+        }
+
         StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
-        var body = new StudioCloudBotStateResumeRequest
+        StudioCloudBotSessionChallenge challenge = await PostUnauthenticatedAsync<
+            StudioCloudBotSessionChallengeRequest, StudioCloudBotSessionChallenge>(
+            "/api/cloud-era/v1/bot-state/challenge",
+            new StudioCloudBotSessionChallengeRequest
+            {
+                DeviceFingerprint = keyFingerprint,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер сорилт буцаасангүй.");
+
+        byte[] nonce;
+        try
         {
-            DeviceFingerprint = fingerprints.Canonical,
-            LegacyDeviceFingerprint = fingerprints.Legacy,
-        };
-        using HttpRequestMessage request = new(
-            HttpMethod.Post,
-            BuildUri(BotServerUrl, "/api/cloud-era/v1/bot-state/token"))
+            nonce = DecodeChallengeNonce(challenge.Nonce);
+        }
+        catch (FormatException)
         {
-            Content = JsonContent.Create(body, options: JsonOptions),
+            throw new StudioAccountException("Серверийн сорилт уншигдсангүй.");
+        }
+
+        byte[]? signature = StudioDeviceKeyStore.SignBotSession(nonce);
+        if (signature is null)
+        {
+            // The key disappeared between the two calls - a key store reset, or
+            // another process. Reported rather than papered over with a new key.
+            throw new StudioAccountException(
+                "Төхөөрөмжийн түлхүүр уншигдсангүй. Дахин оролдоно уу.");
+        }
+
+        StudioCloudBotStateToken token = await PostUnauthenticatedAsync<
+            StudioCloudBotSessionRequest, StudioCloudBotStateToken>(
+            "/api/cloud-era/v1/bot-state/session",
+            new StudioCloudBotSessionRequest
+            {
+                DeviceFingerprint = keyFingerprint,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+                Nonce = challenge.Nonce,
+                Signature = Convert.ToBase64String(signature),
+            },
+            cancellationToken).ConfigureAwait(true)
+            ?? throw new StudioAccountException("Сервер ботын токен буцаасангүй.");
+
+        botToken = token;
+        return token;
+    }
+
+    /// <summary>
+    /// The nonce as the server writes it: base64url, and base64 accepted too
+    /// because the two differ only in two characters and a reader that refuses
+    /// one of them fails for a reason nobody would guess from the message.
+    /// </summary>
+    internal static byte[] DecodeChallengeNonce(string? nonce)
+    {
+        string text = (nonce ?? "").Trim();
+        if (text.Length == 0)
+            throw new FormatException("The challenge carried no nonce.");
+
+        string padded = text.Replace('-', '+').Replace('_', '/');
+        return Convert.FromBase64String(padded.PadRight(
+            padded.Length + ((4 - (padded.Length % 4)) % 4),
+            '='));
+    }
+
+    /// <summary>
+    /// Posts without any credential. Used only by the two bot-session issue
+    /// steps, where the signature is the proof and there is nothing else to
+    /// send.
+    /// </summary>
+    private async Task<TResponse> PostUnauthenticatedAsync<TRequest, TResponse>(
+        string path,
+        TRequest value,
+        CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(BotServerUrl, path))
+        {
+            Content = JsonContent.Create(value, options: JsonOptions),
         };
         using HttpResponseMessage response =
             await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
-        StudioCloudBotStateToken token =
-            await ReadResponseAsync<StudioCloudBotStateToken>(response, cancellationToken)
-                .ConfigureAwait(true)
-            ?? throw new StudioAccountException("Сервер ботын токен буцаасангүй.");
-        botToken = token;
-        return token;
+        return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>

@@ -1,0 +1,243 @@
+using System.Net;
+using System.Text;
+using ErkS.Studio;
+
+namespace ErkS.Studio.App.Tests;
+
+/// <summary>
+/// Getting a seat credential from nothing but the device's own key.
+///
+/// The gap both sides measured on 2026-09-05: the renewal route proves
+/// possession of a token, and a machine that has just started holds none. So a
+/// seated device could never get its first credential, and the release dialog
+/// had to be reworded to stop promising something no code did. The routes went
+/// live on 2026-09-07 and these are the three things that were waiting.
+/// </summary>
+[Collection(StudioDeviceIdentityCollection.Name)]
+public sealed class StudioBotSessionIssueTests
+{
+    [Fact]
+    public void THERetryRuleCannotBeGotWrongBecauseTheNonceNeverESCAPES()
+    {
+        // ⚠️ SRV destroys the nonce BEFORE deciding anything, so a 401 or 403
+        // can never be retried with the same one - a retry has to start at
+        // /challenge. That is a rule somebody has to remember only if the two
+        // steps can be called separately.
+        //
+        // They cannot: there is one public method, it does both, and the nonce
+        // is a local inside it. Checked on the source, because the guarantee is
+        // the ABSENCE of a second entry point and no call can demonstrate that.
+        string source = ReadAppSource("StudioAccountService.cs");
+
+        Assert.Contains("public async Task<StudioCloudBotStateToken> IssueBotSessionAsync(", source, StringComparison.Ordinal);
+        Assert.Contains("bot-state/challenge", source, StringComparison.Ordinal);
+        Assert.Contains("bot-state/session", source, StringComparison.Ordinal);
+
+        // No public way to hold a nonce and spend it later.
+        Assert.DoesNotContain("public async Task<StudioCloudBotSessionChallenge>", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("public StudioCloudBotSessionChallenge", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NEITHERStepCarriesAnAuthorizationHeader()
+    {
+        // The signature IS the credential. A header here would be a credential
+        // the machine does not have - that is the whole situation being solved -
+        // and adding one "just in case" would make the route look authenticated
+        // to the next reader.
+        string source = ReadAppSource("StudioAccountService.cs");
+        int start = source.IndexOf("private async Task<TResponse> PostUnauthenticatedAsync<", StringComparison.Ordinal);
+        Assert.True(start > 0, "the unauthenticated post helper was not found");
+        string helper = source[start..(start + 900)];
+
+        Assert.DoesNotContain("Authorization", helper, StringComparison.Ordinal);
+        Assert.DoesNotContain("AccessToken", helper, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WhatIsNOTSentIsAsMuchOfTheDesignAsWhatIs()
+    {
+        // The public key is not sent - the server has it from registration, and
+        // accepting one would let a caller present a key of their own choosing,
+        // after which the signature proves nothing.
+        //
+        // The bot id is not sent either: the device proves which MACHINE it is,
+        // and which seat that machine holds is the server's own record. Nothing
+        // the caller writes decides anything.
+        string contracts = ReadAppSource("StudioCloudContracts.cs");
+        int start = contracts.IndexOf("class StudioCloudBotSessionRequest", StringComparison.Ordinal);
+        Assert.True(start > 0, "the session request DTO was not found");
+        // Sliced to the NEXT type rather than to a brace. Cutting at the first
+        // '}' stops inside `{ get; set; }` on the first property, which makes
+        // every DoesNotContain below pass for the wrong reason; cutting at a
+        // newline-plus-brace depends on the file's line endings, which are not
+        // the same in every file in this repository.
+        int end = contracts.IndexOf("internal sealed class", start + 10, StringComparison.Ordinal);
+        string dto = end > start ? contracts[start..end] : contracts[start..];
+
+        Assert.Contains("DeviceFingerprint", dto, StringComparison.Ordinal);
+        Assert.Contains("Nonce", dto, StringComparison.Ordinal);
+        Assert.Contains("Signature", dto, StringComparison.Ordinal);
+        Assert.DoesNotContain("PublicKey", dto, StringComparison.Ordinal);
+        Assert.DoesNotContain("BotId", dto, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pin", dto, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("YWJjZA==")]
+    [InlineData("YWJjZA")]
+    [InlineData("-_-_")]
+    public void THENonceIsReadInEitherBase64Spelling(string nonce)
+    {
+        // base64url and base64 differ in two characters and the padding. A
+        // reader that took only one of them would fail with a message about the
+        // challenge being unreadable - true, and useless for finding out why.
+        byte[] bytes = StudioAccountService.DecodeChallengeNonce(nonce);
+
+        Assert.NotEmpty(bytes);
+    }
+
+    [Fact]
+    public void ANonceThatIsMISSINGIsRefusedRatherThanSignedAsEmpty()
+    {
+        // Signing an empty payload would produce a valid signature over nothing
+        // and the server would refuse it as a bad signature - sending the reader
+        // to look at the key.
+        Assert.Throws<FormatException>(() => StudioAccountService.DecodeChallengeNonce(""));
+        Assert.Throws<FormatException>(() => StudioAccountService.DecodeChallengeNonce(null));
+    }
+
+    [Fact]
+    public void ASEATEndingIsToldApartFromEveryOtherWayACallCanFail()
+    {
+        // 🔴 THIS PREDICATE DESTROYS LOCAL STATE, so it must not fire on an
+        // ordinary failure. A token expiry and a bad signature are both 403 and
+        // both leave the seat exactly where it was; wiping it would strand a
+        // machine whose owner did nothing.
+        Assert.True(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.Conflict, "bot_state_released_remotely", "Эзэмшигч чөлөөлсөн.")));
+        Assert.True(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.NotFound, "bot_state_not_found", "Суудал алга.")));
+
+        // 🔴 THE ONE A CODE-LIST WRITTEN FROM MEMORY MISSES. It lives under
+        // `bot_session_*`, not `bot_state_*`, and comes from the token layer
+        // rather than the seat layer - so enumerating the state codes leaves a
+        // seat change looking like an ordinary failure, and the machine keeps a
+        // seat the server has already ended.
+        Assert.True(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.Conflict, "bot_session_seat_changed", "Суудал өөр болсон.")));
+
+        Assert.False(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.Forbidden, "bot_state_signature_invalid", "Гарын үсэг таарсангүй.")));
+        Assert.False(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.BadRequest, "bot_state_nonce_expired", "Сорилтын хугацаа дууссан.")));
+        // 409 as well, and NOT a reason to wipe the seat: the seat is still
+        // there, the machine simply cannot prove itself. Status alone would put
+        // this in the same bucket as the two above.
+        Assert.False(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.Conflict, "bot_state_device_key_required", "Түлхүүр бүртгэгдээгүй.")));
+        Assert.False(BotSeatErrors.SeatIsGone(new InvalidOperationException("сүлжээ")));
+
+        // A 403 with no code at all is not a released seat either - silence is
+        // not a reason, and acting on it would be guessing.
+        Assert.False(BotSeatErrors.SeatIsGone(Server(HttpStatusCode.Forbidden, "", "Forbidden")));
+    }
+
+    [Fact]
+    public void THEThreeReleaseReasonsKeepTheirOwnWordsWhileSharingOneACTION()
+    {
+        // What to SAY differs - the owner freed it, the seat was deleted, the
+        // machine was handed back. What to DO is the same in all three, and
+        // splitting the action per reason would be three chances to forget one.
+        foreach (string sentence in new[]
+                 {
+                     "Эзэмшигч энэ төхөөрөмжийг суудлаас чөлөөлсөн байна.",
+                     "Энэ суудал устгагдсан байна.",
+                     "Энэ төхөөрөмж эзэмшигчид буцаагдсан байна.",
+                 })
+        {
+            StudioAccountException failure =
+                Server(HttpStatusCode.Conflict, "bot_state_released_remotely", sentence);
+
+            Assert.True(BotSeatErrors.SeatIsGone(failure));
+            Assert.Equal(sentence, BotSeatErrors.Describe(failure, "дуусгавар болсон"));
+        }
+    }
+
+    [Fact]
+    public void THEClientACTUALLYClearsTheSeatOnThatAnswer()
+    {
+        // The condition the release dialog's restored promise depends on. The
+        // wording says the device leaves bot state by itself; if this handler
+        // were missing, that would be the same empty promise the note warned
+        // about - written once, deleted once, and now restored on the strength
+        // of these lines existing.
+        string shell = ReadAppSource("ShellView.BotSeat.cs");
+
+        Assert.Contains("BotSeatErrors.SeatIsGone(released)", shell, StringComparison.Ordinal);
+        int handler = shell.IndexOf("BotSeatErrors.SeatIsGone(released)", StringComparison.Ordinal);
+        string body = shell[handler..(handler + 1400)];
+        Assert.Contains("StudioBotDeviceStateStore.Clear();", body, StringComparison.Ordinal);
+        Assert.Contains("account.UseBotToken(null);", body, StringComparison.Ordinal);
+        Assert.Contains("ApplyDeviceSeat();", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEDialogPromiseAndTheHandlerMOVETogether()
+    {
+        // The two were separated for a week on purpose: the sentence promised
+        // what no code did, so it was cut back and a note left saying what had
+        // to exist first. Now both exist, and this is what stops them drifting
+        // apart again - a promise with no handler, or a handler nobody is told
+        // about.
+        string dialogs = ReadAppSource("BotSeatDialogs.cs");
+        string shell = ReadAppSource("ShellView.BotSeat.cs");
+
+        Assert.Contains("төлөвөөс өөрөө гарна", dialogs, StringComparison.Ordinal);
+        Assert.DoesNotContain("PENDING (STU+SRV)", dialogs, StringComparison.Ordinal);
+        Assert.Contains("BotSeatErrors.SeatIsGone", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AMachineWithNOKeyIsToldTheOWNERMustActRatherThanGettingANewKey()
+    {
+        // Minting a key here would send the server a fingerprint it has never
+        // seen, and the answer would be "unknown device" instead of "this device
+        // never registered a key". The first reads as a security event; only the
+        // second is something the owner can put right.
+        // The sentence is asked of its VALUE. An earlier version searched the
+        // source and failed for a reason that had nothing to do with the
+        // message: it is built by concatenation, so the words either side of a
+        // line break never appear together in the file. That is the same trap
+        // this codebase hit on the address-picker message, twice.
+        Assert.Contains("дахин суулгах", StudioAccountService.NoDeviceKeyMessageMn, StringComparison.Ordinal);
+        Assert.Contains("Эзэмшигч", StudioAccountService.NoDeviceKeyMessageMn, StringComparison.Ordinal);
+
+        string source = ReadAppSource("StudioAccountService.cs");
+        int start = source.IndexOf("public async Task<StudioCloudBotStateToken> IssueBotSessionAsync(", StringComparison.Ordinal);
+        string method = source[start..(start + 2600)];
+
+        Assert.Contains("StudioDeviceKeyStore.TryFingerprint()", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("StudioDeviceKeyStore.Fingerprint()", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("StudioDeviceKeyStore.PublicKey()", method, StringComparison.Ordinal);
+    }
+
+    private static StudioAccountException Server(HttpStatusCode status, string code, string message) =>
+        new(message, status, code, "", null, "", "", "");
+
+    private static string ReadAppSource(string fileName)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Studio.App", fileName);
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail(fileName + " was not found; this test reads it from source");
+        return "";
+    }
+}

@@ -1484,6 +1484,48 @@ internal sealed class StudioCloudBotSeatMember
 /// never the owner's token and cannot become one: returning to owner state is
 /// a fresh owner sign-in and nothing else.
 /// </summary>
+/// <summary>
+/// Step one of getting a seat credential: ask for something to sign.
+///
+/// UNAUTHENTICATED on purpose. A seated device holds no credential - that is
+/// the situation being solved - and a nonce grants nothing on its own: spending
+/// it needs a signature only this machine can make.
+/// </summary>
+internal sealed class StudioCloudBotSessionChallengeRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+}
+
+internal sealed class StudioCloudBotSessionChallenge
+{
+    public string Nonce { get; set; } = "";
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public DateTimeOffset ServerTimeUtc { get; set; }
+}
+
+/// <summary>
+/// Step two: spend the nonce.
+///
+/// 🔴 THE PUBLIC KEY IS NOT SENT. The server holds it from registration, indexed
+/// by the same fingerprint; letting the caller supply one would let them present
+/// a key of their own choosing and the signature would prove nothing.
+///
+/// Nor is the bot id sent. The device proves WHICH MACHINE it is; which seat
+/// that machine holds is the server's own record to look up. Nothing the caller
+/// writes decides anything - the rule is satisfied by the shape rather than by a
+/// check somebody has to remember.
+/// </summary>
+internal sealed class StudioCloudBotSessionRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+    public string Nonce { get; set; } = "";
+
+    /// <summary>ECDsa-SHA256 over `nonce || SHA256(SPKI)`, IEEE P1363, base64.</summary>
+    public string Signature { get; set; } = "";
+}
+
 internal sealed class StudioCloudBotStateToken
 {
     public string TokenType { get; set; } = "Bearer";

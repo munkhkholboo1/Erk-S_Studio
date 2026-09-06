@@ -242,7 +242,11 @@ internal sealed partial class ShellView
     {
         try
         {
-            await account.RequestBotTokenAsync();
+            // ISSUE, not renew. The renewal route proves possession of a token
+            // this machine does not have on a cold start - the gap both sides
+            // measured on 2026-09-05. This one proves the machine itself, with a
+            // signature, and works after a restart or a month offline.
+            await account.IssueBotSessionAsync();
             StudioCloudBotStateResume resumed = await account.ResumeAsBotAsync();
             if (resumed.PinLocked)
             {
@@ -284,6 +288,30 @@ internal sealed partial class ShellView
             SetStatus(resumed.AssignedProjects.Count == 0
                 ? $"«{seat.DisplayName}» — {member} · томилогдсон төсөл алга."
                 : $"«{seat.DisplayName}» — {member} · {appointment}{more}");
+        }
+        catch (StudioAccountException released) when (BotSeatErrors.SeatIsGone(released))
+        {
+            // 🔴 THE SEAT ENDED WHILE THIS MACHINE WAS AWAY. Three ways it can
+            // happen and the server names which - the owner freed it, the seat
+            // was deleted, or somebody signed in as the owner here and took the
+            // machine back. Keeping the local seat after any of them would leave
+            // a machine claiming a seat that no longer exists, and asking for a
+            // PIN that now guards nothing.
+            //
+            // Cleared locally FIRST and unconditionally, for the same reason
+            // leaving bot state clears first: the one state a person cannot get
+            // themselves out of is a seat the server has already ended.
+            StudioBotDeviceStateStore.Clear();
+            account.UseBotToken(null);
+            unlockedSeatIdentity = null;
+            botAssignedProjectIds = null;
+            botAssignedProjectScopes = null;
+            botSeatMember = null;
+            ApplyDeviceSeat();
+            UpdateAccountUi();
+            SetStatus(BotSeatErrors.Describe(
+                released,
+                "Энэ төхөөрөмжийн суудал дуусгавар болсон байна."));
         }
         catch (Exception exception)
         {

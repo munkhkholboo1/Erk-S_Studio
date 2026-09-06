@@ -111,6 +111,22 @@ internal static class StudioDeviceKeyStore
     /// </summary>
     public static string Fingerprint() => FingerprintOf(PublicKey());
 
+    /// <summary>
+    /// The key-derived fingerprint, or null when this machine has no key.
+    ///
+    /// 🔴 NOT <see cref="Fingerprint"/>, which goes through Open() and CREATES a
+    /// key on first use. A seated machine asking for its seat must not mint a
+    /// key in the act of asking: the server would be handed a fingerprint it has
+    /// never seen and would answer "unknown device", when the truth is "this
+    /// device never registered a key" - the second is something the owner can
+    /// put right and the first reads as a security event.
+    /// </summary>
+    public static string? TryFingerprint()
+    {
+        using ECDsa? key = TryOpenExisting();
+        return key is null ? null : FingerprintOf(key.ExportSubjectPublicKeyInfo());
+    }
+
     public static string FingerprintOf(byte[] subjectPublicKeyInfo)
     {
         ArgumentNullException.ThrowIfNull(subjectPublicKeyInfo);

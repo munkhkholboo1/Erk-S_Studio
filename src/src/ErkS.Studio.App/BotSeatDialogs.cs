@@ -747,22 +747,28 @@ internal sealed class BotSeatManagementDialog : Window
             return;
         if (StudioMessageDialog.Show(
                 this,
-                // PENDING (STU+SRV): when the initial bot-session route exists
-                // (SRV contract docs/contracts/bot-session-initial-issue.example.json)
-                // the device WILL learn of its release on the next start, and
-                // this sentence goes back to promising it. Restore it only once
-                // the client acts on bot_state_released_remotely by clearing the
-                // local seat - not before, or the promise is empty again.
+                // 🔴 THE PROMISE IS BACK, AND NOW THE CODE KEEPS IT.
                 //
-                // Says what the code does. It used to promise that the device
-                // would learn of the release and leave bot state by itself, and
-                // nothing anywhere does that: the seat file on that machine is
-                // untouched by this call, and the device cannot even ask - its
-                // resume carries no credential the server will accept. A promise
-                // the code does not keep is worse than a plainer sentence.
+                // This sentence once promised that the released device would
+                // leave bot state by itself, and nothing did that: the seat file
+                // on that machine was untouched, and the machine could not even
+                // ask - its resume carried no credential the server would take.
+                // The wording was cut back to what was true and a note left
+                // here saying what had to exist first.
+                //
+                // Both halves exist as of 2026-09-07. The device gets a seat
+                // credential from its own key (bot-state/challenge + /session,
+                // live in production), so it asks on every start; and when the
+                // answer is bot_state_released_remotely the client clears the
+                // local seat and returns to the lock screen - the condition this
+                // note set for restoring the promise.
+                //
+                // "Next time it connects", not "immediately": nothing pushes to
+                // that machine, and a sentence claiming otherwise would be the
+                // same empty promise in a new place.
                 $"«{Selected!.DisplayName}» суудлыг чөлөөлөх үү? Сервер дээрх эрх нь шууд " +
-                "цуцлагдана. Харин тэр төхөөрөмж дээрх ботын төлөв өөрөө унтрахгүй — тэнд " +
-                "эзэмшигч нэвтэрч «Ботын төлөвөөс гарах» дарж гаргана.",
+                "цуцлагдана. Тэр төхөөрөмж дараагийн холболтдоо үүнийг мэдэж, ботын " +
+                "төлөвөөс өөрөө гарна — эзэмшигч тэнд очих шаардлагагүй.",
                 "Суудал чөлөөлөх",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning) != MessageBoxResult.OK)
@@ -1032,6 +1038,52 @@ internal static class BotSeatErrors
     /// error code; a route that is missing cannot. So the CODE decides, and the
     /// status only stands in when there is none.
     /// </summary>
+    /// <summary>
+    /// The error codes that mean the seat itself has ended.
+    ///
+    /// 🔴 FOUR OF THEM, IN TWO NAMESPACES, AND THREE DIFFERENT STATUS CODES -
+    /// which is why this reads codes and never statuses. Measured in SRV's
+    /// source on 2026-09-07, not taken from a note:
+    ///
+    ///   bot_state_released_remotely   409   the owner freed it, it was deleted,
+    ///                                       or the machine was handed back
+    ///   bot_state_not_found           404   no seat for this device at all
+    ///   bot_session_seat_changed      409   from TryAuthorizeBot: the token is
+    ///                                       good and the seat behind it is not
+    ///                                       the same seat any more
+    ///
+    /// The fourth one is the trap. It lives under `bot_session_*` rather than
+    /// `bot_state_*` and comes from a different layer, so a client that
+    /// enumerated the state codes - as this one first did - would let a seat
+    /// change slip through as an ordinary failure and keep a local seat the
+    /// server had already ended. A shared note had 409 written as 403 as well,
+    /// which is a second reason the status is not consulted.
+    /// </summary>
+    public const string SeatReleasedRemotely = "bot_state_released_remotely";
+    public const string SeatNotFound = "bot_state_not_found";
+    public const string SeatChanged = "bot_session_seat_changed";
+
+    /// <summary>
+    /// Whether the server has said this machine no longer has a seat - as
+    /// opposed to any of the ordinary ways a call can fail.
+    ///
+    /// 🔴 THE DISTINCTION DECIDES WHETHER LOCAL STATE IS DESTROYED, so it reads
+    /// the CODE and nothing else. Matching on the status alone would sweep in
+    /// every 403 the server can answer, including "your token expired" and
+    /// "your signature did not verify" - transient things after which the seat
+    /// is still there, and after which wiping it would strand a machine whose
+    /// owner did nothing wrong.
+    ///
+    /// The three release reasons are deliberately NOT distinguished here. They
+    /// differ in what to tell the person, which is <see cref="Describe"/>'s job;
+    /// they do not differ in what to do, which is this one's.
+    /// </summary>
+    public static bool SeatIsGone(Exception exception) =>
+        exception is StudioAccountException known &&
+        (known.ErrorCode.Equals(SeatReleasedRemotely, StringComparison.Ordinal) ||
+            known.ErrorCode.Equals(SeatNotFound, StringComparison.Ordinal) ||
+            known.ErrorCode.Equals(SeatChanged, StringComparison.Ordinal));
+
     public static string Describe(Exception exception, string fallback)
     {
         if (exception is not StudioAccountException known)
