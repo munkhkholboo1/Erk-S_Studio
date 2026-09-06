@@ -2687,9 +2687,31 @@ internal sealed class StudioAccountService :
 
     public void UseBotToken(StudioCloudBotStateToken? token) => botToken = token;
 
-    private StudioCloudBotStateToken RequireBotToken() =>
-        botToken ?? throw new StudioAccountException(
-            "Энэ төхөөрөмж ботын эрхээр нэвтрээгүй байна.");
+    /// <summary>
+    /// The seat credential, obtained now if this machine does not have one.
+    ///
+    /// 🔴 IT USED TO REFUSE INSTEAD, and the refusal broke the one path that
+    /// needed it most. A machine that has just started holds no token; the PIN
+    /// screen is the first thing shown; and if the person exhausts their
+    /// attempts, the lockout report fires BEFORE anything has unlocked. So it
+    /// asked for a credential that did not exist yet and told the person «Энэ
+    /// төхөөрөмж ботын эрхээр нэвтрээгүй байна» - true, unactionable, and it
+    /// meant the owner was never told the machine had locked itself. The remote
+    /// unlock existed and could not be reached by the event it exists for.
+    ///
+    /// Issuing here is what SRV's contract describes rather than a workaround:
+    /// the token is issued whether or not the PIN has been entered, because the
+    /// PIN gates what the PERSON at the machine may see and has never gated what
+    /// the MACHINE may ask the server. Keeping those separate is what stops the
+    /// PIN drifting into being a server credential.
+    /// </summary>
+    private async Task<StudioCloudBotStateToken> EnsureBotCredentialAsync(
+        CancellationToken cancellationToken)
+    {
+        if (botToken is { AccessToken.Length: > 0 })
+            return botToken;
+        return await IssueBotSessionAsync(cancellationToken).ConfigureAwait(true);
+    }
 
     /// <summary>
     /// Bot-scoped calls carry the SEAT's credential, never the owner's - the
@@ -2719,7 +2741,8 @@ internal sealed class StudioAccountService :
         TRequest value,
         CancellationToken cancellationToken)
     {
-        StudioCloudBotStateToken token = RequireBotToken();
+        StudioCloudBotStateToken token =
+            await EnsureBotCredentialAsync(cancellationToken).ConfigureAwait(true);
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(BotServerUrl, path))
         {
             Content = JsonContent.Create(value, options: JsonOptions),
@@ -2775,7 +2798,8 @@ internal sealed class StudioAccountService :
         TRequest value,
         CancellationToken cancellationToken)
     {
-        StudioCloudBotStateToken token = RequireBotToken();
+        StudioCloudBotStateToken token =
+            await EnsureBotCredentialAsync(cancellationToken).ConfigureAwait(true);
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(BotServerUrl, path))
         {
             Content = JsonContent.Create(value, options: JsonOptions),

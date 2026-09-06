@@ -296,6 +296,56 @@ public sealed class StudioBotSessionIssueTests
         Assert.DoesNotContain("bot-state/token", body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AMachineThatLOCKSItselfCanStillTellTheOwner()
+    {
+        // 🔴 THE PATH THAT COULD ONLY EVER FAIL. The lock screen is the first
+        // thing a seated machine shows, and the lockout report fires when the
+        // PINs run out - BEFORE anything has unlocked, so before any credential
+        // existed. The old code refused with «Энэ төхөөрөмж ботын эрхээр
+        // нэвтрээгүй байна»: true, unactionable, and it meant the owner was
+        // never told. The remote unlock existed and the event it exists for
+        // could not reach it.
+        //
+        // The fix is not a special case for the lockout route. Every
+        // bot-authorised call now obtains a credential if it lacks one, which is
+        // what the contract describes: the PIN gates what the PERSON sees, never
+        // what the MACHINE may ask.
+        string source = ReadAppSource("StudioAccountService.cs");
+
+        Assert.DoesNotContain("RequireBotToken()", source, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(source, "await EnsureBotCredentialAsync(cancellationToken)"));
+
+        // Both bot-authorised senders go through it - the lockout report is the
+        // no-content one, which is the half a per-call-site fix would have left
+        // out.
+        int noContent = source.IndexOf("private async Task SendBotAuthorizedNoContentAsync<", StringComparison.Ordinal);
+        Assert.True(noContent > 0, "the no-content sender was not found");
+        Assert.Contains(
+            "EnsureBotCredentialAsync",
+            source[noContent..(noContent + 700)],
+            StringComparison.Ordinal);
+
+        // And the lock screen really does report through it.
+        string shell = ReadAppSource("ShellView.BotSeat.cs");
+        Assert.Contains("botLockScreen.LockedOut += async () => await ReportBotLockoutAsync();", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AKnownCredentialIsNotThrownAwayToGetAnotherOne()
+    {
+        // The other half: "obtain if missing" must not become "obtain every
+        // time". Each issue costs two round trips and burns a challenge, and a
+        // machine that re-proved itself on every call would look like grinding
+        // to the rate limiter it is protected by.
+        string source = ReadAppSource("StudioAccountService.cs");
+        int start = source.IndexOf("private async Task<StudioCloudBotStateToken> EnsureBotCredentialAsync(", StringComparison.Ordinal);
+        string body = source[start..(start + 400)];
+
+        Assert.Contains("if (botToken is { AccessToken.Length: > 0 })", body, StringComparison.Ordinal);
+        Assert.Contains("return botToken;", body, StringComparison.Ordinal);
+    }
+
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     private static StudioAccountException Server(HttpStatusCode status, string code, string message) =>
