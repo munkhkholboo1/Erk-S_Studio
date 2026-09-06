@@ -154,6 +154,77 @@ public sealed class SiteLocationRoundTripTests
     }
 
     [Fact]
+    public void ANUnavailableCatalogueMustNotERASEAStoredChoice()
+    {
+        // 🔴 THE WORST OF THE THREE, and it was hiding behind the other two.
+        //
+        // The picker restores by looking each stored code up in the catalogue.
+        // With no catalogue - refused, offline, still loading - nothing is
+        // found, the picker holds nothing, and a save wrote that nothing over a
+        // location chosen weeks earlier. The person would have had to notice a
+        // picker quietly emptying itself to know it was coming.
+        //
+        // Measured on the picker: this is the state the save used to capture.
+        var stored = new ProjectSiteLocation
+        {
+            ProvinceCode = "511",
+            ProvinceName = "Улаанбаатар",
+            DistrictCode = "51101",
+            DistrictName = "Багануур",
+            WardCode = "5110151",
+            WardName = "1-р хороо",
+            WardLabelMn = "Хороо",
+        };
+
+        var offline = new AdministrativeUnitPicker(new EmptyCatalogue());
+        offline.Restore(stored);
+
+        Assert.False(offline.CatalogueIsAvailable);
+        Assert.Equal("", offline.ToLocation().ProvinceCode);
+
+        // So the view may not simply take ToLocation() when the catalogue could
+        // not answer - it keeps what was stored.
+        string view = ReadAppSource("ShellView.SiteLocation.cs");
+        int capture = view.IndexOf("private ProjectSiteLocation CaptureSiteLocationDraft()", StringComparison.Ordinal);
+        Assert.True(capture > 0, "the capture method was not found");
+        // Clamped: this method is the last thing in the file, so a fixed-length
+        // slice runs off the end. The third time a source-reading test in this
+        // repository has been broken by its own arithmetic rather than by the
+        // thing it was checking.
+        string body = view[capture..Math.Min(view.Length, capture + 700)];
+
+        Assert.Contains("!sitePicker.CatalogueIsAvailable", body, StringComparison.Ordinal);
+        Assert.Contains("return stored;", body, StringComparison.Ordinal);
+    }
+
+    private sealed class EmptyCatalogue : IAdministrativeUnitCatalogue
+    {
+        public DateTimeOffset? AsOfUtc => null;
+
+        public string UnavailableReasonMn => "Жагсаалт татагдсангүй.";
+
+        public IReadOnlyList<AdministrativeUnit> ChildrenOf(string? parentUnitCode) => [];
+    }
+
+    [Fact]
+    public void AFAILEDFetchSaysSoWhereThePickersAre()
+    {
+        // The durable half of the 403. The header that unblocked it is a
+        // mitigation - Cloudflare scores the whole client and can refuse again
+        // tomorrow on some other signal - so what has to hold is that a failed
+        // fetch is VISIBLE within seconds instead of looking like an empty
+        // country.
+        var picker = new AdministrativeUnitPicker(new EmptyCatalogue());
+
+        Assert.False(picker.CatalogueIsAvailable);
+        Assert.Equal("Жагсаалт татагдсангүй.", picker.UnavailableMessageMn);
+
+        // And the view shows exactly that, without composing its own sentence.
+        string view = ReadAppSource("ShellView.SiteLocation.cs");
+        Assert.Contains("siteLocationMessage.Text = sitePicker.UnavailableMessageMn;", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void STUDIOTellsTheServerWhoItIs()
     {
         // 🔴 THE ROOT CAUSE OF BOTH COMPLAINTS, and it was not in this code at

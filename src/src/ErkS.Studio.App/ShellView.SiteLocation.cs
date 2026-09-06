@@ -201,6 +201,31 @@ internal sealed partial class ShellView
         }
     }
 
-    private ProjectSiteLocation CaptureSiteLocationDraft() =>
-        sitePicker?.ToLocation() ?? new ProjectSiteLocation();
+    /// <summary>
+    /// What to store for the site location.
+    ///
+    /// 🔴 AN UNAVAILABLE CATALOGUE MUST NOT ERASE A STORED CHOICE, and it did.
+    ///
+    /// The picker restores by looking each stored code up in the catalogue. With
+    /// no catalogue - the server refused, the machine is offline, the fetch has
+    /// not finished - nothing is found, so the picker holds nothing, so this
+    /// returned an empty location and the save wrote it over a location the
+    /// person had chosen weeks ago. They would have had to notice a picker
+    /// silently emptying itself to know it was about to happen.
+    ///
+    /// So the stored value is KEPT whenever the catalogue could not answer.
+    /// Editing the location needs a catalogue; not having one is not an
+    /// instruction to forget it.
+    /// </summary>
+    private ProjectSiteLocation CaptureSiteLocationDraft()
+    {
+        ProjectSiteLocation stored = state.HasOpenProject
+            ? state.Project.Foundation.InitiationBasis.SiteLocation
+            : new ProjectSiteLocation();
+
+        if (sitePicker is null || !sitePicker.CatalogueIsAvailable)
+            return stored;
+
+        return sitePicker.ToLocation();
+    }
 }

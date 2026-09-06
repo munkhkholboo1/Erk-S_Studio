@@ -6,18 +6,26 @@ namespace ErkS.Studio;
 /// <summary>
 /// What Studio calls itself on the wire.
 ///
-/// 🔴 A MISSING USER-AGENT IS A 403, MEASURED IN PRODUCTION ON 2026-09-07.
-/// `erk-s.mn` sits behind Cloudflare, and a request with no `User-Agent` is
-/// refused with error 1010 before it ever reaches the server. .NET's HttpClient
-/// sends none by default, so every call Studio made was one WAF rule away from
-/// failing - and the administrative-divisions route was already failing that
-/// way while the client reported «Сервер 403 гэж хариулав», which sent the
-/// reader to look for a permissions problem on a public, unauthenticated route.
+/// 🔴 WITHOUT THIS, THE CATALOGUE ROUTE ANSWERED 403 - measured against
+/// production on 2026-09-07. `erk-s.mn` sits behind Cloudflare; .NET's
+/// HttpClient sends no User-Agent by default; adding one turned 403 into 200
+/// with 2217 units. That A/B is solid and is why this exists.
 ///
-/// Isolated by probing the live route with one header at a time: no headers and
-/// `Accept` alone both return 403; a `User-Agent` alone returns 200 with 2217 units.
-/// The value itself does not matter to the rule - only that there is one - so it
-/// is the honest thing: the product and its version.
+/// ⚠️ BUT THE RULE IS NOT «no User-Agent means 403». `curl` with its
+/// User-Agent deliberately removed still gets 200 from the same route - Master
+/// measured that immediately afterwards. Cloudflare scores the WHOLE client:
+/// TLS handshake, which headers are present, what order they come in. A missing
+/// User-Agent pushes .NET over the line and does not push curl over it.
+///
+/// So this header is a mitigation, NOT a fix, and writing it up as a fix is how
+/// the next person concludes the problem is closed. The client remains subject
+/// to a WAF decision and can be refused again tomorrow on some other signal.
+///
+/// THE DURABLE PART IS ELSEWHERE: a failed fetch has to be VISIBLE, and a save
+/// must never write an empty location over a stored one. Those hold whatever
+/// Cloudflare decides next, and they are what turns "a night of hunting" into
+/// "a sentence on screen". See StudioAdministrativeUnitCatalogue and
+/// ShellView.SiteLocation.CaptureSiteLocationDraft.
 /// </summary>
 internal static class StudioHttpIdentity
 {
