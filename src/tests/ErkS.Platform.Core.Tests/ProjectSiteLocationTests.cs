@@ -48,40 +48,217 @@ public sealed class ProjectSiteLocationTests
     }
 
     [Fact]
-    public void AWardThatDoesNotBelongToTheChosenDistrictIsDROPPED()
+    public void AWardThatDoesNotBelongToTheChosenDistrictIsKEPTAndREFUSED()
     {
-        // Two different writers left a record that cannot be true. Keeping the
-        // ward because it "looks filled in" would let the suggestion rules read
-        // a unit from somewhere else entirely.
+        // Two different writers left a record that cannot be true. It must not
+        // reach the suggestion rules - a unit from somewhere else puts ANOTHER
+        // ORGANISATION'S NAME on a signed document - and the old answer to that
+        // was to delete the ward, its name and its heading at load.
+        //
+        // Deleting what somebody stored is not one of the honest answers. This
+        // is: the values stay, the chain refuses to be used, and the record says
+        // why. Nothing downstream can act on it either way; the difference is
+        // whether the person still has what they entered.
         var location = new ProjectSiteLocation
         {
             ProvinceCode = "511",
+            ProvinceName = "Улаанбаатар",
             DistrictCode = "51101",
+            DistrictName = "Багануур",
             WardCode = "1830151",
             WardName = "1-р баг, Хуст арал",
         };
 
         location.Normalize();
 
-        Assert.Equal("", location.WardCode);
-        Assert.Equal("", location.WardName);
+        Assert.Equal("1830151", location.WardCode);
+        Assert.Equal("1-р баг, Хуст арал", location.WardName);
         Assert.Equal("51101", location.DistrictCode);
+
+        Assert.False(location.ChainHoldsTogether);
+        Assert.False(location.IsChosen);
+        Assert.Equal("", location.CoverLine());
+        Assert.Contains("1830151", location.ProblemMn, StringComparison.Ordinal);
+        Assert.Contains("Багануур", location.ProblemMn, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ADistrictOutsideItsProvinceTakesTheWardWithIt()
+    public void ADistrictOutsideItsProvinceIsKEPTAndREFUSED()
     {
         var location = new ProjectSiteLocation
         {
             ProvinceCode = "511",
+            ProvinceName = "Улаанбаатар",
             DistrictCode = "18301",
+            DistrictName = "Өлгий",
             WardCode = "1830151",
         };
 
         location.Normalize();
 
-        Assert.Equal("", location.DistrictCode);
-        Assert.Equal("", location.WardCode);
+        Assert.Equal("18301", location.DistrictCode);
+        Assert.Equal("1830151", location.WardCode);
+        Assert.False(location.IsChosen);
+        Assert.Equal("", location.CoverLine());
+
+        // The district is named, not the ward: the ward sits correctly under the
+        // district, and reporting the innermost mismatch would send the reader
+        // to the one level that is fine.
+        Assert.Contains("18301", location.ProblemMn, StringComparison.Ordinal);
+        Assert.DoesNotContain("1830151", location.ProblemMn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheREFUSALDoesNotNeedAnybodyToCallAnything()
+    {
+        // 🔴 THE REASON THIS MOVED. The rule lived in Normalize, which nothing
+        // outside the tests ever called - written, tested, green and unreachable.
+        // So the deletion never ran, and neither did the protection: a stored
+        // chain that cannot be true was loaded exactly as written and PRINTED on
+        // a cover.
+        //
+        // Asked without calling Normalize at all, which is how every caller in
+        // the program meets this object.
+        var untouched = new ProjectSiteLocation
+        {
+            ProvinceCode = "511",
+            ProvinceName = "Улаанбаатар",
+            DistrictCode = "18301",
+            DistrictName = "Өлгий",
+            WardCode = "1830151",
+            WardName = "1-р баг, Хуст арал",
+        };
+
+        Assert.False(untouched.IsChosen);
+        Assert.Equal("", untouched.CoverLine());
+        Assert.NotEqual("", untouched.ProblemMn);
+    }
+
+    [Fact]
+    public void ALocationThatHOLDSTogetherSaysNothingIsWrong()
+    {
+        // The negative control. A rule that reports a problem for everything is
+        // the same as a rule that reports it for nothing.
+        var sound = new ProjectSiteLocation
+        {
+            ProvinceCode = "511",
+            ProvinceName = "Улаанбаатар",
+            DistrictCode = "51101",
+            DistrictName = "Багануур",
+            WardCode = "5110151",
+            WardName = "1-р хороо",
+        };
+
+        Assert.True(sound.ChainHoldsTogether);
+        Assert.True(sound.IsChosen);
+        Assert.Equal("", sound.ProblemMn);
+    }
+
+    [Fact]
+    public void LOADINGAProjectActuallyTrimsTheStoredLocation()
+    {
+        // 🔴 THE STEP THAT WAS OWNED BY NOBODY. Normalize existed on this class
+        // and the loader normalised the client snapshot, the workflow and the
+        // company - but never the location. Written, tested, green, unreachable.
+        //
+        // A sabotage run proved the point: deleting the loader's call to it broke
+        // no test at all, which is how it went missing in the first place. Asked
+        // through the STORE, because asking the object would pass either way.
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            "erk-s-site-location-" + Guid.NewGuid().ToString("N") + ".erksalbum");
+        var project = new AlbumProject();
+        project.InitiationBasis.SiteLocation = new ProjectSiteLocation
+        {
+            ProvinceCode = " 511 ",
+            ProvinceName = " Улаанбаатар ",
+            DistrictCode = " 51101 ",
+            WardCode = " 5110151 ",
+            WardLabelMn = " Хороо ",
+        };
+
+        try
+        {
+            AlbumProjectStore.Save(project, path);
+            ProjectSiteLocation loaded = AlbumProjectStore.Load(path).InitiationBasis.SiteLocation;
+
+            Assert.Equal("511", loaded.ProvinceCode);
+            Assert.Equal("Улаанбаатар", loaded.ProvinceName);
+            Assert.Equal("51101", loaded.DistrictCode);
+            Assert.Equal("5110151", loaded.WardCode);
+            Assert.Equal("Хороо", loaded.WardLabelMn);
+            Assert.True(loaded.IsChosen);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void TheBadRecordIsNotTheFIRSTOne()
+    {
+        // A checker that looks at the head of a list and reports on the whole of
+        // it passes every fixture whose first entry is the interesting one - SRV
+        // walked into exactly that trap today, on their side of the same wire.
+        //
+        // So the inconsistent record sits FOURTH of five, and the sound ones
+        // around it have to stay sound: a rule that says "problem" for
+        // everything is the same as one that says it for nothing.
+        ProjectSiteLocation[] stored =
+        [
+            Sound("511", "51101", "5110151"),
+            Sound("183", "18301", "1830151"),
+            Sound("261", "26101", "2610151"),
+            new ProjectSiteLocation
+            {
+                ProvinceCode = "511",
+                ProvinceName = "Улаанбаатар",
+                DistrictCode = "18301",
+                DistrictName = "Өлгий",
+                WardCode = "1830151",
+                WardName = "1-р баг, Хуст арал",
+            },
+            Sound("267", "26704", "2670461"),
+        ];
+
+        bool[] holds = stored.Select(location => location.ChainHoldsTogether).ToArray();
+
+        Assert.Equal([true, true, true, false, true], holds);
+        Assert.Equal(1, stored.Count(location => location.ProblemMn.Length > 0));
+        Assert.Equal(4, stored.Count(location => location.IsChosen));
+
+        // And the one that failed kept everything it was given.
+        Assert.Equal("1830151", stored[3].WardCode);
+        Assert.Equal("1-р баг, Хуст арал", stored[3].WardName);
+
+        static ProjectSiteLocation Sound(string province, string district, string ward) => new()
+        {
+            ProvinceCode = province,
+            ProvinceName = "аймаг",
+            DistrictCode = district,
+            DistrictName = "сум",
+            WardCode = ward,
+            WardName = "баг",
+        };
+    }
+
+    [Fact]
+    public void AnIncompleteChoiceIsNotACCUSEDOfBeingInconsistent()
+    {
+        // Half-filled is the ordinary state of a form somebody is still filling
+        // in. Telling them their record contradicts itself while they are two
+        // clicks into it would be this rule inventing a defect.
+        var halfway = new ProjectSiteLocation
+        {
+            ProvinceCode = "511",
+            ProvinceName = "Улаанбаатар",
+        };
+
+        Assert.True(halfway.ChainHoldsTogether);
+        Assert.False(halfway.IsChosen);
+        Assert.Equal("", halfway.ProblemMn);
     }
 
     [Fact]

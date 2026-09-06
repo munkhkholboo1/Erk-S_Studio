@@ -54,6 +54,12 @@ public static class AlbumProjectStore
             project.InitiationBasis.ClientType);
         project.InitiationBasis.ClientOrganizationSnapshot ??= new CompanyProfile();
         project.InitiationBasis.ClientOrganizationSnapshot.Normalize();
+        // Never joined this sequence before, so a stored location kept whatever
+        // whitespace it was written with. Safe to call now that normalising a
+        // location only trims - while it still deleted, connecting it would have
+        // turned a dormant rule into data loss on every load.
+        project.InitiationBasis.SiteLocation ??= new ProjectSiteLocation();
+        project.InitiationBasis.SiteLocation.Normalize();
         project.PlanningTask ??= new PlanningTaskInformation();
         project.PlanningTask.Requirements ??= [];
         project.PlanningTask.Documents ??= [];

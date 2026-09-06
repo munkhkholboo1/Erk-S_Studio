@@ -25,6 +25,7 @@ internal sealed partial class ShellView
     private readonly TextBlock siteWardLabel = StudioWidgets.CreateHint("");
     private readonly TextBlock siteLocationMessage = StudioWidgets.CreateHint("");
     private readonly TextBlock siteLocationSource = StudioWidgets.CreateHint("");
+    private readonly TextBlock siteLocationStoredProblem = StudioWidgets.CreateHint("");
     private readonly TextBlock siteDistrictEmptyNotice = StudioWidgets.CreateHint("");
     private readonly TextBlock siteWardEmptyNotice = StudioWidgets.CreateHint("");
     private readonly StudioAdministrativeUnitCatalogue administrativeUnits =
@@ -38,6 +39,7 @@ internal sealed partial class ShellView
         var panel = new StackPanel();
         panel.Children.Add(siteLocationMessage);
         panel.Children.Add(siteLocationSource);
+        panel.Children.Add(siteLocationStoredProblem);
         panel.Children.Add(StudioWidgets.CreateFormRow("Хот, аймаг", siteProvinceBox));
         panel.Children.Add(siteDistrictLabel);
         panel.Children.Add(siteDistrictBox);
@@ -130,6 +132,17 @@ internal sealed partial class ShellView
             // state where nothing else on screen would mention it.
             siteLocationSource.Text = administrativeUnits.SourceNoticeMn;
             siteLocationSource.Visibility = siteLocationSource.Text.Length == 0
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            // A stored chain whose levels disagree is KEPT rather than cleared,
+            // and refuses to be used. Without this line the person sees three
+            // empty pickers and no reason - which is what the deletion would
+            // have shown them, only with the record gone as well.
+            siteLocationStoredProblem.Text = state.HasOpenProject
+                ? state.Project.Foundation.InitiationBasis.SiteLocation.ProblemMn
+                : "";
+            siteLocationStoredProblem.Visibility = siteLocationStoredProblem.Text.Length == 0
                 ? Visibility.Collapsed
                 : Visibility.Visible;
 

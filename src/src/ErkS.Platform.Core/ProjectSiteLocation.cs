@@ -62,9 +62,70 @@ public sealed class ProjectSiteLocation
     /// Whether a complete location has been chosen. A partial choice is not
     /// half an answer - the suggestion rules and the cover line both need all
     /// three levels, so anything less behaves exactly as nothing.
+    ///
+    /// 🔴 IT ALSO REQUIRES THE CHAIN TO HOLD TOGETHER, and this is where the
+    /// protection lives now.
+    ///
+    /// It used to live in <see cref="Normalize"/>, which cleared the offending
+    /// codes - except that nothing in the program ever calls Normalize on a
+    /// location. So the rule was written, tested, green, and unreachable: a
+    /// stored chain that does not hold together was loaded exactly as it was and
+    /// PRINTED. Moving it here is what makes it apply whether or not anybody
+    /// remembers to call something.
     /// </summary>
     public bool IsChosen =>
-        ProvinceCode.Length > 0 && DistrictCode.Length > 0 && WardCode.Length > 0;
+        ProvinceCode.Length > 0 &&
+        DistrictCode.Length > 0 &&
+        WardCode.Length > 0 &&
+        ChainHoldsTogether;
+
+    /// <summary>
+    /// Whether each level sits under the one above it, by code.
+    ///
+    /// The check is the PREFIX rule, which is this side's own - the catalogue's
+    /// authority is `parentUnitCode`, and SRV states plainly that they do not
+    /// enforce agreement between the two. Today all 2217 published rows satisfy
+    /// both, measured; a future source that nests differently would make this
+    /// say no, and SRV's own test goes red before that reaches here.
+    /// </summary>
+    public bool ChainHoldsTogether =>
+        (DistrictCode.Length == 0 ||
+            AdministrativeUnits.ParentCodeOf(DistrictCode).Equals(ProvinceCode, StringComparison.Ordinal)) &&
+        (WardCode.Length == 0 ||
+            AdministrativeUnits.ParentCodeOf(WardCode).Equals(DistrictCode, StringComparison.Ordinal));
+
+    /// <summary>
+    /// What is wrong with the stored chain, in the reader's language. Empty when
+    /// nothing is.
+    ///
+    /// It exists because the alternative was DELETION. A record whose levels
+    /// disagree was written by two different things, and it must not be acted on
+    /// - but throwing away what somebody stored is not the way to stop acting on
+    /// it. The values stay, the chain refuses to be used, and this says why.
+    /// </summary>
+    public string ProblemMn
+    {
+        get
+        {
+            if (DistrictCode.Length > 0 &&
+                !AdministrativeUnits.ParentCodeOf(DistrictCode).Equals(ProvinceCode, StringComparison.Ordinal))
+            {
+                return "Хадгалсан хаяг зөрчилтэй: «" + DistrictName + "» (" + DistrictCode +
+                    ") нь «" + ProvinceName + "» (" + ProvinceCode + ")-д харьяалагдахгүй байна. " +
+                    "Утга нь хэвээр хадгалагдсан; хаягийг дахин сонгоно уу.";
+            }
+
+            if (WardCode.Length > 0 &&
+                !AdministrativeUnits.ParentCodeOf(WardCode).Equals(DistrictCode, StringComparison.Ordinal))
+            {
+                return "Хадгалсан хаяг зөрчилтэй: «" + WardName + "» (" + WardCode +
+                    ") нь «" + DistrictName + "» (" + DistrictCode + ")-д харьяалагдахгүй байна. " +
+                    "Утга нь хэвээр хадгалагдсан; хаягийг дахин сонгоно уу.";
+            }
+
+            return "";
+        }
+    }
 
     public ProjectSiteLocation Clone() => new()
     {
@@ -78,6 +139,23 @@ public sealed class ProjectSiteLocation
         CatalogueAsOfUtc = CatalogueAsOfUtc,
     };
 
+    /// <summary>
+    /// Trims what was stored. IT DELETES NOTHING.
+    ///
+    /// 🔴 IT USED TO. A ward whose code did not sit under the chosen district
+    /// was cleared here, together with its name and its heading - the reasoning
+    /// being that a record two different things wrote must not reach the
+    /// suggestion rules. The conclusion was right and the remedy was not:
+    /// silently discarding what somebody stored, at load, is not one of the
+    /// three honest answers. Those are keep-and-mark, keep-and-warn, or refuse
+    /// loudly. This keeps and marks - see <see cref="ProblemMn"/> - and
+    /// <see cref="IsChosen"/> is what stops it being acted on.
+    ///
+    /// The old code was never reached in any case: nothing outside the tests
+    /// called this. So the deletion never ran AND the protection never ran, and
+    /// an inconsistent chain was loaded exactly as stored and printed on a
+    /// cover. Both halves of that are fixed above, where no caller is needed.
+    /// </summary>
     public void Normalize()
     {
         ProvinceCode = (ProvinceCode ?? "").Trim();
@@ -87,28 +165,6 @@ public sealed class ProjectSiteLocation
         WardCode = (WardCode ?? "").Trim();
         WardName = (WardName ?? "").Trim();
         WardLabelMn = (WardLabelMn ?? "").Trim();
-
-        // A ward whose code does not sit under the chosen district is not a
-        // near-miss to be repaired - it is a record that two different things
-        // wrote. Keeping it would let the suggestion rules read a unit that
-        // belongs somewhere else entirely.
-        if (WardCode.Length > 0 &&
-            !AdministrativeUnits.ParentCodeOf(WardCode).Equals(DistrictCode, StringComparison.Ordinal))
-        {
-            WardCode = "";
-            WardName = "";
-            WardLabelMn = "";
-        }
-
-        if (DistrictCode.Length > 0 &&
-            !AdministrativeUnits.ParentCodeOf(DistrictCode).Equals(ProvinceCode, StringComparison.Ordinal))
-        {
-            DistrictCode = "";
-            DistrictName = "";
-            WardCode = "";
-            WardName = "";
-            WardLabelMn = "";
-        }
     }
 
     /// <summary>
