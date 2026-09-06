@@ -1883,7 +1883,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawWrappedCoverText(gfx, ProjectDisplayName(project),
             new XRect(X(27) + pad, rect.Top + pad, rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
             2.5, false, XStringFormats.Center, WorkingDrawingFontName);
-        DrawWrappedCoverText(gfx, project.InitiationBasis.SiteAddress,
+        DrawWrappedCoverText(gfx, ProjectSiteAddress.Compose(project.InitiationBasis.SiteLocation, project.InitiationBasis.SiteAddress),
             new XRect(X(27) + pad, Y(5.5), rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
             2.5, false, XStringFormats.Center, WorkingDrawingFontName);
         DrawWrappedCoverText(gfx, buildPage.Title,
@@ -2178,7 +2178,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             XStringFormats.Center);
         DrawCoverText(
             gfx,
-            project.InitiationBasis.SiteAddress,
+            ProjectSiteAddress.Compose(project.InitiationBasis.SiteLocation, project.InitiationBasis.SiteAddress),
             CoverCenteredRect(210.0, 183.0, 250.0, 10.0),
             2.5,
             false,
@@ -2312,7 +2312,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         DrawCoverText(
             gfx,
-            ValueOrDash(request.Project.InitiationBasis.SiteAddress),
+            ValueOrDash(ProjectSiteAddress.Compose(
+                request.Project.InitiationBasis.SiteLocation,
+                request.Project.InitiationBasis.SiteAddress)),
             CoverCenteredRect(210.0, 220.510, 180.0, 8.0),
             grid.AddressTextHeight,
             false,
@@ -2517,7 +2519,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             XStringFormats.Center);
         DrawFittedText(
             gfx,
-            ValueOrDash(request.Project.InitiationBasis.SiteAddress),
+            ValueOrDash(ProjectSiteAddress.Compose(
+                request.Project.InitiationBasis.SiteLocation,
+                request.Project.InitiationBasis.SiteAddress)),
             left,
             top + height * 0.33,
             width,
@@ -3053,7 +3057,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             113,
             175,
             17);
-        DrawInfoRow(gfx, "ТӨСЛИЙН БАЙРШИЛ", ValueOrDash(basis.SiteAddress), 25, 132, 175, 24);
+        DrawInfoRow(gfx, "ТӨСЛИЙН БАЙРШИЛ", ValueOrDash(ProjectSiteAddress.Compose(basis.SiteLocation, basis.SiteAddress)), 25, 132, 175, 24);
 
         gfx.DrawRectangle(border, Mm(212), Mm(28), Mm(198), Mm(135));
         gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(239, 242, 246)), Mm(212), Mm(28), Mm(198), Mm(15));

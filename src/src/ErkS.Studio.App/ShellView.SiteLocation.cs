@@ -66,6 +66,7 @@ internal sealed partial class ShellView
             return;
         choose(source.SelectedItem as AdministrativeUnit);
         RefreshSiteLocationEditor();
+        RefreshComposedSiteAddress();
     }
 
     private void BindSiteLocationEditor()
@@ -217,6 +218,31 @@ internal sealed partial class ShellView
     /// Editing the location needs a catalogue; not having one is not an
     /// instruction to forget it.
     /// </summary>
+    /// <summary>
+    /// Shows the address the sheets will actually print - the chosen location
+    /// and the additional line, composed by the same rule the writer uses.
+    ///
+    /// Shown rather than described, because the question the user asked was
+    /// «why is it duplicated?» and the answer only reads as true if they can see
+    /// the one line the two halves make.
+    /// </summary>
+    private void RefreshComposedSiteAddress()
+    {
+        ProjectSiteLocation location = sitePicker is not null && sitePicker.CatalogueIsAvailable
+            ? sitePicker.ToLocation()
+            : state.HasOpenProject
+                ? state.Project.Foundation.InitiationBasis.SiteLocation
+                : new ProjectSiteLocation();
+
+        string composed = ProjectSiteAddress.Compose(location, siteAddressBox.Text);
+        siteAddressComposed.Text = composed.Length == 0
+            ? ""
+            : "Хуудсанд хэвлэгдэх хаяг: " + composed;
+        siteAddressComposed.Visibility = composed.Length == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
     private ProjectSiteLocation CaptureSiteLocationDraft()
     {
         ProjectSiteLocation stored = state.HasOpenProject

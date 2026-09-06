@@ -197,6 +197,9 @@ internal sealed partial class ShellView : IDisposable
     private bool clientLogoRemovalPending;
     private bool clientEditorInitialized;
     private readonly TextBox siteAddressBox = new();
+
+    /// <summary>The address as it will be PRINTED, shown so the two halves are visible together.</summary>
+    private readonly TextBlock siteAddressComposed = StudioWidgets.CreateHint("");
     private readonly TextBox landReferenceBox = new();
     private readonly TextBox basisSourceOrganizationBox = new();
     private readonly TextBox basisSummaryBox = MultilineBox();
@@ -2598,7 +2601,14 @@ internal sealed partial class ShellView : IDisposable
         // The typed line stays. It is what every project on disk has, it is what
         // is shown while no catalogue has been downloaded, and it is never
         // parsed into the chosen fields above it.
-        form.Children.Add(StudioWidgets.CreateFormRow("Төслийн хаяг", siteAddressBox));
+        // 🔴 «Нэмэлт», not «Төслийн хаяг». The address itself is composed from
+        // the chosen aimag/sum/bag - the user asked for exactly that - so this
+        // field carries only what a location cannot say. Leaving it named
+        // «Төслийн хаяг» beside a picker that produces the address is how two
+        // sources of truth get created and then disagree.
+        form.Children.Add(StudioWidgets.CreateFormRow(
+            "Нэмэлт хаяг (гудамж, байр)", siteAddressBox));
+        form.Children.Add(siteAddressComposed);
         form.Children.Add(StudioWidgets.CreateFormRow("Газрын холбоос", landReferenceBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Эх байгууллага", basisSourceOrganizationBox));
         form.Children.Add(StudioWidgets.CreateFormRow("Товч мэдээлэл", basisSummaryBox));
@@ -6008,6 +6018,7 @@ internal sealed partial class ShellView : IDisposable
         clientLogoRemovalPending = false;
         RefreshClientLogoEditor();
         siteAddressBox.Text = basis.SiteAddress;
+        RefreshComposedSiteAddress();
         BindSiteLocationEditor();
         landReferenceBox.Text = basis.LandReference;
         basisSourceOrganizationBox.Text = basis.SourceOrganizationName;
@@ -6064,7 +6075,16 @@ internal sealed partial class ShellView : IDisposable
         basis.ClientOrganizationSnapshot.Name = basis.ClientName;
         basis.ClientOrganizationSnapshot.DisplayName = basis.ClientName;
         basis.SiteAddress = siteAddressBox.Text.Trim();
-        basis.SiteLocation = CaptureSiteLocationDraft();
+
+        // Told, never moved silently. The person typed that line when the only
+        // field was «Төслийн хаяг»; the moment a location makes it the ADDITIONAL
+        // half, they hear so. Its text is not touched - parsing an address into
+        // codes guesses, and names repeat across the country.
+        ProjectSiteLocation before = basis.SiteLocation;
+        ProjectSiteLocation after = CaptureSiteLocationDraft();
+        if (ProjectSiteAddress.TypedAddressBecomesAdditional(before, after, basis.SiteAddress))
+            SetStatus(ProjectSiteAddress.TypedAddressMovedNoticeMn);
+        basis.SiteLocation = after;
         basis.LandReference = landReferenceBox.Text.Trim();
         basis.SourceOrganizationName = basisSourceOrganizationBox.Text.Trim();
         basis.Summary = basisSummaryBox.Text;

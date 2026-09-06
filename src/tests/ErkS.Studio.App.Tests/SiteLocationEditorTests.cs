@@ -129,7 +129,17 @@ public sealed class SiteLocationEditorTests
 
         Assert.Contains("form.Children.Add(BuildSiteLocationEditor());", shell, StringComparison.Ordinal);
         Assert.Contains("BindSiteLocationEditor();", shell, StringComparison.Ordinal);
-        Assert.Contains("basis.SiteLocation = CaptureSiteLocationDraft();", shell, StringComparison.Ordinal);
+
+        // The capture now goes through a local, so that the save can compare the
+        // location BEFORE and AFTER and tell the person when their typed address
+        // has become the additional half. The connection being checked is the
+        // same one: what the picker holds reaches the project file.
+        Assert.Contains("ProjectSiteLocation after = CaptureSiteLocationDraft();", shell, StringComparison.Ordinal);
+        Assert.Contains("basis.SiteLocation = after;", shell, StringComparison.Ordinal);
+        Assert.Contains(
+            "ProjectSiteAddress.TypedAddressBecomesAdditional(before, after, basis.SiteAddress)",
+            shell,
+            StringComparison.Ordinal);
     }
 
     [Fact]

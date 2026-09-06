@@ -146,7 +146,9 @@ public sealed partial class PdfSharpAlbumWriter
                 // the line to correct.
                 ConceptCoverTitleBlock.ApprovalLabel => "БАТЛАВ:",
                 ConceptCoverTitleBlock.Approver => approver,
-                ConceptCoverTitleBlock.SiteAddress => project.InitiationBasis.SiteAddress,
+                ConceptCoverTitleBlock.SiteAddress => ProjectSiteAddress.Compose(
+                    project.InitiationBasis.SiteLocation,
+                    project.InitiationBasis.SiteAddress),
                 // Two lines in the drawing, one project name here: the
                 // placeholder was split to fit, and a real name wraps on its own.
                 ConceptCoverTitleBlock.ProjectTitle => ProjectDisplayName(project),
