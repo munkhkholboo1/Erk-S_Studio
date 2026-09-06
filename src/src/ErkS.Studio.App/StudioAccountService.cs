@@ -185,6 +185,7 @@ internal sealed class StudioAccountService :
     {
         this.credentialStore = credentialStore ?? throw new ArgumentNullException(nameof(credentialStore));
         httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        StudioHttpIdentity.Identify(httpClient);
         this.cloudEraClient = cloudEraClient ?? new CloudEraGeneratedContractClient(httpClient);
     }
 

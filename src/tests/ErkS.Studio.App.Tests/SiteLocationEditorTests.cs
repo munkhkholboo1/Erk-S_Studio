@@ -95,8 +95,14 @@ public sealed class SiteLocationEditorTests
     {
         string view = ReadSiteLocationView();
 
-        Assert.Contains("SiteLocationLabels.HeadingFor(choices)", view, StringComparison.Ordinal);
-        Assert.Contains("SiteLocationLabels.HeadingIsShown(choices)", view, StringComparison.Ordinal);
+        // Now DisplayHeadingFor, which also answers what to show while nothing
+        // above has been chosen - the case that left two boxes nameless on
+        // screen. Still a question asked of the labels rather than a decision
+        // made here: the view supplies the provisional words as an argument and
+        // does not choose between them and the published heading.
+        Assert.Contains("SiteLocationLabels.DisplayHeadingFor(choices, provisionalHeading)", view, StringComparison.Ordinal);
+        Assert.Contains("SiteLocationLabels.DistrictProvisionalMn", view, StringComparison.Ordinal);
+        Assert.Contains("SiteLocationLabels.WardProvisionalMn", view, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -28,8 +28,37 @@ internal static class SiteLocationLabels
         choices is null ? "" : choices.LabelMn;
 
     /// <summary>
-    /// Whether to show it at all. A level with no heading has no parent chosen
-    /// yet, so there is nothing truthful to call it.
+    /// The heading to DISPLAY, which is not always the published one.
+    ///
+    /// 🔴 A NAMELESS BOX IS ITS OWN DEFECT. Before a province is chosen the
+    /// catalogue cannot say what the next level is called - Улаанбаатар has
+    /// «Дүүрэг» under it and Архангай has «Сум» - so the published heading is
+    /// empty and the box was drawn with nothing above it. The user met three
+    /// dropdowns, one labelled, and no way to know what the other two were for.
+    ///
+    /// So a level with no parent chosen gets a PROVISIONAL heading: both words,
+    /// which is honest about the fact that it depends on the choice above. It is
+    /// replaced by the real one the moment there is a real one, and it is never
+    /// used to decide anything - the label the catalogue publishes still wins
+    /// wherever there is one.
+    /// </summary>
+    public static string DisplayHeadingFor(
+        AdministrativeUnitChoices choices,
+        string provisional)
+    {
+        string published = HeadingFor(choices);
+        if (published.Length > 0)
+            return published;
+        return choices is not null && choices.IsWaitingForParent ? provisional : "";
+    }
+
+    /// <summary>The provisional headings, used only while nothing is chosen above.</summary>
+    public const string DistrictProvisionalMn = "Сум / Дүүрэг";
+    public const string WardProvisionalMn = "Баг / Хороо";
+
+    /// <summary>
+    /// Whether to show it at all. A level with no heading and no parent waiting
+    /// has nothing truthful to call itself.
     /// </summary>
     public static bool HeadingIsShown(AdministrativeUnitChoices choices) =>
         HeadingFor(choices).Length > 0;

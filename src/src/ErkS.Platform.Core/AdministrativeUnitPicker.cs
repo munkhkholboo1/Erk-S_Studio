@@ -178,9 +178,12 @@ public sealed class AdministrativeUnitPicker
     public void Restore(ProjectSiteLocation? location)
     {
         ChooseProvince(null);
-        if (location is null || !location.IsChosen)
+        if (location is null)
             return;
 
+        // Restores as far as the stored value goes. Requiring IsChosen here was
+        // the other half of discarding a partial choice: even once it was
+        // stored, a location missing its ward would have re-opened blank.
         ChooseProvince(Find(ProvinceChoices().Units, location.ProvinceCode));
         ChooseDistrict(Find(DistrictChoices().Units, location.DistrictCode));
         ChooseWard(Find(WardChoices().Units, location.WardCode));
@@ -193,22 +196,40 @@ public sealed class AdministrativeUnitPicker
     /// </summary>
     public ProjectSiteLocation ToLocation()
     {
-        if (!AdministrativeUnits.ChainIsConsistent(Province, District, Ward))
-            return new ProjectSiteLocation();
-
-        return new ProjectSiteLocation
+        // 🔴 A HALF-MADE CHOICE IS KEPT. This used to return an empty location
+        // unless all three levels were chosen, which meant somebody who picked
+        // an aimag, pressed save and came back found the box blank - their work
+        // silently thrown away by the code that was supposed to store it.
+        //
+        // The rule that made that look reasonable is still true and lives where
+        // it belongs: ProjectSiteLocation.IsChosen requires all three levels, so
+        // nothing downstream acts on a partial location. Refusing to USE it and
+        // refusing to KEEP it are different decisions, and only the first was
+        // ever wanted.
+        var location = new ProjectSiteLocation
         {
-            ProvinceCode = Province!.UnitCode,
-            ProvinceName = Province.NameMn,
-            DistrictCode = District!.UnitCode,
-            DistrictName = District.NameMn,
-            WardCode = Ward!.UnitCode,
-            WardName = Ward.NameMn,
-            // The heading the ward was chosen UNDER, copied now because it
-            // cannot be worked out later from anything stored here.
-            WardLabelMn = District.ChildPickerLabelMn,
             CatalogueAsOfUtc = catalogue.AsOfUtc,
         };
+
+        if (Province is null)
+            return location;
+
+        location.ProvinceCode = Province.UnitCode;
+        location.ProvinceName = Province.NameMn;
+        if (District is null)
+            return location;
+
+        location.DistrictCode = District.UnitCode;
+        location.DistrictName = District.NameMn;
+        if (Ward is null)
+            return location;
+
+        location.WardCode = Ward.UnitCode;
+        location.WardName = Ward.NameMn;
+        // The heading the ward was chosen UNDER, copied now because it cannot be
+        // worked out later from anything stored here.
+        location.WardLabelMn = District.ChildPickerLabelMn;
+        return location;
     }
 
     private static AdministrativeUnit? Find(IReadOnlyList<AdministrativeUnit> units, string code) =>

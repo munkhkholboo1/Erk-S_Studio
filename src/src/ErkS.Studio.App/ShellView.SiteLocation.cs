@@ -152,13 +152,15 @@ internal sealed partial class ShellView
                 sitePicker.DistrictChoices(),
                 sitePicker.District,
                 siteDistrictLabel,
-                siteDistrictEmptyNotice);
+                siteDistrictEmptyNotice,
+                SiteLocationLabels.DistrictProvisionalMn);
             Fill(
                 siteWardBox,
                 sitePicker.WardChoices(),
                 sitePicker.Ward,
                 siteWardLabel,
-                siteWardEmptyNotice);
+                siteWardEmptyNotice,
+                SiteLocationLabels.WardProvisionalMn);
         }
         finally
         {
@@ -170,7 +172,8 @@ internal sealed partial class ShellView
             AdministrativeUnitChoices choices,
             AdministrativeUnit? selected,
             TextBlock? label = null,
-            TextBlock? emptyNotice = null)
+            TextBlock? emptyNotice = null,
+            string provisionalHeading = "")
         {
             if (emptyNotice is not null)
             {
@@ -182,10 +185,13 @@ internal sealed partial class ShellView
 
             if (label is not null)
             {
-                label.Text = SiteLocationLabels.HeadingFor(choices);
-                label.Visibility = SiteLocationLabels.HeadingIsShown(choices)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
+                // The published heading when there is one, a provisional pair of
+                // words when nothing above has been chosen yet. Both come from
+                // SiteLocationLabels - this file decides nothing.
+                label.Text = SiteLocationLabels.DisplayHeadingFor(choices, provisionalHeading);
+                label.Visibility = label.Text.Length == 0
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
             }
 
             box.ItemsSource = choices.Units;

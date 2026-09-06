@@ -253,7 +253,20 @@ public sealed class AdministrativeUnitPickerTests
 
         Assert.Null(picker.District);
         Assert.Null(picker.Ward);
-        Assert.Equal("", picker.ToLocation().ProvinceCode);
+
+        // The NEW province is kept, and only the levels under it are gone. This
+        // line used to assert an empty ProvinceCode - it was checking that a
+        // half-made choice is thrown away, which is the defect the user found:
+        // pick an aimag, save, come back, and the box is blank.
+        ProjectSiteLocation half = picker.ToLocation();
+        Assert.Equal("183", half.ProvinceCode);
+        Assert.Equal("", half.DistrictCode);
+        Assert.Equal("", half.WardCode);
+
+        // Kept, and still not usable - which is the distinction that was
+        // missing. Nothing downstream reads a location that is not IsChosen.
+        Assert.False(half.IsChosen);
+        Assert.Equal("", half.CoverLine());
     }
 
     [Fact]
