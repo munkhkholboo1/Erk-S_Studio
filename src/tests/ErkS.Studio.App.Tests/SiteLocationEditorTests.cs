@@ -154,15 +154,20 @@ public sealed class SiteLocationEditorTests
     [Fact]
     public void TheUnavailableMessageDoesNotPROMISEWhatNoCodeDelivers()
     {
-        // The first wording said «Холбогдсоны дараа сонгох боломжтой болно» -
-        // connect and this will work. Measured: this assembly contains no HTTP
-        // call for the catalogue and not even the route's name, so deploying
-        // the server changes nothing here. Somebody acting on that sentence
-        // would deploy, see three empty boxes, and hunt on the wrong side.
-        string catalogue = ReadAppSource("StudioAdministrativeUnitCatalogue.cs");
+        // The first wording promised that connecting would make this work.
+        // Measured: this assembly makes no HTTP call for the catalogue and does
+        // not contain the route's name, so deploying the server changes nothing
+        // here - somebody acting on that sentence would deploy, see three empty
+        // boxes, and hunt on the wrong side of the wire.
+        //
+        // Asked of the VALUE, not of the file. A first version searched the
+        // source text and went red on this test's own explanation quoting the
+        // old wording: the check has to look at what is shown, not at what is
+        // written about it.
+        string shown = StudioAdministrativeUnitCatalogue.Unavailable.UnavailableReasonMn;
 
-        Assert.DoesNotContain("Холбогдсоны дараа", catalogue, StringComparison.Ordinal);
-        Assert.Contains("хараахан татдаггүй", catalogue, StringComparison.Ordinal);
+        Assert.DoesNotContain("Холбогдсоны дараа", shown, StringComparison.Ordinal);
+        Assert.Contains("хараахан татдаггүй", shown, StringComparison.Ordinal);
     }
 
     [Fact]
