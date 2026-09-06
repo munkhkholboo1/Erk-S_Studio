@@ -1346,6 +1346,24 @@ internal sealed class StudioAccountService :
         }
     }
 
+    /// <summary>
+    /// Replaces a revision's component manifest.
+    ///
+    /// 🔴 THE MANIFEST MUST BE COMPLETE. The server rejects any manifest that
+    /// does not cover every page of the revision exactly once - a partial one
+    /// comes back 400, not quietly accepted (SRV, `ValidateAndClone`, commit
+    /// `SRV:9b5f8cb`; CHECKED 2026-09-06). The repository is named beside the
+    /// hash on purpose: this tree holds eight repositories, four of them nested,
+    /// and a bare hash reads as fabricated to anyone standing in the wrong one.
+    ///
+    /// Today the only caller is the bootstrap path, which sends the whole
+    /// manifest and additionally refuses to send at all unless a local rebuild
+    /// matches the server revision by page count AND by PDF SHA-256. A future
+    /// caller that UPDATES a manifest rather than bootstrapping one inherits
+    /// none of those checks - so it must assemble the complete manifest itself.
+    /// The server will say so if it does not; this note is here so the discovery
+    /// does not have to happen through a 400.
+    /// </summary>
     public async Task<StudioCloudAlbumRevision> SetAlbumComponentManifestAsync(
         string projectId,
         string albumId,
