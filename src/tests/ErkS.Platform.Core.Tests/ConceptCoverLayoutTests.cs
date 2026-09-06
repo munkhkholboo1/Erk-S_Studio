@@ -68,21 +68,21 @@ public sealed class ConceptCoverLayoutTests
 
         Assert.Equal(420.0, a3.PageWidthMm, Tolerance);
         Assert.Equal(297.0, a3.PageHeightMm, Tolerance);
-        Assert.Equal(395.0, a3.FrameWidthMm, Tolerance);
+        Assert.Equal(400.0, a3.FrameWidthMm, Tolerance);
         Assert.Equal(287.0, a3.FrameHeightMm, Tolerance);
 
-        Assert.Equal(38.875, a3.TablesLeftMm, Tolerance);
-        Assert.Equal(217.5, a3.TablesMiddleMm, Tolerance);
+        Assert.Equal(33.875, a3.TablesLeftMm, Tolerance);
+        Assert.Equal(215.0, a3.TablesMiddleMm, Tolerance);
         Assert.Equal(396.125, a3.TablesRightMm, Tolerance);
-        Assert.Equal(178.625, a3.TableWidthMm, Tolerance);
+        Assert.Equal(181.125, a3.TableWidthMm, Tolerance);
 
         Assert.Equal(106.46, a3.UpperTopMm, Tolerance);
         Assert.Equal(58.46, a3.UpperBottomMm, Tolerance);
         Assert.Equal(50.8, a3.LowerTopMm, Tolerance);
         Assert.Equal(34.8, a3.LowerBottomMm, Tolerance);
 
-        Assert.Equal(128.625, a3.UpperRoleColumnMm, Tolerance);
-        Assert.Equal(113.625, a3.LowerRoleColumnMm, Tolerance);
+        Assert.Equal(131.125, a3.UpperRoleColumnMm, Tolerance);
+        Assert.Equal(116.125, a3.LowerRoleColumnMm, Tolerance);
         Assert.Equal(185.54, a3.FreeAreaAboveMm, Tolerance);
     }
 
@@ -173,13 +173,17 @@ public sealed class ConceptCoverLayoutTests
     }
 
     [Fact]
-    public void THEA3FrameUsesSTANDARDMarginsNotTheA4TemplatesOwn()
+    public void THEA3FrameMatchesTheCoverStudioALREADYPrints()
     {
-        // A4's 14.14 and 3.54 are that template file's own offsets, not a house
-        // rule, and Master decided against carrying them over. Reversible - and
-        // worth a test, because "the other sheet does it" is the argument that
-        // would bring them back.
-        Assert.Equal(20.0, ConceptCoverLayout.A3.FrameLeftMm, Tolerance);
+        // 🔴 NOT the standard 20/5. The first version used it, on the reasoning
+        // that A3 should carry a standard frame; measuring the cover Studio has
+        // always drawn settled it the other way - that sheet is also A3 and uses
+        // 15, and the two sit in the same album, where a five-millimetre jump in
+        // the binding margin is visible on turning the page.
+        //
+        // A4's own 14.14 / 3.54 are still not carried over: they describe one
+        // template file rather than a house rule.
+        Assert.Equal(15.0, ConceptCoverLayout.A3.FrameLeftMm, Tolerance);
         Assert.Equal(5.0, ConceptCoverLayout.A3.FrameBottomMm, Tolerance);
         Assert.Equal(
             5.0,

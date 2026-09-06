@@ -17,6 +17,10 @@ public sealed class ConceptCover2026RenderProbe
     [Theory]
     [InlineData(AlbumConceptCoverStyles.Sheet2026, "concept-cover-2026.pdf")]
     [InlineData(AlbumConceptCoverStyles.Sheet2026A3, "concept-cover-2026-a3.pdf")]
+    // The cover Studio has always drawn, rendered beside the new ones so the
+    // two can be compared on the page rather than in prose - the user asked
+    // for the A3 layout to be judged against it.
+    [InlineData(AlbumConceptCoverStyles.Classic, "concept-cover-classic.pdf")]
     public void RenderTheSheetForMeasurement(string style, string fileName)
     {
         string directory = Path.Combine(

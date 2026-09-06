@@ -49,12 +49,19 @@ public sealed record ConceptCoverLayout(
     /// <summary>
     /// A3 landscape, laid out again rather than enlarged.
     ///
-    /// Standard margins - 20 at the binding edge, 5 elsewhere - decided by
-    /// Master and reversible. The A4 frame's own offsets were not brought
-    /// across: they describe one template file, not a house rule.
+    /// 🔴 THE MARGINS ARE THE ONES STUDIO ALREADY PRINTS - 15 at the binding
+    /// edge, 5 elsewhere - and not the standard 20/5. That reversed an earlier
+    /// decision, on a reason worth keeping: the cover Studio has always drawn is
+    /// ALSO A3 and uses 15, and the two covers sit in the same album. A reader
+    /// turning the page would see the frame jump five millimetres sideways.
+    /// Agreeing with an external standard matters less than agreeing with the
+    /// sheet bound next to it.
+    ///
+    /// The A4 template's own 14.14 / 3.54 were still not brought across: those
+    /// describe one file, not a house rule.
     /// </summary>
     public static ConceptCoverLayout A3 { get; } =
-        new("A3", 420.0, 297.0, 20.0, 5.0, 395.0, 287.0);
+        new("A3", 420.0, 297.0, 15.0, 5.0, 400.0, 287.0);
 
     public double FrameRightMm => FrameLeftMm + FrameWidthMm;
 

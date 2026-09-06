@@ -110,97 +110,66 @@ public sealed partial class PdfSharpAlbumWriter
     /// sorting by colour would have got both of them wrong.
     /// </summary>
     /// <summary>
-    /// The lines above the tables, placed by ANCHOR rather than by absolute
-    /// position, so that a bigger sheet moves them without resizing them.
+    /// The lines above the tables. WHICH lines those are, and where the block
+    /// sits on a given sheet, are decided in
+    /// <see cref="ConceptCoverTitleBlock"/> - this method only supplies the
+    /// words and hands them to the renderer.
     ///
-    /// 🔴 TWO ANCHORS, because the block has two loyalties. Everything above
-    /// the tables keeps its offset from the frame's CENTRE and from the tables'
-    /// TOP EDGE, so the title stays with the tables it introduces and the extra
-    /// height of a taller sheet appears as clear space at the very top. The
-    /// footer keeps its offset from the frame's BOTTOM edge instead - it belongs
-    /// to the foot of the sheet, and anchoring it upwards would drag it into the
-    /// middle of A3.
+    /// That split is not tidiness. The block's offset from the centre of the
+    /// free area is a number the A3 placement rests on, and it changes SIGN
+    /// depending on which lines are counted as part of the block. Leaving the
+    /// enumeration inline here would have left that definition implicit in a
+    /// sequence of six calls.
     ///
-    /// DECIDED, not measured: the contract fixes the tables and the free area
-    /// above them, and says nothing about where the title sits inside that
-    /// area. Anchoring to the frame centre keeps title and tables on one axis -
-    /// on A4 that is exactly where the drawing already has them, so nothing
-    /// moves there and the choice only shows up on A3. Reversible in one place.
+    /// The footer is NOT part of the block: it sits below the tables and keeps
+    /// its own distance from the foot of the frame, which is why it is still
+    /// placed here by hand.
     /// </summary>
     private static void DrawConceptCover2026TitleTexts(
         XGraphics gfx,
         AlbumProject project,
         ConceptCoverLayout layout)
     {
-        const double bodyTextMm = 2.475;
+        string approver = ConceptCoverApprovalResolver
+            .Resolve(project.ApprovalWorkflow, project.PlanningTask)
+            .ApprovedBy.FirstOrDefault()?.PersonName ?? "";
 
-        // The measured A4 positions travel as offsets from the two anchors.
-        double AboveX(double measuredA4XMm) =>
-            layout.TablesMiddleMm + (measuredA4XMm - ConceptCoverLayout.A4.TablesMiddleMm);
-        double AboveY(double measuredA4CentreMm) =>
-            layout.UpperTopMm + (measuredA4CentreMm - ConceptCoverLayout.A4.UpperTopMm);
-        double FootY(double measuredA4CentreMm) =>
-            layout.FrameBottomMm + (measuredA4CentreMm - ConceptCoverLayout.A4.FrameBottomMm);
+        foreach (ConceptCoverTitleLine line in ConceptCoverTitleBlock.For(layout))
+        {
+            string text = line.Key switch
+            {
+                // 🔴 The measured text of this label is bare punctuation - the
+                // DXF pass recovered ":" and the approver's name but not the
+                // words between. «БАТЛАВ:» is what the sheet reads, so it is
+                // written here and the position is the label's own measured
+                // point; if the extraction is completed and disagrees, this is
+                // the line to correct.
+                ConceptCoverTitleBlock.ApprovalLabel => "БАТЛАВ:",
+                ConceptCoverTitleBlock.Approver => approver,
+                ConceptCoverTitleBlock.SiteAddress => project.InitiationBasis.SiteAddress,
+                // Two lines in the drawing, one project name here: the
+                // placeholder was split to fit, and a real name wraps on its own.
+                ConceptCoverTitleBlock.ProjectTitle => ProjectDisplayName(project),
+                ConceptCoverTitleBlock.StageLine => "/ЗАГВАР ЗУРАГ/",
+                _ => "",
+            };
 
-        // 🔴 The measured text of this label is bare punctuation - the DXF pass
-        // recovered ":" and the approver's name but not the words in between.
-        // «БАТЛАВ:» is what the sheet reads, so it is written here and the
-        // position is the label's own measured point; if the extraction is
-        // completed and disagrees, this is the line to correct.
-        DrawConceptCover2026Text(
-            gfx,
-            layout,
-            "БАТЛАВ:",
-            centreXMm: AboveX(159.75),
-            centreYMm: AboveY(188.49),
-            widthMm: 60.0,
-            heightMm: bodyTextMm);
-        DrawConceptCover2026Text(
-            gfx,
-            layout,
-            ConceptCoverApprovalResolver
-                .Resolve(project.ApprovalWorkflow, project.PlanningTask)
-                .ApprovedBy.FirstOrDefault()?.PersonName ?? "",
-            centreXMm: AboveX(184.65),
-            centreYMm: AboveY(178.97),
-            widthMm: 90.0,
-            heightMm: bodyTextMm);
-
-        DrawConceptCover2026Text(
-            gfx,
-            layout,
-            project.InitiationBasis.SiteAddress,
-            centreXMm: AboveX(141.47),
-            centreYMm: AboveY(149.18),
-            widthMm: 200.0,
-            heightMm: bodyTextMm);
-
-        // Two lines in the drawing, one project name here: the placeholder was
-        // split to fit, and a real name wraps on its own.
-        DrawConceptCover2026Text(
-            gfx,
-            layout,
-            ProjectDisplayName(project),
-            centreXMm: AboveX(148.5),
-            centreYMm: AboveY(130.0),
-            widthMm: 230.0,
-            heightMm: 8.0);
-
-        DrawConceptCover2026Text(
-            gfx,
-            layout,
-            "/ЗАГВАР ЗУРАГ/",
-            centreXMm: AboveX(141.51),
-            centreYMm: AboveY(116.88),
-            widthMm: 90.0,
-            heightMm: bodyTextMm);
+            DrawConceptCover2026Text(
+                gfx,
+                layout,
+                text,
+                centreXMm: line.CentreXMm,
+                centreYMm: line.CentreYMm,
+                widthMm: line.WidthMm,
+                heightMm: line.CapHeightMm);
+        }
 
         DrawConceptCover2026Text(
             gfx,
             layout,
             ConceptCover2026Footer(project),
-            centreXMm: AboveX(148.5),
-            centreYMm: FootY(13.53),
+            centreXMm: ConceptCoverTitleBlock.HorizontalShiftMm(layout) + 148.5,
+            centreYMm: layout.FrameBottomMm + (13.53 - ConceptCoverLayout.A4.FrameBottomMm),
             widthMm: 200.0,
             heightMm: 2.829);
     }
