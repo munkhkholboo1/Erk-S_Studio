@@ -137,10 +137,10 @@ public sealed partial class PdfSharpAlbumWriter
         // The measured A4 positions travel as offsets from the two anchors.
         double AboveX(double measuredA4XMm) =>
             layout.TablesMiddleMm + (measuredA4XMm - ConceptCoverLayout.A4.TablesMiddleMm);
-        double AboveY(double measuredA4BaselineMm) =>
-            layout.UpperTopMm + (measuredA4BaselineMm - ConceptCoverLayout.A4.UpperTopMm);
-        double FootY(double measuredA4BaselineMm) =>
-            layout.FrameBottomMm + (measuredA4BaselineMm - ConceptCoverLayout.A4.FrameBottomMm);
+        double AboveY(double measuredA4CentreMm) =>
+            layout.UpperTopMm + (measuredA4CentreMm - ConceptCoverLayout.A4.UpperTopMm);
+        double FootY(double measuredA4CentreMm) =>
+            layout.FrameBottomMm + (measuredA4CentreMm - ConceptCoverLayout.A4.FrameBottomMm);
 
         // 🔴 The measured text of this label is bare punctuation - the DXF pass
         // recovered ":" and the approver's name but not the words in between.
@@ -152,7 +152,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout,
             "БАТЛАВ:",
             centreXMm: AboveX(159.75),
-            baselineMm: AboveY(188.49),
+            centreYMm: AboveY(188.49),
             widthMm: 60.0,
             heightMm: bodyTextMm);
         DrawConceptCover2026Text(
@@ -162,7 +162,7 @@ public sealed partial class PdfSharpAlbumWriter
                 .Resolve(project.ApprovalWorkflow, project.PlanningTask)
                 .ApprovedBy.FirstOrDefault()?.PersonName ?? "",
             centreXMm: AboveX(184.65),
-            baselineMm: AboveY(178.97),
+            centreYMm: AboveY(178.97),
             widthMm: 90.0,
             heightMm: bodyTextMm);
 
@@ -171,7 +171,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout,
             project.InitiationBasis.SiteAddress,
             centreXMm: AboveX(141.47),
-            baselineMm: AboveY(149.18),
+            centreYMm: AboveY(149.18),
             widthMm: 200.0,
             heightMm: bodyTextMm);
 
@@ -182,7 +182,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout,
             ProjectDisplayName(project),
             centreXMm: AboveX(148.5),
-            baselineMm: AboveY(130.0),
+            centreYMm: AboveY(130.0),
             widthMm: 230.0,
             heightMm: 8.0);
 
@@ -191,7 +191,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout,
             "/ЗАГВАР ЗУРАГ/",
             centreXMm: AboveX(141.51),
-            baselineMm: AboveY(116.88),
+            centreYMm: AboveY(116.88),
             widthMm: 90.0,
             heightMm: bodyTextMm);
 
@@ -200,7 +200,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout,
             ConceptCover2026Footer(project),
             centreXMm: AboveX(148.5),
-            baselineMm: FootY(13.53),
+            centreYMm: FootY(13.53),
             widthMm: 200.0,
             heightMm: 2.829);
     }
@@ -222,21 +222,29 @@ public sealed partial class PdfSharpAlbumWriter
         ConceptCoverLayout layout,
         string? text,
         double centreXMm,
-        double baselineMm,
+        double centreYMm,
         double widthMm,
-        double heightMm) =>
+        double heightMm)
+    {
+        // 🔴 centreYMm, not a baseline. This box spans [c - h, c + h] and the
+        // glyph is centred in it, so the value positions the MIDDLE of the
+        // writing - which is what the arithmetic behind the title block's
+        // placement depends on. It was called baselineMm until somebody had to
+        // do that arithmetic.
+        (double _, double topMm) = ConceptCoverTextBox.DrawBox(centreYMm, heightMm);
         DrawWrappedCoverText(
             gfx,
             text,
             new XRect(
                 Mm(centreXMm - widthMm / 2),
-                ConceptCover2026Y(layout, baselineMm + heightMm),
+                ConceptCover2026Y(layout, topMm),
                 Mm(widthMm),
                 Mm(heightMm * 2)),
             heightMm,
             false,
             XStringFormats.Center,
             FontName);
+    }
 
     /// <summary>
     /// ЗӨВШИЛЦСӨН on the left, ХЯНАСАН on the right. Each side divides its own
