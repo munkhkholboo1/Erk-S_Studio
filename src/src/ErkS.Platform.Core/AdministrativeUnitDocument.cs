@@ -114,7 +114,8 @@ public static class AdministrativeUnitDocument
             if (!TryReadAsOfUtc(root, out DateTimeOffset asOfUtc, out string asOfProblem))
                 return AdministrativeUnitDocumentRead.Failed(asOfProblem);
 
-            return ReadRows(rows, asOfUtc, rowsProperty);
+            AdministrativeUnitDocumentRead read = ReadRows(rows, asOfUtc, rowsProperty);
+            return read.IsUsable ? CheckDeclaredCount(root, rows, read) : read;
         }
     }
 
@@ -194,6 +195,49 @@ public static class AdministrativeUnitDocument
         return false;
     }
 
+    /// <summary>
+    /// The answer says how many units it carries. If it says one number and
+    /// carries another, the answer was CUT SHORT.
+    ///
+    /// This is the check for the failure that no amount of careful row parsing
+    /// catches: a truncated response is valid JSON right up to where it stops,
+    /// and every row in it is perfect. Without the declared count, half a country
+    /// arrives looking exactly like a whole one - and the places that fell off
+    /// the end are simply not offered to anyone.
+    ///
+    /// SRV states the invariant holds on the live route, which is what makes a
+    /// violation worth refusing rather than tolerating.
+    /// </summary>
+    private static AdministrativeUnitDocumentRead CheckDeclaredCount(
+        JsonElement root,
+        JsonElement rows,
+        AdministrativeUnitDocumentRead read)
+    {
+        foreach (JsonProperty property in root.EnumerateObject())
+        {
+            if (!property.NameEquals("unitCount"))
+                continue;
+            if (property.Value.ValueKind != JsonValueKind.Number ||
+                !property.Value.TryGetInt32(out int declared))
+            {
+                continue;
+            }
+
+            int carried = rows.GetArrayLength();
+            if (declared != carried)
+            {
+                return AdministrativeUnitDocumentRead.Failed(
+                    "Серверийн хариу тасарсан байна: " + declared + " нэгж " +
+                    "гэж бичсэн атлаа " + carried + " ирсэн. Дутуу каталогоос " +
+                    "сонгуулбал үлдсэн газрууд байхгүй мэт харагдана.");
+            }
+
+            return read;
+        }
+
+        return read;
+    }
+
     private static AdministrativeUnitDocumentRead ReadRows(
         JsonElement rows,
         DateTimeOffset asOfUtc,
@@ -201,6 +245,7 @@ public static class AdministrativeUnitDocument
     {
         List<AdministrativeUnit> units = [];
         HashSet<string> seenCodes = new(StringComparer.Ordinal);
+        Dictionary<string, bool> declaredHasChildren = new(StringComparer.Ordinal);
         int skipped = 0;
         int index = -1;
 
@@ -242,6 +287,12 @@ public static class AdministrativeUnitDocument
                     parentUnitCode + "» гэж бичигдсэн байна.");
             }
 
+            if (row.TryGetProperty("hasChildren", out JsonElement published) &&
+                published.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                declaredHasChildren[unitCode] = published.GetBoolean();
+            }
+
             units.Add(new AdministrativeUnit(
                 unitCode,
                 ReadText(row, "level"),
@@ -249,6 +300,10 @@ public static class AdministrativeUnitDocument
                 nameMn,
                 ReadText(row, "childPickerLabelMn")));
         }
+
+        string? disagreement = FindHasChildrenDisagreement(units, declaredHasChildren);
+        if (disagreement is not null)
+            return AdministrativeUnitDocumentRead.Failed(disagreement);
 
         if (units.Count == 0)
         {
@@ -264,6 +319,50 @@ public static class AdministrativeUnitDocument
                 "Каталогийн " + (index + 1) + "-р мөр уншигдсангүй: " + whatIsWrong + ". " +
                 "Хагас уншсан каталог нь барилга байж болох газрыг чимээгүй " +
                 "хасна, тиймээс бүтнээр нь татгалзав.");
+    }
+
+    /// <summary>
+    /// The catalogue now SAYS whether a unit has children, and the rows also
+    /// SHOW it. Two independent statements again - the same arrangement as
+    /// `parentUnitCode` beside the prefix rule - so a disagreement is a finding
+    /// instead of a silent choice between them.
+    ///
+    /// This one is worth checking because both sides once held the same false
+    /// rule, that a «Баг» label means bags exist. SRV measured it away on three
+    /// real sums with none published, and added the field. If the field and the
+    /// rows ever part company, whichever a reader happened to trust would decide
+    /// whether a place appears to exist.
+    ///
+    /// Absent is NOT a disagreement: a fixture, a bundled copy or an older server
+    /// may not state it, and the rows answer perfectly well on their own.
+    /// </summary>
+    private static string? FindHasChildrenDisagreement(
+        IReadOnlyList<AdministrativeUnit> units,
+        IReadOnlyDictionary<string, bool> declared)
+    {
+        if (declared.Count == 0)
+            return null;
+
+        HashSet<string> parents = new(
+            units.Select(unit => unit.ParentUnitCode),
+            StringComparer.Ordinal);
+
+        foreach (AdministrativeUnit unit in units)
+        {
+            if (!declared.TryGetValue(unit.UnitCode, out bool said))
+                continue;
+
+            bool shown = parents.Contains(unit.UnitCode);
+            if (said != shown)
+            {
+                return "Каталог өөртэйгөө зөрчилдөж байна: «" + unit.NameMn +
+                    "» (" + unit.UnitCode + ") нь hasChildren=" +
+                    (said ? "true" : "false") + " гэж бичигдсэн атал жагсаалтад " +
+                    (shown ? "харьяа нэгжүүд байна" : "харьяа нэгж алга") + ".";
+            }
+        }
+
+        return null;
     }
 
     private static string ReadText(JsonElement row, string propertyName) =>

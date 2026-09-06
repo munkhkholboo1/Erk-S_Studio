@@ -279,15 +279,23 @@ public sealed class StudioAdministrativeUnitCatalogueTests : IDisposable
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     /// <summary>
-    /// A published answer, in the row shape SRV's contract states. The envelope
-    /// is this side's assumption and is named as such wherever it is used.
+    /// A published answer in the envelope SRV actually serves - header fields,
+    /// declared count, `hasChildren` and an offset written «+00:00» rather than
+    /// «Z».
+    ///
+    /// It was a guess until SRV serialised their real DTO into
+    /// `_shared/mongolia-admin-divisions-envelope-sample.json`; the shape is
+    /// checked field for field against that file over in
+    /// AdministrativeUnitDocumentTests, and copied here so these tests exercise
+    /// the fetch against what the wire will really carry.
     /// </summary>
     private static string Published() =>
-        "{\"asOfUtc\":\"2026-09-06T08:00:00Z\",\"units\":[" +
-        "{\"unitCode\":\"511\",\"level\":\"Capital\",\"parentUnitCode\":null," +
-        "\"nameMn\":\"Улаанбаатар\",\"childLevel\":\"District\",\"childPickerLabelMn\":\"Дүүрэг\"}," +
-        "{\"unitCode\":\"51101\",\"level\":\"District\",\"parentUnitCode\":\"511\"," +
-        "\"nameMn\":\"Багануур\",\"childLevel\":\"Khoroo\",\"childPickerLabelMn\":\"Хороо\"}," +
-        "{\"unitCode\":\"5110151\",\"level\":\"Khoroo\",\"parentUnitCode\":\"51101\"," +
-        "\"nameMn\":\"1-р хороо\"}]}";
+        "{\"asOfUtc\":\"2026-09-06T08:00:00+00:00\",\"origin\":\"Bundled\"," +
+        "\"unitCount\":3,\"units\":[" +
+        "{\"unitCode\":\"511\",\"parentUnitCode\":null,\"level\":\"Capital\"," +
+        "\"nameMn\":\"Улаанбаатар\",\"childPickerLabelMn\":\"Дүүрэг\",\"hasChildren\":true}," +
+        "{\"unitCode\":\"51101\",\"parentUnitCode\":\"511\",\"level\":\"District\"," +
+        "\"nameMn\":\"Багануур\",\"childPickerLabelMn\":\"Хороо\",\"hasChildren\":true}," +
+        "{\"unitCode\":\"5110151\",\"parentUnitCode\":\"51101\",\"level\":\"Khoroo\"," +
+        "\"nameMn\":\"1-р хороо\",\"childPickerLabelMn\":\"\",\"hasChildren\":false}]}";
 }

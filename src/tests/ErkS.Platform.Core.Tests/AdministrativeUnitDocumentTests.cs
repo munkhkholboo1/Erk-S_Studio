@@ -177,6 +177,113 @@ public sealed class AdministrativeUnitDocumentTests
         Assert.Equal(problems.Length, problems.Distinct(StringComparer.Ordinal).Count());
     }
 
+    [Fact]
+    public void SRVsOWNAnswerReadsBackFieldForField()
+    {
+        // 🔴 THE ASSUMPTION, MEASURED. The envelope was guessed while the route
+        // was dark - rows found by shape, asOfUtc under either of two names - and
+        // this reads the sample SRV serialised out of the real DTO. It is the
+        // difference between "our reader is consistent with itself" and "our
+        // reader agrees with the thing on the other side of the wire".
+        //
+        // The sample is an EXCERPT: three rows carrying the full catalogue's
+        // count. So the count is corrected here and the untouched file is checked
+        // by the test below, which is what turns an inconvenience into a control.
+        string sample = ReadEnvelopeSample().Replace("2217", "3", StringComparison.Ordinal);
+
+        AdministrativeUnitDocumentRead read = AdministrativeUnitDocument.Read(sample);
+
+        Assert.Equal("", read.ProblemMn);
+        Assert.Equal("units", read.UnitsPropertyName);
+        Assert.Equal(0, read.SkippedRollUpRows);
+
+        // Offset zero written as «+00:00», not «Z» - a reader that insists on the
+        // letter would fall over on every answer this route sends.
+        Assert.Equal(new DateTimeOffset(2026, 9, 6, 0, 0, 0, TimeSpan.Zero), read.AsOfUtc);
+
+        AdministrativeUnit arkhangai = read.Units.Single(unit => unit.UnitCode == "265");
+        Assert.Equal("Архангай", arkhangai.NameMn);
+        Assert.Equal("Aimag", arkhangai.Level);
+        Assert.Equal("", arkhangai.ParentUnitCode);
+        Assert.Equal("Сум", arkhangai.ChildPickerLabelMn);
+
+        AdministrativeUnit bag = read.Units.Single(unit => unit.UnitCode == "2650451");
+        Assert.Equal("1-р баг, Улаанчулуу", bag.NameMn);
+        Assert.Equal("26504", bag.ParentUnitCode);
+        Assert.Equal("", bag.ChildPickerLabelMn);
+    }
+
+    [Fact]
+    public void AnAnswerThatWasCUTSHORTIsRefused()
+    {
+        // The failure no amount of careful row parsing catches: a truncated
+        // response is valid JSON up to where it stops and every row in it is
+        // perfect. Only the declared count says the rest is missing.
+        //
+        // SRV's sample is exactly that shape by accident - 2217 declared, three
+        // carried - so the file they published doubles as the positive control
+        // for a check that would otherwise only ever see zero.
+        AdministrativeUnitDocumentRead read = AdministrativeUnitDocument.Read(ReadEnvelopeSample());
+
+        Assert.False(read.IsUsable);
+        Assert.Contains("2217", read.ProblemMn, StringComparison.Ordinal);
+        Assert.Contains("3", read.ProblemMn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APUBLISHEDHasChildrenThatContradictsTheRowsIsRefused()
+    {
+        // The field arrived after the contract was written, and it states what
+        // the rows already show. Two independent statements again, like
+        // parentUnitCode beside the prefix rule - so they are compared, because
+        // a reader trusting one and a reader trusting the other would disagree
+        // about whether a place has anything under it.
+        //
+        // Both sides once believed a «Баг» label meant bags exist. That is the
+        // mistake this field exists to end, and comparing it is how it stays
+        // ended.
+        string json =
+            "{\"asOfUtc\":\"2026-09-06T00:00:00+00:00\",\"units\":[" +
+            "{\"unitCode\":\"265\",\"parentUnitCode\":null,\"level\":\"Aimag\"," +
+            "\"nameMn\":\"Архангай\",\"childPickerLabelMn\":\"Сум\",\"hasChildren\":true}]}";
+
+        AdministrativeUnitDocumentRead read = AdministrativeUnitDocument.Read(json);
+
+        Assert.False(read.IsUsable);
+        Assert.Contains("hasChildren", read.ProblemMn, StringComparison.Ordinal);
+        Assert.Contains("265", read.ProblemMn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RowsThatDoNotStateHasChildrenAreNotAccusedOfAnything()
+    {
+        // Absent is not disagreement. A bundled copy, an older server or a test
+        // fixture may not state it, and the rows answer perfectly well alone -
+        // refusing them would be this reader inventing a defect out of silence.
+        AdministrativeUnitDocumentRead read = AdministrativeUnitDocument.Read(
+            Envelope(ContractRows(), asOfUtc: "2026-09-06T08:00:00Z"));
+
+        Assert.True(read.IsUsable);
+    }
+
+    private static string ReadEnvelopeSample()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName,
+                "_shared",
+                "mongolia-admin-divisions-envelope-sample.json");
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("SRV's envelope sample was not found; this test reads it from the shared folder");
+        return "";
+    }
+
     private static string Envelope(string rows, string asOfUtc) =>
         "{\"asOfUtc\":\"" + asOfUtc + "\",\"units\":[" + rows + "]}";
 
