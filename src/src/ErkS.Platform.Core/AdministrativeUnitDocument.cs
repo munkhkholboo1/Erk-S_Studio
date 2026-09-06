@@ -205,8 +205,8 @@ public static class AdministrativeUnitDocument
     /// arrives looking exactly like a whole one - and the places that fell off
     /// the end are simply not offered to anyone.
     ///
-    /// SRV states the invariant holds on the live route, which is what makes a
-    /// violation worth refusing rather than tolerating.
+    /// SRV states the invariant holds on the live route (CHECKED 2026-09-06),
+    /// which is what makes a violation worth refusing rather than tolerating.
     /// </summary>
     private static AdministrativeUnitDocumentRead CheckDeclaredCount(
         JsonElement root,

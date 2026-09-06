@@ -84,9 +84,14 @@ public sealed class ProjectSiteLocation
     ///
     /// The check is the PREFIX rule, which is this side's own - the catalogue's
     /// authority is `parentUnitCode`, and SRV states plainly that they do not
-    /// enforce agreement between the two. Today all 2217 published rows satisfy
-    /// both, measured; a future source that nests differently would make this
-    /// say no, and SRV's own test goes red before that reaches here.
+    /// enforce agreement between the two.
+    ///
+    /// CHECKED 2026-09-06: all 2217 published rows satisfy both, measured on
+    /// SRV's side, and their own test goes red before a differently-nested
+    /// source could reach here. The date is part of the claim rather than
+    /// decoration - a fact about the other side of a boundary that does not say
+    /// when it was last true is one somebody will build on permanently, which is
+    /// how a stale statement of mine ended up quoted in SRV's assertion text.
     /// </summary>
     public bool ChainHoldsTogether =>
         (DistrictCode.Length == 0 ||
