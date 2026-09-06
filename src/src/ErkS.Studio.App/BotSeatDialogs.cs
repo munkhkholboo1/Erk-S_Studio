@@ -1062,6 +1062,13 @@ internal static class BotSeatErrors
     public const string SeatReleasedRemotely = "bot_state_released_remotely";
     public const string SeatNotFound = "bot_state_not_found";
     public const string SeatChanged = "bot_session_seat_changed";
+    public const string SeatUnavailable = "bot_state_seat_unavailable";
+
+    /// <summary>
+    /// The credential aged out. NOT a seat ending - the machine re-proves itself
+    /// with a signature and nobody needs to be told anything.
+    /// </summary>
+    public const string TokenInvalid = "bot_session_token_invalid";
 
     /// <summary>
     /// Whether the server has said this machine no longer has a seat - as
@@ -1082,7 +1089,20 @@ internal static class BotSeatErrors
         exception is StudioAccountException known &&
         (known.ErrorCode.Equals(SeatReleasedRemotely, StringComparison.Ordinal) ||
             known.ErrorCode.Equals(SeatNotFound, StringComparison.Ordinal) ||
-            known.ErrorCode.Equals(SeatChanged, StringComparison.Ordinal));
+            known.ErrorCode.Equals(SeatChanged, StringComparison.Ordinal) ||
+            known.ErrorCode.Equals(SeatUnavailable, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Whether the seat credential has simply aged out.
+    ///
+    /// 🔴 THE OPPOSITE OF <see cref="SeatIsGone"/> IN WHAT IT ASKS FOR. A seat
+    /// that ended needs a person; a credential that expired needs one more round
+    /// trip and nobody's attention. Handling them the same way is how somebody
+    /// coming back after a month meets a lock screen with no reason behind it.
+    /// </summary>
+    public static bool CredentialExpired(Exception exception) =>
+        exception is StudioAccountException known &&
+        known.ErrorCode.Equals(TokenInvalid, StringComparison.Ordinal);
 
     public static string Describe(Exception exception, string fallback)
     {

@@ -127,6 +127,14 @@ public sealed class StudioBotSessionIssueTests
         Assert.True(BotSeatErrors.SeatIsGone(
             Server(HttpStatusCode.Conflict, "bot_session_seat_changed", "Суудал өөр болсон.")));
 
+        // 🔴 THE FIFTH, AND THE ONE MY OWN NOTE GOT WRONG. A note said all three
+        // ways a seat ends arrive as bot_state_released_remotely; measured in
+        // SRV's source, a DELETED seat arrives as bot_state_seat_unavailable
+        // from a different branch of the same method. Enumerating from the note
+        // would have left a machine holding a seat that no longer exists.
+        Assert.True(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.Conflict, "bot_state_seat_unavailable", "Суудал устгагдсан.")));
+
         Assert.False(BotSeatErrors.SeatIsGone(
             Server(HttpStatusCode.Forbidden, "bot_state_signature_invalid", "Гарын үсэг таарсангүй.")));
         Assert.False(BotSeatErrors.SeatIsGone(
@@ -221,6 +229,74 @@ public sealed class StudioBotSessionIssueTests
         Assert.DoesNotContain("StudioDeviceKeyStore.Fingerprint()", method, StringComparison.Ordinal);
         Assert.DoesNotContain("StudioDeviceKeyStore.PublicKey()", method, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ANEXPIREDCredentialIsNOTASeatEndingAndNobodyIsTold()
+    {
+        // 🔴 TWO THINGS THAT LOOK ALIKE AND ASK FOR OPPOSITE RESPONSES. A seat
+        // that ended needs a person; a credential that aged out needs one more
+        // round trip and nobody's attention.
+        //
+        // The server's own sentence for the expired case used to read «Эзэмшигч
+        // энэ төхөөрөмжийг дахин суудалжуулна» - it sent the person to their
+        // licence owner for something the machine fixes by itself. Acting on
+        // that wording would have put a lock screen in front of somebody whose
+        // only offence was a month away, and given the owner nothing to do.
+        StudioAccountException expired =
+            Server(HttpStatusCode.Unauthorized, "bot_session_token_invalid", "Токен хүчингүй.");
+
+        Assert.True(BotSeatErrors.CredentialExpired(expired));
+        Assert.False(BotSeatErrors.SeatIsGone(expired));
+
+        // And the reverse: none of the seat-gone codes is treated as a stale
+        // credential, or the client would re-prove itself in a loop against a
+        // seat that has ended.
+        foreach (string gone in new[]
+                 {
+                     "bot_state_released_remotely",
+                     "bot_state_seat_unavailable",
+                     "bot_state_not_found",
+                     "bot_session_seat_changed",
+                 })
+        {
+            Assert.False(BotSeatErrors.CredentialExpired(
+                Server(HttpStatusCode.Conflict, gone, "дууссан")));
+        }
+
+        // A device mismatch is 403 and is neither: the token belongs to another
+        // machine, and re-proving would hand out a second one just as wrong.
+        Assert.False(BotSeatErrors.CredentialExpired(
+            Server(HttpStatusCode.Forbidden, "bot_session_device_mismatch", "Өөр төхөөрөмж.")));
+        Assert.False(BotSeatErrors.SeatIsGone(
+            Server(HttpStatusCode.Forbidden, "bot_session_device_mismatch", "Өөр төхөөрөмж.")));
+    }
+
+    [Fact]
+    public void THEReproveHappensONCEAndAtTheLayerALLThreeRoutesShare()
+    {
+        // token, resume and pin/lockout share TryAuthorizeBot on the server, so
+        // all three can answer 401. Putting the recovery at each call site would
+        // be three chances to leave one out - and the one left out would be the
+        // rarely-exercised lockout report, found by a user rather than by us.
+        //
+        // ONCE, and the retry is not itself retried: a second 401 means the
+        // freshly issued credential was refused too, which is a real fault and
+        // must surface rather than spin.
+        string source = ReadAppSource("StudioAccountService.cs");
+
+        Assert.Contains("BotSeatErrors.CredentialExpired(expired)", source, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(source, "BotSeatErrors.CredentialExpired(expired)"));
+        Assert.Equal(2, Occurrences(source, "await ReproveAsync(cancellationToken)"));
+        Assert.Contains("botToken = null;", source, StringComparison.Ordinal);
+
+        // The re-prove goes through the issue flow, not the deleted renewal
+        // route - a stale token cannot be used to ask for a fresh one.
+        int reprove = source.IndexOf("private async Task ReproveAsync(", StringComparison.Ordinal);
+        string body = source[reprove..(source.IndexOf("IssueBotSessionAsync(cancellationToken)", reprove, StringComparison.Ordinal) + 40)];
+        Assert.DoesNotContain("bot-state/token", body, StringComparison.Ordinal);
+    }
+
+    private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     private static StudioAccountException Server(HttpStatusCode status, string code, string message) =>
         new(message, status, code, "", null, "", "", "");

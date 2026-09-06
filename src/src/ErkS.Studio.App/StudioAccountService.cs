@@ -2701,6 +2701,24 @@ internal sealed class StudioAccountService :
         TRequest value,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            return await SendBotAuthorizedAsync<TRequest, TResponse>(path, value, cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (StudioAccountException expired) when (BotSeatErrors.CredentialExpired(expired))
+        {
+            await ReproveAsync(cancellationToken).ConfigureAwait(true);
+            return await SendBotAuthorizedAsync<TRequest, TResponse>(path, value, cancellationToken)
+                .ConfigureAwait(true);
+        }
+    }
+
+    private async Task<TResponse> SendBotAuthorizedAsync<TRequest, TResponse>(
+        string path,
+        TRequest value,
+        CancellationToken cancellationToken)
+    {
         StudioCloudBotStateToken token = RequireBotToken();
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUri(BotServerUrl, path))
         {
@@ -2714,8 +2732,45 @@ internal sealed class StudioAccountService :
         return await ReadResponseAsync<TResponse>(response, cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Gets a fresh credential after the server refused the current one as aged
+    /// out. ONCE - the retry that follows is not itself retried.
+    ///
+    /// 🔴 WHY THIS IS SILENT. An expired token means the machine has been away,
+    /// not that anything is wrong: it re-proves itself with a signature only it
+    /// can make, which is STRONGER evidence than the token it just lost. The
+    /// server's own message used to send the person to their licence owner, and
+    /// acting on that wording would have put a lock screen in front of somebody
+    /// whose only offence was a month off - while the owner they were sent to
+    /// had nothing to do.
+    ///
+    /// A seat that has ENDED is the other case entirely and does not come here:
+    /// it arrives as one of the four seat-gone codes and gets a person.
+    /// </summary>
+    private async Task ReproveAsync(CancellationToken cancellationToken)
+    {
+        botToken = null;
+        await IssueBotSessionAsync(cancellationToken).ConfigureAwait(true);
+    }
+
     /// <summary>Posts with the seat's credential to a route that answers 204.</summary>
     private async Task PostBotAuthorizedNoContentAsync<TRequest>(
+        string path,
+        TRequest value,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendBotAuthorizedNoContentAsync(path, value, cancellationToken).ConfigureAwait(true);
+        }
+        catch (StudioAccountException expired) when (BotSeatErrors.CredentialExpired(expired))
+        {
+            await ReproveAsync(cancellationToken).ConfigureAwait(true);
+            await SendBotAuthorizedNoContentAsync(path, value, cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    private async Task SendBotAuthorizedNoContentAsync<TRequest>(
         string path,
         TRequest value,
         CancellationToken cancellationToken)
