@@ -5,6 +5,7 @@ using ErkS.Platform.Core;
 
 namespace ErkS.Studio.Tests;
 
+[Collection(ErkS.Studio.App.Tests.StudioDeviceIdentityCollection.Name)]
 public sealed class StudioDeviceIdentityMigrationTests
 {
     [Fact]

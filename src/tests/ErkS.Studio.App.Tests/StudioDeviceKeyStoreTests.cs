@@ -9,6 +9,7 @@ namespace ErkS.Studio.App.Tests;
 /// test: the design rests on a private key the provider refuses to export, and
 /// a mock would assert only that the mock was written to agree.
 /// </summary>
+[Collection(ErkS.Studio.App.Tests.StudioDeviceIdentityCollection.Name)]
 public sealed class StudioDeviceKeyStoreTests
 {
     [Fact]
