@@ -155,36 +155,7 @@ internal sealed partial class ShellView
             cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(cloud.ServerProjectId);
 
-        // 🔴 SPLIT BY THE RULE THE SYNC ITSELF USES, not by a second one written
-        // here. A pending component this device cannot draw is left pending by
-        // the sync on purpose - deleting it from the cloud would destroy work
-        // whose custodian is another machine - and counting it as "yours to
-        // send" is what made the cloud sit yellow at 3 while every press did
-        // nothing.
-        IReadOnlyList<string> pending = cloud.PendingAlbumComponentCodes ?? [];
-        int sendable = 0;
-        int blocked = 0;
-        if (pending.Count > 0)
-        {
-            string ownerEmail = CurrentCloudOwnerEmail();
-            var renderable = StudioAlbumRendererMigration
-                .SelectLocallyRenderableComponents(
-                    state.Project,
-                    cloud.SharedAlbumComponents ?? [],
-                    ownerEmail,
-                    HasOwnedAtdDocuments(ownerEmail),
-                    HasLocalVisualizationImages(),
-                    ProjectCloudSyncAuthority.CanManageCanonicalMetadata(cloud, ownerEmail))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            foreach (string code in pending)
-            {
-                if (renderable.Contains(code))
-                    sendable++;
-                else
-                    blocked++;
-            }
-        }
+        (int sendable, int blocked) = PendingSplit(cloud);
 
         return CloudAlbumStatus.Evaluate(
             linked,
@@ -192,6 +163,74 @@ internal sealed partial class ShellView
             lastCloudProbeOutcome,
             lastCloudProbeFoundNewerRevision,
             blocked);
+    }
+
+    private string pendingSplitSignature = "\u0000";
+    private int cachedSendableCount;
+    private int cachedBlockedCount;
+
+    /// <summary>
+    /// How many waiting components this device could actually send, and how
+    /// many it could not.
+    ///
+    /// 🔴 CACHED, AND THAT IS NOT AN OPTIMISATION - IT IS THE FIX FOR A FREEZE
+    /// THIS METHOD CAUSED. The split is decided by the sync's own rule, and
+    /// that rule asks whether this device holds the payload for each auxiliary
+    /// document and visualisation - which it answers by SHA-256 HASHING THE
+    /// FILE. Reached from the indicator, which is repainted from RefreshSyncUi,
+    /// which runs on two dozen ordinary UI paths, that put a full read-and-hash
+    /// of every document and image on the UI THREAD of every refresh. The
+    /// application stopped responding on a single button press, and it had been
+    /// fine that morning.
+    ///
+    /// The lesson is not "cache things": it is that an indicator must cost less
+    /// than the action it describes, and this one silently cost more. The
+    /// expensive answer is computed when the WAITING SET CHANGES - the only
+    /// thing that can change it in practice - and read from a field otherwise.
+    ///
+    /// The signature starts at a value the real one can never take, so the
+    /// first call always computes rather than trusting a zero.
+    /// </summary>
+    private (int Sendable, int Blocked) PendingSplit(ProjectCloudLink cloud)
+    {
+        IReadOnlyList<string> pending = cloud.PendingAlbumComponentCodes ?? [];
+        if (pending.Count == 0)
+        {
+            pendingSplitSignature = "";
+            cachedSendableCount = 0;
+            cachedBlockedCount = 0;
+            return (0, 0);
+        }
+
+        string signature = string.Join("\u0001", pending);
+        if (signature.Equals(pendingSplitSignature, StringComparison.Ordinal))
+            return (cachedSendableCount, cachedBlockedCount);
+
+        string ownerEmail = CurrentCloudOwnerEmail();
+        var renderable = StudioAlbumRendererMigration
+            .SelectLocallyRenderableComponents(
+                state.Project,
+                cloud.SharedAlbumComponents ?? [],
+                ownerEmail,
+                HasOwnedAtdDocuments(ownerEmail),
+                HasLocalVisualizationImages(),
+                ProjectCloudSyncAuthority.CanManageCanonicalMetadata(cloud, ownerEmail))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        int sendable = 0;
+        int blocked = 0;
+        foreach (string code in pending)
+        {
+            if (renderable.Contains(code))
+                sendable++;
+            else
+                blocked++;
+        }
+
+        pendingSplitSignature = signature;
+        cachedSendableCount = sendable;
+        cachedBlockedCount = blocked;
+        return (sendable, blocked);
     }
 
     /// <summary>
@@ -431,6 +470,22 @@ internal sealed partial class ShellView
             // ---- Step 4: the stored page order ----------------------------
             steps.Add(RecomposeStep());
             FinishAlbumRefresh(steps);
+        }
+        catch (Exception exception)
+        {
+            // 🔴 THE HANDLER THAT RUNS THIS IS `async void`, SO AN ESCAPING
+            // EXCEPTION KILLS THE PROCESS. The user pressed the cloud and the
+            // application vanished - «нэг товч дараад л гацаад алга болчихоод
+            // байхын». Every step here reaches disk, the network and another
+            // member's data; something WILL throw, and the answer to that has
+            // to be a sentence on the status bar, not a closed window.
+            //
+            // Caught broadly on purpose. A typed list would be a list of the
+            // failures thought of in advance, and the one that closes the app
+            // is by definition the one nobody thought of.
+            steps.Add(AlbumRefreshReport.RecomposeFailed(exception.Message));
+            FinishAlbumRefresh(steps);
+            SetStatus("Альбом шинэчлэхэд алдаа гарлаа: " + exception.Message);
         }
         finally
         {
