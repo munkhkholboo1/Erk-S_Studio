@@ -2637,6 +2637,49 @@ internal sealed partial class ShellView
         return ribbon;
     }
 
+
+    /// <summary>
+    /// Says what the album could not place, and where to fix it.
+    ///
+    /// 🔴 THE RULE EXISTED FOR MONTHS WITH NO CALLER. The rank that decides an
+    /// unplaceable page's fate, and the count of filled composition slots, were
+    /// both already computed - and neither reached a screen. The user's report
+    /// was not that the order was wrong; it was «яагаад гэдгийг мэдэхгүй». This
+    /// method is the answer, so deleting the call is deleting the fix.
+    ///
+    /// Repeated identically it says nothing. The album list is refreshed on
+    /// every selection change, and a notice that reappears on each of them
+    /// teaches a person to read past it - after which the one that matters goes
+    /// past unread too.
+    /// </summary>
+    private void ReportAlbumCompleteness()
+    {
+        if (!state.HasOpenProject)
+            return;
+
+        AlbumCompletenessReport report = AlbumCompletenessReport.Create(state.Album, state.Library);
+        string notice = string.Join(
+            " ",
+            new[] { report.UnplacedNoticeMn, report.EmptySlotsNoticeMn }
+                .Where(text => !string.IsNullOrWhiteSpace(text)));
+
+        if (string.IsNullOrWhiteSpace(notice))
+        {
+            // Cleared, so that fixing the last unclassified page and then
+            // introducing a new one says so again rather than staying quiet.
+            lastAlbumCompletenessNotice = "";
+            return;
+        }
+
+        if (notice.Equals(lastAlbumCompletenessNotice, StringComparison.Ordinal))
+            return;
+
+        lastAlbumCompletenessNotice = notice;
+        SetStatus(notice);
+    }
+
+    private string lastAlbumCompletenessNotice = "";
+
     private async void EditSiteContextMaps()
     {
         if (!EnsureSiteContextEditPermission())
@@ -3015,6 +3058,8 @@ internal sealed partial class ShellView
                 $"Хуудасны дараалал барилгын иж бүрдэлд нийцүүлэн шинэчлэгдлээ " +
                 $"({heal.PageCount} хуудсаас {heal.MovedCount} шилжив).");
         }
+
+        ReportAlbumCompleteness();
 
         RefreshSiteContextEditUi();
         bool canEditProjectContent = CanEditProjectContent();

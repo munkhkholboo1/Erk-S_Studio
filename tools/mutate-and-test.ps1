@@ -14,7 +14,7 @@
 # Three proofs, all required:
 #   1. the anchor text is present before the edit    - else REFUSED
 #   2. the file's hash differs after the edit        - else REFUSED
-#   3. the file is restored, hash-verified, at the end, even on failure
+#   3. the file is restored BYTE FOR BYTE, hash-verified, even on failure
 #
 # The anchor and replacement travel in FILES, not arguments, so Cyrillic,
 # newlines and braces survive without quoting games - the same reason
@@ -52,6 +52,14 @@ function Read-Text([string]$path) {
     return [System.IO.File]::ReadAllText((Resolve-Path $path))
 }
 
+# Bytes, not text. A read-decode-write round trip is NOT identity: .NET strips
+# a UTF-8 BOM on read and does not put one back on write, so restoring a
+# BOM-carrying source file through text silently dropped its first three bytes.
+# The restore check below caught that on its first BOM'd file - which is the
+# whole reason it is a check and not a comment.
+$originalBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $Target))
+$hasBom = $originalBytes.Length -ge 3 -and
+          $originalBytes[0] -eq 0xEF -and $originalBytes[1] -eq 0xBB -and $originalBytes[2] -eq 0xBF
 $original = Read-Text $Target
 $anchor = Read-Text $AnchorFile
 $replacement = Read-Text $ReplacementFile
@@ -94,8 +102,10 @@ $beforeHash = (Get-FileHash -Path $Target -Algorithm SHA256).Hash
 $occurrences = ([regex]::Matches($original, [regex]::Escape($normalizedAnchor))).Count
 $mutated = $original.Replace($normalizedAnchor, $replacement)
 
+$mutatedEncoding = New-Object System.Text.UTF8Encoding($hasBom)
+
 try {
-    [System.IO.File]::WriteAllText((Resolve-Path $Target), $mutated)
+    [System.IO.File]::WriteAllText((Resolve-Path $Target), $mutated, $mutatedEncoding)
 
     # PROOF 2. The file really changed.
     $afterHash = (Get-FileHash -Path $Target -Algorithm SHA256).Hash
@@ -140,9 +150,10 @@ try {
     }
 }
 finally {
-    # PROOF 3. Restored, and verified - a sabotage run that leaves the mutation
-    # behind is worse than one that never ran.
-    [System.IO.File]::WriteAllText((Resolve-Path $Target), $original)
+    # PROOF 3. Restored from the ORIGINAL BYTES, and verified - a sabotage run
+    # that leaves the mutation behind, or quietly re-encodes the file, is worse
+    # than one that never ran.
+    [System.IO.File]::WriteAllBytes((Resolve-Path $Target), $originalBytes)
     $restoredHash = (Get-FileHash -Path $Target -Algorithm SHA256).Hash
     if ($restoredHash -ne $beforeHash) {
         Write-Host ""
