@@ -253,6 +253,24 @@ public sealed record AlbumRefreshReport
                 ? $"Таны оруулга: {componentCount} хэсэг үүл рүү өгөв."
                 : "Таны оруулга: өгөх шинэ хэсэг байсангүй.");
 
+    /// <summary>
+    /// Nothing was sent because nothing waiting is this device's to send.
+    ///
+    /// 🔴 THIS IS "NOTHING TO DO", NOT A FAILURE, and the distinction is the
+    /// whole reason it exists. A person pressed the button repeatedly against
+    /// components no machine of theirs could produce; reporting that as a
+    /// failure would say they should try again, and reporting it as "nothing
+    /// new to send" would hide that the album is genuinely incomplete. It is a
+    /// third thing: the work is real, and it is somebody else's to do.
+    /// </summary>
+    public static AlbumRefreshStepResult ContributionBlocked(int blockedCount) =>
+        new(
+            AlbumRefreshStep.SendOwnContribution,
+            AlbumRefreshStepOutcome.NothingToDo,
+            $"Таны оруулга: илгээх зүйл байсангүй. {blockedCount} хэсгийг энэ " +
+            "төхөөрөмж дээр бэлдэх боломжгүй тул тэдгээрийг эзэмшигч нь өөрийн " +
+            "компьютерээсээ илгээнэ.");
+
     public static AlbumRefreshStepResult ContributionFailed(string reasonMn) =>
         new(AlbumRefreshStep.SendOwnContribution, AlbumRefreshStepOutcome.Failed,
             "Таны оруулгыг өгч чадсангүй: " + reasonMn);

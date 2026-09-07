@@ -78,17 +78,30 @@ public sealed record CloudAlbumStatus
         CloudAlbumChangeState state,
         int ownWaitingCount,
         int othersWaitingCount,
+        int blockedCount,
         CloudProbeOutcome probe)
     {
         State = state;
         OwnWaitingCount = ownWaitingCount;
         OthersWaitingCount = othersWaitingCount;
+        BlockedCount = blockedCount;
         Probe = probe;
     }
 
     public CloudAlbumChangeState State { get; }
 
-    /// <summary>Components this device holds that the cloud has not been given.</summary>
+    /// <summary>
+    /// Components this device holds that the cloud has not been given AND THAT
+    /// PRESSING THE BUTTON WOULD ACTUALLY SEND.
+    ///
+    /// 🔴 THE DISTINCTION THIS NUMBER EXISTS TO MAKE. A person pressed sync
+    /// repeatedly against a yellow "3" and watched nothing happen, because all
+    /// three components were ones this device cannot produce - a building
+    /// sub-cover it cannot render, sources whose custodian is another machine.
+    /// The indicator was saying "you have three things to send"; the truth was
+    /// "there are three things nobody here can send". Yellow has to mean "press
+    /// this and it resolves", or it teaches people that the button is broken.
+    /// </summary>
     public int OwnWaitingCount { get; }
 
     /// <summary>
@@ -102,6 +115,17 @@ public sealed record CloudAlbumStatus
     /// first reading <see cref="State"/>.
     /// </summary>
     public int OthersWaitingCount { get; }
+
+    /// <summary>
+    /// Components waiting that THIS device cannot produce - so no amount of
+    /// pressing will move them. Reported, never counted into the colour.
+    ///
+    /// They are not an error: another member's machine holds what is needed,
+    /// and the work is waiting on them rather than on this person. Saying so is
+    /// the difference between "the button does nothing" and "this one is not
+    /// yours to do".
+    /// </summary>
+    public int BlockedCount { get; }
 
     public CloudProbeOutcome Probe { get; }
 
@@ -157,7 +181,19 @@ public sealed record CloudAlbumStatus
             $"Таны {OwnWaitingCount} хэсэг өгөгдөөгүй, үүлэнд шинэ хувилбар байна.",
         CloudAlbumChangeState.Unknown => UnknownSummaryMn,
         _ => "",
-    };
+    } + BlockedSuffixMn;
+
+    /// <summary>
+    /// Names the components this device cannot produce, appended to whatever
+    /// else the status says. Always shown when there are any, in every state -
+    /// a person staring at a green cloud while a page is missing from the album
+    /// needs this sentence most of all.
+    /// </summary>
+    private string BlockedSuffixMn =>
+        BlockedCount > 0 && State != CloudAlbumChangeState.NotLinked
+            ? $" Өөр {BlockedCount} хэсгийг энэ төхөөрөмж дээр бэлдэх боломжгүй " +
+              "тул хүлээгдэж байна — тэдгээрийг эзэмшигч нь өөрийн компьютерээсээ илгээнэ."
+            : "";
 
     private string UnknownSummaryMn
     {
@@ -184,23 +220,29 @@ public sealed record CloudAlbumStatus
     /// stale value with a failed probe cannot turn the state green, by
     /// construction.
     /// </param>
+    /// <param name="blockedCount">
+    /// Components waiting that this device cannot produce. Reported separately
+    /// and never counted into the colour - see <see cref="BlockedCount"/>.
+    /// </param>
     public static CloudAlbumStatus Evaluate(
         bool isLinkedToCloud,
         int ownWaitingCount,
         CloudProbeOutcome probe,
-        bool cloudIsAhead)
+        bool cloudIsAhead,
+        int blockedCount = 0)
     {
         int own = ownWaitingCount < 0 ? 0 : ownWaitingCount;
+        int blocked = blockedCount < 0 ? 0 : blockedCount;
 
         if (!isLinkedToCloud)
-            return new CloudAlbumStatus(CloudAlbumChangeState.NotLinked, 0, 0, probe);
+            return new CloudAlbumStatus(CloudAlbumChangeState.NotLinked, 0, 0, 0, probe);
 
         // 🔴 THE GATE. Everything below this line may claim something about the
         // cloud; nothing above it may. An unanswered probe cannot reach any
         // state that asserts the cloud's contents - including the green one -
         // and no arrangement of the local numbers gets past it.
         if (probe != CloudProbeOutcome.Answered)
-            return new CloudAlbumStatus(CloudAlbumChangeState.Unknown, own, 0, probe);
+            return new CloudAlbumStatus(CloudAlbumChangeState.Unknown, own, 0, blocked, probe);
 
         int others = cloudIsAhead ? 1 : 0;
         CloudAlbumChangeState state = (own > 0, cloudIsAhead) switch
@@ -211,6 +253,6 @@ public sealed record CloudAlbumStatus
             (false, false) => CloudAlbumChangeState.Merged,
         };
 
-        return new CloudAlbumStatus(state, own, others, probe);
+        return new CloudAlbumStatus(state, own, others, blocked, probe);
     }
 }

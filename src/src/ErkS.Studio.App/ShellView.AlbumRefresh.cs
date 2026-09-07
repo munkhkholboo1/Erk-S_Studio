@@ -155,11 +155,43 @@ internal sealed partial class ShellView
             cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(cloud.ServerProjectId);
 
+        // 🔴 SPLIT BY THE RULE THE SYNC ITSELF USES, not by a second one written
+        // here. A pending component this device cannot draw is left pending by
+        // the sync on purpose - deleting it from the cloud would destroy work
+        // whose custodian is another machine - and counting it as "yours to
+        // send" is what made the cloud sit yellow at 3 while every press did
+        // nothing.
+        IReadOnlyList<string> pending = cloud.PendingAlbumComponentCodes ?? [];
+        int sendable = 0;
+        int blocked = 0;
+        if (pending.Count > 0)
+        {
+            string ownerEmail = CurrentCloudOwnerEmail();
+            var renderable = StudioAlbumRendererMigration
+                .SelectLocallyRenderableComponents(
+                    state.Project,
+                    cloud.SharedAlbumComponents ?? [],
+                    ownerEmail,
+                    HasOwnedAtdDocuments(ownerEmail),
+                    HasLocalVisualizationImages(),
+                    ProjectCloudSyncAuthority.CanManageCanonicalMetadata(cloud, ownerEmail))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string code in pending)
+            {
+                if (renderable.Contains(code))
+                    sendable++;
+                else
+                    blocked++;
+            }
+        }
+
         return CloudAlbumStatus.Evaluate(
             linked,
-            (cloud.PendingAlbumComponentCodes ?? []).Count,
+            sendable,
             lastCloudProbeOutcome,
-            lastCloudProbeFoundNewerRevision);
+            lastCloudProbeFoundNewerRevision,
+            blocked);
     }
 
     /// <summary>
@@ -362,12 +394,21 @@ internal sealed partial class ShellView
             int pendingAfter = (after.PendingAlbumComponentCodes ?? []).Count;
             string revisionAfter = after.LastReceivedAlbumRevisionId ?? "";
 
+            // 🔴 "NOTHING MOVED" HAS TWO CAUSES AND THEY READ DIFFERENTLY. If
+            // everything still waiting is work this device cannot produce, the
+            // run did exactly what it could and saying "failed" would tell the
+            // person to press again - which is what they had already been doing
+            // when nothing happened. Only genuinely sendable work that stayed
+            // put is a failure.
+            int blockedNow = CurrentCloudAlbumStatus().BlockedCount;
             steps.Add(pendingBefore == 0
                 ? AlbumRefreshReport.ContributionSent(0)
                 : pendingAfter < pendingBefore
                     ? AlbumRefreshReport.ContributionSent(pendingBefore - pendingAfter)
-                    : AlbumRefreshReport.ContributionFailed(
-                        $"{pendingBefore} хэсэг хүлээгдсэн хэвээр."));
+                    : blockedNow >= pendingAfter
+                        ? AlbumRefreshReport.ContributionBlocked(blockedNow)
+                        : AlbumRefreshReport.ContributionFailed(
+                            $"{pendingAfter - blockedNow} хэсэг хүлээгдсэн хэвээр."));
 
             // The probe runs AFTER the sync, so its answer describes the state
             // the person is being told about rather than the one before it.
