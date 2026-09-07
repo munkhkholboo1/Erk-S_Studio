@@ -904,6 +904,44 @@ public sealed class AppState : IDisposable
     /// lives in the sequencer and is tested there; this is only the connection,
     /// which is the half that keeps going missing.
     /// </summary>
+    /// <summary>
+    /// Puts a project whose stored order was left behind back in step, and
+    /// reports whether it had to.
+    ///
+    /// 🔴 THE FIX ALONE ONLY PREVENTED. UpdateBuildingComposition now reorders,
+    /// so a composition edited from today on stays consistent - but every
+    /// project already saved with the old sequence keeps it, and the only cure
+    /// would have been asking the user to open the dialog and press OK on
+    /// assignments that are already correct. Their data was never wrong; only
+    /// the order derived from it was stale.
+    ///
+    /// So the stored order is checked against the derived one where the album is
+    /// shown, and corrected when they differ. Nothing is guessed: the sequencer
+    /// is the same one the builder uses, so "corrected" means "made to agree
+    /// with the album that would be built".
+    ///
+    /// It does nothing while the library is empty. The order is derived by
+    /// resolving each page's sheet, and resolving against a library that has not
+    /// been filled yet would reorder a project on no information at all - the
+    /// same class of mistake as saving an empty location over a stored one.
+    /// </summary>
+    public bool EnsureStoredAlbumOrder()
+    {
+        if (!HasOpenProject || Library.Snapshot().Count == 0 || Album.Pages.Count == 0)
+            return false;
+
+        List<Guid> before = Album.Pages.Select(page => page.Id).ToList();
+        ReorderStoredAlbumPages();
+        List<Guid> after = Album.Pages.Select(page => page.Id).ToList();
+        if (before.SequenceEqual(after))
+            return false;
+
+        // Saved, because the point is that reopening the project shows the
+        // corrected order rather than doing this again every time.
+        SaveProject();
+        return true;
+    }
+
     private void ReorderStoredAlbumPages()
     {
         IReadOnlyList<AlbumPageDefinition> orderedPages =

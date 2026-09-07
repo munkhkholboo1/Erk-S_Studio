@@ -52,13 +52,23 @@ public sealed class StoredAlbumOrderFollowsCompositionTests
         // sync, and the package record - and each one that forgets to reorder
         // recreates the same defect on its own route. Counted, because a fourth
         // route added later without the call is exactly how this came back.
+        // Counted by INTENT rather than by arithmetic. The first version of this
+        // assertion was a sum - calls plus inline uses minus one - and it broke
+        // the moment a second caller was added, for a reason that had nothing to
+        // do with what it was checking. That is the third time today a
+        // source-reading test has failed on its own bookkeeping.
         string state = ReadAppSource("AppState.cs");
 
-        int reorderCalls = Occurrences(state, "ReorderStoredAlbumPages();");
-        int inlineReorders = Occurrences(state, "BuildingArchitectureConceptAlbumSequencer.OrderPages(");
+        // Exactly three places derive the order: the two older inline sites and
+        // the shared helper. A fourth means somebody wrote their own again.
+        Assert.Equal(3, Occurrences(state, "BuildingArchitectureConceptAlbumSequencer.OrderPages("));
 
-        Assert.True(reorderCalls >= 1, "the dialog route must reorder");
-        Assert.Equal(3, reorderCalls + inlineReorders - 1);
+        // And both of the routes that reach it do so through the helper, not by
+        // copying it.
+        Assert.Contains("ReorderStoredAlbumPages();", state, StringComparison.Ordinal);
+        Assert.True(
+            Occurrences(state, "ReorderStoredAlbumPages();") >= 2,
+            "the composition edit and the heal must both go through the helper");
     }
 
     [Fact]
@@ -78,6 +88,54 @@ public sealed class StoredAlbumOrderFollowsCompositionTests
         Assert.Contains("Project.SheetBuildingAssignments", body, StringComparison.Ordinal);
         Assert.DoesNotContain(".OrderBy(", body, StringComparison.Ordinal);
         Assert.DoesNotContain(".Sort(", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APROJECTSavedWithTheOldSequenceHEALSItself()
+    {
+        // 🔴 PREVENTING IS NOT ENOUGH. Reordering when the composition is edited
+        // keeps new work consistent and leaves every project already saved with
+        // the stale sequence exactly as it was - curable only by asking the
+        // person to reopen the dialog and press OK on assignments that are
+        // already correct. Their data was never wrong; the order derived from it
+        // was stale.
+        string state = ReadAppSource("AppState.cs");
+        string view = ReadAppSource("ShellView.Workspaces.cs");
+
+        Assert.Contains("public bool EnsureStoredAlbumOrder()", state, StringComparison.Ordinal);
+        Assert.Contains("state.EnsureStoredAlbumOrder()", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEHealDoesNothingOnNOInformation()
+    {
+        // The order is derived by resolving each page's sheet. Deriving it
+        // against a library that has not been filled yet would reorder a project
+        // on no information - the same class of mistake as writing an empty
+        // location over a stored one, which cost the same user their address
+        // earlier today.
+        string state = ReadAppSource("AppState.cs");
+        int method = state.IndexOf("public bool EnsureStoredAlbumOrder()", StringComparison.Ordinal);
+        string body = state[method..Math.Min(state.Length, method + 900)];
+
+        Assert.Contains("Library.Snapshot().Count == 0", body, StringComparison.Ordinal);
+        Assert.Contains("Album.Pages.Count == 0", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEHealIsSILENTWhenThereIsNothingToCorrect()
+    {
+        // It runs every time the album is shown, so it must not save - or
+        // announce - on a project that is already in order. A message on every
+        // visit teaches people to ignore it.
+        string state = ReadAppSource("AppState.cs");
+        int method = state.IndexOf("public bool EnsureStoredAlbumOrder()", StringComparison.Ordinal);
+        string body = state[method..Math.Min(state.Length, method + 1200)];
+
+        Assert.Contains("before.SequenceEqual(after)", body, StringComparison.Ordinal);
+        Assert.True(
+            body.IndexOf("return false;", body.IndexOf("SequenceEqual", StringComparison.Ordinal), StringComparison.Ordinal) > 0,
+            "an unchanged order must return false before saving");
     }
 
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;

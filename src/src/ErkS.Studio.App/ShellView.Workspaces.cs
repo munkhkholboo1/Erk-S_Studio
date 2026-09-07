@@ -2968,6 +2968,13 @@ internal sealed partial class ShellView
 
     private void RefreshAlbumWorkspace(Guid? selectPageId = null, string? selectItemKey = null)
     {
+        // A project saved before the composition edit reordered its pages still
+        // carries the old sequence. Corrected here, where the list is about to
+        // be shown, so those projects heal on opening instead of needing their
+        // assignments touched again - the assignments were never wrong.
+        if (state.EnsureStoredAlbumOrder())
+            SetStatus("Хуудасны дараалал барилгын иж бүрдэлд нийцүүлэн шинэчлэгдлээ.");
+
         RefreshSiteContextEditUi();
         bool canEditProjectContent = CanEditProjectContent();
         var requestedSelectionKey = selectPageId is Guid pageId
