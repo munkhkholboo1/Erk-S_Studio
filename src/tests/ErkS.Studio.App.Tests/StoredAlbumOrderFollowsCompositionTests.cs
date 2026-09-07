@@ -102,7 +102,7 @@ public sealed class StoredAlbumOrderFollowsCompositionTests
         string state = ReadAppSource("AppState.cs");
         string view = ReadAppSource("ShellView.Workspaces.cs");
 
-        Assert.Contains("public bool EnsureStoredAlbumOrder()", state, StringComparison.Ordinal);
+        Assert.Contains("public AlbumOrderHealResult EnsureStoredAlbumOrder()", state, StringComparison.Ordinal);
         Assert.Contains("state.EnsureStoredAlbumOrder()", view, StringComparison.Ordinal);
     }
 
@@ -115,8 +115,9 @@ public sealed class StoredAlbumOrderFollowsCompositionTests
         // location over a stored one, which cost the same user their address
         // earlier today.
         string state = ReadAppSource("AppState.cs");
-        int method = state.IndexOf("public bool EnsureStoredAlbumOrder()", StringComparison.Ordinal);
-        string body = state[method..Math.Min(state.Length, method + 900)];
+        int method = state.IndexOf("public AlbumOrderHealResult EnsureStoredAlbumOrder()", StringComparison.Ordinal);
+        Assert.True(method > 0, "the heal was not found");
+        string body = state[method..state.IndexOf("\n    }", method, StringComparison.Ordinal)];
 
         Assert.Contains("Library.Snapshot().Count == 0", body, StringComparison.Ordinal);
         Assert.Contains("Album.Pages.Count == 0", body, StringComparison.Ordinal);
@@ -129,13 +130,18 @@ public sealed class StoredAlbumOrderFollowsCompositionTests
         // announce - on a project that is already in order. A message on every
         // visit teaches people to ignore it.
         string state = ReadAppSource("AppState.cs");
-        int method = state.IndexOf("public bool EnsureStoredAlbumOrder()", StringComparison.Ordinal);
-        string body = state[method..Math.Min(state.Length, method + 1200)];
+        int method = state.IndexOf("public AlbumOrderHealResult EnsureStoredAlbumOrder()", StringComparison.Ordinal);
+        Assert.True(method > 0, "the heal was not found");
+        string body = state[method..state.IndexOf("\n    }", method, StringComparison.Ordinal)];
 
-        Assert.Contains("before.SequenceEqual(after)", body, StringComparison.Ordinal);
-        Assert.True(
-            body.IndexOf("return false;", body.IndexOf("SequenceEqual", StringComparison.Ordinal), StringComparison.Ordinal) > 0,
-            "an unchanged order must return false before saving");
+        // Asserted as INTENT rather than by counting characters: the zero-moved
+        // path must reach its return before SaveProject() is ever reached. The
+        // earlier version pinned an exact expression and a fixed-length slice,
+        // and both broke on edits that had nothing to do with what they checked.
+        int zeroGuard = body.IndexOf("moved == 0", StringComparison.Ordinal);
+        int save = body.IndexOf("SaveProject();", StringComparison.Ordinal);
+        Assert.True(zeroGuard > 0, "there is no early exit for an unchanged order");
+        Assert.True(save > zeroGuard, "an unchanged order must return before saving");
     }
 
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;

@@ -419,15 +419,8 @@ public sealed class AppState : IDisposable
             Album.Pages.Clear();
             Album.Pages.AddRange(orderedPages);
         }
-        StudioCloudAlbumRevision? currentAlbumRevision = (cloudProject.Albums ?? [])
-            .OfType<StudioCloudAlbum>()
-            .Select(album => (album.Revisions ?? [])
-                .OfType<StudioCloudAlbumRevision>()
-                .FirstOrDefault(revision => string.Equals(
-                    revision.RevisionId,
-                    album.CurrentRevisionId,
-                    StringComparison.OrdinalIgnoreCase)))
-            .FirstOrDefault(revision => revision is not null);
+        StudioCloudAlbumRevision? currentAlbumRevision =
+            StudioCloudAlbumSelection.CurrentRevision(cloudProject);
         Project.Cloud.SharedAlbumComponents = (currentAlbumRevision?.SectionManifest ?? [])
             .OfType<StudioCloudAlbumSection>()
             .OrderBy(component => component.Order)
@@ -925,21 +918,32 @@ public sealed class AppState : IDisposable
     /// been filled yet would reorder a project on no information at all - the
     /// same class of mistake as saving an empty location over a stored one.
     /// </summary>
-    public bool EnsureStoredAlbumOrder()
+    public AlbumOrderHealResult EnsureStoredAlbumOrder()
     {
         if (!HasOpenProject || Library.Snapshot().Count == 0 || Album.Pages.Count == 0)
-            return false;
+            return AlbumOrderHealResult.NotRun;
 
         List<Guid> before = Album.Pages.Select(page => page.Id).ToList();
         ReorderStoredAlbumPages();
         List<Guid> after = Album.Pages.Select(page => page.Id).ToList();
-        if (before.SequenceEqual(after))
-            return false;
+
+        // Counted rather than compared, because the report says HOW MANY pages
+        // moved and "nothing moved" has to arrive carrying its own number - a
+        // bare false reads the same as a heal that never examined anything.
+        int moved = 0;
+        for (int index = 0; index < after.Count; index++)
+        {
+            if (index >= before.Count || before[index] != after[index])
+                moved++;
+        }
+
+        if (moved == 0)
+            return new AlbumOrderHealResult(true, after.Count, 0);
 
         // Saved, because the point is that reopening the project shows the
         // corrected order rather than doing this again every time.
         SaveProject();
-        return true;
+        return new AlbumOrderHealResult(true, after.Count, moved);
     }
 
     private void ReorderStoredAlbumPages()

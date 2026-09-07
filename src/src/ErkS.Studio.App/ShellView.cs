@@ -968,6 +968,34 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
             RefreshAlbumPagePreview();
+
+            // The cheap cloud check, run where the answer is about to be looked
+            // at. Usually a conditional GET that comes back 304 with no body;
+            // where no token is held it reads the project record in full. Either
+            // way it is the project JSON and never the canonical album PDF,
+            // which is the 27.6 MB this is here to avoid fetching.
+            //
+            // Wrapped, because an unhandled exception in an async void lambda
+            // takes the process down. A failed check must colour the indicator
+            // grey, not close the application.
+            if (previousPage != StudioPage.Albums)
+            {
+                dispatcher.BeginInvoke(
+                    new Action(async () =>
+                    {
+                        try
+                        {
+                            await ProbeCloudAlbumAsync();
+                        }
+                        catch (Exception exception)
+                        {
+                            RecordCloudProbeFailure(exception);
+                        }
+
+                        RefreshCloudAlbumIndicator();
+                    }),
+                    DispatcherPriority.Background);
+            }
             if (previousPage != StudioPage.Albums && !HasCurrentCloudAlbumPreview())
             {
                 dispatcher.BeginInvoke(
@@ -5174,6 +5202,7 @@ internal sealed partial class ShellView : IDisposable
 
     private void RefreshSyncUi()
     {
+        RefreshCloudAlbumIndicator();
         if (!state.HasOpenProject)
         {
             cloudSyncButton.IsEnabled = false;

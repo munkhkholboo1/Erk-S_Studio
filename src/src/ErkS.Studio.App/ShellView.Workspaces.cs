@@ -310,7 +310,7 @@ internal sealed partial class ShellView
         rescan.ToolTip =
             "Зөвхөн энэ төхөөрөмжийн Revit/AutoCAD package, АТД, гэрчилгээ, тусгай зөвшөөрөл " +
             "болон харагдах байдлын файлын өөрчлөлтийг шалгаж локал album-ыг шинэчилнэ. Cloud төслийг татахгүй.";
-        rescan.Click += (_, _) => CheckForSourceUpdates();
+        rescan.Click += async (_, _) => await CheckForSourceUpdatesAsync();
         var openOperationLog = StudioWidgets.CreateButton("Үйлдлийн лог");
         openOperationLog.ToolTip =
             "Source Refresh болон Cloud Sync хаана, ямар reason code-оор зогссон эсвэл дууссаныг харна.\n" +
@@ -360,7 +360,17 @@ internal sealed partial class ShellView
             statusPrefix: "Барилгын иж бүрдэл болон хуудасны дараалал шинэчлэгдлээ");
     }
 
-    private void CheckForSourceUpdates()
+    /// <summary>
+    /// Reads this device's own sources and rebuilds the album from what
+    /// changed.
+    ///
+    /// Returns an outcome and AWAITS its own deferred half, so a caller that
+    /// needs the sources read BEFORE doing something else - the single album
+    /// refresh does - can rely on that having happened. It previously returned
+    /// void and queued its real work onto the dispatcher, which made it
+    /// impossible to sequence anything after it.
+    /// </summary>
+    private async Task<SourceRefreshOutcome> CheckForSourceUpdatesAsync()
     {
         string operationId = BeginDiagnosticOperation(
             "source_refresh",
@@ -419,7 +429,7 @@ internal sealed partial class ShellView
                 "blocked",
                 reasonCode,
                 message);
-            return;
+            return SourceRefreshOutcome.Blocked(message);
         }
 
         StudioOperationContext operationContext = CaptureOperationContext();
@@ -486,12 +496,12 @@ internal sealed partial class ShellView
                 "source_refresh_scan_failed",
                 $"Локал эх үүсвэр шалгахад алдаа: {exception.Message}",
                 exception);
-            return;
+            return SourceRefreshOutcome.Failed(exception.Message);
         }
 
         // Package callbacks reconcile authoritative snapshots on the UI dispatcher.
         // Queue the album rebuild after those callbacks so deletion and addition are atomic to the user.
-        dispatcher.BeginInvoke(new Action(() =>
+        return await dispatcher.InvokeAsync(() =>
         {
             try
             {
@@ -503,7 +513,8 @@ internal sealed partial class ShellView
                         "cancelled",
                         "source_refresh_context_changed",
                         "Source Refresh-ийн үр дүнг хэрэгжүүлээгүй: бүртгэл, төсөл эсвэл access төлөв үйлдлийн явцад өөрчлөгдсөн.");
-                    return;
+                    return SourceRefreshOutcome.Failed(
+                        "бүртгэл, төсөл эсвэл access төлөв үйлдлийн явцад өөрчлөгдсөн.");
                 }
 
                 autoRebuildTimer.Stop();
@@ -525,17 +536,20 @@ internal sealed partial class ShellView
                         "completed",
                         "source_refresh_completed",
                         statusText.Text);
+                    return SourceRefreshOutcome.Completed(
+                        scan.ManifestCount,
+                        scan.ChangedPackageCount);
                 }
-                else
-                {
-                    SetOperationStatus(
-                        operationId,
-                        "source_refresh",
-                        "error",
-                        "source_refresh_album_rebuild_failed",
-                        statusText.Text,
-                        lastAlbumUpdateException);
-                }
+
+                SetOperationStatus(
+                    operationId,
+                    "source_refresh",
+                    "error",
+                    "source_refresh_album_rebuild_failed",
+                    statusText.Text,
+                    lastAlbumUpdateException);
+                return SourceRefreshOutcome.Failed(
+                    lastAlbumUpdateException?.Message ?? "альбом дахин бүрдсэнгүй.");
             }
             catch (Exception exception)
             {
@@ -546,13 +560,14 @@ internal sealed partial class ShellView
                     "source_refresh_ui_refresh_failed",
                     "Source Refresh-ийн дараах UI/альбум шинэчлэлт амжилтгүй: " + exception.Message,
                     exception);
+                return SourceRefreshOutcome.Failed(exception.Message);
             }
             finally
             {
                 sourceRefreshInProgress = false;
                 RefreshSyncUi();
             }
-        }), System.Windows.Threading.DispatcherPriority.Background);
+        }, System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private bool CanContinueSourceRefresh(
@@ -2542,13 +2557,26 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(albumTitleBox);
         var save = StudioWidgets.CreateIconTextButton("icon-project.svg", "Хадгалах");
         save.Click += (_, _) => SaveProject();
+
+        // 🔴 THE ONE ACTION. The three commands beside it stay for now, on
+        // Master's condition that they are not removed until this is verified
+        // against the user's own project. They are the fallback, not the plan.
+        var refreshAlbum = StudioWidgets.CreateIconTextButton(
+            "icon-album.svg",
+            "Альбомыг шинэчлэх");
+        refreshAlbum.ToolTip =
+            "Эх үүсвэрээ уншиж, өөрийн оруулгыг үүл рүү өгч, бусдын шинэчлэлтийг татаж, " +
+            "хуудасны бүрдэл, дарааллыг шинэчилнэ. Алхам бүрийн үр дүнг тоогоор хэлнэ.";
+        refreshAlbum.Background = StudioTheme.AccentBrush;
+        refreshAlbum.BorderBrush = StudioTheme.AccentBrush;
+        refreshAlbum.Click += async (_, _) => await RefreshAlbumAsync();
         var updateAlbum = StudioWidgets.CreateIconTextButton("icon-album.svg", "Эх үүсвэрээс шинэчлэх");
         updateAlbum.ToolTip =
             "Бүх локал linked source-ийг шалгаж, өөрчлөгдсөн мэдээллээр album-ыг дахин бүрдүүлнэ. " +
             "Устсан source-ийн агуулга хуудсанд үлдэхгүй. Cloud мэдээлэл татахгүй.";
         updateAlbum.Background = StudioTheme.AccentBrush;
         updateAlbum.BorderBrush = StudioTheme.AccentBrush;
-        updateAlbum.Click += (_, _) => CheckForSourceUpdates();
+        updateAlbum.Click += async (_, _) => await CheckForSourceUpdatesAsync();
         var rebuildAlbum = StudioWidgets.CreateIconTextButton(
             "icon-publish.svg",
             "Бүрэн дахин байгуулах");
@@ -2586,6 +2614,14 @@ internal sealed partial class ShellView
             }
         };
         documentGroup.Children.Add(save);
+        documentGroup.Children.Add(refreshAlbum);
+
+        // The indicator sits beside the action it describes, because "is it
+        // worth pressing" and "press it" are one question.
+        cloudAlbumIndicator.Child = cloudAlbumIndicatorBadge;
+        documentGroup.Children.Add(cloudAlbumIndicator);
+        RefreshCloudAlbumIndicator();
+
         documentGroup.Children.Add(updateAlbum);
         documentGroup.Children.Add(rebuildAlbum);
         documentGroup.Children.Add(editSiteContext);
@@ -2972,8 +3008,13 @@ internal sealed partial class ShellView
         // carries the old sequence. Corrected here, where the list is about to
         // be shown, so those projects heal on opening instead of needing their
         // assignments touched again - the assignments were never wrong.
-        if (state.EnsureStoredAlbumOrder())
-            SetStatus("Хуудасны дараалал барилгын иж бүрдэлд нийцүүлэн шинэчлэгдлээ.");
+        AlbumOrderHealResult heal = state.EnsureStoredAlbumOrder();
+        if (heal.Changed)
+        {
+            SetStatus(
+                $"Хуудасны дараалал барилгын иж бүрдэлд нийцүүлэн шинэчлэгдлээ " +
+                $"({heal.PageCount} хуудсаас {heal.MovedCount} шилжив).");
+        }
 
         RefreshSiteContextEditUi();
         bool canEditProjectContent = CanEditProjectContent();
