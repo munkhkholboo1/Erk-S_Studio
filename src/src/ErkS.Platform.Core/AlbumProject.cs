@@ -518,6 +518,25 @@ public sealed class AlbumPageDefinition : IAlbumPageRoleOwner
     public string SourceBuildingNameSnapshot { get; set; } = "";
 
     /// <summary>
+    /// The drawing kind the source package declared, captured on the page.
+    ///
+    /// 🔴 THE BUILDING IDENTITY GOT THIS TREATMENT AND THE KIND DID NOT, and
+    /// the gap is what a user reported as «2 өөр эх үүсвэртэй нэг барилга»
+    /// refusing to order correctly. One building's sheets arrive from two
+    /// products; only one of those packages is on any given machine. The kind
+    /// was read from the package entry, so on the device that did not hold that
+    /// package it resolved to EMPTY - which ranks unclassified and sends the
+    /// page to the end of its building, splitting the building in two.
+    ///
+    /// It looks correct on the machine that owns every source, which is exactly
+    /// why it survived: «анх удаа тохируулахад зөв байрандаа ордог».
+    ///
+    /// Read only when the package is absent - a present package is still the
+    /// authority, so a re-export that changes a sheet's kind is honoured.
+    /// </summary>
+    public string SourceContentKindSnapshot { get; set; } = "";
+
+    /// <summary>
     /// Non-destructive crop applied while the source PDF is composed. This is
     /// intended for legacy PDFs that already contain another project's frame
     /// or title block; the original PDF remains untouched and vector content
@@ -622,12 +641,29 @@ public sealed class SourcePageMaskDefinition
 
 public static class AlbumPageSourceMetadata
 {
+    /// <summary>
+    /// The kind of drawing on this page: what a person chose, else what the
+    /// package declared, else what the package declared LAST TIME IT WAS HERE.
+    ///
+    /// 🔴 THE THIRD FALLBACK IS NOT COSMETIC. A page whose source package is
+    /// not on this machine - because the sheet belongs to another member of the
+    /// project - has no entry to read, and without the snapshot its kind
+    /// resolves to empty. Empty ranks unclassified, which sorts the page to the
+    /// end of its building and splits a building whose sheets came from two
+    /// products across two machines.
+    /// </summary>
     public static string ResolveContentKind(
         AlbumPageDefinition page,
-        ErkS.Platform.Contracts.SheetPackageEntry entry) =>
-        string.IsNullOrWhiteSpace(page.ContentKindOverride)
-            ? entry.ContentKind?.Trim() ?? ""
-            : page.ContentKindOverride.Trim();
+        ErkS.Platform.Contracts.SheetPackageEntry entry)
+    {
+        if (!string.IsNullOrWhiteSpace(page.ContentKindOverride))
+            return page.ContentKindOverride.Trim();
+
+        string declared = entry.ContentKind?.Trim() ?? "";
+        return declared.Length > 0
+            ? declared
+            : page.SourceContentKindSnapshot?.Trim() ?? "";
+    }
 }
 
 public static class DrawingScaleText

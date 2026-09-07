@@ -518,6 +518,9 @@ public sealed class AlbumBuilder
         ElevationDescriptionOverride = page.ElevationDescriptionOverride,
         SourceBuildingIdSnapshot = page.SourceBuildingIdSnapshot,
         SourceBuildingNameSnapshot = page.SourceBuildingNameSnapshot,
+        // Copied with the other snapshots. A clone that dropped it would lose
+        // the kind of every page whose package is not on this machine.
+        SourceContentKindSnapshot = page.SourceContentKindSnapshot,
     };
 
     private static AlbumBuildRequest CreateLegacyRequest(AlbumProject project, SheetLibrary library)

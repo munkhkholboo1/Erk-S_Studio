@@ -403,6 +403,10 @@ public static class ProjectPackageReconciliationService
         {
             page.SourceBuildingIdSnapshot = (entry.BuildingId ?? "").Trim();
             page.SourceBuildingNameSnapshot = (entry.BuildingName ?? "").Trim();
+            // Captured beside the building identity and for the same reason:
+            // the page must still know what it is when its package is not on
+            // this machine.
+            page.SourceContentKindSnapshot = (entry.ContentKind ?? "").Trim();
             if (usesConceptTemplate)
             {
                 AlbumCompositionItem? slot =
