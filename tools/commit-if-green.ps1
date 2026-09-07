@@ -35,13 +35,20 @@ if (-not (Test-Path $MessageFile)) {
 }
 
 Write-Host "Running the suite..."
-$testOutput = & dotnet test (Join-Path $repoRoot $Solution) -v q --nologo 2>&1
+# NO `2>&1`. Under PowerShell 5.1 that turns a native command's stderr into
+# ErrorRecords, which with $ErrorActionPreference = 'Stop' throws before the
+# exit code is ever read. The gate would then die on a RED run instead of
+# reporting it - the one path that has to work. Found by writing a second
+# script with the same line and watching it break.
+$testOutput = & dotnet test (Join-Path $repoRoot $Solution) -v q --nologo
 $testExit = $LASTEXITCODE
 
-# Kept whole, and printed whole on failure. The chain this script replaces also
-# swallowed a flaky test's measured value - the one number that would have told
-# us what to look at - because the output went through a filter instead of to a
-# reader.
+# The runner's STDOUT, kept whole. Its stderr - which is where xUnit writes its
+# "[FAIL] <test name>" lines - is deliberately NOT captured: capturing it under
+# PowerShell 5.1 requires `2>&1`, which turns each line into an ErrorRecord and,
+# with $ErrorActionPreference = "Stop", kills this script on exactly the runs it
+# exists to report. So the failure lines go straight to the console, where the
+# reader sees them live, and this file holds the rest.
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) ("erks-gate-" + [Guid]::NewGuid().ToString("N") + ".log")
 $testOutput | Out-File -FilePath $logPath -Encoding utf8
 
@@ -51,11 +58,14 @@ $summary | ForEach-Object { Write-Host "  $_" }
 if ($testExit -ne 0) {
     Write-Host ""
     Write-Host "RED - nothing was committed. Exit code $testExit."
-    $testOutput | Where-Object { $_ -match "\[FAIL\]|Error Message|was .* on|Assert\." } |
-        Select-Object -First 20 |
-        ForEach-Object { Write-Host "  $_" }
+    # No detail block here on purpose. xUnit's "[FAIL] <name>" lines are on
+    # stderr and have already been printed above by the runner itself; a filter
+    # over the captured stdout would print either nothing or - as the first
+    # version of it did - an analyser WARNING under the "RED" heading, a detail
+    # block that disagreed with its own headline.
+    Write-Host "The failing test names are in the runner output above."
     Write-Host ""
-    Write-Host "Full output kept at: $logPath"
+    Write-Host "Runner stdout kept at: $logPath"
     exit 1
 }
 
