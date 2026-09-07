@@ -42,52 +42,59 @@ internal sealed partial class ShellView
 
     private AlbumRefreshReport? lastAlbumRefreshReport;
 
-    private readonly TextBlock cloudAlbumIndicatorBadge = new()
-    {
-        FontWeight = FontWeights.Bold,
-        FontSize = 12,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
-
-    private readonly Border cloudAlbumIndicator = new()
-    {
-        CornerRadius = new CornerRadius(9),
-        Padding = new Thickness(8, 2, 8, 2),
-        Margin = new Thickness(8, 0, 0, 0),
-        VerticalAlignment = VerticalAlignment.Center,
-        BorderThickness = new Thickness(1),
-    };
-
     /// <summary>
-    /// Paints the indicator.
+    /// Paints the cloud icon on the project card.
     ///
-    /// 🔴 COLOUR IS THE REDUNDANT CHANNEL, NOT THE CARRIER. The glyph and the
-    /// numbers say the same thing the colour does, so the badge is readable with
-    /// no colour vision at all - and the tooltip says it a third time in words.
-    /// A screen where the colour is the only difference between "everything is
-    /// shared" and "somebody is waiting on you" is unreadable for roughly one
-    /// man in twelve.
+    /// 🔴 IT PAINTS THE ICON THAT WAS ALREADY THERE. The first version of this
+    /// put a coloured badge on the album toolbar - a fourth item on the very row
+    /// the user is trying to reduce to one. What they asked for was that the
+    /// cloud they already had be told apart by colour.
+    ///
+    /// 🔴 COLOUR IS THE REDUNDANT CHANNEL, NOT THE CARRIER. The count under the
+    /// glyph and the tooltip say the same thing the colour does, so the state is
+    /// readable with no colour vision at all. A screen where colour is the only
+    /// difference between "everything is shared" and "somebody is waiting on
+    /// you" is unreadable for roughly one man in twelve.
     /// </summary>
     private void RefreshCloudAlbumIndicator()
     {
-        CloudAlbumStatus status = CurrentCloudAlbumStatus();
-        cloudAlbumIndicator.Visibility = status.ShouldShow
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        if (!status.ShouldShow)
+        if (cloudStateGlyph is null)
             return;
 
-        cloudAlbumIndicatorBadge.Text = albumRefreshInProgress
-            ? "…"
-            : status.Badge;
+        CloudAlbumStatus status = CurrentCloudAlbumStatus();
+        if (!status.ShouldShow)
+        {
+            // A local-only project has no cloud to be behind ON. The icon keeps
+            // its ordinary look rather than showing a state it cannot have.
+            cloudStateGlyph.Foreground = StudioTheme.MutedTextBrush;
+            cloudStateCount.Text = "";
+            return;
+        }
+
         Brush colour = IndicatorBrush(status.State);
-        cloudAlbumIndicatorBadge.Foreground = colour;
-        cloudAlbumIndicator.BorderBrush = colour;
-        cloudAlbumIndicator.Background = StudioTheme.PanelAltBrush;
-        cloudAlbumIndicator.ToolTip = albumRefreshInProgress
+        cloudStateGlyph.Foreground = colour;
+        cloudStateCount.Foreground = colour;
+        cloudStateCount.Text = albumRefreshInProgress ? "…" : CountTextOf(status);
+        cloudSyncButton.ToolTip = albumRefreshInProgress
             ? "Альбомыг шинэчилж байна…"
             : status.SummaryMn;
     }
+
+    /// <summary>
+    /// The numbers under the glyph. Deliberately not the glyph shapes used
+    /// before: the icon IS the shape now, and stacking a second one under it
+    /// would say the same thing twice in less room.
+    /// </summary>
+    private static string CountTextOf(CloudAlbumStatus status) => status.State switch
+    {
+        CloudAlbumChangeState.OwnWaiting => status.OwnWaitingCount.ToString(),
+        CloudAlbumChangeState.OthersWaiting => "•",
+        CloudAlbumChangeState.BothWaiting => status.OwnWaitingCount + "•",
+        CloudAlbumChangeState.Unknown when status.OwnWaitingCount > 0 =>
+            "?" + status.OwnWaitingCount,
+        CloudAlbumChangeState.Unknown => "?",
+        _ => "",
+    };
 
     private static Brush IndicatorBrush(CloudAlbumChangeState state) => state switch
     {

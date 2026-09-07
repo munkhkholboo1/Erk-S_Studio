@@ -267,6 +267,24 @@ internal sealed partial class ShellView : IDisposable
         "\uE753",
         "Cloud Sync");
     private Border? projectContextBlock;
+
+    /// <summary>The cloud glyph on the project card - the thing that changes colour.</summary>
+    private TextBlock? cloudStateGlyph;
+
+    /// <summary>
+    /// The counts under the cloud glyph, e.g. "3" or "3/1".
+    ///
+    /// Kept tiny and secondary on purpose: colour answers "is there anything to
+    /// do", the number answers "how much", and the tooltip answers "what
+    /// exactly". Loading the icon with all three would lose the glance.
+    /// </summary>
+    private readonly TextBlock cloudStateCount = new()
+    {
+        FontSize = 8.5,
+        FontWeight = FontWeights.Bold,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Margin = new Thickness(0, -3, 0, 0),
+    };
     private TextBlock? projectContextCodeText;
     private TextBlock? projectContextStageText;
     private bool syncInProgress;
@@ -300,11 +318,35 @@ internal sealed partial class ShellView : IDisposable
         cloudSyncButton.Width = 40;
         cloudSyncButton.Height = 36;
         cloudSyncButton.Margin = new Thickness(8, 0, 0, 0);
-        cloudSyncButton.Background = StudioTheme.AccentBrush;
-        cloudSyncButton.BorderBrush = StudioTheme.AccentBrush;
-        cloudSyncButton.Foreground = Brushes.White;
+        // 🔴 THE CLOUD ICON CARRIES THE STATE. The user asked for the cloud they
+        // already had to be told apart by colour - «Үүлийг жоохон хөгжүүл» - and
+        // a separate badge was built on the album toolbar instead. That toolbar
+        // is the one they want SHORTER, so the badge was the opposite of the
+        // request twice over. The colour lives here now, on the icon that was
+        // always the right place for it.
+        //
+        // A flat accent fill would drown any state colour, so the button keeps
+        // the panel background and the glyph itself is what changes.
+        cloudSyncButton.Background = StudioTheme.PanelBrush;
+        cloudSyncButton.BorderBrush = StudioTheme.BorderBrush;
         if (cloudSyncButton.Content is TextBlock cloudGlyph)
+        {
             cloudGlyph.FontSize = 18;
+            cloudStateGlyph = cloudGlyph;
+
+            // The count sits UNDER the glyph, small. The colour is the first
+            // signal and the number is the detail - loading the icon itself
+            // with text would cost the glance the colour is there to give.
+            var stacked = new Grid();
+            stacked.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            stacked.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            cloudSyncButton.Content = null;
+            Grid.SetRow(cloudGlyph, 0);
+            stacked.Children.Add(cloudGlyph);
+            Grid.SetRow(cloudStateCount, 1);
+            stacked.Children.Add(cloudStateCount);
+            cloudSyncButton.Content = stacked;
+        }
         cloudSyncButton.Click += async (_, _) => await SynchronizeCurrentProjectAsync();
         autoRebuildTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         autoRebuildTimer.Tick += (_, _) =>

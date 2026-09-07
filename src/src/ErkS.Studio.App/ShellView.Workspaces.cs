@@ -2616,10 +2616,10 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(save);
         documentGroup.Children.Add(refreshAlbum);
 
-        // The indicator sits beside the action it describes, because "is it
-        // worth pressing" and "press it" are one question.
-        cloudAlbumIndicator.Child = cloudAlbumIndicatorBadge;
-        documentGroup.Children.Add(cloudAlbumIndicator);
+        // 🔴 NO INDICATOR ON THIS ROW. It used to sit here, and that was a
+        // fourth item on the row the user is asking to cut down to one. The
+        // state belongs on the cloud icon of the project card, which is where
+        // they asked for it and where it now lives.
         RefreshCloudAlbumIndicator();
 
         documentGroup.Children.Add(updateAlbum);
