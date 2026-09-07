@@ -361,8 +361,14 @@ public static class BuildingArchitectureConceptAlbumSequencer
                 : hasExplicitAssignment || hasPackageBuilding
                     ? 1
                     : 2,
+            // Asked of the composition, with the same three signals the slot
+            // matcher itself uses, so a sheet's rank and its slot can no longer
+            // disagree.
             BuildingPageTypeOrder = ErkS.Platform.Core.BuildingPageTypeOrder.Of(
-                AlbumPageSourceMetadata.ResolveContentKind(page, sheet?.Entry ?? new SheetPackageEntry())),
+                definition,
+                AlbumPageSourceMetadata.ResolveContentKind(page, sheet?.Entry ?? new SheetPackageEntry()),
+                sheet?.Entry.Discipline,
+                sheet?.Entry.Name),
             BuildingOrder = hasExplicitAssignment
                 ? assignedGroup!.Order
                 : hasPackageBuilding

@@ -919,8 +919,19 @@ public sealed class SheetPackageSecurityTests : IDisposable
             album,
             library,
             verified));
+        // 🔴 THE EXPECTED ORDER IS *NOT* A1-A2-A3, and this fixture is itself
+        // the evidence for why. It declares each sheet's kind as a SLOT ID -
+        // "elevations", "floor-plans", "sections" - which is one of the two
+        // forms the products actually send. The old rank table knew only six
+        // Mongolian strings, so all three came out "unclassified", tied, and
+        // kept their arrival order. That tie is what this test used to assert.
+        //
+        // The rank now comes from the composition, which does accept slot ids,
+        // so the three sort into the album's own sequence: floor plans, then
+        // sections, then elevations - the client's stated rule. The change of
+        // expectation here IS the fix being visible.
         Assert.Equal(
-            ["security-source|a1", "security-source|a2", "security-source|a3"],
+            ["security-source|a2", "security-source|a3", "security-source|a1"],
             album.Pages.Select(page => page.SheetKey));
         project.BuildingGroups =
         [
@@ -953,6 +964,10 @@ public sealed class SheetPackageSecurityTests : IDisposable
             BottomMm = 16,
         };
         AlbumSection retainedSection = album.Sections.First();
+        // Fixture SETUP, not an expectation: this is the order the section
+        // happens to hold, and the assertion below is about a2 sitting at index
+        // 1 within it. Left as written on purpose - reordering it here would
+        // quietly change what that assertion measures.
         retainedSection.SheetKeys.AddRange(
             ["security-source|a1", "security-source|a2", "security-source|a3"]);
 
@@ -967,8 +982,9 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.Equal(1, removedPageCount);
         Assert.Equal(3, library.Snapshot().Count);
         Assert.False(source.IsSheetActive("A2"));
+        // Sections (slot 10) before elevations (slot 11), same rule.
         Assert.Equal(
-            ["security-source|a1", "security-source|a3"],
+            ["security-source|a3", "security-source|a1"],
             album.Pages.Select(page => page.SheetKey));
         Assert.DoesNotContain(
             album.Pages,
@@ -1006,7 +1022,7 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.Empty(source.InactiveSheetIds);
         Assert.Empty(source.InactiveSheetStates);
         Assert.Equal(
-            ["security-source|a1", "security-source|a2", "security-source|a3"],
+            ["security-source|a2", "security-source|a3", "security-source|a1"],
             album.Pages.Select(page => page.SheetKey));
         AlbumPageDefinition restoredPage = album.Pages.Single(page =>
             page.SheetKey.Equals("security-source|a2", StringComparison.OrdinalIgnoreCase));
@@ -1021,6 +1037,9 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.Equal(28, restoredPage.SourceCrop.RightMm);
         Assert.Equal(16, restoredPage.SourceCrop.BottomMm);
         Assert.Equal("building-1", project.SheetBuildingAssignments[restoredPage.SheetKey]);
+        // The SECTION's key list, which is not the album's page order and is
+        // not touched by the ranking change - restoring A2 must put it back
+        // where it was, at index 1.
         Assert.Equal(
             ["security-source|a1", "security-source|a2", "security-source|a3"],
             retainedSection.SheetKeys);
