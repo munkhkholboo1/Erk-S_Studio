@@ -878,8 +878,44 @@ public sealed class AppState : IDisposable
                 assignments,
                 normalizedGroups);
         ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
+
+        // 🔴 THE STORED ORDER FOLLOWS THE COMPOSITION. Without this the groups
+        // and assignments were updated, the built album was invalidated and the
+        // project was saved - and Album.Pages kept the sequence the OLD
+        // assignments produced. The album that Studio SHOWS reads that stored
+        // sequence, so a user who corrected a building type saw their correction
+        // ignored; the built PDF was right, because the builder derives its own
+        // order, which is why the two disagreed.
+        //
+        // The same call already existed in two other places - the cloud-sync
+        // path and the package-record path - each behind a condition that has
+        // nothing to do with somebody editing the composition by hand. This is
+        // the third and the only one on the user's own route.
+        ReorderStoredAlbumPages();
         InvalidateBuiltAlbum();
         SaveProject();
+    }
+
+    /// <summary>
+    /// Puts the stored page order back in step with the building composition.
+    ///
+    /// Every path that changes groups or assignments has to end here, or the
+    /// list Studio shows drifts away from the album it builds. The rule itself
+    /// lives in the sequencer and is tested there; this is only the connection,
+    /// which is the half that keeps going missing.
+    /// </summary>
+    private void ReorderStoredAlbumPages()
+    {
+        IReadOnlyList<AlbumPageDefinition> orderedPages =
+            BuildingArchitectureConceptAlbumSequencer.OrderPages(
+                Album,
+                Album.Pages,
+                Library,
+                Project.Sources,
+                Project.BuildingGroups,
+                Project.SheetBuildingAssignments);
+        Album.Pages.Clear();
+        Album.Pages.AddRange(orderedPages);
     }
 
     /// <summary>Why the last package was not taken in, when one was not.</summary>
