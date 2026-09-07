@@ -196,4 +196,50 @@ public sealed class AlbumRefreshReportTests
             Assert.DoesNotContain("дууслаа", report.ClosingLineMn, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public void THEStatusLineCarriesEVERYStepsNUMBERS()
+    {
+        // 🔴 What the user asked for after three commands that each ended in a
+        // verdict and nothing else. A person has to be able to tell a run that
+        // did something from a run that did nothing, and only the counts do
+        // that.
+        AlbumRefreshReport report = AlbumRefreshReport.Create(
+            [
+                AlbumRefreshReport.SourcesRead(12, 2),
+                AlbumRefreshReport.ContributionSent(3),
+                AlbumRefreshReport.CloudFetched(true, "r-42"),
+                AlbumRefreshReport.PagesRecomposed(32, 0),
+            ],
+            AlbumOnScreen.CloudCanonical);
+
+        string line = report.StatusLineMn;
+
+        foreach (string number in new[] { "12", "2", "3", "r-42", "32" })
+            Assert.Contains(number, line, StringComparison.Ordinal);
+
+        Assert.Contains(report.ClosingLineMn, line, StringComparison.Ordinal);
+        Assert.Contains(report.AlbumOnScreenLineMn, line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEStatusLineOfAPartialRunSTILLShowsWhatSucceeded()
+    {
+        // Reporting only the failure erases work that really did reach the
+        // cloud, and the person re-sends it.
+        AlbumRefreshReport report = AlbumRefreshReport.Create(
+            [
+                AlbumRefreshReport.SourcesRead(12, 2),
+                AlbumRefreshReport.ContributionSent(3),
+                AlbumRefreshReport.CloudFetchFailed("сүлжээ алга"),
+                AlbumRefreshReport.PagesRecomposed(32, 0),
+            ],
+            AlbumOnScreen.LocalPreview);
+
+        string line = report.StatusLineMn;
+
+        Assert.Contains("3", line, StringComparison.Ordinal);
+        Assert.Contains("татаж чадсангүй", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("дууслаа", line, StringComparison.Ordinal);
+    }
 }

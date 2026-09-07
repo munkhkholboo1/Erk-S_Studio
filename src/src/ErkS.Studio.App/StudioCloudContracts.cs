@@ -1606,3 +1606,51 @@ internal sealed class StudioCloudDeviceKeyRegistration
     public DateTimeOffset RegisteredAtUtc { get; set; }
     public DateTimeOffset ServerTimeUtc { get; set; }
 }
+
+/// <summary>
+/// The cheap "has anything moved?" answer, from
+/// GET /api/cloud-era/v1/projects/{id}/albums/change-summary.
+///
+/// Field names and meanings copied from the server's own contract
+/// (Erk-S-Server/docs/CLOUD-API-CONTRACT.md and CloudEraContracts.cs), not from
+/// a description of it.
+/// </summary>
+internal sealed class StudioCloudAlbumChangeSummaryResponse
+{
+    /// <summary>
+    /// 🔴 READ THIS ONE FIRST. The server states that it moves on ANY project
+    /// write - including a component-manifest reorder that creates no new
+    /// revision - so the per-album fields below can all be unchanged while the
+    /// assembled album is genuinely different.
+    ///
+    /// It is broader than albums on purpose: adding a member or editing project
+    /// information moves it too. That errs toward a fetch that finds nothing
+    /// new, which is the safe direction. The opposite error is showing a stale
+    /// colour and never correcting it.
+    /// </summary>
+    public string ProjectConcurrencyToken { get; set; } = "";
+
+    public List<StudioCloudAlbumChangeSummary> Albums { get; set; } = [];
+}
+
+internal sealed class StudioCloudAlbumChangeSummary
+{
+    public string AlbumId { get; set; } = "";
+    public string AlbumType { get; set; } = "";
+    public string CurrentRevisionId { get; set; } = "";
+    public int RevisionNumber { get; set; }
+
+    /// <summary>
+    /// The hash of THAT REVISION'S PDF FILE - not a fingerprint of the album as
+    /// currently assembled.
+    ///
+    /// Safe to use for skipping a PDF download. NOT safe to read as "nothing
+    /// about this album changed": a component-manifest write changes which
+    /// component owns which pages - the order every member pulls back - while
+    /// the PDF, and therefore this hash, sits perfectly still. The server locks
+    /// that behaviour in a test and says so in its contract.
+    /// </summary>
+    public string PdfSha256 { get; set; } = "";
+
+    public DateTimeOffset RevisionCreatedAtUtc { get; set; }
+}

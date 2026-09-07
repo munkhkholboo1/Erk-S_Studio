@@ -230,6 +230,26 @@ public sealed class ProjectCloudLink
     public List<string> CanonicalAlbumRebuildComponentCodes { get; set; } = [];
     public List<string> CanonicalAlbumPendingComponentTombstoneCodes { get; set; } = [];
     public string LastServerConcurrencyToken { get; set; } = "";
+
+    /// <summary>
+    /// The server token as it stood the last time this device was actually
+    /// LEVEL with the cloud - a completed sync, or a refresh that took the
+    /// cloud project in whole.
+    ///
+    /// 🔴 THIS IS NOT <see cref="LastServerConcurrencyToken"/>, and the
+    /// difference is the whole point. That one records the newest token this
+    /// device has SEEN, including the one handed back by a rejected write: on a
+    /// 412 the server's current token is stored while the user's edit is still
+    /// unmerged. An indicator built on it would read "nothing new in the cloud"
+    /// at the exact moment there is something unresolved.
+    ///
+    /// The token moves on ANY project write - including this device's own - so
+    /// it is stamped at the END of a successful sync. By then whatever this
+    /// device sent is already in it, and any later movement is somebody else's.
+    /// Stamping it earlier would paint the indicator "others are ahead" for the
+    /// user's own upload.
+    /// </summary>
+    public string LastLevelCloudToken { get; set; } = "";
     public string LastSyncError { get; set; } = "";
     public string LastSyncNote { get; set; } = "";
     /// <summary>

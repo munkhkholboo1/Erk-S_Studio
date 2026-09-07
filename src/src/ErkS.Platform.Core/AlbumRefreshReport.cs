@@ -129,6 +129,20 @@ public sealed record AlbumRefreshReport
     }
 
     /// <summary>
+    /// Every step's numbers on one line, then the verdict, then which album is
+    /// on screen.
+    ///
+    /// 🔴 THE NUMBERS ARE THE POINT, not the verdict. "Альбом шинэчлэгдлээ" is
+    /// what the three commands this action replaces already said, and it is
+    /// precisely what left a person unable to tell a run that did something
+    /// from a run that did nothing. Four counts and a statement of which album
+    /// they are looking at is a different kind of sentence: it can be checked.
+    /// </summary>
+    public string StatusLineMn =>
+        string.Join(" · ", Steps.Select(step => step.DetailMn)) +
+        " — " + ClosingLineMn + " " + AlbumOnScreenLineMn;
+
+    /// <summary>
     /// The one sentence a person reads if they read nothing else. It is derived
     /// from the outcomes rather than passed in, so no call site can write
     /// "дууслаа" over a run that did not.

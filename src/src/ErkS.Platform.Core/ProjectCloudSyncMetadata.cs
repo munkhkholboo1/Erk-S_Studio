@@ -551,6 +551,10 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.LastSyncedAlbumSha256 = albumSha256?.Trim().ToLowerInvariant() ?? "";
         project.Cloud.LastSyncedRevisionId = revisionId?.Trim() ?? "";
         project.Cloud.LastServerConcurrencyToken = concurrencyToken?.Trim() ?? "";
+        // Stamped HERE, at the end of a completed sync, because the token moves
+        // on this device's own writes too. Anything that moves it after this
+        // moment came from somebody else.
+        project.Cloud.LastLevelCloudToken = concurrencyToken?.Trim() ?? "";
         project.Cloud.LastSyncError = "";
         project.Cloud.LastSyncNote = note?.Trim() ?? "";
     }
@@ -570,6 +574,9 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.LastCloudCheckedAtUtc = refreshedAtUtc;
         project.Cloud.LastCloudRefreshedAtUtc = refreshedAtUtc;
         project.Cloud.LastServerConcurrencyToken = concurrencyToken?.Trim() ?? "";
+        // A refresh takes the cloud project in whole, so this device is level
+        // with it - the same standing a completed sync leaves behind.
+        project.Cloud.LastLevelCloudToken = concurrencyToken?.Trim() ?? "";
     }
 
     public static void RecordReceivedAlbum(
@@ -614,6 +621,11 @@ public static class ProjectCloudSyncMetadata
         project.Cloud.PendingProjectInformation = pendingInformation;
         project.Cloud.SyncStatus = ProjectSyncStatuses.Conflict;
         project.Cloud.LastServerConcurrencyToken = serverConcurrencyToken?.Trim() ?? "";
+        // 🔴 LastLevelCloudToken IS DELIBERATELY NOT TOUCHED HERE. A conflict is
+        // the opposite of being level: the server moved, this device's edit did
+        // not go in, and the work is still waiting. Stamping the server's token
+        // here would tell the indicator "nothing new in the cloud" at the one
+        // moment there is something unresolved.
         project.Cloud.LastSyncError = message?.Trim() ?? "";
         // "Local edit was preserved" was a promise with no evidence behind it,
         // in a language the rest of the app does not use. It now names where

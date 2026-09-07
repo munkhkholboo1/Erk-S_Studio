@@ -209,28 +209,37 @@ internal sealed partial class ShellView
 
         try
         {
-            StudioCloudProjectRefreshResult refresh =
-                await InspectCurrentProjectCloudChangesAsync(cloud.ServerProjectId);
+            StudioCloudAlbumChangeSummaryResponse summary =
+                await account.GetAlbumChangeSummaryAsync(cloud.ServerProjectId);
 
-            if (!refresh.IsModified)
-            {
-                // 304. The server compared for us and found nothing new.
-                lastCloudProbeFoundNewerRevision = false;
-                lastCloudProbeOutcome = CloudProbeOutcome.Answered;
-                return lastCloudProbeOutcome;
-            }
+            // 🔴 THE PROJECT TOKEN, NOT THE REVISION ID. The server states that
+            // reordering a component manifest changes the album everyone pulls
+            // back WITHOUT creating a revision - currentRevisionId,
+            // revisionNumber and pdfSha256 all sit still through it. An
+            // indicator built on the revision id would therefore stay green
+            // through the most ordinary change in a multi-member project: it
+            // would have reached the cloud and been told the wrong thing.
+            //
+            // 🔴 COMPARED AGAINST THE TOKEN FROM THE LAST TIME THIS DEVICE WAS
+            // LEVEL, not against the last one seen. The token moves on ANY
+            // write, this device's own included, so comparing with the newest
+            // token seen would turn the indicator orange the moment the user
+            // uploaded their own work - reporting their own contribution as
+            // somebody else's.
+            string levelToken = (cloud.LastLevelCloudToken ?? "").Trim();
+            string serverToken = (summary.ProjectConcurrencyToken ?? "").Trim();
 
-            string cloudRevisionId = StudioCloudAlbumSelection.CurrentRevisionId(refresh.Project);
-
-            // An empty id means the cloud names no current album revision. That
-            // is not "the same as ours" - it is nothing to compare against - so
-            // it is reported as no newer work rather than as a difference.
             lastCloudProbeFoundNewerRevision =
-                !string.IsNullOrWhiteSpace(cloudRevisionId) &&
-                !cloudRevisionId.Equals(
-                    cloud.LastReceivedAlbumRevisionId ?? "",
-                    StringComparison.OrdinalIgnoreCase);
-            lastCloudProbeOutcome = CloudProbeOutcome.Answered;
+                levelToken.Length > 0 &&
+                serverToken.Length > 0 &&
+                !serverToken.Equals(levelToken, StringComparison.Ordinal);
+
+            // An empty token on either side is "not known", not "the same".
+            // Before the first sync there is nothing to compare against, and a
+            // server that answered without one has told us nothing.
+            lastCloudProbeOutcome = levelToken.Length > 0 && serverToken.Length > 0
+                ? CloudProbeOutcome.Answered
+                : CloudProbeOutcome.NotAttempted;
             return lastCloudProbeOutcome;
         }
         catch (Exception exception) when (
@@ -240,8 +249,7 @@ internal sealed partial class ShellView
             // Offline, refused, or a server that cannot answer this question -
             // all of them mean the same thing to the person looking at the
             // screen: the cloud's side is not known.
-            lastCloudProbeOutcome = CloudProbeOutcome.Failed;
-            lastCloudProbeFoundNewerRevision = false;
+            RecordCloudProbeFailure(exception);
             return lastCloudProbeOutcome;
         }
     }
@@ -385,7 +393,10 @@ internal sealed partial class ShellView
     {
         AlbumRefreshReport report = AlbumRefreshReport.Create(steps, CurrentAlbumOnScreen());
         lastAlbumRefreshReport = report;
-        SetStatus(report.ClosingLineMn + " " + report.AlbumOnScreenLineMn);
+        // The whole line, numbers included. The verdict alone is what the three
+        // old commands already said, and it is what made a run that did
+        // something indistinguishable from one that did not.
+        SetStatus(report.StatusLineMn);
         RefreshCloudAlbumIndicator();
     }
 

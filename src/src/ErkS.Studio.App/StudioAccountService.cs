@@ -351,6 +351,29 @@ internal sealed class StudioAccountService :
         return await ResolveProjectParticipantNamesAsync(project, cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// The cheap cloud check: what the server holds, without the album.
+    ///
+    /// 🔴 THIS EXISTS SO THE INDICATOR COSTS ALMOST NOTHING. The routes that
+    /// already carried the current revision id return the whole project with
+    /// every revision's SECTION MANIFEST attached - every component's code,
+    /// label, owner and page list. That is fine once per sync and far too much
+    /// to fetch every time a colour needs deciding. This route answers the one
+    /// question and stops.
+    ///
+    /// It does not require write access: looking at whether there is something
+    /// to fetch is not an edit.
+    /// </summary>
+    public async Task<StudioCloudAlbumChangeSummaryResponse> GetAlbumChangeSummaryAsync(
+        string projectId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        return await GetAuthorizedAsync<StudioCloudAlbumChangeSummaryResponse>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/albums/change-summary",
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudProjectRefreshResult> GetProjectChangesAsync(
         string projectId,
         string knownConcurrencyToken,

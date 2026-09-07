@@ -133,11 +133,13 @@ public sealed class AlbumRefreshActionTests
         Assert.Contains("CloudProbeOutcome.Failed", body, StringComparison.Ordinal);
         Assert.Contains("lastCloudProbeFoundNewerRevision = false;", body, StringComparison.Ordinal);
 
-        // The catch inside the probe itself must do the same.
+        // The probe's own catch must go through that same recorder rather than
+        // writing its own idea of a failed state - which is how the two would
+        // drift apart.
         int probeCatch = source.IndexOf("catch (Exception exception) when (", recorder, StringComparison.Ordinal);
         Assert.True(probeCatch > 0, "the probe no longer catches");
         Assert.Contains(
-            "lastCloudProbeOutcome = CloudProbeOutcome.Failed;",
+            "RecordCloudProbeFailure(exception);",
             source[probeCatch..],
             StringComparison.Ordinal);
     }
@@ -173,9 +175,26 @@ public sealed class AlbumRefreshActionTests
 
         string body = source[probe..source.IndexOf("\n    /// <summary>", probe, StringComparison.Ordinal)];
 
-        Assert.Contains("InspectCurrentProjectCloudChangesAsync", body, StringComparison.Ordinal);
+        // The dedicated route: it answers the one question and stops. The
+        // routes that also carry the revision id return every revision's
+        // section manifest with it - fine once per sync, far too much to pull
+        // every time a colour needs deciding.
+        Assert.Contains("GetAlbumChangeSummaryAsync", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetProjectAsync", body, StringComparison.Ordinal);
         Assert.DoesNotContain("DownloadAlbum", body, StringComparison.Ordinal);
         Assert.DoesNotContain("AlbumPdf", body, StringComparison.Ordinal);
+
+        // 🔴 THE PROJECT TOKEN, NOT THE REVISION ID. A component-manifest
+        // reorder changes the album everyone pulls back without creating a
+        // revision, so an indicator built on the revision id stays green
+        // through the commonest change in a multi-member project.
+        Assert.Contains("ProjectConcurrencyToken", body, StringComparison.Ordinal);
+
+        // 🔴 COMPARED AGAINST THE LEVEL TOKEN. The token moves on this device's
+        // own writes too; comparing with the newest token seen would report the
+        // user's own upload as somebody else's work.
+        Assert.Contains("LastLevelCloudToken", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("LastReceivedAlbumRevisionId", body, StringComparison.Ordinal);
     }
 
     [Fact]
