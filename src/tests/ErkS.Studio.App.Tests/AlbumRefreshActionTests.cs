@@ -189,10 +189,17 @@ public sealed class AlbumRefreshActionTests
 
         Assert.Contains("CurrentRevision(StudioCloudProjectDetail? detail)", selection, StringComparison.Ordinal);
         Assert.Contains("StudioCloudAlbumSelection.CurrentRevision(", appState, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "album.CurrentRevisionId,\r\n                    StringComparison.OrdinalIgnoreCase)))",
-            appState,
-            StringComparison.Ordinal);
+        // 🔴 A SINGLE TOKEN, NOT A MULTI-LINE FRAGMENT. The first version of
+        // this assertion spelled out a Windows line ending inside the pattern.
+        // Git normalises these files, so on a fresh checkout the pattern would
+        // match nothing and DoesNotContain would pass for the wrong reason -
+        // the test would go on reporting "the rule exists once" long after a
+        // copy came back.
+        // The positive control for the line below: this token is real, and it
+        // lives in the extracted rule. Without this, a typo in the forbidden
+        // string would make the DoesNotContain pass forever.
+        Assert.Contains("album.CurrentRevisionId", selection, StringComparison.Ordinal);
+        Assert.DoesNotContain("album.CurrentRevisionId", appState, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -223,7 +230,12 @@ public sealed class AlbumRefreshActionTests
             string candidate = Path.Combine(
                 directory.FullName, "src", "src", "ErkS.Studio.App", fileName);
             if (File.Exists(candidate))
-                return File.ReadAllText(candidate, Encoding.UTF8);
+            {
+                // Line endings normalised, because git rewrites them on
+                // checkout and every anchor below would otherwise depend on
+                // which machine cloned the repository.
+                return File.ReadAllText(candidate, Encoding.UTF8).Replace("\r\n", "\n");
+            }
             directory = directory.Parent;
         }
 
