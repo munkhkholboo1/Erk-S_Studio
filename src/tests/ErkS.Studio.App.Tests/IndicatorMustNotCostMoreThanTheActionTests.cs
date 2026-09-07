@@ -117,4 +117,31 @@ public sealed class IndicatorMustNotCostMoreThanTheActionTests
         Assert.Fail(fileName + " was not found; this test reads it from source");
         return "";
     }
+
+    [Fact]
+    public void THEExpensiveSourceScanRunsONLYWhenADeliveryIsWaiting()
+    {
+        // 🔴 MEASURED AT 5 531 ms on the user's project - loading and verifying
+        // 45 source packages. On the UI thread, on every press of the one
+        // button, that is the freeze they reported.
+        //
+        // The inbox survey reads manifest headers only and answers "is anything
+        // waiting", so the ordinary press costs nothing. This asserts the gate
+        // sits BEFORE the expensive call, because putting it after would be an
+        // easy and completely invisible mistake.
+        string refresh = ReadAppSource("ShellView.AlbumRefresh.cs");
+
+        int gate = refresh.IndexOf("SurveyPendingDeliveries(source).Any", StringComparison.Ordinal);
+        int scan = refresh.IndexOf("await CheckForSourceUpdatesAsync()", StringComparison.Ordinal);
+
+        Assert.True(gate > 0, "the cheap survey gate is gone");
+        Assert.True(scan > gate, "the expensive scan must sit behind the survey");
+
+        // And skipping it must still report a step, or the run would look as
+        // though step 1 never happened.
+        Assert.Contains(
+            "SourceRefreshOutcome.Completed(state.Project.Sources.Count, 0)",
+            refresh,
+            StringComparison.Ordinal);
+    }
 }

@@ -374,7 +374,30 @@ internal sealed partial class ShellView
             // old void version and inferred "how much changed" from the album's
             // page count afterwards - which measured nothing, because the
             // refresh queued its real work and returned before doing it.
-            SourceRefreshOutcome sources = await CheckForSourceUpdatesAsync();
+            // 🔴 THE EXPENSIVE HALF RUNS ONLY WHEN SOMETHING IS WAITING.
+            //
+            // MEASURED, on the user's own project: loading and verifying the 45
+            // source packages takes 5 531 ms. That is the whole freeze - press
+            // the cloud, and the window stops answering for five and a half
+            // seconds while Windows greys it out. It reads as the application
+            // having vanished.
+            //
+            // 🔴 AND IT IS A MEASUREMENT I ALREADY HAD WRONG. Earlier I timed
+            // SHA-256 over every source PDF - 426 ms for 348 MB - and concluded
+            // "reading the sources is cheap, no incremental mode needed". The
+            // hashing IS cheap. The package LOAD, which is a different thing
+            // entirely, is thirteen times more expensive, and I never measured
+            // it before building an action that runs it on every press.
+            //
+            // The inbox survey reads manifest HEADERS only and answers the one
+            // question that matters - is there a delivery this project has not
+            // absorbed - so the common press costs nothing at all.
+            bool anyDeliveryWaiting = state.Project.Sources
+                .Any(source => SurveyPendingDeliveries(source).Any);
+
+            SourceRefreshOutcome sources = anyDeliveryWaiting
+                ? await CheckForSourceUpdatesAsync()
+                : SourceRefreshOutcome.Completed(state.Project.Sources.Count, 0);
             if (!sources.Succeeded)
             {
                 // Steps 1-2 failing means NOTHING left this machine, and the
