@@ -222,23 +222,89 @@ public sealed class AlbumRefreshActionTests
     }
 
     [Fact]
-    public void THEThreeOLDCommandsAreStillThere()
+    public void THEAlbumToolbarHasNOAlbumCommandsLeft()
     {
-        // 🔴 MASTER'S STANDING CONDITION: the old commands are not removed until
-        // the new one is verified against the user's own project. This test is
-        // a TRIPWIRE ON A DECISION, not on behaviour - it should be deleted
-        // together with the commands, deliberately, rather than quietly failing
-        // one day.
+        // 🔴 THE CONDITION REVERSED, AND THAT IS THE POINT. This test used to
+        // assert the three old commands were still present - Master's caution
+        // while the one action was unproven. The user asked four times for
+        // fewer things on screen, and each round had ADDED one. The buttons are
+        // gone now, and this asserts they stay gone: bringing one back is an
+        // easy edit and it is the wrong answer to "the one action missed a
+        // case". The right answer is to extend the one action.
         string workspaces = ReadAppSource("ShellView.Workspaces.cs");
+        int ribbon = workspaces.IndexOf("documentGroup.Children.Add(save);", StringComparison.Ordinal);
+        Assert.True(ribbon > 0, "the album ribbon is gone");
+
+        string added = workspaces[ribbon..workspaces.IndexOf("ribbon.Children.Add(documentGroup);", ribbon, StringComparison.Ordinal)];
+
+        Assert.DoesNotContain("Add(updateAlbum)", added, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add(rebuildAlbum)", added, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add(refreshAlbum)", added, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add(cloudAlbumIndicator)", added, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THECloudIconRUNSTheOneActionRatherThanPlainSync()
+    {
+        // The user pointed at the cloud on the project card and said they
+        // wanted to do everything with it. Wiring it to the old sync would give
+        // them a third of the job under the icon they were promised the whole
+        // job under.
         string shell = ReadAppSource("ShellView.cs");
 
-        Assert.Contains("Эх үүсвэрээс шинэчлэх", workspaces, StringComparison.Ordinal);
-        Assert.Contains("Бүрэн дахин байгуулах", workspaces, StringComparison.Ordinal);
-        Assert.Contains("SynchronizeCurrentProjectAsync()", shell, StringComparison.Ordinal);
+        Assert.Contains(
+            "cloudSyncButton.Click += async (_, _) => await RefreshAlbumAsync();",
+            shell,
+            StringComparison.Ordinal);
+    }
 
-        // ...and the new one is beside them.
-        Assert.Contains("Альбомыг шинэчлэх", workspaces, StringComparison.Ordinal);
-        Assert.Contains("await RefreshAlbumAsync()", workspaces, StringComparison.Ordinal);
+    [Fact]
+    public void THEOneActionSTILLCoversWhatTheRemovedCommandsDid()
+    {
+        // 🔴 REMOVING A BUTTON MUST NOT REMOVE ITS WORK. «Бүрэн дахин
+        // байгуулах» marked this device's own components for redrawing so a
+        // rebuild reached the SHARED album rather than only the local copy.
+        // Dropping the button without folding that in would have left the pages
+        // looking right here while every other member kept the old ones - a
+        // silent loss, visible to nobody on this machine.
+        string refresh = ReadAppSource("ShellView.AlbumRefresh.cs");
+        int method = refresh.IndexOf("private async Task RefreshAlbumAsync()", StringComparison.Ordinal);
+        Assert.True(method > 0, "the one action is gone");
+
+        string body = refresh[method..refresh.IndexOf("private AlbumRefreshStepResult RecomposeStep()", method, StringComparison.Ordinal)];
+
+        // read the sources
+        Assert.Contains("await CheckForSourceUpdatesAsync()", body, StringComparison.Ordinal);
+        // redraw this device's own components - the folded-in rebuild
+        Assert.Contains("MarkOwnAlbumComponentsForRerender()", body, StringComparison.Ordinal);
+        // exchange with the cloud
+        Assert.Contains("await SynchronizeCurrentProjectAsync();", body, StringComparison.Ordinal);
+        // recompute composition and order
+        Assert.Contains("RecomposeStep()", body, StringComparison.Ordinal);
+        // and report
+        Assert.Contains("FinishAlbumRefresh(steps);", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THERedrawRunsWHENTheSourcesActuallyChanged()
+    {
+        // Unconditionally re-marking every own component on every press would
+        // re-upload work that had not changed. The condition is the one that
+        // made it a decision worth a button: the sources moved.
+        string refresh = ReadAppSource("ShellView.AlbumRefresh.cs");
+        int mark = refresh.IndexOf("MarkOwnAlbumComponentsForRerender()", StringComparison.Ordinal);
+        Assert.True(mark > 0, "the redraw is gone");
+
+        Assert.Contains(
+            "if (sources.ChangedCount > 0)",
+            refresh[Math.Max(0, mark - 400)..mark],
+            StringComparison.Ordinal);
+
+        // ...and before the count that reports what was sent, or the components
+        // it adds would be missing from that number.
+        Assert.True(
+            mark < refresh.IndexOf("int pendingBefore =", StringComparison.Ordinal),
+            "the redraw must be marked before the sent-count is taken");
     }
 
     private static string ReadAppSource(string fileName)

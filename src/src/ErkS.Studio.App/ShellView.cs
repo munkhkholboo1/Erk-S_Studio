@@ -347,7 +347,16 @@ internal sealed partial class ShellView : IDisposable
             stacked.Children.Add(cloudStateCount);
             cloudSyncButton.Content = stacked;
         }
-        cloudSyncButton.Click += async (_, _) => await SynchronizeCurrentProjectAsync();
+        // 🔴 THE CLOUD ICON IS THE ACTION. Not "sync", which was one third of
+        // what a person wanting a current album actually needs - it now runs
+        // every step: read this device's sources, redraw its own components if
+        // they changed, give them to the cloud, take everyone else's, put the
+        // page composition and order back in step, and report in numbers.
+        //
+        // The user asked four times for fewer things on the screen, and each
+        // time the answer had been to add one. There is one now: the cloud they
+        // already had. Its colour says whether it is worth pressing.
+        cloudSyncButton.Click += async (_, _) => await RefreshAlbumAsync();
         autoRebuildTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         autoRebuildTimer.Tick += (_, _) =>
         {
@@ -5486,8 +5495,8 @@ internal sealed partial class ShellView : IDisposable
             return;
 
         pendingOpenNotices.Add(sources == 1
-            ? $"{packages} шинэ багц уншигдаагүй байна. Эх үүсвэр хуудсаас «Эх үүсвэрээс шинэчлэх» дарна уу."
-            : $"{sources} эх үүсвэрт нийт {packages} шинэ багц уншигдаагүй байна. Эх үүсвэр хуудсаас «Эх үүсвэрээс шинэчлэх» дарна уу.");
+            ? $"{packages} шинэ багц уншигдаагүй байна. Төслийн үүлэн товчийг дарна уу."
+            : $"{sources} эх үүсвэрт нийт {packages} шинэ багц уншигдаагүй байна. Төслийн үүлэн товчийг дарна уу.");
     }
 
     private void BindProjectToUi()
@@ -6398,7 +6407,7 @@ internal sealed partial class ShellView : IDisposable
         }
         else
         {
-            SetStatus("Холбосон PDF/зураг өөрчлөгдсөн байна. Альбумын 'Эх үүсвэрээс шинэчлэх' үйлдлийг ажиллуулна уу.");
+            SetStatus("Холбосон PDF/зураг өөрчлөгдсөн байна. Төслийн үүлэн товчийг дарна уу.");
         }
     }
 

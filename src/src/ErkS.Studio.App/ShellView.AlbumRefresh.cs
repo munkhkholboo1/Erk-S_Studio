@@ -333,6 +333,26 @@ internal sealed partial class ShellView
             }
 
             // ---- Steps 2 and 3: give ours, take theirs --------------------
+            //
+            // 🔴 THE WORK «Бүрэн дахин байгуулах» USED TO DO, FOLDED IN. That
+            // command marked this device's own album components for redrawing
+            // so a rebuild reached the SHARED album rather than only the local
+            // copy. Removing the button without this would have quietly dropped
+            // that: the pages would look right here and the other members would
+            // keep receiving the old ones.
+            //
+            // It runs when the sources actually changed, which is the condition
+            // that made it a decision worth a button in the first place. A
+            // person should not have to know that redrawing their own
+            // components is a separate idea from refreshing the album - it is
+            // our distinction, not theirs.
+            //
+            // Marked BEFORE the count below is taken, so the components it adds
+            // are included in "N хэсэг үүл рүү өгөв" rather than silently
+            // missing from it.
+            if (sources.ChangedCount > 0)
+                _ = MarkOwnAlbumComponentsForRerender();
+
             int pendingBefore = (cloud.PendingAlbumComponentCodes ?? []).Count;
             string revisionBefore = cloud.LastReceivedAlbumRevisionId ?? "";
 

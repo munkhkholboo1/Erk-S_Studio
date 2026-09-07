@@ -2131,8 +2131,11 @@ internal sealed partial class ShellView
             ? newest.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
             : "";
         string when = arrived.Length > 0 ? $" (сүүлийнх {arrived})" : "";
+        // Names the CLOUD ICON, because the button this used to name no longer
+        // exists. A notice that tells someone to press something that is not
+        // there is worse than no notice: it reads as the app being broken.
         return $"⚠ {pending.Count} шинэ багц хүлээгдэж байна{when}. " +
-            "«Эх үүсвэрээс шинэчлэх» дарвал хуудаснууд орж ирнэ.";
+            "Төслийн үүлэн товчийг дарвал хуудаснууд орж ирнэ.";
     }
 
     private void SetNativeSourceActionsVisible(
@@ -2558,33 +2561,19 @@ internal sealed partial class ShellView
         var save = StudioWidgets.CreateIconTextButton("icon-project.svg", "Хадгалах");
         save.Click += (_, _) => SaveProject();
 
-        // 🔴 THE ONE ACTION. The three commands beside it stay for now, on
-        // Master's condition that they are not removed until this is verified
-        // against the user's own project. They are the fallback, not the plan.
-        var refreshAlbum = StudioWidgets.CreateIconTextButton(
-            "icon-album.svg",
-            "Альбомыг шинэчлэх");
-        refreshAlbum.ToolTip =
-            "Эх үүсвэрээ уншиж, өөрийн оруулгыг үүл рүү өгч, бусдын шинэчлэлтийг татаж, " +
-            "хуудасны бүрдэл, дарааллыг шинэчилнэ. Алхам бүрийн үр дүнг тоогоор хэлнэ.";
-        refreshAlbum.Background = StudioTheme.AccentBrush;
-        refreshAlbum.BorderBrush = StudioTheme.AccentBrush;
-        refreshAlbum.Click += async (_, _) => await RefreshAlbumAsync();
-        var updateAlbum = StudioWidgets.CreateIconTextButton("icon-album.svg", "Эх үүсвэрээс шинэчлэх");
-        updateAlbum.ToolTip =
-            "Бүх локал linked source-ийг шалгаж, өөрчлөгдсөн мэдээллээр album-ыг дахин бүрдүүлнэ. " +
-            "Устсан source-ийн агуулга хуудсанд үлдэхгүй. Cloud мэдээлэл татахгүй.";
-        updateAlbum.Background = StudioTheme.AccentBrush;
-        updateAlbum.BorderBrush = StudioTheme.AccentBrush;
-        updateAlbum.Click += async (_, _) => await CheckForSourceUpdatesAsync();
-        var rebuildAlbum = StudioWidgets.CreateIconTextButton(
-            "icon-publish.svg",
-            "Бүрэн дахин байгуулах");
-        rebuildAlbum.ToolTip =
-            "Хуудсуудыг эх үүсвэрээс шинээр зурна. Cloud альбомын хуудас хуучин хувилбараар " +
-            "зурагдсан бол ердийн шинэчлэлт түүнийг хэвээр нь авч үлддэг; энэ үйлдэл " +
-            "энэ төхөөрөмжийн эзэмшдэг хэсгүүдийг дахин зурж, Sync-ээр солиход бэлдэнэ.";
-        rebuildAlbum.Click += (_, _) => RebuildAlbumFromSource();
+        // 🔴 THREE COMMANDS LEFT THIS ROW, and none of them became a smaller
+        // button somewhere else. «Альбомыг шинэчлэх», «Эх үүсвэрээс шинэчлэх»
+        // and «Бүрэн дахин байгуулах» are all one action now, and that action
+        // is the CLOUD ICON on the project card - the thing the user pointed at.
+        //
+        // Their work is not gone: reading the sources is step 1, redrawing this
+        // device's own components is folded into step 2, and the cloud exchange
+        // is step 3. What is gone is having to know which of the three a
+        // situation called for - a distinction that was ours, never theirs.
+        //
+        // If something turns out not to be covered, the fix is to extend the one
+        // action, not to bring a button back.
+
         var editVisualizations = StudioWidgets.CreateIconTextButton(
             "icon-sources.svg",
             "Харагдах байдал",
@@ -2614,16 +2603,11 @@ internal sealed partial class ShellView
             }
         };
         documentGroup.Children.Add(save);
-        documentGroup.Children.Add(refreshAlbum);
 
-        // 🔴 NO INDICATOR ON THIS ROW. It used to sit here, and that was a
-        // fourth item on the row the user is asking to cut down to one. The
-        // state belongs on the cloud icon of the project card, which is where
-        // they asked for it and where it now lives.
+        // No album command and no indicator on this row. Both live on the cloud
+        // icon of the project card.
         RefreshCloudAlbumIndicator();
 
-        documentGroup.Children.Add(updateAlbum);
-        documentGroup.Children.Add(rebuildAlbum);
         documentGroup.Children.Add(editSiteContext);
         documentGroup.Children.Add(editVisualizations);
         documentGroup.Children.Add(elevationInformation);
