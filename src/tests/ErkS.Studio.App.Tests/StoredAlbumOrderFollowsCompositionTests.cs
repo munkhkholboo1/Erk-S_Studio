@@ -144,6 +144,106 @@ public sealed class StoredAlbumOrderFollowsCompositionTests
         Assert.True(save > zeroGuard, "an unchanged order must return before saving");
     }
 
+    [Fact]
+    public void EDITINGTheCompositionAlsoResendsTheSOURCEComponents()
+    {
+        // 🔴 THE LOCAL ORDER WAS ONLY HALF OF IT. Studio shows the CLOUD
+        // album whenever a canonical one exists, and a source page lives there
+        // inside a component whose code carries its building. Reordering the
+        // stored pages fixed what this device draws; the cloud kept the slice
+        // from before the edit, so the correction was invisible where the user
+        // actually looks. Measured on a real project: a source moved to
+        // Орон сууц-1 stayed filed under Орон сууц-2 in the cloud, and the
+        // source that belonged to Орон сууц-2 had no component at all.
+        string state = ReadAppSource("AppState.cs");
+        int method = state.IndexOf("public void UpdateBuildingComposition(", StringComparison.Ordinal);
+        Assert.True(method > 0, "UpdateBuildingComposition was not found");
+        string body = state[method..state.IndexOf("\n    }", method, StringComparison.Ordinal)];
+
+        Assert.Contains(
+            "StudioBuildingCompositionResliceScope.SourceComponentCodes(",
+            body,
+            StringComparison.Ordinal);
+        Assert.Contains("MarkAlbumComponentsPending(Project, resliced)", body, StringComparison.Ordinal);
+
+        // Marked before the save, or the pending list is lost with the edit.
+        Assert.True(
+            body.IndexOf("MarkAlbumComponentsPending(Project, resliced)", StringComparison.Ordinal) <
+                body.IndexOf("SaveProject();", StringComparison.Ordinal),
+            "the components must be marked before the project is saved");
+    }
+
+    [Fact]
+    public void THEScopeIsMeasuredBEFORETheCompositionIsOverwritten()
+    {
+        // The scope of the edit is the DIFFERENCE it makes, so the old groups
+        // and the old assignments have to be read before the new ones are
+        // assigned. Capturing them afterwards compares a value with itself and
+        // reports that nothing moved - a checker that is always silent.
+        string state = ReadAppSource("AppState.cs");
+        int method = state.IndexOf("public void UpdateBuildingComposition(", StringComparison.Ordinal);
+        Assert.True(method > 0, "UpdateBuildingComposition was not found");
+        string body = state[method..state.IndexOf("\n    }", method, StringComparison.Ordinal)];
+
+        int captured = body.IndexOf("previousAssignments = new(", StringComparison.Ordinal);
+        int overwritten = body.IndexOf("Project.SheetBuildingAssignments =", StringComparison.Ordinal);
+        Assert.True(captured > 0, "the previous assignments are never captured");
+        Assert.True(
+            captured < overwritten,
+            "the previous assignments must be read before they are replaced");
+
+        int capturedGroups = body.IndexOf("previousGroups = (Project.BuildingGroups", StringComparison.Ordinal);
+        int overwrittenGroups = body.IndexOf("Project.BuildingGroups = normalizedGroups;", StringComparison.Ordinal);
+        Assert.True(capturedGroups > 0, "the previous groups are never captured");
+        Assert.True(
+            capturedGroups < overwrittenGroups,
+            "the previous groups must be read before they are replaced");
+    }
+
+    [Fact]
+    public void APROJECTAlreadyUploadedWithTheOldBuildingHEALSItself()
+    {
+        // 🔴 THE EDIT PATH CANNOT REACH THESE. Pressing OK on assignments that
+        // are already correct moves nothing and therefore sends nothing, so an
+        // album uploaded before the correction would need the composition made
+        // wrong and right again to shake it loose. Armed where the album is
+        // shown instead, beside the stored-order heal that exists for exactly
+        // the same reason.
+        string view = ReadAppSource("ShellView.Workspaces.cs");
+        string components = ReadAppSource("ShellView.AlbumComponents.cs");
+
+        Assert.Contains(
+            "private int ArmStaleCloudBuildingComponents()",
+            components,
+            StringComparison.Ordinal);
+        Assert.Contains("ArmStaleCloudBuildingComponents();", view, StringComparison.Ordinal);
+        Assert.Contains(
+            "StudioBuildingCompositionResliceScope.StaleCloudSourceComponentCodes(",
+            components,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THECloudHealIsSILENTOnceItHasAlreadyArmed()
+    {
+        // It runs every time the album is shown and the cloud stays wrong until
+        // the person syncs, so reporting the same sources on every visit - and
+        // saving the project each time - would be noise that teaches people to
+        // ignore the message that matters.
+        string components = ReadAppSource("ShellView.AlbumComponents.cs");
+        int method = components.IndexOf(
+            "private int ArmStaleCloudBuildingComponents()",
+            StringComparison.Ordinal);
+        Assert.True(method > 0, "the cloud heal was not found");
+        string body = components[method..components.IndexOf("\n    }", method, StringComparison.Ordinal)];
+
+        int alreadyPending = body.IndexOf("PendingAlbumComponents(state.Project)", StringComparison.Ordinal);
+        int save = body.IndexOf("state.SaveProject();", StringComparison.Ordinal);
+        Assert.True(alreadyPending > 0, "the heal never asks what is already pending");
+        Assert.True(save > alreadyPending, "the heal must not save before checking what is already pending");
+        Assert.Contains("added.Length == 0", body, StringComparison.Ordinal);
+    }
+
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     private static string ReadAppSource(string fileName)

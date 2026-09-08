@@ -860,6 +860,21 @@ public sealed class AppState : IDisposable
         IEnumerable<ProjectBuildingGroup> groups,
         IReadOnlyDictionary<string, string> assignments)
     {
+        // Read before anything is overwritten: the scope of a composition edit
+        // is the DIFFERENCE it makes, and after the assignment below there is
+        // nothing left to compare against.
+        List<ProjectBuildingGroup> previousGroups = (Project.BuildingGroups ?? [])
+            .Select(group => new ProjectBuildingGroup
+            {
+                Id = group.Id,
+                Name = group.Name,
+                Order = group.Order,
+            })
+            .ToList();
+        Dictionary<string, string> previousAssignments = new(
+            Project.SheetBuildingAssignments ?? [],
+            StringComparer.OrdinalIgnoreCase);
+
         List<ProjectBuildingGroup> normalizedGroups =
             ProjectBuildingComposition.NormalizeGroups(groups);
         StudioBuildingCompositionSync.RecordLocalGroupSet(
@@ -871,6 +886,22 @@ public sealed class AppState : IDisposable
                 assignments,
                 normalizedGroups);
         ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
+
+        // 🔴 THE SUB-COVERS ARE NOT THE DRAWINGS. The call above marks the pages
+        // that carry a group's title; the pages that carry its drawings live in
+        // source components whose code CONTAINS the building, and nothing marked
+        // those. So a correction took effect locally and never reached the cloud
+        // album - which is the album Studio shows once a canonical one exists.
+        // The rule is in its own type, with the reason and the measured case.
+        IReadOnlyList<string> resliced =
+            StudioBuildingCompositionResliceScope.SourceComponentCodes(
+                Project,
+                Album,
+                previousGroups,
+                previousAssignments,
+                runtimeIdentity.OwnerEmail);
+        if (resliced.Count > 0)
+            ProjectCloudSyncMetadata.MarkAlbumComponentsPending(Project, resliced);
 
         // 🔴 THE STORED ORDER FOLLOWS THE COMPOSITION. Without this the groups
         // and assignments were updated, the built album was invalidated and the

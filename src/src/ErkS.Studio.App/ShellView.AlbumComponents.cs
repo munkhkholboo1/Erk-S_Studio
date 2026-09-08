@@ -890,6 +890,42 @@ internal sealed partial class ShellView
     }
 
     /// <summary>
+    /// Re-arms the source components the cloud album has filed under the wrong
+    /// building, so the next Sync carries the correction the person already made.
+    ///
+    /// Returns how many sources were newly armed - zero while there is nothing
+    /// to correct AND zero once they are already waiting, because this runs
+    /// every time the album is shown and a message on every visit teaches people
+    /// to ignore it.
+    /// </summary>
+    private int ArmStaleCloudBuildingComponents()
+    {
+        if (!state.HasOpenProject)
+            return 0;
+
+        IReadOnlyList<string> stale =
+            StudioBuildingCompositionResliceScope.StaleCloudSourceComponentCodes(
+                state.Project,
+                state.Album,
+                CurrentCloudOwnerEmail());
+        if (stale.Count == 0)
+            return 0;
+
+        HashSet<string> before = ProjectCloudSyncMetadata
+            .PendingAlbumComponents(state.Project)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string[] added = stale
+            .Where(code => !before.Contains(code))
+            .ToArray();
+        if (added.Length == 0)
+            return 0;
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(state.Project, added);
+        state.SaveProject();
+        return added.Length;
+    }
+
+    /// <summary>
     /// Marks the components this device can draw itself, so a rebuild reaches
     /// the shared album rather than only the local copy. Returns how many.
     /// </summary>

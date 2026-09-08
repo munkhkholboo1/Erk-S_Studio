@@ -3043,6 +3043,20 @@ internal sealed partial class ShellView
                 $"({heal.PageCount} хуудсаас {heal.MovedCount} шилжив).");
         }
 
+        // The same correction, one boundary further out. The stored order
+        // above is what THIS device shows; a project whose canonical album was
+        // uploaded before the composition was corrected still carries the old
+        // building in its component codes, and Studio shows the canonical album
+        // once one exists. Re-arming here marks them - nothing is sent until the
+        // person syncs.
+        int rearmed = ArmStaleCloudBuildingComponents();
+        if (rearmed > 0)
+        {
+            SetStatus(
+                $"Үүлэн альбомд {rearmed} эх үүсвэр өмнөх барилгын дор бүртгэлтэй байна. " +
+                "Sync хийхэд зөв барилгын дороо орно.");
+        }
+
         ReportAlbumCompleteness();
 
         RefreshSiteContextEditUi();
