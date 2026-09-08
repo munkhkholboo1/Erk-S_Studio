@@ -573,6 +573,12 @@ internal sealed class StudioCloudProjectInformation
     public string ProjectDomain { get; set; } = "";
     public string StageType { get; set; } = "";
     public string Location { get; set; } = "";
+
+    /// <summary>
+    /// The structured address. Facts travel; the composed forms it carries are
+    /// derived and are not what Studio prints.
+    /// </summary>
+    public StudioCloudProjectSiteAddress SiteAddress { get; set; } = new();
     public string BuildingPurpose { get; set; } = "";
     public decimal? Capacity { get; set; }
     public string CapacityUnit { get; set; } = "";
@@ -593,6 +599,12 @@ internal sealed class StudioCloudProjectInformationUpdateRequest
     public string PlanningAuthorityName { get; set; } = "";
     public string DesignOrganizationName { get; set; } = "";
     public string Location { get; set; } = "";
+
+    /// <summary>
+    /// The structured address. Facts travel; the composed forms it carries are
+    /// derived and are not what Studio prints.
+    /// </summary>
+    public StudioCloudProjectSiteAddress SiteAddress { get; set; } = new();
     public string BuildingPurpose { get; set; } = "";
     public string CapacityUnit { get; set; } = "";
     public StudioCloudProjectFoundationUpdate Foundation { get; set; } = new();
@@ -1653,4 +1665,43 @@ internal sealed class StudioCloudAlbumChangeSummary
     public string PdfSha256 { get; set; } = "";
 
     public DateTimeOffset RevisionCreatedAtUtc { get; set; }
+}
+
+/// <summary>
+/// The structured site address on the wire: three codes, three names as they
+/// were chosen, the ward's own word, and the two composed forms.
+///
+/// Field names and meanings copied from the server's own contract
+/// (`CloudEraProjectSiteAddressDto`), not from a description of it.
+///
+/// 🔴 `Full` AND `Short` ARE READ-ONLY CONVENIENCES AND MUST NOT BE PRINTED BY
+/// STUDIO. An album has to compose with no network: a sheet that took its
+/// address from a field the server filled in would print blank offline, and -
+/// worse, because it is silent - would print STALE text after an offline edit.
+/// Studio composes from the parts, every time. The server's forms are for the
+/// website and the project list, and are useful here only as a second opinion
+/// worth reporting when the two disagree.
+/// </summary>
+internal sealed class StudioCloudProjectSiteAddress
+{
+    public string ProvinceCode { get; set; } = "";
+    public string ProvinceName { get; set; } = "";
+    public string DistrictCode { get; set; } = "";
+    public string DistrictName { get; set; } = "";
+    public string WardCode { get; set; } = "";
+    public string WardName { get; set; } = "";
+
+    /// <summary>«Баг», «Хороо», rarely «Тосгон» - carried, never inferred.</summary>
+    public string WardLabelMn { get; set; } = "";
+
+    public DateTimeOffset? CatalogueAsOfUtc { get; set; }
+
+    /// <summary>Street, building, landmark - what the picker cannot say.</summary>
+    public string AddressLine { get; set; } = "";
+
+    /// <summary>Composed by the server. Read; never printed. See the type note.</summary>
+    public string Full { get; set; } = "";
+
+    /// <summary>Composed by the server. Read; never printed. See the type note.</summary>
+    public string Short { get; set; } = "";
 }
