@@ -1,4 +1,4 @@
-namespace ErkS.Studio;
+﻿namespace ErkS.Studio;
 
 /// <summary>
 /// Why a read did not produce a usable record. Four situations, four answers -
@@ -111,6 +111,20 @@ internal static class StudioSsoIdentityStore
         // so it is kept as a floor.
         if (record.FormatVersion < StudioSsoIdentityRecord.OldestSupportedFormatVersion ||
             record.FormatVersion > StudioSsoIdentityRecord.CurrentFormatVersion)
+        {
+            return new StudioSsoIdentityReadResult(
+                StudioSsoIdentityReadOutcome.Unreadable,
+                null,
+                Math.Max(0, record.Generation));
+        }
+
+        // 🔴 A STATE NOBODY RECOGNISES IS AN UNREADABLE RECORD, NOT AN ODD ONE.
+        // The published contract already says a reader meeting one must refuse
+        // by name; this side has to agree, or a record written by something else
+        // would be trusted here to donate its token and to be the base the
+        // generation counts from. The check existed and nothing called it - the
+        // fifth time this week a rule was written and left unwired.
+        if (!StudioSsoIdentityState.IsKnown(record.State))
         {
             return new StudioSsoIdentityReadResult(
                 StudioSsoIdentityReadOutcome.Unreadable,

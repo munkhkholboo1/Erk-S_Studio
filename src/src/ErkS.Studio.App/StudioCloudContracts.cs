@@ -1705,3 +1705,43 @@ internal sealed class StudioCloudProjectSiteAddress
     /// <summary>Composed by the server. Read; never printed. See the type note.</summary>
     public string Short { get; set; } = "";
 }
+
+/// <summary>
+/// What Studio asks the server for, so this device's resting record carries a
+/// proof rather than only a claim.
+///
+/// Field names copied from the server's own contract type, not from its prose:
+/// CloudEraSsoHandoffTokenRequest in Erk-S-Server. The route authenticates as
+/// Studio already is - nothing new is trusted, the token only puts what the
+/// server knows right now into a form it can check later.
+/// </summary>
+internal sealed class StudioCloudSsoHandoffTokenRequest
+{
+    public string DeviceFingerprint { get; set; } = "";
+    public string LegacyDeviceFingerprint { get; set; } = "";
+
+    /// <summary>
+    /// The generation the record is about to carry. The token is bound to it,
+    /// so a plugin holding an older record is told to re-read rather than being
+    /// served an identity that has already been replaced.
+    /// </summary>
+    public long IdentityGeneration { get; set; }
+}
+
+/// <summary>
+/// The proof, and how long it lasts.
+///
+/// 🔴 THE TOKEN IS OPAQUE HERE AND MUST STAY THAT WAY. It is a signed JWT and
+/// the secret is the server's; Studio stores it and hands it on. Parsing it to
+/// read, say, its expiry would be Studio deciding something the server owns -
+/// and the expiry it would read is already in this response, stated by the side
+/// that issued it.
+/// </summary>
+internal sealed class StudioCloudSsoHandoffToken
+{
+    public string HandoffToken { get; set; } = "";
+    public DateTimeOffset IssuedAtUtc { get; set; }
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public long IdentityGeneration { get; set; }
+}
+

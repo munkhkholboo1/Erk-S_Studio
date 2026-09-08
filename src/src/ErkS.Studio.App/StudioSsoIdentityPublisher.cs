@@ -9,6 +9,7 @@ internal sealed record StudioSsoIdentityInputs(
     string CanonicalFingerprint,
     string LegacyFingerprint,
     string? HandoffToken,
+    DateTimeOffset? HandoffTokenExpiresAtUtc,
     DateTimeOffset NowUtc);
 
 /// <summary>
@@ -111,11 +112,65 @@ internal static class StudioSsoIdentityPublisher
         // A token belongs to an active identity. Carrying one into SignedOut or
         // BotLocked would hand a reader a proof for an identity this record is
         // explicitly refusing to assert.
-        string? token = (inputs.HandoffToken ?? "").Trim();
-        record.HandoffToken =
-            record.State == StudioSsoIdentityState.Active && token.Length > 0
-                ? token
-                : null;
+        //
+        // 🔴 AND NEVER INTO A BOT RECORD, WHICH IS THE SHARPER HALF. The server
+        // issues this token against STUDIO'S OWN SESSION and stamps it with that
+        // person's address; there is no bot-scoped issue route. On a seated
+        // machine somebody is often signed in beside the seat, so attaching
+        // their token to a record whose subject is the seat would have a plugin
+        // present a person's proof and be answered with the PERSON's
+        // entitlement - the exact union the seat model exists to refuse, arrived
+        // at by the back door. A bot record therefore carries no token and its
+        // readers refuse by name until the server offers a seat-scoped one.
+        string token = (inputs.HandoffToken ?? "").Trim();
+        DateTimeOffset? tokenExpires = inputs.HandoffTokenExpiresAtUtc;
+
+        // 🔴 A PUBLISH WITH NO TOKEN IN HAND MUST NOT STRIP THE ONE ALREADY OUT
+        // THERE. Studio holds the token in memory only, so after a restart it
+        // has none - and rewriting the record without it would take a perfectly
+        // good proof away from four products until a network call happened to
+        // succeed. The published record is the token's home, so it is read back
+        // from there.
+        //
+        // Only across the SAME identity, and only from a record that verifies. A
+        // token names who it was minted for: keeping one across a sign-out or a
+        // switch would publish one person's proof under another's name, and
+        // accepting one from a record that fails its own signature would let
+        // an edited file donate a token to a real identity.
+        if (token.Length == 0 &&
+            previous is { HandoffToken.Length: > 0 } &&
+            previous.ExpiresAtUtc > inputs.NowUtc &&
+            previous.IdentityForm().Equals(record.IdentityForm(), StringComparison.Ordinal) &&
+            StudioSsoIdentitySignature.Verify(previous))
+        {
+            token = previous.HandoffToken;
+
+            // The stored expiry IS the token's expiry: a record carrying a token
+            // was clamped to it when written, so reading it back recovers both
+            // halves of one fact.
+            tokenExpires = previous.ExpiresAtUtc;
+        }
+
+        bool tokenBelongsHere =
+            record.State == StudioSsoIdentityState.Active &&
+            record.IdentityKind == StudioSsoIdentityKind.Person &&
+            token.Length > 0;
+        record.HandoffToken = tokenBelongsHere ? token : null;
+
+        // 🔴 ONE FACT, ONE LIFETIME. The token has an expiry of its own, and a
+        // record that outlived the proof inside it would say «valid until
+        // Tuesday» while the thing that makes it usable stopped on Sunday - a
+        // reader would pass every check and then be refused by the server, with
+        // nothing on this side saying why. So the record's life is the EARLIER
+        // of the two. When the record is renewed the token is re-minted with it;
+        // offline, both run down together, which is the intended «open Studio
+        // once a week» rather than a second clock nobody is watching.
+        if (tokenBelongsHere && tokenExpires is DateTimeOffset tokenExpiry)
+        {
+            DateTimeOffset limit = tokenExpiry.ToUniversalTime();
+            if (limit < record.ExpiresAtUtc)
+                record.ExpiresAtUtc = limit;
+        }
 
         record.Generation = NextGeneration(record, previous, generationFloor);
         record.StateSignature = StudioSsoIdentitySignature.Compute(record);
@@ -190,6 +245,11 @@ internal static class StudioSsoIdentityPublisher
         // Renewed when a third of the life is left. Early enough that a person
         // who opens Studio once a week never meets the lapse, and late enough
         // that a machine left running does not rewrite the record all day.
-        return previous.ExpiresAtUtc - nowUtc <= Lifetime / 3;
+        // Renewal counts only when it actually EXTENDS the record. A token that
+        // cannot be re-minted - offline, say - leaves the clamped expiry where
+        // it was, and without this the same bytes would be rewritten on every
+        // account refresh for the last two days of the record's life.
+        return previous.ExpiresAtUtc - nowUtc <= Lifetime / 3 &&
+            next.ExpiresAtUtc > previous.ExpiresAtUtc;
     }
 }

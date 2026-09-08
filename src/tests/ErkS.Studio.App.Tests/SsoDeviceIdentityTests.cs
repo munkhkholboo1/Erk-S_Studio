@@ -125,6 +125,14 @@ public sealed class SsoDeviceIdentityTests
             HandoffToken = "handoff-abc",
         });
         StudioSsoIdentityRecord signedOut = Build(Inputs() with { HandoffToken = "handoff-abc" });
+        StudioSsoIdentityRecord unlockedSeat = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            SeatBotId = BotId,
+            SeatOrganizationId = OrgId,
+            SeatUnlocked = true,
+            HandoffToken = "handoff-abc",
+        });
         StudioSsoIdentityRecord active = Build(Inputs() with
         {
             SignedInEmail = Person,
@@ -134,6 +142,48 @@ public sealed class SsoDeviceIdentityTests
         Assert.Null(locked.HandoffToken);
         Assert.Null(signedOut.HandoffToken);
         Assert.Equal("handoff-abc", active.HandoffToken);
+
+        // 🔴 THE SHARP ONE. An UNLOCKED seat is Active, so the state test alone
+        // lets a token through - and the server mints this token against
+        // Studio's own session, stamped with the address of whoever is signed in
+        // beside the seat. A plugin presenting it would be answered with THAT
+        // PERSON's entitlement while the record says Bot: the union the seat
+        // model exists to refuse, reached by the back door.
+        Assert.Null(unlockedSeat.HandoffToken);
+    }
+
+    [Fact]
+    public void ATOKENSLifeCapsTheRecordsLife()
+    {
+        // 🔴 ONE FACT, ONE LIFETIME. A record outliving the proof inside it says
+        // «valid until Tuesday» while the thing that makes it usable stopped on
+        // Sunday - a reader passes every check on this side and is refused by
+        // the server, with nothing here able to say why.
+        StudioSsoIdentityRecord record = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(2),
+        });
+
+        Assert.Equal(Now.AddDays(2), record.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public void ALONGERLivedTokenDoesNotExtendTheRecord()
+    {
+        // The cap is a floor-and-ceiling question and only one direction is
+        // right. A token good for a year does not make the record good for a
+        // year: the record's own life is what says how long this device may go
+        // without Studio confirming who it is.
+        StudioSsoIdentityRecord record = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(365),
+        });
+
+        Assert.Equal(Now + StudioSsoIdentityPublisher.Lifetime, record.ExpiresAtUtc);
     }
 
     [Fact]
@@ -407,6 +457,117 @@ public sealed class SsoDeviceIdentityTests
     }
 
     [Fact]
+    public void APUBLISHEDTokenSurvivesAPublishThatHasNone()
+    {
+        // 🔴 STUDIO HOLDS THE TOKEN IN MEMORY ONLY, so after a restart it has
+        // none - and rewriting the record without it would take a perfectly good
+        // proof away from four products until a network call happened to
+        // succeed. The published record is the token's home and it is read back
+        // from there.
+        StudioSsoIdentityInputs signedIn = Inputs() with { SignedInEmail = Person };
+        StudioSsoIdentityRecord published = Build(signedIn with
+        {
+            HandoffToken = "handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(5),
+        });
+
+        StudioSsoIdentityRecord afterRestart = StudioSsoIdentityPublisher.Build(
+            signedIn with { NowUtc = Now.AddHours(2) },
+            published);
+
+        Assert.Equal("handoff-abc", afterRestart.HandoffToken);
+        Assert.Equal(published.Generation, afterRestart.Generation);
+        Assert.Equal(Now.AddDays(5), afterRestart.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public void ATOKENIsNOTCarriedAcrossAChangeOfIdentity()
+    {
+        // A token names who it was minted for. Keeping one when the person
+        // changes would publish one person's proof under another's name - and
+        // the server, asked to resolve it, would answer for whoever it was
+        // minted for.
+        StudioSsoIdentityRecord published = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(5),
+        });
+
+        StudioSsoIdentityRecord somebodyElse = StudioSsoIdentityPublisher.Build(
+            Inputs() with { SignedInEmail = "second@erk-s-design.mn" },
+            published);
+        StudioSsoIdentityRecord signedOut = StudioSsoIdentityPublisher.Build(
+            Inputs(),
+            published);
+
+        Assert.Null(somebodyElse.HandoffToken);
+        Assert.Null(signedOut.HandoffToken);
+    }
+
+    [Fact]
+    public void AFORGEDRecordCannotDonateAToken()
+    {
+        // The carry-forward reads a token out of a file. Accepting one from a
+        // record that fails its own signature would let an edited file hand a
+        // proof to a real identity - the one thing the signature is there to
+        // stop, undone by the convenience beside it.
+        StudioSsoIdentityRecord published = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(5),
+        });
+        published.StateSignature = "not-a-signature";
+
+        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(
+            Inputs() with { SignedInEmail = Person },
+            published);
+
+        Assert.Null(next.HandoffToken);
+    }
+
+    [Fact]
+    public void ANEXPIREDPublishedTokenIsNotCarried()
+    {
+        // The record and the token run out together by construction, so an
+        // expired stored record is an expired token. Carrying it would publish
+        // a proof the server has already stopped accepting.
+        StudioSsoIdentityRecord published = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(2),
+        });
+
+        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(
+            Inputs() with { SignedInEmail = Person, NowUtc = Now.AddDays(3) },
+            published);
+
+        Assert.Null(next.HandoffToken);
+    }
+
+    [Fact]
+    public void ASTATEThisBuildDoesNotRecogniseIsUnreadable()
+    {
+        // The rule for this existed as a method and nothing called it. It is not
+        // cosmetic: a record whose state means nothing here would otherwise be
+        // trusted to donate its token and to be the base the generation counts
+        // from, on the strength of a word this build has never heard of.
+        var store = new FakeCredentialStore();
+        StudioSsoIdentityRecord record = Build(Inputs() with { SignedInEmail = Person });
+        record.State = "Suspended";
+        record.Generation = 12;
+        StudioSsoIdentityStore.Write(store, record);
+
+        StudioSsoIdentityReadResult result = StudioSsoIdentityStore.Read(store);
+
+        Assert.Equal(StudioSsoIdentityReadOutcome.Unreadable, result.Outcome);
+        Assert.Null(result.Record);
+        Assert.Equal(12, result.GenerationFloor);
+    }
+
+    [Fact]
     public void ANEmptyStoreIsNOTFoundRatherThanUnreadable()
     {
         // The fourth outcome, and the one that decides whether the counter
@@ -565,6 +726,7 @@ public sealed class SsoDeviceIdentityTests
         CanonicalFingerprint: Canonical,
         LegacyFingerprint: Legacy,
         HandoffToken: null,
+        HandoffTokenExpiresAtUtc: null,
         NowUtc: Now);
 
     private static StudioSsoIdentityRecord Build(StudioSsoIdentityInputs inputs) =>

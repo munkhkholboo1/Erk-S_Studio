@@ -2190,9 +2190,47 @@ internal sealed partial class ShellView : IDisposable
         // occupied there. An owner session is the credential that releases it,
         // and this is the moment one arrives.
         await FlushPendingBotSeatReleasesAsync();
+        await EnsureSsoHandoffTokenAsync();
         await RefreshProjectsAsync();
         SetStatus("Cloud ERA бүртгэлээр нэвтэрлээ.");
         return true;
+    }
+
+    /// <summary>
+    /// Fetches the proof the other products present on this device's behalf.
+    ///
+    /// Runs right after a sign-in, deliberately: that is where a window and a
+    /// person are, so a failure can be shown and acted on. Inside a plugin there
+    /// is no such place, and with SSO there is no plugin sign-in left to fall
+    /// back to - a failure there would stop four products with no button to
+    /// press.
+    ///
+    /// A failure here is not fatal to Studio and must not read as if it were.
+    /// The identity is published either way; what is missing is the proof, and
+    /// the plugins say exactly that by name.
+    /// </summary>
+    private async Task EnsureSsoHandoffTokenAsync()
+    {
+        StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+        try
+        {
+            bool carried = await account.EnsureSsoHandoffTokenAsync(
+                seat?.BotId,
+                seat?.OrganizationId,
+                unlockedSeatIdentity is not null);
+            if (!carried && seat is null)
+            {
+                SetStatus(
+                    "Нэвтэрлээ. Гэхдээ энэ төхөөрөмжийн лицензийн баталгаа авагдсангүй — " +
+                    "AutoCAD, Revit, 3ds Max дээрх Erk-S хэрэгслүүд хараахан таньж чадахгүй.");
+            }
+        }
+        catch (Exception exception)
+        {
+            SetStatus(
+                "Лицензийн баталгаа авахад алдаа: " + exception.Message +
+                " — Studio ажиллана, плагинууд хараахан таньж чадахгүй.");
+        }
     }
 
     /// <summary>

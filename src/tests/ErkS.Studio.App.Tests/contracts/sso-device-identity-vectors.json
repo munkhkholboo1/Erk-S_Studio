@@ -13,6 +13,7 @@
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": null,
+        "handoffTokenExpiresAtUtc": null,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nSignedOut\n\n\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -44,6 +45,7 @@
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": null,
+        "handoffTokenExpiresAtUtc": null,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -75,6 +77,7 @@
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
+        "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -107,6 +110,7 @@
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
+        "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nBotLocked\n\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -138,9 +142,10 @@
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
+        "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
-      "canonicalForm": "1\n1\nActive\nBot\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
+      "canonicalForm": "1\n1\nActive\nBot\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
       "record": {
         "formatVersion": 1,
         "generation": 1,
@@ -153,10 +158,9 @@
           "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
           "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920"
         },
-        "handoffToken": "handoff_9c14b7e0f2",
         "issuedAtUtc": "2026-09-09T11:04:22\u002B00:00",
         "expiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
-        "stateSignature": "pzryJONM9cnJbiIfYbQ81O0POrqp\u002BaMJPOPdB2gfug8="
+        "stateSignature": "B7SsBL1I4Y2nLy\u002BBFKIXyRqj1OxUjEdKBWz3WfgIbCo="
       }
     },
     {
@@ -170,6 +174,7 @@
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
+        "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22.123\u002B00:00",
         "nowUtc": "2026-09-09T11:04:22.123\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.1230000\u002B00:00\n2026-09-16T11:04:22.1230000\u002B00:00",
@@ -189,6 +194,39 @@
         "issuedAtUtc": "2026-09-09T11:04:22.123\u002B00:00",
         "expiresAtUtc": "2026-09-16T11:04:22.123\u002B00:00",
         "stateSignature": "I26jkAAQdkfhL8EBVSUd2q\u002BkyjF6WvMtMRGr5ISxw8U="
+      }
+    },
+    {
+      "name": "person-token-expires-early",
+      "note": "THE CAP. The token runs out in two days, so the record does too - a record outliving the proof inside it would pass every check here and be refused by the server, with nothing on this side able to say why.",
+      "input": {
+        "signedInEmail": "owner@erk-s-design.mn",
+        "seatBotId": null,
+        "seatOrganizationId": null,
+        "seatUnlocked": false,
+        "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
+        "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
+        "handoffToken": "handoff_9c14b7e0f2",
+        "handoffTokenExpiresAtUtc": "2026-09-11T11:04:22\u002B00:00",
+        "nowUtc": "2026-09-09T11:04:22\u002B00:00"
+      },
+      "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-11T11:04:22.0000000\u002B00:00",
+      "record": {
+        "formatVersion": 1,
+        "generation": 1,
+        "state": "Active",
+        "identityKind": "Person",
+        "accountEmail": "owner@erk-s-design.mn",
+        "botId": "",
+        "organizationId": "",
+        "device": {
+          "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
+          "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920"
+        },
+        "handoffToken": "handoff_9c14b7e0f2",
+        "issuedAtUtc": "2026-09-09T11:04:22\u002B00:00",
+        "expiresAtUtc": "2026-09-11T11:04:22\u002B00:00",
+        "stateSignature": "DKJXWsPuMimxQHUg2LwK/AXQO6SPr3Ezl6fccxY/l\u002Bk="
       }
     }
   ]

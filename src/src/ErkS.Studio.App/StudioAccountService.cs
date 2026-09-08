@@ -2712,18 +2712,100 @@ internal sealed class StudioAccountService :
     public void UseBotToken(StudioCloudBotStateToken? token) => botToken = token;
 
     /// <summary>
-    /// What a plugin will present to the server to have its entitlement
-    /// resolved, once the server mints one.
+    /// What a plugin presents to the server to have its entitlement resolved.
     ///
-    /// 🔴 NULL TODAY, AND SAYING SO IS THE POINT. The minting route
-    /// (sso-plugin-license-resolve) is not deployed, so Studio holds nothing to
-    /// hand over. The record is published without a token rather than with an
-    /// empty one, so a reader can tell «this device has an identity and no way
-    /// to prove it yet» from «this device has a blank proof» - the second reads
-    /// like something that might work. One assignment here is the whole change
-    /// when the server side lands.
+    /// Held in memory only. At rest it lives inside the published record, which
+    /// is where the plugins read it from - keeping a second copy on disk would
+    /// be a second place for it to go stale.
     /// </summary>
-    public string? SsoHandoffToken { get; private set; }
+    private string ssoHandoffToken = "";
+
+    /// <summary>
+    /// The server's word on how long the token lasts. NOT read out of the token
+    /// itself: it is signed with the server's secret and opaque here, and the
+    /// side that issued it already stated the expiry in the response.
+    /// </summary>
+    private DateTimeOffset ssoHandoffTokenExpiresAtUtc;
+
+    /// <summary>
+    /// The generation the token was minted against. A token is bound to it, so
+    /// one held across an identity change proves the wrong thing and must not
+    /// be published.
+    /// </summary>
+    private long ssoHandoffTokenGeneration;
+
+    /// <summary>
+    /// Fetches the proof for this device's published identity and republishes
+    /// the record with it. Says whether the record now carries a token.
+    ///
+    /// 🔴 THE ORDER IS FORCED AND WORTH STATING. The token is bound to the
+    /// generation, and the generation is decided by publishing - so the record
+    /// is published first WITHOUT a token to settle its generation, the token is
+    /// minted against that number, and the record is published again. Asking for
+    /// a token first would mean guessing the number it is bound to.
+    ///
+    /// 🔴 A SEATED MACHINE GETS NOTHING HERE, DELIBERATELY. The server issues
+    /// this against Studio's own session and stamps it with that person's
+    /// address; there is no seat-scoped route. On a seated machine somebody is
+    /// often signed in beside the seat, and minting their token for a record
+    /// whose subject is the seat would have a plugin answered with the PERSON's
+    /// entitlement. Until the server offers a seat-scoped token, a bot record
+    /// carries none and its readers refuse by name.
+    /// </summary>
+    public async Task<bool> EnsureSsoHandoffTokenAsync(
+        string? seatBotId,
+        string? seatOrganizationId,
+        bool seatUnlocked,
+        CancellationToken cancellationToken = default)
+    {
+        if (!PublishSsoIdentity(seatBotId, seatOrganizationId, seatUnlocked))
+            return false;
+
+        StudioSsoIdentityReadResult published =
+            StudioSsoIdentityStore.Read(credentialStore);
+        if (published.Outcome != StudioSsoIdentityReadOutcome.Found ||
+            published.Record is not { } record)
+        {
+            return false;
+        }
+
+        if (record.State != StudioSsoIdentityState.Active ||
+            record.IdentityKind != StudioSsoIdentityKind.Person)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.HandoffToken))
+            return true;
+
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        StudioCloudSsoHandoffToken issued = await PostAuthorizedAsync<
+            StudioCloudSsoHandoffTokenRequest, StudioCloudSsoHandoffToken>(
+            "/api/cloud-era/v1/sso/handoff-token",
+            new StudioCloudSsoHandoffTokenRequest
+            {
+                DeviceFingerprint = fingerprints.Canonical,
+                LegacyDeviceFingerprint = fingerprints.Legacy,
+                IdentityGeneration = record.Generation,
+            },
+            cancellationToken).ConfigureAwait(true);
+
+        if (string.IsNullOrWhiteSpace(issued.HandoffToken))
+            throw new StudioAccountException("Сервер нэвтрэлтийн баталгаа буцаасангүй.");
+
+        // 🔴 THE ECHOED GENERATION IS CHECKED, NOT ASSUMED. A token bound to a
+        // different number would be published against this record and refused by
+        // the server later, with nothing on this side able to say why. A
+        // mismatch means the identity moved while the request was in flight; the
+        // next publish will ask again.
+        if (issued.IdentityGeneration != record.Generation)
+            return false;
+
+        ssoHandoffToken = issued.HandoffToken;
+        ssoHandoffTokenExpiresAtUtc = issued.ExpiresAtUtc.ToUniversalTime();
+        ssoHandoffTokenGeneration = issued.IdentityGeneration;
+        return PublishSsoIdentity(seatBotId, seatOrganizationId, seatUnlocked);
+    }
 
     /// <summary>
     /// Leaves this device's identity where the other Erk-S products can read it.
@@ -2750,6 +2832,7 @@ internal sealed class StudioAccountService :
         bool seatUnlocked)
     {
         StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
         var inputs = new StudioSsoIdentityInputs(
             Current?.Email,
             seatBotId,
@@ -2757,8 +2840,9 @@ internal sealed class StudioAccountService :
             seatUnlocked,
             fingerprints.Canonical,
             fingerprints.Legacy,
-            SsoHandoffToken,
-            DateTimeOffset.UtcNow);
+            HandoffToken: null,
+            HandoffTokenExpiresAtUtc: null,
+            now);
 
         StudioSsoIdentityReadResult stored = StudioSsoIdentityStore.Read(credentialStore);
 
@@ -2770,15 +2854,44 @@ internal sealed class StudioAccountService :
         if (stored.Outcome == StudioSsoIdentityReadOutcome.StoreUnavailable)
             return false;
 
-        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(
+        // Built once without a token, only to settle the generation this publish
+        // will carry. A token is bound to that number, so it cannot be chosen
+        // before the number is known.
+        StudioSsoIdentityRecord probe = StudioSsoIdentityPublisher.Build(
             inputs,
             stored.Record,
             stored.GenerationFloor);
-        if (!StudioSsoIdentityPublisher.NeedsRewrite(next, stored.Record, inputs.NowUtc))
+
+        (string? token, DateTimeOffset? tokenExpiry) = ResolveSsoHandoffToken(probe, now);
+
+        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(
+            inputs with
+            {
+                HandoffToken = token,
+                HandoffTokenExpiresAtUtc = tokenExpiry,
+            },
+            stored.Record,
+            stored.GenerationFloor);
+        if (!StudioSsoIdentityPublisher.NeedsRewrite(next, stored.Record, now))
             return true;
 
         return StudioSsoIdentityStore.Write(credentialStore, next);
     }
+
+    /// <summary>
+    /// The proof this run minted, if it is still good for the record about to be
+    /// published. Nothing else: whether an ALREADY published token survives is a
+    /// rule about records and lives in the publisher, where it can be measured
+    /// without a signed-in session.
+    /// </summary>
+    private (string? Token, DateTimeOffset? ExpiresAtUtc) ResolveSsoHandoffToken(
+        StudioSsoIdentityRecord probe,
+        DateTimeOffset nowUtc) =>
+        ssoHandoffToken.Length > 0 &&
+        ssoHandoffTokenGeneration == probe.Generation &&
+        ssoHandoffTokenExpiresAtUtc > nowUtc
+            ? (ssoHandoffToken, ssoHandoffTokenExpiresAtUtc)
+            : (null, null);
 
     /// <summary>
     /// The seat credential, obtained now if this machine does not have one.
