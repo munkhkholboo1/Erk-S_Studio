@@ -2221,8 +2221,8 @@ internal sealed partial class ShellView : IDisposable
             if (!carried && seat is null)
             {
                 SetStatus(
-                    "Нэвтэрлээ. Гэхдээ энэ төхөөрөмжийн лицензийн баталгаа авагдсангүй — " +
-                    "AutoCAD, Revit, 3ds Max дээрх Erk-S хэрэгслүүд хараахан таньж чадахгүй.");
+                    "Нэвтэрлээ. " +
+                    StudioSsoRefusalCatalogue.MessageMn("sso_handoff_token_missing"));
             }
         }
         catch (Exception exception)
@@ -2296,10 +2296,13 @@ internal sealed partial class ShellView : IDisposable
             // Said once, on the way down. A device that cannot publish its
             // identity has a consequence a person will otherwise meet as
             // four products refusing for no visible reason.
+            // The sentence comes from the shared catalogue rather than from
+            // here, so the person reads the SAME words in Studio and in the
+            // plugin that is about to refuse. Two wordings for one situation is
+            // how somebody concludes they are looking at two problems.
             SetStatus(
-                "Энэ төхөөрөмжийн бүртгэлийг Windows-ийн итгэмжлэлийн санд бичиж " +
-                "чадсангүй. AutoCAD, Revit, 3ds Max дээрх Erk-S хэрэгслүүд лиценз " +
-                "таньж чадахгүй.");
+                StudioSsoRefusalCatalogue.MessageMn("sso_store_unavailable") +
+                " AutoCAD, Revit, 3ds Max дээрх Erk-S хэрэгслүүд лиценз таньж чадахгүй.");
         }
         ssoIdentityPublished = ssoPublished;
         accountStatusText.Text = seatedAs is not null
