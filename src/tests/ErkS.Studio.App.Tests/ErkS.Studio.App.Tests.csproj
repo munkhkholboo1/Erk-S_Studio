@@ -30,6 +30,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      A copy of the cross-product contract these tests measure against. The
+      canonical file lives in the platform's _shared folder; this copy is
+      what the tests read, and a difference between the two is the drift the
+      test exists to catch. Reading the other repository's file directly
+      would make a green run here depend on a checkout nobody controls.
+    -->
+    <None Include="contracts\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\ErkS.Studio.App\ErkS.Studio.App.csproj" />
   </ItemGroup>
 

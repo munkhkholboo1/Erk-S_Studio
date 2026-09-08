@@ -2219,6 +2219,14 @@ internal sealed partial class ShellView : IDisposable
         menu.Items.Add(signOut);
     }
 
+    /// <summary>
+    /// Whether this device's identity is currently readable by the other
+    /// products. Held so the failure is reported on the way down rather than
+    /// on every refresh - a message repeated on every menu click is one
+    /// people learn to scroll past.
+    /// </summary>
+    private bool ssoIdentityPublished = true;
+
     private void UpdateAccountUi()
     {
         StudioAccountSession? session = account.Current;
@@ -2235,6 +2243,27 @@ internal sealed partial class ShellView : IDisposable
         // bot device looks exactly like an ordinary one, and the person at it
         // has no way to tell which identity their work is going out under.
         StudioBotDeviceState? seatedAs = StudioBotDeviceStateStore.Read();
+
+        // The other Erk-S products no longer sign in for themselves - they
+        // read this device's identity. Published from here because this is
+        // the one place that sees BOTH halves of it, the signed-in person
+        // and the machine's seat, and the record is the pair. Publishing
+        // from either side alone would keep overwriting the other.
+        bool ssoPublished = account.PublishSsoIdentity(
+            seatedAs?.BotId,
+            seatedAs?.OrganizationId,
+            unlockedSeatIdentity is not null);
+        if (!ssoPublished && ssoIdentityPublished)
+        {
+            // Said once, on the way down. A device that cannot publish its
+            // identity has a consequence a person will otherwise meet as
+            // four products refusing for no visible reason.
+            SetStatus(
+                "Энэ төхөөрөмжийн бүртгэлийг Windows-ийн итгэмжлэлийн санд бичиж " +
+                "чадсангүй. AutoCAD, Revit, 3ds Max дээрх Erk-S хэрэгслүүд лиценз " +
+                "таньж чадахгүй.");
+        }
+        ssoIdentityPublished = ssoPublished;
         accountStatusText.Text = seatedAs is not null
             ? "Бот: " + seatedAs.DisplayName
             : session is null

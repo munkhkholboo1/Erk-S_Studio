@@ -2712,6 +2712,63 @@ internal sealed class StudioAccountService :
     public void UseBotToken(StudioCloudBotStateToken? token) => botToken = token;
 
     /// <summary>
+    /// What a plugin will present to the server to have its entitlement
+    /// resolved, once the server mints one.
+    ///
+    /// 🔴 NULL TODAY, AND SAYING SO IS THE POINT. The minting route
+    /// (sso-plugin-license-resolve) is not deployed, so Studio holds nothing to
+    /// hand over. The record is published without a token rather than with an
+    /// empty one, so a reader can tell «this device has an identity and no way
+    /// to prove it yet» from «this device has a blank proof» - the second reads
+    /// like something that might work. One assignment here is the whole change
+    /// when the server side lands.
+    /// </summary>
+    public string? SsoHandoffToken { get; private set; }
+
+    /// <summary>
+    /// Leaves this device's identity where the other Erk-S products can read it.
+    ///
+    /// Called from the one place that sees BOTH halves - the signed-in person
+    /// and the machine's seat - because the record is the pair and publishing it
+    /// from either side alone would keep overwriting the other. That place is
+    /// the account-UI refresh, which is also where the seat is re-applied for
+    /// exactly the same reason.
+    ///
+    /// 🔴 IT IS CALLED OFTEN AND MUST BE CHEAP AND QUIET. A refresh happens on
+    /// menu clicks and project switches; this rewrites the record only when the
+    /// identity actually changed or the stored one is running down. The
+    /// generation is what plugins watch, so moving it on every republish would
+    /// tell four products to re-resolve because somebody opened a menu.
+    ///
+    /// Returns whether the record is currently published, so a caller can tell
+    /// somebody that the plugins will refuse - a device that cannot write its
+    /// identity has a real consequence, not a silent one.
+    /// </summary>
+    public bool PublishSsoIdentity(
+        string? seatBotId,
+        string? seatOrganizationId,
+        bool seatUnlocked)
+    {
+        StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
+        var inputs = new StudioSsoIdentityInputs(
+            Current?.Email,
+            seatBotId,
+            seatOrganizationId,
+            seatUnlocked,
+            fingerprints.Canonical,
+            fingerprints.Legacy,
+            SsoHandoffToken,
+            DateTimeOffset.UtcNow);
+
+        StudioSsoIdentityRecord? previous = StudioSsoIdentityStore.Read(credentialStore);
+        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(inputs, previous);
+        if (!StudioSsoIdentityPublisher.NeedsRewrite(next, previous, inputs.NowUtc))
+            return true;
+
+        return StudioSsoIdentityStore.Write(credentialStore, next);
+    }
+
+    /// <summary>
     /// The seat credential, obtained now if this machine does not have one.
     ///
     /// 🔴 IT USED TO REFUSE INSTEAD, and the refusal broke the one path that
