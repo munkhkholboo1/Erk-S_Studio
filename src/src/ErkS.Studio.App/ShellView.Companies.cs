@@ -1603,8 +1603,32 @@ internal sealed partial class ShellView
             state.MarkFoundationContentChanged();
             BindProjectToUi();
         }
-        if (rebuildAlbum)
-            UpdateAlbum(silent: true, statusPrefix: "Компанийн мэдээлэл шинэчлэгдлээ");
+        // 🔴 REBUILD ONLY IF SOMETHING ACTUALLY CHANGED. The user put it
+        // plainly: «байгууллагын мэдээлэл өдөр тутам шинэчлэгдэхгүй. Ер нь
+        // шинэчлэгдээгүй мэдээллийг дахин дахин татах процесс хийгдэж байгаа
+        // эсэхийг шалга.»
+        //
+        // They were right, and the answer was sitting one line above: `changed`
+        // is computed - a full comparison covering the logo, both document
+        // lists and the timestamp - and was used to decide whether to refresh
+        // the UI while the ALBUM was rebuilt either way. A rebuild reconciles
+        // every linked project asset and composes the cloud union album, which
+        // is the load they were feeling, paid in full for an organisation whose
+        // details had not moved since yesterday.
+        //
+        // Saying so is part of the fix. Skipping silently is indistinguishable
+        // from being broken, and "nothing happened" with no explanation is what
+        // sent them looking for a defect in the first place.
+        if (!rebuildAlbum)
+            return;
+
+        if (!changed)
+        {
+            SetStatus("Байгууллагын мэдээлэл өөрчлөгдөөгүй тул альбом дахин баригдсангүй.");
+            return;
+        }
+
+        UpdateAlbum(silent: true, statusPrefix: "Компанийн мэдээлэл шинэчлэгдлээ");
     }
 
     private static string CompanyDisplayName(CompanyProfile profile)
