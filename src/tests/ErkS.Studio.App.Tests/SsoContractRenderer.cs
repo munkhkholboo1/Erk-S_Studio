@@ -98,6 +98,24 @@ internal static class SsoContractRenderer
                 "is wider than the evidence, so the next reader does not repeat the " +
                 "mistake sso_device_mismatch made on this side.",
             },
+            ["messageComposition"] = new JsonObject
+            {
+                ["rule"] = "append-only",
+                ["_rule"] = new JsonArray
+                {
+                    "A product MAY append its own context to messageMn - which seat is " +
+                    "asking for a PIN, which version was found, where the file was. It " +
+                    "MUST NOT replace the sentence.",
+                    "",
+                    "Match by PREFIX, not by equality: a reader comparing whole strings " +
+                    "would reject every message that carries context, which is the " +
+                    "shape that makes people stop appending anything useful.",
+                    "",
+                    "PFA's rule, written here rather than told to three teams - a rule " +
+                    "delivered as a message is a rule copied into three places, which is " +
+                    "the drift this file exists to stop.",
+                },
+            },
             ["invariants"] = Invariants(),
             ["codes"] = codes,
         };

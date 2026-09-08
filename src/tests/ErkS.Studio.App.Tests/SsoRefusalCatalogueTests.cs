@@ -34,18 +34,16 @@ public sealed class SsoRefusalCatalogueTests
     }
 
     [Fact]
-    public void EVERYSharedCodeMatchesTheSERVERSOwnWords()
+    public void EVERYSERVERCodeIsInTheCatalogueWithItsOwnWords()
     {
-        // 🔴 THE HALF THAT WOULD OTHERWISE DRIFT SILENTLY. Five of these codes
-        // belong to both sides and their sentences are the SERVER's. Copying
-        // them into this catalogue without a check would recreate, one level up,
-        // exactly the divergence this file exists to stop - and it would show up
-        // as a person being told two different things about one situation.
-        JsonNode server = JsonNode.Parse(
-            File.ReadAllText(ContractPath("sso-plugin-resolve-vectors.json")))!;
-        JsonArray refusals = server["refusals"]!.AsArray();
+        // 🔴 DIRECTION ONE: THE SERVER MAY NOT SEND A CODE THIS CATALOGUE HAS
+        // NEVER HEARD OF. Their sentences are theirs, and copying them here
+        // without a check would recreate, one level up, exactly the divergence
+        // the catalogue exists to stop - showing a person two different
+        // sentences for one situation.
+        JsonArray refusals = ServerRefusals();
 
-        var shared = new List<string>();
+        var seen = new List<string>();
         foreach (JsonNode? entry in refusals)
         {
             string code = entry!["code"]!.GetValue<string>();
@@ -58,7 +56,7 @@ public sealed class SsoRefusalCatalogueTests
                     code + " - add it rather than letting each reader invent a name");
             }
 
-            shared.Add(code);
+            seen.Add(code);
             Assert.Equal(entry["message"]!.GetValue<string>(), mine!.MessageMn);
             Assert.Equal(entry["status"]!.GetValue<int>(), mine.HttpStatus);
             Assert.True(
@@ -68,7 +66,42 @@ public sealed class SsoRefusalCatalogueTests
 
         // The control: without it, a server file that failed to load would leave
         // the loop with nothing to compare and this test would pass in silence.
-        Assert.Equal(8, shared.Count);
+        Assert.Equal(6, seen.Count);
+    }
+
+    [Fact]
+    public void EVERYCatalogueServerCodeIsCoveredByTheSERVERSVectors()
+    {
+        // 🔴 DIRECTION TWO, AND IT CATCHES THE OPPOSITE MISTAKE. The first
+        // direction notices a code the server added; this one notices a code
+        // THIS catalogue claims the server sends when it does not.
+        //
+        // That is not hypothetical: sso_studio_not_installed, sso_bot_state_locked
+        // and sso_seat_token_absent were all marked as server-raised here because
+        // the server DECLARED them - and nothing on that side ever returned one.
+        // Two published contracts agreed with each other about three codes
+        // neither could send. One direction of checking would have kept agreeing.
+        HashSet<string> server = ServerRefusals()
+            .Select(entry => entry!["code"]!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (StudioSsoRefusal refusal in StudioSsoRefusalCatalogue.All)
+        {
+            if (!refusal.Origin.HasFlag(StudioSsoRefusalOrigin.Server))
+                continue;
+
+            Assert.True(
+                server.Contains(refusal.Code),
+                refusal.Code + " is marked as server-raised and appears in no server " +
+                "vector - either the server stopped sending it or it never did");
+        }
+    }
+
+    private static JsonArray ServerRefusals()
+    {
+        JsonNode server = JsonNode.Parse(
+            File.ReadAllText(ContractPath("sso-plugin-resolve-vectors.json")))!;
+        return server["refusals"]!.AsArray();
     }
 
     [Fact]
@@ -192,6 +225,19 @@ public sealed class SsoRefusalCatalogueTests
         Assert.Equal(
             StudioSsoRefusalCatalogue.All.Select(item => item.Code).Distinct().Count(),
             StudioSsoRefusalCatalogue.All.Count);
+    }
+
+    [Fact]
+    public void THEMessageRuleTravelsInTheFileRatherThanInAMessage()
+    {
+        // PFA settled how a product may add context to a sentence - append, never
+        // replace, match by prefix. Told to three teams it would be copied into
+        // three places and drift; carried in the file, there is one of it.
+        JsonNode published = JsonNode.Parse(ReadPublished())!;
+
+        Assert.Equal(
+            "append-only",
+            published["messageComposition"]!["rule"]!.GetValue<string>());
     }
 
     [Fact]

@@ -78,9 +78,15 @@ internal static class StudioSsoRefusalCatalogue
             "Windows-ийн итгэмжлэлийн санд хандаж чадсангүй. Энэ нь эрхийн " +
             "асуудал тул дахин суулгах нь тус болохгүй."),
 
+        // 🔴 READER ONLY, AND SRV MEASURED WHY. This was marked as shared
+        // because the server DECLARED it - and nothing on that side ever
+        // returned it. A plugin that finds no record never reaches the server at
+        // all, so the server cannot be the side that notices. Two catalogues
+        // agreed with each other about a code neither could send: the
+        // «declared, no caller» shape, one level up from code.
         new("sso_studio_not_installed",
-            StudioSsoRefusalOrigin.Reader | StudioSsoRefusalOrigin.Server,
-            401,
+            StudioSsoRefusalOrigin.Reader,
+            null,
             2,
             StudioSsoRefusalNextStep.InstallStudio,
             "Erk-S Studio суулгаж нэвтэрнэ үү. Энэ програм өөрөө нэвтрэхээ больсон."),
@@ -137,9 +143,11 @@ internal static class StudioSsoRefusalCatalogue
             "Энэ компьютер дээр Erk-S Studio-д хэн ч нэвтрээгүй байна. " +
             "Studio-г нээж нэвтэрнэ үү."),
 
+        // Reader only, same measurement: a locked machine holds no token, so
+        // the request that would have carried one is never made.
         new("sso_bot_state_locked",
-            StudioSsoRefusalOrigin.Reader | StudioSsoRefusalOrigin.Server,
-            409,
+            StudioSsoRefusalOrigin.Reader,
+            null,
             7,
             StudioSsoRefusalNextStep.EnterPin,
             "Төхөөрөмж ботын төлөвт түгжээтэй байна. ПИН оруулж тайлна уу."),
@@ -162,13 +170,20 @@ internal static class StudioSsoRefusalCatalogue
         // the machine's own credential and arrives once the PIN has opened it.
         // Reader-decided by construction: the server never sees a request that
         // carries no token, so it cannot be the side that names this.
+        // The sentence changed with the world it describes. It first told
+        // people to enter their PIN, which was right while a seat could not get
+        // a token at all; now the record only reaches this state AFTER the PIN,
+        // so the remaining causes are a Studio that has not reached the server
+        // or one too old to ask. Advice that names a step already taken reads as
+        // «it is not listening to me».
         new("sso_seat_token_absent",
             StudioSsoRefusalOrigin.Reader,
             null,
             8,
-            StudioSsoRefusalNextStep.EnterPin,
-            "Энэ төхөөрөмж ботын суудлаар ажиллаж байна. Суудлын эрхийн " +
-            "баталгаа хараахан аваагүй тул Erk-S Studio-г нээж ПИН оруулна уу."),
+            StudioSsoRefusalNextStep.OpenStudio,
+            "Энэ төхөөрөмжийн суудал танигдлаа. Суудлын эрхийн баталгаа " +
+            "хараахан ирээгүй байна — Erk-S Studio-г сүлжээтэй үед нэг удаа " +
+            "нээнэ үү."),
 
         // --- What only the server can decide. No check order: a reader reaches
         // --- these only after every step above has passed.
