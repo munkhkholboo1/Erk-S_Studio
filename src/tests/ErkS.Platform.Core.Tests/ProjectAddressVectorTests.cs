@@ -91,7 +91,10 @@ public sealed class ProjectAddressVectorTests
             WardLabelMn = "баг",
         };
 
+        // Still true, and now for a simpler reason: the ward is printed
+        // verbatim, so no suffix can appear at all.
         Assert.DoesNotContain("Жинст баг", location.CoverLine(), StringComparison.Ordinal);
+        Assert.Contains("Завхан аймаг", location.CoverLine(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -137,31 +140,36 @@ public sealed class ProjectAddressVectorTests
     }
 
     [Fact]
-    public void AWardWhoseNameDoesNOTCarryItsLabelGetsOneAppended()
+    public void AWardIsPrintedEXACTLYAsStored()
     {
-        // 🔴 A GAP IN THE SHARED VECTORS, FOUND BY MUTATION. Deleting the label
-        // lookup for the ward level left all seven vectors green - because
-        // every one of them uses a real unit whose name ALREADY contains its
-        // label («1-р хороо», «1-р баг, Зэст», «Хатгал тосгон»). Measured on the
-        // catalogue: 1 852 of 1 853 ward names carry their own label.
+        // 🔴 THIS TEST ASSERTED THE OPPOSITE AN HOUR AGO, AND THE REVERSAL IS
+        // THE POINT. I had found by mutation that the vectors could not see a
+        // missing ward-label lookup, and concluded the lookup must therefore be
+        // exercised. The gap was real; the conclusion was backwards.
         //
-        // So the vectors cannot see whether the lookup works at all - they only
-        // check that it does not fire wrongly. The remaining unit, and any
-        // future one, needs this.
+        // Measured on the catalogue: 1 852 of 1 853 ward names already contain
+        // their word, so appending helps none of them. The single unit that
+        // does not is «Хатгал тосгон» - and the label the picker sends for it
+        // is «Баг», because the heading comes from the PARENT's level.
+        // Appending would print «Хатгал тосгон баг»: a place that does not
+        // exist, on a signed sheet.
+        //
+        // So the rule would have been right 1 852 times and wrong exactly
+        // where it mattered. A minority of one was not an edge case to note -
+        // it was the case that decided the rule.
         var location = new ProjectSiteLocation
         {
-            ProvinceCode = "511",
-            ProvinceName = "Улаанбаатар",
-            DistrictCode = "51116",
-            DistrictName = "Сонгинохайрхан",
-            WardCode = "5111651",
-            WardName = "Зүүн салаа",
-            WardLabelMn = "хороо",
+            ProvinceCode = "267",
+            ProvinceName = "Хөвсгөл",
+            DistrictCode = "26704",
+            DistrictName = "Алаг-Эрдэнэ",
+            WardCode = "2670401",
+            WardName = "Хатгал тосгон",
+            WardLabelMn = "Баг",
         };
 
-        Assert.Equal(
-            "Улаанбаатар хот, Сонгинохайрхан дүүрэг, Зүүн салаа хороо",
-            location.CoverLine());
+        Assert.Equal("Хөвсгөл аймаг, Алаг-Эрдэнэ сум, Хатгал тосгон", location.CoverLine());
+        Assert.DoesNotContain("тосгон баг", location.CoverLine(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

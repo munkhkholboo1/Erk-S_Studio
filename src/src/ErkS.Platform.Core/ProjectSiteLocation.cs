@@ -198,16 +198,28 @@ public sealed class ProjectSiteLocation
     ///     so a suffix on the label is a lookup instead of a guess;
     ///   * it printed no label for the first two levels at all.
     ///
-    /// 🔴 THE LABEL IS APPENDED ONLY WHEN THE NAME DOES NOT ALREADY CARRY IT,
-    /// and the test is CONTAINS rather than ENDS-WITH. Measured on the real
-    /// catalogue: 1 852 of 1 853 ward names carry their own label, and many
-    /// carry it in the MIDDLE - «1-р баг, Жинст». An ends-with test passes that
-    /// one and prints «1-р баг, Жинст баг». The server's first composer had
-    /// exactly this bug on 1 544 units.
+    /// 🔴 THE SAME QUESTION HAS OPPOSITE ANSWERS AT DIFFERENT LEVELS.
     ///
-    /// The first two levels' labels are DERIVED, because measurement says they
-    /// are safe to derive: 0 of 22 province names and 2 of 342 district names
-    /// carry theirs. Only the third level had to travel in the data.
+    /// The first two levels get their label APPENDED: measured on the real
+    /// catalogue, 0 of 22 province names and 2 of 342 district names carry
+    /// theirs, so «Орхон» has to become «Орхон аймаг».
+    ///
+    /// The third level is printed EXACTLY AS STORED, label untouched. 1 852 of
+    /// 1 853 ward names already contain their word, so appending helps none of
+    /// them - and on the single remaining unit it does active harm. That unit
+    /// is «Хатгал тосгон», and the label the picker sends for it is «Баг»,
+    /// because the heading comes from the PARENT's level. Appending would print
+    /// «Хатгал тосгон баг» and name a place that does not exist.
+    ///
+    /// So <see cref="WardLabelMn"/> still travels - the client must know what
+    /// KIND of unit this is, and that cannot be derived from the code - but
+    /// knowing the kind and printing the word are two different jobs. This
+    /// method does the second one, and for the third level the answer is: do
+    /// not.
+    ///
+    /// (The earlier version of this comment argued the opposite, and was wrong
+    /// in the way that only shows up in the minority: it would have been right
+    /// 1 852 times and put a false place name on a signed sheet once.)
     /// </summary>
     public string CoverLine()
     {
@@ -229,8 +241,10 @@ public sealed class ProjectSiteLocation
             parts.Add(WithLabel(ProvinceName, IsCapital ? "хот" : "аймаг"));
         if (DistrictName.Trim().Length > 0)
             parts.Add(WithLabel(DistrictName, IsCapital ? "дүүрэг" : "сум"));
+        // Verbatim - see the note above. The label is known and deliberately
+        // not printed.
         if (WardName.Trim().Length > 0)
-            parts.Add(WithLabel(WardName, WardLabelMn));
+            parts.Add(WardName.Trim());
 
         return string.Join(", ", parts);
     }
@@ -250,7 +264,7 @@ public sealed class ProjectSiteLocation
         if (DistrictName.Trim().Length > 0)
             parts.Add(WithLabel(DistrictName, IsCapital ? "дүүрэг" : "сум"));
         if (WardName.Trim().Length > 0)
-            parts.Add(WithLabel(WardName, WardLabelMn));
+            parts.Add(WardName.Trim());
 
         return parts.Count > 0 ? string.Join(", ", parts) : CoverLine();
     }

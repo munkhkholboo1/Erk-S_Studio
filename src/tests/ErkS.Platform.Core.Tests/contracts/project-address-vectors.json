@@ -60,8 +60,8 @@
       "expectShort": "Баян-Өндөр сум, 1-р баг, Зэст"
     },
     {
-      "name": "name-already-carries-a-different-word",
-      "note": "The one unit in the country whose third-level name is a тосгон. Appending the label would print «Хатгал тосгон тосгон».",
+      "name": "label-disagrees-with-the-name",
+      "note": "🔴 THE ONE UNIT IN 1853 WHOSE NAME DOES NOT CARRY ITS PICKER WORD, and the label a client actually sends for it is «Баг» -- a picker word comes from the PARENT level and its parent is a сум. Appending would print «Хатгал тосгон баг», naming it as something it is not. The other 1852 already carry their word, so the append helps none and harms this one: at the third level the stored name is printed as it stands. Deleting the ward-label rule leaves every OTHER vector green, which is why this case exists.",
       "input": {
         "provinceCode": "267",
         "provinceName": "Хөвсгөл",
@@ -69,7 +69,7 @@
         "districtName": "Алаг-Эрдэнэ",
         "wardCode": "2670461",
         "wardName": "Хатгал тосгон",
-        "wardLabelMn": "тосгон",
+        "wardLabelMn": "Баг",
         "addressLine": ""
       },
       "expectFull": "Хөвсгөл аймаг, Алаг-Эрдэнэ сум, Хатгал тосгон",
