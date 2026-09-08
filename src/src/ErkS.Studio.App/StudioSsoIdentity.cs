@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -106,13 +106,22 @@ internal sealed class StudioSsoIdentityRecord
     /// <summary>
     /// A tripwire over the whole record, keyed to this device.
     ///
-    /// 🔴 STATED HONESTLY BECAUSE THE OPPOSITE IS TEMPTING: this catches hand
-    /// editing and catches the record being copied to another machine. It is
-    /// NOT authentication. The key is derivable on the device by anything that
-    /// can already read the record, so code running as this Windows user could
-    /// forge it - which is exactly as true of the per-product licence files this
-    /// replaces. What actually proves the identity is the server resolving
-    /// <see cref="HandoffToken"/>; this only stops a record from travelling.
+    /// 🔴 IT CATCHES HAND EDITING. IT DOES NOT CATCH COPYING, AND THE NOTE HERE
+    /// SAID OTHERWISE UNTIL CGM MEASURED IT. The key is derived from the
+    /// fingerprint that travels INSIDE the record, so a verbatim copy is
+    /// self-consistent and verifies perfectly on any machine. The claim is
+    /// removed rather than softened, and a test asserts the copy DOES verify so
+    /// the sentence cannot come back without going red first.
+    ///
+    /// It is also not authentication: the key is derivable by anything that can
+    /// already read the record, so code running as this Windows user could forge
+    /// it - exactly as true of the per-product licence files this replaces.
+    ///
+    /// What stops a copied record from being USEFUL is the server. The handoff
+    /// token carries a device claim checked with the server's own secret, so a
+    /// record carried elsewhere resolves nothing. A false assurance here would
+    /// be worse than none, because somebody would read it and stop adding the
+    /// protection they would otherwise have added.
     /// </summary>
     public string StateSignature { get; set; } = "";
 

@@ -268,16 +268,60 @@ public sealed class SsoDeviceIdentityTests
     }
 
     [Fact]
-    public void ARecordCARRIEDToAnotherMachineFailsItsOwnSignature()
+    public void EDITINGTheFingerprintBreaksTheSignature()
     {
-        // The one thing this tripwire genuinely stops. Its key is derived from
-        // the device fingerprint, so the same bytes read on another machine do
-        // not verify - which is why the record may live in a store a person can
-        // export.
+        // What the tripwire genuinely stops: somebody changing a field by hand.
+        // Every field the canonical form covers behaves this way; the fingerprint
+        // is asserted because it is the one people reach for first.
         StudioSsoIdentityRecord record = Build(Inputs() with { SignedInEmail = Person });
         record.Device.CanonicalFingerprint = "SHA256:0000FFFF";
 
         Assert.False(StudioSsoIdentitySignature.Verify(record));
+    }
+
+    [Fact]
+    public void AVERBATIMCopyOnAnotherMachineVerifiesPERFECTLY()
+    {
+        // 🔴 THIS TEST EXISTS TO STOP A CLAIM, NOT A BUG. The contract said - and
+        // the type note beside this signature said - that it catches a record
+        // being copied to another machine. It does not, and CGM measured why:
+        // the key is derived from the fingerprint that travels INSIDE the
+        // record, so a copy is self-consistent and passes.
+        //
+        // A false assurance is worse than none, because somebody reads it and
+        // stops adding the protection they would otherwise have added. What
+        // actually stops a copied record from being useful is the server: the
+        // token carries a device claim checked with the server's own secret.
+        //
+        // Asserted as TRUE rather than deleted, so the claim cannot come back
+        // into the documentation without a red test underneath it.
+        StudioSsoIdentityRecord onThisMachine =
+            Build(Inputs() with { SignedInEmail = Person, HandoffToken = "handoff-abc" });
+
+        var copiedElsewhere = new StudioSsoIdentityRecord
+        {
+            FormatVersion = onThisMachine.FormatVersion,
+            Generation = onThisMachine.Generation,
+            State = onThisMachine.State,
+            IdentityKind = onThisMachine.IdentityKind,
+            AccountEmail = onThisMachine.AccountEmail,
+            BotId = onThisMachine.BotId,
+            OrganizationId = onThisMachine.OrganizationId,
+            Device = new StudioSsoDeviceFingerprints
+            {
+                CanonicalFingerprint = onThisMachine.Device.CanonicalFingerprint,
+                LegacyFingerprint = onThisMachine.Device.LegacyFingerprint,
+            },
+            HandoffToken = onThisMachine.HandoffToken,
+            IssuedAtUtc = onThisMachine.IssuedAtUtc,
+            ExpiresAtUtc = onThisMachine.ExpiresAtUtc,
+            StateSignature = onThisMachine.StateSignature,
+        };
+
+        Assert.True(
+            StudioSsoIdentitySignature.Verify(copiedElsewhere),
+            "if this ever goes red the signature gained a machine binding and the " +
+            "contract's wording has to be revisited - in the good direction");
     }
 
     [Fact]
