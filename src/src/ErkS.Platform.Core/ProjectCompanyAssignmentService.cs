@@ -183,6 +183,36 @@ public static class ProjectCompanyAssignmentService
                     .Select(document => document.Clone())
                     .ToList();
             }
+
+            if (sameOrganization)
+            {
+                // 🔴 A SCAN THIS DEVICE ALREADY HOLDS MUST NOT BE DEMOTED TO A
+                // PLACEHOLDER. What arrives from the cloud is a description of
+                // the organisation's documents, minted with IsAvailable = false
+                // because nothing has been fetched YET. Installing that clone
+                // wholesale overwrites the flag on scans that were downloaded
+                // long ago - and the download loop skips a document only when
+                // `File.Exists(path) && local.IsAvailable`, so with the flag
+                // cleared the skip can never hold.
+                //
+                // The result was that every sync re-downloaded every scan of
+                // the organisation, in full, one after another. The branches
+                // above look like they cover this and do not: they fire only
+                // when the CLOUD list is empty, which is exactly the case where
+                // there is nothing to re-download.
+                //
+                // Only the flag and the local whereabouts are carried over. The
+                // cloud stays authoritative for everything it actually knows -
+                // title, page count, hash, server id. And the caller still
+                // checks that the file is on disk, so a scan that was deleted
+                // behind Studio's back is fetched again rather than assumed.
+                CarryLocalAvailability(
+                    nextSnapshot.RegistrationCertificateDocuments,
+                    previousSnapshot.RegistrationCertificateDocuments);
+                CarryLocalAvailability(
+                    nextSnapshot.DesignLicenseDocuments,
+                    previousSnapshot.DesignLicenseDocuments);
+            }
         }
         else if (sameOrganization)
         {
@@ -288,6 +318,72 @@ public static class ProjectCompanyAssignmentService
     /// is still the same scan, and drawing it twice is what the reader
     /// notices.
     /// </remarks>
+    /// <summary>
+    /// Copies "this device already has the file" from the previous snapshot
+    /// onto the freshly hydrated one, for documents that are the same document.
+    ///
+    /// Identity is the same rule the merge below uses - the hash, falling back
+    /// to the server's id - so the two cannot disagree about what counts as the
+    /// same scan.
+    /// </summary>
+    private static void CarryLocalAvailability(
+        IReadOnlyList<ProjectFileReference>? hydrated,
+        IReadOnlyList<ProjectFileReference>? previous)
+    {
+        if (hydrated is null || previous is null || previous.Count == 0)
+            return;
+
+        Dictionary<string, ProjectFileReference> known = [];
+        foreach (ProjectFileReference document in previous)
+        {
+            if (document is null || !document.IsAvailable)
+                continue;
+
+            string identity = SameDocumentKey(document);
+            if (identity.Length > 0)
+                known[identity] = document;
+        }
+
+        if (known.Count == 0)
+            return;
+
+        foreach (ProjectFileReference document in hydrated)
+        {
+            if (document is null || document.IsAvailable)
+                continue;
+
+            if (!known.TryGetValue(SameDocumentKey(document), out ProjectFileReference? local))
+                continue;
+
+            document.IsAvailable = true;
+            document.IsCloudPlaceholder = false;
+            if (string.IsNullOrWhiteSpace(document.RelativePath))
+                document.RelativePath = local.RelativePath;
+            if (string.IsNullOrWhiteSpace(document.LinkedSourcePath))
+                document.LinkedSourcePath = local.LinkedSourcePath;
+        }
+    }
+
+    /// <summary>
+    /// WHICH DOCUMENT this is - the hash, falling back to the server's id.
+    ///
+    /// Deliberately NOT <c>DocumentIdentity</c>, which lives further down and
+    /// is a fingerprint of a document's whole STATE (paths, availability,
+    /// version) used to decide whether anything changed. Matching a
+    /// freshly-hydrated placeholder against the copy already on disk needs the
+    /// opposite: a key that ignores exactly the fields that differ between
+    /// them. Naming them apart is the point - one answers "is this the same
+    /// scan", the other "is this the same situation".
+    /// </summary>
+    private static string SameDocumentKey(ProjectFileReference document)
+    {
+        if (!string.IsNullOrWhiteSpace(document.Sha256))
+            return "sha:" + document.Sha256.Trim().ToLowerInvariant();
+        return string.IsNullOrWhiteSpace(document.ServerDocumentId)
+            ? ""
+            : "id:" + document.ServerDocumentId.Trim().ToLowerInvariant();
+    }
+
     private static List<ProjectFileReference> MergeDocuments(
         IEnumerable<ProjectFileReference>? fromLibrary,
         IEnumerable<ProjectFileReference>? alreadyOnTheProject)
