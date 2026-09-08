@@ -339,6 +339,59 @@ public sealed class SsoDeviceIdentityTests
     }
 
     [Fact]
+    public void THERecordSurvivesTheREALCredentialManager()
+    {
+        // 🔴 THE FAKE PROVES THE RULES AND NOTHING ABOUT THE STORE. Every test
+        // above runs against a dictionary, so all of them would stay green if
+        // the record could not actually be written to Windows - which is the one
+        // failure that stops four products and shows up on nobody's screen.
+        //
+        // Written to a scratch target and removed again, so a test run never
+        // disturbs the entry Studio actually publishes. The target is the only
+        // thing changed: the payload, the serializer and the native calls are
+        // the ones the real path uses.
+        string target = "Erk-S Platform/SSO/Device Identity (test " +
+            Guid.NewGuid().ToString("N") + ")";
+        StudioSsoIdentityRecord written = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+        });
+
+        try
+        {
+            WindowsCredentialVault.Write(target, "Erk-S Studio", written);
+            StudioSsoIdentityRecord? read =
+                WindowsCredentialVault.Read<StudioSsoIdentityRecord>(target);
+
+            Assert.NotNull(read);
+            Assert.Equal(written.State, read!.State);
+            Assert.Equal(written.AccountEmail, read.AccountEmail);
+            Assert.Equal(written.HandoffToken, read.HandoffToken);
+            Assert.Equal(written.Generation, read.Generation);
+
+            // The signature travelling intact is the part a reader in another
+            // product depends on: the blob is UTF-16 through a native API, and a
+            // round trip that changed one byte of base64 would be invisible
+            // until four plugins started refusing a record that looks correct.
+            Assert.Equal(written.StateSignature, read.StateSignature);
+            Assert.True(StudioSsoIdentitySignature.Verify(read));
+        }
+        finally
+        {
+            try
+            {
+                WindowsCredentialVault.Delete(target);
+            }
+            catch (Exception)
+            {
+                // Cleanup only. A failure to remove a scratch entry must not
+                // mask what the assertions above already decided.
+            }
+        }
+    }
+
+    [Fact]
     public void THEIdentityIsPublishedWhereBOTHHalvesAreVisible()
     {
         // 🔴 THE HALF THAT KEEPS GOING MISSING IN THIS CODEBASE IS THE CALLER.
