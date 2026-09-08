@@ -30,7 +30,7 @@ public sealed class SsoRefusalCatalogueTests
     {
         // Regenerated and compared, so a code added or reworded in the catalogue
         // cannot ship without the file the readers hold changing with it.
-        Assert.Equal(Render(), ReadPublished());
+        Assert.Equal(SsoContractRenderer.Codes(), ReadPublished());
     }
 
     [Fact]
@@ -102,6 +102,80 @@ public sealed class SsoRefusalCatalogueTests
     }
 
     [Fact]
+    public void THESignatureCheckCANNOTBeADeviceCheck()
+    {
+        // 🔴 PFA'S TECHNIQUE, TAKEN: lock the REASON for the name, not only the
+        // name. sso_device_mismatch was renamed today because the check cannot
+        // establish what its name claimed - and nothing stopped somebody from
+        // widening it tomorrow and leaving the new name just as wrong.
+        //
+        // Asserted structurally rather than from the source text: the verifier
+        // is handed the record and nothing else. No fingerprint, no machine
+        // identity, no store. A check with no device input CANNOT be a device
+        // check, and the day one is added this goes red and the name is
+        // reconsidered on purpose.
+        System.Reflection.MethodInfo verify =
+            typeof(StudioSsoIdentitySignature).GetMethod("Verify")!;
+        System.Reflection.ParameterInfo[] parameters = verify.GetParameters();
+
+        Assert.Single(parameters);
+        Assert.Equal(typeof(StudioSsoIdentityRecord), parameters[0].ParameterType);
+
+        // And the read that raises it sees only the store: no device argument
+        // reaches the decision either.
+        System.Reflection.MethodInfo read =
+            typeof(StudioSsoIdentityStore).GetMethod("Read")!;
+        Assert.Single(read.GetParameters());
+        Assert.Equal(typeof(ICredentialStore), read.GetParameters()[0].ParameterType);
+    }
+
+    [Fact]
+    public void THEEXPIRYCapIsPublishedAsAMEASUREDFact()
+    {
+        // 🔴 THE HALF PFA CANNOT CHECK FOR THEMSELVES. They read the record's
+        // expiry and trust it is never longer than the token inside it; the
+        // token is opaque to them, so they cannot verify that. If Studio dropped
+        // the cap they would break with nothing red anywhere.
+        //
+        // The published value is the OUTCOME of running the publisher, so
+        // removing the cap changes the file and this comparison goes red - the
+        // side that can prove the invariant owns the proof.
+        JsonNode published = JsonNode.Parse(ReadPublished())!;
+        Assert.True(
+            published["invariants"]!["recordExpiryIsCappedByTokenExpiry"]!.GetValue<bool>(),
+            "the cap is what PFA depends on; if this is false the readers must be told");
+
+        // Measured again here, independently of the renderer, so the file and
+        // the behaviour cannot agree with each other while both being wrong.
+        var now = new DateTimeOffset(2026, 5, 5, 9, 0, 0, TimeSpan.Zero);
+        StudioSsoIdentityRecord record = StudioSsoIdentityPublisher.Build(
+            new StudioSsoIdentityInputs(
+                "someone@erk-s.mn", null, null, false, "fp", "fp-legacy",
+                "token", now.AddDays(3), now),
+            previous: null);
+        Assert.Equal(now.AddDays(3), record.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public void THERENAMEDCodeIsGoneAndTheSERVERSKept()
+    {
+        // Two different proofs, two names. The reader's signature check keeps
+        // sso_signature_invalid; the server's device claim keeps
+        // sso_device_mismatch. Sharing one name made a reader's formatting bug
+        // look like the server's device verdict, and told people their record
+        // had been altered when the fault was ours.
+        StudioSsoRefusal signature = StudioSsoRefusalCatalogue.All
+            .Single(item => item.Code == "sso_signature_invalid");
+        StudioSsoRefusal device = StudioSsoRefusalCatalogue.All
+            .Single(item => item.Code == "sso_device_mismatch");
+
+        Assert.Equal(StudioSsoRefusalOrigin.Reader, signature.Origin);
+        Assert.Equal(StudioSsoRefusalOrigin.Server, device.Origin);
+        Assert.Null(device.CheckOrder);
+        Assert.Equal(5, signature.CheckOrder);
+    }
+
+    [Fact]
     public void EVERYCodeCarriesASentenceAndAWayForward()
     {
         // A bare code is an obstacle. Four of these are situations a person can
@@ -147,54 +221,6 @@ public sealed class SsoRefusalCatalogueTests
             "StudioSsoRefusalCatalogue.MessageMn(\"sso_handoff_token_missing\")",
             view,
             StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The published shape. Kept here rather than in a separate emitter so the
-    /// file and the thing that checks it cannot describe different documents.
-    /// </summary>
-    private static string Render()
-    {
-        var codes = new JsonArray();
-        foreach (StudioSsoRefusal refusal in StudioSsoRefusalCatalogue.All)
-        {
-            codes.Add(new JsonObject
-            {
-                ["code"] = refusal.Code,
-                ["origin"] = refusal.Origin.ToString(),
-                ["httpStatus"] = refusal.HttpStatus,
-                ["checkOrder"] = refusal.CheckOrder,
-                ["nextStep"] = refusal.NextStep.ToString(),
-                ["messageMn"] = refusal.MessageMn,
-            });
-        }
-
-        var file = new JsonObject
-        {
-            ["_comment"] = new JsonArray
-            {
-                "GENERATED by SsoRefusalCatalogueTests. Do not edit by hand - every " +
-                "hand-copy of this list has been wrong, because a new code arrives " +
-                "silently and every line of the old copy stays true.",
-                "",
-                "Compare your reader's constants against this file. Names, order and " +
-                "sentences all live here; the nearest other implementation is not a " +
-                "reference.",
-                "",
-                "origin: Reader = decided from the resting record before any request. " +
-                "Server = decided when the token is presented. Five codes are both, " +
-                "deliberately: one situation gets one sentence whichever side noticed it.",
-                "",
-                "checkOrder: the step a reader raises it at. Order is part of the " +
-                "contract - each step makes the fields below it mean something.",
-            },
-            ["codes"] = codes,
-        };
-        // Normalised, because line endings are a checkout concern and not
-        // part of the contract: the serializer writes CRLF on Windows and
-        // git may hand the file back either way.
-        return (file.ToJsonString(Options) + "\n")
-            .Replace("\r\n", "\n");
     }
 
     private static string ReadPublished()

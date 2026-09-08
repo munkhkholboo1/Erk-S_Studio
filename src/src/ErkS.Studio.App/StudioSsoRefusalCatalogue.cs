@@ -101,13 +101,26 @@ internal static class StudioSsoRefusalCatalogue
             "Энэ төхөөрөмжийн бүртгэл шинэ хэлбэрээр бичигдсэн байна. " +
             "Энэ програмаа шинэчилнэ үү."),
 
-        new("sso_device_mismatch",
-            StudioSsoRefusalOrigin.Reader | StudioSsoRefusalOrigin.Server,
-            401,
+        // 🔴 THIS USED TO BE CALLED sso_device_mismatch AND THE NAME WAS AN
+        // ACCUSATION IT COULD NOT SUPPORT. The signature check does not
+        // establish that a record came from another machine - a verbatim copy
+        // passes it - and it fails just as readily on a FORMATTING mistake of
+        // ours: PFA and PFR both nearly shipped readers that rebuilt the
+        // timestamp wrongly, and every record on every machine would have been
+        // reported to its owner as tampered with. Telling somebody their record
+        // was altered when the fault is our own is worse than saying nothing.
+        //
+        // «Signature invalid» is true at the level the check actually works at,
+        // whatever the cause, and the sentence names the fix instead of a
+        // culprit. Renamed while three readers were one line each; after it
+        // reaches people it would be expensive.
+        new("sso_signature_invalid",
+            StudioSsoRefusalOrigin.Reader,
+            null,
             5,
             StudioSsoRefusalNextStep.OpenStudio,
-            "Энэ баталгаа өөр компьютерт олгогдсон байна. Энэ машин дээрээ " +
-            "Studio-г нээж нэвтэрнэ үү."),
+            "Энэ төхөөрөмжийн бүртгэл батлагдсангүй. Erk-S Studio-г нээвэл " +
+            "дахин бичигдэнэ."),
 
         new("sso_handoff_expired",
             StudioSsoRefusalOrigin.Reader | StudioSsoRefusalOrigin.Server,
@@ -141,6 +154,20 @@ internal static class StudioSsoRefusalCatalogue
 
         // --- What only the server can decide. No check order: a reader reaches
         // --- these only after every step above has passed.
+
+        // Kept under its own name, and it is NOT the client-side check above.
+        // The server proves this one: the token carries a device claim checked
+        // with the server's own secret, so a record carried to another machine
+        // is caught HERE and nowhere else. Two names because two different
+        // things are established - the earlier shared name made a reader's
+        // formatting bug look like the server's device verdict.
+        new("sso_device_mismatch",
+            StudioSsoRefusalOrigin.Server,
+            401,
+            null,
+            StudioSsoRefusalNextStep.OpenStudio,
+            "Энэ баталгаа өөр компьютерт олгогдсон байна. Энэ машин дээрээ " +
+            "Studio-г нээж нэвтэрнэ үү."),
         new("sso_licence_inactive",
             StudioSsoRefusalOrigin.Server,
             409,
