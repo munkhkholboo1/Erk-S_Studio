@@ -91,14 +91,15 @@ public sealed class SsoRefusalCatalogueTests
             }
         }
 
-        // The steps run 1..8 with one shared position: SignedOut and BotLocked
-        // are both decided at the state check.
+        // The steps run 1..8 with two shared positions: SignedOut and BotLocked
+        // are both decided at the state check, and a missing token is named
+        // differently on a seat than on a person.
         int[] steps = StudioSsoRefusalCatalogue.All
             .Where(item => item.CheckOrder is not null)
             .Select(item => item.CheckOrder!.Value)
             .Order()
             .ToArray();
-        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 7, 8], steps);
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 7, 8, 8], steps);
     }
 
     [Fact]
@@ -151,7 +152,7 @@ public sealed class SsoRefusalCatalogueTests
         StudioSsoIdentityRecord record = StudioSsoIdentityPublisher.Build(
             new StudioSsoIdentityInputs(
                 "someone@erk-s.mn", null, null, false, "fp", "fp-legacy",
-                "token", now.AddDays(3), now),
+                "token", now.AddDays(3), StudioSsoHandoffScope.Person, now),
             previous: null);
         Assert.Equal(now.AddDays(3), record.ExpiresAtUtc);
     }
@@ -213,14 +214,20 @@ public sealed class SsoRefusalCatalogueTests
         // at two problems.
         string view = ReadAppSource("ShellView.cs");
 
-        Assert.Contains(
-            "StudioSsoRefusalCatalogue.MessageMn(\"sso_store_unavailable\")",
-            view,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "StudioSsoRefusalCatalogue.MessageMn(\"sso_handoff_token_missing\")",
-            view,
-            StringComparison.Ordinal);
+        // Asserted as «the catalogue is the source» rather than by pinning one
+        // call shape: the token message became a choice between two codes when
+        // seats got their own, and an assertion pinned to the old spelling would
+        // have gone red for a reason that had nothing to do with what it checks.
+        Assert.Contains("StudioSsoRefusalCatalogue.MessageMn(", view, StringComparison.Ordinal);
+        foreach (string code in new[]
+        {
+            "sso_store_unavailable",
+            "sso_handoff_token_missing",
+            "sso_seat_token_absent",
+        })
+        {
+            Assert.Contains("\"" + code + "\"", view, StringComparison.Ordinal);
+        }
     }
 
     private static string ReadPublished()

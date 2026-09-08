@@ -42,6 +42,7 @@ public sealed class SsoIdentityVectorTests
         string LegacyFingerprint,
         string? HandoffToken,
         DateTimeOffset? HandoffTokenExpiresAtUtc,
+        StudioSsoHandoffScope HandoffTokenScope,
         DateTimeOffset NowUtc);
 
     public static TheoryData<string> VectorNames()
@@ -67,6 +68,7 @@ public sealed class SsoIdentityVectorTests
                 vector.Input.LegacyFingerprint,
                 vector.Input.HandoffToken,
                 vector.Input.HandoffTokenExpiresAtUtc,
+                vector.Input.HandoffTokenScope,
                 vector.Input.NowUtc),
             previous: null);
 
@@ -95,9 +97,9 @@ public sealed class SsoIdentityVectorTests
     {
         // 🔴 THE CONTROL FOR THE THEORY ABOVE. A vector file that failed to load
         // would produce zero cases and a green run - the silent-checker shape
-        // this codebase keeps producing. Seven is what the file carries today; a
+        // this codebase keeps producing. Eight is what the file carries today; a
         // changed count is a deliberate edit and should have to be seen.
-        Assert.Equal(7, Load().Cases.Count);
+        Assert.Equal(8, Load().Cases.Count);
         Assert.All(Load().Cases, vector => Assert.False(string.IsNullOrWhiteSpace(vector.Name)));
     }
 

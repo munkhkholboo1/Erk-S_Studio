@@ -144,13 +144,31 @@ internal static class StudioSsoRefusalCatalogue
             StudioSsoRefusalNextStep.EnterPin,
             "Төхөөрөмж ботын төлөвт түгжээтэй байна. ПИН оруулж тайлна уу."),
 
+        // PFR wrote a better sentence than this catalogue's first attempt and
+        // the catalogue takes it: say what IS known before what is pending. «No
+        // proof yet» alone reads like a failure; «your sign-in was recognised,
+        // the licence check follows» reads like a step.
         new("sso_handoff_token_missing",
             StudioSsoRefusalOrigin.Reader,
             null,
             8,
             StudioSsoRefusalNextStep.Wait,
-            "Энэ төхөөрөмж таних тэмдэгтэй боловч эрхийн баталгаа хараахан " +
-            "аваагүй байна. Erk-S Studio-д нэвтэрсний дараа авагдана."),
+            "Studio-гийн нэвтрэлт танигдлаа. Лицензийн танилт бэлэн болмогц " +
+            "ажиллана."),
+
+        // 🔴 A SEATED MACHINE NEEDS ITS OWN SENTENCE, AND «SIGN IN» IS THE WRONG
+        // ONE. Somebody is usually already signed in beside the seat, so telling
+        // them to sign in points away from the fix - the seat's proof comes from
+        // the machine's own credential and arrives once the PIN has opened it.
+        // Reader-decided by construction: the server never sees a request that
+        // carries no token, so it cannot be the side that names this.
+        new("sso_seat_token_absent",
+            StudioSsoRefusalOrigin.Reader,
+            null,
+            8,
+            StudioSsoRefusalNextStep.EnterPin,
+            "Энэ төхөөрөмж ботын суудлаар ажиллаж байна. Суудлын эрхийн " +
+            "баталгаа хараахан аваагүй тул Erk-S Studio-г нээж ПИН оруулна уу."),
 
         // --- What only the server can decide. No check order: a reader reaches
         // --- these only after every step above has passed.

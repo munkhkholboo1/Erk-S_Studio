@@ -42,6 +42,10 @@ internal static class SsoContractRenderer
         ["sso_handoff_token_missing"] =
             "Лиценз байхгүй гэсэн үг БИШ: таних тэмдэг бий, нотолгоо нь хараахан " +
             "олгогдоогүй байна.",
+        ["sso_seat_token_absent"] =
+            "Суудал хүчингүй гэсэн үг БИШ: суудал хэвээр, зөвхөн нотолгоо нь " +
+            "хараахан олгогдоогүй. Хүнд «нэвтэрнэ үү» гэж хэлэх нь буруу зүг — " +
+            "хажууд нь аль хэдийн нэвтэрсэн байж болно.",
         ["sso_store_unavailable"] =
             "Бичлэг байхгүй гэсэн үг БИШ: санд хүрч чадаагүй тул юу байгааг мэдэхгүй.",
     };
@@ -80,6 +84,12 @@ internal static class SsoContractRenderer
                 "origin: Reader = decided from the resting record before any request. " +
                 "Server = decided when the token is presented. Four codes are both, " +
                 "deliberately: one situation gets one sentence whichever side noticed it.",
+                "",
+                "expiry: the WRITER puts the earlier of the record's own life and the " +
+                "token's into expiresAtUtc. A reader checks that one field and nothing " +
+                "else - there is no separate token expiry to read, and opening the " +
+                "token to look would be parsing a proof that is deliberately opaque. " +
+                "See invariants.recordExpiryIsCappedByTokenExpiry.",
                 "",
                 "checkOrder: the step a reader raises it at. Order is part of the " +
                 "contract - each step makes the fields below it mean something.",
@@ -122,6 +132,7 @@ internal static class SsoContractRenderer
                 "SHA256:PROBE-LEGACY",
                 "probe-token",
                 now.AddDays(2),
+                StudioSsoHandoffScope.Person,
                 now),
             previous: null);
 

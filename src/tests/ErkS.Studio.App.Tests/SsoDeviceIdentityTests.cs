@@ -144,12 +144,69 @@ public sealed class SsoDeviceIdentityTests
         Assert.Equal("handoff-abc", active.HandoffToken);
 
         // 🔴 THE SHARP ONE. An UNLOCKED seat is Active, so the state test alone
-        // lets a token through - and the server mints this token against
-        // Studio's own session, stamped with the address of whoever is signed in
-        // beside the seat. A plugin presenting it would be answered with THAT
-        // PERSON's entitlement while the record says Bot: the union the seat
-        // model exists to refuse, reached by the back door.
+        // lets a token through - and a PERSON-scoped token there is whoever is
+        // signed in beside the seat. A plugin presenting it would be answered
+        // with THAT PERSON's entitlement while the record says Bot: the union
+        // the seat model exists to refuse, reached by calling the wrong route.
         Assert.Null(unlockedSeat.HandoffToken);
+    }
+
+    [Fact]
+    public void ASEATScopedTokenISPublishedOnASeatRecord()
+    {
+        // The positive control for the refusal above, and the thing that stops
+        // it from being «bot records never carry tokens» - which was true only
+        // while the server had no seat route. The seat's own credential mints
+        // this one, so it names the SEAT and belongs here.
+        StudioSsoIdentityRecord record = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            SeatBotId = BotId,
+            SeatOrganizationId = OrgId,
+            SeatUnlocked = true,
+            HandoffToken = "seat-handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(5),
+            HandoffTokenScope = StudioSsoHandoffScope.Seat,
+        });
+
+        Assert.Equal(StudioSsoIdentityKind.Bot, record.IdentityKind);
+        Assert.Equal("seat-handoff-abc", record.HandoffToken);
+        Assert.Equal("", record.AccountEmail);
+    }
+
+    [Fact]
+    public void ASEATScopedTokenIsREFUSEDOnAPersonRecord()
+    {
+        // The mirror, and it is not symmetry for its own sake: a seat token
+        // names an organisation's seat, so publishing it under a person's record
+        // would have a plugin resolve the ORGANISATION's entitlement for
+        // somebody working under their own licence.
+        StudioSsoIdentityRecord record = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "seat-handoff-abc",
+            HandoffTokenExpiresAtUtc = Now.AddDays(5),
+            HandoffTokenScope = StudioSsoHandoffScope.Seat,
+        });
+
+        Assert.Equal(StudioSsoIdentityKind.Person, record.IdentityKind);
+        Assert.Null(record.HandoffToken);
+    }
+
+    [Fact]
+    public void ATOKENWithNOScopeIsRefusedEverywhere()
+    {
+        // The scope is how the publisher tells one route's token from the
+        // other's; a token that arrived without one cannot be placed, and
+        // guessing would be exactly the mistake this field exists to prevent.
+        StudioSsoIdentityRecord person = Build(Inputs() with
+        {
+            SignedInEmail = Person,
+            HandoffToken = "handoff-abc",
+            HandoffTokenScope = StudioSsoHandoffScope.None,
+        });
+
+        Assert.Null(person.HandoffToken);
     }
 
     [Fact]
@@ -515,8 +572,14 @@ public sealed class SsoDeviceIdentityTests
             HandoffTokenExpiresAtUtc = Now.AddDays(5),
         });
 
+        // Republished with nothing in hand - the shape of the next launch,
+        // where the scope is unknown because the token is not held any more.
         StudioSsoIdentityRecord afterRestart = StudioSsoIdentityPublisher.Build(
-            signedIn with { NowUtc = Now.AddHours(2) },
+            signedIn with
+            {
+                NowUtc = Now.AddHours(2),
+                HandoffTokenScope = StudioSsoHandoffScope.None,
+            },
             published);
 
         Assert.Equal("handoff-abc", afterRestart.HandoffToken);
@@ -688,6 +751,72 @@ public sealed class SsoDeviceIdentityTests
     }
 
     [Fact]
+    public void EACHScopeIsMintedOnItsOwnRouteWithItsOwnCredential()
+    {
+        // 🔴 WRITTEN AFTER A SABOTAGE SURVIVED. Forcing the seat path onto the
+        // person's route left every test green: the publisher sees a token
+        // LABELLED Seat and has no way to know it was minted as whoever was
+        // signed in beside the machine. The union the seat model refuses was one
+        // character away and nothing said so.
+        //
+        // Pairing the path with the credential in one value is what makes the
+        // choice measurable at all - they can no longer be picked separately.
+        StudioSsoHandoffRoute person = StudioSsoHandoffRoutes.For(StudioSsoHandoffScope.Person);
+        StudioSsoHandoffRoute seat = StudioSsoHandoffRoutes.For(StudioSsoHandoffScope.Seat);
+
+        Assert.Equal("/api/cloud-era/v1/sso/handoff-token", person.Path);
+        Assert.False(person.UsesSeatCredential);
+
+        Assert.Equal("/api/cloud-era/v1/sso/seat-handoff-token", seat.Path);
+        Assert.True(seat.UsesSeatCredential);
+
+        // Neither may borrow the other's credential.
+        Assert.NotEqual(person.Path, seat.Path);
+        Assert.NotEqual(person.UsesSeatCredential, seat.UsesSeatCredential);
+    }
+
+    [Fact]
+    public void ASCOPELESSTokenHasNoRouteAtALL()
+    {
+        // Defaulting to one of the two would be a guess about who this device is
+        // working as, made at the moment there is least reason to guess.
+        Assert.Throws<InvalidOperationException>(
+            () => StudioSsoHandoffRoutes.For(StudioSsoHandoffScope.None));
+    }
+
+    [Fact]
+    public void THEMINTINGCallTakesBothHalvesFromTheSAMERoute()
+    {
+        // The seam has no injection point - the two posts are private members of
+        // a service that needs a live session - so this is read from source, and
+        // it is read narrowly: the credential branch must be the route's own
+        // flag, and both posts must take the route's own path. That is precisely
+        // the pair the surviving sabotage broke.
+        string service = ReadAppSource("StudioAccountService.cs");
+        int method = service.IndexOf(
+            "public async Task<bool> EnsureSsoHandoffTokenAsync(",
+            StringComparison.Ordinal);
+        Assert.True(method > 0, "the token method was not found");
+        string body = service[method..service.IndexOf("\n    }", method, StringComparison.Ordinal)];
+
+        Assert.Contains(
+            "StudioSsoHandoffRoutes.For(scope)",
+            body,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "issued = route.UsesSeatCredential",
+            body,
+            StringComparison.Ordinal);
+
+        // Both calls address the route rather than a literal, so the path and
+        // the credential cannot disagree.
+        Assert.Equal(2, Occurrences(body, "route.Path,"));
+        Assert.DoesNotContain("\"/api/cloud-era/v1/sso/", body, StringComparison.Ordinal);
+    }
+
+    private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
+
+    [Fact]
     public void THEIdentityIsPublishedWhereBOTHHalvesAreVisible()
     {
         // 🔴 THE HALF THAT KEEPS GOING MISSING IN THIS CODEBASE IS THE CALLER.
@@ -771,6 +900,10 @@ public sealed class SsoDeviceIdentityTests
         LegacyFingerprint: Legacy,
         HandoffToken: null,
         HandoffTokenExpiresAtUtc: null,
+        // Person by default because most of these are; the cases that matter
+        // set it deliberately, and a scope with no token beside it decides
+        // nothing.
+        HandoffTokenScope: StudioSsoHandoffScope.Person,
         NowUtc: Now);
 
     private static StudioSsoIdentityRecord Build(StudioSsoIdentityInputs inputs) =>

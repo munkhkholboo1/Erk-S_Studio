@@ -1,5 +1,59 @@
 ﻿namespace ErkS.Studio;
 
+/// <summary>
+/// Who a handoff token was minted for.
+///
+/// 🔴 THE TOKEN IS OPAQUE, SO THE SCOPE HAS TO TRAVEL BESIDE IT. There are two
+/// issue routes - one authenticated as the signed-in person, one as the
+/// machine's own seat - and the bytes they return look identical here. Without
+/// this the publisher could not tell a person's proof from a seat's, and the
+/// union the seat model refuses would be one wrong call away: a seated machine
+/// with somebody signed in beside it would publish THEIR token under the seat's
+/// name and be answered with their entitlement.
+/// </summary>
+internal enum StudioSsoHandoffScope
+{
+    None,
+
+    /// <summary>Minted on /sso/handoff-token, as the signed-in person.</summary>
+    Person,
+
+    /// <summary>Minted on /sso/seat-handoff-token, as this machine's seat.</summary>
+    Seat,
+}
+
+/// <summary>Where a token of a given scope is minted, and with whose credential.</summary>
+internal readonly record struct StudioSsoHandoffRoute(string Path, bool UsesSeatCredential);
+
+/// <summary>
+/// Which route mints which scope, as a value rather than as two branches at a
+/// call site.
+///
+/// 🔴 THIS EXISTS BECAUSE A SABOTAGE SURVIVED. Forcing the seat path onto the
+/// person's route left every test green: the publisher's scope check sees a
+/// token LABELLED Seat and cannot tell that it was minted with the wrong
+/// credential. That is the union the seat model refuses, reopened by one
+/// character - and nothing said so.
+///
+/// Pairing the path with the credential in one value means the two cannot be
+/// chosen separately, and the pairing itself is now something a test can read.
+/// </summary>
+internal static class StudioSsoHandoffRoutes
+{
+    public const string PersonPath = "/api/cloud-era/v1/sso/handoff-token";
+    public const string SeatPath = "/api/cloud-era/v1/sso/seat-handoff-token";
+
+    public static StudioSsoHandoffRoute For(StudioSsoHandoffScope scope) => scope switch
+    {
+        StudioSsoHandoffScope.Person => new StudioSsoHandoffRoute(PersonPath, false),
+        StudioSsoHandoffScope.Seat => new StudioSsoHandoffRoute(SeatPath, true),
+        _ => throw new InvalidOperationException(
+            "A handoff token with no scope has no route: it could be minted as " +
+            "either identity, and picking one would be a guess about who this " +
+            "device is working as."),
+    };
+}
+
 /// <summary>What Studio knows about this device when it publishes the record.</summary>
 internal sealed record StudioSsoIdentityInputs(
     string? SignedInEmail,
@@ -10,6 +64,7 @@ internal sealed record StudioSsoIdentityInputs(
     string LegacyFingerprint,
     string? HandoffToken,
     DateTimeOffset? HandoffTokenExpiresAtUtc,
+    StudioSsoHandoffScope HandoffTokenScope,
     DateTimeOffset NowUtc);
 
 /// <summary>
@@ -113,15 +168,15 @@ internal static class StudioSsoIdentityPublisher
         // BotLocked would hand a reader a proof for an identity this record is
         // explicitly refusing to assert.
         //
-        // 🔴 AND NEVER INTO A BOT RECORD, WHICH IS THE SHARPER HALF. The server
-        // issues this token against STUDIO'S OWN SESSION and stamps it with that
-        // person's address; there is no bot-scoped issue route. On a seated
-        // machine somebody is often signed in beside the seat, so attaching
-        // their token to a record whose subject is the seat would have a plugin
-        // present a person's proof and be answered with the PERSON's
-        // entitlement - the exact union the seat model exists to refuse, arrived
-        // at by the back door. A bot record therefore carries no token and its
-        // readers refuse by name until the server offers a seat-scoped one.
+        // 🔴 AND THE SCOPE MUST MATCH THE SUBJECT. Two routes mint these now -
+        // one as the signed-in person, one as the machine's own seat - and the
+        // tokens are opaque, so nothing in the bytes says which. On a seated
+        // machine somebody is often signed in beside the seat, and publishing
+        // THEIR token under the seat's name would have a plugin present a
+        // person's proof and be answered with the person's entitlement: the
+        // exact union the seat model exists to refuse, reached by calling the
+        // wrong method. Checked here rather than trusted at the call site,
+        // because a call site is one edit away from being wrong.
         string token = (inputs.HandoffToken ?? "").Trim();
         DateTimeOffset? tokenExpires = inputs.HandoffTokenExpiresAtUtc;
 
@@ -137,6 +192,7 @@ internal static class StudioSsoIdentityPublisher
         // switch would publish one person's proof under another's name, and
         // accepting one from a record that fails its own signature would let
         // an edited file donate a token to a real identity.
+        StudioSsoHandoffScope scope = inputs.HandoffTokenScope;
         if (token.Length == 0 &&
             previous is { HandoffToken.Length: > 0 } &&
             previous.ExpiresAtUtc > inputs.NowUtc &&
@@ -149,11 +205,24 @@ internal static class StudioSsoIdentityPublisher
             // was clamped to it when written, so reading it back recovers both
             // halves of one fact.
             tokenExpires = previous.ExpiresAtUtc;
+
+            // A carried token was published under this same identity, so its
+            // scope is whatever that identity requires. Derived rather than
+            // remembered: the record has no field for it, and inventing one
+            // would put a claim on disk that nothing checks.
+            scope = record.IdentityKind == StudioSsoIdentityKind.Bot
+                ? StudioSsoHandoffScope.Seat
+                : StudioSsoHandoffScope.Person;
         }
 
+        bool scopeMatchesSubject =
+            (record.IdentityKind == StudioSsoIdentityKind.Person &&
+             scope == StudioSsoHandoffScope.Person) ||
+            (record.IdentityKind == StudioSsoIdentityKind.Bot &&
+             scope == StudioSsoHandoffScope.Seat);
         bool tokenBelongsHere =
             record.State == StudioSsoIdentityState.Active &&
-            record.IdentityKind == StudioSsoIdentityKind.Person &&
+            scopeMatchesSubject &&
             token.Length > 0;
         record.HandoffToken = tokenBelongsHere ? token : null;
 

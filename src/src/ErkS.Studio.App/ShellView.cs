@@ -2218,11 +2218,16 @@ internal sealed partial class ShellView : IDisposable
                 seat?.BotId,
                 seat?.OrganizationId,
                 unlockedSeatIdentity is not null);
-            if (!carried && seat is null)
+            if (!carried)
             {
+                // A seated machine has its own sentence now that it has its own
+                // issue route. Telling somebody at a seat to sign in points away
+                // from the fix - they usually already are.
                 SetStatus(
                     "Нэвтэрлээ. " +
-                    StudioSsoRefusalCatalogue.MessageMn("sso_handoff_token_missing"));
+                    StudioSsoRefusalCatalogue.MessageMn(seat is null
+                        ? "sso_handoff_token_missing"
+                        : "sso_seat_token_absent"));
             }
         }
         catch (Exception exception)

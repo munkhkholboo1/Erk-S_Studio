@@ -2735,6 +2735,14 @@ internal sealed class StudioAccountService :
     private long ssoHandoffTokenGeneration;
 
     /// <summary>
+    /// Which route minted the token in hand. The bytes are opaque and the two
+    /// routes return the same shape, so the only place this is known is here -
+    /// and the publisher refuses a token whose scope does not match the record's
+    /// subject.
+    /// </summary>
+    private StudioSsoHandoffScope ssoHandoffTokenScope = StudioSsoHandoffScope.None;
+
+    /// <summary>
     /// Fetches the proof for this device's published identity and republishes
     /// the record with it. Says whether the record now carries a token.
     ///
@@ -2744,13 +2752,17 @@ internal sealed class StudioAccountService :
     /// minted against that number, and the record is published again. Asking for
     /// a token first would mean guessing the number it is bound to.
     ///
-    /// 🔴 A SEATED MACHINE GETS NOTHING HERE, DELIBERATELY. The server issues
-    /// this against Studio's own session and stamps it with that person's
-    /// address; there is no seat-scoped route. On a seated machine somebody is
-    /// often signed in beside the seat, and minting their token for a record
-    /// whose subject is the seat would have a plugin answered with the PERSON's
-    /// entitlement. Until the server offers a seat-scoped token, a bot record
-    /// carries none and its readers refuse by name.
+    /// 🔴 TWO ROUTES, TWO CREDENTIALS, AND CONFUSING THEM REOPENS THE HOLE.
+    /// A person's record is proved on /sso/handoff-token with the signed-in
+    /// session; a seat's is proved on /sso/seat-handoff-token with THE MACHINE'S
+    /// OWN bot session. On a seated machine somebody is usually signed in beside
+    /// the seat, so calling the first one there would mint their token and
+    /// publish it under the seat's name - a plugin would present a person's
+    /// proof and be answered with the person's entitlement.
+    ///
+    /// The route is chosen from the record's own subject, and the scope travels
+    /// with the token so the publisher can refuse a mismatch rather than trust
+    /// that this method stayed correct.
     /// </summary>
     public async Task<bool> EnsureSsoHandoffTokenAsync(
         string? seatBotId,
@@ -2769,26 +2781,48 @@ internal sealed class StudioAccountService :
             return false;
         }
 
-        if (record.State != StudioSsoIdentityState.Active ||
-            record.IdentityKind != StudioSsoIdentityKind.Person)
-        {
+        if (record.State != StudioSsoIdentityState.Active)
             return false;
-        }
+
+        StudioSsoHandoffScope scope = record.IdentityKind switch
+        {
+            StudioSsoIdentityKind.Person => StudioSsoHandoffScope.Person,
+            StudioSsoIdentityKind.Bot => StudioSsoHandoffScope.Seat,
+            _ => StudioSsoHandoffScope.None,
+        };
+        if (scope == StudioSsoHandoffScope.None)
+            return false;
 
         if (!string.IsNullOrWhiteSpace(record.HandoffToken))
             return true;
 
         StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
-        StudioCloudSsoHandoffToken issued = await PostAuthorizedAsync<
-            StudioCloudSsoHandoffTokenRequest, StudioCloudSsoHandoffToken>(
-            "/api/cloud-era/v1/sso/handoff-token",
-            new StudioCloudSsoHandoffTokenRequest
-            {
-                DeviceFingerprint = fingerprints.Canonical,
-                LegacyDeviceFingerprint = fingerprints.Legacy,
-                IdentityGeneration = record.Generation,
-            },
-            cancellationToken).ConfigureAwait(true);
+        var ask = new StudioCloudSsoHandoffTokenRequest
+        {
+            DeviceFingerprint = fingerprints.Canonical,
+            LegacyDeviceFingerprint = fingerprints.Legacy,
+            IdentityGeneration = record.Generation,
+        };
+
+        // 🔴 THE PATH AND THE CREDENTIAL TRAVEL TOGETHER, AND THAT IS THE WHOLE
+        // POINT. A seat proves itself with the MACHINE's credential; using the
+        // person's session here would authenticate as whoever happens to be
+        // standing at it, which is the one thing a seat's proof must not depend
+        // on. Choosing them separately is exactly the edit that survived a
+        // sabotage run - the publisher sees a token labelled Seat and cannot
+        // tell it was minted as somebody's person.
+        StudioSsoHandoffRoute route = StudioSsoHandoffRoutes.For(scope);
+        StudioCloudSsoHandoffToken issued = route.UsesSeatCredential
+            ? await PostBotAuthorizedAsync<
+                StudioCloudSsoHandoffTokenRequest, StudioCloudSsoHandoffToken>(
+                route.Path,
+                ask,
+                cancellationToken).ConfigureAwait(true)
+            : await PostAuthorizedAsync<
+                StudioCloudSsoHandoffTokenRequest, StudioCloudSsoHandoffToken>(
+                route.Path,
+                ask,
+                cancellationToken).ConfigureAwait(true);
 
         if (string.IsNullOrWhiteSpace(issued.HandoffToken))
             throw new StudioAccountException("Сервер нэвтрэлтийн баталгаа буцаасангүй.");
@@ -2804,6 +2838,7 @@ internal sealed class StudioAccountService :
         ssoHandoffToken = issued.HandoffToken;
         ssoHandoffTokenExpiresAtUtc = issued.ExpiresAtUtc.ToUniversalTime();
         ssoHandoffTokenGeneration = issued.IdentityGeneration;
+        ssoHandoffTokenScope = scope;
         return PublishSsoIdentity(seatBotId, seatOrganizationId, seatUnlocked);
     }
 
@@ -2842,6 +2877,7 @@ internal sealed class StudioAccountService :
             fingerprints.Legacy,
             HandoffToken: null,
             HandoffTokenExpiresAtUtc: null,
+            HandoffTokenScope: StudioSsoHandoffScope.None,
             now);
 
         StudioSsoIdentityReadResult stored = StudioSsoIdentityStore.Read(credentialStore);
@@ -2869,6 +2905,9 @@ internal sealed class StudioAccountService :
             {
                 HandoffToken = token,
                 HandoffTokenExpiresAtUtc = tokenExpiry,
+                HandoffTokenScope = token is null
+                    ? StudioSsoHandoffScope.None
+                    : ssoHandoffTokenScope,
             },
             stored.Record,
             stored.GenerationFloor);

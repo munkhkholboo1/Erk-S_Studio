@@ -14,6 +14,7 @@
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": null,
         "handoffTokenExpiresAtUtc": null,
+        "handoffTokenScope": 0,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nSignedOut\n\n\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -46,6 +47,7 @@
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": null,
         "handoffTokenExpiresAtUtc": null,
+        "handoffTokenScope": 0,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -78,6 +80,7 @@
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
         "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
+        "handoffTokenScope": 1,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -109,8 +112,9 @@
         "seatUnlocked": false,
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
-        "handoffToken": "handoff_9c14b7e0f2",
+        "handoffToken": "seat_handoff_5b21",
         "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
+        "handoffTokenScope": 2,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nBotLocked\n\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
@@ -133,7 +137,7 @@
     },
     {
       "name": "bot-unlocked",
-      "note": "The PIN opened the seat. The person signed in beside it is NOT in the record.",
+      "note": "The PIN opened the seat. The person signed in beside it is NOT in the record, and the token is the SEAT\u0027s own - minted on /sso/seat-handoff-token with the machine\u0027s credential.",
       "input": {
         "signedInEmail": "owner@erk-s-design.mn",
         "seatBotId": "bot_7f3a91c4e85b4d2f",
@@ -141,11 +145,12 @@
         "seatUnlocked": true,
         "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
-        "handoffToken": "handoff_9c14b7e0f2",
+        "handoffToken": "seat_handoff_5b21",
         "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
+        "handoffTokenScope": 2,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
-      "canonicalForm": "1\n1\nActive\nBot\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
+      "canonicalForm": "1\n1\nActive\nBot\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nseat_handoff_5b21\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
       "record": {
         "formatVersion": 1,
         "generation": 1,
@@ -158,9 +163,10 @@
           "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
           "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920"
         },
+        "handoffToken": "seat_handoff_5b21",
         "issuedAtUtc": "2026-09-09T11:04:22\u002B00:00",
         "expiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
-        "stateSignature": "B7SsBL1I4Y2nLy\u002BBFKIXyRqj1OxUjEdKBWz3WfgIbCo="
+        "stateSignature": "aw25rhekX4l3E10uBwkvnboi9SzVTZi9iofKXEWLNOQ="
       }
     },
     {
@@ -175,6 +181,7 @@
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
         "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22.123\u002B00:00",
+        "handoffTokenScope": 1,
         "nowUtc": "2026-09-09T11:04:22.123\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.1230000\u002B00:00\n2026-09-16T11:04:22.1230000\u002B00:00",
@@ -208,6 +215,7 @@
         "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
         "handoffToken": "handoff_9c14b7e0f2",
         "handoffTokenExpiresAtUtc": "2026-09-11T11:04:22\u002B00:00",
+        "handoffTokenScope": 1,
         "nowUtc": "2026-09-09T11:04:22\u002B00:00"
       },
       "canonicalForm": "1\n1\nActive\nPerson\nowner@erk-s-design.mn\n\n\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\nhandoff_9c14b7e0f2\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-11T11:04:22.0000000\u002B00:00",
@@ -227,6 +235,39 @@
         "issuedAtUtc": "2026-09-09T11:04:22\u002B00:00",
         "expiresAtUtc": "2026-09-11T11:04:22\u002B00:00",
         "stateSignature": "DKJXWsPuMimxQHUg2LwK/AXQO6SPr3Ezl6fccxY/l\u002Bk="
+      }
+    },
+    {
+      "name": "bot-unlocked-person-token-refused",
+      "note": "THE UNION, REFUSED. The same seat, offered a token minted for the person signed in beside it. The record is Active and Bot, so only the scope stops it - and it does: the token is absent.",
+      "input": {
+        "signedInEmail": "owner@erk-s-design.mn",
+        "seatBotId": "bot_7f3a91c4e85b4d2f",
+        "seatOrganizationId": "org_2a91f4c7",
+        "seatUnlocked": true,
+        "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
+        "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920",
+        "handoffToken": "handoff_9c14b7e0f2",
+        "handoffTokenExpiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
+        "handoffTokenScope": 1,
+        "nowUtc": "2026-09-09T11:04:22\u002B00:00"
+      },
+      "canonicalForm": "1\n1\nActive\nBot\n\nbot_7f3a91c4e85b4d2f\norg_2a91f4c7\nSHA256:9F2CC41AB3D7E85604F1A2C93B77E01D\nSHA256:41AB770E22C5D9F3061B84EA7C3D5920\n\n2026-09-09T11:04:22.0000000\u002B00:00\n2026-09-16T11:04:22.0000000\u002B00:00",
+      "record": {
+        "formatVersion": 1,
+        "generation": 1,
+        "state": "Active",
+        "identityKind": "Bot",
+        "accountEmail": "",
+        "botId": "bot_7f3a91c4e85b4d2f",
+        "organizationId": "org_2a91f4c7",
+        "device": {
+          "canonicalFingerprint": "SHA256:9F2CC41AB3D7E85604F1A2C93B77E01D",
+          "legacyFingerprint": "SHA256:41AB770E22C5D9F3061B84EA7C3D5920"
+        },
+        "issuedAtUtc": "2026-09-09T11:04:22\u002B00:00",
+        "expiresAtUtc": "2026-09-16T11:04:22\u002B00:00",
+        "stateSignature": "B7SsBL1I4Y2nLy\u002BBFKIXyRqj1OxUjEdKBWz3WfgIbCo="
       }
     }
   ]
