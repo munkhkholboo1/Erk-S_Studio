@@ -2824,16 +2824,19 @@ internal sealed class StudioAccountService :
                 ask,
                 cancellationToken).ConfigureAwait(true);
 
-        if (string.IsNullOrWhiteSpace(issued.HandoffToken))
-            throw new StudioAccountException("Сервер нэвтрэлтийн баталгаа буцаасангүй.");
+        switch (StudioSsoHandoffAcceptancePolicy.Of(
+            issued.HandoffToken,
+            issued.IdentityGeneration,
+            record.Generation))
+        {
+            case StudioSsoHandoffAcceptance.NoToken:
+                throw new StudioAccountException("Сервер нэвтрэлтийн баталгаа буцаасангүй.");
 
-        // 🔴 THE ECHOED GENERATION IS CHECKED, NOT ASSUMED. A token bound to a
-        // different number would be published against this record and refused by
-        // the server later, with nothing on this side able to say why. A
-        // mismatch means the identity moved while the request was in flight; the
-        // next publish will ask again.
-        if (issued.IdentityGeneration != record.Generation)
-            return false;
+            case StudioSsoHandoffAcceptance.GenerationMoved:
+                // The identity changed while the request was in flight. Ordinary
+                // and silent: the next publish asks again with the new number.
+                return false;
+        }
 
         ssoHandoffToken = issued.HandoffToken;
         ssoHandoffTokenExpiresAtUtc = issued.ExpiresAtUtc.ToUniversalTime();

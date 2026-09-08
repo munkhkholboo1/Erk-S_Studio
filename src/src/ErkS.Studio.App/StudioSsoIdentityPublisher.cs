@@ -22,6 +22,54 @@ internal enum StudioSsoHandoffScope
     Seat,
 }
 
+/// <summary>Why a freshly minted token was or was not taken.</summary>
+internal enum StudioSsoHandoffAcceptance
+{
+    /// <summary>Usable for the record it was asked for.</summary>
+    Accepted,
+
+    /// <summary>The server answered without a token. Its fault, and reported.</summary>
+    NoToken,
+
+    /// <summary>
+    /// The identity moved while the request was in flight, so the token is bound
+    /// to a number this record no longer carries. Not an error: the next publish
+    /// asks again.
+    /// </summary>
+    GenerationMoved,
+}
+
+/// <summary>
+/// Whether a minted token may be published against the record it was asked for.
+///
+/// 🔴 PULLED OUT BECAUSE IT WAS THE ONE BRANCH NO TEST COULD REACH. Inside the
+/// service it sits behind an HTTP call that needs a live session, so it went
+/// unmeasured while everything around it was covered - the shape of a check
+/// that quietly stops checking. As a value it costs nothing to prove.
+///
+/// Three outcomes rather than a boolean, because two of them need different
+/// handling: a server that answers without a token has failed and should say so,
+/// while an identity that moved mid-flight is ordinary and silent.
+/// </summary>
+internal static class StudioSsoHandoffAcceptancePolicy
+{
+    public static StudioSsoHandoffAcceptance Of(
+        string? issuedToken,
+        long issuedGeneration,
+        long recordGeneration)
+    {
+        if (string.IsNullOrWhiteSpace(issuedToken))
+            return StudioSsoHandoffAcceptance.NoToken;
+
+        // 🔴 THE ECHO IS CHECKED, NOT ASSUMED. A token bound to another
+        // generation would be published against this record and refused by the
+        // server later, with nothing on this side able to say why.
+        return issuedGeneration == recordGeneration
+            ? StudioSsoHandoffAcceptance.Accepted
+            : StudioSsoHandoffAcceptance.GenerationMoved;
+    }
+}
+
 /// <summary>Where a token of a given scope is minted, and with whose credential.</summary>
 internal readonly record struct StudioSsoHandoffRoute(string Path, bool UsesSeatCredential);
 

@@ -751,6 +751,60 @@ public sealed class SsoDeviceIdentityTests
     }
 
     [Fact]
+    public void AMINTEDTokenIsJudgedAgainstTheRecordItWasAskedFor()
+    {
+        // 🔴 THIS WAS THE ONE BRANCH NO TEST COULD REACH. It sat behind an HTTP
+        // call needing a live session, so it went unmeasured while everything
+        // around it was covered - a check that had quietly stopped being
+        // checked. I named the gap rather than hiding it; this closes it.
+        Assert.Equal(
+            StudioSsoHandoffAcceptance.Accepted,
+            StudioSsoHandoffAcceptancePolicy.Of("token", 7, 7));
+
+        // The identity moved while the request was in flight. The token names a
+        // generation this record no longer carries, so publishing it would put a
+        // proof on disk that the server will refuse later - with nothing on this
+        // side able to say why.
+        Assert.Equal(
+            StudioSsoHandoffAcceptance.GenerationMoved,
+            StudioSsoHandoffAcceptancePolicy.Of("token", 6, 7));
+
+        // Separate from the above because they are handled differently: a server
+        // that answers without a token has failed and says so, while a moved
+        // identity is ordinary and silent. One boolean would have merged a fault
+        // with a normal race.
+        Assert.Equal(
+            StudioSsoHandoffAcceptance.NoToken,
+            StudioSsoHandoffAcceptancePolicy.Of("", 7, 7));
+        Assert.Equal(
+            StudioSsoHandoffAcceptance.NoToken,
+            StudioSsoHandoffAcceptancePolicy.Of(null, 7, 7));
+
+        // An absent token is reported as absent even when the generation is also
+        // wrong: the first thing that failed is the thing to say.
+        Assert.Equal(
+            StudioSsoHandoffAcceptance.NoToken,
+            StudioSsoHandoffAcceptancePolicy.Of(null, 6, 7));
+    }
+
+    [Fact]
+    public void THEMINTINGCallAsksTheAcceptancePolicy()
+    {
+        // The seam still has no injection point, so the wiring is read from
+        // source - narrowly, and only for the call that replaced the inline
+        // branch this test exists to have made measurable.
+        string service = ReadAppSource("StudioAccountService.cs");
+        int method = service.IndexOf(
+            "public async Task<bool> EnsureSsoHandoffTokenAsync(",
+            StringComparison.Ordinal);
+        string body = service[method..service.IndexOf("\n    }", method, StringComparison.Ordinal)];
+
+        Assert.Contains("StudioSsoHandoffAcceptancePolicy.Of(", body, StringComparison.Ordinal);
+        Assert.Contains("StudioSsoHandoffAcceptance.NoToken", body, StringComparison.Ordinal);
+        Assert.Contains("StudioSsoHandoffAcceptance.GenerationMoved", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EACHScopeIsMintedOnItsOwnRouteWithItsOwnCredential()
     {
         // 🔴 WRITTEN AFTER A SABOTAGE SURVIVED. Forcing the seat path onto the
