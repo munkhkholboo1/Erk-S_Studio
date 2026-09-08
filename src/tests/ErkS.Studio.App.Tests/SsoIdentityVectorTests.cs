@@ -26,7 +26,12 @@ public sealed class SsoIdentityVectorTests
 {
     private sealed record VectorFile(int FormatVersion, string CredentialTarget, List<Vector> Cases);
 
-    private sealed record Vector(string Name, string? Note, VectorInput Input, StudioSsoIdentityRecord Record);
+    private sealed record Vector(
+        string Name,
+        string? Note,
+        VectorInput Input,
+        string CanonicalForm,
+        StudioSsoIdentityRecord Record);
 
     private sealed record VectorInput(
         string? SignedInEmail,
@@ -65,6 +70,15 @@ public sealed class SsoIdentityVectorTests
 
         Assert.Equal(Serialize(vector.Record), Serialize(built));
 
+        // 🔴 THE STRING THAT WAS SIGNED, PUBLISHED BYTE FOR BYTE. PFA built a
+        // reader against the field list alone and signed the JSON's own
+        // timestamp text - which System.Text.Json writes without the
+        // trailing fraction the canonical form keeps. Every record came out
+        // as sso_device_mismatch: a formatting difference wearing the name
+        // of a forged record. A field list is not a contract; the exact
+        // bytes are, so they travel in the vector now.
+        Assert.Equal(vector.CanonicalForm, built.CanonicalForm());
+
         // The signature is compared as part of the record above, and verified
         // here as well. The two are not the same check: the first says Studio
         // still emits the published bytes, the second says a READER following
@@ -79,9 +93,9 @@ public sealed class SsoIdentityVectorTests
     {
         // 🔴 THE CONTROL FOR THE THEORY ABOVE. A vector file that failed to load
         // would produce zero cases and a green run - the silent-checker shape
-        // this codebase keeps producing. Five is what the file carries today; a
+        // this codebase keeps producing. Six is what the file carries today; a
         // changed count is a deliberate edit and should have to be seen.
-        Assert.Equal(5, Load().Cases.Count);
+        Assert.Equal(6, Load().Cases.Count);
         Assert.All(Load().Cases, vector => Assert.False(string.IsNullOrWhiteSpace(vector.Name)));
     }
 
@@ -107,6 +121,37 @@ public sealed class SsoIdentityVectorTests
         Assert.Contains(StudioSsoIdentityState.Active, states);
         Assert.Contains(StudioSsoIdentityState.BotLocked, states);
         Assert.Contains(StudioSsoIdentityState.SignedOut, states);
+    }
+
+    [Fact]
+    public void THECanonicalTimestampIsNOTTheTimestampInTheJSON()
+    {
+        // The trap itself, asserted as an invariant rather than left to a
+        // vector. A data file goes red only while it holds the right case; this
+        // goes red the moment the two representations become the same - which
+        // is exactly when a reader could start signing the JSON text and get
+        // away with it on the cases we happen to publish.
+        Vector fractional = Load().Cases.Single(
+            item => item.Name == "person-fractional-seconds");
+
+        string json = Serialize(fractional.Record);
+        Assert.Contains("11:04:22.123+00:00", json, StringComparison.Ordinal);
+        Assert.Contains("11:04:22.1230000+00:00", fractional.CanonicalForm, StringComparison.Ordinal);
+        Assert.DoesNotContain("11:04:22.1230000+00:00", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AVectorCarriesFractionalSecondsAtALL()
+    {
+        // 🔴 THE FIRST FIVE VECTORS WERE ALL WHOLE SECONDS, AND THAT WAS LUCK
+        // RUNNING OUT SLOWLY. On a whole second the two forms differ by
+        // «.0000000», which catches a reader that signs the JSON text - but
+        // nothing catches a reader that writes three fraction digits, because
+        // there were no fraction digits to get wrong. A sample taken entirely
+        // from one side of a distribution proves only what that side agrees on.
+        Assert.Contains(
+            Load().Cases,
+            vector => vector.Record.IssuedAtUtc.Ticks % TimeSpan.TicksPerSecond != 0);
     }
 
     private static string Serialize(StudioSsoIdentityRecord record) =>
