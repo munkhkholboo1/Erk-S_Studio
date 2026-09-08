@@ -288,7 +288,74 @@ public sealed class SsoDeviceIdentityTests
         record.FormatVersion = StudioSsoIdentityRecord.CurrentFormatVersion + 1;
         StudioSsoIdentityStore.Write(store, record);
 
-        Assert.Null(StudioSsoIdentityStore.Read(store));
+        StudioSsoIdentityReadResult result = StudioSsoIdentityStore.Read(store);
+        Assert.Equal(StudioSsoIdentityReadOutcome.Unreadable, result.Outcome);
+        Assert.Null(result.Record);
+    }
+
+    [Fact]
+    public void ANEWERStudiosRecordDoesNotRestartTheCounter()
+    {
+        // 🔴 THE COUNTER IS THE ONE THING THAT MAY NEVER GO BACKWARDS. A newer
+        // Studio writes format 2 at generation 50; this build cannot read the
+        // shape and used to answer with 1 - and a plugin holding 50 reads any
+        // lower number as «nothing has happened since», so it would keep serving
+        // an entitlement that had already been replaced. The generation is the
+        // one field whose meaning is fixed across formats, so it survives.
+        var store = new FakeCredentialStore();
+        StudioSsoIdentityRecord fromTheFuture = Build(Inputs() with { SignedInEmail = Person });
+        fromTheFuture.FormatVersion = StudioSsoIdentityRecord.CurrentFormatVersion + 1;
+        fromTheFuture.Generation = 50;
+        StudioSsoIdentityStore.Write(store, fromTheFuture);
+
+        StudioSsoIdentityReadResult result = StudioSsoIdentityStore.Read(store);
+        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(
+            Inputs() with { SignedInEmail = Person },
+            result.Record,
+            result.GenerationFloor);
+
+        Assert.Equal(50, result.GenerationFloor);
+        Assert.Equal(51, next.Generation);
+    }
+
+    [Fact]
+    public void ASTOREThatCannotBeReadIsNOTWrittenOver()
+    {
+        // Nothing is known about what an unreachable store holds - possibly a
+        // good record at a much higher generation. Overwriting it would be
+        // guessing with the value four products depend on, so the publish
+        // refuses and says so instead.
+        //
+        // 🔴 THE FAKE READS BY THROWING AND WRITES BY SUCCEEDING, AND THAT IS
+        // THE WHOLE TEST. A store that failed both ways would return false with
+        // or without the guard - the assertion would pass while proving
+        // nothing, because the write it is supposed to prevent was going to
+        // fail anyway. The case that matters is the transient read failure over
+        // a store that would happily accept the clobbering write.
+        var store = new ReadThrowsWriteSucceedsCredentialStore();
+        StudioSsoIdentityRecord existing = Build(Inputs() with { SignedInEmail = Person });
+        existing.Generation = 50;
+        store.Seed(StudioSsoIdentityStore.CredentialTarget, existing);
+        var account = new StudioAccountService(store);
+
+        Assert.False(account.PublishSsoIdentity(null, null, seatUnlocked: false));
+        Assert.Equal(0, store.WriteCount);
+    }
+
+    [Fact]
+    public void AWORKINGStoreIsActuallyPublishedTo()
+    {
+        // The positive control for the test above. Without it «returned false»
+        // would prove only that the method can return false.
+        var store = new FakeCredentialStore();
+        var account = new StudioAccountService(store);
+
+        Assert.True(account.PublishSsoIdentity(null, null, seatUnlocked: false));
+
+        StudioSsoIdentityReadResult result = StudioSsoIdentityStore.Read(store);
+        Assert.Equal(StudioSsoIdentityReadOutcome.Found, result.Outcome);
+        Assert.Equal(StudioSsoIdentityState.SignedOut, result.Record!.State);
+        Assert.True(StudioSsoIdentitySignature.Verify(result.Record));
     }
 
     [Fact]
@@ -304,8 +371,10 @@ public sealed class SsoDeviceIdentityTests
         });
 
         Assert.True(StudioSsoIdentityStore.Write(store, written));
-        StudioSsoIdentityRecord? read = StudioSsoIdentityStore.Read(store);
+        StudioSsoIdentityReadResult result = StudioSsoIdentityStore.Read(store);
+        StudioSsoIdentityRecord? read = result.Record;
 
+        Assert.Equal(StudioSsoIdentityReadOutcome.Found, result.Outcome);
         Assert.NotNull(read);
         Assert.Equal(written.State, read!.State);
         Assert.Equal(written.AccountEmail, read.AccountEmail);
@@ -322,10 +391,32 @@ public sealed class SsoDeviceIdentityTests
         // must rebuild the record, not close the window.
         var store = new ThrowingCredentialStore();
 
-        Assert.Null(StudioSsoIdentityStore.Read(store));
+        // 🔴 AND IT IS ITS OWN OUTCOME, NOT «EMPTY». PFR had folded «the record
+        // will not parse» and «the store cannot be reached» into one refusal,
+        // and Master split them because the person's next step differs: opening
+        // Studio repairs a bad record and does nothing at all for a store this
+        // account cannot read. The same split has to exist on the writing side,
+        // where one of the two means «do not write».
+        StudioSsoIdentityReadResult result = StudioSsoIdentityStore.Read(store);
+        Assert.Equal(StudioSsoIdentityReadOutcome.StoreUnavailable, result.Outcome);
+        Assert.Null(result.Record);
+
         Assert.False(StudioSsoIdentityStore.Write(
             store,
             Build(Inputs() with { SignedInEmail = Person })));
+    }
+
+    [Fact]
+    public void ANEmptyStoreIsNOTFoundRatherThanUnreadable()
+    {
+        // The fourth outcome, and the one that decides whether the counter
+        // starts at 1. Collapsing it into «unreadable» would be harmless today
+        // and would quietly disable the floor above.
+        StudioSsoIdentityReadResult result =
+            StudioSsoIdentityStore.Read(new FakeCredentialStore());
+
+        Assert.Equal(StudioSsoIdentityReadOutcome.NotFound, result.Outcome);
+        Assert.Equal(0, result.GenerationFloor);
     }
 
     [Fact]
@@ -494,6 +585,34 @@ public sealed class SsoDeviceIdentityTests
             entries[target] = JsonSerializer.Serialize(
                 value,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        public void Delete(string target) => entries.Remove(target);
+    }
+
+    /// <summary>
+    /// Reads by throwing, writes by succeeding. The shape of a transient store
+    /// failure, and the only shape in which the do-not-overwrite guard is
+    /// observable at all.
+    /// </summary>
+    private sealed class ReadThrowsWriteSucceedsCredentialStore : ICredentialStore
+    {
+        private readonly Dictionary<string, string> entries = new(StringComparer.Ordinal);
+
+        public int WriteCount { get; private set; }
+
+        public void Seed<T>(string target, T value) =>
+            entries[target] = JsonSerializer.Serialize(
+                value,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        public T? Read<T>(string target) where T : class =>
+            throw new InvalidOperationException("credential store temporarily unavailable");
+
+        public void Write<T>(string target, string userName, T value)
+        {
+            WriteCount++;
+            Seed(target, value);
+        }
 
         public void Delete(string target) => entries.Remove(target);
     }

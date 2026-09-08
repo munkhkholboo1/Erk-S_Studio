@@ -2760,9 +2760,21 @@ internal sealed class StudioAccountService :
             SsoHandoffToken,
             DateTimeOffset.UtcNow);
 
-        StudioSsoIdentityRecord? previous = StudioSsoIdentityStore.Read(credentialStore);
-        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(inputs, previous);
-        if (!StudioSsoIdentityPublisher.NeedsRewrite(next, previous, inputs.NowUtc))
+        StudioSsoIdentityReadResult stored = StudioSsoIdentityStore.Read(credentialStore);
+
+        // 🔴 A STORE THAT CANNOT BE READ MUST NOT BE WRITTEN OVER. Nothing is
+        // known about what it holds - possibly a perfectly good record at a much
+        // higher generation - so replacing it would be guessing with the one
+        // value four products rely on. Reported as a failure, which is what it
+        // is: until the store answers, this device publishes no identity.
+        if (stored.Outcome == StudioSsoIdentityReadOutcome.StoreUnavailable)
+            return false;
+
+        StudioSsoIdentityRecord next = StudioSsoIdentityPublisher.Build(
+            inputs,
+            stored.Record,
+            stored.GenerationFloor);
+        if (!StudioSsoIdentityPublisher.NeedsRewrite(next, stored.Record, inputs.NowUtc))
             return true;
 
         return StudioSsoIdentityStore.Write(credentialStore, next);

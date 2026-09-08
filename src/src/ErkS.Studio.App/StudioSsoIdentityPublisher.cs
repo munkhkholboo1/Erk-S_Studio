@@ -1,4 +1,4 @@
-namespace ErkS.Studio;
+﻿namespace ErkS.Studio;
 
 /// <summary>What Studio knows about this device when it publishes the record.</summary>
 internal sealed record StudioSsoIdentityInputs(
@@ -42,9 +42,14 @@ internal static class StudioSsoIdentityPublisher
     /// </summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
 
+    /// <param name="generationFloor">
+    /// The highest generation a reader could already be holding, when the stored
+    /// record itself cannot be used. Zero when nothing is stored at all.
+    /// </param>
     public static StudioSsoIdentityRecord Build(
         StudioSsoIdentityInputs inputs,
-        StudioSsoIdentityRecord? previous)
+        StudioSsoIdentityRecord? previous,
+        long generationFloor = 0)
     {
         ArgumentNullException.ThrowIfNull(inputs);
 
@@ -112,7 +117,7 @@ internal static class StudioSsoIdentityPublisher
                 ? token
                 : null;
 
-        record.Generation = NextGeneration(record, previous);
+        record.Generation = NextGeneration(record, previous, generationFloor);
         record.StateSignature = StudioSsoIdentitySignature.Compute(record);
         return record;
     }
@@ -129,10 +134,19 @@ internal static class StudioSsoIdentityPublisher
     /// </summary>
     private static long NextGeneration(
         StudioSsoIdentityRecord next,
-        StudioSsoIdentityRecord? previous)
+        StudioSsoIdentityRecord? previous,
+        long generationFloor)
     {
         if (previous is null)
-            return 1;
+        {
+            // 🔴 «NO USABLE RECORD» IS NOT «NO RECORD». A newer Studio may have
+            // written format 2 at generation 50; this build cannot read it and
+            // must not answer with 1, because a plugin holding 50 reads a lower
+            // number as «nothing has happened since». The generation is the one
+            // field whose meaning is fixed across formats, so it survives the
+            // shape around it and becomes the floor.
+            return Math.Max(1, generationFloor + 1);
+        }
 
         bool trustworthy = StudioSsoIdentitySignature.Verify(previous);
         bool sameIdentity = previous.IdentityForm().Equals(
