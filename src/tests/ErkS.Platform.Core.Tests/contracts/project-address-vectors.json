@@ -1,0 +1,143 @@
+{
+  "_comment": [
+    "ХОЁР ТАЛ ЭНЭ ФАЙЛЫГ ГҮЙЦЭТГЭНЭ. Хазайсан тал нь өөрөө улаан болно.",
+    "",
+    "Тохиолдол бүр каталогид БОДИТООР байдаг нэгж — зохиосон код байхгүй. Тиймээс вектор нь",
+    "ангилагчийн хэзээ ч гаргаж чадахгүй хаягийг тайлбарлаж чадахгүй.",
+    "",
+    "Канон нь Erk-S-Server/docs/contracts/project-address-vectors.json; _shared доторх нь",
+    "ТАРААЛТ. Серверийн CI нь _shared-ыг харахгүй тул тэндхийг тестээр барих боломжгүй."
+  ],
+  "_labelGenitive": {
+    "_why": [
+      "Залгавар нь ШОШГО дээр буудаг, нэр дээр биш. Монгол харьяалахын нөхцөл эгшгийн",
+      "зохицлоос хамаарна, ба газарзүйн нэр нь ХЯЗГААРГҮЙ олонлог — «Сонгинохайрхан» дээр",
+      "залгавар таах нь 2217 нэгжийн хаа нэгтээ буруу гарна. Шошго нь долоон үгийн ХААЛТТАЙ",
+      "олонлог тул хайлт болно.",
+      "",
+      "Full ба Short нь таслалаар тусгаарлагдсан тул залгавар ХЭРЭГЛЭДЭГГҮЙ — хэрэглэгчийн",
+      "өөрийн бичсэн хаяг ч мөн адил. Энэ хүснэгт нь «X дүүргийн Y» гэсэн өгүүлбэрт зориулав."
+    ],
+    "аймаг": "аймгийн",
+    "хот": "хотын",
+    "сум": "сумын",
+    "дүүрэг": "дүүргийн",
+    "баг": "багийн",
+    "хороо": "хорооны",
+    "тосгон": "тосгоны"
+  },
+  "cases": [
+    {
+      "name": "capital",
+      "note": "Улаанбаатар: the ward name already carries «хороо», the top two levels do not carry theirs.",
+      "input": {
+        "provinceCode": "511",
+        "provinceName": "Улаанбаатар",
+        "districtCode": "51116",
+        "districtName": "Сонгинохайрхан",
+        "wardCode": "5111651",
+        "wardName": "1-р хороо",
+        "wardLabelMn": "хороо",
+        "addressLine": "Баянголын ам - 2"
+      },
+      "expectFull": "Улаанбаатар хот, Сонгинохайрхан дүүрэг, 1-р хороо, Баянголын ам - 2",
+      "expectShort": "Сонгинохайрхан дүүрэг, 1-р хороо"
+    },
+    {
+      "name": "city-whose-units-are-bag",
+      "note": "Эрдэнэт is a CITY and its units are багууд -- \"the capital has khoroos\" would print the wrong word. The word also sits MID-NAME («1-р баг, Зэст»), so an EndsWith test would append it again.",
+      "input": {
+        "provinceCode": "261",
+        "provinceName": "Орхон",
+        "districtCode": "26101",
+        "districtName": "Баян-Өндөр",
+        "wardCode": "2610151",
+        "wardName": "1-р баг, Зэст",
+        "wardLabelMn": "баг",
+        "addressLine": ""
+      },
+      "expectFull": "Орхон аймаг, Баян-Өндөр сум, 1-р баг, Зэст",
+      "expectShort": "Баян-Өндөр сум, 1-р баг, Зэст"
+    },
+    {
+      "name": "name-already-carries-a-different-word",
+      "note": "The one unit in the country whose third-level name is a тосгон. Appending the label would print «Хатгал тосгон тосгон».",
+      "input": {
+        "provinceCode": "267",
+        "provinceName": "Хөвсгөл",
+        "districtCode": "26704",
+        "districtName": "Алаг-Эрдэнэ",
+        "wardCode": "2670461",
+        "wardName": "Хатгал тосгон",
+        "wardLabelMn": "тосгон",
+        "addressLine": ""
+      },
+      "expectFull": "Хөвсгөл аймаг, Алаг-Эрдэнэ сум, Хатгал тосгон",
+      "expectShort": "Алаг-Эрдэнэ сум, Хатгал тосгон"
+    },
+    {
+      "name": "word-mid-name-in-an-aimag",
+      "note": "A bag whose name carries its word in the middle, in an AIMAG rather than a city. The hand-typed line is appended last. The expected names here were first written by hand as Баян-Өлгий / Өлгий and the catalogue said Завхан / Улиастай -- a guess the vectors caught.",
+      "input": {
+        "provinceCode": "181",
+        "provinceName": "Завхан",
+        "districtCode": "18101",
+        "districtName": "Улиастай",
+        "wardCode": "1810151",
+        "wardName": "1-р баг, Жинст",
+        "wardLabelMn": "баг",
+        "addressLine": "Гуравдугаар гудамж 14"
+      },
+      "expectFull": "Завхан аймаг, Улиастай сум, 1-р баг, Жинст, Гуравдугаар гудамж 14",
+      "expectShort": "Улиастай сум, 1-р баг, Жинст"
+    },
+    {
+      "name": "renamed-unit-keeps-its-stored-name",
+      "note": "The stored name is printed even though the catalogue now says something else -- an album issued under the old name must keep saying it.",
+      "input": {
+        "provinceCode": "511",
+        "provinceName": "Улаанбаатар",
+        "districtCode": "51116",
+        "districtName": "Хуучин нэр",
+        "wardCode": "5111651",
+        "wardName": "1-р хороо",
+        "wardLabelMn": "хороо",
+        "addressLine": ""
+      },
+      "expectFull": "Улаанбаатар хот, Хуучин нэр дүүрэг, 1-р хороо",
+      "expectShort": "Хуучин нэр дүүрэг, 1-р хороо"
+    },
+    {
+      "name": "legacy-free-text",
+      "note": "No codes. The stored line IS the address and is used whole -- old projects do not migrate.",
+      "input": {
+        "provinceCode": "",
+        "provinceName": "",
+        "districtCode": "",
+        "districtName": "",
+        "wardCode": "",
+        "wardName": "",
+        "wardLabelMn": "",
+        "addressLine": "Улаанбаатар хот, Сонгинохайрхан дүүрэг, 34-р хороо, Баянголын ам - 2"
+      },
+      "expectFull": "Улаанбаатар хот, Сонгинохайрхан дүүрэг, 34-р хороо, Баянголын ам - 2",
+      "expectShort": "Улаанбаатар хот, Сонгинохайрхан дүүрэг, 34-р хороо, Баянголын ам - 2"
+    },
+    {
+      "name": "province-only",
+      "note": "A selection that stops at the top still has to say something in a list column.",
+      "input": {
+        "provinceCode": "265",
+        "provinceName": "Орхон",
+        "districtCode": "",
+        "districtName": "",
+        "wardCode": "",
+        "wardName": "",
+        "wardLabelMn": "",
+        "addressLine": ""
+      },
+      "expectFull": "Орхон аймаг",
+      "expectShort": "Орхон аймаг"
+    }
+  ]
+}

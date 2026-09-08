@@ -28,8 +28,8 @@ public sealed class ProjectSiteAddressTests
     [Fact]
     public void ACHOSENLocationComposesTheAddressByItself()
     {
-        Assert.Equal("Улаанбаатар, Багануур-ийн 1-р хороо", ProjectSiteAddress.Compose(Chosen(), ""));
-        Assert.Equal("Улаанбаатар, Багануур-ийн 1-р хороо", ProjectSiteAddress.Compose(Chosen(), "   "));
+        Assert.Equal("Улаанбаатар хот, Багануур дүүрэг, 1-р хороо", ProjectSiteAddress.Compose(Chosen(), ""));
+        Assert.Equal("Улаанбаатар хот, Багануур дүүрэг, 1-р хороо", ProjectSiteAddress.Compose(Chosen(), "   "));
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class ProjectSiteAddressTests
         // places out of one project - and the suggestion is what puts another
         // organisation's name on a signed document.
         Assert.Equal(
-            "Улаанбаатар, Багануур-ийн 1-р хороо, Их сургуулийн гудамж 12",
+            "Улаанбаатар хот, Багануур дүүрэг, 1-р хороо, Их сургуулийн гудамж 12",
             ProjectSiteAddress.Compose(Chosen(), "Их сургуулийн гудамж 12"));
     }
 
@@ -58,10 +58,23 @@ public sealed class ProjectSiteAddressTests
     }
 
     [Fact]
-    public void APARTIALChoiceDoesNotStartComposing()
+    public void APARTIALChoiceCOMPOSESWhatItHas()
     {
-        // Half a chain names a region, not a site. Printing «Улаанбаатар» as the
-        // whole address would be worse than printing what the person typed.
+        // 🔴 THIS RULE WAS REVERSED, DELIBERATELY, AND THE OLD REASONING IS
+        // WORTH KEEPING. It used to read: "half a chain names a region, not a
+        // site, and printing «Улаанбаатар» as the whole address would be worse
+        // than printing what the person typed."
+        //
+        // The shared vectors settle it the other way - «province-only» must
+        // print «Орхон аймаг» - and the reasoning above had a hole: the typed
+        // line is NOT the whole address either, and dropping the chosen
+        // province threw away a fact in order to avoid an incomplete one. The
+        // two are now printed together, which loses nothing.
+        //
+        // What did NOT change is the case that reasoning was really protecting:
+        // an INCONSISTENT chain still prints nothing at all, because a district
+        // outside its province names a place that does not exist. That is
+        // covered by ADistrictOutsideItsProvinceIsKEPTAndREFUSED.
         var half = new ProjectSiteLocation
         {
             ProvinceCode = "511",
@@ -69,7 +82,7 @@ public sealed class ProjectSiteAddressTests
         };
 
         Assert.False(half.IsChosen);
-        Assert.Equal("гудамж 5", ProjectSiteAddress.Compose(half, "гудамж 5"));
+        Assert.Equal("Улаанбаатар хот, гудамж 5", ProjectSiteAddress.Compose(half, "гудамж 5"));
     }
 
     [Fact]

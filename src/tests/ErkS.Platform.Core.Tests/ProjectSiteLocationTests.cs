@@ -26,7 +26,13 @@ public sealed class ProjectSiteLocationTests
         };
 
         Assert.False(location.IsChosen);
-        Assert.Equal("", location.CoverLine());
+        // 🔴 CHANGED DELIBERATELY. IsChosen still says "not a complete
+        // answer" - that is unchanged and is what the guards read. What
+        // changed is that the LINE now prints what was chosen: a province
+        // alone is a real place, and blanking it threw away something the
+        // person entered on purpose. The shared vectors require this
+        // («province-only» → «Орхон аймаг»).
+        Assert.Equal("Улаанбаатар хот", location.CoverLine());
     }
 
     [Fact]
@@ -44,7 +50,7 @@ public sealed class ProjectSiteLocationTests
         };
 
         Assert.True(location.IsChosen);
-        Assert.Equal("Улаанбаатар, Багануур-ийн 1-р хороо", location.CoverLine());
+        Assert.Equal("Улаанбаатар хот, Багануур дүүрэг, 1-р хороо", location.CoverLine());
     }
 
     [Fact]

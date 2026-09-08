@@ -56,7 +56,12 @@ public sealed class SiteLocationRoundTripTests
         // Kept and still not usable: nothing downstream acts on a partial
         // location, which was the only thing the discard was ever protecting.
         Assert.False(saved.IsChosen);
-        Assert.Equal("", saved.CoverLine());
+        // 🔴 THE RULE CHANGED, DELIBERATELY. A partial choice now composes
+        // what it has. «Орхон аймаг» is a real place and blanking it threw
+        // away something entered on purpose; the shared vectors require the
+        // province-only case to print. IsChosen is unchanged and still means
+        // "complete enough to reason about".
+        Assert.Equal("Улаанбаатар хот", saved.CoverLine());
     }
 
     [Fact]
@@ -92,7 +97,7 @@ public sealed class SiteLocationRoundTripTests
         Assert.Equal("5110151", saved.WardCode);
         Assert.Equal("Хороо", saved.WardLabelMn);
         Assert.Equal(new DateTimeOffset(2026, 9, 6, 8, 0, 0, TimeSpan.Zero), saved.CatalogueAsOfUtc);
-        Assert.Equal("Улаанбаатар, Багануур-ийн 1-р хороо", saved.CoverLine());
+        Assert.Equal("Улаанбаатар хот, Багануур дүүрэг, 1-р хороо", saved.CoverLine());
 
         var reopened = Picker();
         reopened.Restore(saved);

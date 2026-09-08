@@ -266,7 +266,12 @@ public sealed class AdministrativeUnitPickerTests
         // Kept, and still not usable - which is the distinction that was
         // missing. Nothing downstream reads a location that is not IsChosen.
         Assert.False(half.IsChosen);
-        Assert.Equal("", half.CoverLine());
+        // 🔴 THE RULE CHANGED, DELIBERATELY. A partial choice now composes
+        // what it has. «Орхон аймаг» is a real place and blanking it threw
+        // away something entered on purpose; the shared vectors require the
+        // province-only case to print. IsChosen is unchanged and still means
+        // "complete enough to reason about".
+        Assert.Equal("Баян-Өлгий аймаг", half.CoverLine());
     }
 
     [Fact]

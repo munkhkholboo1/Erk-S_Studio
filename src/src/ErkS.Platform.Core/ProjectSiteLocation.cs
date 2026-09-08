@@ -180,10 +180,105 @@ public sealed class ProjectSiteLocation
     /// choice is incomplete - a half-built line on a cover reads as a fault in
     /// the program rather than as an unanswered question.
     /// </summary>
+    /// <summary>
+    /// The chosen units as one line: «Улаанбаатар хот, Сонгинохайрхан дүүрэг,
+    /// 1-р хороо».
+    ///
+    /// 🔴 REWRITTEN AGAINST THE SHARED VECTORS. The previous version was
+    /// `"{Province}, {District}-ийн {Ward}"`, which was wrong three ways at
+    /// once, and the third way is the one that matters most:
+    ///
+    ///   * it never read <see cref="WardLabelMn"/> - a field this very type
+    ///     documents as impossible to re-derive, stored for exactly this use
+    ///     and then not used. A value written and never read;
+    ///   * it glued the genitive «-ийн» onto a NAME, producing «Сонгинохайрхан
+    ///     дүүрэг-ийн». Mongolian genitive follows vowel harmony and place
+    ///     names are an unbounded set, so guessing the suffix from a name is
+    ///     wrong somewhere among 2 217 units. Labels are a CLOSED set of seven,
+    ///     so a suffix on the label is a lookup instead of a guess;
+    ///   * it printed no label for the first two levels at all.
+    ///
+    /// 🔴 THE LABEL IS APPENDED ONLY WHEN THE NAME DOES NOT ALREADY CARRY IT,
+    /// and the test is CONTAINS rather than ENDS-WITH. Measured on the real
+    /// catalogue: 1 852 of 1 853 ward names carry their own label, and many
+    /// carry it in the MIDDLE - «1-р баг, Жинст». An ends-with test passes that
+    /// one and prints «1-р баг, Жинст баг». The server's first composer had
+    /// exactly this bug on 1 544 units.
+    ///
+    /// The first two levels' labels are DERIVED, because measurement says they
+    /// are safe to derive: 0 of 22 province names and 2 of 342 district names
+    /// carry theirs. Only the third level had to travel in the data.
+    /// </summary>
     public string CoverLine()
     {
-        if (!IsChosen)
+        // 🔴 AN INCONSISTENT CHAIN PRINTS NOTHING. A district that is not in the
+        // chosen province is not a place - «Улаанбаатар хот, Өлгий дүүрэг» names
+        // somewhere that does not exist, and it would go onto a signed sheet
+        // looking perfectly ordinary. A PARTIAL choice is different and is
+        // printed: a province alone is a real place, just an incomplete answer.
+        //
+        // This guard was in the previous version by accident - it returned ""
+        // for anything not fully chosen, which covered inconsistency along with
+        // everything else. Keeping it deliberately, and only for the case that
+        // needs it, is what lets the partial case through.
+        if (!ChainHoldsTogether)
             return "";
-        return $"{ProvinceName}, {DistrictName}-ийн {WardName}";
+
+        var parts = new List<string>(3);
+        if (ProvinceName.Trim().Length > 0)
+            parts.Add(WithLabel(ProvinceName, IsCapital ? "хот" : "аймаг"));
+        if (DistrictName.Trim().Length > 0)
+            parts.Add(WithLabel(DistrictName, IsCapital ? "дүүрэг" : "сум"));
+        if (WardName.Trim().Length > 0)
+            parts.Add(WithLabel(WardName, WardLabelMn));
+
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>
+    /// The same line without the province - what a list column shows, where the
+    /// province is either obvious or in its own column. Falls back to the
+    /// province when that is all there is, because an empty cell would say
+    /// "unknown" about a project that does have a location.
+    /// </summary>
+    public string ShortLine()
+    {
+        if (!ChainHoldsTogether)
+            return "";
+
+        var parts = new List<string>(2);
+        if (DistrictName.Trim().Length > 0)
+            parts.Add(WithLabel(DistrictName, IsCapital ? "дүүрэг" : "сум"));
+        if (WardName.Trim().Length > 0)
+            parts.Add(WithLabel(WardName, WardLabelMn));
+
+        return parts.Count > 0 ? string.Join(", ", parts) : CoverLine();
+    }
+
+    /// <summary>
+    /// Whether the province is the capital, which is what decides «хот/дүүрэг»
+    /// against «аймаг/сум».
+    ///
+    /// Read from the CODE because a stored project keeps codes and names and
+    /// not the catalogue rows they came from - there is no level to consult.
+    /// Mongolia has one capital and its code is published and fixed, so this is
+    /// a constant rather than a guess; the shared vectors exercise both sides
+    /// of it.
+    /// </summary>
+    private bool IsCapital => ProvinceCode.Trim() == "511";
+
+    /// <summary>
+    /// A unit's name followed by its label - unless the name already says it.
+    /// </summary>
+    private static string WithLabel(string? name, string? label)
+    {
+        string unit = (name ?? "").Trim();
+        string word = (label ?? "").Trim();
+        if (unit.Length == 0 || word.Length == 0)
+            return unit;
+
+        return unit.Contains(word, StringComparison.OrdinalIgnoreCase)
+            ? unit
+            : unit + " " + word;
     }
 }

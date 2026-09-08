@@ -35,7 +35,13 @@ public static class ProjectSiteAddress
     public static string Compose(ProjectSiteLocation? location, string? additional)
     {
         string extra = (additional ?? "").Trim();
-        string chosen = location is { IsChosen: true } ? location.CoverLine() : "";
+
+        // 🔴 NOT GATED ON IsChosen. A half-made choice - a province and nothing
+        // else - still names a real place, and refusing to print it would lose
+        // information the person deliberately entered. IsChosen answers "is
+        // this complete enough to reason about", which is a different question
+        // from "is there anything to print".
+        string chosen = location?.CoverLine() ?? "";
 
         if (chosen.Length == 0)
         {
@@ -50,6 +56,20 @@ public static class ProjectSiteAddress
         // chosen units, then the sheet and the roster suggestions would read
         // different places from the same project.
         return extra.Length == 0 ? chosen : chosen + ", " + extra;
+    }
+
+    /// <summary>
+    /// The short form, for a list column: district and ward, without the
+    /// province and WITHOUT the typed line.
+    ///
+    /// The typed line is left out on purpose - it is a street and a building
+    /// number, which is precisely what does not fit a column and does not help
+    /// somebody scanning a list of projects.
+    /// </summary>
+    public static string ComposeShort(ProjectSiteLocation? location, string? additional)
+    {
+        string shortLine = location?.ShortLine() ?? "";
+        return shortLine.Length > 0 ? shortLine : (additional ?? "").Trim();
     }
 
     /// <summary>
