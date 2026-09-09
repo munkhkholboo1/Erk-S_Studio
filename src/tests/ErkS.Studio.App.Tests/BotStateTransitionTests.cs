@@ -126,6 +126,112 @@ public sealed class BotStateTransitionTests
         Assert.DoesNotContain("\"Ботын төлөвөөс гарах…\"", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BOTHDirectionsDropTheSAMEFieldsAsEachOther()
+    {
+        // 🔴 THE DOOR WAS BUILT ONE WAY ROUND, AND A GREEN SUITE SAID NOTHING.
+        // Every test here pointed at the way IN, so the way OUT could do a
+        // quarter of the work and stay green: the owner signed in on their own
+        // seated machine and met the bot's assignments, the bot's member line
+        // and «Бот: <name>» in place of their name. «Гэтэл бот төлөв хэвээрээ».
+        //
+        // Derived, not listed. A hand-written list of the four fields would
+        // stay true the day a FIFTH is added to one side only - which is the
+        // exact way this defect was born.
+        string source = ReadAppSource("ShellView.BotSeat.cs");
+        IReadOnlyCollection<string> intoBotState =
+            FieldsClearedIn(MethodBody(source, "private async Task EnterBotStateNowAsync("));
+        IReadOnlyCollection<string> backToOwner =
+            FieldsClearedIn(MethodBody(source, "private async Task ResumeAsOwnerNowAsync()"));
+
+        // The positive control. Both empty would compare equal and prove
+        // nothing - and empty is what a renamed method or a mis-parsed body
+        // produces.
+        Assert.True(
+            intoBotState.Count >= 4,
+            "no cleared fields were found going INTO bot state; this test is reading nothing");
+
+        Assert.Equal(intoBotState.Order(), backToOwner.Order());
+    }
+
+    [Fact]
+    public void THEOwnerDirectionREBUILDSTheScreenRatherThanUncoveringIt()
+    {
+        // Taking the lock off shows what was already there. The list underneath
+        // was built for the seat, so it has to be built again for the person -
+        // the same four steps the other direction runs, aimed the other way.
+        string source = ReadAppSource("ShellView.BotSeat.cs");
+        string body = MethodBody(source, "private async Task ResumeAsOwnerNowAsync()");
+
+        Assert.Contains("ApplyDeviceSeat();", body, StringComparison.Ordinal);
+        Assert.Contains("RemoveBotLock();", body, StringComparison.Ordinal);
+        Assert.Contains("UpdateAccountUi();", body, StringComparison.Ordinal);
+        Assert.Contains("await RefreshProjectsAsync();", body, StringComparison.Ordinal);
+
+        // The lock comes off BEFORE the list is rebuilt: work done behind a
+        // lock is work nobody sees happen.
+        Assert.True(
+            body.IndexOf("RemoveBotLock();", StringComparison.Ordinal) <
+                body.IndexOf("await RefreshProjectsAsync();", StringComparison.Ordinal),
+            "the lock must come off before the rebuild, or the refresh happens behind it");
+    }
+
+    [Fact]
+    public void SIGNINGInAsTheOwnerGOESThroughThatTransition()
+    {
+        // The door from the lock screen and the door from the account menu are
+        // one method, and that method is where the whole list lives. Two callers
+        // each doing their own subset is how this went wrong the first time.
+        string source = ReadAppSource("ShellView.BotSeat.cs");
+
+        Assert.Contains(
+            "await ResumeAsOwnerNowAsync();",
+            MethodBody(source, "private async Task VerifyOwnerOnSeatedDeviceAsync()"),
+            StringComparison.Ordinal);
+
+        // Defined once, called once: two occurrences in the file.
+        Assert.Equal(2, Occurrences(source, "ResumeAsOwnerNowAsync()"));
+    }
+
+    [Fact]
+    public void THESwitchBackDoesNOTGiveUpTheSeat()
+    {
+        // ⚠️ A SWITCH, NOT A RELEASE. The machine goes on holding its seat and
+        // «Бот эрхээр нэвтрэх…» takes it back with the PIN. Releasing here would
+        // turn signing in as the owner into an irreversible act nobody asked
+        // for - and it needs the server, which this must not.
+        string source = ReadAppSource("ShellView.BotSeat.cs");
+        string body = MethodBody(source, "private async Task ResumeAsOwnerNowAsync()");
+
+        Assert.DoesNotContain("LeaveBotStateAsync", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("StudioBotDeviceStateStore.Clear", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("StudioPendingBotSeatReleases.Record", body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The fields a transition sets back to null, read out of its body.
+    ///
+    /// Reading them rather than listing them is the whole point: the comparison
+    /// has to keep holding when a field is added, and a list written today
+    /// stays true on the day somebody adds a fifth to one side.
+    /// </summary>
+    private static IReadOnlyCollection<string> FieldsClearedIn(string body)
+    {
+        var found = new List<string>();
+        foreach (string line in body.Split('\n'))
+        {
+            string trimmed = line.Trim();
+            if (!trimmed.EndsWith(" = null;", StringComparison.Ordinal))
+                continue;
+            string name = trimmed[..^" = null;".Length].Trim();
+            // A bare field name. Anything with a dot, a cast or a call in it is
+            // not the shape this compares.
+            if (name.Length > 0 && name.All(c => char.IsLetterOrDigit(c) || c == '_'))
+                found.Add(name);
+        }
+        return found;
+    }
+
     private static string MethodBody(string source, string signature)
     {
         int start = source.IndexOf(signature, StringComparison.Ordinal);

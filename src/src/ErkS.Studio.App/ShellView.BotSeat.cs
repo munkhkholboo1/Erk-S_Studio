@@ -474,10 +474,51 @@ internal sealed partial class ShellView
             return;
         }
 
-        RemoveBotLock();
-        UpdateAccountUi();
+        await ResumeAsOwnerNowAsync();
         SetStatus("Эзэмшигчээр баталгаажлаа. Энэ төхөөрөмж ботын суудал хэвээр.");
         await FlushPendingBotSeatReleasesAsync();
+    }
+
+    /// <summary>
+    /// Puts the running program back under the OWNER, and is the exact
+    /// counterpart of <see cref="EnterBotStateNowAsync"/>.
+    ///
+    /// 🔴 THE DOOR WAS BUILT ONE WAY ROUND. Going INTO bot state ended the other
+    /// session, dropped everything read for it, re-applied the device seat,
+    /// rebuilt the project list and changed the screen - six things. Coming back
+    /// out took the lock off and refreshed the account panel - two. So the owner
+    /// signed in on their own machine and met the bot's assignments, the bot's
+    /// member line and «Бот: <name>» where their name belongs, and said the only
+    /// thing there is to say about it: «гэтэл бот төлөв хэвээрээ».
+    ///
+    /// The two directions now run the same list against the same fields, which
+    /// is the only arrangement in which fixing one reaches the other.
+    ///
+    /// The seat is NOT released. This is a switch of who is acting on a machine
+    /// that goes on holding its seat - «Бот эрхээр нэвтрэх…» takes it back with
+    /// the PIN, and nothing here needs the server.
+    /// </summary>
+    private async Task ResumeAsOwnerNowAsync()
+    {
+        // Read for the SEAT, by the seat's own credential. With the owner acting
+        // they answer for somebody else - and an assignment list that belongs to
+        // another identity is worse than none, because it looks like an answer.
+        unlockedSeatIdentity = null;
+        botAssignedProjectIds = null;
+        botAssignedProjectScopes = null;
+        botSeatMember = null;
+
+        ApplyDeviceSeat();
+
+        // Off BEFORE the list is rebuilt: work done behind a lock is work the
+        // person never sees happen. Going the other way the lock goes on last,
+        // for the mirror-image reason - what it covers is already correct.
+        RemoveBotLock();
+        UpdateAccountUi();
+
+        // Rebuilt with the owner's session in hand, so their projects come back
+        // instead of the seat's assignments staying on screen.
+        await RefreshProjectsAsync();
     }
 
     private async Task<IReadOnlyList<StudioCloudOrganization>?> LoadOrganizationsAsync()
@@ -791,6 +832,17 @@ internal sealed partial class ShellView
             }
             catch (Exception exception)
             {
+                // What this retry met, on the entry itself. Without it the note
+                // froze at whatever the FIRST attempt said, and a stale sentence
+                // read as today's evidence is how the wrong cause gets named.
+                // The code goes down beside the sentence because the code is
+                // what SeatIsGone reads - if an entry survives, the code on file
+                // says immediately whether it was classified or missed.
+                StudioPendingBotSeatReleases.NoteAttempt(
+                    item.OrganizationId,
+                    item.BotId,
+                    exception is StudioAccountException known ? known.ErrorCode : "",
+                    exception.Message);
                 stillHeld.Add($"«{item.DisplayName}» ({exception.Message})");
             }
         }

@@ -39,13 +39,26 @@ public sealed class PendingBotSeatReleaseTests
         string body = source[method..source.IndexOf("\n    }", method, StringComparison.Ordinal)];
 
         int guard = body.IndexOf("when (BotSeatErrors.SeatIsGone(exception))", StringComparison.Ordinal);
-        int generic = body.IndexOf("catch (Exception exception)\n            {\n                stillHeld", StringComparison.Ordinal);
+        // 🔴 THIS ANCHOR USED TO REACH INTO THE CATCH-ALL'S FIRST STATEMENT,
+        // and that statement changed - at which point the ordering check found
+        // nothing, passed on `generic < 0`, and stopped testing anything. A
+        // check written so that «not found» reads as «fine» is not a check.
+        // The catch-all is now located by what MAKES it the catch-all: a
+        // `catch (Exception …)` carrying no `when`.
+        int generic = UnguardedCatch(body);
 
         Assert.True(guard > 0, "an already-free seat is still treated as a failure");
+        Assert.True(generic > 0, "the general failure branch was not found; this test is reading nothing");
         Assert.True(
-            generic < 0 || guard < generic,
+            guard < generic,
             "the already-free case must be caught before the general failure, or it never runs");
         Assert.Contains("alreadyFree++", body, StringComparison.Ordinal);
+
+        // And the failure that is NOT the already-free one leaves a record of
+        // itself on the entry, so an entry that survives says why in its own
+        // file rather than only on a status line nobody kept.
+        int note = body.IndexOf("StudioPendingBotSeatReleases.NoteAttempt(", StringComparison.Ordinal);
+        Assert.True(note > generic, "the note belongs inside the general failure branch");
 
         // Forgotten twice: once on a real release, once when the seat was
         // already free. A flush that forgets only the first can never empty the
@@ -84,6 +97,24 @@ public sealed class PendingBotSeatReleaseTests
         Assert.False(BotSeatErrors.SeatIsGone(offline));
     }
 
+    /// <summary>
+    /// Where the branch that catches everything begins - the one WITHOUT a
+    /// `when`, which is what makes it last and makes the ordering matter.
+    /// </summary>
+    private static int UnguardedCatch(string body)
+    {
+        const string Opening = "catch (Exception ";
+        for (int at = body.IndexOf(Opening, StringComparison.Ordinal);
+            at >= 0;
+            at = body.IndexOf(Opening, at + 1, StringComparison.Ordinal))
+        {
+            int lineEnd = body.IndexOf('\n', at);
+            string line = lineEnd < 0 ? body[at..] : body[at..lineEnd];
+            if (!line.Contains(" when (", StringComparison.Ordinal))
+                return at;
+        }
+        return -1;
+    }
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     private static string ReadAppSource(string fileName)

@@ -27,6 +27,28 @@ internal sealed record PendingBotSeatRelease
 
     /// <summary>Why the release did not reach the server, in the server's own words.</summary>
     public string LastFailure { get; init; } = "";
+
+    /// <summary>
+    /// The server's own error CODE for that refusal, beside the sentence.
+    ///
+    /// 🔴 THE SENTENCE ALONE COULD NOT ANSWER THE ONE QUESTION ASKED OF IT. The
+    /// code is what decides whether this entry is dropped; the message is for a
+    /// person to read. With only the message on file, working out why an entry
+    /// had survived four days meant guessing which of the server's refusals had
+    /// produced that wording - and the guess was wrong.
+    /// </summary>
+    public string LastFailureCode { get; init; } = "";
+
+    /// <summary>
+    /// When the last attempt ran, and how many there have been.
+    ///
+    /// Absent, not zero, when none has: an entry written and never retried is a
+    /// different thing from one retried nine times, and «0» would let the first
+    /// pass for the second.
+    /// </summary>
+    public DateTimeOffset? LastAttemptUtc { get; init; }
+
+    public int AttemptCount { get; init; }
 }
 
 internal static class StudioPendingBotSeatReleases
@@ -125,6 +147,51 @@ internal static class StudioPendingBotSeatReleases
         return JsonSerializer.Deserialize<List<PendingBotSeatRelease>>(
             File.ReadAllText(StorePath),
             JsonOptions) ?? [];
+    }
+
+    /// <summary>
+    /// Writes down what the latest retry met.
+    ///
+    /// 🔴 THE FIELD SAID «why the release did not reach the server» AND THEN
+    /// NEVER MOVED AGAIN. It was filled once, by the attempt that created the
+    /// entry, and every retry afterwards failed in silence - so four days and
+    /// several sign-ins later the file still carried the first sentence, and
+    /// there was no way to tell from it whether a retry had run at all. A
+    /// diagnosis was made from that stale line, and it named the wrong cause.
+    ///
+    /// A note whose only reader is a person days later has to be written by the
+    /// code that learns something, every time it learns it.
+    /// </summary>
+    public static void NoteAttempt(
+        string organizationId,
+        string botId,
+        string failureCode,
+        string failureMessage)
+    {
+        lock (Gate)
+        {
+            try
+            {
+                List<PendingBotSeatRelease> all = ReadUnlocked();
+                int index = all.FindIndex(item => Matches(item, organizationId, botId));
+                if (index < 0)
+                    return;
+                all[index] = all[index] with
+                {
+                    LastFailure = failureMessage ?? "",
+                    LastFailureCode = failureCode ?? "",
+                    LastAttemptUtc = DateTimeOffset.UtcNow,
+                    AttemptCount = all[index].AttemptCount + 1,
+                };
+                File.WriteAllText(StorePath, JsonSerializer.Serialize(all, JsonOptions));
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                // The retry itself already failed and was reported. Losing the
+                // note about it costs a diagnosis, not the seat.
+            }
+        }
     }
 
     private static bool Matches(PendingBotSeatRelease item, string organizationId, string botId) =>

@@ -86,6 +86,67 @@ public sealed class StudioPendingBotSeatReleaseTests : IDisposable
     }
 
     [Fact]
+    public void EACHRetryWritesDownWhatItMetAndTheCodeItMetItUnder()
+    {
+        // 🔴 THE NOTE WAS FILLED ONCE AND NEVER MOVED AGAIN. Its own summary
+        // says «why the release did not reach the server» - written by the
+        // attempt that created the entry, and by nothing afterwards. Four days
+        // and several owner sign-ins later the file still carried the first
+        // sentence and no count, so it could not answer whether a retry had run
+        // at all, and a diagnosis made from it named the wrong cause.
+        //
+        // The CODE goes down beside the sentence because the code is what
+        // decides whether the entry is dropped. A sentence is for a person.
+        Assert.True(StudioPendingBotSeatReleases.Record(Release("org", "bot")));
+
+        StudioPendingBotSeatReleases.NoteAttempt(
+            "org", "bot", "bot_state_signature_invalid", "Гарын үсэг таарсангүй.");
+
+        PendingBotSeatRelease noted = Assert.Single(StudioPendingBotSeatReleases.Read());
+        Assert.Equal("bot_state_signature_invalid", noted.LastFailureCode);
+        Assert.Equal("Гарын үсэг таарсангүй.", noted.LastFailure);
+        Assert.Equal(1, noted.AttemptCount);
+        Assert.NotNull(noted.LastAttemptUtc);
+
+        // Everything the entry IS survives - a note about a retry must not
+        // rewrite which seat this is.
+        Assert.Equal("bot", noted.BotId);
+        Assert.Equal("Зураг 1", noted.DisplayName);
+        Assert.Equal(new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero), noted.LeftAtUtc);
+
+        StudioPendingBotSeatReleases.NoteAttempt("org", "bot", "bot_state_nonce_expired", "Хугацаа дууссан.");
+        PendingBotSeatRelease again = Assert.Single(StudioPendingBotSeatReleases.Read());
+        Assert.Equal(2, again.AttemptCount);
+        Assert.Equal("bot_state_nonce_expired", again.LastFailureCode);
+    }
+
+    [Fact]
+    public void ANoteAboutOneSeatLeavesTheOthersAlone()
+    {
+        Assert.True(StudioPendingBotSeatReleases.Record(Release("org", "bot-one")));
+        Assert.True(StudioPendingBotSeatReleases.Record(Release("org", "bot-two")));
+
+        StudioPendingBotSeatReleases.NoteAttempt("org", "bot-one", "bot_state_not_found", "Алга.");
+
+        IReadOnlyList<PendingBotSeatRelease> all = StudioPendingBotSeatReleases.Read();
+        Assert.Equal(2, all.Count);
+        Assert.Equal(1, all.Single(item => item.BotId == "bot-one").AttemptCount);
+        Assert.Equal(0, all.Single(item => item.BotId == "bot-two").AttemptCount);
+        Assert.Equal("", all.Single(item => item.BotId == "bot-two").LastFailureCode);
+    }
+
+    [Fact]
+    public void ANoteAboutASeatThatIsNoLongerPendingCreatesNothing()
+    {
+        // The flush forgets an entry and can then meet a failure for it in the
+        // same pass. Writing the note back would resurrect a seat that has been
+        // released - a note that invents its own subject.
+        StudioPendingBotSeatReleases.NoteAttempt("org", "gone", "bot_state_not_found", "Алга.");
+
+        Assert.Empty(StudioPendingBotSeatReleases.Read());
+    }
+
+    [Fact]
     public void ForgettingASeatThatWasNeverNotedIsNotAnError()
     {
         StudioPendingBotSeatReleases.Forget("org_9", "bot_z");

@@ -2336,31 +2336,56 @@ internal sealed partial class ShellView : IDisposable
                 " AutoCAD, Revit, 3ds Max дээрх Erk-S хэрэгслүүд лиценз таньж чадахгүй.");
         }
         ssoIdentityPublished = ssoPublished;
-        accountStatusText.Text = seatedAs is not null
-            ? "Бот: " + seatedAs.DisplayName
-            : session is null
-                ? "Нэвтрээгүй"
-                : displayName;
-        accountLicenseText.Text = seatedAs is not null
-            ? (unlockedSeatIdentity is null
-                ? "түгжээтэй"
-                // Who is appointed to the seat, when the seat has said. Two
-                // different facts: the seat is the organisation's, the person
-                // behind it is a member who can change without the seat moving.
-                : botSeatMember is null
-                    ? "төхөөрөмжийн суудал · гишүүн томилогдоогүй"
-                    : "гишүүн: " + (string.IsNullOrWhiteSpace(botSeatMember.DisplayName)
-                        ? botSeatMember.AccountEmail
-                        : botSeatMember.DisplayName))
-            : session is null
+        // 🔴 THIS LINE USED TO ASK «DOES THIS MACHINE HOLD A SEAT» AND PRINT
+        // THE BOT'S NAME WHENEVER IT DID - so an owner signing in on their own
+        // seated machine saw «Бот: <name>» and their own name pushed into a
+        // tooltip, and read it as the sign-in not having taken. The seat is a
+        // fact about the DEVICE; this line answers WHO IS ACTING. The rule now
+        // lives where it can be stated in a test.
+        AccountIdentityKind identity = StudioAccountIdentityLine.For(
+            ownerSessionInHand: session is not null,
+            deviceHoldsSeat: seatedAs is not null,
+            seatUnlocked: unlockedSeatIdentity is not null);
+
+        accountStatusText.Text = identity switch
+        {
+            AccountIdentityKind.SignedOut => "Нэвтрээгүй",
+            AccountIdentityKind.Person or AccountIdentityKind.PersonOnSeatedDevice => displayName,
+            _ => "Бот: " + seatedAs!.DisplayName,
+        };
+        accountLicenseText.Text = identity switch
+        {
+            AccountIdentityKind.SignedOut => "Cloud ERA",
+            AccountIdentityKind.Person => string.IsNullOrWhiteSpace(session!.LicenseType)
                 ? "Cloud ERA"
-                : string.IsNullOrWhiteSpace(session.LicenseType) ? "Cloud ERA" : session.LicenseType;
-        accountStatusText.ToolTip = seatedAs is not null
-            ? "Энэ төхөөрөмж ботын суудал" +
-              (session is null ? "" : " · нэвтэрсэн: " + displayName)
-            : session is null ? null : "Cloud ERA бүртгэл";
+                : session.LicenseType,
+            // The seat did not go away because a person signed in, and the
+            // promise that a seated machine says so holds here too - said as
+            // what it is, a property of the machine, under the person's name
+            // rather than in place of it.
+            AccountIdentityKind.PersonOnSeatedDevice =>
+                "ботын суудалтай төхөөрөмж · «" + seatedAs!.DisplayName + "»",
+            AccountIdentityKind.SeatLocked => "түгжээтэй",
+            // Who is appointed to the seat, when the seat has said. Two
+            // different facts: the seat is the organisation's, the person
+            // behind it is a member who can change without the seat moving.
+            _ => botSeatMember is null
+                ? "төхөөрөмжийн суудал · гишүүн томилогдоогүй"
+                : "гишүүн: " + (string.IsNullOrWhiteSpace(botSeatMember.DisplayName)
+                    ? botSeatMember.AccountEmail
+                    : botSeatMember.DisplayName),
+        };
+        accountStatusText.ToolTip = identity switch
+        {
+            AccountIdentityKind.SignedOut => null,
+            AccountIdentityKind.Person => "Cloud ERA бүртгэл",
+            AccountIdentityKind.PersonOnSeatedDevice =>
+                "Cloud ERA бүртгэл · энэ төхөөрөмж «" + seatedAs!.DisplayName +
+                "» ботын суудалтай хэвээр",
+            _ => "Энэ төхөөрөмж ботын суудал",
+        };
         accountStatusText.Foreground = StudioTheme.TextBrush;
-        accountLicenseText.Foreground = seatedAs is not null
+        accountLicenseText.Foreground = StudioAccountIdentityLine.ShowsDeviceSeat(identity)
             ? StudioTheme.AccentBrush
             : session is null ? StudioTheme.WarningBrush : StudioTheme.SuccessBrush;
         accountButton.ToolTip = session is null
