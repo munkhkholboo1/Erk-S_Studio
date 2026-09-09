@@ -1457,6 +1457,21 @@ internal sealed partial class ShellView : IDisposable
         }
 
         await EnforceCompanionLicenseAsync();
+
+        // 🔴 EVERY WAY OF ARRIVING SIGNED IN ENDS HERE, AND ONLY ONE OF THEM
+        // USED TO ASK FOR THE PROOF. The token was fetched inside the
+        // interactive sign-in only, so the ordinary launch - where Studio
+        // restores its own stored session and never shows a dialog - published
+        // an identity with no proof behind it and never went back for one.
+        // Three products would then refuse on a machine that was signed in,
+        // saying «the proof has not arrived yet» forever.
+        //
+        // Measured on the installed 0.001.58 build: the record came out Active
+        // with no token, and the missing server deployment hid it - a true
+        // second cause for the same symptom. Placed after the enforcement loop
+        // because that loop can sign somebody in too, so this is the first point
+        // where the session is final however it was reached.
+        await EnsureSsoHandoffTokenAsync();
     }
 
     /// <summary>
@@ -2212,6 +2227,17 @@ internal sealed partial class ShellView : IDisposable
     private async Task EnsureSsoHandoffTokenAsync()
     {
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+
+        // Nothing to mint against: no session and no open seat. The record
+        // already names that state, and adding a licence sentence here would put
+        // it in front of somebody who simply has not signed in yet.
+        //
+        // Cheap to call more than once: the account service returns immediately
+        // when the published record already carries a token, so the sign-in path
+        // may keep its own call without either becoming conditional on the other.
+        if (!account.IsSignedIn && !(seat is not null && unlockedSeatIdentity is not null))
+            return;
+
         try
         {
             bool carried = await account.EnsureSsoHandoffTokenAsync(

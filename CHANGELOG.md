@@ -5,6 +5,12 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.59] - 2026-09-09
+
+- Ask for the licence proof on an ordinary launch, not only after typing a password. Studio restores its own stored session at startup and shows no sign-in dialog, and the proof the other products present was fetched inside that dialog - so the common way of starting published an identity with nothing behind it and never went back. On such a machine AutoCAD, Revit and 3ds Max would all have said the proof had not arrived yet, on a computer that was signed in, indefinitely. It is now asked for where every way of arriving signed in has converged, including somebody signing in through the licence dialog.
+- 0.001.58 was built and withdrawn before it was given to anyone, for the defect above. Its entries are below and are part of this release.
+
+
 ## [0.001.58] - 2026-09-09
 
 - Sign in once, in Studio, and the other Erk-S tools recognise the licence. AutoCAD, Revit and 3ds Max each had their own sign-in, so the same person signed in three or four times and a machine could be one identity in Studio and another in AutoCAD - which is what every gap examined this week needed in order to exist. Studio now leaves what this device is working as where the other products read it, in the Windows credential store of the signed-in Windows user, and they stop asking. A machine that is not signed in says so by name rather than by silence: "Studio is not installed", "nobody is signed in", "the PIN has not been entered" and "the proof has not arrived yet" are four different sentences, because they have four different answers and only some of them are the person's to fix.

@@ -871,6 +871,57 @@ public sealed class SsoDeviceIdentityTests
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     [Fact]
+    public void ARESTOREDSessionAsksForTheProofToo()
+    {
+        // 🔴 THE DEFECT THIS TEST WAS WRITTEN FOR SHIPPED IN A BUILT RELEASE.
+        // The token was fetched inside the interactive sign-in only, so the
+        // ordinary launch - Studio restoring its own stored session, no dialog
+        // shown - published an identity with no proof and never went back for
+        // one. Three products would refuse on a signed-in machine, forever.
+        //
+        // It was invisible because the missing server deployment produced the
+        // same symptom: reading «no token» on the installed build, the first
+        // plausible cause accounted for it and the second went unnoticed.
+        //
+        // Asserted at the CONVERGENCE point rather than per-branch: the sign-in
+        // branch already had a call, and adding one to the restore branch would
+        // leave the third way in - somebody signing in through the licence
+        // dialog - still missing it.
+        string view = ReadAppSource("ShellView.cs");
+        int start = view.IndexOf("bool restored = await account.TryRestoreAsync();", StringComparison.Ordinal);
+        Assert.True(start > 0, "the startup restore was not found");
+        string startup = view[start..view.IndexOf("\n    }", start, StringComparison.Ordinal)];
+
+        Assert.Contains("await EnforceCompanionLicenseAsync();", startup, StringComparison.Ordinal);
+        Assert.Contains("await EnsureSsoHandoffTokenAsync();", startup, StringComparison.Ordinal);
+        Assert.True(
+            startup.IndexOf("await EnforceCompanionLicenseAsync();", StringComparison.Ordinal) <
+                startup.IndexOf("await EnsureSsoHandoffTokenAsync();", StringComparison.Ordinal),
+            "the proof is fetched after the licence loop, because that loop can sign somebody in too");
+    }
+
+    [Fact]
+    public void AMACHINEWithNothingToMintAgainstSaysNothing()
+    {
+        // The other half: the converged call runs on every launch, including one
+        // where nobody is signed in and no seat is open. There is nothing to ask
+        // for there, and a licence sentence would land in front of somebody who
+        // simply has not signed in yet - the record already names that state.
+        string view = ReadAppSource("ShellView.cs");
+        int method = view.IndexOf(
+            "private async Task EnsureSsoHandoffTokenAsync()",
+            StringComparison.Ordinal);
+        Assert.True(method > 0, "the wrapper was not found");
+        string body = view[method..view.IndexOf("\n    }", method, StringComparison.Ordinal)];
+
+        int guard = body.IndexOf("!account.IsSignedIn", StringComparison.Ordinal);
+        int call = body.IndexOf("account.EnsureSsoHandoffTokenAsync(", StringComparison.Ordinal);
+        Assert.True(guard > 0, "there is no guard for a machine with no identity to prove");
+        Assert.True(call > guard, "the guard must come before the request");
+        Assert.Contains("unlockedSeatIdentity is not null", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void THEIdentityPathBehavesTheSameInADEVELOPMENTAndAReleaseBuild()
     {
         // 🔴 A DEVELOPMENT BUILD IS A DIFFERENT PRODUCT IN ONE RESPECT, AND THAT
