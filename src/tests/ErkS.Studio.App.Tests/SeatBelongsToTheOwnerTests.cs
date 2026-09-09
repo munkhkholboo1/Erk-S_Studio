@@ -147,6 +147,40 @@ public sealed class SeatBelongsToTheOwnerTests
     }
 
     [Fact]
+    public void NOMemberAndAMemberWithNoNameStayTELLABLEApart()
+    {
+        // 🔴 SRV ASKED FOR THIS EXPLICITLY: never fill an empty name with the
+        // address, because then «nobody is on this seat» and «somebody is on it
+        // whose account has no name» print the same thing. They are different
+        // facts and the owner acts differently on each.
+        //
+        // Falling back to the address is a CLIENT decision and is made once,
+        // here - the server never writes an address into the name field.
+        string nobody = StudioAccountDisplay.NameOrFallback("", "", "—");
+        string namelessMember = StudioAccountDisplay.NameOrFallback(
+            "", "gerlee@erk-s.mn", "gerlee@erk-s.mn");
+        string namedMember = StudioAccountDisplay.NameOrFallback(
+            "Гэрлээ Б.", "gerlee@erk-s.mn", "gerlee@erk-s.mn");
+
+        Assert.Equal("—", nobody);
+        Assert.Equal("gerlee@erk-s.mn", namelessMember);
+        Assert.Equal("Гэрлээ Б.", namedMember);
+        Assert.NotEqual(nobody, namelessMember);
+    }
+
+    [Fact]
+    public void THEListSaysWHOSESeatsItIsCounting()
+    {
+        // The occupancy figure beside it is the ACCOUNT's total now, across
+        // every company - the same «7 / 10» that used to mean one company's.
+        // An owner reading the new number as the old one concludes they have
+        // lost seats.
+        string source = ReadAppSource("BotSeatDialogs.cs");
+
+        Assert.Contains("\"Миний суудлууд: \"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void THELocalRecordOfAPendingReleaseIsSTILLReadable()
     {
         // ⚠️ THE MACHINE THIS SHIPS TO HAS A PENDING RELEASE ON DISK, written

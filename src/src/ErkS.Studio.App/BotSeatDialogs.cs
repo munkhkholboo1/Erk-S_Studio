@@ -593,10 +593,17 @@ internal sealed class BotSeatManagementDialog : Window
             // An empty grid is not an answer. Say that the list was READ and
             // is empty, so "nothing here" cannot be mistaken for "nothing
             // loaded" - the reason this line exists at all.
+            //
+            // 🔴 AND SAY WHOSE. The count beside it is now the ACCOUNT's total
+            // across every company, not one company's - the same «7 / 10» that
+            // used to mean something narrower. Left unnamed, an owner who used
+            // to read it per company would read the new number as the old one
+            // and conclude they had lost seats.
             summaryText.Text =
+                "Миний суудлууд: " +
                 (response.Items.Count == 0
-                    ? "Ботын суудал алга"
-                    : $"{response.Items.Count} суудал") +
+                    ? "алга"
+                    : $"{response.Items.Count}") +
                 "  ·  эзэлсэн: " +
                 StudioBotSeatCounts.DescribeOccupancy(
                     response.OccupiedSeats,
