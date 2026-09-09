@@ -177,6 +177,23 @@ if ($releaseManifest.productDataIncluded -ne $false -or $releaseManifest.devUpda
     throw "Release manifest failed the product-data or DevUpdate safety gate."
 }
 
+# WHAT SOURCE IS ABOUT TO GO OUT. Printed rather than assumed: a value nobody
+# reads is the state this field was invented to leave behind, and the person
+# running this is the one who can still stop it.
+#
+# Not yet a refusal. Packages built before 2026-09-10 carry no commit, and the
+# live V0.001.61 is one of them - refusing here would block republishing a
+# release that is already installed. The line says so out loud instead, and the
+# refusal can land once every package in the folder carries provenance.
+$manifestCommit = [string]$releaseManifest.sourceCommit
+if ([string]::IsNullOrWhiteSpace($manifestCommit)) {
+    Write-Host "Source: NOT RECORDED (package predates provenance stamping)" -ForegroundColor Yellow
+} else {
+    $dirtyNote = if ($releaseManifest.sourceDirty -eq $true) { " (DIRTY TREE)" } else { "" }
+    $dirtyColour = if ($releaseManifest.sourceDirty -eq $true) { "Yellow" } else { "Cyan" }
+    Write-Host "Source: $($manifestCommit.Substring(0, [Math]::Min(8, $manifestCommit.Length)))$dirtyNote" -ForegroundColor $dirtyColour
+}
+
 $productCode = "ErkS.Studio"
 $productDataRoot = Join-Path $serverRoot "data\products\$productCode"
 $downloadsRoot = Join-Path $serverRoot "downloads\$productCode"

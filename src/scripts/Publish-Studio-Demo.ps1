@@ -378,6 +378,34 @@ second, different thing under the same name.
     }
 }
 
+# WHICH SOURCE THIS PACKAGE WAS BUILT FROM.
+#
+# 🔴 THE ARTIFACT COULD NOT ANSWER THE ONE QUESTION ASKED OF IT. On 2026-09-09
+# «is that fix in this build?» came up three times and every answer had to be
+# reached sideways - comparing a commit's timestamp against the manifest's
+# generatedAtUtc, reading a file's date, searching the binary for a string. The
+# package knew, and did not say.
+#
+# Read HERE, before anything is produced, and a failure REFUSES: a manifest with
+# an empty commit is worse than no field at all, because it looks answered. The
+# same rule the Revit installer already runs - the mechanism is borrowed, the
+# field names are this manifest's own.
+#
+# builds/ is git-ignored, so the dirty check needs no exclusion for the folder
+# this very run is about to write; ignored paths never reach --porcelain.
+$SourceCommit = (& git -C $ProductRoot rev-parse HEAD 2>$null)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($SourceCommit)) {
+    throw @"
+Could not read the source commit from git, so this build would carry no
+provenance. Refusing to produce a package that cannot say what it was made
+from - that question has already cost three sideways answers.
+"@
+}
+$SourceCommit = $SourceCommit.Trim()
+$SourceDirty = @(& git -C $ProductRoot status --porcelain 2>$null |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0
+Write-Host ("Source: {0}{1}" -f $SourceCommit.Substring(0, 8), $(if ($SourceDirty) { " (dirty)" } else { "" }))
+
 # A finished release in this folder is not scratch space.
 #
 # The version number comes from Studio.Version.props, not from the code being
@@ -889,6 +917,11 @@ $ReleaseMetadata = [ordered]@{
     sha256 = $SetupHash
     sizeBytes = (Get-Item -LiteralPath $SetupPath).Length
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
+    # What source produced these bytes. sourceDirty=true means the tree carried
+    # uncommitted changes, so the commit alone does not identify the build -
+    # said rather than left for somebody to assume either way.
+    sourceCommit = $SourceCommit
+    sourceDirty = $SourceDirty
     authenticodeSigned = $true
     publisher = $ExpectedPublisher
     signingCertificateThumbprint = $SigningContext.Certificate.Thumbprint
