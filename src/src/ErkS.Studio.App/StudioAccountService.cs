@@ -2392,8 +2392,22 @@ internal sealed class StudioAccountService :
     private static string OrgPath(string organizationId) =>
         "/api/cloud-era/v1/organizations/" + Uri.EscapeDataString(organizationId);
 
-    private static string SeatPath(string organizationId, string botId) =>
-        OrgPath(organizationId) + "/bot-seats/" + Uri.EscapeDataString(botId);
+    /// <summary>
+    /// A seat's address. Keyed by the SEAT, because a seat belongs to the person
+    /// whose licence pays for it.
+    ///
+    /// 🔴 IT USED TO CARRY /organizations/{id}/ AND THAT SEGMENT WAS A CLAIM.
+    /// The owner said it plainly - «Эзэмшигч ямар ч байгууллагад
+    /// харьяалуулахгүйгээр ботыг үүсгэнэ» - and until the segment went, they
+    /// could not: every seat call needed a company to be named first, and an
+    /// owner with three companies saw three separate lists of their own seats.
+    ///
+    /// The token says who is asking. That is the whole of the authority, and it
+    /// was always the whole of it - the organisation sat in the middle only to
+    /// answer «whose licence», which the caller answers by being authenticated.
+    /// </summary>
+    private static string SeatPath(string botId) =>
+        "/api/cloud-era/v1/bot-seats/" + Uri.EscapeDataString(botId);
 
     /// <summary>
     /// Which projects a seat is assigned to, and with which roles.
@@ -2402,13 +2416,12 @@ internal sealed class StudioAccountService :
     /// rule; the three writes below are the licence owner's.
     /// </summary>
     public async Task<StudioCloudBotAssignmentListResponse> ListBotAssignmentsAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await GetAuthorizedAsync<StudioCloudBotAssignmentListResponse>(
-            SeatPath(organizationId, botId) + "/assignments",
+            SeatPath(botId) + "/assignments",
             cancellationToken).ConfigureAwait(true)
             ?? new StudioCloudBotAssignmentListResponse();
     }
@@ -2419,7 +2432,6 @@ internal sealed class StudioAccountService :
     /// not create or move them.
     /// </summary>
     public async Task<StudioCloudBotAssignment> AssignBotProjectAsync(
-        string organizationId,
         string botId,
         string projectId,
         IReadOnlyList<string> roles,
@@ -2427,7 +2439,7 @@ internal sealed class StudioAccountService :
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PostAuthorizedAsync<StudioCloudBotAssignmentWriteRequest, StudioCloudBotAssignment>(
-            SeatPath(organizationId, botId) + "/assignments",
+            SeatPath(botId) + "/assignments",
             new StudioCloudBotAssignmentWriteRequest
             {
                 ProjectId = projectId?.Trim() ?? "",
@@ -2438,7 +2450,6 @@ internal sealed class StudioAccountService :
     }
 
     public async Task<StudioCloudBotAssignment> ChangeBotAssignmentRolesAsync(
-        string organizationId,
         string botId,
         string assignmentId,
         IReadOnlyList<string> roles,
@@ -2446,7 +2457,7 @@ internal sealed class StudioAccountService :
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PutAuthorizedAsync<StudioCloudBotAssignmentWriteRequest, StudioCloudBotAssignment>(
-            SeatPath(organizationId, botId) + "/assignments/" +
+            SeatPath(botId) + "/assignments/" +
                 Uri.EscapeDataString(assignmentId) + "/roles",
             new StudioCloudBotAssignmentWriteRequest { Roles = [.. roles ?? []] },
             cancellationToken).ConfigureAwait(true)
@@ -2458,7 +2469,6 @@ internal sealed class StudioAccountService :
     /// untouched: ownership does not move because the work stopped.
     /// </summary>
     public async Task RemoveBotAssignmentAsync(
-        string organizationId,
         string botId,
         string assignmentId,
         CancellationToken cancellationToken = default)
@@ -2467,7 +2477,7 @@ internal sealed class StudioAccountService :
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(
             HttpMethod.Delete,
-            BuildUri(session.ServerUrl, SeatPath(organizationId, botId) + "/assignments/" +
+            BuildUri(session.ServerUrl, SeatPath(botId) + "/assignments/" +
                 Uri.EscapeDataString(assignmentId)));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response =
@@ -2475,25 +2485,45 @@ internal sealed class StudioAccountService :
         await ReadNoContentResponseAsync(response, cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Every seat this owner has, in ONE list.
+    ///
+    /// 🔴 THE OWNER SAW THEIR OWN SEATS SPLIT INTO THREE. They hold three
+    /// companies, the route was keyed by one of them, and so the management
+    /// window showed a third of the answer at a time with a picker above it -
+    /// a filter that could not be turned off.
+    ///
+    /// The server still accepts an organizationId as an optional filter and
+    /// this deliberately does not send one. An unfiltered list is the answer to
+    /// «which seats do I have», and passing a filter by default would leave the
+    /// old behaviour in place under a new route - the change would look done
+    /// and nothing on screen would move.
+    /// </summary>
     public async Task<StudioCloudBotSeatListResponse> ListBotSeatsAsync(
-        string organizationId,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await GetAuthorizedAsync<StudioCloudBotSeatListResponse>(
-            OrgPath(organizationId) + "/bot-seats",
+            "/api/cloud-era/v1/bot-seats",
             cancellationToken).ConfigureAwait(true) ?? new StudioCloudBotSeatListResponse();
     }
 
+    /// <summary>
+    /// Opens a seat against the caller's own licence.
+    ///
+    /// No organisation is named, and none is asked for: the seat is spent
+    /// against the licence of whoever is authenticated. Which company a seat was
+    /// opened FOR is a note, and a note is something to set afterwards - never a
+    /// condition of creating one.
+    /// </summary>
     public async Task<StudioCloudBotSeat> CreateBotSeatAsync(
-        string organizationId,
         string displayName,
         string internalEmail,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PostAuthorizedAsync<StudioCloudBotSeatCreateRequest, StudioCloudBotSeat>(
-            OrgPath(organizationId) + "/bot-seats",
+            "/api/cloud-era/v1/bot-seats",
             new StudioCloudBotSeatCreateRequest
             {
                 DisplayName = displayName?.Trim() ?? "",
@@ -2510,14 +2540,13 @@ internal sealed class StudioAccountService :
     /// same breath as the new PIN.
     /// </summary>
     public async Task<StudioCloudBotPinSetResponse> SetBotPinAsync(
-        string organizationId,
         string botId,
         string pin,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PutAuthorizedAsync<StudioCloudBotPinSetRequest, StudioCloudBotPinSetResponse>(
-            SeatPath(organizationId, botId) + "/pin",
+            SeatPath(botId) + "/pin",
             new StudioCloudBotPinSetRequest { Pin = pin?.Trim() ?? "" },
             cancellationToken).ConfigureAwait(true)
             ?? throw new StudioAccountException("Сервер ПИН-ий хариу буцаасангүй.");
@@ -2525,37 +2554,34 @@ internal sealed class StudioAccountService :
 
     /// <summary>Owner-only. The bot cannot read its own PIN and the employee never reads it.</summary>
     public async Task<StudioCloudBotPinReveal> RevealBotPinAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await GetAuthorizedAsync<StudioCloudBotPinReveal>(
-            SeatPath(organizationId, botId) + "/pin",
+            SeatPath(botId) + "/pin",
             cancellationToken).ConfigureAwait(true)
             ?? throw new StudioAccountException("Сервер ПИН буцаасангүй.");
     }
 
     public async Task UnlockBotPinAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         await PostAuthorizedNoContentAsync(
-            SeatPath(organizationId, botId) + "/pin/unlock",
+            SeatPath(botId) + "/pin/unlock",
             cancellationToken).ConfigureAwait(true);
     }
 
     private async Task<StudioCloudBotStateEnterResponse> RequestBotStateAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioDeviceFingerprints fingerprints = StudioDeviceIdentity.Fingerprints;
         return await PostAuthorizedAsync<StudioCloudBotStateEnterRequest, StudioCloudBotStateEnterResponse>(
-            SeatPath(organizationId, botId) + "/state",
+            SeatPath(botId) + "/state",
             new StudioCloudBotStateEnterRequest
             {
                 DeviceFingerprint = fingerprints.Canonical,
@@ -2578,12 +2604,11 @@ internal sealed class StudioAccountService :
     /// throws, the seat is released again and the failure is raised.
     /// </summary>
     public async Task<StudioCloudBotStateEnterResponse> EnterBotStateAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken = default)
     {
         StudioCloudBotStateEnterResponse entered =
-            await RequestBotStateAsync(organizationId, botId, cancellationToken).ConfigureAwait(true);
+            await RequestBotStateAsync(botId, cancellationToken).ConfigureAwait(true);
         try
         {
             EraseOwnerCredentialForBotState();
@@ -2592,7 +2617,7 @@ internal sealed class StudioAccountService :
         {
             try
             {
-                await LeaveBotStateAsync(organizationId, botId, CancellationToken.None)
+                await LeaveBotStateAsync(botId, CancellationToken.None)
                     .ConfigureAwait(true);
             }
             catch (Exception)
@@ -2606,14 +2631,13 @@ internal sealed class StudioAccountService :
     }
 
     public async Task LeaveBotStateAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken = default)
     {
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(
             HttpMethod.Delete,
-            BuildUri(session.ServerUrl, SeatPath(organizationId, botId) + "/state"));
+            BuildUri(session.ServerUrl, SeatPath(botId) + "/state"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response =
             await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
@@ -2634,14 +2658,13 @@ internal sealed class StudioAccountService :
     /// ignored.
     /// </summary>
     public async Task<StudioCloudBotInvitation> InviteBotMemberAsync(
-        string organizationId,
         string botId,
         string targetEmail,
         CancellationToken cancellationToken = default)
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         return await PostAuthorizedAsync<StudioCloudBotInvitationCreateRequest, StudioCloudBotInvitation>(
-            SeatPath(organizationId, botId) + "/invitations",
+            SeatPath(botId) + "/invitations",
             new StudioCloudBotInvitationCreateRequest
             {
                 TargetEmail = targetEmail?.Trim() ?? "",
@@ -3287,7 +3310,6 @@ internal sealed class StudioAccountService :
     /// never reused, so dropping the row would leave them pointing at nothing.
     /// </summary>
     public async Task<StudioCloudBotSeatDeleted> DeleteBotSeatAsync(
-        string organizationId,
         string botId,
         CancellationToken cancellationToken = default)
     {
@@ -3295,7 +3317,7 @@ internal sealed class StudioAccountService :
         StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
         using HttpRequestMessage request = new(
             HttpMethod.Delete,
-            BuildUri(session.ServerUrl, SeatPath(organizationId, botId)));
+            BuildUri(session.ServerUrl, SeatPath(botId)));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         using HttpResponseMessage response =
             await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);

@@ -525,48 +525,6 @@ internal sealed partial class ShellView
         await RefreshProjectsAsync();
     }
 
-    private async Task<IReadOnlyList<StudioCloudOrganization>?> LoadOrganizationsAsync()
-    {
-        if (!await EnsureSignedInAsync())
-            return null;
-        try
-        {
-            IReadOnlyList<StudioCloudOrganization> organizations =
-                await account.ListOrganizationsAsync();
-            if (organizations.Count != 0)
-                return organizations;
-            SetStatus("Ботын суудал үүсгэхэд байгууллага шаардлагатай.");
-            return null;
-        }
-        catch (Exception exception)
-        {
-            SetStatus("Байгууллагын жагсаалт уншигдсангүй: " + exception.Message);
-            return null;
-        }
-    }
-
-    private async Task<StudioCloudOrganization?> PickOrganizationAsync()
-    {
-        if (!await EnsureSignedInAsync())
-            return null;
-        try
-        {
-            IReadOnlyList<StudioCloudOrganization> organizations =
-                await account.ListOrganizationsAsync();
-            if (organizations.Count == 0)
-            {
-                SetStatus("Ботын суудал үүсгэхэд байгууллага шаардлагатай.");
-                return null;
-            }
-            return organizations[0];
-        }
-        catch (Exception exception)
-        {
-            SetStatus("Байгууллагын жагсаалт уншигдсангүй: " + exception.Message);
-            return null;
-        }
-    }
-
     private async Task ShowBotManagementAsync()
     {
         if (RefuseSeatManagementWhenSeated())
@@ -577,10 +535,7 @@ internal sealed partial class ShellView
         BotSeatFlushOutcome flushed = await FlushPendingBotSeatReleasesAsync();
         if (!flushed.IsSilent)
             SetStatus(flushed.Clause());
-        IReadOnlyList<StudioCloudOrganization>? organizations = await LoadOrganizationsAsync();
-        if (organizations is null)
-            return;
-        var dialog = new BotSeatManagementDialog(account, organizations)
+        var dialog = new BotSeatManagementDialog(account)
         {
             Owner = Window.GetWindow(Root),
         };
@@ -630,23 +585,13 @@ internal sealed partial class ShellView
             SetStatus(StudioBotSeatingRequirements.Describe(refusal));
             return;
         }
-        IReadOnlyList<StudioCloudOrganization> organizations;
-        try
-        {
-            organizations = await account.ListOrganizationsAsync();
-        }
-        catch (Exception exception)
-        {
-            SetStatus("Байгууллагын жагсаалт уншигдсангүй: " + exception.Message);
-            return;
-        }
-        if (organizations.Count == 0)
-        {
-            SetStatus("Ботын суудал үүсгэхэд байгууллага шаардлагатай.");
-            return;
-        }
-
-        var dialog = new BotSeatCreateDialog(account, organizations)
+        // 🔴 A COMPANY USED TO BE A PRECONDITION OF SEATING A MACHINE, and
+        // an owner with none was refused outright - «Ботын суудал үүсгэхэд
+        // байгууллага шаардлагатай». The seat is spent against the owner's own
+        // licence and never belonged to a company, so the fetch, the failure it
+        // could produce, and the refusal it fed are all gone rather than made
+        // optional. An owner with no company can seat a machine.
+        var dialog = new BotSeatCreateDialog(account)
         {
             Owner = Window.GetWindow(Root),
         };
@@ -767,7 +712,7 @@ internal sealed partial class ShellView
 
         try
         {
-            await account.LeaveBotStateAsync(seat.OrganizationId, seat.BotId);
+            await account.LeaveBotStateAsync(seat.BotId);
             StudioPendingBotSeatReleases.Forget(seat.OrganizationId, seat.BotId);
             SetStatus("Ботын төлөвөөс гарлаа.");
         }
@@ -815,7 +760,7 @@ internal sealed partial class ShellView
         {
             try
             {
-                await account.LeaveBotStateAsync(item.OrganizationId, item.BotId);
+                await account.LeaveBotStateAsync(item.BotId);
                 StudioPendingBotSeatReleases.Forget(item.OrganizationId, item.BotId);
                 released++;
             }

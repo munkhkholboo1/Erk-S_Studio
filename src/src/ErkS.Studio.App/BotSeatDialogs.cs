@@ -13,8 +13,7 @@ namespace ErkS.Studio;
 internal sealed class BotSeatCreateDialog : Window
 {
     private readonly StudioAccountService account;
-    private readonly IReadOnlyList<StudioCloudOrganization> organizations;
-    private readonly ComboBox organizationBox = new();
+
     private readonly TextBox nameBox = new();
     private readonly TextBox emailBox = new();
     private readonly TextBox pinBox = new() { MaxLength = 4 };
@@ -28,12 +27,19 @@ internal sealed class BotSeatCreateDialog : Window
     /// <summary>Set once the machine is actually seated, so the caller can apply it.</summary>
     public StudioBotDeviceState? Seated { get; private set; }
 
-    public BotSeatCreateDialog(
-        StudioAccountService account,
-        IReadOnlyList<StudioCloudOrganization> organizations)
+    /// <summary>
+    /// 🔴 THE FIRST THING THIS WINDOW ASKED WAS WHICH COMPANY, AND IT SHOULD
+    /// NEVER HAVE ASKED. The owner said it in one line - «Эзэмшигч ямар ч
+    /// байгууллагад харьяалуулахгүйгээр ботыг үүсгэнэ» - and the picker made
+    /// that impossible: a company had to be named before a seat could exist.
+    ///
+    /// The seat is spent against the owner's own licence. Which company it was
+    /// opened FOR is a note about it, and a note is set afterwards - never a
+    /// condition of creating one.
+    /// </summary>
+    public BotSeatCreateDialog(StudioAccountService account)
     {
         this.account = account;
-        this.organizations = organizations;
         Title = "Энэ төхөөрөмжийг ботын суудалд суулгах";
         Width = 560;
         Height = 520;
@@ -42,14 +48,11 @@ internal sealed class BotSeatCreateDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         StudioTheme.Apply(this);
 
-        foreach (StudioCloudOrganization organization in organizations)
-        {
-            organizationBox.Items.Add(OrganizationLabel(organization));
-        }
-        if (organizationBox.Items.Count > 0)
-            organizationBox.SelectedIndex = 0;
-
-        createButton = StudioWidgets.CreatePrimaryButton("Бот болгох");
+        // «Бот болгох» said the machine turned into something. It takes a
+        // seat - the twin of the rename that reached the menu and missed this
+        // button, which is what a name search does when the same idea is
+        // spelled two ways.
+        createButton = StudioWidgets.CreatePrimaryButton("Суудалд суулгах");
         createButton.IsDefault = true;
         createButton.Click += async (_, _) => await CreateAsync();
         Button cancel = StudioWidgets.CreateButton("Болих");
@@ -60,7 +63,6 @@ internal sealed class BotSeatCreateDialog : Window
 
         var panel = new StackPanel { Margin = new Thickness(18) };
         panel.Children.Add(StudioWidgets.CreateTitle("Энэ төхөөрөмжийг ботын суудалд суулгах"));
-        panel.Children.Add(StudioWidgets.CreateFormRow("Байгууллага", organizationBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Суудлын нэр", nameBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Дотоод мэйл", emailBox));
         panel.Children.Add(StudioWidgets.CreateHint(
@@ -100,19 +102,11 @@ internal sealed class BotSeatCreateDialog : Window
         UpdateEnabled();
     }
 
-    internal static string OrganizationLabel(StudioCloudOrganization organization) =>
-        string.IsNullOrWhiteSpace(organization.DisplayName)
-            ? string.IsNullOrWhiteSpace(organization.LegalName)
-                ? organization.OrganizationId
-                : organization.LegalName
-            : organization.DisplayName;
-
     private static bool IsFourDigits(string value) =>
         value.Length == 4 && value.All(char.IsAsciiDigit);
 
     private void UpdateEnabled() =>
         createButton.IsEnabled =
-            organizationBox.SelectedIndex >= 0 &&
             !string.IsNullOrWhiteSpace(nameBox.Text) &&
             IsFourDigits(pinBox.Text ?? "");
 
@@ -120,7 +114,6 @@ internal sealed class BotSeatCreateDialog : Window
     {
         createButton.IsEnabled = false;
         resultText.Text = "Ботын суудал үүсгэж байна…";
-        StudioCloudOrganization organization = organizations[organizationBox.SelectedIndex];
         try
         {
             // A seat is created before the PIN is set and before the device is
@@ -133,7 +126,7 @@ internal sealed class BotSeatCreateDialog : Window
             try
             {
                 StudioCloudBotSeatListResponse existing =
-                    await account.ListBotSeatsAsync(organization.OrganizationId);
+                    await account.ListBotSeatsAsync();
                 seat = existing.Items.FirstOrDefault(item =>
                     item.DisplayName.Trim().Equals(wantedName, StringComparison.OrdinalIgnoreCase));
                 if (seat is not null)
@@ -145,25 +138,22 @@ internal sealed class BotSeatCreateDialog : Window
                 // recoverable; refusing to seat the machine is not.
             }
 
-            seat ??= await account.CreateBotSeatAsync(
-                organization.OrganizationId,
-                wantedName,
+            seat ??= await account.CreateBotSeatAsync(wantedName,
                 emailBox.Text.Trim());
 
             resultText.Text = "ПИН тавьж байна…";
-            _ = await account.SetBotPinAsync(organization.OrganizationId, seat.BotId, pinBox.Text.Trim());
+            _ = await account.SetBotPinAsync(seat.BotId, pinBox.Text.Trim());
 
             // The seat is created and the PIN is set; the last step erases this
             // machine's owner credential. If that fails the whole transition is
             // rolled back inside the service - a machine that is half seated is
             // worse than one that refused.
             resultText.Text = "Ботын төлөвт шилжиж байна…";
-            _ = await account.EnterBotStateAsync(organization.OrganizationId, seat.BotId);
+            _ = await account.EnterBotStateAsync(seat.BotId);
 
             Seated = new StudioBotDeviceState
             {
                 BotId = seat.BotId,
-                OrganizationId = organization.OrganizationId,
                 DisplayName = string.IsNullOrWhiteSpace(seat.DisplayName)
                     ? nameBox.Text.Trim()
                     : seat.DisplayName,
@@ -198,7 +188,7 @@ internal sealed class BotSeatCreateDialog : Window
 internal sealed class BotSeatManagementDialog : Window
 {
     private readonly StudioAccountService account;
-    private StudioCloudOrganization organization;
+
     private readonly ListView seatList = new();
     private readonly TextBlock summaryText = new()
     {
@@ -212,8 +202,7 @@ internal sealed class BotSeatManagementDialog : Window
         Margin = new Thickness(0, 8, 0, 0),
     };
 
-    private readonly ComboBox organizationBox = new();
-    private readonly IReadOnlyList<StudioCloudOrganization> organizations;
+
 
     // Assignment is its own act. A seat is put ON a project by the owner;
     // WHO fills the seat is a separate question, answered by an invitation.
@@ -244,13 +233,19 @@ internal sealed class BotSeatManagementDialog : Window
         string Roles,
         string Assigned);
 
-    public BotSeatManagementDialog(
-        StudioAccountService account,
-        IReadOnlyList<StudioCloudOrganization> organizations)
+    /// <summary>
+    /// 🔴 AN OWNER WITH THREE COMPANIES SAW THEIR SEATS SPLIT INTO THREE LISTS,
+    /// with a picker above them that could not be turned off - so «which seats
+    /// do I have» had no screen that answered it. The seats were never the
+    /// companies' to begin with: they are spent against the owner's licence.
+    ///
+    /// One list, unfiltered. The picker is gone rather than defaulted, because
+    /// a filter left on by default would have kept the old behaviour under a
+    /// new route and nothing on screen would have moved.
+    /// </summary>
+    public BotSeatManagementDialog(StudioAccountService account)
     {
         this.account = account;
-        this.organizations = organizations;
-        this.organization = organizations[0];
         Title = "Ботын суудлын удирдлага";
         Width = 720;
         Height = 560;
@@ -308,27 +303,9 @@ internal sealed class BotSeatManagementDialog : Window
         }
 
         var panel = new DockPanel { Margin = new Thickness(18) };
-        // The organisation is CHOSEN here, not assumed. Listing the first one
-        // silently was the bug: seats created under the organisation the owner
-        // picked did not appear under the one this dialog happened to read.
-        foreach (StudioCloudOrganization item in organizations)
-        {
-            organizationBox.Items.Add(BotSeatCreateDialog.OrganizationLabel(item));
-        }
-        organizationBox.SelectedIndex = 0;
-        organizationBox.SelectionChanged += async (_, _) =>
-        {
-            if (organizationBox.SelectedIndex >= 0)
-            {
-                organization = organizations[organizationBox.SelectedIndex];
-                await RefreshAsync();
-            }
-        };
 
         var header = new StackPanel();
         header.Children.Add(StudioWidgets.CreateTitle("Ботын суудлын удирдлага"));
-        if (organizations.Count > 1)
-            header.Children.Add(StudioWidgets.CreateFormRow("Байгууллага", organizationBox));
         header.Children.Add(summaryText);
         DockPanel.SetDock(header, Dock.Top);
         panel.Children.Add(header);
@@ -428,7 +405,7 @@ internal sealed class BotSeatManagementDialog : Window
         try
         {
             StudioCloudBotAssignmentListResponse response =
-                await account.ListBotAssignmentsAsync(organization.OrganizationId, Selected.BotId);
+                await account.ListBotAssignmentsAsync(Selected.BotId);
             assignments = [.. response.Assignments];
             assignmentList.ItemsSource = assignments
                 .Select(item => new AssignmentRow(
@@ -487,9 +464,7 @@ internal sealed class BotSeatManagementDialog : Window
 
         try
         {
-            StudioCloudBotAssignment created = await account.AssignBotProjectAsync(
-                organization.OrganizationId,
-                Selected!.BotId,
+            StudioCloudBotAssignment created = await account.AssignBotProjectAsync(Selected!.BotId,
                 dialog.ProjectId,
                 dialog.Roles);
             resultText.Text =
@@ -535,9 +510,7 @@ internal sealed class BotSeatManagementDialog : Window
 
         try
         {
-            StudioCloudBotAssignment changed = await account.ChangeBotAssignmentRolesAsync(
-                organization.OrganizationId,
-                Selected!.BotId,
+            StudioCloudBotAssignment changed = await account.ChangeBotAssignmentRolesAsync(Selected!.BotId,
                 assignment.AssignmentId,
                 dialog.Draft.Roles);
             resultText.Text = $"Үүрэг шинэчлэгдлээ: {string.Join(", ", changed.Roles)}.";
@@ -572,9 +545,7 @@ internal sealed class BotSeatManagementDialog : Window
 
         try
         {
-            await account.RemoveBotAssignmentAsync(
-                organization.OrganizationId,
-                Selected!.BotId,
+            await account.RemoveBotAssignmentAsync(Selected!.BotId,
                 assignment.AssignmentId);
             resultText.Text = $"«{project}» төслөөс хасагдлаа.";
             await RefreshAssignmentsAsync();
@@ -590,7 +561,7 @@ internal sealed class BotSeatManagementDialog : Window
         try
         {
             StudioCloudBotSeatListResponse response =
-                await account.ListBotSeatsAsync(organization.OrganizationId);
+                await account.ListBotSeatsAsync();
             seatList.ItemsSource = response.Items
                 .Select(seat => new SeatRow(
                     seat.BotId,
@@ -598,12 +569,20 @@ internal sealed class BotSeatManagementDialog : Window
                     seat.InternalEmail,
                     seat.Status,
                     seat.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd"),
-                    string.IsNullOrWhiteSpace(seat.MemberEmail)
-                        ? "—"
-                        : seat.MemberEmail +
-                          (seat.MemberSinceUtc is { } since
-                              ? $" ({since.ToLocalTime():yyyy-MM-dd})"
-                              : ""),
+                    // 🔴 THE COLUMN IS HEADED «Гишүүн» AND PRINTED AN ADDRESS.
+                    // The owner reads this table to see WHO is on which seat,
+                    // and an address is the fallback for having nothing better
+                    // - not the thing to print by choice. The name arrives on
+                    // the seat itself, so no second call per row is made: N
+                    // lookups to fill a column is how a list becomes slow
+                    // enough that nobody opens it.
+                    StudioAccountDisplay.NameOrFallback(
+                        seat.MemberDisplayName,
+                        seat.MemberEmail,
+                        string.IsNullOrWhiteSpace(seat.MemberEmail) ? "—" : seat.MemberEmail) +
+                        (string.IsNullOrWhiteSpace(seat.MemberEmail) || seat.MemberSinceUtc is not { } since
+                            ? ""
+                            : $" ({since.ToLocalTime():yyyy-MM-dd})"),
                     seat.DeviceSeated
                         ? "сууж байна" +
                           (seat.DeviceSeatedAtUtc is { } seated
@@ -611,13 +590,12 @@ internal sealed class BotSeatManagementDialog : Window
                               : "")
                         : "—"))
                 .ToList();
-            // An empty grid is not an answer. Say which organisation was read
-            // and that it has no seats, so "nothing here" cannot be mistaken
-            // for "nothing loaded".
+            // An empty grid is not an answer. Say that the list was READ and
+            // is empty, so "nothing here" cannot be mistaken for "nothing
+            // loaded" - the reason this line exists at all.
             summaryText.Text =
-                BotSeatCreateDialog.OrganizationLabel(organization) + "  ·  " +
                 (response.Items.Count == 0
-                    ? "энэ байгууллагад ботын суудал алга"
+                    ? "Ботын суудал алга"
                     : $"{response.Items.Count} суудал") +
                 "  ·  эзэлсэн: " +
                 StudioBotSeatCounts.DescribeOccupancy(
@@ -647,7 +625,7 @@ internal sealed class BotSeatManagementDialog : Window
         try
         {
             StudioCloudBotPinReveal pin =
-                await account.RevealBotPinAsync(organization.OrganizationId, Selected!.BotId);
+                await account.RevealBotPinAsync(Selected!.BotId);
             resultText.Text = pin.Locked
                 ? $"ПИН: {pin.Pin}  ·  ⚠ энэ суудал түгжигдсэн байна."
                 : $"ПИН: {pin.Pin}";
@@ -667,9 +645,7 @@ internal sealed class BotSeatManagementDialog : Window
             return;
         try
         {
-            StudioCloudBotPinSetResponse changed = await account.SetBotPinAsync(
-                organization.OrganizationId,
-                Selected!.BotId,
+            StudioCloudBotPinSetResponse changed = await account.SetBotPinAsync(Selected!.BotId,
                 prompt.Pin);
 
             // Both facts in one sentence: a new PIN that needs a re-registration
@@ -692,7 +668,7 @@ internal sealed class BotSeatManagementDialog : Window
             return;
         try
         {
-            await account.UnlockBotPinAsync(organization.OrganizationId, Selected!.BotId);
+            await account.UnlockBotPinAsync(Selected!.BotId);
             resultText.Text = "Түгжээ тайлагдлаа.";
         }
         catch (Exception exception)
@@ -705,7 +681,7 @@ internal sealed class BotSeatManagementDialog : Window
     {
         if (!RequireSelection())
             return;
-        var dialog = new BotMemberInvitationDialog(account, organization, Selected!.BotId, Selected!.DisplayName)
+        var dialog = new BotMemberInvitationDialog(account, Selected!.BotId, Selected!.DisplayName)
         {
             Owner = this,
         };
@@ -743,7 +719,7 @@ internal sealed class BotSeatManagementDialog : Window
         try
         {
             StudioCloudBotSeatDeleted deleted =
-                await account.DeleteBotSeatAsync(organization.OrganizationId, Selected!.BotId);
+                await account.DeleteBotSeatAsync(Selected!.BotId);
             resultText.Text = deleted.DeviceReleased
                 // Same correction as the release above: the SEAT is released on
                 // the server; the machine that sat in it still has to be taken
@@ -803,7 +779,7 @@ internal sealed class BotSeatManagementDialog : Window
         }
         try
         {
-            await account.LeaveBotStateAsync(organization.OrganizationId, Selected!.BotId);
+            await account.LeaveBotStateAsync(Selected!.BotId);
             resultText.Text = "Суудал чөлөөлөгдлөө.";
             await RefreshAsync();
         }
@@ -863,7 +839,6 @@ internal sealed class BotPinPromptDialog : Window
 internal sealed class BotMemberInvitationDialog : Window
 {
     private readonly StudioAccountService account;
-    private readonly StudioCloudOrganization organization;
     private readonly string botId;
     private readonly TextBox emailBox = new();
 
@@ -898,12 +873,10 @@ internal sealed class BotMemberInvitationDialog : Window
 
     public BotMemberInvitationDialog(
         StudioAccountService account,
-        StudioCloudOrganization organization,
         string botId,
         string botDisplayName)
     {
         this.account = account;
-        this.organization = organization;
         this.botId = botId;
         Title = "Гишүүн урих";
         Width = 520;
@@ -958,7 +931,7 @@ internal sealed class BotMemberInvitationDialog : Window
         try
         {
             StudioCloudBotAssignmentListResponse response =
-                await account.ListBotAssignmentsAsync(organization.OrganizationId, botId);
+                await account.ListBotAssignmentsAsync(botId);
             assignmentsText.Text = response.Assignments.Count == 0
                 ? "Энэ суудал ямар ч төсөлд томилогдоогүй байна. " +
                   "Ботын суудлын удирдлагаас эхлээд төсөлд томилно уу."
@@ -1003,9 +976,7 @@ internal sealed class BotMemberInvitationDialog : Window
         resultText.Text = "Илгээж байна…";
         try
         {
-            StudioCloudBotInvitation invitation = await account.InviteBotMemberAsync(
-                organization.OrganizationId,
-                botId,
+            StudioCloudBotInvitation invitation = await account.InviteBotMemberAsync(botId,
                 emailBox.Text.Trim());
             ResultMessage =
                 $"{invitation.TargetEmail} рүү урилга илгээгдлээ " +

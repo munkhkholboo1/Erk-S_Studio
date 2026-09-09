@@ -1237,6 +1237,18 @@ internal sealed class StudioCloudBotSeat
     /// </summary>
     public string MemberEmail { get; set; } = "";
 
+    /// <summary>
+    /// The member's NAME, or empty when the server has none.
+    ///
+    /// 🔴 THE TABLE SHOWED AN ADDRESS WHERE A PERSON'S NAME BELONGS. The owner
+    /// reads this list to see who is on which seat, and an address is what you
+    /// fall back to when you have nothing better - not what you print by
+    /// choice. The name was unreachable until the server published it, so this
+    /// waited rather than being reconstructed from the address, which would
+    /// have invented a person out of a string.
+    /// </summary>
+    public string MemberDisplayName { get; set; } = "";
+
     public DateTimeOffset? MemberSinceUtc { get; set; }
 }
 
