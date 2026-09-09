@@ -33,7 +33,7 @@ public sealed class PendingBotSeatReleaseTests
         // reach a Forget, not the failure list.
         string source = ReadAppSource("ShellView.BotSeat.cs");
         int method = source.IndexOf(
-            "private async Task FlushPendingBotSeatReleasesAsync()",
+            "private async Task<BotSeatFlushOutcome> FlushPendingBotSeatReleasesAsync()",
             StringComparison.Ordinal);
         Assert.True(method > 0, "the flush was not found");
         string body = source[method..source.IndexOf("\n    }", method, StringComparison.Ordinal)];

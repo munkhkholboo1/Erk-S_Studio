@@ -475,8 +475,12 @@ internal sealed partial class ShellView
         }
 
         await ResumeAsOwnerNowAsync();
-        SetStatus("Эзэмшигчээр баталгаажлаа. Энэ төхөөрөмж ботын суудал хэвээр.");
-        await FlushPendingBotSeatReleasesAsync();
+
+        // The chore runs first and speaks second: what this person just did is
+        // the sentence they are waiting to read, and a queued seat release must
+        // not be able to stand in its place.
+        BotSeatFlushOutcome flushed = await FlushPendingBotSeatReleasesAsync();
+        SetStatus(flushed.After("Эзэмшигчээр баталгаажлаа. Энэ төхөөрөмж ботын суудал хэвээр."));
     }
 
     /// <summary>
@@ -568,8 +572,11 @@ internal sealed partial class ShellView
         if (RefuseSeatManagementWhenSeated())
             return;
         // Seats this machine left behind are the owner's business, and this is
-        // the screen they came to for exactly that.
-        await FlushPendingBotSeatReleasesAsync();
+        // the screen they came to for exactly that - so here the chore IS the
+        // answer and says so on its own.
+        BotSeatFlushOutcome flushed = await FlushPendingBotSeatReleasesAsync();
+        if (!flushed.IsSilent)
+            SetStatus(flushed.Clause());
         IReadOnlyList<StudioCloudOrganization>? organizations = await LoadOrganizationsAsync();
         if (organizations is null)
             return;
@@ -795,11 +802,11 @@ internal sealed partial class ShellView
     /// Silence is only correct when there is nothing to do: a retry that fails
     /// keeps its note and says so.
     /// </summary>
-    private async Task FlushPendingBotSeatReleasesAsync()
+    private async Task<BotSeatFlushOutcome> FlushPendingBotSeatReleasesAsync()
     {
         IReadOnlyList<PendingBotSeatRelease> pending = StudioPendingBotSeatReleases.Read();
         if (pending.Count == 0 || !account.IsSignedIn)
-            return;
+            return BotSeatFlushOutcome.Nothing;
 
         int released = 0;
         int alreadyFree = 0;
@@ -847,22 +854,9 @@ internal sealed partial class ShellView
             }
         }
 
-        if (stillHeld.Count > 0)
-        {
-            SetStatus($"Цуцлагдаагүй ботын суудал: {string.Join(", ", stillHeld)}");
-            return;
-        }
-        if (released > 0 || alreadyFree > 0)
-        {
-            // Said separately, because «freed just now» and «was already free»
-            // are different facts and only the first is something this sign-in
-            // did. Both end the same way: nothing is left pending.
-            string cleared = alreadyFree == 0
-                ? $"Өмнө цуцлагдаагүй {released} ботын суудал серверт чөлөөлөгдлөө."
-                : released == 0
-                    ? $"Ботын {alreadyFree} суудал серверт аль хэдийн чөлөөтэй байсныг баталж, хүлээгдэж байсан бүртгэлийг цэвэрлэлээ."
-                    : $"Ботын суудал: {released} чөлөөлөгдлөө, {alreadyFree} аль хэдийн чөлөөтэй байв.";
-            SetStatus(cleared);
-        }
+        // Reported, not announced. This runs at every owner sign-in, and a
+        // queued chore that writes the status line itself takes the place of
+        // the answer to what the person actually did.
+        return new BotSeatFlushOutcome(released, alreadyFree, stillHeld);
     }
 }

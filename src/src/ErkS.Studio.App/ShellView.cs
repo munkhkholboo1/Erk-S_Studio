@@ -2204,10 +2204,15 @@ internal sealed partial class ShellView : IDisposable
         // A seat this machine left while the server was unreachable is still
         // occupied there. An owner session is the credential that releases it,
         // and this is the moment one arrives.
-        await FlushPendingBotSeatReleasesAsync();
+        //
+        // Its outcome is CARRIED to the end rather than said here. Announced on
+        // the spot it was overwritten by the sign-in message four lines down -
+        // so a seat this machine could not release was invisible on the one
+        // screen whose credential could have released it.
+        BotSeatFlushOutcome flushed = await FlushPendingBotSeatReleasesAsync();
         await EnsureSsoHandoffTokenAsync();
         await RefreshProjectsAsync();
-        SetStatus("Cloud ERA бүртгэлээр нэвтэрлээ.");
+        SetStatus(flushed.After("Cloud ERA бүртгэлээр нэвтэрлээ."));
         return true;
     }
 

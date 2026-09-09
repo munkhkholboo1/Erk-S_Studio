@@ -51,6 +51,65 @@ internal sealed record PendingBotSeatRelease
     public int AttemptCount { get; init; }
 }
 
+/// <summary>
+/// What one pass over the queued seat releases did.
+///
+/// 🔴 A BACKGROUND CHORE WAS WRITING OVER THE ANSWER TO WHAT THE PERSON HAD
+/// JUST DONE. The flush set the status line itself, and it runs at every owner
+/// sign-in - so «Эзэмшигчээр баталгаажлаа» was replaced, in the instant it
+/// appeared, by a bot-seat refusal about a machine that had left bot state days
+/// earlier. From the outside that is «I signed in as the owner and it came up as
+/// the bot», and the confirmation the person was waiting for never showed.
+///
+/// So the flush REPORTS and the caller composes: the answer to the action comes
+/// first, the chore is a clause after it. Neither is dropped - a chore that
+/// fails in silence looks exactly like one that worked.
+/// </summary>
+internal sealed record BotSeatFlushOutcome(
+    int Released,
+    int AlreadyFree,
+    IReadOnlyList<string> StillHeld)
+{
+    public static readonly BotSeatFlushOutcome Nothing = new(0, 0, []);
+
+    public bool IsSilent => Released == 0 && AlreadyFree == 0 && StillHeld.Count == 0;
+
+    /// <summary>
+    /// What to add after the sentence answering what the person did. Empty when
+    /// there is nothing to add.
+    /// </summary>
+    public string Clause()
+    {
+        if (StillHeld.Count > 0)
+            return "Цуцлагдаагүй ботын суудал: " + string.Join(", ", StillHeld);
+        if (Released == 0 && AlreadyFree == 0)
+            return "";
+
+        // Said separately, because «freed just now» and «was already free» are
+        // different facts and only the first is something this sign-in did.
+        // Both end the same way: nothing is left pending.
+        if (AlreadyFree == 0)
+            return $"Өмнө цуцлагдаагүй {Released} ботын суудал серверт чөлөөлөгдлөө.";
+        if (Released == 0)
+            return $"Ботын {AlreadyFree} суудал серверт аль хэдийн чөлөөтэй байсныг баталж, хүлээгдэж байсан бүртгэлийг цэвэрлэлээ.";
+        return $"Ботын суудал: {Released} чөлөөлөгдлөө, {AlreadyFree} аль хэдийн чөлөөтэй байв.";
+    }
+
+    /// <summary>
+    /// The answer to what the person did, with the chore's clause after it.
+    ///
+    /// The ORDER is the rule: what they asked for is what they are waiting to
+    /// read, and a queued retry must not be able to take its place.
+    /// </summary>
+    public string After(string answer)
+    {
+        string clause = Clause();
+        if (string.IsNullOrWhiteSpace(clause))
+            return answer;
+        return string.IsNullOrWhiteSpace(answer) ? clause : answer + "  ·  " + clause;
+    }
+}
+
 internal static class StudioPendingBotSeatReleases
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
