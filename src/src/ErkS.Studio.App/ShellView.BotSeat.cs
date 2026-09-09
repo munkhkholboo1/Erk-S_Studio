@@ -663,6 +663,7 @@ internal sealed partial class ShellView
             return;
 
         int released = 0;
+        int alreadyFree = 0;
         var stillHeld = new List<string>();
         foreach (PendingBotSeatRelease item in pending)
         {
@@ -671,6 +672,24 @@ internal sealed partial class ShellView
                 await account.LeaveBotStateAsync(item.OrganizationId, item.BotId);
                 StudioPendingBotSeatReleases.Forget(item.OrganizationId, item.BotId);
                 released++;
+            }
+            catch (Exception exception) when (BotSeatErrors.SeatIsGone(exception))
+            {
+                // 🔴 THIS REFUSAL IS THE GOAL, NOT A FAILURE. The server answers
+                // «this seat's device is not in bot state» when no device holds
+                // the seat - which is precisely what a release is FOR. Treating
+                // it as an error kept the entry forever, and this list is
+                // flushed on every owner sign-in: the person signed in and the
+                // last thing Studio said was a bot-seat refusal, on a machine
+                // that had left bot state days earlier. It reads as «I signed in
+                // as the owner and it came up as the bot», and the sign-in
+                // message it replaced never appeared.
+                //
+                // The predicate for this already existed and nothing here called
+                // it - the same shape three times today: the rule is written,
+                // the caller does not ask.
+                StudioPendingBotSeatReleases.Forget(item.OrganizationId, item.BotId);
+                alreadyFree++;
             }
             catch (Exception exception)
             {
@@ -683,7 +702,17 @@ internal sealed partial class ShellView
             SetStatus($"Цуцлагдаагүй ботын суудал: {string.Join(", ", stillHeld)}");
             return;
         }
-        if (released > 0)
-            SetStatus($"Өмнө цуцлагдаагүй {released} ботын суудал серверт чөлөөлөгдлөө.");
+        if (released > 0 || alreadyFree > 0)
+        {
+            // Said separately, because «freed just now» and «was already free»
+            // are different facts and only the first is something this sign-in
+            // did. Both end the same way: nothing is left pending.
+            string cleared = alreadyFree == 0
+                ? $"Өмнө цуцлагдаагүй {released} ботын суудал серверт чөлөөлөгдлөө."
+                : released == 0
+                    ? $"Ботын {alreadyFree} суудал серверт аль хэдийн чөлөөтэй байсныг баталж, хүлээгдэж байсан бүртгэлийг цэвэрлэлээ."
+                    : $"Ботын суудал: {released} чөлөөлөгдлөө, {alreadyFree} аль хэдийн чөлөөтэй байв.";
+            SetStatus(cleared);
+        }
     }
 }
