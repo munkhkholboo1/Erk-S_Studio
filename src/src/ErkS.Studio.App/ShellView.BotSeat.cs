@@ -537,6 +537,28 @@ internal sealed partial class ShellView
             Owner = Window.GetWindow(Root),
         };
         dialog.ShowDialog();
+
+        // 🔴 THE WINDOW BEHIND IT WAS NEVER TOLD. Releasing or deleting this
+        // machine's own seat inside that dialog changes what this device is,
+        // and the shell went on printing «Бот: <name>» until somebody restarted
+        // Studio - the same shape as seating, where the disk changed and the
+        // running program did not.
+        //
+        // Read back rather than assumed: the dialog reports no result and the
+        // seat may or may not have moved, so the state on disk is the answer.
+        StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+        if (seat is null)
+        {
+            // The seat this machine held is gone. Whatever was read for it
+            // answers for nothing now.
+            unlockedSeatIdentity = null;
+            botAssignedProjectIds = null;
+            botAssignedProjectScopes = null;
+            botSeatMember = null;
+            ApplyDeviceSeat();
+        }
+
+        UpdateAccountUi();
     }
 
     private async Task SeatThisDeviceAsync()

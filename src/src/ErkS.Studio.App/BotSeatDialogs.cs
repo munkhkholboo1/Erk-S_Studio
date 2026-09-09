@@ -288,6 +288,14 @@ internal sealed class BotSeatManagementDialog : Window
         Button close = StudioWidgets.CreateButton("Хаах");
         close.IsCancel = true;
 
+        // 🔴 «SELECT A SEAT FIRST» WAS WRITTEN INTO A LINE AT THE BOTTOM OF THE
+        // WINDOW, WHICH NOBODY IS LOOKING AT. Every one of these acts on the
+        // selected row, so with no row selected the press did nothing visible
+        // and the reason sat where the eye is not. The file already states the
+        // principle two buttons down - «the condition is on the button, not
+        // discovered by pressing it» - and these six were the exception.
+        seatActionButtons = [reveal, change, unlock, invite, release, delete];
+
         var actions = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -355,7 +363,12 @@ internal sealed class BotSeatManagementDialog : Window
         DockPanel.SetDock(assignmentPanel, Dock.Bottom);
         panel.Children.Add(assignmentPanel);
 
-        seatList.SelectionChanged += async (_, _) => await RefreshAssignmentsAsync();
+        seatList.SelectionChanged += async (_, _) =>
+        {
+            RefreshSeatActions();
+            await RefreshAssignmentsAsync();
+        };
+        RefreshSeatActions();
         panel.Children.Add(seatList);
         Content = panel;
 
@@ -381,6 +394,19 @@ internal sealed class BotSeatManagementDialog : Window
         string Device);
 
     private SeatRow? Selected => seatList.SelectedItem as SeatRow;
+
+    /// <summary>
+    /// The six actions that need a row. Held so the enabled state can follow the
+    /// selection instead of being discovered by pressing.
+    /// </summary>
+    private Button[] seatActionButtons = [];
+
+    private void RefreshSeatActions()
+    {
+        bool hasSeat = Selected is not null;
+        foreach (Button button in seatActionButtons)
+            button.IsEnabled = hasSeat;
+    }
 
     /// <summary>
     /// The projects the selected seat works on. Read whenever the selection
