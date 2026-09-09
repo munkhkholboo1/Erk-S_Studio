@@ -1250,6 +1250,24 @@ internal sealed class StudioCloudBotSeat
     public string MemberDisplayName { get; set; } = "";
 
     public DateTimeOffset? MemberSinceUtc { get; set; }
+
+    /// <summary>
+    /// The company this seat was opened for. HISTORY, and nothing decides on
+    /// it - not on the server since 2026-09-10, and not here.
+    ///
+    /// Empty is ordinary rather than missing: a seat opened without naming a
+    /// company has none, and since the owner's decision that is most of them.
+    /// «Which company does this bot work for» is answered by its PROJECT
+    /// assignments, which is where the company lives now.
+    /// </summary>
+    public string OrganizationId { get; set; } = "";
+
+    /// <summary>
+    /// That company's name, or empty when the SERVER could not resolve one -
+    /// a different fact from having no company at all, and the reason the id
+    /// is worth showing in that case.
+    /// </summary>
+    public string OrganizationName { get; set; } = "";
 }
 
 /// <summary>

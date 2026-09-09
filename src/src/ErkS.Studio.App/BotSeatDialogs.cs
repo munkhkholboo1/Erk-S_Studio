@@ -210,6 +210,19 @@ internal sealed class BotSeatManagementDialog : Window
     // empty seat could not be assigned at all, and nobody could see which seat
     // worked on what.
     private readonly ListView assignmentList = new() { Height = 150 };
+
+    /// <summary>
+    /// The company the selected seat was opened for. Collapsed - not blanked -
+    /// when there is none, because a permanently empty line is a gap somebody
+    /// eventually tries to fill.
+    /// </summary>
+    private readonly TextBlock seatOriginText = new()
+    {
+        Foreground = StudioTheme.MutedTextBrush,
+        Margin = new Thickness(0, 4, 0, 0),
+        TextWrapping = TextWrapping.Wrap,
+        Visibility = Visibility.Collapsed,
+    };
     private readonly TextBlock assignmentSummary = new()
     {
         Foreground = StudioTheme.MutedTextBrush,
@@ -334,6 +347,7 @@ internal sealed class BotSeatManagementDialog : Window
         assignmentList.SelectionChanged += (_, _) => RefreshAssignmentActions();
 
         var assignmentPanel = new StackPanel();
+        assignmentPanel.Children.Add(seatOriginText);
         assignmentPanel.Children.Add(assignmentSummary);
         assignmentPanel.Children.Add(assignmentList);
         assignmentPanel.Children.Add(assignmentActions);
@@ -343,6 +357,7 @@ internal sealed class BotSeatManagementDialog : Window
         seatList.SelectionChanged += async (_, _) =>
         {
             RefreshSeatActions();
+            RefreshSeatOrigin();
             await RefreshAssignmentsAsync();
         };
         RefreshSeatActions();
@@ -368,7 +383,11 @@ internal sealed class BotSeatManagementDialog : Window
         string Status,
         string Created,
         string Member,
-        string Device);
+        string Device,
+        // Carried raw. The sentence they turn into is a presentation decision
+        // and is made in one place, where it can be stated in a test.
+        string OrganizationId,
+        string OrganizationName);
 
     private SeatRow? Selected => seatList.SelectedItem as SeatRow;
 
@@ -390,6 +409,15 @@ internal sealed class BotSeatManagementDialog : Window
     /// moves, because "which seat is on which project" is the question this
     /// window is for.
     /// </summary>
+    private void RefreshSeatOrigin()
+    {
+        string line = Selected is null
+            ? ""
+            : StudioBotSeatOrigin.Describe(Selected.OrganizationId, Selected.OrganizationName);
+        seatOriginText.Text = line;
+        seatOriginText.Visibility = line.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private async Task RefreshAssignmentsAsync()
     {
         assignments = [];
@@ -588,7 +616,9 @@ internal sealed class BotSeatManagementDialog : Window
                           (seat.DeviceSeatedAtUtc is { } seated
                               ? $" ({seated.ToLocalTime():yyyy-MM-dd})"
                               : "")
-                        : "—"))
+                        : "—",
+                    seat.OrganizationId,
+                    seat.OrganizationName))
                 .ToList();
             // An empty grid is not an answer. Say that the list was READ and
             // is empty, so "nothing here" cannot be mistaken for "nothing
@@ -599,6 +629,7 @@ internal sealed class BotSeatManagementDialog : Window
             // used to mean something narrower. Left unnamed, an owner who used
             // to read it per company would read the new number as the old one
             // and conclude they had lost seats.
+            RefreshSeatOrigin();
             summaryText.Text =
                 "Миний суудлууд: " +
                 (response.Items.Count == 0

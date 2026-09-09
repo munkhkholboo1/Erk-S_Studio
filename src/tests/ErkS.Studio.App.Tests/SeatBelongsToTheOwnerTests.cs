@@ -116,14 +116,28 @@ public sealed class SeatBelongsToTheOwnerTests
     }
 
     [Fact]
-    public void NEITHERSeatWindowAsksWhichCompany()
+    public void NEITHERSeatWindowASKSWhichCompany()
     {
         // The picker is REMOVED, not defaulted or hidden behind a count. A
         // window that still holds one has a rule about when to show it, and
         // that rule is the thing that put a company in front of a seat.
+        //
+        // 🔴 THIS TEST FIRST BANNED THE WORD «organization» ANYWHERE IN THE
+        // FILE, and then went red the moment the company arrived back as
+        // READ-ONLY HISTORY on the selected seat - the correct answer. A word
+        // ban cannot tell asking from showing, so it fails in both directions:
+        // it blocks the right change and would pass a wrong one spelled
+        // differently. The rule is about ASKING, so that is what is asserted.
         string source = ReadAppSource("BotSeatDialogs.cs");
 
-        Assert.DoesNotContain("rganization", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("organizationBox", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("OrganizationLabel", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Байгууллага\", ", source, StringComparison.Ordinal);
+
+        // And nothing narrows the list by one: the company may be READ off a
+        // seat, never SENT to choose which seats come back.
+        Assert.DoesNotContain("ListBotSeatsAsync(organization", source, StringComparison.Ordinal);
+        Assert.Contains("ListBotSeatsAsync();", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -181,6 +195,73 @@ public sealed class SeatBelongsToTheOwnerTests
     }
 
     [Fact]
+    public void ASeatWithNoCompanySaysNOTHINGRatherThanShowingAGap()
+    {
+        // 🔴 THE REVERSAL: this was going to be a COLUMN, and a column would
+        // print an empty cell for every seat opened since the owner's decision.
+        // An empty cell reads as «this is missing» when the truth is «there is
+        // no such thing» - a seat belongs to the account, and the company lives
+        // on the PROJECT the bot is assigned to. A gap where a link used to be
+        // invites somebody to fill it.
+        Assert.Equal("", StudioBotSeatOrigin.Describe("", ""));
+        Assert.Equal("", StudioBotSeatOrigin.Describe("   ", "Алтанхөхийн Очир"));
+    }
+
+    [Fact]
+    public void ASeatOpenedUnderACompanySaysWHICHOne()
+    {
+        string line = StudioBotSeatOrigin.Describe("org_1", "Алтанхөхийн Очир");
+
+        Assert.Contains("Алтанхөхийн Очир", line, StringComparison.Ordinal);
+        // Named as HISTORY. Without that word the line reads as a live link,
+        // which is the very claim this change removed.
+        Assert.Contains("Нээсэн үеийн", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ANAMEtheSERVERCouldNotResolveFallsBackToTheID()
+    {
+        // Two different facts, and the server draws the line: an empty NAME
+        // means the server could not find the company - a seat opened under one
+        // the owner has since left, say. An empty ID means there was never one.
+        // Printing nothing for the first would hide a company that exists.
+        string line = StudioBotSeatOrigin.Describe("org_1", "");
+
+        Assert.Contains("org_1", line, StringComparison.Ordinal);
+        Assert.NotEqual("", line);
+    }
+
+    [Fact]
+    public void THEOriginIsShownOnTheSELECTEDSeatAndCollapsesWhenEmpty()
+    {
+        // Collapsed rather than blanked: a line that is always present and
+        // usually empty is a gap on the screen, which is the thing this is
+        // meant to avoid.
+        string source = ReadAppSource("BotSeatDialogs.cs");
+
+        Assert.Contains("StudioBotSeatOrigin.Describe(", source, StringComparison.Ordinal);
+        Assert.Contains("Visibility.Collapsed : Visibility.Visible", source, StringComparison.Ordinal);
+
+        // Refreshed on selection AND after the list reloads - a stale sentence
+        // under a seat that is gone is worse than none.
+        // Defined once, called on selection and again after the list
+        // reloads: three occurrences in the file.
+        Assert.Equal(3, Occurrences(source, "RefreshSeatOrigin()"));
+
+        // 🔴 A SABOTAGE SURVIVED HERE. Replacing the row's two company fields
+        // with empty strings left every test green: the RULE was covered and
+        // the WIRING to it was not, so the note would simply never appear and
+        // nothing would say so. The row has to be built from the seat's own
+        // fields, and that is what is asserted.
+        Assert.Contains("seat.OrganizationId,", source, StringComparison.Ordinal);
+        Assert.Contains("seat.OrganizationName))", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "StudioBotSeatOrigin.Describe(Selected.OrganizationId, Selected.OrganizationName)",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void THELocalRecordOfAPendingReleaseIsSTILLReadable()
     {
         // ⚠️ THE MACHINE THIS SHIPS TO HAS A PENDING RELEASE ON DISK, written
@@ -193,6 +274,8 @@ public sealed class SeatBelongsToTheOwnerTests
         Assert.Contains("public required string OrganizationId { get; init; }", source, StringComparison.Ordinal);
         Assert.Contains("item.OrganizationId.Equals(organizationId", source, StringComparison.Ordinal);
     }
+
+    private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     private static string MethodBody(string source, string signature)
     {
