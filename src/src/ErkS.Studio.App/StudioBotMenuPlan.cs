@@ -12,7 +12,22 @@ internal enum BotMenuEntry
     /// <summary>Turn this machine into a bot.</summary>
     SeatThisDevice,
 
-    /// <summary>Give this machine back to its owner.</summary>
+    /// <summary>
+    /// Put this machine back into bot state now, without restarting it.
+    ///
+    /// 🔴 THE MISSING HALF OF A DOOR THAT ONLY OPENED ONE WAY. Signing in as
+    /// the owner took the lock off a seated machine, and nothing put it back:
+    /// the only code that installs it runs at start-up, so the way back into
+    /// bot state was to close Studio and open it again. The owner said so
+    /// exactly - «буцаад бот горимруугаа орох боломж алга».
+    /// </summary>
+    EnterBotState,
+
+    /// <summary>
+    /// Give this machine back to its owner - the seat is released and the
+    /// device stops being a bot at all. Destructive, and next to an entry that
+    /// merely switches, so its label must name what it gives up.
+    /// </summary>
     LeaveBotState,
 }
 
@@ -48,7 +63,10 @@ internal static class StudioBotMenuPlan
         }
 
         return seatedAsBot
-            ? [BotMenuEntry.ManageSeats, BotMenuEntry.LeaveBotState]
+            // Both ways are offered, and they are not the same size: one
+            // switches this session, the other gives the seat up. A machine
+            // that only offered the second made leaving the only way back.
+            ? [BotMenuEntry.ManageSeats, BotMenuEntry.EnterBotState, BotMenuEntry.LeaveBotState]
             : [BotMenuEntry.ManageSeats, BotMenuEntry.SeatThisDevice];
     }
 }

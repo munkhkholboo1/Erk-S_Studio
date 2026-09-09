@@ -51,6 +51,56 @@ public sealed class StudioBotMenuPlanTests
     }
 
     [Fact]
+    public void THEWayBACKIntoBotStateIsOfferedOnceTheOwnerHasSignedIn()
+    {
+        // 🔴 THE FOURTH TIME THIS RULE WAS WRONG, AND THE OWNER FOUND IT:
+        // «буцаад бот горимруугаа орох боломж алга». Signing in as the owner
+        // takes the lock off a seated machine and nothing put it back - the one
+        // caller that installs it runs at start-up, so the only way back was to
+        // close Studio and open it again.
+        IReadOnlyList<BotMenuEntry> entries =
+            StudioBotMenuPlan.For(seatedAsBot: true, ownerSessionInHand: true);
+
+        Assert.Contains(BotMenuEntry.EnterBotState, entries);
+    }
+
+    [Fact]
+    public void BOTHDirectionsAreOfferedTogetherAndTheyAreDifferentSizes()
+    {
+        // Switching back and giving the seat up are not alternatives - a seated
+        // machine with its owner present can do either, and offering only the
+        // destructive one is what made «leave» the way back.
+        IReadOnlyList<BotMenuEntry> entries =
+            StudioBotMenuPlan.For(seatedAsBot: true, ownerSessionInHand: true);
+
+        Assert.Contains(BotMenuEntry.EnterBotState, entries);
+        Assert.Contains(BotMenuEntry.LeaveBotState, entries);
+
+        // Asserted by NAME rather than by count, so a sixth entry added later
+        // does not fail this for a reason that has nothing to do with it.
+        Assert.Equal(
+            [BotMenuEntry.ManageSeats, BotMenuEntry.EnterBotState, BotMenuEntry.LeaveBotState],
+            entries);
+    }
+
+    [Fact]
+    public void THEWayBackIsNOTOfferedWhereItWouldMeanNothing()
+    {
+        // No seat to return to on an unseated machine, and a machine already IN
+        // bot state is behind its own lock - offering it there would be a button
+        // that re-locks a locked screen.
+        Assert.DoesNotContain(
+            BotMenuEntry.EnterBotState,
+            StudioBotMenuPlan.For(seatedAsBot: false, ownerSessionInHand: true));
+        Assert.DoesNotContain(
+            BotMenuEntry.EnterBotState,
+            StudioBotMenuPlan.For(seatedAsBot: false, ownerSessionInHand: false));
+        Assert.DoesNotContain(
+            BotMenuEntry.EnterBotState,
+            StudioBotMenuPlan.For(seatedAsBot: true, ownerSessionInHand: false));
+    }
+
+    [Fact]
     public void ASeatActingAsItselfIsNeverOfferedTheOwnersActions()
     {
         // "эзэмшигч ⊇ бот, бот ⊅ эзэмшигч". Releasing and deleting seats,

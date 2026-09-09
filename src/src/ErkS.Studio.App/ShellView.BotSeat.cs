@@ -198,6 +198,12 @@ internal sealed partial class ShellView
         if (seat is null || botLockHost is null)
             return;
 
+        // Called from more than one place now - start-up, seating, and the
+        // switch back - so it has to be safe to ask twice. Two overlays would
+        // leave a PIN box that unlocks nothing behind another that does.
+        if (botLockScreen is not null)
+            return;
+
         // The organisation id is what the seat carries offline; the readable
         // name needs the server, which a locked machine cannot reach. Showing
         // the id is honest - showing nothing would leave the person guessing
@@ -431,7 +437,14 @@ internal sealed partial class ShellView
                 BotMenuEntry.OwnerPassport => Item("Эзэмшигчээр нэвтрэх…", VerifyOwnerOnSeatedDeviceAsync),
                 BotMenuEntry.ManageSeats => Item("Ботын удирдлага…", ShowBotManagementAsync),
                 BotMenuEntry.SeatThisDevice => Item("Энэ төхөөрөмжийг бот болгох…", SeatThisDeviceAsync),
-                BotMenuEntry.LeaveBotState => Item("Ботын төлөвөөс гарах…", LeaveBotStateAsync),
+                BotMenuEntry.EnterBotState => Item("Бот эрхээр нэвтрэх…", EnterBotStateAsync),
+                // Named for what it gives up, because it now stands beside an
+                // entry that merely switches. Two lines both starting «бот»
+                // and only one of them destructive is a mis-click that costs a
+                // seat.
+                BotMenuEntry.LeaveBotState => Item(
+                    "Ботын суудлыг сулалж, төхөөрөмжийг чөлөөлөх…",
+                    LeaveBotStateAsync),
                 _ => throw new InvalidOperationException("Unknown bot menu entry: " + entry),
             };
             yield return item;
@@ -574,11 +587,74 @@ internal sealed partial class ShellView
         // owner credential was erased - the dialog does not report success
         // before both.
         StudioBotDeviceStateStore.Write(dialog.Seated);
-        ApplyDeviceSeat();
-        UpdateAccountUi();
+        await EnterBotStateNowAsync(dialog.Seated);
         SetStatus(
             $"Энэ төхөөрөмж «{dialog.Seated.DisplayName}» ботын суудал боллоо. " +
-            "Эзэмшигчийн нэвтрэлт энэ машинаас устсан.");
+            "Эзэмшигчийн нэвтрэлт энэ машинаас устсан. ПИН оруулна уу.");
+    }
+
+    /// <summary>
+    /// Puts this RUNNING program into bot state, rather than only the disk.
+    ///
+    /// 🔴 SEATING USED TO CHANGE THE STORAGE AND LEAVE THE PROGRAM ALONE. The
+    /// server erased the owner's credential and the seat was written to disk,
+    /// while the window carried on as that person: their projects still listed,
+    /// their menu still built, their session still live. The lock is installed
+    /// by exactly one caller - start-up - so the owner's own guess was right:
+    /// closing and reopening «fixed» it. They should not have to.
+    ///
+    /// The owner's session is ENDED rather than covered. A lock screen is a Grid
+    /// laid on top; leaving a live session under it would run a person's rights
+    /// behind the bot's PIN, which is the thing a seat exists to prevent - and
+    /// the owner asked for their things to be «огт харагдахгүй», not hidden.
+    ///
+    /// One method, used by both ways in: seating a fresh machine and switching
+    /// back after an owner sign-in. Two callers doing their own subset is how
+    /// this went wrong - five identity paths already do five different things.
+    /// </summary>
+    private async Task EnterBotStateNowAsync(StudioBotDeviceState seat)
+    {
+        ArgumentNullException.ThrowIfNull(seat);
+
+        // The owner stops being signed in HERE, in the running program.
+        account.SignOut();
+
+        // Locked, not merely seated: the seat identity is sealed under the PIN
+        // and nothing has opened it yet. Anything read for the previous
+        // identity goes with it rather than lingering as a stale answer.
+        unlockedSeatIdentity = null;
+        botAssignedProjectIds = null;
+        botAssignedProjectScopes = null;
+        botSeatMember = null;
+
+        ApplyDeviceSeat();
+        UpdateAccountUi();
+
+        // Rebuilt with no session in hand, so what was the owner's is gone from
+        // the list rather than sitting under the lock.
+        await RefreshProjectsAsync();
+
+        InstallBotLockIfSeated();
+    }
+
+    /// <summary>
+    /// The way back into bot state after an owner sign-in took the lock off.
+    ///
+    /// The seat itself is untouched: this is a switch, not a release. The PIN is
+    /// asked for by the lock screen, which already holds the attempt limit and
+    /// the remote unlock - there is no second place that asks.
+    /// </summary>
+    private async Task EnterBotStateAsync()
+    {
+        StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+        if (seat is null)
+        {
+            SetStatus("Энэ төхөөрөмж ботын суудалгүй тул ботын төлөвт шилжих зүйл алга.");
+            return;
+        }
+
+        await EnterBotStateNowAsync(seat);
+        SetStatus($"«{seat.DisplayName}» ботын төлөвт шилжлээ. ПИН оруулна уу.");
     }
 
     private async Task LeaveBotStateAsync()
