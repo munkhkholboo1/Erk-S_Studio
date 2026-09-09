@@ -871,6 +871,50 @@ public sealed class SsoDeviceIdentityTests
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 
     [Fact]
+    public void THEIdentityPathBehavesTheSameInADEVELOPMENTAndAReleaseBuild()
+    {
+        // 🔴 A DEVELOPMENT BUILD IS A DIFFERENT PRODUCT IN ONE RESPECT, AND THAT
+        // IS EXACTLY THE TRAP. Studio reads its own version to decide whether it
+        // is a dev build and stops enforcing the companion licence when it is -
+        // so a shortcut added here «just for dev» would make every developer's
+        // machine publish an identity the shipped build does not, and every test
+        // above runs in dev mode. The whole feature would be measured in the one
+        // configuration nobody installs.
+        //
+        // Almost all of this work has been verified on devmod. This assertion is
+        // what says devmod is the same code path as the release the person
+        // actually installs.
+        foreach (string file in new[]
+        {
+            "StudioSsoIdentity.cs",
+            "StudioSsoIdentityPublisher.cs",
+            "StudioSsoIdentityStore.cs",
+            "StudioSsoRefusalCatalogue.cs",
+        })
+        {
+            Assert.DoesNotContain(
+                "IsDevelopmentBuild",
+                ReadAppSource(file),
+                StringComparison.Ordinal);
+        }
+
+        // The two members that carry the path inside a file which legitimately
+        // uses the flag elsewhere (the suggested server address does).
+        string service = ReadAppSource("StudioAccountService.cs");
+        foreach (string member in new[]
+        {
+            "public bool PublishSsoIdentity(",
+            "public async Task<bool> EnsureSsoHandoffTokenAsync(",
+        })
+        {
+            int start = service.IndexOf(member, StringComparison.Ordinal);
+            Assert.True(start > 0, member + " was not found");
+            string body = service[start..service.IndexOf("\n    }", start, StringComparison.Ordinal)];
+            Assert.DoesNotContain("IsDevelopmentBuild", body, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void THEIdentityIsPublishedWhereBOTHHalvesAreVisible()
     {
         // 🔴 THE HALF THAT KEEPS GOING MISSING IN THIS CODEBASE IS THE CALLER.
