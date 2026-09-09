@@ -435,9 +435,9 @@ internal sealed partial class ShellView
             MenuItem item = entry switch
             {
                 BotMenuEntry.OwnerPassport => Item("Эзэмшигчээр нэвтрэх…", VerifyOwnerOnSeatedDeviceAsync),
-                BotMenuEntry.ManageSeats => Item("Ботын удирдлага…", ShowBotManagementAsync),
-                BotMenuEntry.SeatThisDevice => Item("Энэ төхөөрөмжийг бот болгох…", SeatThisDeviceAsync),
-                BotMenuEntry.EnterBotState => Item("Бот эрхээр нэвтрэх…", EnterBotStateAsync),
+                BotMenuEntry.ManageSeats => Item("Ботын суудлын удирдлага…", ShowBotManagementAsync),
+                BotMenuEntry.SeatThisDevice => Item("Энэ төхөөрөмжийг суудалд суулгах…", SeatThisDeviceAsync),
+                BotMenuEntry.EnterBotState => Item("Ботын төлөвт буцах…", EnterBotStateAsync),
                 // Named for what it gives up, because it now stands beside an
                 // entry that merely switches. Two lines both starting «бот»
                 // and only one of them destructive is a mis-click that costs a
@@ -499,7 +499,7 @@ internal sealed partial class ShellView
     /// is the only arrangement in which fixing one reaches the other.
     ///
     /// The seat is NOT released. This is a switch of who is acting on a machine
-    /// that goes on holding its seat - «Бот эрхээр нэвтрэх…» takes it back with
+    /// that goes on holding its seat - «Ботын төлөвт буцах…» takes it back with
     /// the PIN, and nothing here needs the server.
     /// </summary>
     private async Task ResumeAsOwnerNowAsync()

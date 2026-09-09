@@ -114,16 +114,70 @@ public sealed class BotStateTransitionTests
     }
 
     [Fact]
-    public void THEDestructiveEntryNamesWhatItGivesUp()
+    public void THEDestructiveEntryNamesWhatItGivesUpAndTheOtherOneDoesNot()
     {
-        // It now stands beside an entry that merely switches, and both concern
-        // the bot. Two lines starting with the same word where only one is
-        // irreversible is a mis-click that costs a seat.
+        // It stands beside an entry that merely switches, and both concern the
+        // bot. Two adjacent lines where only one is irreversible is a mis-click
+        // that costs a seat.
+        //
+        // Read from the menu arms rather than pinned to today's words: the
+        // rule is that the destructive label says what it gives up and the
+        // switching one does not claim to, which has to keep holding when the
+        // wording is improved. A test that pins the sentence goes red for
+        // rewording and blind for the defect.
+        string source = ReadAppSource("ShellView.BotSeat.cs");
+        string switching = MenuLabel(source, "BotMenuEntry.EnterBotState");
+        string destructive = MenuLabel(source, "BotMenuEntry.LeaveBotState");
+
+        Assert.NotEqual(switching, destructive);
+        foreach (string surrender in new[] { "сулал", "чөлөөл" })
+        {
+            Assert.True(
+                destructive.Contains(surrender, StringComparison.Ordinal) ||
+                    destructive.Contains("сулалж", StringComparison.Ordinal),
+                "the entry that releases the seat does not say so: " + destructive);
+            Assert.DoesNotContain(surrender, switching, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void THEMenuSeparatesTheSEATFromTheMACHINE()
+    {
+        // 🔴 ONE WORD NAMED TWO THINGS. «Бот» was the job position the
+        // organisation pays for AND the machine standing in the office, so
+        // «энэ төхөөрөмжийг бот болгох» read as though the computer turned
+        // into something. It takes a SEAT; the seat is what exists without it.
         string source = ReadAppSource("ShellView.BotSeat.cs");
 
-        Assert.Contains("\"Бот эрхээр нэвтрэх…\"", source, StringComparison.Ordinal);
-        Assert.Contains("сулалж", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"Ботын төлөвөөс гарах…\"", source, StringComparison.Ordinal);
+        foreach (string entry in new[]
+        {
+            "BotMenuEntry.ManageSeats",
+            "BotMenuEntry.SeatThisDevice",
+            "BotMenuEntry.LeaveBotState",
+        })
+        {
+            string label = MenuLabel(source, entry);
+            Assert.True(
+                label.Contains("суудал", StringComparison.Ordinal) ||
+                    label.Contains("суудл", StringComparison.Ordinal),
+                entry + " is about a seat and does not say the word: " + label);
+        }
+
+        // And nothing offers to turn the machine INTO one.
+        Assert.DoesNotContain("бот болгох", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The label on one menu arm, read out of the switch that builds it.
+    /// </summary>
+    private static string MenuLabel(string source, string entry)
+    {
+        int at = source.IndexOf(entry + " => Item(", StringComparison.Ordinal);
+        Assert.True(at > 0, entry + " has no menu arm");
+        int open = source.IndexOf('"', at);
+        int close = source.IndexOf('"', open + 1);
+        Assert.True(open > 0 && close > open, "the label for " + entry + " was not found");
+        return source[(open + 1)..close];
     }
 
     [Fact]
@@ -197,7 +251,7 @@ public sealed class BotStateTransitionTests
     public void THESwitchBackDoesNOTGiveUpTheSeat()
     {
         // ⚠️ A SWITCH, NOT A RELEASE. The machine goes on holding its seat and
-        // «Бот эрхээр нэвтрэх…» takes it back with the PIN. Releasing here would
+        // «Ботын төлөвт буцах…» takes it back with the PIN. Releasing here would
         // turn signing in as the owner into an irreversible act nobody asked
         // for - and it needs the server, which this must not.
         string source = ReadAppSource("ShellView.BotSeat.cs");

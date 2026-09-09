@@ -34,7 +34,7 @@ internal sealed class BotSeatCreateDialog : Window
     {
         this.account = account;
         this.organizations = organizations;
-        Title = "Энэ төхөөрөмжийг бот болгох";
+        Title = "Энэ төхөөрөмжийг ботын суудалд суулгах";
         Width = 560;
         Height = 520;
         MinWidth = 500;
@@ -59,9 +59,9 @@ internal sealed class BotSeatCreateDialog : Window
         pinBox.TextChanged += (_, _) => UpdateEnabled();
 
         var panel = new StackPanel { Margin = new Thickness(18) };
-        panel.Children.Add(StudioWidgets.CreateTitle("Энэ төхөөрөмжийг бот болгох"));
+        panel.Children.Add(StudioWidgets.CreateTitle("Энэ төхөөрөмжийг ботын суудалд суулгах"));
         panel.Children.Add(StudioWidgets.CreateFormRow("Байгууллага", organizationBox));
-        panel.Children.Add(StudioWidgets.CreateFormRow("Ботын нэр", nameBox));
+        panel.Children.Add(StudioWidgets.CreateFormRow("Суудлын нэр", nameBox));
         panel.Children.Add(StudioWidgets.CreateFormRow("Дотоод мэйл", emailBox));
         panel.Children.Add(StudioWidgets.CreateHint(
             "Дотоод мэйл сонголтоор. Байхгүй бол ботын дугаараар нэрлэгдэнэ."));
@@ -157,7 +157,7 @@ internal sealed class BotSeatCreateDialog : Window
             // machine's owner credential. If that fails the whole transition is
             // rolled back inside the service - a machine that is half seated is
             // worse than one that refused.
-            resultText.Text = "Бот төлөвт шилжиж байна…";
+            resultText.Text = "Ботын төлөвт шилжиж байна…";
             _ = await account.EnterBotStateAsync(organization.OrganizationId, seat.BotId);
 
             Seated = new StudioBotDeviceState
@@ -183,7 +183,7 @@ internal sealed class BotSeatCreateDialog : Window
             resultText.Foreground = StudioTheme.DangerBrush;
             resultText.Text = BotSeatErrors.Describe(
                 exception,
-                "Бот болгож чадсангүй. Энэ машины нэвтрэлтийг устгаж чадаагүй тул " +
+                "Суудалд суулгаж чадсангүй. Энэ машины нэвтрэлтийг устгаж чадаагүй тул " +
                 "шилжилтийг зогсоов — хагас шилжсэн төхөөрөмж үлдээхгүйн тулд. " +
                 "Studio-г дахин нээгээд оролдоно уу.");
             UpdateEnabled();
@@ -251,7 +251,7 @@ internal sealed class BotSeatManagementDialog : Window
         this.account = account;
         this.organizations = organizations;
         this.organization = organizations[0];
-        Title = "Ботын удирдлага";
+        Title = "Ботын суудлын удирдлага";
         Width = 720;
         Height = 560;
         MinWidth = 640;
@@ -326,7 +326,7 @@ internal sealed class BotSeatManagementDialog : Window
         };
 
         var header = new StackPanel();
-        header.Children.Add(StudioWidgets.CreateTitle("Ботын удирдлага"));
+        header.Children.Add(StudioWidgets.CreateTitle("Ботын суудлын удирдлага"));
         if (organizations.Count > 1)
             header.Children.Add(StudioWidgets.CreateFormRow("Байгууллага", organizationBox));
         header.Children.Add(summaryText);
@@ -961,7 +961,7 @@ internal sealed class BotMemberInvitationDialog : Window
                 await account.ListBotAssignmentsAsync(organization.OrganizationId, botId);
             assignmentsText.Text = response.Assignments.Count == 0
                 ? "Энэ суудал ямар ч төсөлд томилогдоогүй байна. " +
-                  "Ботын удирдлагаас эхлээд төсөлд томилно уу."
+                  "Ботын суудлын удирдлагаас эхлээд төсөлд томилно уу."
                 : string.Join(
                     Environment.NewLine,
                     response.Assignments.Select(item =>

@@ -390,7 +390,7 @@ internal sealed class StudioNotificationsDialog : Window
             .Where(item => item.ExpiresAtUtc > DateTimeOffset.UtcNow)
             .Select(item => new NotificationRow(
                 "Ботын суудлын урилга",
-                $"«{item.BotDisplayName}» бот  ·  {item.ProjectId}",
+                $"«{item.BotDisplayName}» ботын суудал  ·  {item.ProjectId}",
                 string.Join(", ", item.Roles),
                 item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 null,

@@ -30,7 +30,7 @@ namespace ErkS.Studio;
 internal static class StudioSourceOwnerLabel
 {
     /// <summary>Shown when a seat owns the source and its name is not reachable.</summary>
-    public const string UnnamedSeat = "Байгууллагын бот суудал";
+    public const string UnnamedSeat = "Байгууллагын ботын суудал";
 
     /// <summary>Shown when the owner's kind comes from a newer server than this build.</summary>
     public const string UnreadableKind = "(эзэмшигчийн төрөл танигдсангүй)";
