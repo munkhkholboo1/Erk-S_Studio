@@ -153,7 +153,16 @@ internal sealed class StudioAccountService :
         ?? (StudioReleaseInfo.IsDevelopmentBuild ? FindLinkedProjectServerUrl() : null)
         ?? PublicServerUrl;
 
-    public string SuggestedEmail => ReadMetadata()?.Email ?? "";
+    /// <summary>
+    /// The address to put in the form. From the live metadata while a session
+    /// exists, and from the remembered profile once it does not - which is the
+    /// case this was always meant to serve and never did, because signing out
+    /// deletes the file it read.
+    /// </summary>
+    public string SuggestedEmail =>
+        ReadMetadata()?.Email is { Length: > 0 } email
+            ? email
+            : StudioRememberedProfiles.Read()?.Email ?? "";
 
     public event Action? StateChanged;
 
@@ -2197,6 +2206,16 @@ internal sealed class StudioAccountService :
                     savedCredential);
             }
             WriteMetadata(savedMetadata);
+
+            // Who signed in, so the next sign-in can greet them rather than ask
+            // who they are. An IDENTIFIER only - no password, no token - and in
+            // its own file, because account.json is deleted by signing out and
+            // again by handing this machine to a seat, which are exactly the two
+            // moments after which remembering is worth anything.
+            StudioRememberedProfiles.Remember(
+                savedMetadata.ServerUrl,
+                savedMetadata.Email,
+                savedMetadata.DisplayName);
             LastError = "";
         });
     }

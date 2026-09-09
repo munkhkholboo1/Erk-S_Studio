@@ -22,6 +22,22 @@ internal sealed class StudioLoginDialog : Window
     private StudioPasswordVisibilityState passwordVisibility =
         StudioPasswordVisibilityPolicy.Initial;
 
+    // 🔴 THE FORM ASKED A PERSON WHO THEY WERE EVERY SINGLE TIME, on their own
+    // machine, because the only thing that remembered them was account.json -
+    // and signing out deletes it, as does handing the machine to a seat. So the
+    // address was remembered in exactly the case where it was already on screen
+    // and forgotten in every case where it would have helped.
+    //
+    // What is remembered is an IDENTIFIER, never a credential: the password is
+    // still asked for in full. See StudioRememberedProfile.
+    private readonly StudioRememberedProfile? recognised;
+    private readonly StackPanel greetingPanel = new();
+    private readonly Grid identityRow;
+    private readonly TextBlock greetingName = new();
+    private readonly TextBlock greetingEmail = new();
+    private readonly TextBlock greetingInitials = new();
+    private LoginPromptMode promptMode;
+
     public StudioLoginDialog(StudioAccountService account)
     {
         this.account = account;
@@ -33,7 +49,15 @@ internal sealed class StudioLoginDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
         serverBox.Text = account.SuggestedServerUrl;
-        emailBox.Text = account.SuggestedEmail;
+        recognised = StudioLoginPrompt.Recognised(
+            StudioRememberedProfiles.Read(),
+            serverBox.Text);
+        promptMode = StudioLoginPrompt.Mode(recognised, serverBox.Text);
+
+        // The greeting and the address come from ONE record. Reading the name
+        // from the profile and the address from somewhere else is how a form
+        // ends up signing in as somebody other than the person it greeted.
+        emailBox.Text = recognised?.Email ?? account.SuggestedEmail;
         loginButton = StudioWidgets.CreatePrimaryButton("Нэвтрэх");
         passwordVisibilityButton = StudioWidgets.CreateInlineButton(
             passwordVisibility.ToggleLabel);
@@ -41,14 +65,21 @@ internal sealed class StudioLoginDialog : Window
         passwordVisibilityButton.Margin = new Thickness(8, 0, 0, 0);
         passwordVisibilityButton.Click += (_, _) => TogglePasswordVisibility();
         UpdatePasswordVisibilityButton();
+        identityRow = StudioWidgets.CreateFormRow("И-мэйл", emailBox);
         StudioTheme.Apply(this);
         Content = BuildContent();
+        ApplyPromptMode();
         Loaded += (_, _) =>
         {
-            if (string.IsNullOrWhiteSpace(emailBox.Text))
+            if (promptMode == LoginPromptMode.AskForEverything &&
+                string.IsNullOrWhiteSpace(emailBox.Text))
+            {
                 emailBox.Focus();
+            }
             else
+            {
                 passwordBox.Focus();
+            }
         };
     }
 
@@ -85,7 +116,8 @@ internal sealed class StudioLoginDialog : Window
         form.Children.Add(new Border { Height = 14 });
         if (StudioReleaseInfo.IsDevelopmentBuild)
             form.Children.Add(StudioWidgets.CreateFormRow("Server", serverBox));
-        form.Children.Add(StudioWidgets.CreateFormRow("И-мэйл", emailBox));
+        form.Children.Add(BuildGreeting());
+        form.Children.Add(identityRow);
         form.Children.Add(StudioWidgets.CreateFormRow(
             "Нууц үг",
             BuildPasswordEditor()));
@@ -101,6 +133,126 @@ internal sealed class StudioLoginDialog : Window
         });
         root.Children.Add(form);
         return root;
+    }
+
+    /// <summary>
+    /// The name and letter avatar of whoever was here last, with the two ways
+    /// out of it.
+    ///
+    /// Both ways are offered because they are different acts: signing in as
+    /// somebody else on a machine that stays this person's, and taking this
+    /// person's name off a machine that is somebody else's now. A seat can be a
+    /// shared machine, so the second is not optional.
+    /// </summary>
+    private UIElement BuildGreeting()
+    {
+        var avatar = new Grid { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
+        avatar.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 40,
+            Height = 40,
+            Fill = StudioTheme.PanelAltBrush,
+            StrokeThickness = 0,
+        });
+        greetingInitials.HorizontalAlignment = HorizontalAlignment.Center;
+        greetingInitials.VerticalAlignment = VerticalAlignment.Center;
+        greetingInitials.Foreground = StudioTheme.TextBrush;
+        greetingInitials.FontSize = 15;
+        greetingInitials.FontWeight = FontWeights.SemiBold;
+        avatar.Children.Add(greetingInitials);
+
+        greetingName.Foreground = StudioTheme.TextBrush;
+        greetingName.FontSize = 15;
+        greetingName.FontWeight = FontWeights.SemiBold;
+        greetingName.TextTrimming = TextTrimming.CharacterEllipsis;
+        greetingEmail.Foreground = StudioTheme.MutedTextBrush;
+        greetingEmail.TextTrimming = TextTrimming.CharacterEllipsis;
+
+        var names = new StackPanel
+        {
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        names.Children.Add(greetingName);
+        names.Children.Add(greetingEmail);
+
+        var person = new DockPanel();
+        DockPanel.SetDock(avatar, Dock.Left);
+        person.Children.Add(avatar);
+        person.Children.Add(names);
+
+        Button another = StudioWidgets.CreateInlineButton("Өөр бүртгэлээр");
+        another.ToolTip = "И-мэйл бичих хэлбэр рүү буцна. Санагдсан профайл хэвээр үлдэнэ.";
+        another.Click += (_, _) => UseAnotherAccount();
+        Button forget = StudioWidgets.CreateInlineButton("Санахаа болих");
+        forget.Margin = new Thickness(10, 0, 0, 0);
+        forget.ToolTip = "Энэ төхөөрөмжөөс энэ нэрийг устгана. Бүртгэлд хамаагүй.";
+        forget.Click += (_, _) => ForgetRememberedProfile();
+
+        var choices = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+        choices.Children.Add(another);
+        choices.Children.Add(forget);
+
+        greetingPanel.Margin = new Thickness(0, 0, 0, 14);
+        greetingPanel.Children.Add(new Border
+        {
+            Padding = new Thickness(12),
+            Background = StudioTheme.PanelBrush,
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(5),
+            Child = person,
+        });
+        greetingPanel.Children.Add(choices);
+        return greetingPanel;
+    }
+
+    /// <summary>
+    /// Shows one of the two forms. The address box is HIDDEN rather than
+    /// removed while somebody is greeted - it is still what gets signed in
+    /// with, and a second place holding the address is a second thing to keep
+    /// in step.
+    /// </summary>
+    private void ApplyPromptMode()
+    {
+        bool greeting = promptMode == LoginPromptMode.AskOnlyForPassword && recognised is not null;
+        greetingPanel.Visibility = greeting ? Visibility.Visible : Visibility.Collapsed;
+        identityRow.Visibility = greeting ? Visibility.Collapsed : Visibility.Visible;
+        if (!greeting)
+            return;
+
+        greetingName.Text = StudioAccountDisplay.NameOrFallback(
+            recognised!.DisplayName,
+            recognised.Email,
+            "Миний бүртгэл");
+        greetingEmail.Text = recognised.Email;
+        greetingInitials.Text = StudioAccountDisplay.Initials(greetingName.Text);
+        AutomationProperties.SetName(greetingPanel, greetingName.Text + " " + recognised.Email);
+    }
+
+    /// <summary>
+    /// Back to the full form. The profile is NOT forgotten: signing in as
+    /// somebody else once does not mean this machine has stopped being the
+    /// first person's.
+    /// </summary>
+    private void UseAnotherAccount()
+    {
+        promptMode = LoginPromptMode.AskForEverything;
+        emailBox.Text = "";
+        ClearPassword();
+        ApplyPromptMode();
+        emailBox.Focus();
+    }
+
+    private void ForgetRememberedProfile()
+    {
+        StudioRememberedProfiles.Forget();
+        promptMode = LoginPromptMode.AskForEverything;
+        emailBox.Text = "";
+        ClearPassword();
+        ApplyPromptMode();
+        statusText.Foreground = StudioTheme.MutedTextBrush;
+        statusText.Text = "Санагдсан профайл энэ төхөөрөмжөөс устлаа.";
+        emailBox.Focus();
     }
 
     private UIElement BuildPasswordEditor()

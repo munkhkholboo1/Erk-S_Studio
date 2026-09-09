@@ -2489,23 +2489,17 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
-    private static string Initials(string displayName)
-    {
-        string[] words = (displayName ?? "")
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (words.Length == 0)
-            return "ES";
-        return string.Concat(words.Take(2).Select(word => char.ToUpperInvariant(word[0])));
-    }
+    // The letter avatar and the fallback name are drawn in the sign-in window
+    // too now. One copy of each rule, kept where both can reach it - a second
+    // copy is how two screens come to disagree about the same person.
+    private static string Initials(string displayName) =>
+        StudioAccountDisplay.Initials(displayName);
 
-    private static string AccountDisplayName(StudioAccountSession session)
-    {
-        string displayName = session.DisplayName.Trim();
-        return string.IsNullOrWhiteSpace(displayName) ||
-               displayName.Equals(session.Email, StringComparison.OrdinalIgnoreCase)
-            ? "Миний бүртгэл"
-            : displayName;
-    }
+    private static string AccountDisplayName(StudioAccountSession session) =>
+        StudioAccountDisplay.NameOrFallback(
+            session.DisplayName,
+            session.Email,
+            "Миний бүртгэл");
 
     private static string AccountActorName(StudioAccountSession session)
     {
