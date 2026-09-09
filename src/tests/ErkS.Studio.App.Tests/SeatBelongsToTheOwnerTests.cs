@@ -183,15 +183,44 @@ public sealed class SeatBelongsToTheOwnerTests
     }
 
     [Fact]
-    public void THEListSaysWHOSESeatsItIsCounting()
+    public void THEListSaysWHOSESeatsItIsCountingAndSaysItONCE()
     {
-        // The occupancy figure beside it is the ACCOUNT's total now, across
-        // every company - the same «7 / 10» that used to mean one company's.
-        // An owner reading the new number as the old one concludes they have
-        // lost seats.
+        // The occupancy figure is the ACCOUNT's total now, across every company
+        // - the same «7 / 10» that used to mean one company's. An owner reading
+        // the new number as the old one concludes they have lost seats, so the
+        // line names whose it is.
+        //
+        // 🔴 AND IT SAYS ONE NUMBER. It printed the row count AND the occupied
+        // count, and on an unfiltered list those are the same query: not
+        // deleted, owned by the caller. Two printings of one number make a
+        // reader hunt for the difference - I invented one («seats with a
+        // machine on them») and was wrong. Whether a machine is on a seat is
+        // DeviceSeated, per row.
         string source = ReadAppSource("BotSeatDialogs.cs");
+        string body = MethodBody(source, "    private async Task RefreshAsync()");
 
-        Assert.Contains("\"Миний суудлууд: \"", source, StringComparison.Ordinal);
+        Assert.Contains("\"Миний суудлууд: \"", body, StringComparison.Ordinal);
+        Assert.Contains("response.OccupiedSeats", body, StringComparison.Ordinal);
+
+        // The row count is NOT printed beside it. It is the same number, and
+        // the one shown is the server's - the count the licence is enforced
+        // against, which is what belongs next to the limit.
+        Assert.DoesNotContain("response.Items.Count", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THESingleCountDEPENDSOnSendingNoFilter()
+    {
+        // The two totals are one query only while the list is unfiltered. This
+        // ties the display decision to the call that justifies it, so a filter
+        // added later cannot quietly make the line wrong: the test that pins
+        // the unfiltered call is next door, and this names the dependency.
+        string source = ReadAppSource("StudioAccountService.cs");
+        string body = MethodBody(
+            source,
+            "public async Task<StudioCloudBotSeatListResponse> ListBotSeatsAsync(");
+
+        Assert.DoesNotContain("organizationId", body, StringComparison.Ordinal);
     }
 
     [Fact]

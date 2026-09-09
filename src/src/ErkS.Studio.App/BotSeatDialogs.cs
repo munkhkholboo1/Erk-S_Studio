@@ -630,12 +630,25 @@ internal sealed class BotSeatManagementDialog : Window
             // to read it per company would read the new number as the old one
             // and conclude they had lost seats.
             RefreshSeatOrigin();
+
+            // 🔴 ONE NUMBER, BECAUSE THERE IS ONLY ONE. This line printed the
+            // row count AND the occupied count, and on an unfiltered list those
+            // are the same query: not deleted, owned by the caller. Neither has
+            // anything to do with whether a machine is sitting on the seat -
+            // that is DeviceSeated, per row, and reading the two totals as if
+            // one of them meant «seated» is exactly the mistake the doubled
+            // line invites. It invited me first.
+            //
+            // The count shown is the SERVER'S, not Items.Count: it is the one
+            // the licence is enforced against, so it is the one that belongs
+            // beside the limit.
+            //
+            // ⚠️ THIS DEPENDS ON SENDING NO FILTER. If a company filter is ever
+            // added, the two stop being the same query and both become worth
+            // showing again - and the test that pins the unfiltered call is
+            // what will make somebody read this comment.
             summaryText.Text =
                 "Миний суудлууд: " +
-                (response.Items.Count == 0
-                    ? "алга"
-                    : $"{response.Items.Count}") +
-                "  ·  эзэлсэн: " +
                 StudioBotSeatCounts.DescribeOccupancy(
                     response.OccupiedSeats,
                     response.DeviceRights,
