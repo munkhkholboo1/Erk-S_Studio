@@ -5,6 +5,14 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.60] - 2026-09-09
+
+- Become a bot seat immediately, instead of at the next launch. Turning a machine into an organisation's seat wrote the seat to disk and had the server erase the owner's credential, and then left the running window exactly as it was: the owner's projects still listed, their menu still built, their session still live. Only one piece of code puts the lock up and it runs at start-up, so closing and reopening Studio was what actually applied the change - which the person at the machine should never have to discover. The owner's session now ends at that moment, what was read for them is dropped, the project list is rebuilt with no session in hand, and the PIN screen appears. Their things are gone rather than covered: a lock screen is a sheet laid on top, and a live session underneath would run a person's rights behind the bot's PIN.
+- Go back into bot state without restarting. Signing in as the owner on a seated machine takes the lock off, and nothing put it back - so the way to return was to close Studio. The account menu now offers it directly, and the PIN is asked for by the lock screen that already counts the attempts and accepts a remote unlock.
+- Name what leaving a seat gives up. "Leave bot state" now sits beside an entry that merely switches, and both concern the bot; only one of them releases the seat. The destructive one says so.
+- Stop asking the server to free a seat that is already free. A machine that left bot state kept a queued release, and the server answers "this seat's device is not in bot state" when nobody holds it - which is what a release is for. The queue was flushed on every owner sign-in and never emptied, so signing in ended with a bot-seat refusal in place of the message saying you were signed in. It reads as though the owner sign-in did not take.
+
+
 ## [0.001.59] - 2026-09-09
 
 - Ask for the licence proof on an ordinary launch, not only after typing a password. Studio restores its own stored session at startup and shows no sign-in dialog, and the proof the other products present was fetched inside that dialog - so the common way of starting published an identity with nothing behind it and never went back. On such a machine AutoCAD, Revit and 3ds Max would all have said the proof had not arrived yet, on a computer that was signed in, indefinitely. It is now asked for where every way of arriving signed in has converged, including somebody signing in through the licence dialog.
