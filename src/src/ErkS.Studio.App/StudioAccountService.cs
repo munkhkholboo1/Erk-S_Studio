@@ -3561,12 +3561,21 @@ internal sealed class StudioAccountService :
         // the caller wanted none, so reading one would only invent a way to fail.
     }
 
-    private static async Task ThrowIfFailedAsync(
+    internal static async Task ThrowIfFailedAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
+        string route = StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri);
         if (response.IsSuccessStatusCode)
+        {
+            // 🔴 SUCCESS IS WHAT FORGETS A REFUSAL, and only for THIS route. A
+            // note that outlives its cause is read by the next person as a live
+            // failure - but a project fetch working again says nothing about an
+            // album upload that is still refusing, and clearing the whole file
+            // would erase the evidence of the failure somebody is chasing.
+            StudioBoundaryRefusals.Cleared(route);
             return;
+        }
 
         StudioCloudApiError? error = null;
         try
@@ -3579,6 +3588,17 @@ internal sealed class StudioAccountService :
         string? message = error?.Message;
         if (string.IsNullOrWhiteSpace(message))
             message = $"Cloud ERA server алдаа: {(int)response.StatusCode} {response.ReasonPhrase}";
+
+        // 🔴 RECORDED WHERE THE REFUSAL IS BORN. Seventeen call sites catch this
+        // exception and three of them show the server's own sentence; none reads
+        // the code. Asking seventeen callers to cooperate is the shape that
+        // produced the defects this exists to diagnose, so nobody is asked.
+        StudioBoundaryRefusals.Note(
+            route,
+            error?.Code ?? "",
+            (int)response.StatusCode,
+            message);
+
         throw new StudioAccountException(
             message,
             response.StatusCode,

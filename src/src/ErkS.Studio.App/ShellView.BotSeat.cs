@@ -310,10 +310,11 @@ internal sealed partial class ShellView
                     StringComparer.OrdinalIgnoreCase);
             await RefreshProjectsAsync();
 
-            // It resumed. Whatever the last refusal was, it has stopped being
-            // true - and a note that outlives its cause is read by the next
-            // person as a live failure.
-            StudioBotResumeFailures.Clear();
+            // It resumed, so the note is already gone: the boundary record
+            // forgets a route the moment that route succeeds, and this call is
+            // what succeeded. A note that outlives its cause is read by the next
+            // person as a live failure, which is why forgetting is the funnel's
+            // job and not a line somebody has to remember to write.
             // The roles are shown, never acted on. They are what the person
             // asked for when they accepted, and seeing them is how anybody can
             // tell the appointment arrived at all - the server does not yet
@@ -359,7 +360,7 @@ internal sealed partial class ShellView
                 "Энэ төхөөрөмжийн суудлыг сервер одоогоор сэргээж чадсангүй.") +
                 "  ·  Суудал энэ төхөөрөмж дээр хэвээр. Дахин оролдох, эсвэл " +
                 "эзэмшигчээр нэвтэрч суудлыг чөлөөлнө үү." +
-                "  ·  Дэлгэрэнгүй: " + StudioBotResumeFailures.StorePath);
+                "  ·  Дэлгэрэнгүй: " + StudioBoundaryRefusals.StorePath);
         }
         catch (StudioAccountException released) when (BotSeatErrors.SeatWasEndedByOwner(released))
         {
@@ -597,12 +598,21 @@ internal sealed partial class ShellView
     /// of: a reader that folds an unknown code into «unknown» throws away the
     /// only part of the answer that was new.
     /// </summary>
+    /// <summary>
+    /// Adds the one fact the boundary record cannot know by itself.
+    ///
+    /// 🔴 THE REFUSAL IS ALREADY RECORDED BY THE TIME THIS RUNS. Every server
+    /// refusal is written where it is born, so the code, the status, the
+    /// server's sentence and the route are all in the file without this method
+    /// existing. What is missing is the FINGERPRINT THIS MACHINE SENT - the
+    /// question that took five refuted hypotheses to arrive at, and the one the
+    /// funnel has never heard of.
+    ///
+    /// Eight characters, which is enough to tell «the same one as last time»
+    /// from «a different one» and useless for anything else.
+    /// </summary>
     private static void NoteResumeFailure(Exception exception)
     {
-        string code = exception is StudioAccountException known ? known.ErrorCode : "";
-        int status = exception is StudioAccountException withStatus
-            ? (int)(withStatus.StatusCode ?? 0)
-            : 0;
         string sent;
         try
         {
@@ -615,7 +625,8 @@ internal sealed partial class ShellView
             sent = "";
         }
 
-        StudioBotResumeFailures.Note(code, status, exception.Message, sent);
+        StudioBoundaryRefusals.AnnotateLatest(
+            sent.Length == 0 ? "" : "sent-fingerprint: " + sent[..Math.Min(8, sent.Length)]);
     }
 
     private async Task ResumeAsOwnerNowAsync()
