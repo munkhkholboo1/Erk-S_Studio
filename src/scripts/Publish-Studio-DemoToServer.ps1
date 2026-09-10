@@ -185,12 +185,24 @@ if ($releaseManifest.productDataIncluded -ne $false -or $releaseManifest.devUpda
 # live V0.001.61 is one of them - refusing here would block republishing a
 # release that is already installed. The line says so out loud instead, and the
 # refusal can land once every package in the folder carries provenance.
-$manifestCommit = [string]$releaseManifest.sourceCommit
+#
+# 🔴 AND IT HAS TO ASK WHETHER THE FIELD IS THERE. Set-StrictMode turns reading
+# an absent property into a terminating error, so the very first package this
+# ran against - V0.001.61, built the hour before provenance existed - stopped
+# the publish outright. The comment above already said such packages exist; the
+# code below did not ask. A tolerated absence has to be tested for, not
+# described.
+$manifestCommit = ""
+if ($null -ne $releaseManifest.PSObject.Properties["sourceCommit"]) {
+    $manifestCommit = [string]$releaseManifest.sourceCommit
+}
+$manifestDirty = $null -ne $releaseManifest.PSObject.Properties["sourceDirty"] -and
+    $releaseManifest.sourceDirty -eq $true
 if ([string]::IsNullOrWhiteSpace($manifestCommit)) {
     Write-Host "Source: NOT RECORDED (package predates provenance stamping)" -ForegroundColor Yellow
 } else {
-    $dirtyNote = if ($releaseManifest.sourceDirty -eq $true) { " (DIRTY TREE)" } else { "" }
-    $dirtyColour = if ($releaseManifest.sourceDirty -eq $true) { "Yellow" } else { "Cyan" }
+    $dirtyNote = if ($manifestDirty) { " (DIRTY TREE)" } else { "" }
+    $dirtyColour = if ($manifestDirty) { "Yellow" } else { "Cyan" }
     Write-Host "Source: $($manifestCommit.Substring(0, [Math]::Min(8, $manifestCommit.Length)))$dirtyNote" -ForegroundColor $dirtyColour
 }
 
