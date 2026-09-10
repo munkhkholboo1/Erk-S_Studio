@@ -192,6 +192,11 @@ public sealed class BotStateTransitionTests
         // Derived, not listed. A hand-written list of the four fields would
         // stay true the day a FIFTH is added to one side only - which is the
         // exact way this defect was born.
+        //
+        // ⚠️ WHAT THIS CANNOT SEE: assignments only. A direction that fails to
+        // CALL something - dropping a credential, say - passes here untouched,
+        // and one did. EACHDirectionDropsTheCREDENTIALOfTheIdentityItLeaves is
+        // the other half; neither is sufficient alone.
         string source = ReadAppSource("ShellView.BotSeat.cs");
         IReadOnlyCollection<string> intoBotState =
             FieldsClearedIn(MethodBody(source, "private async Task EnterBotStateNowAsync("));
@@ -206,6 +211,40 @@ public sealed class BotStateTransitionTests
             "no cleared fields were found going INTO bot state; this test is reading nothing");
 
         Assert.Equal(intoBotState.Order(), backToOwner.Order());
+    }
+
+    [Fact]
+    public void EACHDirectionDropsTheCREDENTIALOfTheIdentityItLeaves()
+    {
+        // 🔴 THE TEST NEXT DOOR COMPARED FIELDS AND MISSED A CALL. It reads the
+        // `x = null;` assignments out of both bodies and holds the sets equal -
+        // which is worth having, and which structurally cannot see that one
+        // direction ends a session and the other does not. The owner direction
+        // shipped without dropping the seat's token: a machine kept a live bot
+        // credential while the owner was the one acting.
+        //
+        // A credential is dropped by a CALL, so calls are what this compares.
+        // The two directions are NOT symmetric here and must not be: each ends
+        // the credential of the identity it is LEAVING, and they leave
+        // different ones.
+        // 🔴 AND IT READS CODE, NOT PROSE. The first run of this test went red
+        // on the COMMENT that explains it - the sentence «the other way ends
+        // the owner's session with account.SignOut()» contains the very call it
+        // was asserting absent. A source-reading test that cannot tell a line
+        // of code from a line about code produces false reds today and false
+        // greens the moment somebody names a call in a comment.
+        string source = ReadAppSource("ShellView.BotSeat.cs");
+        string intoBotState = CodeOnly(MethodBody(source, "private async Task EnterBotStateNowAsync("));
+        string backToOwner = CodeOnly(MethodBody(source, "private async Task ResumeAsOwnerNowAsync()"));
+
+        // Into bot state: the PERSON's session ends.
+        Assert.Contains("account.SignOut();", intoBotState, StringComparison.Ordinal);
+        // Back to the owner: the SEAT's credential ends.
+        Assert.Contains("account.UseBotToken(null);", backToOwner, StringComparison.Ordinal);
+
+        // And neither may keep the other's alive by omission - the failure this
+        // catches is a direction that drops nothing at all.
+        Assert.DoesNotContain("account.SignOut();", backToOwner, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -284,6 +323,24 @@ public sealed class BotStateTransitionTests
                 found.Add(name);
         }
         return found;
+    }
+
+    /// <summary>
+    /// The body with its line comments removed, so an assertion about a CALL
+    /// cannot be answered by a sentence that merely names one.
+    /// </summary>
+    private static string CodeOnly(string body)
+    {
+        var kept = new List<string>();
+        foreach (string line in body.Split('\n'))
+        {
+            string trimmed = line.TrimStart();
+            if (trimmed.StartsWith("//", StringComparison.Ordinal))
+                continue;
+            int comment = line.IndexOf("//", StringComparison.Ordinal);
+            kept.Add(comment < 0 ? line : line[..comment]);
+        }
+        return string.Join("\n", kept);
     }
 
     private static string MethodBody(string source, string signature)

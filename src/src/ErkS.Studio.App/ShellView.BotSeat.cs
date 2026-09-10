@@ -504,6 +504,17 @@ internal sealed partial class ShellView
     /// </summary>
     private async Task ResumeAsOwnerNowAsync()
     {
+        // 🔴 THE SEAT'S CREDENTIAL GOES WITH THE SEAT'S READS. Going the other
+        // way ends the owner's session with account.SignOut(); this direction
+        // has to end the SEAT's, and did not - the machine kept a live bot token
+        // while the owner was the one acting. Whichever identity is being left,
+        // its credential leaves with it.
+        //
+        // It was missed because the test that pins the two directions together
+        // compared the FIELDS each one clears, and a credential is dropped by a
+        // CALL. The test now compares both.
+        account.UseBotToken(null);
+
         // Read for the SEAT, by the seat's own credential. With the owner acting
         // they answer for somebody else - and an assignment list that belongs to
         // another identity is worse than none, because it looks like an answer.
