@@ -272,6 +272,11 @@ internal sealed partial class ShellView
                     group => (IReadOnlyCollection<string>)[.. group.SelectMany(item => item.Scopes)],
                     StringComparer.OrdinalIgnoreCase);
             await RefreshProjectsAsync();
+
+            // It resumed. Whatever the last refusal was, it has stopped being
+            // true - and a note that outlives its cause is read by the next
+            // person as a live failure.
+            StudioBotResumeFailures.Clear();
             // The roles are shown, never acted on. They are what the person
             // asked for when they accepted, and seeing them is how anybody can
             // tell the appointment arrived at all - the server does not yet
@@ -304,6 +309,7 @@ internal sealed partial class ShellView
             // failed to match produces, on a machine whose seat is alive. The
             // credential and the reads answered for a session that just failed
             // and go with it; the SEAT is a fact about this machine and stays.
+            NoteResumeFailure(refused);
             account.UseBotToken(null);
             unlockedSeatIdentity = null;
             botAssignedProjectIds = null;
@@ -315,7 +321,8 @@ internal sealed partial class ShellView
                 refused,
                 "Энэ төхөөрөмжийн суудлыг сервер одоогоор сэргээж чадсангүй.") +
                 "  ·  Суудал энэ төхөөрөмж дээр хэвээр. Дахин оролдох, эсвэл " +
-                "эзэмшигчээр нэвтэрч суудлыг чөлөөлнө үү.");
+                "эзэмшигчээр нэвтэрч суудлыг чөлөөлнө үү." +
+                "  ·  Дэлгэрэнгүй: " + StudioBotResumeFailures.StorePath);
         }
         catch (StudioAccountException released) when (BotSeatErrors.SeatWasEndedByOwner(released))
         {
@@ -359,6 +366,7 @@ internal sealed partial class ShellView
         }
         catch (Exception exception)
         {
+            NoteResumeFailure(exception);
             // The machine is unlocked locally either way; what is missing is
             // the server's half. Saying so beats a screen that looks ready and
             // quietly has no assignments behind it.
@@ -540,6 +548,39 @@ internal sealed partial class ShellView
     /// that goes on holding its seat - «Ботын төлөвт буцах…» takes it back with
     /// the PIN, and nothing here needs the server.
     /// </summary>
+    /// <summary>
+    /// Writes down what the server actually said.
+    ///
+    /// 🔴 FIVE HYPOTHESES WERE BUILT AND MEASURED AGAINST THIS FAILURE AND
+    /// EVERY ONE OF THEM FELL, because the one fact that would have settled it
+    /// - which refusal arrived - existed for a few milliseconds on one machine
+    /// and then nowhere. The server keeps no log of it either.
+    ///
+    /// The code is written VERBATIM, including one this build has never heard
+    /// of: a reader that folds an unknown code into «unknown» throws away the
+    /// only part of the answer that was new.
+    /// </summary>
+    private static void NoteResumeFailure(Exception exception)
+    {
+        string code = exception is StudioAccountException known ? known.ErrorCode : "";
+        int status = exception is StudioAccountException withStatus
+            ? (int)(withStatus.StatusCode ?? 0)
+            : 0;
+        string sent;
+        try
+        {
+            sent = StudioDeviceIdentity.Fingerprint;
+        }
+        catch (Exception)
+        {
+            // The fingerprint is part of the diagnosis, not of the report. If
+            // it cannot be computed that is itself worth seeing as a blank.
+            sent = "";
+        }
+
+        StudioBotResumeFailures.Note(code, status, exception.Message, sent);
+    }
+
     private async Task ResumeAsOwnerNowAsync()
     {
         // 🔴 THE SEAT'S CREDENTIAL GOES WITH THE SEAT'S READS. Going the other
@@ -807,6 +848,27 @@ internal sealed partial class ShellView
         var stillHeld = new List<string>();
         foreach (PendingBotSeatRelease item in pending)
         {
+            // 🔴 A QUEUED RELEASE NAMES A SEAT, AND A SEAT CAN BE SAT IN
+            // TWICE. The note says «I left this seat»; if this machine has
+            // since re-entered the SAME seat, sending it now releases a state
+            // the person is using - the request would reach a different
+            // occasion wearing the same botId. The discriminator is WHEN, and
+            // the note already carries it.
+            //
+            // Latent until 0.001.62: the old route put an empty organisation
+            // segment in the path, so such a request 404'd on the way out and
+            // failed silently. Removing the segment is what made it able to
+            // arrive - the trap was always there, it simply could not reach.
+            StudioBotDeviceState? seatedNow = StudioBotDeviceStateStore.Read();
+            if (seatedNow is not null &&
+                seatedNow.BotId.Equals(item.BotId, StringComparison.OrdinalIgnoreCase) &&
+                seatedNow.EnteredAtUtc > item.LeftAtUtc)
+            {
+                StudioPendingBotSeatReleases.Forget(item.OrganizationId, item.BotId);
+                alreadyFree++;
+                continue;
+            }
+
             try
             {
                 await account.LeaveBotStateAsync(item.BotId);

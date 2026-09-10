@@ -30,8 +30,12 @@ public sealed class LocalSeatIsNotDestroyedTests
         // One is the server saying, by a named code, that the seat has ended.
         // The other is the owner's own deliberate release. Nothing else - and
         // in particular, nothing that merely fails to FIND the seat.
-        IReadOnlyCollection<string> owners =
-            MethodsContaining("ShellView.BotSeat.cs", "StudioBotDeviceStateStore.Clear()");
+        // 🔴 THIS READ ONE FILE. A third caller added anywhere else in the app
+        // would have been invisible to it - the same shape as the test that
+        // compared fields and could not see a call. The scan is now over every
+        // source file in the project, so «two owners» means two in the product,
+        // not two in the file somebody happened to name.
+        IReadOnlyCollection<string> owners = OwnersAcrossTheApp("StudioBotDeviceStateStore.Clear()");
 
         Assert.Equal(
             new[] { "LeaveBotStateAsync", "ResumeAsBotAsync" },
@@ -166,6 +170,41 @@ public sealed class LocalSeatIsNotDestroyedTests
     /// nobody has thought about yet - and a hand-written list stays true on the
     /// day one appears.
     /// </summary>
+    /// <summary>
+    /// Every method in the app that contains <paramref name="needle"/>, across
+    /// all of its source - not one named file.
+    /// </summary>
+    private static IReadOnlyCollection<string> OwnersAcrossTheApp(string needle)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? app = null;
+        while (directory is not null && app is null)
+        {
+            string candidate = Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App");
+            if (Directory.Exists(candidate))
+                app = new DirectoryInfo(candidate);
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(app);
+        var found = new List<string>();
+        foreach (FileInfo file in app.GetFiles("*.cs", SearchOption.TopDirectoryOnly))
+        {
+            string source = File.ReadAllText(file.FullName, Encoding.UTF8);
+            for (int at = source.IndexOf(needle, StringComparison.Ordinal);
+                at >= 0;
+                at = source.IndexOf(needle, at + 1, StringComparison.Ordinal))
+            {
+                string owner = EnclosingMethod(source, at);
+                if (!found.Contains(owner, StringComparer.Ordinal))
+                    found.Add(owner);
+            }
+        }
+
+        Assert.NotEmpty(found);
+        return found;
+    }
+
     private static IReadOnlyCollection<string> MethodsContaining(string fileName, string needle)
     {
         string source = ReadAppSource(fileName);

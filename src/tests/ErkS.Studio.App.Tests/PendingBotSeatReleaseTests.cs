@@ -60,10 +60,17 @@ public sealed class PendingBotSeatReleaseTests
         int note = body.IndexOf("StudioPendingBotSeatReleases.NoteAttempt(", StringComparison.Ordinal);
         Assert.True(note > generic, "the note belongs inside the general failure branch");
 
-        // Forgotten twice: once on a real release, once when the seat was
-        // already free. A flush that forgets only the first can never empty the
-        // list, which is the defect itself.
-        Assert.Equal(2, Occurrences(body, "StudioPendingBotSeatReleases.Forget("));
+        // 🔴 EVERY OUTCOME THAT MEANS «NOTHING IS PENDING» MUST FORGET. A flush
+        // that forgets on only some of them can never empty the list, which is
+        // the defect this test was written for.
+        //
+        // Counted against the outcomes rather than against a number: this said
+        // «exactly two» and went red the day a third settled outcome was added
+        // - a stale request whose seat has since been re-entered. The rule was
+        // never «two»; it was «one per settled outcome».
+        int settled = Occurrences(body, "released++") + Occurrences(body, "alreadyFree++");
+        Assert.True(settled >= 2, "the flush no longer records how it settled; this reads nothing");
+        Assert.Equal(settled, Occurrences(body, "StudioPendingBotSeatReleases.Forget("));
     }
 
     [Fact]
