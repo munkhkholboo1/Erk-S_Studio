@@ -298,8 +298,14 @@ internal sealed partial class ShellView
             if (exception is StudioAccountException accountException &&
                 accountException.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
             {
-                CloseCurrentCloudProjectAfterAccessEnded(
-                    "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+                // The status alone decides nothing - see StudioProjectAccessRefusal
+                // for what the server can and cannot support here.
+                StudioProjectAccessVerdict verdict = StudioProjectAccessRefusal.Read(
+                    accountException.ErrorCode, accountException.Message, SeatedAsBot);
+                if (verdict.ProjectEnded)
+                    CloseCurrentCloudProjectAfterAccessEnded(verdict.Sentence);
+                else
+                    SetStatus(verdict.Sentence);
                 _ = RefreshProjectsAsync();
                 return false;
             }
@@ -342,8 +348,19 @@ internal sealed partial class ShellView
         {
             if (!IsOperationContextCurrent(operationContext))
                 return;
-            CloseCurrentCloudProjectAfterAccessEnded(
-                "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+
+            // 🔴 THE CHEAPEST WAY TO LOSE SOMEBODY'S WORKSPACE. This runs on a
+            // timer against a route that answers `project_not_found` for four
+            // different worlds, and it used to close the open project on every
+            // one of them - including a seat whose assignment list had not been
+            // read. The branch below already knows that a dropped network is not
+            // a revoked access; a refusal is no more conclusive.
+            StudioProjectAccessVerdict verdict = StudioProjectAccessRefusal.Read(
+                exception.ErrorCode, exception.Message, SeatedAsBot);
+            if (verdict.ProjectEnded)
+                CloseCurrentCloudProjectAfterAccessEnded(verdict.Sentence);
+            else
+                SetStatus(verdict.Sentence);
             await RefreshProjectsAsync(refreshNotifications: false);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)

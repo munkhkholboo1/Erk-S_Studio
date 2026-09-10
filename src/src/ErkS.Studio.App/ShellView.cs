@@ -1697,15 +1697,31 @@ internal sealed partial class ShellView : IDisposable
                 // A seat is shut out for a different reason than a person, and
                 // saying "your membership ended" to a machine whose assignment
                 // list simply has not been read would be a false report.
-                CloseCurrentCloudProjectAfterAccessEnded(
-                    SeatedAsBot
-                        ? StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds) +
-                          " Локал эх файл болон mirror устгагдаагүй."
-                        : "Төслийн гишүүний эрх дууссан тул Cloud төсөл таны жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
-                // The close above is the intended workspace transition for
-                // this exact account response. Continue applying the already
-                // verified project list against the new no-project context.
-                operationContext = CaptureOperationContext();
+                //
+                // 🔴 THE SENTENCE WAS ALREADY RIGHT AND THE ACTION WAS STILL
+                // WRONG. Somebody thought about the unread-assignments case and
+                // fixed what the person is TOLD - «Ботын томилолт уншигдаагүй
+                // тул төслүүд харагдахгүй» - while the branch went on closing
+                // the open project underneath it. An unread list is the absence
+                // of an answer, not an answer, and it must not cost a workspace.
+                if (SeatedAsBot && botAssignedProjectIds is null)
+                {
+                    SetStatus(
+                        StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds) +
+                        " Төсөл нээлттэй хэвээр байна.");
+                }
+                else
+                {
+                    CloseCurrentCloudProjectAfterAccessEnded(
+                        SeatedAsBot
+                            ? StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds) +
+                              " Локал эх файл болон mirror устгагдаагүй."
+                            : "Төслийн гишүүний эрх дууссан тул Cloud төсөл таны жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
+                    // The close above is the intended workspace transition for
+                    // this exact account response. Continue applying the already
+                    // verified project list against the new no-project context.
+                    operationContext = CaptureOperationContext();
+                }
             }
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
@@ -4318,18 +4334,28 @@ internal sealed partial class ShellView : IDisposable
                     "Cloud Sync цуцлагдлаа: бүртгэл эсвэл төсөл өөрчлөгдсөн тул хуучин access үр дүнг хэрэглээгүй.");
                 return;
             }
-            string reasonCode = DiagnosticReasonCode(exception, "cloud_sync_access_ended");
+            string reasonCode = DiagnosticReasonCode(exception, "cloud_sync_access_blocked");
             string shortOperationId = operationId[..Math.Min(8, operationId.Length)];
             RecordDiagnosticOperation(
                 operationId,
                 "cloud_sync",
                 "blocked",
                 reasonCode,
-                "Төслийн access дууссан тул Cloud Sync зогссон.",
+                "Cloud Sync зогслоо: сервер төслийг өгсөнгүй.",
                 exception);
-            CloseCurrentCloudProjectAfterAccessEnded(
-                "Төслийн access дууссан тул төсөл таны Studio жагсаалтаас хасагдлаа. " +
-                $"Локал эх файл болон mirror устгагдаагүй. [reason: {reasonCode}; operation: {shortOperationId}]");
+
+            // 🔴 THIS USED TO CLOSE THE PROJECT UNCONDITIONALLY. A 403/404 here
+            // was read as «your access has ended», the person was told their
+            // project had been removed from their list, and the workspace shut -
+            // on a refusal the server sends for four different reasons, the
+            // commonest of which is a seat that simply has not been assigned
+            // this project.
+            StudioProjectAccessVerdict verdict = StudioProjectAccessRefusal.Read(
+                exception.ErrorCode, exception.Message, SeatedAsBot);
+            if (verdict.ProjectEnded)
+                CloseCurrentCloudProjectAfterAccessEnded(verdict.Sentence);
+            else
+                SetStatus(verdict.Sentence + $" [reason: {reasonCode}; operation: {shortOperationId}]");
             _ = RefreshProjectsAsync();
         }
         catch (Exception exception) when (
