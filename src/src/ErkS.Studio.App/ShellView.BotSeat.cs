@@ -192,6 +192,43 @@ internal sealed partial class ShellView
     /// is the SEAT: until the PIN opens it, ConfigureDeviceSeat gets nothing
     /// and the machine does not own or receive as the bot.
     /// </summary>
+    /// <summary>
+    /// Puts this machine's registered key fingerprint back in play, before
+    /// anybody signs in.
+    ///
+    /// 🔴 THE FINGERPRINT DEPENDED ON WHO WAS SIGNED IN, AND A SEATED MACHINE
+    /// HAS NOBODY. The registered value was installed only by
+    /// EnsureDeviceKeyRegisteredAsync, which returns at its first line when
+    /// there is no owner session - and entering bot state erases that session
+    /// by design. So:
+    ///
+    ///   seated (owner present)  →  canonical = KEY fingerprint, stored by the server
+    ///   reopened (no owner)     →  canonical = trait fingerprint, KEY never sent
+    ///
+    /// The server looks its device key up by canonical ONLY, so it found
+    /// nothing and refused - and a seated machine could never resume itself
+    /// without an owner first signing in. The person said exactly that:
+    /// «анх үүсэхдээ сайхан шилжинэ … ахиж нээхэд шилжиж орж чадахгүй».
+    ///
+    /// The key's registration is a fact about this DEVICE. Reading it needs no
+    /// account, and naming one was the whole defect.
+    /// </summary>
+    private static void AdoptRegisteredDeviceKeyFingerprint()
+    {
+        try
+        {
+            string fingerprint = StudioDeviceKeyStore.Fingerprint();
+            if (StudioDeviceKeyStore.IsRegisteredToAnyAccount(fingerprint))
+                StudioDeviceIdentity.UseRegisteredKeyFingerprint(fingerprint);
+        }
+        catch (Exception)
+        {
+            // No key on this machine, or it cannot be read. That is the
+            // ordinary state of a machine that has never registered one, and
+            // the trait fingerprint is then the right answer.
+        }
+    }
+
     private void InstallBotLockIfSeated()
     {
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();

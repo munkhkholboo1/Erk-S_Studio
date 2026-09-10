@@ -419,6 +419,10 @@ internal sealed partial class ShellView : IDisposable
         };
         StudioTheme.ApplyToRoot(rootBorder);
         Root = rootBorder;
+        // Before anything asks who this device is. A seated machine has no
+        // owner session, and the registered fingerprint used to arrive only
+        // through a path that required one.
+        AdoptRegisteredDeviceKeyFingerprint();
         InstallBotLockIfSeated();
 
         state.Library.Changed += () => dispatcher.BeginInvoke(new Action(OnLibraryChanged));

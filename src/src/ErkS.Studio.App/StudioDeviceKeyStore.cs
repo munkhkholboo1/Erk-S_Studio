@@ -225,6 +225,42 @@ internal static class StudioDeviceKeyStore
         StudioAccountService.AccountDataRoot,
         "device-key-registrations.json");
 
+    /// <summary>
+    /// Whether this machine's key is registered against ANY account.
+    ///
+    /// 🔴 THE ACCOUNT IS NOT PART OF THE QUESTION, AND MAKING IT ONE COST A
+    /// USER THEIR MACHINE. A seated device has no owner session - entering bot
+    /// state erases the credential, deliberately - so every reader that needed
+    /// an e-mail simply returned false there, and the machine fell back to a
+    /// fingerprint the server had never been told about.
+    ///
+    /// A fingerprint IDENTIFIES; it does not authorise. Authorisation is the
+    /// signature over the server's nonce, which this does not touch. So asking
+    /// «is this key known» without naming an account grants nothing.
+    /// </summary>
+    public static bool IsRegisteredToAnyAccount(string fingerprint)
+    {
+        string key = (fingerprint ?? "").Trim().ToUpperInvariant();
+        if (key.Length == 0)
+            return false;
+        try
+        {
+            if (!System.IO.File.Exists(MarkerPath))
+                return false;
+            HashSet<string>? marks = System.Text.Json.JsonSerializer
+                .Deserialize<HashSet<string>>(System.IO.File.ReadAllText(MarkerPath));
+            return marks is not null &&
+                marks.Any(mark => mark.StartsWith(key + "|", StringComparison.Ordinal));
+        }
+        catch (Exception exception) when (
+            exception is System.IO.IOException
+                or System.Text.Json.JsonException
+                or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     public static bool IsRegistered(string fingerprint, string accountEmail)
     {
         try
