@@ -1133,6 +1133,26 @@ internal static class BotSeatErrors
     /// differ in what to tell the person, which is <see cref="Describe"/>'s job;
     /// they do not differ in what to do, which is this one's.
     /// </summary>
+    /// <summary>
+    /// Whether the OWNER ended this seat - the one statement that justifies
+    /// deleting what this machine holds.
+    ///
+    /// 🔴 NARROWER THAN <see cref="SeatIsGone"/> ON PURPOSE, AND THE DIFFERENCE
+    /// COST SOMEBODY THEIR MACHINE. SeatIsGone answers «should this call stop
+    /// retrying», which is true of four codes. Only ONE of them says the seat
+    /// itself ended: the owner released it, and the release dialog promises the
+    /// device will notice by itself. The other three say the server could not
+    /// place this device right now - and «bot_state_not_found» is what a
+    /// fingerprint that failed to match produces, on a machine whose seat is
+    /// perfectly alive.
+    ///
+    /// Deleting on those three turned one bad answer into a machine that had
+    /// forgotten it was a seat, while the server went on holding it.
+    /// </summary>
+    public static bool SeatWasEndedByOwner(Exception exception) =>
+        exception is StudioAccountException known &&
+        known.ErrorCode.Equals(SeatReleasedRemotely, StringComparison.Ordinal);
+
     public static bool SeatIsGone(Exception exception) =>
         exception is StudioAccountException known &&
         (known.ErrorCode.Equals(SeatReleasedRemotely, StringComparison.Ordinal) ||

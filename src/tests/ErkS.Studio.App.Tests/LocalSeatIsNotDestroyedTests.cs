@@ -39,6 +39,58 @@ public sealed class LocalSeatIsNotDestroyedTests
     }
 
     [Fact]
+    public void ONLYTheOWNERSReleaseTakesASeatFromItsMachine()
+    {
+        // 🔴 THIS BRANCH USED TO FIRE ON FOUR CODES AND IT COST SOMEBODY THEIR
+        // MACHINE. SeatIsGone answers «should this call stop retrying», which is
+        // true of four; only ONE of them says the SEAT ended - the owner
+        // released it, which the release dialog promises the device notices by
+        // itself. «bot_state_not_found» is also what a fingerprint that failed
+        // to match produces, on a machine whose seat is perfectly alive.
+        //
+        // The narrower predicate is what the destructive branch reads.
+        string body = CodeOf("ShellView.BotSeat.cs", "private async Task ResumeAsBotAsync(");
+
+        int ended = body.IndexOf("BotSeatErrors.SeatWasEndedByOwner(released)", StringComparison.Ordinal);
+        int erase = body.IndexOf("StudioBotDeviceStateStore.Clear();", StringComparison.Ordinal);
+        Assert.True(ended > 0, "the destructive branch no longer reads the narrow predicate");
+        Assert.True(erase > ended, "the erasure must sit inside the owner-ended branch");
+
+        // And the predicate really is narrower than the one it replaced.
+        //
+        // Sliced at its semicolon, not by MethodBody: this member is
+        // EXPRESSION-BODIED, and a reader that looks for a closing brace runs
+        // straight past it into the next method - which does mention the wider
+        // codes. The first run of this test failed exactly that way.
+        string catalogue = ReadAppSource("BotSeatDialogs.cs");
+        int at = catalogue.IndexOf(
+            "public static bool SeatWasEndedByOwner(Exception exception)", StringComparison.Ordinal);
+        Assert.True(at > 0, "the narrow predicate was not found");
+        string narrow = catalogue[at..(catalogue.IndexOf(';', at) + 1)];
+        foreach (string wider in new[] { "SeatNotFound", "SeatChanged", "SeatUnavailable" })
+            Assert.DoesNotContain(wider, narrow, StringComparison.Ordinal);
+        Assert.Contains("SeatReleasedRemotely", narrow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARefusalThatIsNOTTheOwnersReleaseKeepsTheSeat()
+    {
+        // The credential and the reads answered for a session that just failed,
+        // so they go. The seat is a fact about the machine and stays - and the
+        // sentence has to say so, or the person reads «could not resume» as
+        // «this machine is no longer a seat» and acts on it.
+        string body = CodeOf("ShellView.BotSeat.cs", "private async Task ResumeAsBotAsync(");
+
+        int refused = body.IndexOf("!BotSeatErrors.SeatWasEndedByOwner(refused)", StringComparison.Ordinal);
+        Assert.True(refused > 0, "the non-destructive branch is gone");
+
+        string branch = body[refused..body.IndexOf("catch (StudioAccountException released)", refused, StringComparison.Ordinal)];
+        Assert.Contains("account.UseBotToken(null);", branch, StringComparison.Ordinal);
+        Assert.Contains("Суудал энэ төхөөрөмж дээр хэвээр", branch, StringComparison.Ordinal);
+        Assert.DoesNotContain("StudioBotDeviceStateStore.Clear();", branch, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void THEServerSideErasureIsGatedOnTheNAMEDRefusalCode()
     {
         // 🔴 MATCHING ON A STATUS WOULD SWEEP IN EVERY 403 AND 404 THE SERVER
@@ -160,6 +212,9 @@ public sealed class LocalSeatIsNotDestroyedTests
         Assert.NotEmpty(words);
         return words[^1];
     }
+
+    private static string CodeOf(string fileName, string signature) =>
+        MethodBody(ReadAppSource(fileName), signature);
 
     private static string MethodBody(string source, string signature)
     {

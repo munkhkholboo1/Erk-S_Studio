@@ -295,7 +295,29 @@ internal sealed partial class ShellView
                 ? $"«{seat.DisplayName}» — {member} · томилогдсон төсөл алга."
                 : $"«{seat.DisplayName}» — {member} · {appointment}{more}");
         }
-        catch (StudioAccountException released) when (BotSeatErrors.SeatIsGone(released))
+        catch (StudioAccountException refused)
+            when (BotSeatErrors.SeatIsGone(refused) &&
+                !BotSeatErrors.SeatWasEndedByOwner(refused))
+        {
+            // The server could not place this device - it did NOT say the seat
+            // ended. «bot_state_not_found» is also what a fingerprint that
+            // failed to match produces, on a machine whose seat is alive. The
+            // credential and the reads answered for a session that just failed
+            // and go with it; the SEAT is a fact about this machine and stays.
+            account.UseBotToken(null);
+            unlockedSeatIdentity = null;
+            botAssignedProjectIds = null;
+            botAssignedProjectScopes = null;
+            botSeatMember = null;
+            ApplyDeviceSeat();
+            UpdateAccountUi();
+            SetStatus(BotSeatErrors.Describe(
+                refused,
+                "Энэ төхөөрөмжийн суудлыг сервер одоогоор сэргээж чадсангүй.") +
+                "  ·  Суудал энэ төхөөрөмж дээр хэвээр. Дахин оролдох, эсвэл " +
+                "эзэмшигчээр нэвтэрч суудлыг чөлөөлнө үү.");
+        }
+        catch (StudioAccountException released) when (BotSeatErrors.SeatWasEndedByOwner(released))
         {
             // 🔴 THE SEAT ENDED WHILE THIS MACHINE WAS AWAY. Three ways it can
             // happen and the server names which - the owner freed it, the seat
@@ -304,9 +326,25 @@ internal sealed partial class ShellView
             // a machine claiming a seat that no longer exists, and asking for a
             // PIN that now guards nothing.
             //
-            // Cleared locally FIRST and unconditionally, for the same reason
-            // leaving bot state clears first: the one state a person cannot get
-            // themselves out of is a seat the server has already ended.
+            // 🔴 THIS USED TO DELETE THE SEAT, AND THAT COST A USER THEIR
+            // MACHINE. A refusal here says the server could not resume this
+            // device right now; it does not say the machine has stopped being
+            // a seat. The two were treated as one, so a single bad answer -
+            // and the four codes this catches include «I do not see this
+            // device in bot state», which a fingerprint that failed to match
+            // also produces - erased the only local record that the machine
+            // belonged to a seat. The server went on holding it. The person
+            // was left with a Studio that offered to seat a machine already
+            // seated, and no way back.
+            //
+            // The original reason for deleting was that a machine whose seat
+            // the owner had really ended would otherwise ask for a PIN that
+            // guards nothing. That reason EXPIRED: the lock screen now offers
+            // «Эзэмшигчээр нэвтрэх…» and the menu offers to release the seat,
+            // so nobody is stranded. Deleting is now pure loss.
+            //
+            // THE OWNER ENDED IT, and the release dialog promises this device
+            // will notice by itself. That promise is what this branch keeps.
             StudioBotDeviceStateStore.Clear();
             account.UseBotToken(null);
             unlockedSeatIdentity = null;

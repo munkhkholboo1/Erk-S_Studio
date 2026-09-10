@@ -182,9 +182,21 @@ public sealed class StudioBotSessionIssueTests
         // of these lines existing.
         string shell = ReadAppSource("ShellView.BotSeat.cs");
 
-        Assert.Contains("BotSeatErrors.SeatIsGone(released)", shell, StringComparison.Ordinal);
-        int handler = shell.IndexOf("BotSeatErrors.SeatIsGone(released)", StringComparison.Ordinal);
-        string body = shell[handler..(handler + 1400)];
+        // 🔴 THE PREDICATE NARROWED AND THIS TEST NAMED THE CONSEQUENCE. The
+        // clearing used to fire on four codes; three of them do not say the
+        // seat ended, and deleting on them cost somebody their machine. But
+        // ONE of them is this dialog's promise - the owner releases remotely
+        // and the device notices by itself - so the branch had to be narrowed
+        // rather than removed. This test is why that distinction was made
+        // instead of the promise being quietly broken.
+        Assert.Contains(
+            "BotSeatErrors.SeatWasEndedByOwner(released)", shell, StringComparison.Ordinal);
+        int handler = shell.IndexOf(
+            "BotSeatErrors.SeatWasEndedByOwner(released)", StringComparison.Ordinal);
+        // Sliced at the branch's own closing brace rather than by a character
+        // count: a fixed window is a guess that goes wrong the moment the
+        // comment above the code grows, which is what happened here.
+        string body = shell[handler..shell.IndexOf("\n        }", handler, StringComparison.Ordinal)];
         Assert.Contains("StudioBotDeviceStateStore.Clear();", body, StringComparison.Ordinal);
         Assert.Contains("account.UseBotToken(null);", body, StringComparison.Ordinal);
         Assert.Contains("ApplyDeviceSeat();", body, StringComparison.Ordinal);
