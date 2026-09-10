@@ -5,9 +5,7 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
-> ⚠️ REQUIRES THE OWNER-KEYED SEAT ROUTES. This build calls /api/cloud-era/v1/bot-seats
-> and cannot talk to a server that still keys seats by organisation. Do not publish
-> before that server is live.
+## [0.001.62] - 2026-09-10
 
 - A bot seat belongs to its owner, not to a company. The first thing the seating window asked was which organisation, so a seat could not be opened without naming one - and the owner had said the opposite in one line: they create a bot without filing it under any company. Every seat call carried the company in its path, and an owner holding three of them saw their own seats split into three lists behind a picker that could not be turned off. The seat is spent against the owner's own licence; the company was only ever in the middle to answer whose licence, which the caller answers by being signed in. The picker is gone from both windows, the list is one unfiltered list, and thirteen calls lost the segment. An owner with no company at all can now seat a machine.
 - Show who is on a seat by name. The column headed "Гишүүн" printed an e-mail address, because the name was not published and reconstructing one from an address would have invented a person. The seat now carries the member's name, so the table fills from the list it already has rather than asking once per row.
