@@ -101,6 +101,38 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
             ?? throw new ArgumentNullException(nameof(authenticodeVerifier));
     }
 
+    /// <summary>
+    /// Records a refusal, then throws the same exception the caller has always
+    /// caught.
+    ///
+    /// 🔴 EnsureSuccessStatusCode() IS THE WORST OF THE THREE SHAPES THIS
+    /// PLATFORM LOSES REFUSALS IN. A funnel keeps the code and the sentence; a
+    /// silent empty list at least leaves the screen honest; this one throws a
+    /// bare HttpRequestException with the server's code AND the server's
+    /// sentence both destroyed, and nothing downstream can tell «your licence
+    /// expired» from «the update server is down». It sat on the update path,
+    /// where three separate diagnoses were made in one night.
+    ///
+    /// The behaviour is UNCHANGED - the same exception, the same callers. Only
+    /// the refusal now survives the throw.
+    /// </summary>
+    private static void RecordThenThrow(HttpResponseMessage response, string what)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            StudioBoundaryRefusals.Cleared(
+                StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri));
+            return;
+        }
+
+        StudioBoundaryRefusals.Note(
+            StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri),
+            "",
+            (int)response.StatusCode,
+            $"{what}: {(int)response.StatusCode} {response.ReasonPhrase}");
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<StudioUpdateLatestResponse> CheckAsync(CancellationToken cancellationToken = default)
     {
         Uri server = ResolveUpdateServer();
@@ -108,7 +140,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
         string version = Uri.EscapeDataString(StudioReleaseInfo.ApiVersion);
         Uri endpoint = new(server, $"api/updates/latest?productCode={product}&currentVersion={version}");
         using HttpResponseMessage response = await httpClient.GetAsync(endpoint, cancellationToken).ConfigureAwait(true);
-        response.EnsureSuccessStatusCode();
+        RecordThenThrow(response, "Шинэ хувилбарын мэдээллийг авч чадсангүй");
         await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
         StudioUpdateLatestResponse result = await JsonSerializer.DeserializeAsync<StudioUpdateLatestResponse>(
             body,
@@ -150,7 +182,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
                 downloadUri,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken).ConfigureAwait(true);
-            response.EnsureSuccessStatusCode();
+            RecordThenThrow(response, "Шинэ хувилбарыг татаж чадсангүй");
 
             long? total = response.Content.Headers.ContentLength;
             progress?.Report(new StudioUpdateProgress(total is > 0 ? 0 : null, "Шинэ хувилбарыг татаж байна..."));

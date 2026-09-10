@@ -134,10 +134,20 @@ internal sealed class StudioAdministrativeUnitCatalogue : IAdministrativeUnitCat
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
+                // This one already NAMES its reason on screen, which is more
+                // than the others did. The record is what lets somebody read it
+                // afterwards, on a machine they are not sitting at.
+                StudioBoundaryRefusals.Note(
+                    StudioBoundaryRoute.Symbol(route),
+                    "",
+                    (int)response.StatusCode,
+                    "Засаг захиргааны нэгжийн жагсаалт татагдсангүй: " +
+                    DescribeStatus(response.StatusCode));
                 Degrade(DescribeStatus(response.StatusCode));
                 return false;
             }
 
+            StudioBoundaryRefusals.Cleared(StudioBoundaryRoute.Symbol(route));
             body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

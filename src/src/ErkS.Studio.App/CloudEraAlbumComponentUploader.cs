@@ -127,6 +127,23 @@ internal static class CloudEraAlbumComponentUploader
             {
             }
 
+            // 🔴 THIS FILE REBUILT THE SERVICE'S FUNNEL - it reads the error
+            // body, keeps the code and writes a good sentence - and then let
+            // all of it end at the throw. The album routes are where the owner's
+            // real trouble lives, so these are exactly the refusals somebody
+            // needs to be able to read afterwards.
+            //
+            // Recorded here rather than by moving this onto the shared funnel:
+            // the 413 handling below names the actual files that were too big,
+            // which the shared one cannot do and should not learn to.
+            StudioBoundaryRefusals.Note(
+                StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri),
+                error?.Code ?? "",
+                (int)response.StatusCode,
+                string.IsNullOrWhiteSpace(error?.Message)
+                    ? $"Альбомын бүрдэл илгээгдсэнгүй: {(int)response.StatusCode} {response.ReasonPhrase}."
+                    : error!.Message);
+
             if ((int)response.StatusCode == 413)
             {
                 List<string> names = components
@@ -164,6 +181,12 @@ internal static class CloudEraAlbumComponentUploader
                 StudioCloudTraceIdentifier.Resolve(response, error),
                 error?.FieldErrors);
         }
+
+        // It worked, so whatever this route last refused with has stopped being
+        // true. Forgetting is bound to success everywhere else; this route
+        // reinvented the funnel, so it has to remember to forget too.
+        StudioBoundaryRefusals.Cleared(
+            StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri));
 
         StudioCloudAlbumRevision? value =
             await response.Content.ReadFromJsonAsync<StudioCloudAlbumRevision>(

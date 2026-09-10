@@ -71,9 +71,23 @@ internal sealed class StudioSiteImageCache : IDisposable
             using HttpResponseMessage response = await httpClient
                 .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(true);
+            // A missing picture is the mildest loss on this list - the screen is
+            // honest without it and nothing downstream is misled - so only the
+            // SERVER'S refusal is recorded here. The rejections below are this
+            // client's own rules (wrong type, too large, undecodable), and
+            // filing those as boundary refusals would bury the ones that matter
+            // under noise every time somebody's logo is a GIF.
             if (!response.IsSuccessStatusCode)
+            {
+                StudioBoundaryRefusals.Note(
+                    StudioBoundaryRoute.Symbol(uri),
+                    "",
+                    (int)response.StatusCode,
+                    $"Зураг татагдсангүй: {(int)response.StatusCode} {response.ReasonPhrase}.");
                 return null;
+            }
 
+            StudioBoundaryRefusals.Cleared(StudioBoundaryRoute.Symbol(uri));
             string contentType = response.Content.Headers.ContentType?.MediaType ?? "";
             if (contentType is not ("image/png" or "image/jpeg" or "image/webp"))
                 return null;

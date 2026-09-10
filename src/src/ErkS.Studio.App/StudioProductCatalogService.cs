@@ -176,12 +176,27 @@ internal sealed class StudioProductCatalogService : IDisposable
             using HttpResponseMessage response = await httpClient
                 .GetAsync(new Uri(SiteUrl + "/api/products/catalog"), cancellationToken)
                 .ConfigureAwait(true);
+            // 🔴 THE NULL IS THE RIGHT ANSWER AND A SILENT ONE. An empty
+            // catalogue is an honest screen - unlike a missing RULE, nothing
+            // downstream is misled by it - so the FALLBACK stays exactly as it
+            // was. What it lacked was a trace: a person looking at a blank
+            // catalogue had no way to learn whether the server refused, and
+            // neither did anybody helping them.
             if (!response.IsSuccessStatusCode)
+            {
+                StudioBoundaryRefusals.Note(
+                    StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri),
+                    "",
+                    (int)response.StatusCode,
+                    $"Бүтээгдэхүүний каталог татагдсангүй: {(int)response.StatusCode} {response.ReasonPhrase}.");
                 return null;
+            }
 
             await using Stream body = await response.Content
                 .ReadAsStreamAsync(cancellationToken)
                 .ConfigureAwait(true);
+            StudioBoundaryRefusals.Cleared(
+                StudioBoundaryRoute.Symbol(response.RequestMessage?.RequestUri));
             return await JsonSerializer
                 .DeserializeAsync<StudioCatalogResponse>(body, JsonOptions, cancellationToken)
                 .ConfigureAwait(true);
@@ -189,6 +204,11 @@ internal sealed class StudioProductCatalogService : IDisposable
         catch (Exception exception) when (
             exception is HttpRequestException or TaskCanceledException or JsonException or UriFormatException)
         {
+            StudioBoundaryRefusals.Note(
+                "api/products/catalog",
+                "",
+                0,
+                "Бүтээгдэхүүний каталог татагдсангүй: " + exception.GetType().Name + ".");
             return null;
         }
     }

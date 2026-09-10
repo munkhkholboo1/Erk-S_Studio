@@ -2370,17 +2370,50 @@ internal sealed class StudioAccountService :
                 BuildUri(session.ServerUrl, "/api/cloud-era/v1/capabilities"));
             using HttpResponseMessage response =
                 await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+
+            // 🔴 THE ONE ROUTE IN THIS SERVICE THAT DOES NOT PASS THROUGH THE
+            // FUNNEL, AND THE MOST CONSEQUENTIAL ONE TO LOSE. A refusal here
+            // returns «no rules», and «no rules» is what the client also gets
+            // when the server genuinely has none - so «I could not tell you my
+            // rules» and «I have no rules» arrive as the same value, and the
+            // client falls back to its own defaults without anybody knowing
+            // which of the two happened. On a platform whose standing principle
+            // is «keep the rules on the server», that is the single way to turn
+            // the principle off silently.
+            //
+            // The fallback itself is NOT changed here: today's only consumer
+            // handles the ambiguity correctly, keeping its default and asking
+            // again next time. What was missing is the record - so a machine
+            // running on its own defaults can at least be ASKED why.
             if (!response.IsSuccessStatusCode)
+            {
+                StudioBoundaryRefusals.Note(
+                    StudioBoundaryRoute.Symbol(request.RequestUri),
+                    "",
+                    (int)response.StatusCode,
+                    $"Cloud ERA server дүрмээ өгсөнгүй: {(int)response.StatusCode} {response.ReasonPhrase}. " +
+                    "Studio өөрийн анхдагч дүрмээр ажиллаж байна.");
                 return [];
+            }
 
             StudioServerRulesResponse? rules = await response.Content
                 .ReadFromJsonAsync<StudioServerRulesResponse>(JsonOptions, cancellationToken)
                 .ConfigureAwait(true);
+            StudioBoundaryRefusals.Cleared(StudioBoundaryRoute.Symbol(request.RequestUri));
             return rules?.Rules ?? [];
         }
         catch (Exception exception) when (
             exception is HttpRequestException or TaskCanceledException or JsonException)
         {
+            // A dropped network, a cancelled request, a body this build cannot
+            // parse. Same loss, same record: the client is about to run on its
+            // own rules and the reason has to survive somewhere.
+            StudioBoundaryRefusals.Note(
+                "api/cloud-era/v1/capabilities",
+                "",
+                0,
+                "Cloud ERA server дүрмээ өгсөнгүй: " + exception.GetType().Name +
+                ". Studio өөрийн анхдагч дүрмээр ажиллаж байна.");
             return [];
         }
     }
