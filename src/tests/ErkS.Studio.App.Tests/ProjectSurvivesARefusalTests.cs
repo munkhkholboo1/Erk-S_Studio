@@ -40,13 +40,104 @@ public sealed class ProjectSurvivesARefusalTests
     }
 
     [Fact]
-    public void THEVocabularyOfEndingsIsEMPTYAndThatIsTheMEASUREMENT()
+    public void THEVocabularyOfEndingsIsTHESERVERSToDeclare()
     {
-        // Not an oversight - a fact about the server, asserted so that adding a
-        // code here is a deliberate act with a test to answer to. The day SRV
-        // distinguishes «never heard of it» from «not yours» on this route, this
-        // test is the one that has to be updated on purpose.
-        Assert.Empty(StudioProjectAccessRefusal.CodesThatEndTheProject);
+        // 🔴 THE FIRST VERSION OF THIS TEST ASSERTED EMPTINESS FROM MY OWN
+        // READING OF THE SERVER'S SOURCE. That is the client deciding what the
+        // server means, which is exactly the mistake the whole family is made
+        // of. The vocabulary belongs to the server, so the list is held to the
+        // SERVER'S OWN CONTRACT instead - SRV classified all 76 refusal codes
+        // the project routes can produce into «retry», «stop and show» and
+        // «destroy local state», and the third group is empty.
+        //
+        // Derived, so the day SRV puts a code in that group this test goes red
+        // and the client has to answer for it, rather than the contract and the
+        // client quietly disagreeing.
+        IReadOnlyList<string> declared = CodesInGroupThree();
+
+        Assert.Equal(
+            declared.Order(StringComparer.Ordinal),
+            StudioProjectAccessRefusal.CodesThatEndTheProject.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void THEContractReaderCanACTUALLYFindCodes()
+    {
+        // 🔴 THE POSITIVE CONTROL FOR THE TEST ABOVE. It compares an empty list
+        // with an empty list, and a parser that finds nothing anywhere would
+        // satisfy it forever - including after SRV fills the group in. So the
+        // same parser is pointed at a group that IS populated, and has to come
+        // back with the codes the contract names there.
+        IReadOnlyList<string> retryable = CodesInGroup("### Бүлэг 1");
+
+        Assert.Contains("project_concurrency_conflict", retryable);
+        Assert.Contains("album_revision_conflict", retryable);
+        Assert.True(retryable.Count >= 10, "the contract reader found only " + retryable.Count + " codes");
+    }
+
+    private static IReadOnlyList<string> CodesInGroupThree() => CodesInGroup("### Бүлэг 3");
+
+    /// <summary>
+    /// The refusal codes the server's contract lists under <paramref name="heading"/>.
+    ///
+    /// Read from the fenced block that follows the heading. The contract writes
+    /// «(хоосон)» for a group with no members, which yields no codes - and a
+    /// code added there yields one.
+    /// </summary>
+    private static IReadOnlyList<string> CodesInGroup(string heading)
+    {
+        string contract = ReadServerContract();
+        int at = contract.IndexOf(heading, StringComparison.Ordinal);
+        Assert.True(at > 0, heading + " is not in the server's contract");
+
+        int open = contract.IndexOf("```", at, StringComparison.Ordinal);
+        Assert.True(open > at, "the group carries no fenced block");
+        int close = contract.IndexOf("```", open + 3, StringComparison.Ordinal);
+        Assert.True(close > open, "the fenced block is not closed");
+
+        var codes = new List<string>();
+        foreach (string word in contract[(open + 3)..close]
+            .Split([' ', '\n', '\r', '\t', '·'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            // A refusal code: lower-case words joined by underscores. Statuses,
+            // counts and the contract's Mongolian prose all fail this.
+            if (word.Length >= 5 &&
+                word.Contains('_', StringComparison.Ordinal) &&
+                word.All(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_') &&
+                !codes.Contains(word, StringComparer.Ordinal))
+            {
+                codes.Add(word);
+            }
+        }
+        return codes;
+    }
+
+    /// <summary>
+    /// The server's project-route contract, found beside the products rather
+    /// than inside this one - it is SRV's document and both sides read it.
+    /// </summary>
+    private static string ReadServerContract()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string shared = Path.Combine(directory.FullName, "_shared");
+            if (Directory.Exists(shared))
+            {
+                // Newest by name: the contracts carry their date, and a later
+                // one supersedes rather than amends.
+                FileInfo? contract = new DirectoryInfo(shared)
+                    .GetFiles("project-route-response-contract-*.md")
+                    .OrderBy(file => file.Name, StringComparer.Ordinal)
+                    .LastOrDefault();
+                if (contract is not null)
+                    return File.ReadAllText(contract.FullName, Encoding.UTF8);
+            }
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("the server's project-route contract was not found beside the products");
+        return "";
     }
 
     [Fact]
