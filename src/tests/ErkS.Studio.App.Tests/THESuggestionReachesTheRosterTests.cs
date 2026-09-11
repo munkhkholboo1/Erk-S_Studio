@@ -48,8 +48,15 @@ public sealed class THESuggestionReachesTheRosterTests
             "directory.Officials(unitCode)",
             "OfficialsProposal.For(",
             "OfficialsProposalPlan.For(",
-            "ReplaceApprovalRows(ApprovalRosterKind.ConcurredBy",
-            "ReplaceApprovalRows(ApprovalRosterKind.ReviewedBy",
+
+            // 🔴 THE CALL AND ITS ARGUMENT, NOT THE TWO GLUED TOGETHER. Written
+            // as «ReplaceApprovalRows(ApprovalRosterKind.ConcurredBy», this went
+            // red when the call was wrapped across two lines - a formatting
+            // change that altered nothing. An anchor that breaks on whitespace
+            // trains the next person to loosen it rather than read it.
+            "ReplaceApprovalRows(",
+            "ApprovalRosterKind.ConcurredBy,",
+            "ApprovalRosterKind.ReviewedBy,",
         })
         {
             Assert.Contains(link, body, StringComparison.Ordinal);
@@ -99,6 +106,50 @@ public sealed class THESuggestionReachesTheRosterTests
 
         Assert.Contains("unitCode.Length == 0", body, StringComparison.Ordinal);
         Assert.Contains("сум, дүүрэг сонгогдоогүй", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEThreeWaysForNothingToHappenAreSEPARATESentences()
+    {
+        // 🔴 THEY ARE FIXED IN THREE DIFFERENT PLACES. «No district on the
+        // address» is corrected on the project; «the directory is empty» is
+        // corrected on the Companies page - and the sentence says where; «nobody
+        // serves this district» is a real answer and nothing to fix. Merged into
+        // one line, none of them tells anybody what to do next.
+        string body = MethodBody(
+            ReadAppSource("ShellView.Approvals.cs"),
+            "private void SuggestApprovalsFromAddress()");
+
+        Assert.Contains("unitCode.Length == 0", body, StringComparison.Ordinal);
+        Assert.Contains(
+            "if (directory.UnavailableReasonMn.Length > 0)",
+            body,
+            StringComparison.Ordinal);
+        Assert.Contains("Албан тушаалтны лавлах", body, StringComparison.Ordinal);
+        Assert.Contains("OfficialsProposalPlan.DescribeMn(outcomes)", body, StringComparison.Ordinal);
+
+        // Each of the first two ends the method, or they would pile onto the
+        // third and the person would read two answers at once.
+        int directoryBranch = body.IndexOf(
+            "if (directory.UnavailableReasonMn.Length > 0)",
+            StringComparison.Ordinal);
+        int describe = body.IndexOf("DescribeMn(outcomes)", StringComparison.Ordinal);
+        Assert.True(describe > directoryBranch, "the branches no longer come first");
+        Assert.Contains("return;", body[directoryBranch..describe], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SUGGESTIONSFillEmptyPlacesAndNeverOverwrite()
+    {
+        // 🔴 THE AUTOMATIC SITS UNDER THE MANUAL CHOICE. The rows go through the
+        // fill rule, which leaves anything written where it is; appending them
+        // directly would also have worked - until the day it did not.
+        string body = MethodBody(
+            ReadAppSource("ShellView.Approvals.cs"),
+            "private void SuggestApprovalsFromAddress()");
+
+        Assert.Contains("OfficialsRosterFill.Apply(concurred, addedConcurred)", body, StringComparison.Ordinal);
+        Assert.Contains("OfficialsRosterFill.Apply(reviewed, addedReviewed)", body, StringComparison.Ordinal);
     }
 
     [Fact]

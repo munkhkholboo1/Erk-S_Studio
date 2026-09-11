@@ -66,9 +66,14 @@ public static class OfficialsProposalPlan
         // «capped» changed nothing, because nothing looked. The asymmetry is the
         // rule here, so it is written as an asymmetry rather than as a parameter
         // that quietly means nothing on one side.
+        //
+        // 🔴 OCCUPIED PLACES, NOT ROWS. The editor adds blank rows when somebody
+        // presses «add», and counting those as occupants makes a table that looks
+        // EMPTY on screen refuse a suggestion for having no room - an answer
+        // nobody could make sense of while staring at two blank lines.
         int reviewedRoom = Math.Max(
             0,
-            ProjectApprovalRosterLimits.MaxReviewedBy - (reviewedBy?.Count ?? 0));
+            ProjectApprovalRosterLimits.MaxReviewedBy - OfficialsRosterFill.OccupiedCount(reviewedBy));
 
         foreach (OfficialsProposalRow row in proposed)
         {

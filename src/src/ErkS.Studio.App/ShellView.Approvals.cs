@@ -149,28 +149,48 @@ internal sealed partial class ShellView
             concurred,
             reviewed);
 
+        // 🔴 THREE WAYS FOR NOTHING TO HAPPEN, AND THEY ARE FIXED IN THREE
+        // DIFFERENT PLACES. Two of them are the person's to correct - the address,
+        // or the directory - and the third is a real answer about this district.
+        // Merged into one sentence, none of them tells anybody what to do next.
+        if (directory.UnavailableReasonMn.Length > 0)
+        {
+            SetStatus(
+                directory.UnavailableReasonMn +
+                " Компани хуудсан дээрх «Албан тушаалтны лавлах»-аас бөглөнө.");
+            return;
+        }
+
+        List<ProjectApprovalEntry> addedConcurred = [];
+        List<ProjectApprovalEntry> addedReviewed = [];
         foreach (OfficialsProposalOutcome outcome in outcomes)
         {
             if (!outcome.WasAdded)
                 continue;
 
             if (outcome.Block == OfficialsBlock.ReviewedBy)
-                reviewed.Add(outcome.Entry.ToApprovalEntry());
+                addedReviewed.Add(outcome.Entry.ToApprovalEntry());
             else
-                concurred.Add(outcome.Entry.ToApprovalEntry());
+                addedConcurred.Add(outcome.Entry.ToApprovalEntry());
         }
 
-        ReplaceApprovalRows(ApprovalRosterKind.ConcurredBy, concurred);
-        ReplaceApprovalRows(ApprovalRosterKind.ReviewedBy, reviewed);
+        // 🔴 EMPTY PLACES ARE FILLED; WHAT SOMEBODY TYPED IS NEVER TOUCHED.
+        // The automatic sits under the manual choice, so a written row cannot be
+        // overwritten by a suggestion - and a blank row is a PLACE, which is why
+        // pressing this after adding two blank rows fills them instead of
+        // producing four.
+        ReplaceApprovalRows(
+            ApprovalRosterKind.ConcurredBy,
+            OfficialsRosterFill.Apply(concurred, addedConcurred));
+        ReplaceApprovalRows(
+            ApprovalRosterKind.ReviewedBy,
+            OfficialsRosterFill.Apply(reviewed, addedReviewed));
         RefreshConceptApprovalEditorUi();
 
-        // 🔴 THE DIRECTORY'S OWN TROUBLES REACH THE PERSON HERE TOO. «Nobody
-        // found» and «the directory would not read» look identical from this
-        // screen, and only one of them is about the address.
-        string trouble = directory.UnavailableReasonMn.Length > 0
-            ? " " + directory.UnavailableReasonMn
-            : directory.LossMn.Length > 0 ? " " + directory.LossMn : "";
-        SetStatus(OfficialsProposalPlan.DescribeMn(outcomes) + trouble);
+        // A directory that lost rows on the way in is a third thing again: the
+        // answer may be right and incomplete, and only its own sentence says so.
+        string loss = directory.LossMn.Length > 0 ? " " + directory.LossMn : "";
+        SetStatus(OfficialsProposalPlan.DescribeMn(outcomes) + loss);
     }
 
     private static Grid BuildApprovalColumnHeader(ApprovalRosterKind kind)
