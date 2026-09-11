@@ -1,4 +1,4 @@
-﻿namespace ErkS.Platform.Core;
+namespace ErkS.Platform.Core;
 
 /// <summary>
 /// The 2026 concept-cover layout, measured off the DWG the user supplied.

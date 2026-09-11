@@ -1,4 +1,4 @@
-﻿namespace ErkS.Studio;
+namespace ErkS.Studio;
 
 /// <summary>What a profile row asks for before it will let somebody in.</summary>
 internal enum StudioProfileCredential

@@ -1,4 +1,4 @@
-﻿using ErkS.Studio;
+using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
 

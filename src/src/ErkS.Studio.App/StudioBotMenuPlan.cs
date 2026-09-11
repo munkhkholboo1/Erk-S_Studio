@@ -1,4 +1,4 @@
-﻿namespace ErkS.Studio;
+namespace ErkS.Studio;
 
 /// <summary>What the account menu offers about bot seats.</summary>
 internal enum BotMenuEntry

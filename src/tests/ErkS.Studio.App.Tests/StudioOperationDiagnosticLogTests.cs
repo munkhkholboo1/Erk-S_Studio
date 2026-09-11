@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;

@@ -1,4 +1,4 @@
-﻿namespace ErkS.Platform.Core;
+namespace ErkS.Platform.Core;
 
 /// <summary>
 /// Why a proposed official did not reach the roster.

@@ -1,4 +1,4 @@
-﻿namespace ErkS.Platform.Core;
+namespace ErkS.Platform.Core;
 
 /// <summary>
 /// What happened the last time the album could have been drawn.

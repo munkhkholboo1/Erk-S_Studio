@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using ErkS.Platform.Core;
 using ErkS.Platform.Contracts;
 using PdfSharp.Drawing;

@@ -1,4 +1,4 @@
-﻿using ErkS.Platform.Contracts;
+using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Platform.Core.ProjectTypes.UrbanPlanning;
 using ErkS.Platform.Pdf;

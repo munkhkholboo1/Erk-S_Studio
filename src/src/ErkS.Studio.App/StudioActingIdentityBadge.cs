@@ -1,4 +1,4 @@
-﻿namespace ErkS.Studio;
+namespace ErkS.Studio;
 
 /// <summary>
 /// What the masthead says about WHO IS ACTING right now.

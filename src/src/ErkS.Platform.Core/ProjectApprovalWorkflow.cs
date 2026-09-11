@@ -1,4 +1,4 @@
-﻿namespace ErkS.Platform.Core;
+namespace ErkS.Platform.Core;
 
 /// <summary>
 /// Project-document approval metadata. These entries describe what is printed

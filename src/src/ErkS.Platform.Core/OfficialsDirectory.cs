@@ -1,4 +1,4 @@
-﻿namespace ErkS.Platform.Core;
+namespace ErkS.Platform.Core;
 
 /// <summary>
 /// The kind of body an official belongs to.

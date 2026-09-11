@@ -1,4 +1,4 @@
-﻿using ErkS.Platform.Core;
+using ErkS.Platform.Core;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 

@@ -1,4 +1,4 @@
-﻿namespace ErkS.Studio;
+namespace ErkS.Studio;
 
 /// <summary>
 /// Where «Нэвтрэх» goes.
