@@ -1305,6 +1305,23 @@ internal sealed class StudioCloudBotAssignment
 
     public List<string> Roles { get; set; } = [];
     public DateTimeOffset AssignedAtUtc { get; set; }
+
+    /// <summary>
+    /// Who appointed this seat, by ADDRESS - and NOTHING READS IT (measured
+    /// 2026-09-12: the only occurrence in this repository is this declaration).
+    ///
+    /// 🔴 KEPT, BUT NOT NEUTRAL. An unread field reads as «available» to the
+    /// next person who needs an appointer, and the obvious move - putting it in
+    /// the assignment table - prints an e-mail address where a person's name
+    /// belongs, which the owner has rejected outright: «НЭРЭЭР, имэйлээр БИШ».
+    /// The assignment table's own column was headed «Томилсон» while carrying a
+    /// date, and this field is why that looked like an oversight rather than a
+    /// decision.
+    ///
+    /// So the appointer is NOT shown, and the way to show one is for the server
+    /// to publish an appointer NAME - not for this side to fall back on an
+    /// address. Nobody has asked for it, so nobody has asked SRV for the field.
+    /// </summary>
     public string AssignedByEmail { get; set; } = "";
 }
 

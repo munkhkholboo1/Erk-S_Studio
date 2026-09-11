@@ -272,11 +272,22 @@ internal sealed class BotSeatManagementDialog : Window
                 item.AssignmentId.Equals(row.AssignmentId, StringComparison.OrdinalIgnoreCase))
             : null;
 
+    /// <summary>
+    /// 🔴 THE LAST FIELD IS A DATE AND USED TO BE CALLED «Assigned», UNDER A
+    /// COLUMN HEADED «Томилсон» - which names a PERSON. The label disagreed with
+    /// its own data: a reader scanning for who appointed this seat found a date,
+    /// and the name gave them no reason to doubt what they were looking at.
+    ///
+    /// Renamed rather than re-filled. Showing the appointer would mean printing
+    /// <see cref="StudioCloudBotAssignment.AssignedByEmail"/>, and an address in
+    /// a name slot is precisely what the owner rejected; the server publishes no
+    /// appointer NAME. So the honest fix is the one that invents nothing.
+    /// </summary>
     private sealed record AssignmentRow(
         string AssignmentId,
         string Project,
         string Roles,
-        string Assigned);
+        string AssignedOn);
 
     /// <summary>
     /// 🔴 AN OWNER WITH THREE COMPANIES SAW THEIR SEATS SPLIT INTO THREE LISTS,
@@ -378,7 +389,7 @@ internal sealed class BotSeatManagementDialog : Window
         var assignmentView = new GridView();
         assignmentView.Columns.Add(new GridViewColumn { Header = "Төсөл", Width = 300, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.Project)) });
         assignmentView.Columns.Add(new GridViewColumn { Header = "Үүрэг", Width = 250, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.Roles)) });
-        assignmentView.Columns.Add(new GridViewColumn { Header = "Томилсон", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.Assigned)) });
+        assignmentView.Columns.Add(new GridViewColumn { Header = "Томилсон огноо", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(AssignmentRow.AssignedOn)) });
         assignmentList.View = assignmentView;
         assignmentList.SelectionChanged += (_, _) => RefreshAssignmentActions();
 
@@ -485,11 +496,14 @@ internal sealed class BotSeatManagementDialog : Window
                 await account.ListBotAssignmentsAsync(Selected.BotId);
             assignments = [.. response.Assignments];
             assignmentList.ItemsSource = assignments
+                // Every argument named. Four strings in a row is how a field once
+                // landed one slot early in SeatRow with the compiler silent about
+                // it - a compile error beats a test, and naming buys one.
                 .Select(item => new AssignmentRow(
-                    item.AssignmentId,
-                    string.IsNullOrWhiteSpace(item.ProjectName) ? item.ProjectId : item.ProjectName,
-                    item.Roles.Count == 0 ? "—" : string.Join(", ", item.Roles),
-                    item.AssignedAtUtc.ToLocalTime().ToString("yyyy-MM-dd")))
+                    AssignmentId: item.AssignmentId,
+                    Project: string.IsNullOrWhiteSpace(item.ProjectName) ? item.ProjectId : item.ProjectName,
+                    Roles: item.Roles.Count == 0 ? "—" : string.Join(", ", item.Roles),
+                    AssignedOn: item.AssignedAtUtc.ToLocalTime().ToString("yyyy-MM-dd")))
                 .ToList();
             // Nothing assigned is an answer, not an empty screen to wonder at.
             assignmentSummary.Text = assignments.Count == 0
