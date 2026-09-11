@@ -78,7 +78,28 @@ internal sealed class BotSeatCreateDialog : Window
         var warning = new StackPanel { Margin = new Thickness(0, 12, 0, 8) };
         warning.Children.Add(StudioWidgets.CreateSectionHeader("Энэ төхөөрөмж бот болмогц"));
         warning.Children.Add(StudioWidgets.CreateText("• таны нэвтрэлт энэ машинаас УСТАНА"));
-        warning.Children.Add(StudioWidgets.CreateText("• буцаах ганц зам нь дахин нэвтрэх"));
+
+        // 🔴 THIS LINE PROMISED SOMETHING SIGNING IN DOES NOT DO, AND A PERSON
+        // ACTED ON IT FOR A DAY. It said «буцаах ганц зам нь дахин нэвтрэх» -
+        // the only way back is to sign in again. Signing in again gives the
+        // OWNER their session back beside the seat; the machine stays seated.
+        // The device seat record is erased in exactly two places, and neither
+        // is on the sign-in path - see BotStateExitPromiseTests.
+        //
+        // The owner did sign in, saw themselves signed in, and their machine was
+        // still a seat - so their projects were filtered away and every sync
+        // went up as the bot. They said it exactly: «яг үнэндээ бот төлөвөөсөө
+        // хэзээ ч гараагүй».
+        //
+        // The code is the deliberate half - an owner must be able to work beside
+        // a seat without giving it up - so the SENTENCE is what was wrong. It
+        // now names the action that actually does it, and
+        // BotStateExitPromiseTests holds the two together.
+        warning.Children.Add(StudioWidgets.CreateText(
+            "• дахин нэвтрэхэд эзэмшигчийн эрх сэргэнэ, гэхдээ машин суудалд ХЭВЭЭР үлдэнэ"));
+        warning.Children.Add(StudioWidgets.CreateText(
+            "• бүрэн гаргах ганц зам: бүртгэлийн цэсээс " +
+            "«Ботын суудлыг сулалж, төхөөрөмжийг чөлөөлөх»"));
         warning.Children.Add(StudioWidgets.CreateText("• энэ машины хувийн төслүүд ботын төлөвт үл харагдана"));
         panel.Children.Add(StudioWidgets.CreateCard(warning));
 
