@@ -38,13 +38,14 @@ public enum OfficialsBlock
     ConcurredBy,
 
     /// <summary>
-    /// ХЯНАСАН - the right-hand table of the upper pair.
+    /// ХЯНАСАН - the right-hand table of the upper pair, stored in
+    /// ConceptDesign.ReviewedBy.
     ///
-    /// 🔴 THIS BLOCK HAS NOWHERE TO BE STORED. The sheet draws it EMPTY and says
-    /// so at the drawing site: there is no roster list behind it, and the nearest
-    /// neighbour - ЗӨВШӨӨРӨЛЦСӨН - means something else. So an official resolved
-    /// into this block today can be found but not kept. That is a named gap with
-    /// a test on it, not a silent drop.
+    /// 🔴 THIS BLOCK HAD NOWHERE TO BE STORED UNTIL 2026-09-12. The sheet drew it
+    /// empty and said so; an official resolved into it could be found and not
+    /// kept, and the test that named the gap is the one that went red when the
+    /// list arrived. That is what a named gap is for - the change finishes where
+    /// the gap was recorded, instead of being discovered somewhere downstream.
     /// </summary>
     ReviewedBy,
 }
@@ -293,23 +294,20 @@ public static class OfficialsProposal
     /// </summary>
     /// <param name="found">What the directory answered for the address's code.</param>
     /// <param name="concurredBy">The ЗӨВШИЛЦСӨН rows the project already carries.</param>
+    /// <param name="reviewedBy">The ХЯНАСАН rows the project already carries.</param>
     public static IReadOnlyList<OfficialsProposalRow> For(
         IReadOnlyList<OfficialsDirectoryEntry>? found,
-        IReadOnlyList<ProjectApprovalEntry>? concurredBy)
+        IReadOnlyList<ProjectApprovalEntry>? concurredBy,
+        IReadOnlyList<ProjectApprovalEntry>? reviewedBy = null)
     {
         if (found is null || found.Count == 0)
             return [];
 
-        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (ProjectApprovalEntry entry in concurredBy ?? [])
-        {
-            if (entry is null)
-                continue;
-
-            string organisation = (entry.OrganizationName ?? "").Trim();
-            if (organisation.Length > 0)
-                present.Add(organisation);
-        }
+        // 🔴 EACH BLOCK IS ASKED ABOUT ITS OWN LIST. One combined set would let
+        // an organisation entered on one table silence the offer on the other,
+        // and the two tables are different questions about the same body.
+        HashSet<string> concurring = Organisations(concurredBy);
+        HashSet<string> reviewing = Organisations(reviewedBy);
 
         var rows = new List<OfficialsProposalRow>(found.Count);
         foreach (OfficialsDirectoryEntry entry in found)
@@ -318,31 +316,51 @@ public static class OfficialsProposal
                 continue;
 
             OfficialsBlock block = BlockFor(entry.Kind);
+            HashSet<string> present = block switch
+            {
+                OfficialsBlock.ConcurredBy => concurring,
+                OfficialsBlock.ReviewedBy => reviewing,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(found),
+                    block,
+                    "Энэ хүснэгтийн одоогийн мөрүүдийг хаанаас уншихыг шийдээгүй байна."),
+            };
 
-            // 🔴 ONLY THE BLOCK THAT HAS A LIST CAN BE «ALREADY PRESENT».
-            // ХЯНАСАН has nowhere to store a row, so nothing can be there to
-            // find; reporting it as present would say the work is done.
-            bool alreadyPresent =
-                block == OfficialsBlock.ConcurredBy &&
-                present.Contains((entry.OrganizationName ?? "").Trim());
-
-            rows.Add(new OfficialsProposalRow(entry.Clone(), block, alreadyPresent));
+            rows.Add(new OfficialsProposalRow(
+                entry.Clone(),
+                block,
+                present.Contains((entry.OrganizationName ?? "").Trim())));
         }
 
         return rows;
     }
 
+    private static HashSet<string> Organisations(IReadOnlyList<ProjectApprovalEntry>? entries)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (ProjectApprovalEntry entry in entries ?? [])
+        {
+            string organisation = (entry?.OrganizationName ?? "").Trim();
+            if (organisation.Length > 0)
+                names.Add(organisation);
+        }
+
+        return names;
+    }
+
     /// <summary>
     /// Whether a proposed row can actually be kept if somebody accepts it.
     ///
-    /// 🔴 THE HONEST ANSWER IS «NOT ALL OF THEM». ХЯНАСАН is drawn on the sheet
-    /// and stored nowhere, so two of the four rows the design names cannot be
-    /// saved yet. Naming that here keeps the screen from offering a button that
-    /// does nothing.
+    /// 🔴 THE ANSWER WAS «NOT ALL OF THEM» AND IS NOW «ALL OF THEM». ХЯНАСАН was
+    /// drawn on the sheet and stored nowhere, so two of the four rows the design
+    /// names could be found and not saved; this method existed to keep a screen
+    /// from offering a button that did nothing. Both tables now have lists, so it
+    /// answers true throughout - and it stays, because the next block added to
+    /// the sheet will arrive the same way: drawn first, stored later.
     /// </summary>
     public static bool CanBeStored(OfficialsProposalRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        return row.Block == OfficialsBlock.ConcurredBy;
+        return row.Block is OfficialsBlock.ConcurredBy or OfficialsBlock.ReviewedBy;
     }
 }

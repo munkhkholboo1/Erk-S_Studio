@@ -209,43 +209,107 @@ public sealed class THEAddressOffersTheOfficialsTests
     }
 
     [Fact]
-    public void AREVIEWEDRowCanBeFoundButNOTYETKept()
+    public void EVERYProposedRowCanNowBeKept()
     {
-        // 🔴 THE GAP, ASSERTED RATHER THAN DESCRIBED. ХЯНАСАН is drawn on the
-        // concept cover and stored NOWHERE - the writer says so where it draws
-        // the table empty. So two of the four rows the design names can be
-        // resolved and not saved. A screen that offered to accept them would
-        // have a button that does nothing.
-        //
-        // When a ХЯНАСАН list exists, this test goes red and is the place the
-        // change is finished, not the place it is discovered.
+        // 🔴 THIS TEST USED TO ASSERT THE OPPOSITE, AND THAT IS WHY IT IS HERE.
+        // ХЯНАСАН was drawn on the cover and stored NOWHERE, so two of the four
+        // rows the design names could be resolved and not saved. The gap was
+        // written down as a failing condition rather than a comment, and when
+        // ConceptDesign.ReviewedBy arrived on 2026-09-12 this went red - which is
+        // the change finishing where the gap was recorded, instead of being
+        // discovered by somebody's empty sheet.
         IReadOnlyList<OfficialsProposalRow> rows =
             OfficialsProposal.For(Directory().Officials(Bayangol), []);
 
-        OfficialsProposalRow urban = Assert.Single(
-            rows, row => row.Block == OfficialsBlock.ReviewedBy);
-        Assert.False(OfficialsProposal.CanBeStored(urban));
-
-        Assert.All(
-            rows.Where(row => row.Block == OfficialsBlock.ConcurredBy),
-            row => Assert.True(OfficialsProposal.CanBeStored(row)));
+        Assert.All(rows, row => Assert.True(OfficialsProposal.CanBeStored(row)));
+        Assert.Contains(rows, row => row.Block == OfficialsBlock.ReviewedBy);
     }
 
     [Fact]
-    public void AREVIEWEDRowIsNeverCalledALREADYPresent()
+    public void EACHTableIsAskedAboutITSOWNRows()
     {
-        // It has nowhere to be, so nothing can be found there. Saying «already
-        // present» about a row that was never stored would report the work done.
-        var everything = new List<ProjectApprovalEntry>
+        // 🔴 ONE COMBINED SET WOULD SILENCE THE WRONG OFFER. The two tables ask
+        // different questions about the same bodies, so an organisation typed
+        // into ЗӨВШИЛЦСӨН must not report the ХЯНАСАН row as already handled.
+        var concurred = new List<ProjectApprovalEntry>
         {
             new() { OrganizationName = "Баянгол дүүргийн Хот байгуулалтын алба" },
         };
 
         IReadOnlyList<OfficialsProposalRow> rows =
-            OfficialsProposal.For(Directory().Officials(Bayangol), everything);
+            OfficialsProposal.For(Directory().Officials(Bayangol), concurred, reviewedBy: []);
 
         Assert.False(
-            rows.Single(row => row.Block == OfficialsBlock.ReviewedBy).AlreadyPresent);
+            Assert.Single(rows, row => row.Block == OfficialsBlock.ReviewedBy).AlreadyPresent,
+            "a row on the other table was taken for this one");
+
+        // And the mirror: the same name on the RIGHT table does mark it.
+        IReadOnlyList<OfficialsProposalRow> mirrored =
+            OfficialsProposal.For(Directory().Officials(Bayangol), [], reviewedBy: concurred);
+
+        Assert.True(
+            Assert.Single(mirrored, row => row.Block == OfficialsBlock.ReviewedBy).AlreadyPresent);
+        Assert.All(
+            mirrored.Where(row => row.Block == OfficialsBlock.ConcurredBy),
+            row => Assert.False(row.AlreadyPresent));
+    }
+
+    [Fact]
+    public void APROJECTWithNoReviewersReadsAsEmptyAndIsNotMigrated()
+    {
+        // Additive only: a roster that has never heard of this list answers with
+        // an empty one, and nothing is moved into it from a neighbour.
+        var roster = new ConceptDesignApprovalRoster();
+        roster.Normalize();
+
+        Assert.Empty(roster.ReviewedBy);
+        Assert.Empty(roster.ConcurredBy);
+
+        // A row on a neighbouring list stays on that list.
+        roster.EndorsedBy.Add(new ProjectApprovalEntry { OrganizationName = "Хөрш" });
+        roster.Normalize();
+
+        Assert.Empty(roster.ReviewedBy);
+        Assert.Single(roster.EndorsedBy);
+    }
+
+    [Fact]
+    public void AREVIEWERSurvivesACloneLikeEveryOtherRow()
+    {
+        // A list that is stored but not copied is lost the first time a project
+        // is duplicated - silently, because nothing else about it changes.
+        var roster = new ConceptDesignApprovalRoster();
+        roster.ReviewedBy.Add(new ProjectApprovalEntry
+        {
+            OrganizationName = "Хот байгуулалтын алба",
+            PositionTitle = "Мэргэжилтэн",
+            PersonName = "Тест",
+        });
+
+        ConceptDesignApprovalRoster copy = roster.Clone();
+        ProjectApprovalEntry copied = Assert.Single(copy.ReviewedBy);
+
+        Assert.Equal("Хот байгуулалтын алба", copied.OrganizationName);
+
+        // A copy, not the same object: editing one project must not edit another.
+        copied.PersonName = "Өөрчлөв";
+        Assert.Equal("Тест", roster.ReviewedBy[0].PersonName);
+    }
+
+    [Fact]
+    public void ATHIRDReviewerIsNOTThrownAwayOnSave()
+    {
+        // 🔴 TWO IS WHAT THE SHEET DRAWS, NOT WHAT THE STORE ENFORCES. Silently
+        // dropping a third row on normalise would destroy somebody's typing at
+        // save time, which is worse than a row that does not fit: the cap belongs
+        // where rows are entered, in sight of the person entering them.
+        var roster = new ConceptDesignApprovalRoster();
+        for (var index = 0; index < 3; index++)
+            roster.ReviewedBy.Add(new ProjectApprovalEntry { OrganizationName = "Гурав " + index });
+
+        roster.Normalize();
+
+        Assert.Equal(3, roster.ReviewedBy.Count);
     }
 
     [Fact]

@@ -239,12 +239,26 @@ public sealed partial class PdfSharpAlbumWriter
             layout.TablesLeftMm,
             layout.TablesMiddleMm,
             "ЗӨВШИЛЦСӨН.",
-            concurring);
+            concurring,
+            // ⚠ ONE, WHICH IS NOT THE DRAWING'S THREE. Left as it was: how many
+            // lines this side prints when nobody has filled it is part of the
+            // varying-row question the owner deferred (№24), and answering it
+            // here in passing would settle it without a drawing.
+            drawnRowMinimum: 1);
 
-        // 🔴 ХЯНАСАН has no roster on this side yet. The table is drawn empty
-        // rather than filled from a neighbouring list: ЗӨВШӨӨРӨЛЦСӨН is the
-        // nearest thing and means something else, and a form printed with the
-        // wrong parties is worse than one printed blank for signing.
+        // 🔴 ХЯНАСАН NOW HAS A ROSTER OF ITS OWN, AND STILL BORROWS NOBODY'S.
+        // This table was drawn empty for as long as there was nowhere to store
+        // its rows - the right answer then, because ЗӨВШӨӨРӨЛЦСӨН is the nearest
+        // list and means something else, and a form printed with the wrong
+        // parties is worse than one printed blank for signing. What was missing
+        // was a list, not a fallback.
+        //
+        // Two rows, drawn whether or not anybody has filled them: the drawing has
+        // two and the owner named two people. An unfilled row is a line to sign,
+        // which is what the paper form is for.
+        IReadOnlyList<ProjectApprovalEntry> reviewing =
+            project.ApprovalWorkflow.ConceptDesign.ReviewedBy;
+
         DrawConceptCover2026UpperTable(
             gfx,
             pen,
@@ -252,7 +266,9 @@ public sealed partial class PdfSharpAlbumWriter
             layout.TablesMiddleMm,
             layout.TablesRightMm,
             "ХЯНАСАН.",
-            []);
+            reviewing,
+            // Two, from the measured sheet: rightRowHeightsMm is [20.0, 20.0].
+            drawnRowMinimum: ConceptCoverSheetGrid.MeasuredUpperRowHeightsForTwo.Count);
     }
 
     private static void DrawConceptCover2026UpperTable(
@@ -262,7 +278,8 @@ public sealed partial class PdfSharpAlbumWriter
         double leftMm,
         double rightMm,
         string label,
-        IReadOnlyList<ProjectApprovalEntry> rows)
+        IReadOnlyList<ProjectApprovalEntry> rows,
+        int drawnRowMinimum)
     {
         double top = layout.UpperTopMm;
         double bottom = layout.UpperBottomMm;
@@ -279,7 +296,12 @@ public sealed partial class PdfSharpAlbumWriter
 
         // An empty table still has its rows: the sheet is signed by hand, so a
         // party with no name recorded needs a line to sign on.
-        int rowCount = Math.Max(1, rows.Count);
+        //
+        // 🔴 HOW MANY LINES IS THE DRAWING'S ANSWER, NOT THE ROSTER'S. This used
+        // to be Math.Max(1, ...) for both tables, so an empty ХЯНАСАН printed ONE
+        // line where the measured sheet has TWO - invisible while the table had
+        // no roster at all and nobody looked at how many lines it drew empty.
+        int rowCount = Math.Max(Math.Max(1, drawnRowMinimum), rows.Count);
         IReadOnlyList<double> boundaries = layout.UpperRowBoundaries(rowCount);
         for (int index = 0; index < rowCount; index++)
         {

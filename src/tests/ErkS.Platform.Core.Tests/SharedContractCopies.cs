@@ -22,6 +22,19 @@ internal static class SharedContractCopies
     public const string AdministrativeDivisions = "mongolia-admin-divisions-contract-2026-09-06.json";
     public const string EnvelopeSample = "mongolia-admin-divisions-envelope-sample.json";
 
+    /// <summary>The owner's measured A3 concept cover: frame, tables, row heights.</summary>
+    public const string ConceptCoverA3 = "concept-cover-A3-2026-09-11.json";
+
+    /// <summary>
+    /// The project-address vectors.
+    ///
+    /// 🔴 THIS FILE WAS VENDORED AND NOT REGISTERED - the exact silent failure
+    /// the summary above describes, sitting in the same folder. Its reader found
+    /// it by path, so it never joined the drift comparison and could have gone on
+    /// asserting an older contract indefinitely, green.
+    /// </summary>
+    public const string ProjectAddressVectors = "project-address-vectors.json";
+
     /// <summary>The copy that travels with the tests. Always present.</summary>
     public static string Read(string fileName) =>
         File.ReadAllText(PathTo(fileName), Encoding.UTF8);
@@ -60,6 +73,8 @@ public sealed class SharedContractCopyTests
     [Theory]
     [InlineData(SharedContractCopies.AdministrativeDivisions)]
     [InlineData(SharedContractCopies.EnvelopeSample)]
+    [InlineData(SharedContractCopies.ConceptCoverA3)]
+    [InlineData(SharedContractCopies.ProjectAddressVectors)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
         string? original = SharedContractCopies.TryFindOriginal(fileName);

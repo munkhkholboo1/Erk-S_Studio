@@ -172,6 +172,15 @@ public static class ConceptCoverSheetGrid
         if (rows == MeasuredUpperRowHeights.Count)
             return MeasuredUpperRowHeights;
 
+        // 🔴 TWO ROWS ARE MEASURED TOO, AND USED TO BE RIGHT BY ACCIDENT. The
+        // drawing's right-hand table is [20.0, 20.0], and the even split below
+        // produced exactly that - because 40 happens to divide by 2. Nothing
+        // recorded the agreement, so the day UpperBodyHeightMm moved, the table
+        // that the owner measured would have drifted off the drawing silently
+        // while the code still looked deliberate.
+        if (rows == MeasuredUpperRowHeightsForTwo.Count)
+            return MeasuredUpperRowHeightsForTwo;
+
         // No drawing exists for any other count. An even split keeps the table's
         // outer height, which is the one thing every variant shares.
         return Enumerable.Repeat(UpperBodyHeightMm / rows, rows).ToList();
@@ -182,6 +191,13 @@ public static class ConceptCoverSheetGrid
     /// (_shared/concept-cover-A3-2026-09-11.json, twoTablePairs.top).
     /// </summary>
     public static readonly IReadOnlyList<double> MeasuredUpperRowHeights = [16.0, 12.0, 12.0];
+
+    /// <summary>
+    /// The RIGHT-hand table's two rows as the same drawing has them
+    /// (_shared/concept-cover-A3-2026-09-11.json, twoTablePairs.top.rightRowHeightsMm).
+    /// ХЯНАСАН has two places because the owner named two people for it.
+    /// </summary>
+    public static readonly IReadOnlyList<double> MeasuredUpperRowHeightsForTwo = [20.0, 20.0];
 
 
     /// <summary>

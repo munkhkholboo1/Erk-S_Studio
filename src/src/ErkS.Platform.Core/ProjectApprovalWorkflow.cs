@@ -1,4 +1,4 @@
-namespace ErkS.Platform.Core;
+﻿namespace ErkS.Platform.Core;
 
 /// <summary>
 /// Project-document approval metadata. These entries describe what is printed
@@ -91,12 +91,39 @@ public sealed class ConceptDesignApprovalRoster
     /// </summary>
     public List<ProjectApprovalEntry> ConcurredBy { get; set; } = [];
 
+    /// <summary>
+    /// ХЯНАСАН: the right-hand table of the concept cover's upper pair - the
+    /// urban-planning office's two officials.
+    ///
+    /// 🔴 THE TABLE WAS DRAWN AND STORED NOWHERE. The writer said so where it
+    /// drew it empty, and the reason it stayed empty was sound: the nearest list,
+    /// ЗӨВШӨӨРӨЛЦСӨН, means something else, and a form printed with the wrong
+    /// parties is worse than one printed blank. What was missing was a list of
+    /// its own, which is this.
+    ///
+    /// 🔴 TWO PLACES, AND THE VARYING COUNT IS STILL DEFERRED. The owner named
+    /// exactly two - «нөгөө талд хот байгуулалтын газрын 2 албан тушаалтан тэгээд
+    /// л болоо» - and the measured A3 agrees: twoTablePairs.top.rightRowHeightsMm
+    /// is [20.0, 20.0]. So the sheet draws two. Nothing here builds the
+    /// varying-row machinery that was deferred in c22dc93; when that question is
+    /// answered it will be answered with a drawing, not from this field.
+    ///
+    /// ADDITIVE ONLY. A project file without this key reads as an empty list, no
+    /// migration runs, and nothing already written moves. The cost is measured
+    /// and stated rather than hidden: the key joins the serialised project, so
+    /// AlbumBuildFingerprint changes once for every existing project and every
+    /// album redraws ONCE. After that redraw the stored fingerprint matches again
+    /// and №13's rule holds - no rebuild without a change.
+    /// </summary>
+    public List<ProjectApprovalEntry> ReviewedBy { get; set; } = [];
+
     public ConceptDesignApprovalRoster Clone() => new()
     {
         IsConfigured = IsConfigured,
         ApprovedBy = ApprovedBy.Select(entry => entry.Clone()).ToList(),
         EndorsedBy = EndorsedBy.Select(entry => entry.Clone()).ToList(),
         ConcurredBy = ConcurredBy.Select(entry => entry.Clone()).ToList(),
+        ReviewedBy = ReviewedBy.Select(entry => entry.Clone()).ToList(),
     };
 
     public void Normalize()
@@ -104,9 +131,16 @@ public sealed class ConceptDesignApprovalRoster
         ApprovedBy ??= [];
         EndorsedBy ??= [];
         ConcurredBy ??= [];
+        ReviewedBy ??= [];
         ProjectApprovalWorkflow.NormalizeEntries(ApprovedBy);
         ProjectApprovalWorkflow.NormalizeEntries(EndorsedBy);
         ProjectApprovalWorkflow.NormalizeEntries(ConcurredBy);
+
+        // 🔴 NOT TRUNCATED HERE. Two is what the sheet draws, but silently
+        // dropping a third row somebody typed would destroy their work on save,
+        // which is a worse answer than a row that does not fit. The cap belongs
+        // where rows are entered, in sight of the person entering them.
+        ProjectApprovalWorkflow.NormalizeEntries(ReviewedBy);
     }
 }
 
