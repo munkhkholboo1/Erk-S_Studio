@@ -149,29 +149,40 @@ public static class ConceptCoverSheetGrid
     public const double LineWeightMm = 0.30;
 
     /// <summary>
-    /// Where the horizontal divisions of the upper table's body fall, top-down,
-    /// for a given number of rows.
+    /// Where the horizontal divisions of the upper table's body fall, top-down.
     ///
-    /// ALWAYS AN EVEN DIVISION, and this DEPARTS from the drawing on purpose.
+    /// 🔴 THE MEASUREMENT, NOT AN EVEN SPLIT - AND THIS REVERSES A DECISION TWICE
+    /// OVER. The drawing's three rows are 16/12/12, which is not 40/3. An early
+    /// version reproduced that; 2026-09-06 replaced it with an even division,
+    /// reasoning that a lookup table makes row height a DISCONTINUOUS function of
+    /// the row count - add a party and the whole table jumps.
     ///
-    /// The drawing's three-row variant is 16/12/12, which is not 40/3. An
-    /// earlier version of this file reproduced it, on the reasoning that a
-    /// measurement beats a rule. The decision of 2026-09-06 reversed that, and
-    /// the reason is worth keeping: reproducing 16/12/12 means a lookup table
-    /// per row count, and a lookup table makes row height a DISCONTINUOUS
-    /// function of the count - add a party and the whole table jumps. An even
-    /// split is continuous, and at two rows it agrees with the drawing exactly.
+    /// That reasoning was sound and is now moot: the owner deferred the varying
+    /// row count entirely - «албан тушаалтны асуудлыг дараа нэг мөр шийднэ» - so
+    /// there is one row count to draw and no continuity to preserve. What is left
+    /// is a measured sheet and a rule that disagreed with it by 2.67 mm.
     ///
-    /// The same rule serves both sides. The drawing happens to show ХЯНАСАН
-    /// with two rows in both of its variants; that is an observation about two
-    /// examples, not a rule that it always has two, and giving it a special
-    /// case would freeze an accident into the code.
+    /// ⚠ SO THE VARYING-COUNT ANSWER IS NOT DECIDED HERE, IT IS ABSENT. A fourth
+    /// row would fall back to an even split, which no drawing has ever shown. The
+    /// day that becomes real, it is measured - not extrapolated from this.
     /// </summary>
     public static IReadOnlyList<double> UpperRowHeights(int rowCount)
     {
         int rows = Math.Max(1, rowCount);
+        if (rows == MeasuredUpperRowHeights.Count)
+            return MeasuredUpperRowHeights;
+
+        // No drawing exists for any other count. An even split keeps the table's
+        // outer height, which is the one thing every variant shares.
         return Enumerable.Repeat(UpperBodyHeightMm / rows, rows).ToList();
     }
+
+    /// <summary>
+    /// The three rows as the owner's A3 drawing has them, top-down
+    /// (_shared/concept-cover-A3-2026-09-11.json, twoTablePairs.top).
+    /// </summary>
+    public static readonly IReadOnlyList<double> MeasuredUpperRowHeights = [16.0, 12.0, 12.0];
+
 
     /// <summary>
     /// Rows past this fit, and stop being readable: at seven the row is 5.7 mm

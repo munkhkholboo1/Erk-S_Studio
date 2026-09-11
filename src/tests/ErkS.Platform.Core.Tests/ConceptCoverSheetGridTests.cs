@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 
 namespace ErkS.Platform.Core.Tests;
 
@@ -113,36 +113,47 @@ public sealed class ConceptCoverSheetGridTests
     }
 
     [Fact]
-    public void EveryRowCountDividesEVENLY_IncludingTheOneTheDrawingDisagreesWith()
+    public void THEDrawnRowCountUsesTheMEASUREDHeights()
     {
-        // A DELIBERATE DEPARTURE, and this file used to hold the opposite.
-        // The drawing's three-row variant is 16/12/12, and reproducing it means
-        // a lookup table per row count - which makes row height a discontinuous
-        // function of the count, so adding one party jumps the whole table.
-        // The even split is continuous, and at two rows it matches the drawing
-        // exactly.
-        Assert.Equal(new[] { 20.0, 20.0 }, ConceptCoverSheetGrid.UpperRowHeights(2));
-        Assert.All(
-            ConceptCoverSheetGrid.UpperRowHeights(3),
-            height => Assert.Equal(40.0 / 3, height, 6));
-        Assert.All(
-            ConceptCoverSheetGrid.UpperRowHeights(4),
-            height => Assert.Equal(10.0, height, 6));
+        // 🔴 THIS TEST NAMED THE OPPOSITE, AND ITS NAME WAS THE CLAIM: «every
+        // row count divides evenly, INCLUDING the one the drawing disagrees
+        // with». That was a deliberate departure, chosen on 2026-09-06 to keep
+        // row height a continuous function of the party count.
+        //
+        // The owner then deferred varying counts outright - «албан тушаалтны
+        // асуудлыг дараа нэг мөр шийднэ» - so there is one count to draw, the
+        // continuity it was protecting buys nothing, and the measurement stands
+        // on its own: 16/12/12.
+        Assert.Equal(
+            new[] { 16.0, 12.0, 12.0 }, ConceptCoverSheetGrid.UpperRowHeights(3));
+
+        // The outer height is untouched either way - that is what every variant
+        // of the drawing shares.
+        Assert.Equal(
+            ConceptCoverSheetGrid.UpperBodyHeightMm,
+            ConceptCoverSheetGrid.UpperRowHeights(3).Sum(),
+            6);
     }
 
     [Fact]
-    public void ONERuleServesBothSides_WithNoSpecialCaseForХЯНАСАН()
+    public void ANYOTHERRowCountFallsBackToAnEvenSplitAndIsNOTAMeasurement()
     {
-        // The drawing shows ХЯНАСАН with two rows in both of its variants. Two
-        // examples are an observation, not a rule, and a special case would
-        // freeze the accident: the day a project has three reviewers the table
-        // would be wrong in a way traceable to a comment nobody wrote.
-        for (int rows = 1; rows <= 8; rows++)
+        // 🔴 THE VARYING-COUNT ANSWER IS ABSENT, NOT DECIDED. No drawing exists
+        // for any count but three, so a fourth row keeps the table's outer height
+        // and divides it - which is a fallback, not a design. The day a project
+        // has a different number of parties, it is MEASURED; extrapolating from
+        // this line would be inventing a sheet nobody has drawn.
+        //
+        // Two rows happen to give 20/20, which the drawing's right-hand table
+        // also shows - an agreement, not a rule this relies on.
+        foreach (int rows in new[] { 1, 2, 4, 5, 8 })
         {
             Assert.All(
                 ConceptCoverSheetGrid.UpperRowHeights(rows),
                 height => Assert.Equal(ConceptCoverSheetGrid.UpperBodyHeightMm / rows, height, 6));
         }
+
+        Assert.Equal(new[] { 20.0, 20.0 }, ConceptCoverSheetGrid.UpperRowHeights(2));
     }
 
     [Fact]

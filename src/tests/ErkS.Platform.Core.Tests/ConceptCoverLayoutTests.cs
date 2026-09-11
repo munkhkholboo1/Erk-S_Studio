@@ -30,11 +30,20 @@ public sealed class ConceptCoverLayoutTests
         Assert.Equal(ConceptCoverLayout.A4.UpperBottomMm - ConceptCoverLayout.A4.LowerTopMm,
             ConceptCoverLayout.A3.UpperBottomMm - ConceptCoverLayout.A3.LowerTopMm, Tolerance);
 
-        // Row division: the same forty millimetres, split the same way.
+        // Row division: the same forty millimetres, split the way the owner's
+        // drawing splits them.
+        //
+        // 🔴 THIS LINE ASKED FOR 40/3 AND THE DRAWING SAYS 16/12/12. The even
+        // split was chosen on 2026-09-06 to keep row height continuous as parties
+        // are added; the owner has since deferred varying counts entirely, so
+        // there is one count to draw and a measurement that disagreed by 2.67 mm.
         Assert.Equal(
-            ConceptCoverSheetGrid.UpperRowHeights(3),
+            ConceptCoverSheetGrid.MeasuredUpperRowHeights,
             ConceptCoverSheetGrid.UpperRowHeights(3));
-        Assert.Equal(40.0 / 3, ConceptCoverSheetGrid.UpperRowHeights(3)[0], Tolerance);
+        Assert.Equal(
+            40.0,
+            ConceptCoverSheetGrid.UpperRowHeights(3).Sum(),
+            Tolerance);
 
         // A3's own row boundaries step by the same amounts as A4's.
         IReadOnlyList<double> a4 = ConceptCoverLayout.A4.UpperRowBoundaries(3);

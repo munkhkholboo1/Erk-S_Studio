@@ -174,23 +174,58 @@ public sealed class ConceptCoverStyleChoiceTests
     }
 
     [Fact]
-    public void TheChoiceIsREACHABLEFromTheProjectPage()
+    public void THELogoCellKeepsItsBORDERWhenThereIsNoLogo()
     {
-        // «Солигдож болдгоор хийх хэрэгтэй» - a setting the user changes and
-        // changes back. A value that can only be set by editing the project
-        // file does not meet that, and it is also how the two covers would
-        // never be compared side by side.
+        // 🔴 THE CELL IS PART OF THE TABLE; THE LOGO IS CONTENT. A sheet with no
+        // design-company logo must still show the ruled cell - it is where a
+        // stamp goes on the signed original. Drawing the border only when a logo
+        // exists would change the TABLE to match its contents.
         //
-        // Four connections, each forgotten somewhere in this codebase already:
-        // offered, filled from the project, written back on save, and written
-        // back on the OTHER save path - there are two, and they must not drift.
+        // Equally: nothing is invented to fill it. The other covers fall back to
+        // an Erk-S mark and «Лого байршуул», an instruction to whoever fills the
+        // template in - printed on a signed document that is a fault in the
+        // document. Empty cell, ruled, and the organisation editor says the logo
+        // is unset.
+        //
+        // Read from source: the divider must sit OUTSIDE the logo branch. A
+        // mutation moving it inside produced no red at all before this existed.
+        string sheet = ReadConceptCoverSource();
+        int divider = sheet.IndexOf(
+            "ConceptCover2026Line(gfx, pen, layout, logoRight, bottom, logoRight, top);",
+            StringComparison.Ordinal);
+        int logoBranch = sheet.IndexOf("if (logoOwner is not null)", StringComparison.Ordinal);
+
+        Assert.True(divider > 0, "the logo cell no longer has a divider");
+        Assert.True(logoBranch > divider, "the divider must be drawn before, and outside, the logo branch");
+
+        // And the placeholder wording stays out of the drawing entirely.
+        string drawn = string.Join(
+            "\n",
+            sheet.Split("\n").Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+        Assert.DoesNotContain("Лого байршуул", drawn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEChoiceIsGONEFromTheProjectPage()
+    {
+        // 🔴 THIS TEST ASKED FOR THE OPPOSITE, AND ITS NAME WAS THE CLAIM: the
+        // choice had to be REACHABLE, because «солигдож болдгоор хийх хэрэгтэй» -
+        // a setting somebody changes and changes back, so the two covers could be
+        // compared side by side.
+        //
+        // The comparison happened and the owner ruled: «Толгой эргүүлсэн өмнөх
+        // хувилбар болон А4 хувилбарыг бүрэн хасаад зөвхөн шинэ А3 форматыг
+        // загвар зурагт СОНГОЛТГҮЙ үүсгэдэг болго.» A choice that has been made
+        // once, for everybody, is not a setting.
+        //
+        // Asserted as an ABSENCE of connections rather than an absence of the
+        // word: a disabled control that always means A3 would be the choice
+        // pretending not to be one.
         string shell = ReadShellSource();
 
-        Assert.Contains("conceptCoverBox.ItemsSource = ProjectConceptCoverChoices.All;", shell, StringComparison.Ordinal);
-        Assert.Contains("ProjectConceptCoverChoices.Resolve(project.AlbumStyle.ConceptCover)", shell, StringComparison.Ordinal);
-        Assert.Equal(
-            2,
-            shell.Split("ApplySelectedConceptCover()").Length - 1 - 1);
+        Assert.DoesNotContain("conceptCoverBox", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProjectConceptCoverChoices", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("ApplySelectedConceptCover", shell, StringComparison.Ordinal);
     }
 
     private static string ReadShellSource()
