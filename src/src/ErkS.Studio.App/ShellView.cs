@@ -5280,6 +5280,12 @@ internal sealed partial class ShellView : IDisposable
                 "cloud_sync_conflict");
             PendingProjectInformationUpdate pending = state.Project.Cloud.PendingProjectInformation
                 ?? new PendingProjectInformationUpdate { QueuedAtUtc = DateTimeOffset.UtcNow };
+
+            // 🔴 WHETHER THE BASE MOVED IS A FACT, NOT AN ASSUMPTION. The
+            // sentence below promises the next attempt will go through, and that
+            // is only true if this re-read actually landed.
+            bool baseMoved = false;
+            string rebaseFailureMn = "";
             try
             {
                 StudioCloudProjectDetail latest = await account.GetProjectAsync(state.Project.Cloud.ServerProjectId);
@@ -5293,10 +5299,16 @@ internal sealed partial class ShellView : IDisposable
                     account.Current.Email,
                     preserveCreation: true,
                     preserveSyncState: true);
+
+                // The base really did move to the server current. Proven not to
+                // cost unsent work by RebasingKeepsUnsentWorkTests, which runs
+                // this very call over a project holding work in every bucket.
+                baseMoved = true;
             }
             catch (Exception refreshError) when (
                 refreshError is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
+                rebaseFailureMn = refreshError.Message;
                 state.Project.Cloud.LastSyncNote =
                     "Conflict илэрсэн боловч server snapshot refresh амжилтгүй: " + refreshError.Message;
             }
@@ -5314,22 +5326,23 @@ internal sealed partial class ShellView : IDisposable
                     ? "project_concurrency_conflict"
                     : "cloud_sync_conflict");
             bool albumConflict = reasonCode.Contains("album", StringComparison.OrdinalIgnoreCase);
+
+            // 🔴 THE SENTENCE READS WHAT HAPPENED RATHER THAN ASSUMING IT. The
+            // old wording always ended «дахин синк хийхэд илгээгдэнэ» - press
+            // again and it will go up - which is true only when the base moved
+            // to the server's current one. When the re-read failed, that promise
+            // sent the person round the same refusal again, and the loop it
+            // describes is the loop it was building.
+            StudioConflictOutcome outcome = baseMoved
+                ? StudioConflictOutcome.Rebased(albumConflict)
+                : StudioConflictOutcome.BaseUnchanged(albumConflict, rebaseFailureMn);
+
             SetOperationStatus(
                 operationId,
                 "cloud_sync",
                 "conflict",
                 reasonCode,
-                // The old wording said the local edit was saved and stopped
-                // there, while the screen had just been overwritten from the
-                // server - true and useless at once. It now says what changed,
-                // that the work is intact, and that nothing needs re-typing.
-                albumConflict
-                    ? "Sync зогслоо: серверийн альбомын суурь хувилбар өөрчлөгдсөн. " +
-                      "Таны засвар хэвээр байна — canonical альбомыг татаад дахин синк хийнэ үү."
-                    : "Sync зогслоо: төслийн хувилбар та засварлаж эхэлснээс хойш өөрчлөгдсөн " +
-                      "(альбом байршуулах зэрэг өөрийн үйлдэл ч үүнийг үүсгэдэг). " +
-                      "Таны бичсэн мэдээлэл хэвээр байгаа, дахин бичих шаардлагагүй — " +
-                      "дахин синк хийхэд илгээгдэнэ.",
+                outcome.Sentence,
                 exception);
         }
         catch (StudioOperationContextChangedException)
