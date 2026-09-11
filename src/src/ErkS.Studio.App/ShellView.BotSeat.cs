@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 ﻿using System.Windows;
 using System.Windows.Controls;
 
@@ -884,7 +884,14 @@ internal sealed partial class ShellView
             StudioCloudBotStateResume held = await account.ResumeAsBotAsync();
             if (string.IsNullOrWhiteSpace(held.BotId))
             {
-                SetStatus("Сервер энэ төхөөрөмжид суудал байхгүй гэж хариулав — машин чөлөөтэй.");
+                // The server answered and named no seat. That is NOT «you are
+                // free»: this whole route exists because the server may hold a
+                // seat this machine cannot see, and a nameless answer settles
+                // nothing either way.
+                SetStatus(
+                    "Сервер энэ төхөөрөмжид суудал нэрлэсэнгүй — чөлөөлөх зүйл олдсонгүй. " +
+                    "Локал бичлэгт хүрсэнгүй.  ·  Дэлгэрэнгүй: " +
+                    StudioBoundaryRefusals.StorePath);
                 return;
             }
 
@@ -894,13 +901,34 @@ internal sealed partial class ShellView
                 $"«{held.DisplayName}» суудлаас гарлаа. Энэ машин чөлөөтэй боллоо — " +
                 "төслийн файл, эх үүсвэр, альбомд хүрээгүй.");
         }
+        catch (StudioAccountException ended) when (BotSeatErrors.SeatWasEndedByOwner(ended))
+        {
+            // The ONE answer that says the seat itself ended. There is nothing
+            // left to release, and saying «could not» about that would send
+            // somebody looking for a problem that is already over.
+            ForgetLocalSeatTraces();
+            SetStatus("Энэ суудлыг эзэмшигч аль хэдийн чөлөөлжээ — машин чөлөөтэй.");
+        }
         catch (StudioAccountException refused) when (BotSeatErrors.SeatIsGone(refused))
         {
-            // The seat is already gone server-side, so there is nothing to
-            // release - and saying «could not» about that would send somebody
-            // looking for a problem that is already over.
-            ForgetLocalSeatTraces();
-            SetStatus("Сервер дээр энэ төхөөрөмжийн суудал алга — машин чөлөөтэй.");
+            // 🔴 THIS BRANCH USED TO CLEAR AND SAY «МАШИН ЧӨЛӨӨТЭЙ», AND THAT WAS
+            // THE SAME MISTAKE THIS FILE ALREADY CARRIES A WARNING ABOUT. Of the
+            // four codes SeatIsGone covers, only the one above says the seat
+            // ended. «bot_state_not_found» is what a fingerprint that failed to
+            // match produces on a machine whose seat is perfectly alive, and SRV
+            // measured «bot_state_seat_unavailable» arriving from resume when an
+            // ACTIVE state exists and the seat row is a tombstone - the exact
+            // opposite of free.
+            //
+            // So nothing is deleted and nothing is promised. Being told «I could
+            // not identify this machine» leaves a person stuck and informed; the
+            // comfortable sentence left them stuck and sure they were out, which
+            // is what cost a day.
+            SetStatus(
+                "Сервер энэ төхөөрөмжийг суудлаараа таньсангүй — энэ нь «чөлөөтэй» " +
+                "гэсэн үг БИШ. Локал бичлэгт хүрсэнгүй.  ·  " +
+                BotSeatErrors.Describe(refused, "") +
+                "  ·  Дэлгэрэнгүй: " + StudioBoundaryRefusals.StorePath);
         }
         catch (Exception exception) when (
             exception is StudioAccountException or System.Net.Http.HttpRequestException or TaskCanceledException)
