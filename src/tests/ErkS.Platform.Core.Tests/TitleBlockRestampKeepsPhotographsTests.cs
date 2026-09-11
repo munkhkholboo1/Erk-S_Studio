@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using ErkS.Platform.Core;
 using ErkS.Platform.Pdf;
 using PdfSharp.Drawing;
@@ -64,6 +64,131 @@ public sealed class TitleBlockRestampKeepsPhotographsTests : IDisposable
         Assert.True(
             after < before * 2,
             $"the re-stamp grew the file from {before} to {after} bytes");
+    }
+
+    [Fact]
+    public void APNGBecomesRAWRGBWhileAJpegStaysAJpeg()
+    {
+        // 🔴 THE STRUCTURAL HALF OF THE 2 GB QUESTION. What PDFsharp stores depends
+        // on the FILE FORMAT, not on how large the frame is:
+        //
+        //   .jpg  →  the JPEG stream is embedded as it is, DCTDecode
+        //   .png  →  decoded to raw RGB and stored FlateDecode
+        //
+        // On a 7680 x 4875 render the second path is 112 MB raw, ~90 MB flated -
+        // which is exactly the object found in the owner's album.
+        //
+        // 🔴 TWO OF MY OWN EXPLANATIONS DIED GETTING HERE. First «the re-stamp
+        // re-encodes» - measured, false. Then «PDFsharp cannot open PNG at all»,
+        // from a 16x16 fixture it happened to refuse - false too: a full-size PNG
+        // opens perfectly. A fixture small enough to be a special case will make
+        // one of you, and it nearly made two.
+        string jpegAlbum = Path.Combine(root, "as-jpeg.pdf");
+        string pngAlbum = Path.Combine(root, "as-png.pdf");
+        WriteAlbumWithAPhotograph(jpegAlbum);
+        WriteAlbumWithAPng(pngAlbum);
+
+        Assert.True(Occurrences(jpegAlbum, "/DCTDecode") > 0, "the JPEG was not passed through");
+        Assert.Equal(0, Occurrences(pngAlbum, "/DCTDecode"));
+        Assert.True(
+            Occurrences(pngAlbum, "/FlateDecode") > 0,
+            "the PNG did not take the raw-RGB path this test exists to name");
+    }
+
+    [Fact]
+    public void ABASELINEJpegIsPassedThroughUntouched()
+    {
+        // The other half, and the one that holds: a JPEG reaches the page as a
+        // JPEG. Whatever produced the owner's raw images, it was not this path
+        // with an ordinary photograph.
+        string album = Path.Combine(root, "as-jpeg.pdf");
+        WriteAlbumWithAPhotograph(album);
+
+        Assert.True(Occurrences(album, "/DCTDecode") > 0, "the JPEG was not passed through");
+    }
+
+    private void WriteAlbumWithAPng(string path)
+    {
+        string pngPath = Path.Combine(root, "render.png");
+        File.WriteAllBytes(pngPath, BuildTruecolourPng(64, 64));
+
+        using var document = new PdfDocument();
+        PdfPage page = document.AddPage();
+        page.Width = XUnit.FromMillimeter(420);
+        page.Height = XUnit.FromMillimeter(297);
+        using (XGraphics gfx = XGraphics.FromPdfPage(page))
+        using (XImage image = XImage.FromFile(pngPath))
+        {
+            gfx.DrawImage(image, 0, 0, page.Width.Point, page.Height.Point);
+        }
+
+        document.Save(path);
+    }
+
+    /// <summary>A valid truecolour PNG of any size, built here so the fixture is
+    /// not a curiosity: proper IHDR, a zlib-compressed IDAT and IEND.</summary>
+    private static byte[] BuildTruecolourPng(int width, int height)
+    {
+        var raw = new List<byte>();
+        for (int y = 0; y < height; y++)
+        {
+            raw.Add(0);
+            for (int x = 0; x < width; x++)
+            {
+                raw.Add((byte)((x * 4) % 256));
+                raw.Add((byte)((y * 4) % 256));
+                raw.Add(128);
+            }
+        }
+
+        using var idat = new MemoryStream();
+        using (var deflate = new System.IO.Compression.ZLibStream(
+            idat, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            deflate.Write(raw.ToArray());
+        }
+
+        var png = new List<byte> { 137, 80, 78, 71, 13, 10, 26, 10 };
+        var header = new List<byte>();
+        header.AddRange(BigEndian(width));
+        header.AddRange(BigEndian(height));
+        header.AddRange(new byte[] { 8, 2, 0, 0, 0 });
+        png.AddRange(PngChunk("IHDR"u8.ToArray(), header.ToArray()));
+        png.AddRange(PngChunk("IDAT"u8.ToArray(), idat.ToArray()));
+        png.AddRange(PngChunk("IEND"u8.ToArray(), []));
+        return png.ToArray();
+    }
+
+    private static byte[] PngChunk(byte[] tag, byte[] data)
+    {
+        var body = tag.Concat(data).ToArray();
+        return BigEndian(data.Length)
+            .Concat(body)
+            .Concat(BigEndian(unchecked((int)Crc32(body))))
+            .ToArray();
+    }
+
+    /// <summary>PNG's CRC-32, written out rather than pulled in: one package
+    /// reference for four lines is a dependency somebody has to justify later.</summary>
+    private static uint Crc32(byte[] data)
+    {
+        uint crc = 0xFFFFFFFFu;
+        foreach (byte value in data)
+        {
+            crc ^= value;
+            for (int bit = 0; bit < 8; bit++)
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+        }
+
+        return crc ^ 0xFFFFFFFFu;
+    }
+
+    private static byte[] BigEndian(int value)
+    {
+        byte[] bytes = BitConverter.GetBytes(value);
+        if (BitConverter.IsLittleEndian)
+            Array.Reverse(bytes);
+        return bytes;
     }
 
     private static int Occurrences(string path, string needle)
