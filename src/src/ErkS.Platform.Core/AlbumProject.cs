@@ -7,6 +7,21 @@ namespace ErkS.Platform.Core;
 /// </summary>
 public sealed class AlbumProject
 {
+    /// <summary>
+    /// 🔴 RAISED WHEN AN OLDER READER WOULD MISREAD THE FILE - NOT WHEN THE
+    /// SCHEMA GROWS. Adding a field does not raise it: a reader skips what it does
+    /// not know, so an absent key arrives as empty and that is correct. Changing
+    /// what an EXISTING field MEANS does raise it, and PFA/PFR are told first.
+    ///
+    /// 🔴 AND THE NUMBER IS A MESSAGE TO OTHER PRODUCTS, NOT TO THIS ONE. The
+    /// check is one-sided - a file NEWER than supported is refused, an older one
+    /// always loads - so raising it changes nothing about how Studio reads. What it
+    /// does is make AutoCAD and Revit, each holding its own
+    /// SupportedProjectFormatVersion, refuse the file outright.
+    ///
+    /// The reasoning, the three separate numbers and the notification duty:
+    /// docs/PROJECT-FILE-READER-CONTRACT.md.
+    /// </summary>
     public const int CurrentFormatVersion = 2;
     public const string FileExtension = ".erksalbum";
 
