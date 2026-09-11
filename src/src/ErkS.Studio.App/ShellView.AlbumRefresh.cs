@@ -155,7 +155,24 @@ internal sealed partial class ShellView
             cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(cloud.ServerProjectId);
 
-        (int sendable, int blocked) = PendingSplit(cloud);
+        (int sendableComponents, int blocked) = PendingSplit(cloud);
+
+        // 🔴 THE INDICATOR USED TO READ ONE BUCKET OF SIX. It counted album
+        // components and nothing else, so a project with two changed sources
+        // waiting to go up painted GREEN and said «✓ Шинэчлэлт алга». The owner
+        // read that as «everything is delivered» - it was the opposite - and
+        // carried on for a morning.
+        //
+        // Every kind is counted now, and StudioPendingWork is positional so a
+        // seventh kind cannot be added without breaking this line.
+        //
+        // Counted STRUCTURALLY: which buckets hold something, never whether each
+        // piece could be sent from here. That second question hashes files, and
+        // asking it from the indicator is what froze the window.
+        StudioPendingWork pending = StudioPendingWork.Of(state.Project);
+        int sendable = Math.Max(
+            sendableComponents,
+            pending.Total - blocked);
 
         return CloudAlbumStatus.Evaluate(
             linked,
@@ -469,13 +486,17 @@ internal sealed partial class ShellView
             if (changedCount > 0)
                 _ = MarkOwnAlbumComponentsForRerender();
 
-            int pendingBefore = (cloud.PendingAlbumComponentCodes ?? []).Count;
+            // 🔴 COUNTED ACROSS EVERY KIND OF UNSENT WORK, not album components
+            // alone. Reading one bucket is what told the owner «Таны оруулга:
+            // илгээх зүйл байсангүй» while two changed sources went up in the
+            // same run - the report simply could not see them.
+            int pendingBefore = StudioPendingWork.Of(state.Project).Total;
             string revisionBefore = cloud.LastReceivedAlbumRevisionId ?? "";
 
             await SynchronizeCurrentProjectAsync();
 
             ProjectCloudLink after = state.Project.Cloud;
-            int pendingAfter = (after.PendingAlbumComponentCodes ?? []).Count;
+            int pendingAfter = StudioPendingWork.Of(state.Project).Total;
             string revisionAfter = after.LastReceivedAlbumRevisionId ?? "";
 
             // 🔴 "NOTHING MOVED" HAS TWO CAUSES AND THEY READ DIFFERENTLY. If
