@@ -295,8 +295,11 @@ public sealed class AlbumRefreshActionTests
         int mark = refresh.IndexOf("MarkOwnAlbumComponentsForRerender()", StringComparison.Ordinal);
         Assert.True(mark > 0, "the redraw is gone");
 
+        // The count is captured into a local now, because the read runs in only
+        // one of two branches - the other names the skip instead of inventing a
+        // result for it.
         Assert.Contains(
-            "if (sources.ChangedCount > 0)",
+            "if (changedCount > 0)",
             refresh[Math.Max(0, mark - 400)..mark],
             StringComparison.Ordinal);
 

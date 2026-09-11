@@ -395,32 +395,54 @@ internal sealed partial class ShellView
             bool anyDeliveryWaiting = state.Project.Sources
                 .Any(source => SurveyPendingDeliveries(source).Any);
 
-            SourceRefreshOutcome sources = anyDeliveryWaiting
-                ? await CheckForSourceUpdatesAsync()
-                : SourceRefreshOutcome.Completed(state.Project.Sources.Count, 0);
-            if (!sources.Succeeded)
+            // 🔴 THE SKIP IS NAMED, NOT DRESSED UP AS A RESULT. This branch used
+            // to build SourceRefreshOutcome.Completed(Sources.Count, 0) and
+            // report «N шалгав, 0 өөрчлөгдсөн» - a count of sources presented as
+            // a count of sources CHECKED, when nothing had been. The owner had
+            // changed exactly three sources, the project had exactly three, and
+            // the sentence told them their three files had been examined and
+            // found unchanged.
+            //
+            // The outcome is no longer constructed at all on this path, so the
+            // invented number has nowhere to come from.
+            int changedCount = 0;
+            if (!anyDeliveryWaiting)
             {
-                // Steps 1-2 failing means NOTHING left this machine, and the
-                // report has to be able to say so - so the run stops here
-                // rather than pressing on and sending a half-read album.
-                steps.Add(AlbumRefreshReport.SourcesFailed(
-                    string.IsNullOrWhiteSpace(sources.FailureMn)
-                        ? "шалтгаан тодорхойгүй."
-                        : sources.FailureMn));
-                FinishAlbumRefresh(steps);
-                return;
+                steps.Add(AlbumRefreshReport.SourcesNotChecked(
+                    "хүлээгдэж буй шинэ багц алга тул уншаагүй. " +
+                    "Зураг засварласан бол Revit/AutoCAD-аасаа «Studio руу илгээх» " +
+                    "хийсний дараа энэ товч түүнийг авна."));
             }
+            else
+            {
+                SourceRefreshOutcome sources = await CheckForSourceUpdatesAsync();
+                if (!sources.Succeeded)
+                {
+                    // Steps 1-2 failing means NOTHING left this machine, and the
+                    // report has to be able to say so - so the run stops here
+                    // rather than pressing on and sending a half-read album.
+                    steps.Add(AlbumRefreshReport.SourcesFailed(
+                        string.IsNullOrWhiteSpace(sources.FailureMn)
+                            ? "шалтгаан тодорхойгүй."
+                            : sources.FailureMn));
+                    FinishAlbumRefresh(steps);
+                    return;
+                }
 
-            steps.Add(AlbumRefreshReport.SourcesRead(
-                sources.CheckedCount,
-                sources.ChangedCount));
+                changedCount = sources.ChangedCount;
+                steps.Add(AlbumRefreshReport.SourcesRead(
+                    sources.CheckedCount,
+                    sources.ChangedCount));
+            }
 
             if (!linked)
             {
                 // A local-only project has no cloud half. Step 4 still runs,
                 // because the stored order is a local concern.
-                steps.Add(AlbumRefreshReport.ContributionSent(0));
-                steps.Add(AlbumRefreshReport.CloudFetched(false, ""));
+                steps.Add(AlbumRefreshReport.SkippedForLocalProject(
+                    AlbumRefreshStep.SendOwnContribution));
+                steps.Add(AlbumRefreshReport.SkippedForLocalProject(
+                    AlbumRefreshStep.FetchCloudUpdates));
                 steps.Add(RecomposeStep());
                 FinishAlbumRefresh(steps);
                 return;
@@ -444,7 +466,7 @@ internal sealed partial class ShellView
             // Marked BEFORE the count below is taken, so the components it adds
             // are included in "N хэсэг үүл рүү өгөв" rather than silently
             // missing from it.
-            if (sources.ChangedCount > 0)
+            if (changedCount > 0)
                 _ = MarkOwnAlbumComponentsForRerender();
 
             int pendingBefore = (cloud.PendingAlbumComponentCodes ?? []).Count;

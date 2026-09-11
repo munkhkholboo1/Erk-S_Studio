@@ -36,6 +36,26 @@ public enum AlbumRefreshStepOutcome
     /// <summary>An earlier step stopped the run before this one was attempted.</summary>
     NotReached,
 
+    /// <summary>
+    /// Deliberately not attempted, for a reason the line has to name.
+    ///
+    /// 🔴 THE STATE THIS VOCABULARY COULD NOT EXPRESS, AND IT COST A PERSON A
+    /// MORNING. Reading every source package takes five and a half seconds, so
+    /// a cheap survey decides whether the expensive read is worth running - and
+    /// when it says no, the read is SKIPPED. None of the four outcomes fitted
+    /// that, so it was filed as NothingToDo with a count invented from
+    /// Sources.Count, and the report said «3 шалгав, 0 өөрчлөгдсөн».
+    ///
+    /// The owner had changed exactly three sources. The number matched by
+    /// coincidence, so the line did not merely lie - it CONFIRMED what they
+    /// already believed: that Studio had looked at their three files and found
+    /// nothing. They spent the morning on that.
+    ///
+    /// «Not attempted» and «attempted, nothing to do» are different facts about
+    /// what a person should do next, which is the only thing the report is for.
+    /// </summary>
+    Skipped,
+
     /// <summary>Attempted, and there was genuinely nothing for it to do.</summary>
     NothingToDo,
 
@@ -244,6 +264,35 @@ public sealed record AlbumRefreshReport
     public static AlbumRefreshStepResult SourcesFailed(string reasonMn) =>
         new(AlbumRefreshStep.ReadOwnSources, AlbumRefreshStepOutcome.Failed,
             "Эх үүсвэрийг уншиж чадсангүй: " + reasonMn);
+
+    /// <summary>
+    /// The sources were NOT read, and this says so instead of counting them.
+    ///
+    /// 🔴 IT CARRIES NO COUNT ON PURPOSE. The line it replaces passed
+    /// Sources.Count as «how many were checked», and nothing had been checked.
+    /// A number here would only be available to be mistaken for one again.
+    /// </summary>
+    public static AlbumRefreshStepResult SourcesNotChecked(string whyMn) =>
+        new(AlbumRefreshStep.ReadOwnSources, AlbumRefreshStepOutcome.Skipped,
+            "Эх үүсвэр: " + whyMn);
+
+    /// <summary>
+    /// A step that only exists for a cloud project, on a project that has none.
+    ///
+    /// Said plainly rather than as «nothing new to send» and «unchanged, not
+    /// re-downloaded» - the wording it replaces, which described attempts that
+    /// could not happen at all and left a person wondering why their local
+    /// project kept reporting on a cloud.
+    /// </summary>
+    public static AlbumRefreshStepResult SkippedForLocalProject(AlbumRefreshStep step) =>
+        new(step, AlbumRefreshStepOutcome.Skipped, step switch
+        {
+            AlbumRefreshStep.SendOwnContribution =>
+                "Таны оруулга: энэ төсөл үүлэнд холбогдоогүй тул илгээх зүйлгүй.",
+            AlbumRefreshStep.FetchCloudUpdates =>
+                "Үүлэн альбом: энэ төсөл үүлэнд холбогдоогүй.",
+            _ => "Энэ төсөл үүлэнд холбогдоогүй.",
+        });
 
     public static AlbumRefreshStepResult ContributionSent(int componentCount) =>
         new(

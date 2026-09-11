@@ -139,9 +139,35 @@ public sealed class IndicatorMustNotCostMoreThanTheActionTests
 
         // And skipping it must still report a step, or the run would look as
         // though step 1 never happened.
+        //
+        // 🔴 THIS ASSERTION USED TO PIN THE DEFECT ITSELF. It required
+        // «SourceRefreshOutcome.Completed(state.Project.Sources.Count, 0)» -
+        // which reported the number of sources as the number CHECKED, when the
+        // skip had checked none. The owner read «3 шалгав, 0 өөрчлөгдсөн» on a
+        // project with three sources, three of which they had just changed, and
+        // spent a morning believing Studio had examined their files.
+        //
+        // A test that locks in the wrong behaviour makes it permanent: fixing
+        // the product turns the guard red, and the cheapest way out is to put
+        // the defect back. The step is still required - it is now required to
+        // NAME the skip rather than count it.
         Assert.Contains(
-            "SourceRefreshOutcome.Completed(state.Project.Sources.Count, 0)",
+            "AlbumRefreshReport.SourcesNotChecked(",
             refresh,
             StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "state.Project.Sources.Count",
+            CodeOnly(refresh),
+            StringComparison.Ordinal);
     }
+
+    private static string CodeOnly(string source) =>
+        string.Join(
+            "\n",
+            source.Split('\n').Where(line =>
+            {
+                string text = line.TrimStart();
+                return !text.StartsWith("//", StringComparison.Ordinal) &&
+                    !text.StartsWith("*", StringComparison.Ordinal);
+            }));
 }
