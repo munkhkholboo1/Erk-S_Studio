@@ -301,6 +301,22 @@ internal sealed partial class ShellView : IDisposable
         IsChecked = true,
     };
     private readonly TextBlock albumInfoText = new();
+    /// <summary>
+    /// The line under the product name, which says WHO IS ACTING.
+    ///
+    /// 🔴 IT USED TO READ «CLOUD ERA» IN EVERY STATE. The owner worked for hours
+    /// believing they were themselves: this line said nothing either way and the
+    /// account button carried THEIR name, while the machine was acting as a bot
+    /// seat and the server refused them as one. «дээд талын логоны ард бот уу?
+    /// үндсэн хэрэглэгч үү гэдгийг ялгадаг болгочих».
+    /// </summary>
+    private readonly TextBlock mastheadIdentityText = new()
+    {
+        Text = "CLOUD ERA",
+        FontSize = 10,
+        FontWeight = FontWeights.SemiBold,
+    };
+
     private readonly DispatcherTimer notificationRefreshTimer;
     private readonly DispatcherTimer projectChatRefreshTimer;
     private bool suppressAutomaticAlbumRebuild;
@@ -549,13 +565,7 @@ internal sealed partial class ShellView : IDisposable
             FontWeight = FontWeights.SemiBold,
             Foreground = StudioTheme.TextBrush,
         });
-        words.Children.Add(new TextBlock
-        {
-            Text = "CLOUD ERA",
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = StudioTheme.MutedTextBrush,
-        });
+        words.Children.Add(mastheadIdentityText);
         stack.Children.Add(words);
         // The mark is the way back to the home page, the way a masthead is.
         var brand = new Border
@@ -2360,6 +2370,21 @@ internal sealed partial class ShellView : IDisposable
             AccountIdentityKind.Person or AccountIdentityKind.PersonOnSeatedDevice => displayName,
             _ => "Бот: " + seatedAs!.DisplayName,
         };
+        // 🔴 THE MASTHEAD IS DRIVEN BY THE SAME VALUE AS THE ACCOUNT LINE, so the
+        // two cannot disagree. They did: the corner said «CLOUD ERA» in every
+        // state while the machine acted as a seat, and the owner read the window
+        // as their own for hours.
+        StudioActingIdentity acting = StudioActingIdentityBadge.Of(
+            seatedAsBot: identity is AccountIdentityKind.SeatActing or AccountIdentityKind.SeatLocked,
+            botDisplayName: seatedAs?.DisplayName,
+            ownerDisplayName: displayName);
+        mastheadIdentityText.Text = acting.IsBot
+            ? acting.Mark + " · " + acting.Name
+            : "CLOUD ERA";
+        mastheadIdentityText.Foreground = acting.IsBot
+            ? StudioTheme.AccentBrush
+            : StudioTheme.MutedTextBrush;
+
         accountLicenseText.Text = identity switch
         {
             AccountIdentityKind.SignedOut => "Cloud ERA",
