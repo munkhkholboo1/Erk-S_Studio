@@ -328,6 +328,30 @@ internal static class StudioAuxiliarySourceLocalityPolicy
                 image.LinkedSourcePath),
             image.Sha256);
 
+    /// <summary>
+    /// Answers already worked out, keyed by the file AS IT WAS when they were.
+    ///
+    /// 🔴 THE HASH IS THE WHOLE FILE, AND IT RAN ON EVERY ASK. A visualisation
+    /// set of a few hundred megabytes was re-hashed once per album list item -
+    /// twenty-six times over on the owner's project - on the UI thread. The
+    /// window stopped answering, one core sat at 100% and memory climbed past
+    /// four gigabytes.
+    ///
+    /// The key carries the path, the length, the write time AND the expected
+    /// hash, so the entry expires by itself the moment any of them moves: an
+    /// edited file has a new length or write time, and a re-recorded image has
+    /// a new expected hash. Nothing has to remember to clear it, which is the
+    /// mistake a plain «cache» would have made.
+    /// </summary>
+    private static readonly Dictionary<string, bool> VerifiedPayloads = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// How many answers are kept. A project holds a few hundred payloads; this
+    /// is generous for that and small enough that an unbounded run cannot turn
+    /// the fix for a memory problem into one.
+    /// </summary>
+    private const int VerifiedPayloadCapacity = 2048;
+
     private static bool VerifyPayload(string path, string? expectedSha256)
     {
         if (!File.Exists(path))
@@ -337,10 +361,36 @@ internal static class StudioAuxiliarySourceLocalityPolicy
             return true;
         try
         {
+            var file = new FileInfo(path);
+            string key = string.Join(
+                '|',
+                path,
+                file.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                file.LastWriteTimeUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                expected);
+
+            lock (VerifiedPayloads)
+            {
+                if (VerifiedPayloads.TryGetValue(key, out bool remembered))
+                    return remembered;
+            }
+
             using FileStream stream = File.OpenRead(path);
             string actual = Convert.ToHexString(
                 SHA256.HashData(stream)).ToLowerInvariant();
-            return actual.Equals(expected, StringComparison.Ordinal);
+            bool verified = actual.Equals(expected, StringComparison.Ordinal);
+
+            lock (VerifiedPayloads)
+            {
+                // Cleared wholesale rather than evicted one by one: the entries
+                // are cheap to recompute and a proper eviction order is more
+                // machinery than this needs.
+                if (VerifiedPayloads.Count >= VerifiedPayloadCapacity)
+                    VerifiedPayloads.Clear();
+                VerifiedPayloads[key] = verified;
+            }
+
+            return verified;
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException)

@@ -313,9 +313,14 @@ internal sealed partial class ShellView
             return;
         }
 
+        // Built once for every question below. Each call reads and hashes every
+        // visualisation payload in full, and this method asked three times per
+        // page - over a list, that is the whole album set hashed again and again.
+        AlbumProject pageProject =
+            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
         List<AlbumPageWorkspaceItem> pages = BuildAlbumWorkspaceItems()
             .Where(item => item.Kind == AlbumWorkspaceNodeKind.Page)
-            .Where(item => (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item)) is not null)
+            .Where(item => (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item, pageProject)) is not null)
             .ToList();
         if (pages.Count == 0)
         {
@@ -326,7 +331,7 @@ internal sealed partial class ShellView
         var picker = new StudioListPickerDialog(
             "Альбомын хуудас сонгох",
             pages.Select(page => new StudioListPickerRow(
-                (page.BuiltPageNumber ?? ResolveBuiltAlbumPage(page) ?? 0)
+                (page.BuiltPageNumber ?? ResolveBuiltAlbumPage(page, pageProject) ?? 0)
                     .ToString(System.Globalization.CultureInfo.InvariantCulture),
                 $"{page.Number} · {page.Title}",
                 page.GroupLabel)).ToList())
@@ -342,7 +347,7 @@ internal sealed partial class ShellView
                 continue;
 
             AlbumPageWorkspaceItem? page = pages.FirstOrDefault(candidate =>
-                (candidate.BuiltPageNumber ?? ResolveBuiltAlbumPage(candidate)) == pageNumber);
+                (candidate.BuiltPageNumber ?? ResolveBuiltAlbumPage(candidate, pageProject)) == pageNumber);
             Portfolio.Items.Add(new ProjectPortfolioItem
             {
                 Order = Portfolio.Items.Count + 1,

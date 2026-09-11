@@ -425,7 +425,22 @@ internal sealed partial class ShellView : IDisposable
         AdoptRegisteredDeviceKeyFingerprint();
         InstallBotLockIfSeated();
 
-        state.Library.Changed += () => dispatcher.BeginInvoke(new Action(OnLibraryChanged));
+        // 🔴 COALESCED, AND THAT IS THE FIX FOR A HANG THAT ATE FIVE GIGABYTES.
+        // This used to queue a fresh OnLibraryChanged for EVERY library change:
+        // absorb ten packages and ten full album refreshes stack up, each one
+        // rebuilding the whole album project once per list item and hashing
+        // every visualisation file in full. The owner exported three sources at
+        // once, the watcher absorbed the packages, and the queue filled faster
+        // than it drained - CPU pinned on one core, memory climbing 475 MB →
+        // 2.1 GB → 4.9 GB with no ceiling, because every waiting operation kept
+        // its own object graph alive.
+        //
+        // Ten changes still need exactly ONE refresh: the handler reads the
+        // library as it stands when it runs, so the tenth answer is the only
+        // one anybody wanted. What arrives WHILE a refresh runs is remembered
+        // and produces one more pass afterwards - dropping it would leave the
+        // screen a version behind.
+        state.Library.Changed += QueueLibraryRefresh;
         state.Intake.PackageProcessed += result => dispatcher.BeginInvoke(new Action(() => OnPackageProcessed(result)));
         state.VisualIntake.PackageProcessed += arrival =>
             dispatcher.BeginInvoke(new Action(() => OnVisualPackageProcessed(arrival)));
@@ -6565,6 +6580,51 @@ internal sealed partial class ShellView : IDisposable
             SetStatus("Холбосон PDF/зураг өөрчлөгдсөн байна. Төслийн үүлэн товчийг дарна уу.");
         }
     }
+
+    /// <summary>Whether a library refresh is already queued or running.</summary>
+    private bool libraryRefreshPending;
+
+    /// <summary>
+    /// Whether the library changed again while a refresh was running, so one
+    /// more pass is owed.
+    /// </summary>
+    private bool libraryChangedDuringRefresh;
+
+    /// <summary>
+    /// Asks for ONE refresh, however many changes arrive.
+    ///
+    /// 🔴 THE UNBOUNDED QUEUE WAS THE HANG. Raised from whatever thread absorbed
+    /// the package, so the latch is set on the UI thread inside the posted work
+    /// rather than here - two watcher threads finishing at once must not both
+    /// see «nothing pending» and both post.
+    /// </summary>
+    private void QueueLibraryRefresh() =>
+        dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (libraryRefreshPending)
+            {
+                // A refresh is already queued or running. Its own pass will pick
+                // up whatever this change added; if it is mid-flight, this flag
+                // buys the one extra pass that keeps the screen current.
+                libraryChangedDuringRefresh = true;
+                return;
+            }
+
+            libraryRefreshPending = true;
+            try
+            {
+                do
+                {
+                    libraryChangedDuringRefresh = false;
+                    OnLibraryChanged();
+                }
+                while (libraryChangedDuringRefresh);
+            }
+            finally
+            {
+                libraryRefreshPending = false;
+            }
+        }));
 
     private void OnLibraryChanged()
     {

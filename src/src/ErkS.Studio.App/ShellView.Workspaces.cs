@@ -3151,9 +3151,14 @@ internal sealed partial class ShellView
             return;
         }
 
+        // Built ONCE for the whole list. It used to be built inside the loop -
+        // which reads and hashes every visualisation payload in full, so a
+        // twenty-six item list hashed the entire set twenty-six times.
+        AlbumProject pageNumberProject =
+            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
         foreach (var item in items.Where(item => !item.IsGroup))
         {
-            item.BuiltPageNumber = ResolveBuiltAlbumPage(item);
+            item.BuiltPageNumber = ResolveBuiltAlbumPage(item, pageNumberProject);
             item.SetThumbnail(null, item.BuiltPageNumber.HasValue
                 ? "Уншиж байна"
                 : "Эх үүсвэр хүлээж байна");
@@ -3772,12 +3777,20 @@ internal sealed partial class ShellView
             }
         }
 
+        // Built once for the loop - see ResolveBuiltAlbumPage's own comment for
+        // what building it costs.
+        AlbumProject choiceProject =
+            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
         foreach (AlbumPageWorkspaceItem item in albumPagesWorkspaceList.Items
             .OfType<AlbumPageWorkspaceItem>()
             .Where(item => !item.IsGroup))
         {
-            if (ResolveBuiltAlbumPage(item) is int page && page > 0 && !named.ContainsKey(page))
+            if (ResolveBuiltAlbumPage(item, choiceProject) is int page &&
+                page > 0 &&
+                !named.ContainsKey(page))
+            {
                 named[page] = new AlbumPageChoice(page, item.Title, "", "");
+            }
         }
 
         int count = ResolveAlbumPageCount();
@@ -3851,11 +3864,15 @@ internal sealed partial class ShellView
         else if (!string.IsNullOrWhiteSpace(previewPath))
             ShowAlbumPdfPage(previewPath, choice.PageNumber);
 
+        // Built once outside the predicate. Inside it, this ran per item and
+        // each run hashes every visualisation payload in full.
+        AlbumProject ownedPageProject =
+            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
         AlbumPageWorkspaceItem? owned = albumPagesWorkspaceList.Items
             .OfType<AlbumPageWorkspaceItem>()
             .FirstOrDefault(item =>
                 !item.IsGroup &&
-                (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item)) == choice.PageNumber);
+                (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item, ownedPageProject)) == choice.PageNumber);
         if (owned is not null)
         {
             albumPageOwnerText.Text = "";
@@ -4221,11 +4238,15 @@ internal sealed partial class ShellView
         if (string.IsNullOrWhiteSpace(albumPath))
             return;
 
+        // Built once outside the predicate. Inside it, this ran per item and
+        // each run hashes every visualisation payload in full.
+        AlbumProject ownedPageProject =
+            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
         AlbumPageWorkspaceItem? owned = albumPagesWorkspaceList.Items
             .OfType<AlbumPageWorkspaceItem>()
             .FirstOrDefault(item =>
                 !item.IsGroup &&
-                (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item)) == choice.PageNumber);
+                (item.BuiltPageNumber ?? ResolveBuiltAlbumPage(item, ownedPageProject)) == choice.PageNumber);
 
         string identity = StudioSheetCommentRules.AlbumPageIdentity(choice.PageKey);
         if (identity.Length == 0 && owned is not null)
@@ -4702,13 +4723,37 @@ internal sealed partial class ShellView
         });
     }
 
-    private int? ResolveBuiltAlbumPage(AlbumPageWorkspaceItem selected)
+    /// <summary>
+    /// Which page this item occupies, building the album project for itself.
+    ///
+    /// 🔴 FOR SINGLE QUESTIONS ONLY. Building that project reads and hashes
+    /// every visualisation payload in full, so asking it once per item in a
+    /// list does the whole job once per item - twenty-six times over, on the
+    /// owner's project. A loop must build the project ONCE and call the
+    /// overload below.
+    /// </summary>
+    private int? ResolveBuiltAlbumPage(AlbumPageWorkspaceItem selected) =>
+        ResolveBuiltAlbumPage(
+            selected,
+            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false));
+
+    /// <summary>
+    /// Which page this item occupies, against an album project the caller
+    /// already built.
+    ///
+    /// The project is a parameter rather than a cached field on purpose: a
+    /// cache would need somebody to remember to clear it, and a stale album
+    /// project answers page numbers for a composition that no longer exists.
+    /// Passing it makes the sharing visible at the call site and impossible to
+    /// get wrong by forgetting.
+    /// </summary>
+    private int? ResolveBuiltAlbumPage(
+        AlbumPageWorkspaceItem selected,
+        AlbumProject project)
     {
         string? previewPath = ResolveAlbumPreviewPath();
         bool usesSharedManifest =
             StudioAlbumPreviewPageMap.UsesSharedManifest(previewPath);
-        var project = state.CreateAlbumBuildProject(
-            reconcileLinkedProjectAssets: false);
         List<ConceptGeneratedPagePlan> generated =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(project).ToList();
 
