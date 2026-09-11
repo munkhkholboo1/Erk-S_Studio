@@ -37,8 +37,13 @@ public sealed class LocalSeatIsNotDestroyedTests
         // not two in the file somebody happened to name.
         IReadOnlyCollection<string> owners = OwnersAcrossTheApp("StudioBotDeviceStateStore.Clear()");
 
+        // 🔴 STILL EXACTLY TWO, and one of them is now a shared helper both
+        // deliberate exits call. The rule did not move: a refusal may not erase
+        // the seat, and only the owner-ended branch and the person's own leave
+        // may. Naming the helper is what stops the two exits from drifting into
+        // forgetting different things.
         Assert.Equal(
-            new[] { "LeaveBotStateAsync", "ResumeAsBotAsync" },
+            new[] { "ForgetLocalSeatTraces", "ResumeAsBotAsync" },
             owners.Order());
     }
 

@@ -32,8 +32,9 @@ public sealed class BotStateExitPromiseTests
             {
                 // The owner released the seat on the server; the device notices.
                 "ResumeAsBotAsync",
-                // The deliberate exit, from the account menu.
-                "LeaveBotStateAsync",
+                // The shared helper behind both deliberate exits - the menu's
+                // leave, and the recovery for a machine the server still holds.
+                "ForgetLocalSeatTraces",
             }.Order(),
             owners.Order());
     }

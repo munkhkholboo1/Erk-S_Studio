@@ -87,6 +87,38 @@ internal sealed partial class ShellView
     /// <summary>True while this machine is seated, whether or not it is unlocked.</summary>
     private bool SeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
+    /// <summary>
+    /// Whether this machine carries the durable trace of having been a seat.
+    ///
+    /// 🔴 THE SEAT RECORD ON DISK IS NOT THE ONLY TRUTH, AND BELIEVING IT WAS
+    /// TRAPPED A MACHINE. The server keys bot state off the device fingerprint,
+    /// so it can hold this machine in bot state while the local record is gone -
+    /// and then every «are we seated» read here says no, and the way out
+    /// disappears from the menu.
+    ///
+    /// The device key is what a seated machine registers, it outlives the seat
+    /// record, and reading it costs a file check. It answers the wider question:
+    /// «has this machine ever been a seat» - which is the right question for
+    /// offering an exit.
+    /// </summary>
+    private static bool MachineHasBeenASeat
+    {
+        get
+        {
+            try
+            {
+                return StudioDeviceKeyStore.IsRegisteredToAnyAccount(
+                    StudioDeviceKeyStore.Fingerprint());
+            }
+            catch (Exception)
+            {
+                // Unknown is not «no». Hiding the exit is what built the trap,
+                // so an unreadable key store offers it rather than withholding it.
+                return true;
+            }
+        }
+    }
+
 
     /// <summary>
     /// Whether seat management may be offered at all: creating, releasing,
@@ -514,7 +546,10 @@ internal sealed partial class ShellView
     {
         // The rule itself lives in StudioBotMenuPlan, where it can be stated in
         // a test. This method only turns entries into controls.
-        foreach (BotMenuEntry entry in StudioBotMenuPlan.For(SeatedAsBot, account.IsSignedIn))
+        foreach (BotMenuEntry entry in StudioBotMenuPlan.For(
+            SeatedAsBot,
+            account.IsSignedIn,
+            MachineHasBeenASeat))
         {
             MenuItem item = entry switch
             {
@@ -810,17 +845,112 @@ internal sealed partial class ShellView
         SetStatus($"«{seat.DisplayName}» ботын төлөвт шилжлээ. ПИН оруулна уу.");
     }
 
+    /// <summary>
+    /// Leaves a bot state the SERVER holds for this device when no seat record
+    /// is left on disk.
+    ///
+    /// 🔴 THE RECOVERY FOR A MACHINE THAT CANNOT SEE ITS OWN SEAT. The server
+    /// keys bot state off the device fingerprint, so it can hold this machine
+    /// while the local record is gone - and then nothing here can name a seat to
+    /// release. The seat resume IS keyed by fingerprint, so it can: it answers
+    /// with the bot id, and that is the name the release needs.
+    ///
+    /// Every ending says something. A machine that turns out to be free is told
+    /// so; one that cannot ask is told why. Silence is what this replaced.
+    /// </summary>
+    private async Task LeaveServerHeldBotStateAsync()
+    {
+        if (StudioMessageDialog.Show(
+                Window.GetWindow(Root),
+                "Энэ машинд суудлын бичлэг үлдээгүй ч сервер үүнийг ботын төлөвт " +
+                "барьж байж магадгүй. Серверээс шалгаж, байвал чөлөөлөх үү?" +
+                "\n\nЭнэ машинаас УСТАХ: суудлын үлдэгдэл бичлэг, ПИН, эрхийн баталгаа." +
+                "\nХЭВЭЭР ҮЛДЭХ: төслийн файлууд, эх үүсвэрүүд, альбом.",
+                "Серверийн ботын төлөвийг чөлөөлөх",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        if (!await EnsureSignedInAsync())
+        {
+            SetStatus("Ботын төлөвөөс гарахад эзэмшигч нэвтрэх шаардлагатай.");
+            return;
+        }
+
+        try
+        {
+            StudioCloudBotStateResume held = await account.ResumeAsBotAsync();
+            if (string.IsNullOrWhiteSpace(held.BotId))
+            {
+                SetStatus("Сервер энэ төхөөрөмжид суудал байхгүй гэж хариулав — машин чөлөөтэй.");
+                return;
+            }
+
+            await account.LeaveBotStateAsync(held.BotId);
+            ForgetLocalSeatTraces();
+            SetStatus(
+                $"«{held.DisplayName}» суудлаас гарлаа. Энэ машин чөлөөтэй боллоо — " +
+                "төслийн файл, эх үүсвэр, альбомд хүрээгүй.");
+        }
+        catch (StudioAccountException refused) when (BotSeatErrors.SeatIsGone(refused))
+        {
+            // The seat is already gone server-side, so there is nothing to
+            // release - and saying «could not» about that would send somebody
+            // looking for a problem that is already over.
+            ForgetLocalSeatTraces();
+            SetStatus("Сервер дээр энэ төхөөрөмжийн суудал алга — машин чөлөөтэй.");
+        }
+        catch (Exception exception) when (
+            exception is StudioAccountException or System.Net.Http.HttpRequestException or TaskCanceledException)
+        {
+            SetStatus(
+                BotSeatErrors.Describe(exception, "Серверийн ботын төлөвийг шалгаж чадсангүй.") +
+                "  ·  Дэлгэрэнгүй: " + StudioBoundaryRefusals.StorePath);
+        }
+    }
+
+    /// <summary>
+    /// Drops what this machine keeps about a seat, and nothing else.
+    ///
+    /// Named so both exits use the same list: a second spelling of «what leaving
+    /// forgets» is how one of them starts forgetting more.
+    /// </summary>
+    private void ForgetLocalSeatTraces()
+    {
+        StudioBotDeviceStateStore.Clear();
+        account.UseBotToken(null);
+        unlockedSeatIdentity = null;
+        botAssignedProjectIds = null;
+        botAssignedProjectScopes = null;
+        botSeatMember = null;
+        ApplyDeviceSeat();
+        RemoveBotLock();
+        UpdateAccountUi();
+    }
+
     private async Task LeaveBotStateAsync()
     {
         if (RefuseSeatManagementWhenSeated())
             return;
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
         if (seat is null)
+        {
+            // 🔴 THIS USED TO RETURN IN SILENCE, AND THAT WAS THE SECOND HALF OF
+            // THE TRAP. With the seat record gone but the SERVER still holding
+            // this device in bot state, the way out did nothing at all - no
+            // message, no change. The person pressed it and learned nothing.
+            await LeaveServerHeldBotStateAsync();
             return;
+        }
+
         if (StudioMessageDialog.Show(
                 Window.GetWindow(Root),
-                $"«{seat.DisplayName}» ботын төлөвөөс гарах уу? Гарахад эзэмшигч " +
-                "дахин нэвтрэх шаардлагатай — орох, гарах нэг хаалга.",
+                $"«{seat.DisplayName}» ботын төлөвөөс гарах уу?" +
+                "\n\nЭнэ машинаас УСТАХ: суудлын бичлэг, ПИН, суудлын эрхийн баталгаа." +
+                "\nХЭВЭЭР ҮЛДЭХ: төслийн файлууд, эх үүсвэрүүд, альбом — тэдгээрт хүрэхгүй." +
+                "\n\nГарахад эзэмшигч дахин нэвтрэх шаардлагатай — орох, гарах нэг хаалга.",
                 "Ботын төлөвөөс гарах",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning) != MessageBoxResult.OK)
@@ -839,14 +969,11 @@ internal sealed partial class ShellView
         // LOCAL FIRST. The old order called the server and cleared the seat only
         // on success, so an unreachable server locked the machine in bot state
         // for good - the one state a person cannot get themselves out of.
-        StudioBotDeviceStateStore.Clear();
-        account.UseBotToken(null);
-        unlockedSeatIdentity = null;
-        botAssignedProjectIds = null;
-        botAssignedProjectScopes = null;
-        botSeatMember = null;
-        ApplyDeviceSeat();
-        UpdateAccountUi();
+        //
+        // Through the shared helper, so both exits forget exactly the same list:
+        // a second spelling of «what leaving forgets» is how one of them starts
+        // forgetting more.
+        ForgetLocalSeatTraces();
 
         try
         {

@@ -53,8 +53,34 @@ internal static class StudioBotMenuPlan
     /// a full passport sign-in: seating erases the owner credential, and the
     /// seat's own token is not a session. So it is the proof, not a hint.
     /// </param>
-    public static IReadOnlyList<BotMenuEntry> For(bool seatedAsBot, bool ownerSessionInHand)
+    /// <param name="machineHasBeenASeat">
+    /// This machine carries the durable trace of having been a seat - its
+    /// registered device key - whether or not a seat record is still on disk.
+    ///
+    /// 🔴 THE OWNER'S MACHINE WAS TRAPPED BECAUSE THIS FACT HAD NO VOTE. Their
+    /// local seat record was gone while the SERVER still held the device in bot
+    /// state, so every read of «are we seated» said no, the menu showed the
+    /// unseated entries, and the way out was not among them. Asked to leave,
+    /// they were told to manage the seat; asked to manage it, they were told to
+    /// leave first. They described it exactly: «анх үүсэхдээ сайхан шилжинэ …
+    /// ахиж нээхэд шилжиж орж чадахгүй».
+    ///
+    /// The exit is offered on the WIDER fact on purpose. Hiding it is what built
+    /// the trap, and offering it to a machine that turns out to be free costs a
+    /// sentence saying so - which is the cheaper of the two mistakes by a day.
+    /// </param>
+    public static IReadOnlyList<BotMenuEntry> For(
+        bool seatedAsBot,
+        bool ownerSessionInHand,
+        bool machineHasBeenASeat = false)
     {
+        if (!seatedAsBot && machineHasBeenASeat && ownerSessionInHand)
+        {
+            // No seat on disk, but this machine has been one. The server may
+            // still hold it, and only this entry can find out.
+            return [BotMenuEntry.ManageSeats, BotMenuEntry.SeatThisDevice, BotMenuEntry.LeaveBotState];
+        }
+
         if (seatedAsBot && !ownerSessionInHand)
         {
             // The door, and only the door. Showing it grants nothing - it asks
