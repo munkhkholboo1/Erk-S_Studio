@@ -153,10 +153,21 @@ internal sealed class BotSeatCreateDialog : Window
                 if (seat is not null)
                     resultText.Text = "Ижил нэртэй суудал байсныг ашиглаж байна…";
             }
-            catch (Exception)
+            catch (Exception lookup)
             {
-                // Could not look: fall through and create. A duplicate is
+                // Falling through and creating is still right - a duplicate is
                 // recoverable; refusing to seat the machine is not.
+                //
+                // 🔴 BUT IT USED TO FALL THROUGH IN SILENCE, AND THAT COST A DAY.
+                // The server answered this very route with a named refusal six
+                // times - bot_state_owner_action_forbidden - and the person saw
+                // nothing at all. We spent the day on ownership, devices,
+                // fingerprints and identity schemes; the answer had been sent
+                // each time and thrown away here. A named refusal reaches the
+                // person even when the code can carry on without it.
+                resultText.Text = BotSeatErrors.Describe(
+                    lookup,
+                    "Байгаа суудлуудыг шалгаж чадсангүй — шинээр үүсгэж байна.");
             }
 
             seat ??= await account.CreateBotSeatAsync(wantedName,
