@@ -440,31 +440,29 @@ internal sealed partial class ShellView
             StudioAlbumComponentIdentity.CanonicalBuildingSectionKey(
                 state.Project,
                 component.SectionKey);
-        if (normalized.Equals(ProjectCloudSyncMetadata.ApprovedAtdComponentCode, StringComparison.OrdinalIgnoreCase) &&
-            hasOwnedAtd)
+        // The one place that says which local material draws a generated page.
+        // The gate that decides whether this account may redraw it reads the very
+        // same answer - see StudioGeneratedComponentAuthority. Keeping that
+        // correspondence in two places is how one of them drifts.
+        StudioGeneratedComponentMaterial material =
+            StudioGeneratedComponentAuthority.Resolve(
+                state.Project,
+                normalized,
+                ownerEmail,
+                hasOwnedAtd,
+                hasVisualizations);
+        if (material.IsHeldLocally)
         {
-            return AlbumComponentIdentity.Source(ownerEmail, StudioAlbumComponentIdentity.AtdSourceKey);
-        }
-        if (normalized.Equals(ProjectCloudSyncMetadata.VisualizationsComponentCode, StringComparison.OrdinalIgnoreCase) &&
-            hasVisualizations)
-        {
-            return AlbumComponentIdentity.Source(ownerEmail, StudioAlbumComponentIdentity.VisualizationSourceKey);
+            return material.ComponentKind.Equals(
+                    StudioAlbumComponentIdentity.SiteContextComponentKind,
+                    StringComparison.OrdinalIgnoreCase)
+                ? AlbumComponentIdentity.SiteContext(material.OwnerEmail, material.SourceKey)
+                : AlbumComponentIdentity.Source(material.OwnerEmail, material.SourceKey);
         }
         if (normalized.Equals(
                 ProjectCloudSyncMetadata.SiteContextComponentCode,
                 StringComparison.OrdinalIgnoreCase))
         {
-            ProjectSiteContextEditAuthority authority =
-                ProjectSiteContextEditingPolicy.Resolve(state.Project, ownerEmail);
-            if (authority.CanEdit &&
-                !string.IsNullOrWhiteSpace(authority.SourceKey))
-            {
-                return AlbumComponentIdentity.SiteContext(
-                    string.IsNullOrWhiteSpace(authority.SourceOwnerEmail)
-                        ? ownerEmail
-                        : authority.SourceOwnerEmail,
-                    authority.SourceKey);
-            }
             if (existingByCode.TryGetValue(
                     ProjectCloudSyncMetadata.SiteContextComponentCode,
                     out StudioCloudAlbumSection? existingSiteContext) &&

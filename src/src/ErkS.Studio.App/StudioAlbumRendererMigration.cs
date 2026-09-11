@@ -22,11 +22,17 @@ internal static class StudioAlbumRendererMigration
     public const int CurrentRevision = 5;
 
     /// <param name="canManageCanonicalMetadata">
-    /// Whether this account may rewrite the album's generated pages - the cover,
-    /// the drawing list, the location scheme. Studio draws those from project
-    /// data on any device, so the question is authority rather than whether the
-    /// source is present. Without this they were skipped on every device, and a
-    /// generated page drawn by an older build could never be replaced.
+    /// Whether this account may rewrite the album's CANONICAL generated pages -
+    /// the cover, the drawing list, a building's sub-cover, the organisation's
+    /// certificate and licence. Studio draws those from project and company
+    /// information on any device, so the question is authority rather than
+    /// whether a source is present. Without this they were skipped on every
+    /// device, and a generated page drawn by an older build could never be
+    /// replaced.
+    ///
+    /// It is NOT the gate on every generated page. The ones Studio draws from a
+    /// person's own material are answered by
+    /// <see cref="StudioGeneratedComponentAuthority"/> instead.
     /// </param>
     public static IReadOnlyList<string> SelectLocallyRenderableComponents(
         ProjectWorkspace project,
@@ -49,8 +55,13 @@ internal static class StudioAlbumRendererMigration
                 !string.IsNullOrWhiteSpace(identity.OwnerEmail))
             .ToList();
 
+        // Read once. A generated page is judged partly by what ELSE the album
+        // carries, and walking a caller's enumerable twice is how a lazy one
+        // gives two different answers to the same question.
+        List<ProjectCloudAlbumComponentReference> components = (manifest ?? []).ToList();
+
         var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (ProjectCloudAlbumComponentReference component in manifest ?? [])
+        foreach (ProjectCloudAlbumComponentReference component in components)
         {
             if (string.IsNullOrWhiteSpace(component.Code))
                 continue;
@@ -58,9 +69,38 @@ internal static class StudioAlbumRendererMigration
             if (!IsSourceComponent(component))
             {
                 // A generated page needs no source on this device, only the
-                // right to rewrite it. The caller still trims the ones with
-                // their own owner test, such as the location scheme.
-                if (canManageCanonicalMetadata)
+                // right to rewrite it - and that right has TWO sources, not one.
+                //
+                // 🔴 IT USED TO HAVE ONE, AND IT WAS THE ADMINISTRATOR'S. Studio
+                // draws some of these pages from a person's own files: the
+                // approved planning task they uploaded, the renders they added,
+                // the location scheme cut from the general plan they control.
+                // Gating those on canonical-metadata authority told the owner of
+                // the licence - an architect, not an administrator - that their
+                // own 26 renders could not be sent. They named the line
+                // themselves: no right over project or company information, full
+                // right over their own material.
+                StudioGeneratedComponentMaterial material =
+                    StudioGeneratedComponentAuthority.Resolve(
+                        project,
+                        component.Code,
+                        currentOwnerEmail,
+                        hasOwnedAtd,
+                        hasVisualizations);
+                // The same owner test the source branch below applies, for the
+                // same reason: a component the cloud has already filed under
+                // somebody else is not this account's to redraw.
+                bool ownMaterial = material.IsHeldLocally &&
+                    OwnerMatches(
+                        component.OwnerEmail?.Trim().ToLowerInvariant() ?? "",
+                        fallbackOwner) &&
+                    !SomebodyElseAlreadyOwnsThisMaterial(
+                        components,
+                        material.SourceKey,
+                        fallbackOwner);
+                // The caller still trims the ones with their own owner test,
+                // such as the location scheme.
+                if (canManageCanonicalMetadata || ownMaterial)
                     selected.Add(component.Code.Trim());
                 continue;
             }
@@ -87,6 +127,36 @@ internal static class StudioAlbumRendererMigration
 
         return selected.Order(StringComparer.OrdinalIgnoreCase).ToList();
     }
+
+    /// <summary>
+    /// Whether the album already carries this same material under SOMEBODY
+    /// ELSE'S name.
+    ///
+    /// 🔴 THE ONE THING THIS CHANGE WOULD OTHERWISE HAVE OPENED. A generated code
+    /// is not keyed by owner - «generated:visualizations» is one component for the
+    /// whole album - so a page an older build filed there carries no name, and the
+    /// owner test above lets anybody past an empty name. Widening that from
+    /// administrators to every contributor holding renders of their own would let
+    /// the second contributor replace the first one's pages, which then leave the
+    /// shared album entirely when the legacy code is retired.
+    ///
+    /// Their local files are never touched, and they get their pages back by
+    /// rendering again - but they would not have been asked. So the moment the
+    /// album shows the material under a name that is not this account's, the
+    /// unnamed one is left alone. An administrator may still take it.
+    /// </summary>
+    private static bool SomebodyElseAlreadyOwnsThisMaterial(
+        IEnumerable<ProjectCloudAlbumComponentReference> manifest,
+        string sourceKey,
+        string currentOwnerEmail) =>
+        (manifest ?? []).Any(other =>
+            (other.SourceKey?.Trim() ?? "").Equals(
+                sourceKey,
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(other.OwnerEmail) &&
+            !other.OwnerEmail.Trim().Equals(
+                currentOwnerEmail,
+                StringComparison.OrdinalIgnoreCase));
 
     private static bool IsSourceComponent(ProjectCloudAlbumComponentReference component) =>
         component.ComponentKind.Equals(
