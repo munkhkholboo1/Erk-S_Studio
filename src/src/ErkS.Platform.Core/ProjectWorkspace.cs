@@ -1205,6 +1205,26 @@ public sealed class ProjectAlbumRecord
     /// учиргүй». Empty on an older project, which simply builds once and fills it.
     /// </summary>
     public string LastBuildFingerprint { get; set; } = "";
+
+    /// <summary>
+    /// WHAT WAS DECIDED THE LAST TIME THE ALBUM COULD HAVE BEEN DRAWN, and why.
+    ///
+    /// 🔴 «IT DID NOT REDRAW» IS A CLAIM ABOUT WORK THAT DID NOT HAPPEN, AND
+    /// NOTHING RECORDED IT. The only evidence was a stopwatch - fast meant no,
+    /// slow meant yes - which is a guess that gets worse on a faster machine and
+    /// on a smaller album, and which nobody can check after the fact. When the
+    /// owner says «this was slow», the answer has to be readable rather than
+    /// reconstructed.
+    ///
+    /// 🔴 DELIBERATELY HERE AND NOT ON THE ALBUM PROJECT. AlbumBuildFingerprint
+    /// hashes the serialised AlbumProject; a field added THERE would change every
+    /// existing project's fingerprint and force every album to redraw once - the
+    /// exact cost measured for ConceptDesign.ReviewedBy. This record lives on the
+    /// workspace, which is not fingerprinted, so observing the rule does not
+    /// trigger the thing it observes.
+    /// </summary>
+    public AlbumDrawRecord LastDraw { get; set; } = new();
+
     /// <summary>
     /// Revision of Studio's PDF composition rules used for the current local
     /// album. Missing values from older project files intentionally deserialize

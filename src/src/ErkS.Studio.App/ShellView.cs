@@ -299,6 +299,12 @@ internal sealed partial class ShellView : IDisposable
         IsChecked = true,
     };
     private readonly TextBlock albumInfoText = new();
+
+    /// <summary>
+    /// What the last album decision was, in words - the one place the owner can
+    /// read «it did not redraw» instead of inferring it from how long it felt.
+    /// </summary>
+    private readonly TextBlock albumDrawRecordText = new();
     /// <summary>
     /// The line under the product name, which says WHO IS ACTING.
     ///
@@ -3996,8 +4002,26 @@ internal sealed partial class ShellView : IDisposable
     /// </summary>
     private bool AlbumMustBeDrawn(StudioWorkspaceOperation origin)
     {
+        AlbumRebuildDecision decision = DecideWhetherToDrawAlbum(origin);
+
+        // 🔴 EVERY PATH IS RECORDED, INCLUDING - ESPECIALLY - THE SKIP. A build
+        // leaves a file behind; a build correctly skipped leaves nothing, and
+        // until this line the only way to tell «it did not rebuild» from «it
+        // rebuilt quickly» was how long it felt. Recorded at the ONE exit so a
+        // branch added later cannot quietly escape being written down.
+        state.Project.PrimaryAlbum.LastDraw ??= new AlbumDrawRecord();
+        state.Project.PrimaryAlbum.LastDraw.Record(
+            decision.MustDraw,
+            decision.Reason.ToString(),
+            DateTimeOffset.UtcNow);
+
+        return decision.MustDraw;
+    }
+
+    private AlbumRebuildDecision DecideWhetherToDrawAlbum(StudioWorkspaceOperation origin)
+    {
         if (StudioAlbumRebuildPolicy.AlwaysDraws(origin))
-            return true;
+            return new AlbumRebuildDecision(true, AlbumRebuildReason.OriginAlwaysDraws);
 
         string fingerprint = "";
         try
@@ -4014,10 +4038,10 @@ internal sealed partial class ShellView : IDisposable
                 InvalidDataException or InvalidOperationException or NotSupportedException)
         {
             // Unknown is not «nothing changed». Draw.
-            return true;
+            return new AlbumRebuildDecision(true, AlbumRebuildReason.FingerprintUnreadable);
         }
 
-        return StudioAlbumRebuildPolicy.MustDraw(
+        return StudioAlbumRebuildPolicy.Decide(
             origin,
             fingerprint,
             state.Project.PrimaryAlbum.LastBuildFingerprint,
@@ -4055,10 +4079,19 @@ internal sealed partial class ShellView : IDisposable
         // the build, and the album would be declared current when it was not.
         AlbumProject buildInput = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets);
         string fingerprint = AlbumBuildFingerprint.Of(buildInput);
+
+        // 🔴 THE NUMBER THAT ANSWERS «THIS WAS SLOW». Measured here rather than
+        // inferred from when somebody noticed: the owner's report arrives hours
+        // later, and by then the only alternative evidence is a file timestamp
+        // that says when a build ENDED, not how long it ran.
+        long startedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
         AlbumBuildResult result = state.Builder.Build(
             buildInput,
             state.Library,
             outputPath);
+        double drewSeconds =
+            (double)(System.Diagnostics.Stopwatch.GetTimestamp() - startedTicks) /
+            System.Diagnostics.Stopwatch.Frequency;
         lastAlbumPath = result.OutputPath;
         state.RecordBuiltAlbum(
             result.OutputPath,
@@ -4068,6 +4101,10 @@ internal sealed partial class ShellView : IDisposable
         // Written only after the build succeeded. A fingerprint stored beside a
         // file that was never produced would silence every later build.
         state.Project.PrimaryAlbum.LastBuildFingerprint = fingerprint;
+        state.Project.PrimaryAlbum.LastDraw ??= new AlbumDrawRecord();
+        state.Project.PrimaryAlbum.LastDraw.RecordDrawFinished(
+            DateTimeOffset.UtcNow,
+            drewSeconds);
         state.SaveProject();
         if (activePage == StudioPage.Albums)
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);

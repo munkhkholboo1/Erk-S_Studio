@@ -1,58 +1,61 @@
 ﻿namespace ErkS.Studio;
 
 /// <summary>
-/// When the album is drawn again, and when it is left alone.
+/// Why the album was drawn, or why it was not.
 ///
-/// 🔴 THE PRODUCT REDREW AN ALBUM THAT HAD NOT CHANGED, UNTIL IT WAS UNUSABLE. A
-/// timer fired 1.5 seconds after any activity and rebuilt everything; opening the
-/// album page rebuilt it again; and the finished album already on disk was never
-/// consulted. On the owner's project - 26 renders - that was ten minutes of CPU
-/// and 9.7 GB of memory to produce a file that already existed. They wrote the
-/// rule themselves, twice:
-///
-///   «студио руу илгээхэд альбумаа шинэчлэнэ. синк хийхэд шинэчлэнэ. ингээд л
-///    болоошт»
-///   «ингэтлээ гацаад байвал ХЭН Ч ХЭРЭГЛЭХГҮЙ»
-///
-/// The second sentence is why this is not a performance improvement: it is a
-/// condition of the product being usable at all.
+/// 🔴 THE REASON IS PART OF THE DECISION, NOT A SECOND OPINION ABOUT IT. A
+/// screen that worked out its own explanation would drift from the rule the
+/// moment either changed, and the drift would be invisible: both sentences would
+/// still sound right.
 /// </summary>
+internal enum AlbumRebuildReason
+{
+    /// <summary>A package arrived, or a sync ran. The owner's two triggers.</summary>
+    OriginAlwaysDraws,
+
+    /// <summary>The file the record names is not on disk.</summary>
+    BuiltAlbumMissing,
+
+    /// <summary>The project could not be read to fingerprint it.</summary>
+    FingerprintUnreadable,
+
+    /// <summary>Nobody recorded what this album was made of.</summary>
+    FingerprintUnknown,
+
+    /// <summary>The work moved on.</summary>
+    FingerprintChanged,
+
+    /// <summary>The one reason NOT to draw.</summary>
+    NothingChanged,
+}
+
+/// <summary>What was decided and why, together.</summary>
+internal sealed record AlbumRebuildDecision(bool MustDraw, AlbumRebuildReason Reason);
+
 internal static class StudioAlbumRebuildPolicy
 {
-    /// <summary>
-    /// Whether this operation is one of the two the owner named, which draw the
-    /// album without asking anything else.
-    ///
-    /// 🔴 DERIVED FROM THE OPERATION, NOT FROM A LIST OF CALL SITES. Twenty-six
-    /// places call the album update; enumerating the ones allowed to build would
-    /// be wrong the first time somebody added the twenty-seventh. The two triggers
-    /// are the two the owner named - a package arriving from a plugin, and a sync
-    /// - and both are already values of <see cref="StudioWorkspaceOperation"/>.
-    /// </summary>
     public static bool AlwaysDraws(StudioWorkspaceOperation origin) =>
         origin is StudioWorkspaceOperation.SourceRefresh or StudioWorkspaceOperation.CloudSync;
 
     /// <summary>
-    /// Whether the album has to be drawn at all.
+    /// Whether to draw, and why.
+    ///
+    /// 🔴 «IT DID NOT REBUILD» IS A CLAIM ABOUT WORK THAT DID NOT HAPPEN, AND
+    /// NOTHING CURRENTLY RECORDS IT. The product's answer to «was the album
+    /// redrawn?» is a stopwatch - fast means no, slow means yes - which is a
+    /// guess that gets worse on a faster machine and on a smaller album. The
+    /// reason lives here, beside the decision, so it can be written down.
     /// </summary>
-    /// <param name="origin">What asked for the album.</param>
-    /// <param name="currentFingerprint">What the album would be drawn from now.</param>
-    /// <param name="builtFingerprint">What the album on disk was drawn from.</param>
-    /// <param name="builtAlbumIsPresent">
-    /// Whether the file that fingerprint describes is still there. A record
-    /// pointing at a PDF somebody deleted is not an album, and treating it as one
-    /// would leave a person with an empty screen and no way to refill it.
-    /// </param>
-    public static bool MustDraw(
+    public static AlbumRebuildDecision Decide(
         StudioWorkspaceOperation origin,
         string? currentFingerprint,
         string? builtFingerprint,
         bool builtAlbumIsPresent)
     {
         if (AlwaysDraws(origin))
-            return true;
+            return new AlbumRebuildDecision(true, AlbumRebuildReason.OriginAlwaysDraws);
         if (!builtAlbumIsPresent)
-            return true;
+            return new AlbumRebuildDecision(true, AlbumRebuildReason.BuiltAlbumMissing);
 
         string now = (currentFingerprint ?? "").Trim();
         string built = (builtFingerprint ?? "").Trim();
@@ -64,8 +67,46 @@ internal static class StudioAlbumRebuildPolicy
         // no longer matches their work, which is worse than the delay this whole
         // rule exists to remove.
         if (now.Length == 0 || built.Length == 0)
-            return true;
+            return new AlbumRebuildDecision(true, AlbumRebuildReason.FingerprintUnknown);
 
-        return !now.Equals(built, StringComparison.OrdinalIgnoreCase);
+        return now.Equals(built, StringComparison.OrdinalIgnoreCase)
+            ? new AlbumRebuildDecision(false, AlbumRebuildReason.NothingChanged)
+            : new AlbumRebuildDecision(true, AlbumRebuildReason.FingerprintChanged);
     }
+
+    public static bool MustDraw(
+        StudioWorkspaceOperation origin,
+        string? currentFingerprint,
+        string? builtFingerprint,
+        bool builtAlbumIsPresent) =>
+        Decide(origin, currentFingerprint, builtFingerprint, builtAlbumIsPresent).MustDraw;
+
+    /// <summary>
+    /// The reason in the owner's language, for the one place they will read it:
+    /// when they say «this was slow» and somebody has to answer «it drew, and
+    /// here is why» without a stopwatch.
+    /// </summary>
+    public static string DescribeMn(AlbumRebuildReason reason) => reason switch
+    {
+        AlbumRebuildReason.OriginAlwaysDraws =>
+            "эх үүсвэр ирсэн эсвэл синк хийгдсэн тул",
+        AlbumRebuildReason.BuiltAlbumMissing =>
+            "баригдсан файл олдсонгүй тул",
+        AlbumRebuildReason.FingerprintUnreadable =>
+            "төслийг уншиж чадаагүй тул",
+        AlbumRebuildReason.FingerprintUnknown =>
+            "энэ альбом юунаас бүтснийг бүртгээгүй тул",
+        AlbumRebuildReason.FingerprintChanged =>
+            "төсөл өөрчлөгдсөн тул",
+        AlbumRebuildReason.NothingChanged =>
+            "юу ч өөрчлөгдөөгүй тул",
+
+        // 🔴 NOT A DEFAULT. A reason with no sentence would print as a blank
+        // where the explanation goes - which reads as «no reason», the one thing
+        // this whole record exists to rule out.
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(reason),
+            reason,
+            "Энэ шалтгааны тайлбар бичигдээгүй байна."),
+    };
 }

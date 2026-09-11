@@ -3021,6 +3021,10 @@ internal sealed partial class ShellView
         albumInfoText.Foreground = StudioTheme.MutedTextBrush;
         albumInfoText.Margin = new Thickness(0, 10, 0, 0);
         panel.Children.Add(albumInfoText);
+        albumDrawRecordText.Foreground = StudioTheme.MutedTextBrush;
+        albumDrawRecordText.TextWrapping = System.Windows.TextWrapping.Wrap;
+        albumDrawRecordText.Margin = new Thickness(0, 4, 0, 0);
+        panel.Children.Add(albumDrawRecordText);
         return new ScrollViewer
         {
             Content = panel,
@@ -3129,6 +3133,9 @@ internal sealed partial class ShellView
         {
             albumInfoText.Text = $"{state.Album.Pages.Count} sheet | PDF output";
         }
+
+        albumDrawRecordText.Text =
+            StudioAlbumDrawSentence.For(state.Project.PrimaryAlbum.LastDraw);
         bindingAlbumPage = false;
         StartAlbumThumbnailLoading(items);
         if (albumPagesWorkspaceList.SelectedItem is AlbumPageWorkspaceItem { IsGroup: false } selected)
