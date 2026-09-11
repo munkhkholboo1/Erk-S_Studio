@@ -2356,12 +2356,12 @@ internal sealed class StudioAccountService :
     /// Failure is not an error worth surfacing: no rules means every default
     /// stands, which is exactly how an older Studio already behaves.
     /// </remarks>
-    public async Task<IReadOnlyList<StudioServerRule>> GetServerRulesAsync(
+    public async Task<StudioServerRuleAnswer> GetServerRulesAsync(
         CancellationToken cancellationToken = default)
     {
         StudioAccountSession? session = Current;
         if (session is null)
-            return [];
+            return StudioServerRuleAnswer.Unanswered("Нэвтрээгүй тул сервер асуугдаагүй.");
 
         try
         {
@@ -2384,7 +2384,8 @@ internal sealed class StudioAccountService :
             // The fallback itself is NOT changed here: today's only consumer
             // handles the ambiguity correctly, keeping its default and asking
             // again next time. What was missing is the record - so a machine
-            // running on its own defaults can at least be ASKED why.
+            // running on its own defaults can at least be ASKED why - and a
+            // TYPE, so the next consumer cannot read silence as «no rules».
             if (!response.IsSuccessStatusCode)
             {
                 StudioBoundaryRefusals.Note(
@@ -2393,14 +2394,18 @@ internal sealed class StudioAccountService :
                     (int)response.StatusCode,
                     $"Cloud ERA server дүрмээ өгсөнгүй: {(int)response.StatusCode} {response.ReasonPhrase}. " +
                     "Studio өөрийн анхдагч дүрмээр ажиллаж байна.");
-                return [];
+                return StudioServerRuleAnswer.Unanswered(
+                    $"Сервер дүрмээ өгсөнгүй: {(int)response.StatusCode} {response.ReasonPhrase}.");
             }
 
             StudioServerRulesResponse? rules = await response.Content
                 .ReadFromJsonAsync<StudioServerRulesResponse>(JsonOptions, cancellationToken)
                 .ConfigureAwait(true);
             StudioBoundaryRefusals.Cleared(StudioBoundaryRoute.Symbol(request.RequestUri));
-            return rules?.Rules ?? [];
+
+            // The server ANSWERED. An empty list here is its answer - «I have no
+            // rules for you» - and is a different fact from every branch above.
+            return StudioServerRuleAnswer.FromServer(rules?.Rules);
         }
         catch (Exception exception) when (
             exception is HttpRequestException or TaskCanceledException or JsonException)
@@ -2414,7 +2419,8 @@ internal sealed class StudioAccountService :
                 0,
                 "Cloud ERA server дүрмээ өгсөнгүй: " + exception.GetType().Name +
                 ". Studio өөрийн анхдагч дүрмээр ажиллаж байна.");
-            return [];
+            return StudioServerRuleAnswer.Unanswered(
+                "Сервертэй холбогдож чадсангүй: " + exception.GetType().Name + ".");
         }
     }
 

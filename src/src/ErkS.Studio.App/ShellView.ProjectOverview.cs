@@ -389,17 +389,24 @@ internal sealed partial class ShellView
         if (presenceRuleLoaded)
             return;
 
-        IReadOnlyList<StudioServerRule> rules = await account.GetServerRulesAsync();
-        if (rules.Count == 0)
+        StudioServerRuleAnswer answer = await account.GetServerRulesAsync();
+        if (!answer.ServerAnswered)
         {
-            // Nothing came back - a dropped request, or a server with no rules
-            // yet. The default stands, and the next visit tries again rather
-            // than pinning it for the rest of the session on one bad moment.
+            // 🔴 SILENCE, NOT AN ANSWER - a dropped request or a refusal. This
+            // used to be «rules.Count == 0», which was also true when the server
+            // ANSWERED and had no rules, and the two were indistinguishable.
+            // The presence window is a DISPLAY rule, so falling back to the
+            // default is right here; the type is what stops the next consumer -
+            // a rule that RESTRICTS something - from making the same read and
+            // treating «no rule» as «allowed».
+            //
+            // The default stands, and the next visit tries again rather than
+            // pinning it for the rest of the session on one bad moment.
             return;
         }
 
         presenceRuleLoaded = true;
-        StudioServerRule? presence = rules.FirstOrDefault(rule =>
+        StudioServerRule? presence = answer.StatedRules.FirstOrDefault(rule =>
             rule.Id.Equals("presence", StringComparison.OrdinalIgnoreCase));
         if (presence is null ||
             !presence.Values.TryGetValue("onlineWithinSeconds", out long seconds) ||

@@ -124,7 +124,7 @@ public sealed class EveryBoundaryIsAccountedForTests
         string source = ReadAppSource("StudioAccountService.cs");
         string body = MethodBody(
             source,
-            "public async Task<IReadOnlyList<StudioServerRule>> GetServerRulesAsync(");
+            "public async Task<StudioServerRuleAnswer> GetServerRulesAsync(");
 
         // Both ways of losing the rules are recorded: a refusal, and a request
         // that never arrived.
@@ -133,7 +133,7 @@ public sealed class EveryBoundaryIsAccountedForTests
 
         // The FALLBACK is deliberately unchanged - «no rules» still means every
         // default stands. What was missing was the record, not the behaviour.
-        Assert.Equal(3, Occurrences(body, "return [];"));
+        Assert.Equal(3, Occurrences(body, "StudioServerRuleAnswer.Unanswered("));
     }
 
     private sealed record HttpOwner(string File, bool Covered);
