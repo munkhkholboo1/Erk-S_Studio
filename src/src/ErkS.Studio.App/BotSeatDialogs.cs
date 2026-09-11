@@ -304,6 +304,10 @@ internal sealed class BotSeatManagementDialog : Window
         view.Columns.Add(new GridViewColumn { Header = "Дотоод мэйл", Width = 210, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.InternalEmail)) });
         view.Columns.Add(new GridViewColumn { Header = "Гишүүн", Width = 210, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Member)) });
         view.Columns.Add(new GridViewColumn { Header = "Төхөөрөмж", Width = 150, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Device)) });
+        // «Хэн үүсгэсэн» - the owner asked for it by name: «бот төлвөөс эх үүсвэр
+        // оруулсан ч цаад эзэмшигч нь ботыг анх үүсгэсэн хэрэглэгч өөрөө байх
+        // ёстой». The seat carries it now; the column is where an owner reads it.
+        view.Columns.Add(new GridViewColumn { Header = "Хэн үүсгэсэн", Width = 180, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.CreatedBy)) });
         view.Columns.Add(new GridViewColumn { Header = "Төлөв", Width = 120, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Status)) });
         view.Columns.Add(new GridViewColumn { Header = "Үүсгэсэн", Width = 130, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(SeatRow.Created)) });
         seatList.View = view;
@@ -416,6 +420,7 @@ internal sealed class BotSeatManagementDialog : Window
         string Created,
         string Member,
         string Device,
+        string CreatedBy,
         // Carried raw. The sentence they turn into is a presentation decision
         // and is made in one place, where it can be stated in a test.
         string OrganizationId,
@@ -624,11 +629,18 @@ internal sealed class BotSeatManagementDialog : Window
                 await account.ListBotSeatsAsync();
             seatList.ItemsSource = response.Items
                 .Select(seat => new SeatRow(
-                    seat.BotId,
-                    seat.DisplayName,
-                    seat.InternalEmail,
-                    seat.Status,
-                    seat.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd"),
+                    // 🔴 NAMED, BECAUSE TEN STRINGS IN A ROW SWAP SILENTLY. Adding the
+                    // creator column put it one position too early a moment ago;
+                    // both slots are strings, so the compiler had nothing to say and
+                    // the table would have printed «сууж байна» under «Хэн үүсгэсэн».
+                    // Named arguments turn that whole class of mistake into a build
+                    // error - which is better than a test, because it cannot be
+                    // forgotten when the eleventh column arrives.
+                    BotId: seat.BotId,
+                    DisplayName: seat.DisplayName,
+                    InternalEmail: seat.InternalEmail,
+                    Status: seat.Status,
+                    Created: seat.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd"),
                     // 🔴 THE COLUMN IS HEADED «Гишүүн» AND PRINTED AN ADDRESS.
                     // The owner reads this table to see WHO is on which seat,
                     // and an address is the fallback for having nothing better
@@ -636,21 +648,28 @@ internal sealed class BotSeatManagementDialog : Window
                     // the seat itself, so no second call per row is made: N
                     // lookups to fill a column is how a list becomes slow
                     // enough that nobody opens it.
-                    StudioAccountDisplay.NameOrFallback(
+                    Member: StudioAccountDisplay.NameOrFallback(
                         seat.MemberDisplayName,
                         seat.MemberEmail,
                         string.IsNullOrWhiteSpace(seat.MemberEmail) ? "—" : seat.MemberEmail) +
                         (string.IsNullOrWhiteSpace(seat.MemberEmail) || seat.MemberSinceUtc is not { } since
                             ? ""
                             : $" ({since.ToLocalTime():yyyy-MM-dd})"),
-                    seat.DeviceSeated
+                    Device: seat.DeviceSeated
                         ? "сууж байна" +
                           (seat.DeviceSeatedAtUtc is { } seated
                               ? $" ({seated.ToLocalTime():yyyy-MM-dd})"
                               : "")
                         : "—",
-                    seat.OrganizationId,
-                    seat.OrganizationName))
+                    // Named, never left blank: a blank in a «who» column reads as
+                    // «nobody», which is a different and wrong answer. The same
+                    // wording the masthead uses, from the same constant, so the
+                    // two places cannot drift into two vocabularies.
+                    CreatedBy: string.IsNullOrWhiteSpace(seat.CreatedByDisplayName)
+                        ? StudioActingIdentityBadge.Unknown
+                        : seat.CreatedByDisplayName.Trim(),
+                    OrganizationId: seat.OrganizationId,
+                    OrganizationName: seat.OrganizationName))
                 .ToList();
             // An empty grid is not an answer. Say that the list was READ and
             // is empty, so "nothing here" cannot be mistaken for "nothing

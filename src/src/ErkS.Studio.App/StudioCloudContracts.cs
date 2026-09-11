@@ -1217,6 +1217,21 @@ internal sealed class StudioCloudBotSeat
     public DateTimeOffset CreatedAtUtc { get; set; }
     public string CreatedByEmail { get; set; } = "";
 
+    /// <summary>
+    /// WHO MADE THIS BOT, by name. Empty when the server has no name for them.
+    ///
+    /// 🔴 EMPTY IS THE RIGHT ANSWER, AND THE SERVER REFUSES TO FILL IT IN.
+    /// CreatedByEmail beside it is a normalised ACCOUNT identifier - on a
+    /// phone-number account it is digits - so falling back to it would print a
+    /// telephone number in a column headed «who». SRV declined to do that and
+    /// said why, in one line worth keeping: printing a phone number where a name
+    /// belongs is worse than printing nothing.
+    ///
+    /// So the absence arrives honestly, and is NAMED where it is shown rather
+    /// than left blank - a blank reads as «nobody».
+    /// </summary>
+    public string CreatedByDisplayName { get; set; } = "";
+
     /// <summary>Whether a machine is sitting on this seat right now.</summary>
     public bool DeviceSeated { get; set; }
 
