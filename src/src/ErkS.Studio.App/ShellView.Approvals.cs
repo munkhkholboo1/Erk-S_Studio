@@ -31,6 +31,15 @@ internal sealed partial class ShellView
         "\uE710",
         "Хянах албан тушаалтан нэмэх",
         "ХЯНАСАН хэсэгт мөр нэмэх (хамгийн ихдээ хоёр)");
+    /// <summary>
+    /// 🔴 THE LAST LINK OF №25. The directory is filled, the address
+    /// resolves to a district, and until this button existed nothing called
+    /// OfficialsProposal at all - a rule written, tested and never wired, which
+    /// is its own defect: it looks finished from every side except the one the
+    /// owner uses.
+    /// </summary>
+    private readonly Button suggestFromAddressButton = StudioWidgets.CreateButton(
+        "Хаягаар санал болгох");
     private bool approvalEditorInitialized;
 
     private UIElement BuildConceptApprovalEditor()
@@ -41,6 +50,7 @@ internal sealed partial class ShellView
             addEndorsedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.EndorsedBy);
             addConcurredByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ConcurredBy);
             addReviewedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ReviewedBy);
+            suggestFromAddressButton.Click += (_, _) => SuggestApprovalsFromAddress();
             approvalEditorInitialized = true;
         }
 
@@ -87,9 +97,80 @@ internal sealed partial class ShellView
         addReviewedByButton.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(addReviewedByButton);
 
+        suggestFromAddressButton.HorizontalAlignment = HorizontalAlignment.Left;
+        suggestFromAddressButton.Margin = new Thickness(0, 12, 0, 0);
+        root.Children.Add(suggestFromAddressButton);
+        root.Children.Add(StudioWidgets.CreateHint(
+            "Төслийн хаягийн сум, дүүргийн албан тушаалтнуудыг " +
+            "ЖАГСААЛТАД САНАЛ БОЛГОНО. Нэмэгдсэн мөрийг засаж, хасаж болно; " +
+            "Хадгалах хүртэл төсөлд орохгүй."));
+
         if (state.HasOpenProject)
             BindConceptApprovalEditor();
         return root;
+    }
+
+
+    /// <summary>
+    /// Offers the officials the project's address knows about.
+    ///
+    /// 🔴 A PROPOSAL, NOT A WRITE - the owner settled this asking for the
+    /// feature: «Онцгой байдлын ерөнхий газар болон эрүүл мэндийн яаманд
+    /// хандахаар бол СОНГОДОГ байна». So the rows land in the DRAFT the person
+    /// is already editing - visible, editable, removable, and saved only when they
+    /// save. Nothing is overwritten and nothing reaches the project on its own.
+    /// </summary>
+    private void SuggestApprovalsFromAddress()
+    {
+        if (!state.HasOpenProject)
+            return;
+
+        string unitCode = OfficialsLookupKey.For(
+            state.Project.Foundation.InitiationBasis.SiteLocation);
+        if (unitCode.Length == 0)
+        {
+            // The address cannot answer. Said plainly rather than reported as
+            // «nobody found», which would send somebody to the directory to look
+            // for a row that was never going to be consulted.
+            SetStatus(
+                "Төслийн хаягт сум, дүүрэг сонгогдоогүй байна — " +
+                "албан тушаалтан хайхад тэр түвшин хэрэгтэй.");
+            return;
+        }
+
+        StudioOfficialsDirectory directory = StudioOfficialsDirectory.Live;
+        directory.Load();
+
+        List<ProjectApprovalEntry> concurred = ReadApprovalEntries(concurredByEditorRows);
+        List<ProjectApprovalEntry> reviewed = ReadApprovalEntries(reviewedByEditorRows);
+
+        IReadOnlyList<OfficialsProposalOutcome> outcomes = OfficialsProposalPlan.For(
+            OfficialsProposal.For(directory.Officials(unitCode), concurred, reviewed),
+            concurred,
+            reviewed);
+
+        foreach (OfficialsProposalOutcome outcome in outcomes)
+        {
+            if (!outcome.WasAdded)
+                continue;
+
+            if (outcome.Block == OfficialsBlock.ReviewedBy)
+                reviewed.Add(outcome.Entry.ToApprovalEntry());
+            else
+                concurred.Add(outcome.Entry.ToApprovalEntry());
+        }
+
+        ReplaceApprovalRows(ApprovalRosterKind.ConcurredBy, concurred);
+        ReplaceApprovalRows(ApprovalRosterKind.ReviewedBy, reviewed);
+        RefreshConceptApprovalEditorUi();
+
+        // 🔴 THE DIRECTORY'S OWN TROUBLES REACH THE PERSON HERE TOO. «Nobody
+        // found» and «the directory would not read» look identical from this
+        // screen, and only one of them is about the address.
+        string trouble = directory.UnavailableReasonMn.Length > 0
+            ? " " + directory.UnavailableReasonMn
+            : directory.LossMn.Length > 0 ? " " + directory.LossMn : "";
+        SetStatus(OfficialsProposalPlan.DescribeMn(outcomes) + trouble);
     }
 
     private static Grid BuildApprovalColumnHeader(ApprovalRosterKind kind)
