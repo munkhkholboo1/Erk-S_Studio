@@ -3830,6 +3830,46 @@ internal static class StudioDeviceIdentity
     /// <summary>The trait-based pair, whatever the key state. For diagnostics and migration.</summary>
     public static StudioDeviceFingerprints TraitBasedFingerprints => TraitFingerprints;
 
+    /// <summary>
+    /// EVERY form this one machine can present itself under.
+    ///
+    /// 🔴 A MACHINE MUST RECOGNISE ITS OWN OLD SIGNATURE, AND THIS ONE DID NOT.
+    /// What <see cref="Fingerprint"/> answers depends on the machine's MODE, not
+    /// on the machine: adopt a registered device key and canonical becomes the
+    /// key form; run without one and it is the trait form. A source bound in one
+    /// mode is then unrecognisable in the other, and the person's own work is
+    /// refused on the very computer that made it - «энэ төхөөрөмж дээр бэлдэх
+    /// боломжгүй» about their own machine.
+    ///
+    /// The owner hit exactly this: they tried the machine as a seat, and a source
+    /// carries a fingerprint their computer no longer answers with. Nothing
+    /// overwrote it - both writers are deliberate acts - the machine simply
+    /// stopped recognising a name it had used itself.
+    ///
+    /// 🔴 THIS WIDENS ACCEPTANCE, NEVER OWNERSHIP. Every value here is a form of
+    /// THIS device: its own traits, its own older salt, its own registered key.
+    /// No other machine's fingerprint can enter the set, so accepting all three
+    /// cannot let another computer pass as this one.
+    /// </summary>
+    public static IReadOnlyList<string> AllFormsOfThisDevice
+    {
+        get
+        {
+            var forms = new List<string>(3);
+            void Add(string value)
+            {
+                string normalised = (value ?? "").Trim().ToUpperInvariant();
+                if (normalised.Length > 0 && !forms.Contains(normalised, StringComparer.Ordinal))
+                    forms.Add(normalised);
+            }
+
+            Add(registeredKeyFingerprint);
+            Add(TraitFingerprints.Canonical);
+            Add(TraitFingerprints.Legacy);
+            return forms;
+        }
+    }
+
     internal static void UseRegisteredKeyFingerprint(string fingerprint) =>
         registeredKeyFingerprint = (fingerprint ?? "").Trim().ToUpperInvariant();
 

@@ -78,9 +78,29 @@ internal static class StudioLocalSourceBindingPolicy
         if (bound.Equals(NormalizeDevice(currentDeviceFingerprint), StringComparison.Ordinal))
             return true;
 
-        string legacy = NormalizeDevice(
-            legacyDeviceFingerprint ?? StudioDeviceIdentity.Fingerprints.Legacy);
-        return legacy.Length > 0 && bound.Equals(legacy, StringComparison.Ordinal);
+        if (legacyDeviceFingerprint is not null)
+        {
+            string named = NormalizeDevice(legacyDeviceFingerprint);
+            return named.Length > 0 && bound.Equals(named, StringComparison.Ordinal);
+        }
+
+        // 🔴 EVERY FORM THIS MACHINE CAN PRESENT, not just the one it happens to
+        // answer with today. What the canonical fingerprint IS depends on the
+        // machine's mode - adopt a registered device key and it becomes the key
+        // form, run without one and it is the trait form - so a source bound in
+        // one mode was unrecognisable in the other. The owner met that as «this
+        // device cannot prepare it» about their own computer, on the same
+        // computer that made it.
+        //
+        // Widening acceptance is safe in a way widening ownership would not be:
+        // every value in the set is a form of THIS device, so no other machine
+        // gains anything.
+        foreach (string form in StudioDeviceIdentity.AllFormsOfThisDevice)
+        {
+            if (bound.Equals(NormalizeDevice(form), StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
