@@ -63,6 +63,13 @@ internal sealed class StudioOfficialsDirectory : IOfficialsDirectory
     public int Count => current.Count;
 
     /// <summary>
+    /// Every row the file gave and the reader kept - the EDITOR's question,
+    /// never a lookup's. Copies, so a screen that edits them changes nothing
+    /// until it saves.
+    /// </summary>
+    public IReadOnlyList<OfficialsDirectoryEntry> All => current.All;
+
+    /// <summary>
     /// Where the list on screen came from, in words - empty before anything has
     /// been attempted.
     ///

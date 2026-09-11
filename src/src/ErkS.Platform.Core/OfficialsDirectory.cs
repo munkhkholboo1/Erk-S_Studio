@@ -160,6 +160,9 @@ public sealed class OfficialsDirectorySnapshot : IOfficialsDirectory
 {
     private readonly Dictionary<string, List<OfficialsDirectoryEntry>> byUnit = new(StringComparer.Ordinal);
 
+    /// <summary>Every kept row, in the order it arrived. The file's own order.</summary>
+    private readonly List<OfficialsDirectoryEntry> ordered = [];
+
     /// <summary>
     /// A directory with nothing in it, carrying the reason - used for every
     /// not-loaded state, because the reason is what tells them apart and the
@@ -213,6 +216,7 @@ public sealed class OfficialsDirectorySnapshot : IOfficialsDirectory
             }
 
             rows.Add(copy);
+            ordered.Add(copy);
             kept++;
         }
 
@@ -244,6 +248,20 @@ public sealed class OfficialsDirectorySnapshot : IOfficialsDirectory
             ? rows
             : [];
     }
+
+    /// <summary>
+    /// Every row, in the order the source gave them - what an EDITOR needs, as
+    /// opposed to what a lookup needs.
+    ///
+    /// Deliberately NOT on <see cref="IOfficialsDirectory"/>. That interface
+    /// answers «who serves this district», which is the question the sheet and
+    /// the roster ask; «give me everything» is the editor's question and only the
+    /// local implementation can answer it today. When a served directory arrives
+    /// and somebody has to edit THAT, this is the moment to decide whether the
+    /// question belongs to the plug - not before, on a guess.
+    /// </summary>
+    public IReadOnlyList<OfficialsDirectoryEntry> All =>
+        ordered.Select(entry => entry.Clone()).ToList();
 }
 
 /// <summary>

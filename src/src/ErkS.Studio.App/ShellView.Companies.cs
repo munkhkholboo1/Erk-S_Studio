@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -88,6 +88,14 @@ internal sealed partial class ShellView
     private readonly Button companyRemoveLogoButton = StudioWidgets.CreateButton("Лого арилгах");
     private readonly Button companyResetLogoButton = StudioWidgets.CreateButton("Төвд тааруулах");
     private readonly Button companyRefreshButton = StudioWidgets.CreateButton("Шинэчлэх");
+
+    /// <summary>
+    /// The officials directory sits beside company information because it is
+    /// the same KIND of thing: the owner's own reference data, entered once and
+    /// used by every project, rather than anything belonging to one of them.
+    /// </summary>
+    private readonly Button officialsDirectoryButton =
+        StudioWidgets.CreateButton("Албан тушаалтны лавлах");
     private readonly Button companyEditButton = StudioWidgets.CreateButton("Засварлах");
     private readonly Button companySaveButton = StudioWidgets.CreatePrimaryButton("Хадгалах");
     private readonly Button companyCancelButton = StudioWidgets.CreateButton("Болих");
@@ -122,12 +130,14 @@ internal sealed partial class ShellView
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         companyRefreshButton.Click += async (_, _) => await RefreshCompaniesAsync(forceCloud: true);
+        officialsDirectoryButton.Click += (_, _) => OpenOfficialsDirectory();
         companyNewButton.Click += async (_, _) => await CreateCompanyDraftAsync();
         companyEditButton.Click += (_, _) => BeginCompanyEdit();
         companySaveButton.Click += async (_, _) => await SaveSelectedCompanyAsync();
         companyCancelButton.Click += (_, _) => CancelCompanyEdit();
         companyUseInProjectButton.Click += async (_, _) => await UseSelectedCompanyInOpenProjectAsync();
         companyDeleteButton.Click += async (_, _) => await DeleteSelectedCompanyAsync();
+        actions.Children.Add(officialsDirectoryButton);
         actions.Children.Add(companyRefreshButton);
         actions.Children.Add(companyNewButton);
         actions.Children.Add(companyEditButton);
@@ -171,6 +181,26 @@ internal sealed partial class ShellView
         root.Children.Add(body);
         ApplyCompanyEditorModeUi();
         return root;
+    }
+
+
+    /// <summary>
+    /// Opens the officials directory.
+    ///
+    /// The catalogue is the SAME instance every picker uses, so a district
+    /// chosen here and a district chosen on a project are the same list and the
+    /// same version. A second catalogue would be a second answer to «which
+    /// districts exist», which is how two screens start disagreeing quietly.
+    /// </summary>
+    private void OpenOfficialsDirectory()
+    {
+        var dialog = new OfficialsDirectoryDialog(
+            StudioOfficialsDirectory.Live,
+            administrativeUnits)
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        dialog.ShowDialog();
     }
 
     private void ConfigureCompanyLibraryList()
