@@ -103,14 +103,80 @@ public sealed class TESTSNeverTouchTheRealStudioFolderTests
         // Derived, not listed: the tenth class to drive an HTTP response would
         // reintroduce it silently, and the symptom would again appear somewhere
         // else entirely.
+        var all = TestSources().ToList();
+
+        // 🔴 THE WALK IS CHECKED SEPARATELY FROM WHAT IT FINDS. Both used to rest
+        // on one line: if the folder search broke, «no files» and «no offenders»
+        // were the same green. They fail differently and are now asserted
+        // differently - this one says the suite was READ.
+        Assert.True(all.Count >= 30, "only " + all.Count + " test sources were found to scan");
+
+        (IReadOnlyList<string> offenders, int checkedFiles) = Sweep(all);
+
+        // The instrument: a scan that matched nothing would pass without reading
+        // a line of the suite.
+        Assert.True(checkedFiles >= 5, "only " + checkedFiles + " such test files were found");
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void THEScanWouldCatchAWriterThatUsesNOHttpAtAll()
+    {
+        // 🔴 THE POSITIVE CONTROL FOR THE WIDENED TRIGGER. Both of today's direct
+        // writers also drive responses, so the scan above passes whether or not
+        // it looks for direct writes - the very coincidence that hid the gap.
+        // This asks the question the suite cannot: given a file that writes to the
+        // store and touches no HTTP, does the trigger fire?
+        const string writerWithoutHttp =
+            "public sealed class Invented\n{\n    void Go() => StudioBoundaryRefusals.Note(1, 2);\n}";
+        const string readerOnly =
+            "public sealed class Invented\n{\n    void Go() => Assert.Contains(\"StudioBoundaryRefusals.\", source);\n}";
+
+        Assert.True(ReachesTheStore(writerWithoutHttp), "a direct writer is not noticed");
+
+        // And it must NOT fire on a file that only mentions the name while
+        // reading source - two real test classes do exactly that, and flagging
+        // them would teach the next person to loosen the scan.
+        Assert.False(ReachesTheStore(readerOnly), "a source-reading mention was taken for a write");
+    }
+
+    /// <summary>
+    /// The scan's own trigger, named once so the check above and the sweep below
+    /// cannot answer differently - a guard whose test asks a DIFFERENT question
+    /// from the guard proves nothing about the guard.
+    /// </summary>
+    private static bool ReachesTheStore(string source) =>
+        source.Contains("HttpMessageHandler", StringComparison.Ordinal) ||
+        source.Contains("HttpResponseMessage", StringComparison.Ordinal) ||
+        source.Contains("StudioBoundaryRefusals.Note(", StringComparison.Ordinal) ||
+        source.Contains("StudioBoundaryRefusals.Cleared(", StringComparison.Ordinal) ||
+        source.Contains("StudioBoundaryRefusals.Clear(", StringComparison.Ordinal) ||
+        source.Contains("StudioBoundaryRefusals.AnnotateLatest(", StringComparison.Ordinal);
+
+
+    /// <summary>
+    /// Which of these files reach the store without joining the collection.
+    ///
+    /// 🔴 TWO WAYS TO REACH THE STORE, AND ONLY ONE WAS GUARDED. Driving a
+    /// response makes the service write a refusal; calling the store DIRECTLY
+    /// writes one with no HTTP at all. Both of today's direct writers happen to
+    /// drive responses too, so the old scan caught them - by coincidence, not
+    /// because it was looking.
+    ///
+    /// 🔴 AND THE SWEEP IS A FUNCTION SO IT CAN BE ASKED A QUESTION IT KNOWS
+    /// THE ANSWER TO. As a loop inside the test it was unfalsifiable: deleting
+    /// the line that collected offenders left the suite green, because the only
+    /// input was a suite with no offenders in it. A guard nothing can check is a
+    /// guard, and this project has stopped taking those on trust.
+    /// </summary>
+    internal static (IReadOnlyList<string> Offenders, int Checked) Sweep(
+        IEnumerable<(string Name, string Source)> files)
+    {
         var offenders = new List<string>();
         var checkedFiles = 0;
-        foreach ((string name, string source) in TestSources())
+        foreach ((string name, string source) in files)
         {
-            bool drives =
-                source.Contains("HttpMessageHandler", StringComparison.Ordinal) ||
-                source.Contains("HttpResponseMessage", StringComparison.Ordinal);
-            if (!drives)
+            if (!ReachesTheStore(source))
                 continue;
 
             checkedFiles++;
@@ -118,10 +184,27 @@ public sealed class TESTSNeverTouchTheRealStudioFolderTests
                 offenders.Add(name);
         }
 
-        // The instrument: a scan that matched nothing would pass without reading
-        // a line of the suite.
-        Assert.True(checkedFiles >= 5, "only " + checkedFiles + " such test files were found");
-        Assert.Empty(offenders);
+        return (offenders, checkedFiles);
+    }
+
+    [Fact]
+    public void THESweepFindsAPlantedOffenderAndSparesACleanFile()
+    {
+        // The guard, asked about files whose answer is known. Without this the
+        // sweep is only ever run on a suite that has no offenders - which cannot
+        // tell a working guard from one that reports nothing at all.
+        const string writes = "StudioBoundaryRefusals.Clear();";
+        const string joins = "[Collection(StudioDataRootCollection.Name)]";
+
+        (IReadOnlyList<string> offenders, int checkedFiles) = Sweep(
+        [
+            ("Offender.cs", writes),
+            ("Joins.cs", joins + writes),
+            ("Unrelated.cs", "var x = 1;"),
+        ]);
+
+        Assert.Equal(2, checkedFiles);
+        Assert.Equal("Offender.cs", Assert.Single(offenders));
     }
 
     private static IEnumerable<(string Name, string Source)> TestSources()
