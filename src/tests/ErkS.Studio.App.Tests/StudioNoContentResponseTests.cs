@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using ErkS.Studio;
 
@@ -11,6 +11,13 @@ namespace ErkS.Studio.App.Tests;
 /// threw "Cloud ERA server хоосон хариу өглөө.", and so the server did the work
 /// while the person was told it had failed. Leaving bot state was one of them.
 /// </summary>
+// 🔴 SERIALISED WITH THE REFUSAL STORE'S OWN TESTS, AND THE REASON IS THE
+// STORE'S PATH. It resolves through a process-wide variable, so a refusal
+// written here lands in whatever data root is active at that instant - which,
+// while the boundary-refusal tests are running, is THEIR private folder. Their
+// counts then move under them, about one full-suite run in two, and the
+// failure lands on a class that did nothing wrong.
+[Collection(StudioDataRootCollection.Name)]
 public sealed class StudioNoContentResponseTests
 {
     [Fact]

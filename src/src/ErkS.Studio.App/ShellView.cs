@@ -922,6 +922,15 @@ internal sealed partial class ShellView : IDisposable
 
     private void AddNavItem(StudioPage page, string label, string iconAsset)
     {
+        // 🔴 A BOT IS ANOTHER USER, NOT A LOCKED-DOWN OWNER. The owner cut a whole
+        // device-lock design down to this: «Компани болон төслийн мэдээлэл нь л
+        // харагдахгүй. Нэг үгээр бол өөр хэрэглэгч шиг л байна.»
+        //
+        // Asked at the ONE place every navigation entry is built, so a page added
+        // later cannot slip past by forgetting to ask.
+        if (!StudioBotSurfaceVisibility.IsVisible(SeatedAsBot, page.ToString()))
+            return;
+
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal,

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
@@ -18,6 +18,13 @@ namespace ErkS.Studio.App.Tests;
 /// a seat not assigned this project, and a wrong id. The commonest is the seat,
 /// and it is not an ending at all.
 /// </summary>
+// 🔴 SERIALISED WITH THE REFUSAL STORE'S OWN TESTS, AND THE REASON IS THE
+// STORE'S PATH. It resolves through a process-wide variable, so a refusal
+// written here lands in whatever data root is active at that instant - which,
+// while the boundary-refusal tests are running, is THEIR private folder. Their
+// counts then move under them, about one full-suite run in two, and the
+// failure lands on a class that did nothing wrong.
+[Collection(StudioDataRootCollection.Name)]
 public sealed class ProjectSurvivesARefusalTests
 {
     [Fact]

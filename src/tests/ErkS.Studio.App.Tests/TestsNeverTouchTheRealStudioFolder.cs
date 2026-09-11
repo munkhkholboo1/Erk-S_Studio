@@ -89,4 +89,62 @@ public sealed class TESTSNeverTouchTheRealStudioFolderTests
             Path.GetFullPath(StudioBoundaryRefusals.StorePath),
             StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void EVERYTestThatDrivesTheSERVICEIsSerialisedWithTheStore()
+    {
+        // 🔴 NINE CLASSES WERE WRITING INTO ANOTHER CLASS'S PRIVATE FOLDER. The
+        // refusal store resolves its path through a process-wide variable, so a
+        // refusal raised anywhere lands in whatever data root is active at that
+        // instant - and while the boundary-refusal tests run, that is THEIR folder.
+        // Their counts moved under them about one full-suite run in two, and the
+        // failure landed on a class that had done nothing wrong.
+        //
+        // Derived, not listed: the tenth class to drive an HTTP response would
+        // reintroduce it silently, and the symptom would again appear somewhere
+        // else entirely.
+        var offenders = new List<string>();
+        var checkedFiles = 0;
+        foreach ((string name, string source) in TestSources())
+        {
+            bool drives =
+                source.Contains("HttpMessageHandler", StringComparison.Ordinal) ||
+                source.Contains("HttpResponseMessage", StringComparison.Ordinal);
+            if (!drives)
+                continue;
+
+            checkedFiles++;
+            if (!source.Contains("StudioDataRootCollection.Name", StringComparison.Ordinal))
+                offenders.Add(name);
+        }
+
+        // The instrument: a scan that matched nothing would pass without reading
+        // a line of the suite.
+        Assert.True(checkedFiles >= 5, "only " + checkedFiles + " such test files were found");
+        Assert.Empty(offenders);
+    }
+
+    private static IEnumerable<(string Name, string Source)> TestSources()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "tests", "ErkS.Studio.App.Tests");
+            if (Directory.Exists(candidate))
+            {
+                foreach (FileInfo file in new DirectoryInfo(candidate)
+                             .GetFiles("*.cs", SearchOption.TopDirectoryOnly))
+                {
+                    yield return (file.Name, File.ReadAllText(file.FullName, System.Text.Encoding.UTF8));
+                }
+
+                yield break;
+            }
+
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("the test project was not found; this test reads it from source");
+    }
 }
