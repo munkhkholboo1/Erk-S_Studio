@@ -2403,9 +2403,8 @@ internal sealed partial class ShellView : IDisposable
             // behind it is a member who can change without the seat moving.
             _ => botSeatMember is null
                 ? "төхөөрөмжийн суудал · гишүүн томилогдоогүй"
-                : "гишүүн: " + (string.IsNullOrWhiteSpace(botSeatMember.DisplayName)
-                    ? botSeatMember.AccountEmail
-                    : botSeatMember.DisplayName),
+                : "гишүүн: " +
+                    StudioActingIdentityBadge.NamedOrUnknown(botSeatMember.DisplayName),
         };
         accountStatusText.ToolTip = identity switch
         {

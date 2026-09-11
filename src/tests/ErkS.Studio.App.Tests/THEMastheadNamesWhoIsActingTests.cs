@@ -126,6 +126,43 @@ public sealed class THEMastheadNamesWhoIsActingTests
             "the bot mark has grown into a sentence: " + StudioActingIdentityBadge.BotMark);
     }
 
+    [Fact]
+    public void NOSeatSurfacePrintsANADDRESSWhereANameBelongs()
+    {
+        // 🔴 DERIVED OVER THE SURFACES, NOT PINNED TO ONE LINE. The address
+        // fallback was in three places and a mutation found the one with no test:
+        // the seated machine's own status line still printed AccountEmail after
+        // the other two were fixed. The owner's rule is about the QUESTION - «what
+        // is this person called» - so it is asked of every place that answers it.
+        //
+        // The server now sends an empty name rather than an address for accounts
+        // that have none, so these branches fire more often than they used to.
+        string[] surfaces =
+        [
+            "ShellView.BotSeat.cs",
+            "BotSeatDialogs.cs",
+            "ShellView.cs",
+        ];
+
+        var checkedLines = 0;
+        foreach (string file in surfaces)
+        {
+            string source = ReadAppSource(file).Replace("\r\n", "\n");
+            for (int at = source.IndexOf("гишүүн: ", StringComparison.Ordinal);
+                at >= 0;
+                at = source.IndexOf("гишүүн: ", at + 1, StringComparison.Ordinal))
+            {
+                checkedLines++;
+                int stop = source.IndexOf(";", at, StringComparison.Ordinal);
+                string sentence = stop > at ? source[at..stop] : source[at..];
+                Assert.DoesNotContain("Email", sentence, StringComparison.Ordinal);
+            }
+        }
+
+        // The instrument: a scan that found no such sentence proves nothing.
+        Assert.True(checkedLines >= 2, "the scan found only " + checkedLines + " member sentences");
+    }
+
     private static string MethodBody(string source, string signature)
     {
         string normalised = source.Replace("\r\n", "\n");

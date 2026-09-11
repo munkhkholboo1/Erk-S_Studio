@@ -412,6 +412,18 @@ internal sealed class BotSeatManagementDialog : Window
     /// has published all three for a while; this window showed none of them, so
     /// an owner could not tell which seat to release or who was on it.
     /// </summary>
+    /// <summary>
+    /// Whether anybody is staffed on this seat at all.
+    ///
+    /// Asked of the RELATIONSHIP rather than of the name: a member whose account
+    /// carries no name is still a member, and the one thing this must never do is
+    /// answer «nobody» about them.
+    /// </summary>
+    private static bool SeatHasAMember(StudioCloudBotSeat seat) =>
+        seat.MemberSinceUtc is not null ||
+        !string.IsNullOrWhiteSpace(seat.MemberEmail) ||
+        !string.IsNullOrWhiteSpace(seat.MemberDisplayName);
+
     private sealed record SeatRow(
         string BotId,
         string DisplayName,
@@ -648,10 +660,18 @@ internal sealed class BotSeatManagementDialog : Window
                     // the seat itself, so no second call per row is made: N
                     // lookups to fill a column is how a list becomes slow
                     // enough that nobody opens it.
-                    Member: StudioAccountDisplay.NameOrFallback(
-                        seat.MemberDisplayName,
-                        seat.MemberEmail,
-                        string.IsNullOrWhiteSpace(seat.MemberEmail) ? "—" : seat.MemberEmail) +
+                    // 🔴 TWO DIFFERENT FACTS, AND THEY MUST STAY TELLABLE APART. «No
+                    // member is on this seat» is not «a member is on it whose
+                    // account carries no name» - the owner acts differently on
+                    // each, and SRV asked for the distinction by name.
+                    //
+                    // What changed is only the second one: it used to print the
+                    // ADDRESS, which the owner ruled out, and the server has since
+                    // stopped sending an address in the name's place - so that
+                    // branch fires MORE often now, not less.
+                    Member: !SeatHasAMember(seat)
+                        ? "—"
+                        : StudioActingIdentityBadge.NamedOrUnknown(seat.MemberDisplayName) +
                         (string.IsNullOrWhiteSpace(seat.MemberEmail) || seat.MemberSinceUtc is not { } since
                             ? ""
                             : $" ({since.ToLocalTime():yyyy-MM-dd})"),

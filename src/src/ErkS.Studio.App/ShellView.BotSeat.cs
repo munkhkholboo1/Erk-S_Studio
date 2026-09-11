@@ -363,9 +363,8 @@ internal sealed partial class ShellView
                 : "";
             string member = resumed.Member is null
                 ? "гишүүн томилогдоогүй"
-                : "гишүүн: " + (string.IsNullOrWhiteSpace(resumed.Member.DisplayName)
-                    ? resumed.Member.AccountEmail
-                    : resumed.Member.DisplayName);
+                : "гишүүн: " +
+                    StudioActingIdentityBadge.NamedOrUnknown(resumed.Member.DisplayName);
             SetStatus(resumed.AssignedProjects.Count == 0
                 ? $"«{seat.DisplayName}» — {member} · томилогдсон төсөл алга."
                 : $"«{seat.DisplayName}» — {member} · {appointment}{more}");

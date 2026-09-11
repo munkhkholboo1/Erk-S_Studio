@@ -58,6 +58,23 @@ internal static class StudioActingIdentityBadge
         return new StudioActingIdentity("", Named(ownerDisplayName), IsBot: false);
     }
 
+    /// <summary>
+    /// A person's name, or the fact that there isn't one - never an address.
+    ///
+    /// 🔴 THE SAME FACT HAD TWO ANSWERS, AND ONLY ONE OBEYED THE OWNER. «What is
+    /// this person called» was answered by a name on one route and by an e-mail
+    /// address on another, depending on which screen asked - the fourth time
+    /// today that one question has been found with two answers. The owner's rule
+    /// is one sentence: «НЭРЭЭР, имэйлээр БИШ. Нэр байхгүй бол тэр нь шийдэх
+    /// ёстой цоорхой, имэйлээр нөхөх шалтаг биш.»
+    ///
+    /// An address is not a worse name, it is a different KIND of fact - and the
+    /// server proved the point by normalising accounts: on a telephone account
+    /// the «address» is a row of digits. Printing that under «who» is worse than
+    /// printing nothing.
+    /// </summary>
+    public static string NamedOrUnknown(string? value) => Named(value);
+
     private static string Named(string? value)
     {
         string name = (value ?? "").Trim();

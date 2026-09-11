@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ErkS.Studio.App.Tests;
@@ -150,7 +150,15 @@ public sealed class SeatBelongsToTheOwnerTests
         string source = ReadAppSource("BotSeatDialogs.cs");
 
         Assert.Contains("seat.MemberDisplayName", source, StringComparison.Ordinal);
-        Assert.Contains("StudioAccountDisplay.NameOrFallback(", source, StringComparison.Ordinal);
+        // 🔴 AND NEVER THE ADDRESS. It used to fall back to seat.MemberEmail, which
+        // is the rule the owner ruled out - and the server has since stopped
+        // sending an address in the name's place, so that branch fires more often
+        // now, not less. One naming rule, shared with the masthead.
+        Assert.Contains(
+            "StudioActingIdentityBadge.NamedOrUnknown(seat.MemberDisplayName)",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("seat.MemberEmail,", source, StringComparison.Ordinal);
 
         // The name has to exist on the model, or the line above reads "" for
         // everyone and the column silently goes back to addresses.
@@ -170,16 +178,22 @@ public sealed class SeatBelongsToTheOwnerTests
         //
         // Falling back to the address is a CLIENT decision and is made once,
         // here - the server never writes an address into the name field.
-        string nobody = StudioAccountDisplay.NameOrFallback("", "", "—");
-        string namelessMember = StudioAccountDisplay.NameOrFallback(
-            "", "gerlee@erk-s.mn", "gerlee@erk-s.mn");
-        string namedMember = StudioAccountDisplay.NameOrFallback(
-            "Гэрлээ Б.", "gerlee@erk-s.mn", "gerlee@erk-s.mn");
+        // 🔴 THE NAMELESS MEMBER USED TO PRINT AS AN ADDRESS, and that is what
+        // kept the two apart. The owner forbade the address; the distinction had
+        // to survive the fallback going away, so it now rests on whether there IS
+        // a member rather than on what they are called.
+        string nobody = "—";
+        string namelessMember = StudioActingIdentityBadge.NamedOrUnknown("");
+        string namedMember = StudioActingIdentityBadge.NamedOrUnknown("Гэрлээ Б.");
 
-        Assert.Equal("—", nobody);
-        Assert.Equal("gerlee@erk-s.mn", namelessMember);
+        Assert.Equal(StudioActingIdentityBadge.Unknown, namelessMember);
         Assert.Equal("Гэрлээ Б.", namedMember);
         Assert.NotEqual(nobody, namelessMember);
+
+        // And the product asks the relationship, not the name, to tell them apart.
+        string source = ReadAppSource("BotSeatDialogs.cs");
+        Assert.Contains("!SeatHasAMember(seat)", source, StringComparison.Ordinal);
+        Assert.Contains("seat.MemberSinceUtc is not null", source, StringComparison.Ordinal);
     }
 
     [Fact]
