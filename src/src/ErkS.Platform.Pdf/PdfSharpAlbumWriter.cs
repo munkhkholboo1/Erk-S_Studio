@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using ErkS.Platform.Core;
 using ErkS.Platform.Contracts;
 using PdfSharp.Drawing;
@@ -2413,19 +2413,17 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // constants would have been quicker and is the defect this codebase has
         // catalogued several times over: every later fix would then have to be
         // made twice, and one of the two would be forgotten.
-        ConceptCoverLayout? layout =
-            AlbumConceptCoverStyles.LayoutFor(request.Project.ConceptCoverStyle);
-        if (layout is not null)
-        {
-            DrawConceptCoverSheet2026(document, request, item, layout);
-            return;
-        }
-
-        DrawCanonicalA3ApprovalCoverPage(
-            document,
-            request,
-            item,
-            drawWorkingDrawingEtalon: false);
+        // 🔴 ONE COVER, NO CHOICE, AND THE CHOICE ITSELF IS THE THING THAT WENT.
+        // The setting offered the older A3 approval cover, the A4 2026 sheet and
+        // the A3 2026 sheet - and a project that had never chosen got the oldest
+        // of the three, which is what the owner was actually being handed. They
+        // ruled on all of it at once: «Толгой эргүүлсэн өмнөх хувилбар болон А4
+        // хувилбарыг бүрэн хасаад зөвхөн шинэ А3 форматыг загвар зурагт
+        // СОНГОЛТГҮЙ үүсгэдэг болго.»
+        //
+        // A choice nobody makes correctly is not a feature: no choice means no
+        // wrong choice. The stored setting is no longer read here.
+        DrawConceptCoverSheet2026(document, request, item, ConceptCoverLayout.A3);
     }
 
     private static void DrawWorkingDrawingCoverPage(

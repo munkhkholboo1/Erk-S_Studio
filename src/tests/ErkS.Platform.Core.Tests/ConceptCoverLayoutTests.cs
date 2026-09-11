@@ -1,4 +1,4 @@
-using ErkS.Platform.Core;
+﻿using ErkS.Platform.Core;
 
 namespace ErkS.Platform.Core.Tests;
 
@@ -62,28 +62,33 @@ public sealed class ConceptCoverLayoutTests
     }
 
     [Fact]
-    public void MASTERSA3NumbersComeBackExactly()
+    public void THEA3SHEETSNumbersComeBackExactly()
     {
+        // 🔴 THIS TEST USED TO PIN A DERIVED SET, AND EVERY ONE OF THEM MOVED.
+        // The old numbers came from a frame of 15/400 and from a rule that made
+        // the tables widen with the page; the owner's real A3 drawing disproved
+        // both (_shared/concept-cover-A3-2026-09-11.json). The values below are
+        // what the measured frame and the fixed table produce - the table
+        // centred, 120.785 either side of the frame's middle.
         ConceptCoverLayout a3 = ConceptCoverLayout.A3;
 
         Assert.Equal(420.0, a3.PageWidthMm, Tolerance);
         Assert.Equal(297.0, a3.PageHeightMm, Tolerance);
-        Assert.Equal(400.0, a3.FrameWidthMm, Tolerance);
+        Assert.Equal(395.0, a3.FrameWidthMm, Tolerance);
         Assert.Equal(287.0, a3.FrameHeightMm, Tolerance);
 
-        Assert.Equal(33.875, a3.TablesLeftMm, Tolerance);
-        Assert.Equal(215.0, a3.TablesMiddleMm, Tolerance);
-        Assert.Equal(396.125, a3.TablesRightMm, Tolerance);
-        Assert.Equal(181.125, a3.TableWidthMm, Tolerance);
+        Assert.Equal(96.715, a3.TablesLeftMm, Tolerance);
+        Assert.Equal(217.5, a3.TablesMiddleMm, Tolerance);
+        Assert.Equal(338.285, a3.TablesRightMm, Tolerance);
+        Assert.Equal(120.785, a3.TableWidthMm, Tolerance);
 
+        // The signature block is still anchored to the bottom of the frame, so
+        // these are unchanged by the wider sheet - which is the point of
+        // anchoring it there.
         Assert.Equal(106.46, a3.UpperTopMm, Tolerance);
         Assert.Equal(58.46, a3.UpperBottomMm, Tolerance);
         Assert.Equal(50.8, a3.LowerTopMm, Tolerance);
         Assert.Equal(34.8, a3.LowerBottomMm, Tolerance);
-
-        Assert.Equal(131.125, a3.UpperRoleColumnMm, Tolerance);
-        Assert.Equal(116.125, a3.LowerRoleColumnMm, Tolerance);
-        Assert.Equal(185.54, a3.FreeAreaAboveMm, Tolerance);
     }
 
     [Fact]
@@ -143,10 +148,11 @@ public sealed class ConceptCoverLayoutTests
                 layout.TablesLeftMm - layout.FrameLeftMm,
                 layout.FrameRightMm - layout.TablesRightMm,
                 Tolerance);
-            Assert.Equal(
-                ConceptCoverSheetGrid.TableInsetFromFrameMm,
-                layout.TablesLeftMm - layout.FrameLeftMm,
-                Tolerance);
+            // 🔴 THE INSET IS GONE, BECAUSE IT WAS THE WRONG RULE. It said the
+            // tables widen with the page; the owner's real A3 drawing has them at
+            // the SAME 241.57 as A4, on a frame 116 mm wider. What is constant is
+            // the table, and the gap is merely what is left over.
+            Assert.Equal(ConceptCoverSheetGrid.TableWidthMm, layout.TableWidthMm, Tolerance);
         }
     }
 
@@ -173,18 +179,22 @@ public sealed class ConceptCoverLayoutTests
     }
 
     [Fact]
-    public void THEA3FrameMatchesTheCoverStudioALREADYPrints()
+    public void THEA3FrameIsTHEONEMeasuredOffTheOwnersDrawing()
     {
-        // 🔴 NOT the standard 20/5. The first version used it, on the reasoning
-        // that A3 should carry a standard frame; measuring the cover Studio has
-        // always drawn settled it the other way - that sheet is also A3 and uses
-        // 15, and the two sit in the same album, where a five-millimetre jump in
-        // the binding margin is visible on turning the page.
+        // 🔴 THIS TEST USED TO PIN 15 mm, ON AN ARGUMENT. The reasoning was
+        // that the older A3 cover also uses 15 and the two sit in one album, so a
+        // five-millimetre jump would show on turning the page. Then the owner
+        // supplied a real A3 drawing and it was measured: the frame is the
+        // standard 20/5/5/5, 395 x 287
+        // (_shared/concept-cover-A3-2026-09-11.json, 2026-09-11).
         //
-        // A4's own 14.14 / 3.54 are still not carried over: they describe one
-        // template file rather than a house rule.
-        Assert.Equal(15.0, ConceptCoverLayout.A3.FrameLeftMm, Tolerance);
+        // The argument was not refuted, it was OUTRANKED - and the album it
+        // worried about no longer contains the other cover at all, because the
+        // owner removed it.
+        Assert.Equal(20.0, ConceptCoverLayout.A3.FrameLeftMm, Tolerance);
         Assert.Equal(5.0, ConceptCoverLayout.A3.FrameBottomMm, Tolerance);
+        Assert.Equal(395.0, ConceptCoverLayout.A3.FrameWidthMm, Tolerance);
+        Assert.Equal(287.0, ConceptCoverLayout.A3.FrameHeightMm, Tolerance);
         Assert.Equal(
             5.0,
             ConceptCoverLayout.A3.PageWidthMm - ConceptCoverLayout.A3.FrameRightMm,
@@ -193,5 +203,16 @@ public sealed class ConceptCoverLayoutTests
             5.0,
             ConceptCoverLayout.A3.PageHeightMm - ConceptCoverLayout.A3.FrameTopMm,
             Tolerance);
+    }
+
+    [Fact]
+    public void THETableIsTHESAMESizeOnBothSheets()
+    {
+        // The measurement that overturned the widening rule, stated as itself.
+        Assert.Equal(
+            ConceptCoverLayout.A4.TableWidthMm,
+            ConceptCoverLayout.A3.TableWidthMm,
+            Tolerance);
+        Assert.Equal(241.57, ConceptCoverLayout.A3.TableWidthMm * 2, 0.01);
     }
 }

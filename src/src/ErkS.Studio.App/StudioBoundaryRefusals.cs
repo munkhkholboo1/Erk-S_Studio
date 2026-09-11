@@ -1,4 +1,5 @@
-using System.IO;
+﻿using System.IO;
+using System.Threading;
 using System.Text.Json;
 
 namespace ErkS.Studio;
@@ -167,7 +168,15 @@ internal static class StudioBoundaryRefusals
                 var kept = new List<StudioBoundaryRefusal>();
                 int attempts = 1;
 
-                foreach (StudioBoundaryRefusal existing in ReadUnlocked())
+                IReadOnlyList<StudioBoundaryRefusal> onDisk = ReadUnlocked(out bool trustworthy);
+                if (!trustworthy)
+                {
+                    // Losing this note costs a diagnosis. Writing over a file we
+                    // could not read costs every diagnosis before it.
+                    return;
+                }
+
+                foreach (StudioBoundaryRefusal existing in onDisk)
                 {
                     if (existing.Route.Equals(symbol, StringComparison.Ordinal) &&
                         existing.Code.Equals(named, StringComparison.Ordinal))
@@ -228,8 +237,8 @@ internal static class StudioBoundaryRefusals
         {
             try
             {
-                var stored = new List<StudioBoundaryRefusal>(ReadUnlocked());
-                if (stored.Count == 0)
+                var stored = new List<StudioBoundaryRefusal>(ReadUnlocked(out bool trustworthy));
+                if (!trustworthy || stored.Count == 0)
                     return;
                 stored[^1] = stored[^1] with { Detail = extra };
                 Write(stored);
@@ -263,6 +272,12 @@ internal static class StudioBoundaryRefusals
 
             try
             {
+                // No trustworthiness check here, and a mutation proved it would be
+                // dead weight: an unreadable file yields an empty list, so nothing
+                // is filtered, so the count below is unchanged and this returns
+                // without writing. The protection Note() needs is already here by
+                // construction - and a guard no test can justify is a guard that
+                // will be trusted for the wrong reason later.
                 IReadOnlyList<StudioBoundaryRefusal> stored = ReadUnlocked();
                 var kept = new List<StudioBoundaryRefusal>();
                 foreach (StudioBoundaryRefusal refusal in stored)
@@ -313,27 +328,59 @@ internal static class StudioBoundaryRefusals
         File.WriteAllText(StorePath, JsonSerializer.Serialize(refusals, JsonOptions));
     }
 
-    private static IReadOnlyList<StudioBoundaryRefusal> ReadUnlocked()
+    /// <summary>
+    /// What is on disk, and whether that answer can be trusted.
+    ///
+    /// 🔴 «NO FILE» AND «A FILE I COULD NOT READ» USED TO BE THE SAME EMPTY LIST,
+    /// AND A WRITER ON TOP OF THAT LOSES EVERYTHING. Note() reads, appends and
+    /// writes the whole list back - so one transient read failure turned a file of
+    /// twenty recorded refusals into a file of one. The record that exists to
+    /// explain a failure would erase itself under exactly the conditions that
+    /// produce failures: a busy disk.
+    ///
+    /// The read is retried first, because the cause is transient by nature - a
+    /// file written moments ago and briefly held open elsewhere. Only if it still
+    /// cannot be read does it report itself untrustworthy, and callers that were
+    /// about to write then leave the file alone.
+    /// </summary>
+    private static IReadOnlyList<StudioBoundaryRefusal> ReadUnlocked(out bool trustworthy)
     {
-        try
+        trustworthy = true;
+        if (!File.Exists(StorePath))
         {
-            if (!File.Exists(StorePath))
-            {
-                anythingRecorded = false;
-                return [];
-            }
-
-            List<StudioBoundaryRefusal> stored =
-                JsonSerializer.Deserialize<List<StudioBoundaryRefusal>>(
-                    File.ReadAllText(StorePath), JsonOptions) ?? [];
-            anythingRecorded = stored.Count > 0;
-            return stored;
-        }
-        catch (Exception exception) when (
-            exception is IOException or JsonException or UnauthorizedAccessException
-                or NotSupportedException)
-        {
+            anythingRecorded = false;
             return [];
         }
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                List<StudioBoundaryRefusal> stored =
+                    JsonSerializer.Deserialize<List<StudioBoundaryRefusal>>(
+                        File.ReadAllText(StorePath), JsonOptions) ?? [];
+                anythingRecorded = stored.Count > 0;
+                return stored;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException)
+            {
+                // Somebody else has it open for an instant. Worth another look.
+                Thread.Sleep(15 * (attempt + 1));
+            }
+            catch (Exception exception) when (
+                exception is JsonException or NotSupportedException)
+            {
+                // Not transient, and not ours to repair. The bytes are still the
+                // only record of what happened, so they are not overwritten.
+                break;
+            }
+        }
+
+        trustworthy = false;
+        return [];
     }
+
+    private static IReadOnlyList<StudioBoundaryRefusal> ReadUnlocked() =>
+        ReadUnlocked(out _);
 }

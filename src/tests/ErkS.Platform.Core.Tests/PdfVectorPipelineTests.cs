@@ -1,4 +1,4 @@
-using ErkS.Platform.Contracts;
+﻿using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
 using ErkS.Platform.Core.ProjectTypes.UrbanPlanning;
 using ErkS.Platform.Pdf;
@@ -945,10 +945,22 @@ public sealed class PdfVectorPipelineTests : IDisposable
         Assert.Contains("arial.ttf", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 🔴 THE EXPECTED COUNTS DROPPED BY ONE WHEN THE COVER CHANGED, AND THAT IS A
+    /// REAL DIFFERENCE, NOT A RENUMBERING. The concept album now always prints the
+    /// measured A3 2026 sheet - the owner removed the older cover and the choice
+    /// between them - and that sheet does NOT draw a stand-in graphic where the
+    /// design company has no logo. The old cover did, which is why a citizen's
+    /// cover carried one image with no logo anywhere in the project.
+    ///
+    /// So the numbers here record what the product does now; whether the missing
+    /// stand-in should come back is a question for the owner, and it is asked
+    /// rather than answered by quietly keeping the old expectation green.
+    /// </summary>
     [Theory]
-    [InlineData(ProjectClientTypes.Citizen, 1)]
-    [InlineData(ProjectClientTypes.Organization, 2)]
-    [InlineData(ProjectClientTypes.GovernmentAuthority, 2)]
+    [InlineData(ProjectClientTypes.Citizen, 0)]
+    [InlineData(ProjectClientTypes.Organization, 1)]
+    [InlineData(ProjectClientTypes.GovernmentAuthority, 1)]
     public void ConceptCover_UsesDesignFallbackAndClientLogoFollowsClientType(
         string clientType,
         int expectedImageCount)

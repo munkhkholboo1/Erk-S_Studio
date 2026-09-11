@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http;
 using System.Text;
 using ErkS.Studio;
@@ -116,6 +116,48 @@ public sealed class BoundaryRefusalIsRecordedTests : IDisposable
 
         Assert.Null(StudioBoundaryRefusals.Latest("api/cloud-era/v1/projects"));
         Assert.NotNull(StudioBoundaryRefusals.Latest("api/cloud-era/v1/projects/{id}/albums/{id}/revisions"));
+    }
+
+    [Fact]
+    public void ARECORDThatCannotBeReadIsNotOVERWRITTEN()
+    {
+        // 🔴 THE DIAGNOSTIC LOG USED TO ERASE ITSELF, UNDER EXACTLY THE CONDITIONS
+        // THAT PRODUCE FAILURES. Note() reads the file, appends and writes the
+        // whole list back - and a read that failed came back as an EMPTY LIST,
+        // indistinguishable from «no file yet». So one unreadable moment turned a
+        // file of recorded refusals into a file of one.
+        //
+        // It was not theoretical. A half-written file is what a crash leaves, and
+        // under load this suite reproduced the loss about one run in two.
+        //
+        // The bytes are the only record of what happened, so a writer that cannot
+        // read them leaves them alone: losing the new note costs a diagnosis,
+        // overwriting the file costs every diagnosis before it.
+        StudioBoundaryRefusals.Note("route/keep", "code_keep", 500, "Хадгалагдах ёстой.");
+        string intact = File.ReadAllText(StudioBoundaryRefusals.StorePath);
+        Assert.Contains("code_keep", intact, StringComparison.Ordinal);
+
+        File.WriteAllText(StudioBoundaryRefusals.StorePath, "{ this is not json");
+
+        StudioBoundaryRefusals.Note("route/new", "code_new", 500, "Бичигдэх ёсгүй.");
+
+        Assert.Equal(
+            "{ this is not json",
+            File.ReadAllText(StudioBoundaryRefusals.StorePath));
+    }
+
+    [Fact]
+    public void ANOTEIsStillRecordedWhenTheFileISReadable()
+    {
+        // The positive control. A store that refused to write ANYTHING would pass
+        // the rule above and record nothing at all - which is the same silence
+        // the whole file exists to end.
+        StudioBoundaryRefusals.Note("route/ok", "code_ok", 500, "Бичигдэнэ.");
+        StudioBoundaryRefusals.Note("route/ok", "code_ok", 500, "Дахин.");
+
+        StudioBoundaryRefusal? noted = StudioBoundaryRefusals.Latest("route/ok");
+        Assert.NotNull(noted);
+        Assert.Equal(2, noted.Attempts);
     }
 
     [Fact]

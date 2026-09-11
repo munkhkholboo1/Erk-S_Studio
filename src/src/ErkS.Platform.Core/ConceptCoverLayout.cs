@@ -1,4 +1,4 @@
-namespace ErkS.Platform.Core;
+﻿namespace ErkS.Platform.Core;
 
 /// <summary>
 /// Where the 2026 concept cover's parts sit on a given sheet size.
@@ -47,21 +47,24 @@ public sealed record ConceptCoverLayout(
         new("A4", 297.0, 210.0, 14.14, 3.54, 279.32, 202.95);
 
     /// <summary>
-    /// A3 landscape, laid out again rather than enlarged.
+    /// A3 landscape, MEASURED off the drawing the owner supplied.
     ///
-    /// 🔴 THE MARGINS ARE THE ONES STUDIO ALREADY PRINTS - 15 at the binding
-    /// edge, 5 elsewhere - and not the standard 20/5. That reversed an earlier
-    /// decision, on a reason worth keeping: the cover Studio has always drawn is
-    /// ALSO A3 and uses 15, and the two covers sit in the same album. A reader
-    /// turning the page would see the frame jump five millimetres sideways.
-    /// Agreeing with an external standard matters less than agreeing with the
-    /// sheet bound next to it.
+    /// 🔴 THESE NUMBERS REPLACE A SET THAT WAS DERIVED RATHER THAN MEASURED, AND
+    /// THE DERIVATION WAS WRONG. The earlier A3 margins - 15 at the binding edge,
+    /// 400 wide - were reasoned out from the A4 sheet and from a wish to match the
+    /// older cover bound beside it. The owner then supplied a real A3 drawing and
+    /// it was measured (_shared/concept-cover-A3-2026-09-11.json, from
+    /// concept-cover-A3-reference-2026-09-11.dwg): the frame is the standard
+    /// 20/5/5/5, 395 x 287. An argument does not outrank a measurement.
     ///
-    /// The A4 template's own 14.14 / 3.54 were still not brought across: those
-    /// describe one file, not a house rule.
+    /// The measurement also settled what «scale хийхгүй» meant, and the answer was
+    /// BOTH: the page and the frame really are the A4 sheet times sqrt(2), while
+    /// the signature tables are not enlarged at all - their millimetres are
+    /// identical on the two sheets. Half of the old guess was right, which is
+    /// exactly why it survived as long as it did.
     /// </summary>
     public static ConceptCoverLayout A3 { get; } =
-        new("A3", 420.0, 297.0, 15.0, 5.0, 400.0, 287.0);
+        new("A3", 420.0, 297.0, 20.0, 5.0, 395.0, 287.0);
 
     public double FrameRightMm => FrameLeftMm + FrameWidthMm;
 
@@ -74,16 +77,11 @@ public sealed record ConceptCoverLayout(
     public double TablesMiddleMm => FrameLeftMm + FrameWidthMm / 2;
 
     /// <summary>
-    /// Width of ONE of the two tables - the pair fills the frame less the same
-    /// inset on each side.
-    ///
-    /// On A4 this returns 120.785, which is half the 241.57 measured off the
-    /// drawing. The rule was not fitted to that number; the number fell out of
-    /// it, and that agreement is what says the inset is a real property of the
-    /// design rather than an artefact of one page size.
+    /// Width of ONE of the two tables. The SAME on every sheet, and centred in
+    /// the frame - see <see cref="ConceptCoverSheetGrid.TableWidthMm"/> for the
+    /// measurement that replaced the widening rule this used to apply.
     /// </summary>
-    public double TableWidthMm =>
-        (FrameWidthMm - 2 * ConceptCoverSheetGrid.TableInsetFromFrameMm) / 2;
+    public double TableWidthMm => ConceptCoverSheetGrid.TableWidthMm;
 
     public double TablesLeftMm => TablesMiddleMm - TableWidthMm;
 

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using ErkS.Platform.Core;
 
 namespace ErkS.Platform.Core.Tests;
@@ -65,18 +65,28 @@ public sealed class ConceptCoverStyleChoiceTests
         // it, because the setting is not what draws.
         string writer = ReadWriterSource();
 
-        Assert.Contains(
+        // 🔴 THE SETTING IS NO LONGER ASKED, AND THAT IS THE OWNER'S DECISION.
+        // The choice offered the older A3 approval cover, the A4 2026 sheet and
+        // the A3 2026 sheet - and a project that had never chosen was handed the
+        // oldest of the three, which is what they were actually getting. «Толгой
+        // эргүүлсэн өмнөх хувилбар болон А4 хувилбарыг бүрэн хасаад зөвхөн шинэ
+        // А3 форматыг загвар зурагт СОНГОЛТГҮЙ үүсгэдэг болго.»
+        //
+        // A choice nobody makes correctly is not a feature. What this test still
+        // holds is the half that mattered: the drawing is REACHED. Written and
+        // unreachable is the defect this codebase found four times in one night.
+        Assert.DoesNotContain(
             "AlbumConceptCoverStyles.LayoutFor(request.Project.ConceptCoverStyle)",
             writer,
             StringComparison.Ordinal);
         Assert.Contains(
-            "DrawConceptCoverSheet2026(document, request, item, layout);",
+            "DrawConceptCoverSheet2026(document, request, item, ConceptCoverLayout.A3);",
             writer,
             StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ONEDrawingRoutineServesBOTHSheets()
+    public void ONEDrawingRoutineDrawsTheSheet()
     {
         // 🔴 THE REQUIREMENT THAT SHAPED THE WHOLE CHANGE. Copying
         // DrawConceptCoverSheet2026 and editing its constants was the quick way
@@ -90,11 +100,14 @@ public sealed class ConceptCoverStyleChoiceTests
         string sheet = ReadConceptCoverSource();
 
         Assert.Equal(1, Occurrences(sheet, "private static void DrawConceptCoverSheet2026("));
-        Assert.Equal(1, Occurrences(writer + sheet, "DrawConceptCoverSheet2026(document, request, item, layout);"));
+        Assert.Equal(
+            1,
+            Occurrences(writer + sheet, "DrawConceptCoverSheet2026(document, request, item,"));
 
         // And the sheet size reaches the drawing as DATA, never as a branch
         // inside it. A single `if (a3)` here would be the copy back again, in
-        // one method instead of two files.
+        // one method instead of two files. Still true with one sheet left: the
+        // day a second one returns, it arrives as an argument.
         Assert.DoesNotContain("ConceptCoverLayout.A3", sheet, StringComparison.Ordinal);
         Assert.DoesNotContain("Sheet2026A3", sheet, StringComparison.Ordinal);
     }

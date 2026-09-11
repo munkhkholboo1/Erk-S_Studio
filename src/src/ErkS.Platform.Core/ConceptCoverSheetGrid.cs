@@ -1,4 +1,4 @@
-namespace ErkS.Platform.Core;
+﻿namespace ErkS.Platform.Core;
 
 /// <summary>
 /// The 2026 concept-cover layout, measured off the DWG the user supplied.
@@ -55,12 +55,22 @@ public static class ConceptCoverSheetGrid
     public static double TablesMiddleMm => ConceptCoverLayout.A4.TablesMiddleMm;
 
     /// <summary>
-    /// Width of one of the two tables. On A4 this is 120.785 - half the measured
-    /// total of 241.57 - and it is now DERIVED from the frame and the inset
-    /// below rather than written down, so that A3 gets the same rule instead of
-    /// a second measurement.
+    /// Width of ONE of the two signature tables, on ANY sheet.
+    ///
+    /// 🔴 THIS USED TO BE DERIVED FROM THE FRAME, AND THE DERIVATION WAS WRONG.
+    /// The pair was described as «the frame less 18.875 either side», which makes
+    /// the tables WIDEN with the page - and on A4, where it was measured, that
+    /// reproduces the 241.57 exactly, so nothing contradicted it. The owner's real
+    /// A3 drawing did: its tables are 241.57 across as well, to four decimal
+    /// places, on a frame 116 mm wider
+    /// (_shared/concept-cover-A3-2026-09-11.json, measured 2026-09-11).
+    ///
+    /// So «scale хийхгүй» holds of the tables in the strongest sense - they do not
+    /// change at all - and the inset was an artefact of measuring one sheet.
+    /// Written as the width, which is the thing that does not move, rather than as
+    /// a gap, which is the thing that does.
     /// </summary>
-    public static double TableWidthMm => ConceptCoverLayout.A4.TableWidthMm;
+    public const double TableWidthMm = 120.785;
 
     /// <summary>Both table pairs start and end here.</summary>
     public static double TablesLeftMm => ConceptCoverLayout.A4.TablesLeftMm;
@@ -73,13 +83,6 @@ public static class ConceptCoverSheetGrid
     // PURPOSE: a difference between A4 and A3 in any of them cannot be written
     // down here at all, which is a stronger guarantee than a test that they
     // happen to agree.
-
-    /// <summary>
-    /// How far the tables sit inside the frame, each side. Measured on A4 -
-    /// 33.015 from the page less the frame's 14.14 - and applied to A3 as a
-    /// rule, which is what makes the pair widen with the sheet.
-    /// </summary>
-    public const double TableInsetFromFrameMm = 18.875;
 
     /// <summary>
     /// How far the signature block sits above the frame's bottom edge. Measured
