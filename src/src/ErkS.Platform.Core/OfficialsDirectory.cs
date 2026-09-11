@@ -138,6 +138,18 @@ public interface IOfficialsDirectory
     /// «not filled in yet» and «the download failed» are acted on differently.
     /// </summary>
     string UnavailableReasonMn { get; }
+
+    /// <summary>
+    /// What this directory was given and would not keep - empty when it kept
+    /// everything.
+    ///
+    /// 🔴 A DIFFERENT EVENT FROM <see cref="UnavailableReasonMn"/>, AND IT HAS TO
+    /// LIVE HERE. «Nothing loaded» is loud; «thirty-five of thirty-six loaded» is
+    /// perfectly silent, because the missing official simply never appears in any
+    /// answer. Carried by the DIRECTORY rather than by the parse result, because
+    /// the parse happens once and the screen is looked at all day.
+    /// </summary>
+    string LossMn { get; }
 }
 
 /// <summary>
@@ -156,15 +168,32 @@ public sealed class OfficialsDirectorySnapshot : IOfficialsDirectory
     public static OfficialsDirectorySnapshot Empty(string unavailableReasonMn) =>
         new([], null, unavailableReasonMn);
 
+    /// <summary>
+    /// The directory a file produced, CARRYING WHAT THE FILE LOST. A read that
+    /// refused rows and a read that had none to refuse are different states, and
+    /// dropping the difference here would put the loss back in a log.
+    /// </summary>
+    public static OfficialsDirectorySnapshot From(OfficialsDirectoryRead read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        return new OfficialsDirectorySnapshot(
+            read.Entries,
+            read.AsOfUtc,
+            read.ProblemMn,
+            read.LossMn);
+    }
+
     public OfficialsDirectorySnapshot(
         IEnumerable<OfficialsDirectoryEntry> entries,
         DateTimeOffset? asOfUtc,
-        string unavailableReasonMn = "")
+        string unavailableReasonMn = "",
+        string lossMn = "")
     {
         ArgumentNullException.ThrowIfNull(entries);
 
         AsOfUtc = asOfUtc;
         UnavailableReasonMn = unavailableReasonMn ?? "";
+        LossMn = lossMn ?? "";
 
         var kept = 0;
         foreach (OfficialsDirectoryEntry entry in entries)
@@ -193,6 +222,8 @@ public sealed class OfficialsDirectorySnapshot : IOfficialsDirectory
     public DateTimeOffset? AsOfUtc { get; }
 
     public string UnavailableReasonMn { get; }
+
+    public string LossMn { get; }
 
     /// <summary>
     /// How many rows this directory actually KEPT.
