@@ -96,6 +96,69 @@ public sealed class THESKIPPEDBuildLeavesATraceTests
     }
 
     [Fact]
+    public void EVERYSentenceNamesITSOwnReason()
+    {
+        // 🔴 THE OWNER'S NEXT STUDIO OPEN IS THE REASON THIS IS ASSERTED. Adding
+        // ConceptDesign.ReviewedBy changed every project's fingerprint, so their
+        // 2 GB album redraws ONCE - and a line that said only «дахин зурагдсан»
+        // would read as «slow again» to somebody who has spent a week on exactly
+        // that complaint. «Төсөл өөрчлөгдсөн тул альбом дахин зурагдсан» is a
+        // different message: it says what happened and that it was expected.
+        //
+        // Derived over every reason and BOTH branches - a sentence that named its
+        // reason when skipping and not when drawing would fail exactly where it
+        // matters, which is the drawing one.
+        foreach (AlbumRebuildReason reason in Enum.GetValues<AlbumRebuildReason>())
+        {
+            string words = StudioAlbumRebuildPolicy.DescribeMn(reason);
+
+            foreach (bool drew in new[] { true, false })
+            {
+                var record = new AlbumDrawRecord();
+                record.Record(drew, reason.ToString(), DateTimeOffset.UnixEpoch);
+
+                string sentence = StudioAlbumDrawSentence.For(record);
+                Assert.True(
+                    sentence.Contains(words, StringComparison.Ordinal),
+                    $"«{reason}» ({(drew ? "drew" : "skipped")}) does not say why: {sentence}");
+            }
+        }
+    }
+
+    [Fact]
+    public void THEOwnersONETIMERedrawReadsASEXPECTEDNotASSlowAgain()
+    {
+        // The exact line the owner will meet, end to end: the decision the policy
+        // makes for a changed fingerprint, recorded, and read back.
+        AlbumRebuildDecision decision = StudioAlbumRebuildPolicy.Decide(
+            StudioWorkspaceOperation.ExplicitAlbumEdit,
+            currentFingerprint: "after-reviewedby",
+            builtFingerprint: "before-reviewedby",
+            builtAlbumIsPresent: true);
+
+        var record = new AlbumDrawRecord();
+        record.Record(decision.MustDraw, decision.Reason.ToString(), DateTimeOffset.UnixEpoch);
+        record.RecordDrawFinished(DateTimeOffset.UnixEpoch, seconds: 96.4);
+
+        string sentence = StudioAlbumDrawSentence.For(record);
+
+        Assert.Contains("төсөл өөрчлөгдсөн тул", sentence, StringComparison.Ordinal);
+        Assert.Contains("дахин зурагдсан", sentence, StringComparison.Ordinal);
+
+        // And how long it took, so «slow» has a number beside it rather than a
+        // memory of waiting.
+        //
+        // 🔴 THE SEPARATOR IS THE MACHINE'S, NOT THIS TEST'S. Written as
+        // «96.4 секунд» this passes here and goes red on a colleague whose
+        // culture writes «96,4» - a false red for no product reason, which is
+        // how a suite starts collecting exemptions instead of trust. The product
+        // formats in the reader's culture like every other Mongolian line in it,
+        // so the expectation is formed the same way.
+        string seconds = 96.4.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture);
+        Assert.Contains(seconds + " секунд", sentence, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EVERYReasonHasASentenceAndTheyAreDistinct()
     {
         // 🔴 DERIVED FROM THE ENUM. A reason with no sentence prints as a blank
