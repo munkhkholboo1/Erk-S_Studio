@@ -1182,7 +1182,14 @@ internal static class BotSeatErrors
         // are the difference between "the owner released this device", "the seat
         // was deleted" and "it was handed back", which are three different
         // things to do next.
-        if (!string.IsNullOrWhiteSpace(known.ErrorCode))
+        //
+        // 🔴 THE QUESTION IS ASKED OF THE ONE PLACE THAT ANSWERS IT. This used
+        // to read the code itself, and it was RIGHT - but being right in one
+        // file is how a rule ends up spelled two ways. The general version was
+        // generalised FROM this one; it now answers for both, so «did the server
+        // actually speak» cannot start meaning different things in the seat
+        // dialogs and everywhere else.
+        if (StudioRefusalSentence.ServerSpoke(known.ErrorCode, known.Message))
             return known.Message;
 
         if (known.StatusCode == System.Net.HttpStatusCode.NotFound)

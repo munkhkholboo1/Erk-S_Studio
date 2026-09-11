@@ -75,12 +75,11 @@ internal static class StudioProjectAccessRefusal
             ? "Энэ төсөл таны хувьд дууссаныг сервер мэдэгдлээ."
             : "Энэ төслийг сервер одоо нээж чадсангүй.";
 
-        // The server's OWN words, when it used any. Studio manufactures a
-        // sentence when the body is empty («Cloud ERA server алдаа: 500 …»), and
-        // showing that as «what the server said» would be a false attribution -
-        // a structured error body is what carries a code, so a code present
-        // means the sentence came from the server.
-        if (named.Length > 0 && (message ?? "").Trim().Length > 0)
+        // The server's OWN words, when it used any - asked of the one place that
+        // decides it. This used to spell the rule out here as well, and two
+        // spellings of «did the server actually speak» are two chances for one
+        // of them to start attributing Studio's own sentence to the server.
+        if (StudioRefusalSentence.ServerSpoke(named, message))
             sentence += " Серверийн хариу: " + message!.Trim();
         else if (named.Length > 0)
             sentence += " Серверийн код: " + named + ".";

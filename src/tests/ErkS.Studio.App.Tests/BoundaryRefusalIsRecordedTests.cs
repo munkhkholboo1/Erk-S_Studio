@@ -92,8 +92,8 @@ public sealed class BoundaryRefusalIsRecordedTests : IDisposable
         // happened to be running - which is how this test failed one run in
         // five on a 502 that arrived from somewhere else entirely.
         Assert.Single(
-            StudioBoundaryRefusals.Read().Where(
-                refusal => refusal.Route == "api/cloud-era/v1/projects/{id}"));
+            StudioBoundaryRefusals.Read(),
+            refusal => refusal.Route == "api/cloud-era/v1/projects/{id}");
 
         // A DIFFERENT code is a different failure and starts again.
         StudioBoundaryRefusals.Note(
