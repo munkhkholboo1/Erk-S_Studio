@@ -192,6 +192,24 @@ public static class ProjectApprovalRosterLimits
     /// </summary>
     public const int MinConcurredBy = 0;
     public const int MaxConcurredBy = 6;
+
+    /// <summary>
+    /// ХЯНАСАН is EXACTLY TWO PLACES, and unlike ЗӨВШИЛЦСӨН the ceiling is a
+    /// refusal rather than a warning.
+    ///
+    /// The two differ in how their table is drawn, which is why they differ
+    /// here. ЗӨВШИЛЦСӨН divides a fixed height by however many rows it has, so a
+    /// seventh party is merely cramped and refusing would leave a project unable
+    /// to produce its cover at all. ХЯНАСАН is drawn at the drawing's own two
+    /// rows - twoTablePairs.top.rightRowHeightsMm is [20.0, 20.0] - so a third
+    /// row has nowhere to go, and the owner named exactly two people for it:
+    /// «нөгөө талд хот байгуулалтын газрын 2 албан тушаалтан тэгээд л болоо».
+    ///
+    /// No floor: a project that has not reached this stage has none, and the
+    /// sheet prints the empty lines to sign on.
+    /// </summary>
+    public const int MinReviewedBy = 0;
+    public const int MaxReviewedBy = 2;
 }
 
 public sealed record ConceptCoverApprovalSnapshot(

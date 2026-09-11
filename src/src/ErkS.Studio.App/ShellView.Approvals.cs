@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using ErkS.Platform.Core;
@@ -13,6 +13,8 @@ internal sealed partial class ShellView
     private readonly List<ApprovalEditorRow> endorsedByEditorRows = [];
     private readonly StackPanel concurredByRowsPanel = new();
     private readonly List<ApprovalEditorRow> concurredByEditorRows = [];
+    private readonly StackPanel reviewedByRowsPanel = new();
+    private readonly List<ApprovalEditorRow> reviewedByEditorRows = [];
     private readonly Button addApprovedByButton = StudioWidgets.CreateGlyphTextButton(
         "\uE710",
         "Батлах албан тушаалтан нэмэх",
@@ -25,6 +27,10 @@ internal sealed partial class ShellView
         "\uE710",
         "Зөвшилцөх байгууллага нэмэх",
         "ЗӨВШИЛЦСӨН хэсэгт мөр нэмэх");
+    private readonly Button addReviewedByButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE710",
+        "Хянах албан тушаалтан нэмэх",
+        "ХЯНАСАН хэсэгт мөр нэмэх (хамгийн ихдээ хоёр)");
     private bool approvalEditorInitialized;
 
     private UIElement BuildConceptApprovalEditor()
@@ -34,6 +40,7 @@ internal sealed partial class ShellView
             addApprovedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ApprovedBy);
             addEndorsedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.EndorsedBy);
             addConcurredByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ConcurredBy);
+            addReviewedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ReviewedBy);
             approvalEditorInitialized = true;
         }
 
@@ -68,6 +75,17 @@ internal sealed partial class ShellView
         root.Children.Add(concurredByRowsPanel);
         addConcurredByButton.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(addConcurredByButton);
+
+        root.Children.Add(StudioWidgets.CreateSectionHeader("ХЯНАСАН"));
+        root.Children.Add(StudioWidgets.CreateHint(
+            "ХЯНАСАН нь загвар зургийн нүүр хуудасны баруун дээд хүснэгт: хот " +
+            "байгуулалтын газрын албан тушаалтнууд. Зурагт ХОЁР мөртэй тул " +
+            "хоёроос олон мөр нэмэгдэхгүй. Бөглөөгүй мөр ч хэвлэгдэнэ — " +
+            "цаасан маягт гарын үсэг зурах мөр шаарддаг."));
+        root.Children.Add(BuildApprovalColumnHeader(ApprovalRosterKind.ReviewedBy));
+        root.Children.Add(reviewedByRowsPanel);
+        addReviewedByButton.HorizontalAlignment = HorizontalAlignment.Left;
+        root.Children.Add(addReviewedByButton);
 
         if (state.HasOpenProject)
             BindConceptApprovalEditor();
@@ -128,6 +146,9 @@ internal sealed partial class ShellView
         ReplaceApprovalRows(
             ApprovalRosterKind.ConcurredBy,
             state.Project.Foundation.ApprovalWorkflow.ConceptDesign.ConcurredBy);
+        ReplaceApprovalRows(
+            ApprovalRosterKind.ReviewedBy,
+            state.Project.Foundation.ApprovalWorkflow.ConceptDesign.ReviewedBy);
         RefreshConceptApprovalEditorUi();
     }
 
@@ -137,6 +158,7 @@ internal sealed partial class ShellView
         ApprovedBy = ReadApprovalEntries(approvedByEditorRows),
         EndorsedBy = ReadApprovalEntries(endorsedByEditorRows),
         ConcurredBy = ReadApprovalEntries(concurredByEditorRows),
+        ReviewedBy = ReadApprovalEntries(reviewedByEditorRows),
     };
 
     private static bool ConceptApprovalDiffers(
@@ -147,7 +169,8 @@ internal sealed partial class ShellView
         return current.IsConfigured != draft.IsConfigured ||
             EntriesDiffer(current.ApprovedBy, draft.ApprovedBy) ||
             EntriesDiffer(current.EndorsedBy, draft.EndorsedBy) ||
-            EntriesDiffer(current.ConcurredBy, draft.ConcurredBy);
+            EntriesDiffer(current.ConcurredBy, draft.ConcurredBy) ||
+            EntriesDiffer(current.ReviewedBy, draft.ReviewedBy);
     }
 
     private static bool EntriesDiffer(
@@ -418,6 +441,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => approvedByEditorRows,
         ApprovalRosterKind.EndorsedBy => endorsedByEditorRows,
         ApprovalRosterKind.ConcurredBy => concurredByEditorRows,
+        ApprovalRosterKind.ReviewedBy => reviewedByEditorRows,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -426,6 +450,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => approvedByRowsPanel,
         ApprovalRosterKind.EndorsedBy => endorsedByRowsPanel,
         ApprovalRosterKind.ConcurredBy => concurredByRowsPanel,
+        ApprovalRosterKind.ReviewedBy => reviewedByRowsPanel,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -434,6 +459,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => ProjectApprovalRosterLimits.MinApprovedBy,
         ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MinEndorsedBy,
         ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MinConcurredBy,
+        ApprovalRosterKind.ReviewedBy => ProjectApprovalRosterLimits.MinReviewedBy,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -442,6 +468,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => ProjectApprovalRosterLimits.MaxApprovedBy,
         ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MaxEndorsedBy,
         ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MaxConcurredBy,
+        ApprovalRosterKind.ReviewedBy => ProjectApprovalRosterLimits.MaxReviewedBy,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -454,6 +481,14 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => true,
         ApprovalRosterKind.EndorsedBy => true,
         ApprovalRosterKind.ConcurredBy => false,
+
+        // 🔴 A REFUSAL, NOT A WARNING - unlike its neighbour. ХЯНАСАН prints at
+        // the drawing's own two rows, so a third has nowhere to go; ЗӨВШИЛЦСӨН
+        // divides its height by whatever it holds, so a seventh party is only
+        // cramped. The cap lives HERE, in sight of the person typing, because
+        // the store deliberately does not truncate: dropping a row at save time
+        // would destroy their work with nothing on screen having said so.
+        ApprovalRosterKind.ReviewedBy => true,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -462,6 +497,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.ApprovedBy => "БАТЛАВ",
         ApprovalRosterKind.EndorsedBy => "ЗӨВШӨӨРӨЛЦСӨН",
         ApprovalRosterKind.ConcurredBy => "ЗӨВШИЛЦСӨН",
+        ApprovalRosterKind.ReviewedBy => "ХЯНАСАН",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -470,6 +506,7 @@ internal sealed partial class ShellView
         ApprovedBy,
         EndorsedBy,
         ConcurredBy,
+        ReviewedBy,
     }
 
     private sealed record ApprovalEditorRow(
