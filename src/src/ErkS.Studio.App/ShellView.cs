@@ -301,7 +301,6 @@ internal sealed partial class ShellView : IDisposable
         IsChecked = true,
     };
     private readonly TextBlock albumInfoText = new();
-    private readonly DispatcherTimer autoRebuildTimer;
     private readonly DispatcherTimer notificationRefreshTimer;
     private readonly DispatcherTimer projectChatRefreshTimer;
     private bool suppressAutomaticAlbumRebuild;
@@ -357,33 +356,6 @@ internal sealed partial class ShellView : IDisposable
         // time the answer had been to add one. There is one now: the cloud they
         // already had. Its colour says whether it is worth pressing.
         cloudSyncButton.Click += async (_, _) => await RefreshAlbumAsync();
-        autoRebuildTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
-        autoRebuildTimer.Tick += (_, _) =>
-        {
-            autoRebuildTimer.Stop();
-            if (autoRebuildCheck.IsChecked == true &&
-                state.HasOpenProject &&
-                !suppressAutomaticAlbumRebuild &&
-                !syncPreparationInProgress &&
-                !syncInProgress)
-            {
-                bool updated = UpdateAlbum(
-                    silent: true,
-                    origin: StudioWorkspaceOperation.SourceRefresh);
-                if (!updated && lastAlbumUpdateException is not null)
-                {
-                    SetStatus(
-                        $"Альбум автоматаар шинэчлэхэд алдаа: " +
-                        lastAlbumUpdateException.Message);
-                }
-                if (activePage == StudioPage.Sources)
-                {
-                    string? selectedSource =
-                        (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
-                    RefreshSourceWorkspace(selectedSource);
-                }
-            }
-        };
         notificationRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
         notificationRefreshTimer.Tick += async (_, _) =>
         {
@@ -479,7 +451,6 @@ internal sealed partial class ShellView : IDisposable
 
     public void Dispose()
     {
-        autoRebuildTimer.Stop();
         notificationRefreshTimer.Stop();
         projectChatRefreshTimer.Stop();
         projectChatLoadCancellation?.Cancel();
@@ -1066,12 +1037,10 @@ internal sealed partial class ShellView : IDisposable
                     }),
                     DispatcherPriority.Background);
             }
-            if (previousPage != StudioPage.Albums && !HasCurrentCloudAlbumPreview())
-            {
-                dispatcher.BeginInvoke(
-                    new Action(() => UpdateAlbum(silent: true)),
-                    DispatcherPriority.Background);
-            }
+            // 🔴 OPENING THE ALBUM PAGE USED TO REDRAW THE ALBUM. The owner ruled
+            // that out by name - «төсөл нээгдэх үед заавал шинээр бүтээх ямар
+            // хэрэг байна вэ?» - and the album that is already on disk is what
+            // this page shows.
         }
         else if (page == StudioPage.Sources)
         {
@@ -2210,7 +2179,6 @@ internal sealed partial class ShellView : IDisposable
         }
         finally
         {
-            autoRebuildTimer.Stop();
             suppressAutomaticAlbumRebuild = false;
             projectOpenInProgress = false;
         }
@@ -2219,7 +2187,6 @@ internal sealed partial class ShellView : IDisposable
     private async Task DrainSuppressedAlbumRebuildEventsAsync()
     {
         await dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
-        autoRebuildTimer.Stop();
     }
 
     private async Task<bool> EnsureSignedInAsync()
@@ -2652,7 +2619,6 @@ internal sealed partial class ShellView : IDisposable
             if (state.Project.Cloud.Origin.Equals(ProjectOrigins.Cloud, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(state.Project.Cloud.ServerProjectId))
             {
-                autoRebuildTimer.Stop();
             }
             SetStatus(state.LastOpenMigratedLegacyProject
                 ? $"Legacy project шинэ workspace болсон. Эх файл хэвээр: {path}"
@@ -3774,6 +3740,15 @@ internal sealed partial class ShellView : IDisposable
                 SetStatus("Таны project role альбум боловсруулах эрхгүй байна.");
             return false;
         }
+        if (!AlbumMustBeDrawn(origin))
+        {
+            // Nothing the album is drawn from has moved since the file on disk was
+            // made, so there is nothing to draw. This is the whole of the owner's
+            // rule: «нэгэнт үүсчихсэн бүх өөрчлөлтүүдээ хүлээгээд авчихсан төсөл
+            // дахин дахин үүсээд байх ямар хэрэг байна вэ?»
+            return true;
+        }
+
         try
         {
             bool collectUi = StudioRefreshSyncOperationPolicy.ShouldCollectProjectUi(origin);
@@ -3920,6 +3895,56 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
+    /// <summary>
+    /// Whether the album has to be drawn, or the one on disk still stands.
+    ///
+    /// 🔴 THE ANSWER USED TO BE «ALWAYS», AND IT COST THE PRODUCT ITS USABILITY.
+    /// The owner measured it on their own machine: ten minutes and 9.7 GB to
+    /// reproduce a file that already existed. Their rule is two triggers and
+    /// nothing else - a package arriving from a plugin, and a sync - with the
+    /// finished album standing between them, across restarts.
+    /// </summary>
+    private bool AlbumMustBeDrawn(StudioWorkspaceOperation origin)
+    {
+        if (StudioAlbumRebuildPolicy.AlwaysDraws(origin))
+            return true;
+
+        string fingerprint = "";
+        try
+        {
+            // Asked WITHOUT reconciling linked assets: reconciliation writes to
+            // the project, and a question about whether to do work must not
+            // itself be the work. The two triggers above reconcile on their own
+            // path, which is where that belongs.
+            fingerprint = AlbumBuildFingerprint.Of(
+                state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false));
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                InvalidDataException or InvalidOperationException or NotSupportedException)
+        {
+            // Unknown is not «nothing changed». Draw.
+            return true;
+        }
+
+        return StudioAlbumRebuildPolicy.MustDraw(
+            origin,
+            fingerprint,
+            state.Project.PrimaryAlbum.LastBuildFingerprint,
+            CurrentBuiltAlbumIsPresent());
+    }
+
+    /// <summary>
+    /// Whether the PDF the album record points at is still on disk. A record
+    /// naming a file somebody deleted is not an album, and reading it as one
+    /// leaves a person with nothing on screen and no way to refill it.
+    /// </summary>
+    private bool CurrentBuiltAlbumIsPresent()
+    {
+        string? path = ResolveCurrentProjectAlbumPath();
+        return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+    }
+
     private AlbumBuildResult BuildLatestAlbum(
         bool collectUi = true,
         bool reconcileLinkedProjectAssets = true)
@@ -3935,8 +3960,13 @@ internal sealed partial class ShellView : IDisposable
             return BuildWorkingDrawingAlbums(outputFolder, reconcileLinkedProjectAssets);
         }
         string outputPath = Path.Combine(outputFolder, $"{SafeFileName(state.Album.Title)}.pdf");
+        // Taken from the SAME instance that is about to be drawn. Computing it
+        // again afterwards would fingerprint a project that had moved on during
+        // the build, and the album would be declared current when it was not.
+        AlbumProject buildInput = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets);
+        string fingerprint = AlbumBuildFingerprint.Of(buildInput);
         AlbumBuildResult result = state.Builder.Build(
-            state.CreateAlbumBuildProject(reconcileLinkedProjectAssets),
+            buildInput,
             state.Library,
             outputPath);
         lastAlbumPath = result.OutputPath;
@@ -3945,6 +3975,9 @@ internal sealed partial class ShellView : IDisposable
             result.PageCount,
             "Studio generated album",
             account.Current?.Email ?? Environment.UserName);
+        // Written only after the build succeeded. A fingerprint stored beside a
+        // file that was never produced would silence every later build.
+        state.Project.PrimaryAlbum.LastBuildFingerprint = fingerprint;
         state.SaveProject();
         if (activePage == StudioPage.Albums)
             RefreshAlbumWorkspace(selectItemKey: selectedAlbumWorkspaceKey);
@@ -6585,8 +6618,6 @@ internal sealed partial class ShellView : IDisposable
         if (autoRebuildCheck.IsChecked == true)
         {
             SetStatus("Холбосон PDF/зураг өөрчлөгдлөө. Альбумыг шинэчилж байна...");
-            autoRebuildTimer.Stop();
-            autoRebuildTimer.Start();
         }
         else
         {
@@ -6655,8 +6686,6 @@ internal sealed partial class ShellView : IDisposable
             return;
         if (autoRebuildCheck.IsChecked == true)
         {
-            autoRebuildTimer.Stop();
-            autoRebuildTimer.Start();
         }
     }
 
@@ -6725,8 +6754,6 @@ internal sealed partial class ShellView : IDisposable
                 !syncPreparationInProgress &&
                 !syncInProgress)
             {
-                autoRebuildTimer.Stop();
-                autoRebuildTimer.Start();
             }
         }
         else if (result.IsLossless)

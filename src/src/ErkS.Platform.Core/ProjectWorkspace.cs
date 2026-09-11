@@ -1190,6 +1190,21 @@ public sealed class ProjectAlbumRecord
     public string LastPdfSha256 { get; set; } = "";
     public int LastPageCount { get; set; }
     public string LastPageSizeSummary { get; set; } = "";
+
+    /// <summary>
+    /// What the album on disk was drawn FROM, as one value.
+    ///
+    /// 🔴 THE PRODUCT REDREW AN UNCHANGED ALBUM UNTIL IT WAS UNUSABLE. The
+    /// owner's project reached ten minutes and 9.7 GB opening, because nothing
+    /// could answer «has anything changed» without redrawing it to find out. They
+    /// set the rule: «нэгэнт үүсчихсэн бүх өөрчлөлтүүдээ хүлээгээд авчихсан төсөл
+    /// дахин дахин үүсээд байх ямар хэрэг байна вэ?»
+    ///
+    /// Stored here rather than held in memory because the requirement names a
+    /// restart: «хааж нээх, комыг унтрааж асаах … дахин уншихад асуудал үүсгэх
+    /// учиргүй». Empty on an older project, which simply builds once and fills it.
+    /// </summary>
+    public string LastBuildFingerprint { get; set; } = "";
     /// <summary>
     /// Revision of Studio's PDF composition rules used for the current local
     /// album. Missing values from older project files intentionally deserialize

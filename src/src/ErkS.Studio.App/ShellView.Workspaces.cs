@@ -517,7 +517,6 @@ internal sealed partial class ShellView
                         "бүртгэл, төсөл эсвэл access төлөв үйлдлийн явцад өөрчлөгдсөн.");
                 }
 
-                autoRebuildTimer.Stop();
                 RefreshSourceWorkspace(selectedSourceId);
                 RefreshAlbumWorkspace();
                 bool updated = UpdateAlbum(

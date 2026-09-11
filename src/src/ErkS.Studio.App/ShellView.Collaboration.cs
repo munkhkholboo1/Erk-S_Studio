@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Windows;
@@ -184,7 +184,6 @@ internal sealed partial class ShellView
         refreshingCurrentProjectAccess = true;
         bool previousAlbumRebuildSuppression = suppressAutomaticAlbumRebuild;
         suppressAutomaticAlbumRebuild = true;
-        autoRebuildTimer.Stop();
         RefreshTeamActionUi();
         RefreshSyncUi();
         await Task.Yield();
@@ -316,7 +315,6 @@ internal sealed partial class ShellView
         }
         finally
         {
-            autoRebuildTimer.Stop();
             suppressAutomaticAlbumRebuild = previousAlbumRebuildSuppression;
             refreshingCurrentProjectAccess = false;
             RefreshTeamActionUi();
