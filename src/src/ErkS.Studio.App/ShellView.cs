@@ -774,6 +774,24 @@ internal sealed partial class ShellView : IDisposable
             }
             return;
         }
+
+        // 🔴 ON A SEATED MACHINE THE PLAIN «Нэвтрэх» IS THE SAME DOOR. It used
+        // to sign in and stop there, leaving the bot token in hand and the seat's
+        // assignments, scopes and member line cached - and then the COMPLETE door
+        // vanished from the menu, because an owner session was now held. The
+        // person who picked the more familiar word met yesterday's trap wearing a
+        // new face, and a way back that takes two unobvious steps is not an answer
+        // to somebody who lost a day to exactly this.
+        //
+        // Nothing is taken away and no new behaviour is added: the wrong branch
+        // stops existing. Where the machine is NOT seated this is the sign-in it
+        // has always been.
+        if (StudioSignInRoute.GoesThroughTheSeatedOwnerDoor(SeatedAsBot, account.IsSignedIn))
+        {
+            await VerifyOwnerOnSeatedDeviceAsync();
+            return;
+        }
+
         await EnsureSignedInAsync();
     }
 
