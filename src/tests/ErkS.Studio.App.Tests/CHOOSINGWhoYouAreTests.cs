@@ -1,4 +1,4 @@
-using ErkS.Studio;
+﻿using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
 
@@ -108,6 +108,111 @@ public sealed class CHOOSINGWhoYouAreTests
             StudioProfileChoices.For("   ", "Зураг оруулагч", actingAsBot: true);
         Assert.Single(named);
         Assert.Equal(StudioProfileChoices.BotKind, named[0].Kind);
+    }
+
+    [Fact]
+    public void THELISTCanNeverGrowPastTWORows()
+    {
+        // 🔴 THE LIMIT IS ASSERTED, NOT ASSUMED. «At most two» is true because a
+        // machine remembers ONE person and holds at most ONE seat - both facts
+        // about today's design, not laws. If a third row ever becomes possible,
+        // the screen that lays these out must not be the place it is discovered:
+        // a list built for two would simply look wrong, quietly, on somebody's
+        // machine. This goes red first.
+        foreach (string owner in new[] { "", "   ", "Эзэн" })
+        {
+            foreach (string bot in new[] { "", "   ", "Зураг оруулагч" })
+            {
+                foreach (bool acting in new[] { true, false })
+                {
+                    IReadOnlyList<StudioProfileChoice> rows =
+                        StudioProfileChoices.For(owner, bot, acting);
+
+                    Assert.True(
+                        rows.Count <= 2,
+                        "the profile list produced " + rows.Count + " rows");
+
+                    // And never two of the same kind: one person, one seat.
+                    Assert.True(rows.Count(row => row.Kind.Length == 0) <= 1);
+                    Assert.True(rows.Count(row => row.Kind.Length > 0) <= 1);
+
+                    // Exactly one row can be the current identity - two would
+                    // mean the window is claiming to be two people at once.
+                    Assert.True(rows.Count(row => row.IsCurrent) <= 1);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void THEMenuOffersTheProfilesBEFOREAnythingElse()
+    {
+        // Choosing who you are is the whole interaction; the device-state entries
+        // are what the owner is replacing, so they cannot sit above it.
+        string body = MethodBody(
+            ReadAppSource("ShellView.cs"), "private void PopulateAccountMenu(ContextMenu menu)");
+
+        int profiles = body.IndexOf("BuildProfileChoiceItems()", StringComparison.Ordinal);
+        int botEntries = body.IndexOf("BuildBotMenuItems()", StringComparison.Ordinal);
+        Assert.True(profiles > 0, "the account menu no longer offers the profiles");
+        Assert.True(botEntries > profiles, "the profiles must come first");
+    }
+
+    [Fact]
+    public void EACHRowRunsTheSwitchITSCredentialImplies()
+    {
+        // 🔴 THE PIN MUST NEVER REACH THE OWNER'S ROUTE. Four digits opening a
+        // full owner session would hand a shared office machine the licence - the
+        // two-tier rule this platform has held since 2026-09-03.
+        string body = MethodBody(
+            ReadAppSource("ShellView.cs"), "private IEnumerable<MenuItem> BuildProfileChoiceItems()");
+
+        int pin = body.IndexOf("credential == StudioProfileCredential.Pin", StringComparison.Ordinal);
+        Assert.True(pin > 0, "the row no longer branches on what it asks for");
+
+        string branch = body[pin..];
+        int enterSeat = branch.IndexOf("EnterBotStateAsync()", StringComparison.Ordinal);
+        int ownerRoute = branch.IndexOf("VerifyOwnerOnSeatedDeviceAsync()", StringComparison.Ordinal);
+        Assert.True(enterSeat > 0, "the PIN row no longer enters the seat");
+        Assert.True(ownerRoute > enterSeat, "the passport row must be the other branch");
+    }
+
+    [Fact]
+    public void THERowYouALREADYAreIsNotAButton()
+    {
+        // Shown, so the list answers «who am I» as well as «who could I be» - but
+        // pressing it must not end the session and rebuild it.
+        string body = MethodBody(
+            ReadAppSource("ShellView.cs"), "private IEnumerable<MenuItem> BuildProfileChoiceItems()");
+
+        Assert.Contains("IsEnabled = StudioProfileChoices.IsASwitch(choice)", body, StringComparison.Ordinal);
+        Assert.Contains("IsChecked = choice.IsCurrent", body, StringComparison.Ordinal);
+    }
+
+    private static string MethodBody(string source, string signature)
+    {
+        string normalised = source.Replace("\r\n", "\n");
+        int start = normalised.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start > 0, signature + " was not found");
+        int end = normalised.IndexOf("\n    }", start, StringComparison.Ordinal);
+        Assert.True(end > start, "the end of " + signature + " was not found");
+        return normalised[start..end];
+    }
+
+    private static string ReadAppSource(string fileName)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName, "src", "src", "ErkS.Studio.App", fileName);
+            if (File.Exists(candidate))
+                return File.ReadAllText(candidate, System.Text.Encoding.UTF8);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail(fileName + " was not found; this test reads it from source");
+        return "";
     }
 
     [Fact]

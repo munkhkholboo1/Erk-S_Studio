@@ -2298,10 +2298,69 @@ internal sealed partial class ShellView : IDisposable
     /// the owner could sign in, gain every right the menu is gated on, and
     /// still be looking at the entries of a machine that had none.
     /// </summary>
+    /// <summary>
+    /// The profile rows: who this machine can act as, and what each will ask for.
+    ///
+    /// 🔴 A NEW ENTRY POINT ONTO OPERATIONS THAT ALREADY EXIST. Switching in both
+    /// directions was already built - entering bot state asks the PIN through the
+    /// lock screen, returning asks the whole passport. What was missing was a
+    /// place to say WHO, instead of three buttons saying what to do to the device.
+    ///
+    /// The row you already are does nothing when pressed. Ending a session and
+    /// rebuilding it because somebody touched their own name is how a person loses
+    /// their place.
+    /// </summary>
+    private IEnumerable<MenuItem> BuildProfileChoiceItems()
+    {
+        StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+        StudioRememberedProfile? remembered = StudioRememberedProfiles.Read();
+        string ownerName = account.Current is { } session
+            ? AccountDisplayName(session)
+            : remembered?.DisplayName ?? "";
+
+        foreach (StudioProfileChoice choice in StudioProfileChoices.For(
+            ownerName,
+            seat?.DisplayName,
+            actingAsBot: SeatedAsBot && !account.IsSignedIn))
+        {
+            var item = new MenuItem
+            {
+                Header = choice.Kind.Length == 0
+                    ? choice.Name
+                    : choice.Name + "  ·  " + choice.Kind,
+                IsChecked = choice.IsCurrent,
+                // The row you already are is shown, so the list answers «who am
+                // I» as well as «who could I be» - but it is not a button.
+                IsEnabled = StudioProfileChoices.IsASwitch(choice),
+            };
+
+            StudioProfileCredential credential = choice.Credential;
+            item.Click += async (_, _) =>
+            {
+                if (credential == StudioProfileCredential.Pin)
+                    await EnterBotStateAsync();
+                else
+                    await VerifyOwnerOnSeatedDeviceAsync();
+            };
+            yield return item;
+        }
+    }
+
     private void PopulateAccountMenu(ContextMenu menu)
     {
         ArgumentNullException.ThrowIfNull(menu);
         menu.Items.Clear();
+
+        // 🔴 THE PROFILES COME FIRST, BECAUSE CHOOSING WHO YOU ARE IS THE WHOLE
+        // INTERACTION. The owner replaced three device-state buttons with this
+        // one list: «Би зүгээр л өөрийнхөө профайлыг сонгоод тэр дээрээ пасспортоо
+        // хийгээд бот төлвөөс бүрэн чөлөөлөгдөж үндсэн эзэмшигчээрээ
+        // нэвтэрчихмээр байнашт».
+        foreach (MenuItem row in BuildProfileChoiceItems())
+            menu.Items.Add(row);
+        if (menu.Items.Count > 0)
+            menu.Items.Add(new Separator());
+
         foreach (MenuItem item in BuildBotMenuItems())
             menu.Items.Add(item);
 
