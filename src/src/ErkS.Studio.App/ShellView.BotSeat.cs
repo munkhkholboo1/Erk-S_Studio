@@ -742,6 +742,13 @@ internal sealed partial class ShellView
         RemoveBotLock();
         UpdateAccountUi();
 
+        // 🔴 AND THE NAVIGATION, WHICH IS THE HALF THAT WAS MISSING. The shell on
+        // a seated machine is built with no owner session, so the owner's own
+        // administration pages were never added; coming back put the project list
+        // right and left the menu as the bot's. The owner reported exactly that:
+        // «компани цэс алга болчихсон».
+        RebuildNavigation();
+
         // Rebuilt with the owner's session in hand, so their projects come back
         // instead of the seat's assignments staying on screen.
         await RefreshProjectsAsync();
@@ -866,6 +873,10 @@ internal sealed partial class ShellView
 
         ApplyDeviceSeat();
         UpdateAccountUi();
+
+        // The navigation is part of who is acting, so it moves with them. Left
+        // alone, the owner's administration surfaces stayed on screen under a bot.
+        RebuildNavigation();
 
         // Rebuilt with no session in hand, so what was the owner's is gone from
         // the list rather than sitting under the lock.

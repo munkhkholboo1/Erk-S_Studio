@@ -874,6 +874,7 @@ internal sealed partial class ShellView : IDisposable
         if (!projectWorkspaceOpen || !state.HasOpenProject)
         {
             UpdateProjectChatWidgetVisibility();
+            HighlightActiveNavItem();
             return;
         }
 
@@ -892,6 +893,7 @@ internal sealed partial class ShellView : IDisposable
         AddNavItem(StudioPage.Reports, ProjectSurfaceLabel("reports", "Тайлан"), "icon-publish.svg");
         AddNavItem(StudioPage.Archive, ProjectSurfaceLabel("archive", "Архив"), "icon-company.svg");
         UpdateProjectChatWidgetVisibility();
+        HighlightActiveNavItem();
     }
 
     private string ProjectSurfaceLabel(string sectionId, string fallback)
@@ -1002,6 +1004,33 @@ internal sealed partial class ShellView : IDisposable
         navPanel.Children.Add(item);
     }
 
+    /// <summary>
+    /// Marks the page the shell is on.
+    ///
+    /// 🔴 EXTRACTED BECAUSE A REBUILD LOST IT. RebuildNavigation makes fresh
+    /// Borders, all of them transparent, so every rebuild that was not immediately
+    /// followed by SelectPage left the shell looking as though no page were open -
+    /// including the sign-out path, which has rebuilt the navigation all along.
+    /// Reading activePage rather than taking a parameter is what lets a rebuild
+    /// restore the highlight without going through SelectPage, whose job includes
+    /// closing projects.
+    /// </summary>
+    private void HighlightActiveNavItem()
+    {
+        foreach (var (candidate, item) in navItems)
+        {
+            var isActive = candidate == activePage;
+            item.Background = isActive
+                ? new SolidColorBrush(Color.FromArgb(70, StudioTheme.AccentColor.R, StudioTheme.AccentColor.G, StudioTheme.AccentColor.B))
+                : Brushes.Transparent;
+            if (item.Child is StackPanel stack && stack.Children[1] is TextBlock label)
+            {
+                label.Foreground = isActive ? StudioTheme.TextBrush : StudioTheme.MutedTextBrush;
+                label.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal;
+            }
+        }
+    }
+
     private void SelectPage(StudioPage page)
     {
         var previousPage = activePage;
@@ -1033,18 +1062,7 @@ internal sealed partial class ShellView : IDisposable
             lastPresenceFetchUtc = DateTimeOffset.MinValue;
             _ = RefreshTeamPresenceIfVisibleAsync();
         }
-        foreach (var (candidate, item) in navItems)
-        {
-            var isActive = candidate == page;
-            item.Background = isActive
-                ? new SolidColorBrush(Color.FromArgb(70, StudioTheme.AccentColor.R, StudioTheme.AccentColor.G, StudioTheme.AccentColor.B))
-                : Brushes.Transparent;
-            if (item.Child is StackPanel stack && stack.Children[1] is TextBlock label)
-            {
-                label.Foreground = isActive ? StudioTheme.TextBrush : StudioTheme.MutedTextBrush;
-                label.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal;
-            }
-        }
+        HighlightActiveNavItem();
 
         if (page == StudioPage.Albums)
         {
@@ -2243,6 +2261,14 @@ internal sealed partial class ShellView : IDisposable
             return false;
         }
         UpdateAccountUi();
+
+        // 🔴 REBUILT ON THE WAY IN, NOT ONLY ON THE WAY OUT. Signing out has
+        // rebuilt the navigation all along; signing in never did. On a machine that
+        // holds a bot seat the shell is BUILT with no owner session - so «Компани»
+        // and «Төслийн мэдээлэл» were left out at start-up, correctly for a bot, and
+        // nothing put them back when the owner arrived. The owner lost a menu they
+        // could not get back without unseating the machine.
+        RebuildNavigation();
         _ = await EnsureDeviceKeyRegisteredAsync();
         // A seat this machine left while the server was unreachable is still
         // occupied there. An owner session is the credential that releases it,
