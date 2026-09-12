@@ -23,8 +23,8 @@ public sealed class ABOTSeesWhatAnotherUserSeesTests
     {
         // The organisation library and the project's own information: the two
         // the owner named, and nothing else.
-        Assert.False(StudioBotSurfaceVisibility.IsVisible(seatedAsBot: true, "Companies"));
-        Assert.False(StudioBotSurfaceVisibility.IsVisible(seatedAsBot: true, "Foundation"));
+        Assert.False(StudioBotSurfaceVisibility.IsVisible(actingAsBot: true, "Companies"));
+        Assert.False(StudioBotSurfaceVisibility.IsVisible(actingAsBot: true, "Foundation"));
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public sealed class ABOTSeesWhatAnotherUserSeesTests
         foreach (string page in new[] { "Projects", "Sources", "Albums", "Portfolio", "Boards" })
         {
             Assert.True(
-                StudioBotSurfaceVisibility.IsVisible(seatedAsBot: true, page),
+                StudioBotSurfaceVisibility.IsVisible(actingAsBot: true, page),
                 page + " is how a seat does its work and must not be hidden");
         }
     }
@@ -48,7 +48,7 @@ public sealed class ABOTSeesWhatAnotherUserSeesTests
         // The rule is about the bot, not about the page. An owner or a
         // collaborator loses nothing.
         foreach (string page in StudioBotSurfaceVisibility.AllPages)
-            Assert.True(StudioBotSurfaceVisibility.IsVisible(seatedAsBot: false, page));
+            Assert.True(StudioBotSurfaceVisibility.IsVisible(actingAsBot: false, page));
     }
 
     [Fact]
@@ -90,12 +90,18 @@ public sealed class ABOTSeesWhatAnotherUserSeesTests
     {
         // Asked where every entry is made, not at each call site: thirteen
         // call sites means the fourteenth forgets.
+        //
+        // 🔴 AND IT IS ASKED WITH THE ACTOR, NOT THE MACHINE. «Seated» stays true
+        // while the owner signs in on the same computer, so passing it here hid the
+        // owner's own administration from the owner. This assertion changed from
+        // SeatedAsBot to ActingAsBot on the day that was found; changing it back
+        // would restore the fault.
         string body = MethodBody(
             ReadAppSource("ShellView.cs"),
             "private void AddNavItem(StudioPage page, string label, string iconAsset)");
 
         Assert.Contains(
-            "StudioBotSurfaceVisibility.IsVisible(SeatedAsBot, page.ToString())",
+            "StudioBotSurfaceVisibility.IsVisible(ActingAsBot, page.ToString())",
             body,
             StringComparison.Ordinal);
     }

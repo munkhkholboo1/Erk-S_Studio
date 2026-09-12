@@ -16,7 +16,7 @@ public sealed class StudioBotProjectVisibilityTests
     public void AnUnseatedMachineSeesEverythingItAlwaysDid()
     {
         Assert.True(StudioBotProjectVisibility.IsVisible(
-            seatedAsBot: false,
+            actingAsBot: false,
             assignedProjectIds: null,
             projectId: "srv_prj_anything"));
     }
@@ -39,7 +39,7 @@ public sealed class StudioBotProjectVisibilityTests
         // "no restriction" is what showed the owner's entire catalogue on a
         // machine that had been handed to somebody else.
         Assert.False(StudioBotProjectVisibility.IsVisible(
-            seatedAsBot: true,
+            actingAsBot: true,
             assignedProjectIds: null,
             projectId: "srv_prj_A"));
     }
@@ -69,10 +69,10 @@ public sealed class StudioBotProjectVisibilityTests
         IReadOnlySet<string> assigned = Assigned("srv_prj_A");
 
         Assert.True(StudioBotProjectVisibility.MayOpen(
-            seatedAsBot: true, assigned, hasFile: false,
+            actingAsBot: true, assigned, hasFile: false,
             fileIdentity: null, rowProjectId: "srv_prj_A"));
         Assert.False(StudioBotProjectVisibility.MayOpen(
-            seatedAsBot: true, assigned, hasFile: false,
+            actingAsBot: true, assigned, hasFile: false,
             fileIdentity: null, rowProjectId: "srv_prj_NEVER_ASSIGNED"));
     }
 
@@ -82,7 +82,7 @@ public sealed class StudioBotProjectVisibilityTests
         // A row came from a list. A list is not evidence, and the lists this
         // machine holds were filled while it belonged to somebody else.
         Assert.False(StudioBotProjectVisibility.MayOpen(
-            seatedAsBot: true,
+            actingAsBot: true,
             Assigned("srv_prj_A"),
             hasFile: true,
             fileIdentity: "srv_prj_OTHER",
@@ -96,7 +96,7 @@ public sealed class StudioBotProjectVisibilityTests
         // open it on the strength of a list entry - the same mistake as
         // treating "not read yet" as "no restriction".
         Assert.False(StudioBotProjectVisibility.MayOpen(
-            seatedAsBot: true,
+            actingAsBot: true,
             Assigned("srv_prj_A"),
             hasFile: true,
             fileIdentity: null,
@@ -107,7 +107,7 @@ public sealed class StudioBotProjectVisibilityTests
     public void AnUnseatedMachineOpensWhatItAlwaysDid()
     {
         Assert.True(StudioBotProjectVisibility.MayOpen(
-            seatedAsBot: false,
+            actingAsBot: false,
             assignedProjectIds: null,
             hasFile: false,
             fileIdentity: null,

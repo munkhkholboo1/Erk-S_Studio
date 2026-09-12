@@ -408,9 +408,14 @@ public sealed class ProjectSurvivesARefusalTests
         // visibility test, the accessible set is empty, and the open project used
         // to be closed underneath a sentence that correctly said the list was
         // simply unread.
+        //
+        // 🔴 THE GUARD ASKS THE ACTOR, NOT THE MACHINE. It used to read
+        // SeatedAsBot, which stays true after the owner signs in on a seated
+        // computer - so the owner met «Ботын томилолт уншигдаагүй» about their own
+        // projects. The branch's behaviour is unchanged; only who it is about.
         string source = ReadAppSource("ShellView.cs");
         int guard = source.IndexOf(
-            "if (SeatedAsBot && botAssignedProjectIds is null)", StringComparison.Ordinal);
+            "if (ActingAsBot && botAssignedProjectIds is null)", StringComparison.Ordinal);
         Assert.True(guard > 0, "the unread-assignments case decides nothing again");
 
         // The guarded branch reports and does NOT close. Sliced at its own

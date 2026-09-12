@@ -88,6 +88,34 @@ internal sealed partial class ShellView
     private bool SeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
     /// <summary>
+    /// Whether the BOT is the one acting right now.
+    ///
+    /// 🔴 THIS IS A DIFFERENT QUESTION FROM <see cref="SeatedAsBot"/> AND
+    /// CONFUSING THEM COST THE OWNER THEIR PROJECT LIST. Seated means the MACHINE
+    /// holds a bot seat; that stays true after «Эзэмшигчээр нэвтрэх», because
+    /// switching who acts deliberately does not release the seat. So the owner
+    /// signed in on their own machine, the resume correctly dropped the seat's
+    /// assignment list as belonging to another identity, and the project filter -
+    /// asking the MACHINE question - read «seated, assignments unknown» and
+    /// answered «show nothing». Two correct rules, one wrong screen.
+    ///
+    /// 🔴 IT WAS ALREADY BEING COMPUTED, ONCE, INLINE. The profile menu spelled
+    /// out «SeatedAsBot &amp;&amp; !account.IsSignedIn» at its own call site and
+    /// <see cref="MayManageSeats"/> spelled the same truth table a third way. One
+    /// question with three spellings is a question that will be answered
+    /// differently in the fourth place - so it has a name, and the places that
+    /// mean it use the name.
+    ///
+    /// ⚠ WHAT MUST KEEP ASKING THE MACHINE QUESTION: the lock screen, seat
+    /// management, entering and leaving the seat, and the seated flag on boundary
+    /// records. A seated machine must lock on start-up whoever signs in later, and
+    /// a refusal record must say the machine was seated because that is the fact
+    /// being diagnosed.
+    /// </summary>
+    private bool ActingAsBot =>
+        StudioBotActor.IsTheBotActing(SeatedAsBot, account.IsSignedIn);
+
+    /// <summary>
     /// Whether this machine carries the durable trace of having been a seat.
     ///
     /// 🔴 THE SEAT RECORD ON DISK IS NOT THE ONLY TRUTH, AND BELIEVING IT WAS
@@ -140,7 +168,11 @@ internal sealed partial class ShellView
     /// Leaving bot state sits behind this too: a seat that can release itself is
     /// a seat that manages itself.
     /// </summary>
-    private bool MayManageSeats => !SeatedAsBot || account.IsSignedIn;
+    // Was «!SeatedAsBot || account.IsSignedIn», which is the same truth table
+    // written a second way. Derived from the one rule instead, so the two cannot
+    // drift into disagreeing about a case neither author thought of.
+    private bool MayManageSeats =>
+        StudioBotActor.MayManageSeats(SeatedAsBot, account.IsSignedIn);
 
     /// <summary>
     /// Refuses a seat-management action and says why. Called by each action for
@@ -159,7 +191,7 @@ internal sealed partial class ShellView
     }
 
     private bool MaySeeProject(string? projectId) =>
-        StudioBotProjectVisibility.IsVisible(SeatedAsBot, botAssignedProjectIds, projectId);
+        StudioBotProjectVisibility.IsVisible(ActingAsBot, botAssignedProjectIds, projectId);
 
     /// <summary>
     /// The identity the project file at <paramref name="path"/> claims for
@@ -199,12 +231,16 @@ internal sealed partial class ShellView
     /// </summary>
     private bool SeatMayOpen(string? serverProjectId, string? path)
     {
-        if (!SeatedAsBot)
+        // The owner acting on a seated machine opens their own projects. Asking the
+        // machine question here would have let them SEE a row and then be refused
+        // when they double-clicked it - a half-fix is worse than the whole fault,
+        // because the screen would then contradict itself.
+        if (!ActingAsBot)
             return true;
 
         bool hasFile = !string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path);
         bool allowed = StudioBotProjectVisibility.MayOpen(
-            seatedAsBot: true,
+            actingAsBot: true,
             botAssignedProjectIds,
             hasFile,
             hasFile ? ReadProjectIdentity(path!) : null,

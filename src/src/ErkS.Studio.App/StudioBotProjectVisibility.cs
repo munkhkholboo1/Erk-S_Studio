@@ -23,12 +23,20 @@ internal static class StudioBotProjectVisibility
     /// is unknown, and empty when the seat is genuinely assigned nothing. Both
     /// answer false - they differ only in what the user is told.
     /// </summary>
+    /// <param name="actingAsBot">
+    /// The BOT is the one acting - not merely «this machine holds a seat».
+    ///
+    /// 🔴 THE PARAMETER USED TO BE CALLED seatedAsBot AND THE NAME WAS THE
+    /// DEFECT. A machine keeps its seat when the owner signs in on it, so callers
+    /// passing «seated» hid the owner's whole catalogue from the owner. The rule
+    /// was right; it was being asked the wrong question.
+    /// </param>
     public static bool IsVisible(
-        bool seatedAsBot,
+        bool actingAsBot,
         IReadOnlySet<string>? assignedProjectIds,
         string? projectId)
     {
-        if (!seatedAsBot)
+        if (!actingAsBot)
             return true;
         if (assignedProjectIds is null)
             return false;
@@ -59,13 +67,13 @@ internal static class StudioBotProjectVisibility
     /// assigned to the seat opened in full, album and all.
     /// </summary>
     public static bool MayOpen(
-        bool seatedAsBot,
+        bool actingAsBot,
         IReadOnlySet<string>? assignedProjectIds,
         bool hasFile,
         string? fileIdentity,
         string? rowProjectId) =>
         IsVisible(
-            seatedAsBot,
+            actingAsBot,
             assignedProjectIds,
             hasFile ? fileIdentity : rowProjectId);
 

@@ -950,7 +950,7 @@ internal sealed partial class ShellView : IDisposable
         //
         // Asked at the ONE place every navigation entry is built, so a page added
         // later cannot slip past by forgetting to ask.
-        if (!StudioBotSurfaceVisibility.IsVisible(SeatedAsBot, page.ToString()))
+        if (!StudioBotSurfaceVisibility.IsVisible(ActingAsBot, page.ToString()))
             return;
 
         var stack = new StackPanel
@@ -1729,7 +1729,7 @@ internal sealed partial class ShellView : IDisposable
                 // тул төслүүд харагдахгүй» - while the branch went on closing
                 // the open project underneath it. An unread list is the absence
                 // of an answer, not an answer, and it must not cost a workspace.
-                if (SeatedAsBot && botAssignedProjectIds is null)
+                if (ActingAsBot && botAssignedProjectIds is null)
                 {
                     SetStatus(
                         StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds) +
@@ -1738,7 +1738,7 @@ internal sealed partial class ShellView : IDisposable
                 else
                 {
                     CloseCurrentCloudProjectAfterAccessEnded(
-                        SeatedAsBot
+                        ActingAsBot
                             ? StudioBotProjectVisibility.ExplainRefusal(botAssignedProjectIds) +
                               " Локал эх файл болон mirror устгагдаагүй."
                             : "Төслийн гишүүний эрх дууссан тул Cloud төсөл таны жагсаалтаас хасагдлаа. Локал эх файл болон mirror устгагдаагүй.");
@@ -2343,7 +2343,7 @@ internal sealed partial class ShellView : IDisposable
         foreach (StudioProfileChoice choice in StudioProfileChoices.For(
             ownerName,
             seat?.DisplayName,
-            actingAsBot: SeatedAsBot && !account.IsSignedIn))
+            actingAsBot: ActingAsBot))
         {
             var item = new MenuItem
             {

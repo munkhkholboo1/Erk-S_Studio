@@ -37,11 +37,15 @@ internal static class StudioBotSurfaceVisibility
         "Albums", "Portfolio", "Boards", "Research", "Records", "Reports", "Archive",
     ];
 
-    /// <param name="seatedAsBot">This machine is acting as a bot seat.</param>
+    /// <param name="actingAsBot">
+    /// The BOT is the one acting. NOT «this machine holds a seat»: the seat stays
+    /// while the owner signs in on the same machine, and hiding their own
+    /// administration from them was the same defect that hid their projects.
+    /// </param>
     /// <param name="page">The page's own name, as the shell spells it.</param>
-    public static bool IsVisible(bool seatedAsBot, string? page)
+    public static bool IsVisible(bool actingAsBot, string? page)
     {
-        if (!seatedAsBot)
+        if (!actingAsBot)
             return true;
 
         string name = (page ?? "").Trim();
