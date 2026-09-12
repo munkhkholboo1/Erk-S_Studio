@@ -1130,6 +1130,15 @@ public sealed class AppState : IDisposable
                 ApplyCityGenProjectSiteReconciliation(siteReconciliation))
             {
                 SaveProject();
+
+                // 🔴 SWEPT ONLY AFTER A RECONCILIATION THAT CHANGED SOMETHING, and
+                // only after the save. Before the record is repointed the OLD copy
+                // is still the referenced one and the new one does not exist yet -
+                // a sweep there would find no orphan and do nothing but read the
+                // disk. And a sweep before the save could delete a copy the project
+                // on disk still names, if the save then failed.
+                LastVisualizationStoreSweep =
+                    StudioVisualizationStoreMaintenance.Sweep(Project, ProjectPath);
             }
         }
 
@@ -1384,6 +1393,15 @@ public sealed class AppState : IDisposable
         return ApplyAssetReconciliation(result) |
                ApplyCityGenProjectSiteReconciliation(siteResult);
     }
+
+    /// <summary>
+    /// What the last store sweep did, or null if none has run this session.
+    ///
+    /// Kept so the album line can say it: reclaiming 1.8 GB without telling anybody
+    /// is indistinguishable from losing it, and the owner has spent a week on
+    /// exactly that distinction.
+    /// </summary>
+    internal VisualizationStoreSweepResult? LastVisualizationStoreSweep { get; private set; }
 
     /// <summary>
     /// Whether any linked render has been overwritten since the project copied it.
