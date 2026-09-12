@@ -50,8 +50,11 @@ internal static class StudioAlbumDrawSentence
             string when = record.LastPreparedAtUtc is null
                 ? ""
                 : " (" + record.LastPreparedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") + ")";
+            string took = record.LastPreparedSeconds > 0
+                ? $" {record.LastPreparedSeconds:0.#} секунд."
+                : "";
             clause = $" Бэлтгэл{when}: {record.LastPreparedImageCount} зураг " +
-                $"{AlbumRasterRule.DotsPerInch:0} dpi-д бууруулсан.";
+                $"{AlbumRasterRule.DotsPerInch:0} dpi-д бууруулсан.{took}";
         }
 
         if (record.LastUnpreparedImageCount > 0)

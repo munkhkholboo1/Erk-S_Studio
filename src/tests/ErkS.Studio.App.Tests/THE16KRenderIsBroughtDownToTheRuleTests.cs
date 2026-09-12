@@ -348,6 +348,57 @@ public sealed class THE16KRenderIsBroughtDownToTheRuleTests : IDisposable
     }
 
     [Fact]
+    public void THEPassREPORTSHowLongItTook()
+    {
+        // 🔴 THE NUMBER HAS TO COME FROM THE WORK, NOT FROM A GUESS. Master asked
+        // for the preparation time separately from the build time, and there was no
+        // way to answer: nothing measured it. A pass that did real work must report
+        // more than zero, and a pass that did nothing must not invent a duration.
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        AddDense(source, projectPath);
+
+        VisualizationRasterPreparation did =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+        VisualizationRasterPreparation nothing =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(null, projectPath);
+
+        Assert.True(did.Seconds > 0d, "a pass that encoded an image reported no time");
+        Assert.Equal(0d, nothing.Seconds);
+    }
+
+    [Fact]
+    public void THEDrawStopwatchStartsAFTERTheBuildProjectIsMade()
+    {
+        // 🔴 THIS IS WHAT MAKES THE TWO DURATIONS DISJOINT. Preparation happens
+        // inside CreateAlbumBuildProject; if the draw stopwatch started before that
+        // call, the draw seconds would silently include the preparation and reporting
+        // both would double-count the same forty seconds. The order is the whole
+        // claim, so it is asserted rather than trusted.
+        //
+        // 🔴 THE FIRST STOPWATCH IN THE METHOD, NOT ANY STOPWATCH AFTER THE CALL.
+        // Sabotage that ADDED a timestamp before the build call survived the first
+        // version of this test: searching forward from the build call still found the
+        // original one further down, so «a stopwatch starts after the build» was true
+        // while the thing it stood for had been broken. What matters is that nothing
+        // starts timing EARLIER.
+        string body = MethodBody(
+            ReadAppSource("ShellView.cs"),
+            "private AlbumBuildResult BuildLatestAlbum(");
+
+        int build = body.IndexOf(
+            "state.CreateAlbumBuildProject(",
+            StringComparison.Ordinal);
+        int stopwatch = body.IndexOf("Stopwatch.GetTimestamp()", StringComparison.Ordinal);
+
+        Assert.True(build > 0, "the album build project is no longer made here");
+        Assert.True(stopwatch > 0, "the draw is no longer timed at all");
+        Assert.True(
+            stopwatch > build,
+            "something starts timing before the build project is made, so the draw " +
+            "seconds now include the preparation seconds and both report the same time");
+    }
+
+    [Fact]
     public void THEPreparerIsGivenTheSNAPSHOTNotTheOwnersRecords()
     {
         // 🔴 EVERY TEST ABOVE CALLS THE PREPARER DIRECTLY, SO NONE OF THEM CAN

@@ -26,13 +26,24 @@ namespace ErkS.Studio;
 /// because nothing here could have prepared it.
 /// </param>
 /// <param name="PreparedBytes">Total size of the prepared copies now in use.</param>
+/// <param name="Seconds">
+/// How long the pass took.
+///
+/// 🔴 SEPARATELY MEASURABLE FROM THE DRAW, WHICH IS THE WHOLE REASON IT EXISTS.
+/// The build stopwatch starts AFTER the build project is made, so the draw seconds
+/// and these never overlap - «the album took two minutes» can be split into «and
+/// forty of them were the first preparation of 26 images», which is the difference
+/// between a one-off cost and a permanent one. Timed here rather than at the caller
+/// so previews, which also prepare, are timed by the same clock.
+/// </param>
 internal sealed record VisualizationRasterPreparation(
     int PreparedCount,
     int ReusedCount,
     int AlreadyCoarseCount,
     int FailedCount,
     int MissingCount,
-    long PreparedBytes)
+    long PreparedBytes,
+    double Seconds = 0d)
 {
     internal static VisualizationRasterPreparation Nothing { get; } =
         new(0, 0, 0, 0, 0, 0);
@@ -114,6 +125,7 @@ internal static class StudioVisualizationRasterPreparer
         IReadOnlyList<VisualizationAlbumPagePlan> plans =
             VisualizationPageLayoutPlanner.Create(snapshot, firstPageNumber: 1);
 
+        long startedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
         var prepared = 0;
         var reused = 0;
         var alreadyCoarse = 0;
@@ -182,7 +194,9 @@ internal static class StudioVisualizationRasterPreparer
             alreadyCoarse,
             failed,
             missing,
-            bytes);
+            bytes,
+            (double)(System.Diagnostics.Stopwatch.GetTimestamp() - startedTicks) /
+                System.Diagnostics.Stopwatch.Frequency);
     }
 
     /// <summary>

@@ -23,7 +23,7 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
     {
         var record = new AlbumDrawRecord();
         record.Record(drew: true, AlbumRebuildReason.FingerprintChanged.ToString(), Now);
-        record.RecordRasterPreparation(26, 0, Now);
+        record.RecordRasterPreparation(26, 0, 0d, Now);
 
         string sentence = StudioAlbumDrawSentence.For(record);
 
@@ -43,7 +43,7 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
     {
         var record = new AlbumDrawRecord();
         record.Record(drew: true, AlbumRebuildReason.FingerprintChanged.ToString(), Now);
-        record.RecordRasterPreparation(25, 1, Now);
+        record.RecordRasterPreparation(25, 1, 0d, Now);
 
         string sentence = StudioAlbumDrawSentence.For(record);
 
@@ -60,10 +60,10 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
         // been prepared must stop being announced, or the line keeps making a
         // statement about an album that no longer exists.
         var record = new AlbumDrawRecord();
-        record.RecordRasterPreparation(25, 1, Now);
+        record.RecordRasterPreparation(25, 1, 0d, Now);
         Assert.Contains("эх хэмжээгээр", StudioAlbumDrawSentence.For(record));
 
-        record.RecordRasterPreparation(1, 0, Now.AddMinutes(5));
+        record.RecordRasterPreparation(1, 0, 0d, Now.AddMinutes(5));
 
         Assert.DoesNotContain("эх хэмжээгээр", StudioAlbumDrawSentence.For(record));
         Assert.Equal(0, record.LastUnpreparedImageCount);
@@ -78,9 +78,9 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
         // because the clearing case where something WAS prepared passes either way,
         // and sabotage on the record could not tell the difference from it.
         var record = new AlbumDrawRecord();
-        record.RecordRasterPreparation(26, 2, Now);
+        record.RecordRasterPreparation(26, 2, 0d, Now);
 
-        record.RecordRasterPreparation(0, 0, Now.AddMinutes(5));
+        record.RecordRasterPreparation(0, 0, 0d, Now.AddMinutes(5));
 
         Assert.Equal(0, record.LastUnpreparedImageCount);
         Assert.Equal(26, record.LastPreparedImageCount);
@@ -94,11 +94,54 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
         // the very next build. If it cleared the count, the evidence that Studio ever
         // reduced anything would last until the owner touched the project again.
         var record = new AlbumDrawRecord();
-        record.RecordRasterPreparation(26, 0, Now);
-        record.RecordRasterPreparation(0, 0, Now.AddMinutes(5));
+        record.RecordRasterPreparation(26, 0, 0d, Now);
+        record.RecordRasterPreparation(0, 0, 0d, Now.AddMinutes(5));
 
         Assert.Equal(26, record.LastPreparedImageCount);
         Assert.Equal(Now, record.LastPreparedAtUtc);
+    }
+
+    [Fact]
+    public void THEPreparationSecondsAreSaidSEPARATELYFromTheDrawing()
+    {
+        // 🔴 ONE FIGURE WOULD MAKE A ONE-OFF COST LOOK PERMANENT. The first build
+        // of a set of renders pays for preparation and will never pay again; every
+        // build pays for drawing. Added together, «the album took two minutes» cannot
+        // be acted on - and the owner's report arrives hours later, when the only
+        // other evidence is a file timestamp.
+        var record = new AlbumDrawRecord();
+        record.Record(drew: true, AlbumRebuildReason.FingerprintChanged.ToString(), Now);
+        record.RecordDrawFinished(Now, 96.4d);
+        record.RecordRasterPreparation(26, 0, 41.2d, Now);
+
+        string sentence = StudioAlbumDrawSentence.For(record);
+
+        string drew = (96.4d).ToString("0.#", System.Globalization.CultureInfo.CurrentCulture);
+        string prepared = (41.2d).ToString("0.#", System.Globalization.CultureInfo.CurrentCulture);
+        Assert.Contains(drew + " секунд", sentence);
+        Assert.Contains(prepared + " секунд", sentence);
+        Assert.NotEqual(drew, prepared);
+    }
+
+    [Fact]
+    public void AREUSEONLYPassDoesNotEraseHOWLONGItTook()
+    {
+        // The seconds are history in exactly the way the count beside them is: the
+        // next build reuses everything and has no duration worth reporting.
+        var record = new AlbumDrawRecord();
+        record.RecordRasterPreparation(26, 0, 41.2d, Now);
+        record.RecordRasterPreparation(0, 0, 0d, Now.AddMinutes(5));
+
+        Assert.Equal(41.2d, record.LastPreparedSeconds);
+    }
+
+    [Fact]
+    public void ACLONEDRecordCarriesTheSecondsToo()
+    {
+        var record = new AlbumDrawRecord();
+        record.RecordRasterPreparation(26, 0, 41.2d, Now);
+
+        Assert.Equal(41.2d, record.Clone().LastPreparedSeconds);
     }
 
     [Fact]
@@ -123,7 +166,7 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
         // because the clause is separate from the sweep's and could be moved inside
         // the decision branch by a later edit.
         var record = new AlbumDrawRecord();
-        record.RecordRasterPreparation(26, 2, Now);
+        record.RecordRasterPreparation(26, 2, 0d, Now);
 
         string sentence = StudioAlbumDrawSentence.For(record);
 
@@ -141,7 +184,7 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
         // line still has to answer.
         var record = new AlbumDrawRecord();
         record.Record(drew: true, AlbumRebuildReason.FingerprintChanged.ToString(), Now);
-        record.RecordRasterPreparation(26, 3, Now);
+        record.RecordRasterPreparation(26, 3, 0d, Now);
 
         AlbumDrawRecord copy = record.Clone();
 
@@ -159,7 +202,7 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
         // added in.
         var record = new AlbumDrawRecord();
         record.Record(drew: true, AlbumRebuildReason.LinkedSourceMoved.ToString(), Now);
-        record.RecordRasterPreparation(26, 0, Now);
+        record.RecordRasterPreparation(26, 0, 0d, Now);
         record.RecordStoreSweep(4, 120L * 1024 * 1024, "", Now);
 
         string sentence = StudioAlbumDrawSentence.For(record);

@@ -85,6 +85,17 @@ public sealed class AlbumDrawRecord
     public DateTimeOffset? LastPreparedAtUtc { get; set; }
 
     /// <summary>
+    /// How long that preparation took, apart from the drawing.
+    ///
+    /// 🔴 THE TWO NUMBERS DO NOT OVERLAP AND THAT IS WHAT MAKES THEM USEFUL.
+    /// The build stopwatch starts after the build project has been made, so this is
+    /// the cost that happens ONCE for a set of renders and the draw seconds are the
+    /// cost that happens every time. Added together in one figure, a slow first build
+    /// would be indistinguishable from a permanently slow album.
+    /// </summary>
+    public double LastPreparedSeconds { get; set; }
+
+    /// <summary>
     /// Images that went into the album AT SOURCE SIZE because preparing them failed.
     ///
     /// 🔴 A DESCRIPTION OF THE ALBUM AS IT STANDS, NOT HISTORY - so unlike the
@@ -107,6 +118,7 @@ public sealed class AlbumDrawRecord
         LastSweepRefusalMn = LastSweepRefusalMn,
         LastPreparedImageCount = LastPreparedImageCount,
         LastPreparedAtUtc = LastPreparedAtUtc,
+        LastPreparedSeconds = LastPreparedSeconds,
         LastUnpreparedImageCount = LastUnpreparedImageCount,
     };
 
@@ -173,6 +185,7 @@ public sealed class AlbumDrawRecord
     public void RecordRasterPreparation(
         int preparedCount,
         int unpreparedCount,
+        double seconds,
         DateTimeOffset atUtc)
     {
         LastUnpreparedImageCount = Math.Max(0, unpreparedCount);
@@ -181,5 +194,6 @@ public sealed class AlbumDrawRecord
 
         LastPreparedImageCount = preparedCount;
         LastPreparedAtUtc = atUtc;
+        LastPreparedSeconds = Math.Max(0d, seconds);
     }
 }

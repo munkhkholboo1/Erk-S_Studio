@@ -1340,6 +1340,7 @@ public sealed class AppState : IDisposable
             Project.PrimaryAlbum.LastDraw.RecordRasterPreparation(
                 preparation.PreparedCount,
                 preparation.FailedCount,
+                preparation.Seconds,
                 DateTimeOffset.UtcNow);
             SaveProject();
         }
