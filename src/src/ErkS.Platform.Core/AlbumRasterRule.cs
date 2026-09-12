@@ -15,11 +15,29 @@ namespace ErkS.Platform.Core;
 /// 3507 × 2480 at A4 - exactly 300 DPI, JPEG, 0.59-1.67 MB each. The measurement
 /// came from the artefact; the rule was then stated by the person who made it.
 ///
-/// ⚠ WHAT THIS DOES NOT CLAIM. Only the visualisation path consults it today. «One
-/// rule with one name» is not «every raster path obeys it»: the album also
-/// rasterises transparent hatches and carries imported PDF pages, and whether
-/// those land on 300 DPI is a separate measurement - not an assumption this file
-/// is entitled to make.
+/// ⚠ WHAT THIS DOES NOT CLAIM, NOW MEASURED (2026-09-12). Only the visualisation
+/// path consults it. The other raster paths were counted from source rather than
+/// assumed, and they are not one kind of thing:
+///
+///   • TRANSPARENT HATCHES are not Studio's raster at all. There is no DPI decision
+///     anywhere in ErkS.Platform.Pdf; the raster is made by AutoCAD's plot and
+///     arrives already inside an imported page. The lever is CGA's plot settings.
+///   • IMPORTED PDF PAGES pass through as vector - PdfReader.Open(… Import) and
+///     XPdfForm, «a PDF page is placed as a form, so it stays vector». This rule
+///     cannot reach the raster inside one without re-rasterising the whole page and
+///     destroying the vector around it. Deliberately out of reach.
+///   • THE PORTFOLIO AND THE BOARDS place raster with NO ceiling -
+///     XImage.FromFile(item.SourcePath) and XImage.FromFile(card.SourcePath). These
+///     are Studio's own writers, and they draw THE SAME FILES the visualisation
+///     pages now cap: portfolio intake copies image.RelativePath straight off the
+///     owner's visualisation records.
+///
+/// 🔴 SO THERE IS AN UNCAPPED TWIN OF THE PATH THAT WAS JUST CAPPED. A portfolio
+/// page defaults to 420 × 297 mm and FullBleed fills it, so this rule asks for
+/// 4961 px across; a 16k render carries about 3.1× that in each direction, near ten
+/// times the pixel data. Naming it here rather than fixing it in passing: the
+/// portfolio's frames come from its own writer's layouts, so applying the rule
+/// there is the same shape of work as the visualisation path and not a one-liner.
 ///
 /// ⚠ AND THERE IS A SECOND 300 IN THIS PROJECT THAT MUST NOT BE MERGED WITH THIS
 /// ONE. <see cref="PreviewRenderResolution.TargetDpi"/> is also 300, and it is a
