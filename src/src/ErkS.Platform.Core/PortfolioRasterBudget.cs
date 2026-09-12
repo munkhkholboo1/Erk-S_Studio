@@ -17,10 +17,19 @@ public static class PortfolioPageGeometry
     /// <summary>The strip a caption occupies under a contained drawing.</summary>
     public const double CaptionBandMm = 16;
 
-    /// <summary>Layout names as the portfolio stores them.</summary>
-    public const string FullBleed = "FullBleed";
+    /// <summary>
+    /// Layout names, read from the portfolio's own catalogue.
+    ///
+    /// 🔴 THESE WERE COPIED HERE AND THAT WAS A SECOND HOME - the same fault the
+    /// comment above warns about, committed in the file that warns about it.
+    /// <see cref="ProjectPortfolioLayouts"/> has held these names since the portfolio
+    /// was built. A copy that outlived a rename would compute a CONTAINED frame for a
+    /// page the writer then COVERS: fewer pixels than the page shows, which is the one
+    /// failure direction that looks like nothing at all.
+    /// </summary>
+    public const string FullBleed = ProjectPortfolioLayouts.FullBleed;
 
-    public const string FitPage = "FitPage";
+    public const string FitPage = ProjectPortfolioLayouts.FitPage;
 
     /// <summary>
     /// The area one item is drawn into, in millimetres.

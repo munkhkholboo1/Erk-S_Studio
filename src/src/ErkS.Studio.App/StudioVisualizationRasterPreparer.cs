@@ -341,6 +341,30 @@ internal static class StudioVisualizationRasterPreparer
     internal static bool IsFileTroubleForSharing(Exception exception) =>
         IsFileTrouble(exception);
 
+    /// <summary>
+    /// The drawing's own pixel count, read from its header. Shared.
+    ///
+    /// 🔴 READ FROM THE FILE, NOT FROM A RECORD. The album's pass has records
+    /// that declare PixelWidth; a portfolio item is a path and a layout and a board card
+    /// is a path and a crop. Asking the file is the only answer available to all three -
+    /// and it is the answer the writers themselves use.
+    ///
+    /// 🔴 AND IT WAS ABOUT TO BE A THIRD COPY. The portfolio pass grew its own
+    /// private version of exactly this; the board would have made three. Decoding a
+    /// header is the kind of operation that looks too small to share right up until the
+    /// three copies disagree about what a failure is.
+    /// </summary>
+    internal static (int Width, int Height) ReadPixelSizeForSharing(string path)
+    {
+        using FileStream input = File.OpenRead(path);
+        System.Windows.Media.Imaging.BitmapFrame frame =
+            System.Windows.Media.Imaging.BitmapDecoder.Create(
+                input,
+                System.Windows.Media.Imaging.BitmapCreateOptions.DelayCreation,
+                System.Windows.Media.Imaging.BitmapCacheOption.None).Frames[0];
+        return (frame.PixelWidth, frame.PixelHeight);
+    }
+
     private static string ContentKey(ProjectVisualizationImage image, string sourcePath)
     {
         string declared = (image.Sha256 ?? "").Trim().ToLowerInvariant();

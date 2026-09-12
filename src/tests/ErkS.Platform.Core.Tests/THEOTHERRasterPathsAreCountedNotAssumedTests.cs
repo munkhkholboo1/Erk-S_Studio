@@ -12,10 +12,15 @@ namespace ErkS.Platform.Core.Tests;
 /// is not a check, and the day it is written is the last day anybody remembers it.
 ///
 /// 🔴 WHAT THE COUNT FOUND: an UNCAPPED TWIN of the path that was just capped. The
-/// portfolio and the boards place raster with no ceiling, and the portfolio draws the
+/// portfolio and the boards placed raster with no ceiling, and the portfolio draws the
 /// very files the visualisation pages now reduce - its intake copies
 /// image.RelativePath off the owner's visualisation records. «I fixed the raster» was
 /// true of one writer out of three.
+///
+/// 🔴 BOTH HAVE SINCE BEEN CAPPED, 2026-09-12, and this file was rewritten rather than
+/// left to go on describing the day it was written. Two of its assertions had outlived
+/// their claims while staying green - the writers still place what they are handed, which
+/// is what they asserted, and the ceiling was added in the App layer above them.
 ///
 /// ⚠ AND TWO OF THE FOUR PATHS ARE NOT STUDIO'S RASTER AT ALL, which is why this is a
 /// measurement and not a defect list: transparent hatches are made by AutoCAD's plot,
@@ -44,18 +49,44 @@ public sealed class THEOTHERRasterPathsAreCountedNotAssumedTests
         Assert.Contains("AlbumRasterRule.MillimetresPerPixel", budget, StringComparison.Ordinal);
         Assert.Contains("AlbumRasterRule.PixelsAcross", budget, StringComparison.Ordinal);
 
-        // The writers that place raster do NOT consult it. That is the finding, and
-        // it is asserted so that fixing one of them shows up here.
+        // ⚠ THE WRITERS STILL DO NOT NAME THE RULE, AND THAT IS NOW A STATEMENT ABOUT
+        // WHERE THE CEILING LIVES RATHER THAN ABOUT ITS ABSENCE. All three ceilings are
+        // applied in the App layer before the writer is called, so a writer naming the
+        // rule would mean a fourth place deciding density - which is what this catches.
         Assert.DoesNotContain("PortfolioPdfWriter.cs", consumers);
         Assert.DoesNotContain("BoardPdfWriter.cs", consumers);
+
+        // 🔴 AND THE TWO DERIVED BUDGETS ARE NOT IN THIS LIST EITHER, WHICH IS THE
+        // DESIGN AND NOT A GAP - a first version of this assertion demanded they be here
+        // and went red on correct code. The rule has ONE applier; the portfolio and the
+        // board budgets work out their own FRAME and hand it to that applier, so naming
+        // the rule themselves would be a second place deciding density. That they reach it
+        // is held where it can be held properly, by
+        // THETHREEWritersShareONECeilingTests.EACHBudgetReachesTheRuleThroughTheONEApplier‑
+        // NotItsOwnArithmetic, which also bans the arithmetic spelled by hand.
+        Assert.DoesNotContain("PortfolioRasterBudget.cs", consumers);
+        Assert.DoesNotContain("BoardRasterBudget.cs", consumers);
+
+        // What IS here besides the applier: the places that REPORT the rule to the owner.
+        // Three sentences, one per writer, each naming the dpi it reduced to.
+        Assert.Contains("ShellView.Portfolio.cs", consumers);
+        Assert.Contains("ShellView.Boards.cs", consumers);
     }
 
     [Fact]
-    public void THEUNCAPPEDTwinsPlaceRasterStraightFromTheSourceFile()
+    public void THETwinsArePLACERSAndTheCeilingIsAppliedBEFOREThem()
     {
-        // The mechanism, named: no size is computed, the file goes in as it is. If
-        // either writer ever grows a ceiling, this goes red and the note above is due
-        // an update - which is the point of pinning it.
+        // 🔴 THIS TEST'S CLAIM WAS «THE UNCAPPED TWINS» AND IT EXPIRED WHILE STAYING
+        // GREEN. Both writers were capped - the portfolio first, then the boards - and
+        // both still place the file they are handed, exactly as asserted, so nothing
+        // went red and the name went on saying they were uncapped. That is
+        // «test-that-expires-with-its-claim» caught in this repository, on the day the
+        // claim expired, by rereading rather than by a failure.
+        //
+        // What is TRUE and worth pinning is the shape of the fix: the writers are
+        // PLACERS. They take a path and put it on the page, and every one of the three
+        // ceilings is applied in the App layer BEFORE the writer is called. That is why
+        // neither writer names the rule below and why neither needed changing.
         Assert.Contains(
             "XImage.FromFile(item.SourcePath)",
             ReadPdfSource("PortfolioPdfWriter.cs"),
@@ -64,6 +95,15 @@ public sealed class THEOTHERRasterPathsAreCountedNotAssumedTests
             "XImage.FromFile(card.SourcePath)",
             ReadPdfSource("BoardPdfWriter.cs"),
             StringComparison.Ordinal);
+
+        // And the ceiling exists for both, in Core, where the App layer reads it. An
+        // assertion the old name could never have carried.
+        Assert.NotNull(
+            PortfolioRasterBudget.For(420, 297, ProjectPortfolioLayouts.FullBleed, false, 15360, 8640));
+        Assert.NotNull(
+            BoardRasterBudget.For(
+                new BoardRectMm(0, 0, 400, 300), false, ProjectPortfolioLayouts.FullBleed,
+                1, 1, 15360, 8640));
     }
 
     [Fact]

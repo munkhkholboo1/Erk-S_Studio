@@ -117,7 +117,8 @@ internal static class StudioPortfolioRasterPreparer
 
             try
             {
-                (int sourceWidth, int sourceHeight) = ReadPixelSize(path);
+                (int sourceWidth, int sourceHeight) =
+                    StudioVisualizationRasterPreparer.ReadPixelSizeForSharing(path);
                 VisualizationRasterPlan plan = PortfolioRasterBudget.For(
                     pageWidthMm,
                     pageHeightMm,
@@ -172,25 +173,6 @@ internal static class StudioPortfolioRasterPreparer
                 vector,
                 sweep.RemovedCount,
                 sweep.RemovedBytes));
-    }
-
-    /// <summary>
-    /// The drawing's own pixel count, read from its header.
-    ///
-    /// 🔴 READ FROM THE FILE, NOT FROM A RECORD. The album's pass has records that
-    /// declare PixelWidth; a portfolio item is a path and a layout, and an album-page
-    /// item is a rendered preview nobody has inspected. Asking the file is the only
-    /// answer available to all of them - and it is the answer the writer itself uses.
-    /// </summary>
-    private static (int Width, int Height) ReadPixelSize(string path)
-    {
-        using FileStream input = File.OpenRead(path);
-        System.Windows.Media.Imaging.BitmapFrame frame =
-            System.Windows.Media.Imaging.BitmapDecoder.Create(
-                input,
-                System.Windows.Media.Imaging.BitmapCreateOptions.DelayCreation,
-                System.Windows.Media.Imaging.BitmapCacheOption.None).Frames[0];
-        return (frame.PixelWidth, frame.PixelHeight);
     }
 
     private static bool IsFileTrouble(Exception exception) =>

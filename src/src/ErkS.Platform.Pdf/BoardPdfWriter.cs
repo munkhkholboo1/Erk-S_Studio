@@ -212,8 +212,12 @@ public static class BoardPlacement
 public static class BoardPdfWriter
 {
     private const double PointsPerMm = 72.0 / 25.4;
-    private const double CaptionBandMm = 8;
-    private const double CaptionGapMm = 2;
+    // 🔴 THE NUMBERS THEMSELVES LIVE IN CORE. Working out how many pixels a
+    // card needs means working out the frame it lands in, and the frame is the
+    // cell less this reserve - so the raster budget has to agree with this
+    // writer exactly. A private copy here would be the second home.
+    private const double CaptionBandMm = BoardCardFrame.CaptionBandMm;
+    private const double CaptionGapMm = BoardCardFrame.CaptionGapMm;
 
     private static readonly XSolidBrush PaperBrush = new(XColors.White);
     private static readonly XSolidBrush BleedBrush = new(XColor.FromArgb(24, 26, 30));

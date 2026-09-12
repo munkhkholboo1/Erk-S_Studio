@@ -784,20 +784,41 @@ internal sealed partial class ShellView
             "sambar.pdf");
         try
         {
+            // 🔴 THE CEILING, BEFORE THE WRITER. The board places raster the same
+            // way the album and the portfolio do, and until now it was the one of the
+            // three that never asked how many pixels a card could use. A card also shows
+            // only a FRACTION of its source, so the crop goes to the rule with it.
+            (IReadOnlyList<BoardBuildBoard> Boards, BoardRasterPreparation Did) prepared =
+                StudioBoardRasterPreparer.Prepare(
+                    boards,
+                    state.ProjectPath,
+                    Boards.Grid,
+                    Boards.BoardWidthMm,
+                    Boards.BoardHeightMm);
+
             BoardBuildResult result = BoardPdfWriter.Build(new BoardBuildRequest(
                 string.IsNullOrWhiteSpace(Boards.Title) ? "Самбар" : Boards.Title,
                 outputPath,
                 Boards.BoardWidthMm,
                 Boards.BoardHeightMm,
                 Boards.Grid,
-                boards));
+                prepared.Boards));
             Boards.LastPdfPath = result.OutputPath;
             Boards.LastBuiltAtUtc = DateTimeOffset.UtcNow;
             state.SaveProject();
+
+            string ceiling = "";
+            if (prepared.Did.PreparedCount > 0)
+                ceiling += $" {prepared.Did.PreparedCount} зураг {AlbumRasterRule.DotsPerInch:0} dpi-д бууруулсан.";
+            if (prepared.Did.FailedCount > 0)
+                ceiling += $" {prepared.Did.FailedCount} зураг бэлтгэгдээгүй тул эх хэмжээгээр орсон.";
+            if (prepared.Did.RemovedCount > 0)
+                ceiling += $" Хуучин бэлтгэл {prepared.Did.RemovedCount} файл чөлөөлөгдсөн.";
+
             SetStatus(result.Warnings.Count == 0
-                ? $"Самбар үүслээ: {result.PageCount} хуудас."
+                ? $"Самбар үүслээ: {result.PageCount} хуудас.{ceiling}"
                 : $"Самбар үүслээ ({result.PageCount} хуудас), " +
-                  $"{result.Warnings.Count} анхааруулгатай: {result.Warnings[0]}");
+                  $"{result.Warnings.Count} анхааруулгатай: {result.Warnings[0]}{ceiling}");
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or InvalidOperationException)
