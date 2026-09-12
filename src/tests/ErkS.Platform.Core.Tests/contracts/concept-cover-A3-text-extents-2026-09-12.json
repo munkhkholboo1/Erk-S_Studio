@@ -1,0 +1,878 @@
+{
+ "note": "PFA -> STU. 2026-09-12. Хоёр асуултын хариу, ба өөрийн нэг дүгнэлтийн залруулга.",
+ "addsTo": "_shared/concept-cover-A3-full-2026-09-12.json",
+ "source": "_shared/concept-cover-A3-reference-2026-09-11.dwg",
+ "howMeasured": "Зангуу: DXF group 71 (MTEXT attachment) ба 72/73 (TEXT justify). Өргөн: AutoCAD-ийн ӨӨРИЙН textbox функц accoreconsole дотор — фонтын метрикийг мэддэг цорын ганц эх сурвалж. Гараар бичсэн тоо байхгүй.",
+ "correctionToPreviousFile": {
+  "section": "concept-cover-A3-full-2026-09-12.json → centredOnFrameCentreLine",
+  "whatItSaid": "Хоёр текст хүрээний босоо төв дээр байна: оны мөр (зөрүү 0.0000) ба ЗАХИАЛАГЧ (−0.088).",
+  "whatWasWrong": "Тэр хэсэг зангууны УТГЫГ шалгалгүйгээр зөвхөн ТООГ харьцуулсан. MTEXT-ийн оруулах цэг нь attachment point-оос хамаарч текстийн ТӨВ ч, ЗҮҮН ИРМЭГ ч байж болно. Хоёр мөрийн зангуу өөр утгатай байсныг би нэг гарчиг дор нийлүүлсэн.",
+  "yearLine": {
+   "text": "УЛААНБААТАР ХОТ 2026 ОН",
+   "attachmentCode": 5,
+   "attachmentPoint": "middle-centre",
+   "insertionXMm": 217.5,
+   "frameCentreXMm": 217.5,
+   "verdict": "БАТЛАГДАВ. attachment = 5 (middle-centre) тул оруулах цэг нь текстийн ТӨВ. Өөрөөр хэлбэл энэ мөр хүрээний босоо төв дээр ҮНЭХЭЭР төвлөрсөн. STU-гийн хэрэгжилт зөв, буцаах шаардлагагүй."
+  },
+  "clientLabel": {
+   "text": "ЗАХИАЛАГЧ.",
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMm": 217.412,
+   "frameCentreXMm": 217.5,
+   "verdict": "ТАТГАЛЗАВ. attachment = 1 (top-left) тул 217.412 нь текстийн ЗҮҮН ИРМЭГ, төв нь биш. Хүрээний төвтэй 0.088 мм-ээр ойрхон байгаа нь ДАВХЦАЛ. Энэ мөрийг төвлөрүүлж болохгүй — зүүн ирмэгээрээ байрлана."
+  },
+  "howToReadTheOldSection": "centredOnFrameCentreLine доторх ЗАХИАЛАГЧ мөрийг УСТГАЖ уншина уу; оны мөр хэвээр хүчинтэй."
+ },
+ "mtextAttachmentPoints": [
+  {
+   "index": 2,
+   "entity": "MTEXT",
+   "text": "УЛААНБААТАР ХОТ 2026 ОН",
+   "insertionMm": [
+    217.5,
+    15.0
+   ],
+   "attachmentCode": 5,
+   "attachmentPoint": "middle-centre",
+   "insertionXMeans": "centre of the text",
+   "insertionYMeans": "middle of the text"
+  },
+  {
+   "index": 7,
+   "entity": "MTEXT",
+   "text": "Албан тушаал",
+   "insertionMm": [
+    110.1315,
+    146.3615
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 11,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "insertionMm": [
+    167.3933,
+    146.0658
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 14,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "insertionMm": [
+    192.1516,
+    146.0658
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 15,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "insertionMm": [
+    170.5008,
+    108.8966
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 16,
+   "entity": "MTEXT",
+   "text": "ХЯНАСАН.",
+   "insertionMm": [
+    215.1736,
+    152.3581
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 18,
+   "entity": "MTEXT",
+   "text": "Хот байгуулалт, хотын стандартын газрын Хариуцсан хэлтсийн дарга",
+   "insertionMm": [
+    218.6329,
+    135.5148
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 24,
+   "entity": "MTEXT",
+   "text": "Байгаль орчин, уур амьсгалын өөрчлөлтийн яамны Тусгай хамгаалалттай бүс нутгийн удирдлагын газрын дарга",
+   "insertionMm": [
+    95.0475,
+    138.2949
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 25,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "insertionMm": [
+    170.3258,
+    132.8966
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 35,
+   "entity": "MTEXT",
+   "text": "ЗӨВШИЛЦСӨН.",
+   "insertionMm": [
+    94.1698,
+    152.3752
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 36,
+   "entity": "MTEXT",
+   "text": "Нийслэлийн эрүүл мэндийн газрын Эрүүл мэндийн хяналтын хэлтсийн дарга",
+   "insertionMm": [
+    96.3801,
+    110.3626
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 38,
+   "entity": "MTEXT",
+   "text": ". . . . .",
+   "insertionMm": [
+    293.7844,
+    81.9227
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 45,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "insertionMm": [
+    313.9979,
+    90.3567
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 46,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "insertionMm": [
+    293.9537,
+    90.2561
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 47,
+   "entity": "MTEXT",
+   "text": "Лого",
+   "insertionMm": [
+    218.1855,
+    86.4668
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 49,
+   "entity": "MTEXT",
+   "text": "\" . . . . . \" ХХК-ийн захирал",
+   "insertionMm": [
+    231.5904,
+    82.1743
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 50,
+   "entity": "MTEXT",
+   "text": "ЗАХИАЛАГЧ.",
+   "insertionMm": [
+    217.412,
+    98.3655
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 51,
+   "entity": "MTEXT",
+   "text": "Албан тушаал / Иргэн",
+   "insertionMm": [
+    232.0448,
+    90.2583
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 53,
+   "entity": "MTEXT",
+   "text": ". . . . .",
+   "insertionMm": [
+    173.2397,
+    81.9227
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 57,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "insertionMm": [
+    193.4533,
+    90.3567
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 58,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "insertionMm": [
+    173.409,
+    90.2561
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 59,
+   "entity": "MTEXT",
+   "text": "Лого",
+   "insertionMm": [
+    97.1611,
+    86.4668
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 60,
+   "entity": "MTEXT",
+   "text": "\" . . . . . \" ХХК-ийн захирал",
+   "insertionMm": [
+    109.421,
+    82.1743
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 61,
+   "entity": "MTEXT",
+   "text": "Албан тушаал",
+   "insertionMm": [
+    109.8044,
+    90.2583
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 64,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "insertionMm": [
+    170.3258,
+    120.8966
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 65,
+   "entity": "MTEXT",
+   "text": "Хот байгуулалт, хотын стандартын газрын Хот байгуулалт хариуцсан мэргэжилтэн",
+   "insertionMm": [
+    218.3954,
+    117.2126
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 66,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "insertionMm": [
+    293.9537,
+    145.8225
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 67,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "insertionMm": [
+    313.9979,
+    145.726
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 68,
+   "entity": "MTEXT",
+   "text": "Албан тушаал",
+   "insertionMm": [
+    243.9568,
+    146.3615
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 70,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "insertionMm": [
+    290.8704,
+    132.5116
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 71,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "insertionMm": [
+    290.8704,
+    111.6866
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 72,
+   "entity": "MTEXT",
+   "text": "ОБЕГ-ын ГТТГ-ын Гал түймрийн улсын хяналтын хэлтсийн дарга, хурандаа",
+   "insertionMm": [
+    96.3801,
+    122.3626
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  },
+  {
+   "index": 73,
+   "entity": "MTEXT",
+   "text": "ГҮЙЦЭТГЭГЧ.",
+   "insertionMm": [
+    95.4707,
+    98.3655
+   ],
+   "attachmentCode": 1,
+   "attachmentPoint": "top-left",
+   "insertionXMeans": "left edge of the text",
+   "insertionYMeans": "top of the text"
+  }
+ ],
+ "textJustification": [
+  {
+   "index": 26,
+   "entity": "TEXT",
+   "text": "УЛААНБААТАР ХОТ",
+   "insertionMm": [
+    168.0716,
+    204.5968
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     168.0716,
+     204.5968
+    ],
+    "widthMm": 33.1626,
+    "heightMm": 2.5611,
+    "leftXMm": 168.0885,
+    "rightXMm": 201.2511,
+    "centreXMm": 184.6698,
+    "bottomYMm": 204.5546,
+    "topYMm": 207.1157
+   }
+  },
+  {
+   "index": 27,
+   "entity": "TEXT",
+   "text": ",",
+   "insertionMm": [
+    201.3909,
+    204.5968
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     201.3909,
+     204.5968
+    ],
+    "widthMm": 0.3664,
+    "heightMm": 0.8357,
+    "leftXMm": 201.6779,
+    "rightXMm": 202.0443,
+    "centreXMm": 201.8611,
+    "bottomYMm": 204.1072,
+    "topYMm": 204.9429
+   }
+  },
+  {
+   "index": 28,
+   "entity": "TEXT",
+   "text": " . . . . . . . . . . . . . . . ДҮҮРГИЙН . . . . -Р ХОРОО",
+   "insertionMm": [
+    202.7632,
+    204.5968
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     202.7632,
+     204.5968
+    ],
+    "widthMm": 71.9269,
+    "heightMm": 3.6416,
+    "leftXMm": 203.0773,
+    "rightXMm": 275.0042,
+    "centreXMm": 239.0407,
+    "bottomYMm": 204.0194,
+    "topYMm": 207.661
+   }
+  },
+  {
+   "index": 29,
+   "entity": "TEXT",
+   "text": "ТӨЛӨВЛӨЖ БУЙ БАРИЛГЫН",
+   "insertionMm": [
+    144.4049,
+    191.8663
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     144.4049,
+     191.8663
+    ],
+    "widthMm": 154.4884,
+    "heightMm": 10.0409,
+    "leftXMm": 144.6669,
+    "rightXMm": 299.1553,
+    "centreXMm": 221.9111,
+    "bottomYMm": 191.7299,
+    "topYMm": 201.7708
+   }
+  },
+  {
+   "index": 30,
+   "entity": "TEXT",
+   "text": "НЭР, ТӨРӨЛ",
+   "insertionMm": [
+    180.9158,
+    180.4316
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     180.9158,
+     180.4316
+    ],
+    "widthMm": 66.9959,
+    "heightMm": 9.7244,
+    "leftXMm": 181.8107,
+    "rightXMm": 248.8066,
+    "centreXMm": 215.3087,
+    "bottomYMm": 178.8491,
+    "topYMm": 188.5735
+   }
+  },
+  {
+   "index": 31,
+   "entity": "TEXT",
+   "text": "БАТЛАВ",
+   "insertionMm": [
+    207.4834,
+    278.0737
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     207.4834,
+     278.0737
+    ],
+    "widthMm": 13.1026,
+    "heightMm": 2.5172,
+    "leftXMm": 207.7653,
+    "rightXMm": 220.868,
+    "centreXMm": 214.3166,
+    "bottomYMm": 278.0315,
+    "topYMm": 280.5487
+   }
+  },
+  {
+   "index": 32,
+   "entity": "TEXT",
+   "text": ":",
+   "insertionMm": [
+    221.052,
+    278.0737
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     221.052,
+     278.0737
+    ],
+    "widthMm": 0.3461,
+    "heightMm": 1.7929,
+    "leftXMm": 221.3643,
+    "rightXMm": 221.7104,
+    "centreXMm": 221.5374,
+    "bottomYMm": 278.0737,
+    "topYMm": 279.8667
+   }
+  },
+  {
+   "index": 33,
+   "entity": "TEXT",
+   "text": "НИЙСЛЭЛИЙН ЕРӨНХИЙ АРХИТЕКТОР",
+   "insertionMm": [
+    138.5491,
+    268.5545
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     138.5491,
+     268.5545
+    ],
+    "widthMm": 65.9674,
+    "heightMm": 3.1064,
+    "leftXMm": 138.8259,
+    "rightXMm": 204.7933,
+    "centreXMm": 171.8096,
+    "bottomYMm": 268.5123,
+    "topYMm": 271.6187
+   }
+  },
+  {
+   "index": 34,
+   "entity": "TEXT",
+   "text": "/ЗАГВАР ЗУРАГ/",
+   "insertionMm": [
+    202.8031,
+    172.2992
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     202.8031,
+     172.2992
+    ],
+    "widthMm": 26.8367,
+    "heightMm": 2.5594,
+    "leftXMm": 202.8031,
+    "rightXMm": 229.6398,
+    "centreXMm": 216.2215,
+    "bottomYMm": 172.257,
+    "topYMm": 174.8164
+   }
+  },
+  {
+   "index": 74,
+   "entity": "TEXT",
+   "text": " Б.БАТЦОЛМОН ",
+   "insertionMm": [
+    245.9491,
+    268.5545
+   ],
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "insertionXMeans": "left edge of the text",
+   "measuredExtent": {
+    "insertionMm": [
+     245.9491,
+     268.5545
+    ],
+    "widthMm": 24.9391,
+    "heightMm": 3.206,
+    "leftXMm": 246.231,
+    "rightXMm": 271.1701,
+    "centreXMm": 258.7005,
+    "bottomYMm": 267.8674,
+    "topYMm": 271.0734
+   }
+  }
+ ],
+ "measuredTextExtents": {
+  "how": "accoreconsole дотор (textbox (entget e)) — AutoCAD өөрөө фонтоор нь тооцсон хүрээ. MTEXT-д textbox ажиллахгүй тул зөвхөн TEXT-үүд энд байна.",
+  "entities": [
+   {
+    "insertionMm": [
+     245.9491,
+     268.5545
+    ],
+    "widthMm": 24.9391,
+    "heightMm": 3.206,
+    "leftXMm": 246.231,
+    "rightXMm": 271.1701,
+    "centreXMm": 258.7005,
+    "bottomYMm": 267.8674,
+    "topYMm": 271.0734
+   },
+   {
+    "insertionMm": [
+     202.8031,
+     172.2992
+    ],
+    "widthMm": 26.8367,
+    "heightMm": 2.5594,
+    "leftXMm": 202.8031,
+    "rightXMm": 229.6398,
+    "centreXMm": 216.2215,
+    "bottomYMm": 172.257,
+    "topYMm": 174.8164
+   },
+   {
+    "insertionMm": [
+     138.5491,
+     268.5545
+    ],
+    "widthMm": 65.9674,
+    "heightMm": 3.1064,
+    "leftXMm": 138.8259,
+    "rightXMm": 204.7933,
+    "centreXMm": 171.8096,
+    "bottomYMm": 268.5123,
+    "topYMm": 271.6187
+   },
+   {
+    "insertionMm": [
+     221.052,
+     278.0737
+    ],
+    "widthMm": 0.3461,
+    "heightMm": 1.7929,
+    "leftXMm": 221.3643,
+    "rightXMm": 221.7104,
+    "centreXMm": 221.5374,
+    "bottomYMm": 278.0737,
+    "topYMm": 279.8667
+   },
+   {
+    "insertionMm": [
+     207.4834,
+     278.0737
+    ],
+    "widthMm": 13.1026,
+    "heightMm": 2.5172,
+    "leftXMm": 207.7653,
+    "rightXMm": 220.868,
+    "centreXMm": 214.3166,
+    "bottomYMm": 278.0315,
+    "topYMm": 280.5487
+   },
+   {
+    "insertionMm": [
+     180.9158,
+     180.4316
+    ],
+    "widthMm": 66.9959,
+    "heightMm": 9.7244,
+    "leftXMm": 181.8107,
+    "rightXMm": 248.8066,
+    "centreXMm": 215.3087,
+    "bottomYMm": 178.8491,
+    "topYMm": 188.5735
+   },
+   {
+    "insertionMm": [
+     144.4049,
+     191.8663
+    ],
+    "widthMm": 154.4884,
+    "heightMm": 10.0409,
+    "leftXMm": 144.6669,
+    "rightXMm": 299.1553,
+    "centreXMm": 221.9111,
+    "bottomYMm": 191.7299,
+    "topYMm": 201.7708
+   },
+   {
+    "insertionMm": [
+     202.7632,
+     204.5968
+    ],
+    "widthMm": 71.9269,
+    "heightMm": 3.6416,
+    "leftXMm": 203.0773,
+    "rightXMm": 275.0042,
+    "centreXMm": 239.0407,
+    "bottomYMm": 204.0194,
+    "topYMm": 207.661
+   },
+   {
+    "insertionMm": [
+     201.3909,
+     204.5968
+    ],
+    "widthMm": 0.3664,
+    "heightMm": 0.8357,
+    "leftXMm": 201.6779,
+    "rightXMm": 202.0443,
+    "centreXMm": 201.8611,
+    "bottomYMm": 204.1072,
+    "topYMm": 204.9429
+   },
+   {
+    "insertionMm": [
+     168.0716,
+     204.5968
+    ],
+    "widthMm": 33.1626,
+    "heightMm": 2.5611,
+    "leftXMm": 168.0885,
+    "rightXMm": 201.2511,
+    "centreXMm": 184.6698,
+    "bottomYMm": 204.5546,
+    "topYMm": 207.1157
+   }
+  ]
+ },
+ "projectTitleBand": {
+  "why": "Бүтээгдэхүүн төслийн нэрийг НЭГ мөрөнд бичих тул хоёр орлуулагч мөрийн эзэлсэн зурвасын төв хэрэгтэй.",
+  "lines": [
+   {
+    "text": "мөр 1 (дээд)",
+    "leftXMm": 144.6669,
+    "rightXMm": 299.1553,
+    "widthMm": 154.4884,
+    "centreXMm": 221.9111,
+    "baselineYMm": 191.8663
+   },
+   {
+    "text": "мөр 2 (доод)",
+    "leftXMm": 181.8107,
+    "rightXMm": 248.8066,
+    "widthMm": 66.9959,
+    "centreXMm": 215.3087,
+    "baselineYMm": 180.4316
+   }
+  ],
+  "bandLeftXMm": 144.6669,
+  "bandRightXMm": 299.1553,
+  "bandWidthMm": 154.4884,
+  "bandCentreXMm": 221.9111,
+  "frameCentreXMm": 217.5,
+  "bandCentreOffsetFromFrameCentreMm": 4.4111,
+  "observation": "Хоёр мөр нь бие биендээ ч, хүрээний төвд ч төвлөрөөгүй: мөрүүдийн төв тус тусдаа, зурвасын төв нь хүрээний төвөөс баруун тийш шилжсэн. Эдгээр нь орлуулагч текст тул өргөн нь бодит төслийн нэрээс хамаарахгүй — зурвасыг байрлалын лавлагаа болгон ашиглах эсэхийг STU шийднэ."
+ },
+ "notMeasured": [
+  "MTEXT-ийн бодит хүрээ: AutoCAD-ийн textbox нь MTEXT дээр nil буцаадаг тул энд байхгүй. Хэрэв MTEXT-ийн өргөн шаардлагатай бол өөр арга (жишээ нь bounding box-ыг зурган дээр нь тооцуулах) хэрэгтэй — хийгээгүй.",
+  "Фонтын метрикийг өөрөө тооцоогүй: өргөнийг AutoCAD-аас АСУУСАН. Тиймээс энэ тоонууд нь тухайн машин дээрх dbari.ttf-ийн хувилбараас хамаарна."
+ ]
+}

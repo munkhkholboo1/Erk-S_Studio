@@ -1,0 +1,2835 @@
+{
+ "note": "PFA -> STU. 2026-09-12. Загвар зургийн A3 НҮҮР — зурган дахь БҮХ обьектын бүрэн тооллого. Хэмжилт, санал биш.",
+ "supersedes": {
+  "file": "_shared/concept-cover-A3-2026-09-11.json",
+  "status": "ОРЛУУЛАВ (буруу зүйл байхгүй, ДУТУУ)",
+  "why": "Тэр файл хүрээ ба хоёр хүснэгтийг зөв хэмжсэн боловч ЗӨВХӨН тэдгээрийг агуулсан. БАТЛАВ, нийслэлийн ерөнхий архитекторын мөр, хаягийн мөр, үндсэн гарчиг, /ЗАГВАР ЗУРАГ/, оны мөр — эдгээрийн байрлал огт байгаагүй тул хэрэгжүүлэгч тэднийг A4-ээс гаргаж авахаас өөр аргагүй байв. Үр дүн нь «A4-ийн байрлалыг A3 дээр тавьсан» нүүр. Хэмжилтийн цоорхой, хэрэгжилтийн алдаа биш.",
+  "measuredValuesUnchanged": "Хүрээ ба хүснэгтийн бүх тоо энэ файлд ДАХИН хэмжигдэж, өмнөхтэй тулгагдсан — доорх recheck хэсгийг үз."
+ },
+ "source": "_shared/concept-cover-A3-reference-2026-09-11.dwg",
+ "howMeasured": "DWG -> DXF (accoreconsole DXFOUT, 16 орон) -> DXF-ийг задлан БҮХ обьектыг уншсан. Гараар бичсэн тоо БАЙХГҮЙ; бүх утга кодоор гаргасан. 2026-09-06-ны A4 гэрээтэй ижил арга.",
+ "units": {
+  "rule": "Эх зурагт 1 мм = 100 зургийн нэгж. Доорх БҮХ утга МИЛЛИМЕТР.",
+  "origin": "Хуудасны ЗҮҮН-ДООД булан (0,0); X баруун, Y ДЭЭШ."
+ },
+ "objectCensus": {
+  "LWPOLYLINE": 4,
+  "MTEXT": 33,
+  "LINE": 28,
+  "TEXT": 10
+ },
+ "objectTotal": 75,
+ "page": {
+  "widthMm": 420.0,
+  "heightMm": 297.0,
+  "name": "A3 landscape",
+  "orientation": "LANDSCAPE"
+ },
+ "frame": {
+  "xMm": 20.0,
+  "yMm": 5.0,
+  "widthMm": 395.0,
+  "heightMm": 287.0,
+  "marginsMm": {
+   "left": 20.0,
+   "right": 5.0,
+   "bottom": 5.0,
+   "top": 5.0
+  }
+ },
+ "twoTablePairs": {
+  "top": {
+   "labels": [
+    "ЗӨВШИЛЦСӨН",
+    "ХЯНАСАН"
+   ],
+   "outerTopYMm": 148.5007,
+   "outerBottomYMm": 100.5007,
+   "totalHeightMm": 48.0,
+   "headerRowHeightMm": 8.0,
+   "columnEdgesXMm": [
+    94.0716,
+    165.097,
+    190.097,
+    215.097,
+    285.6416,
+    310.6416,
+    335.6416
+   ],
+   "columnWidthsMm": [
+    71.0254,
+    25.0,
+    25.0,
+    70.5446,
+    25.0,
+    25.0
+   ],
+   "leftTableWidthMm": 121.0254,
+   "rightTableWidthMm": 120.5446,
+   "leftRowEdgesYMm": [
+    148.5007,
+    140.5007,
+    124.5007,
+    112.5007,
+    100.5007
+   ],
+   "leftBodyRowHeightsMm": [
+    16.0,
+    12.0,
+    12.0
+   ],
+   "rightRowEdgesYMm": [
+    148.5007,
+    140.5007,
+    120.5007,
+    100.5007
+   ],
+   "rightBodyRowHeightsMm": [
+    20.0,
+    20.0
+   ]
+  },
+  "bottom": {
+   "labels": [
+    "ГҮЙЦЭТГЭГЧ",
+    "ЗАХИАЛАГЧ"
+   ],
+   "outerTopYMm": 92.8357,
+   "outerBottomYMm": 76.8357,
+   "totalHeightMm": 16.0,
+   "columnEdgesXMm": [
+    94.0716,
+    108.4466,
+    165.097,
+    190.097,
+    215.1011,
+    230.3011,
+    285.6416,
+    310.6416,
+    335.6416
+   ],
+   "columnWidthsMm": [
+    14.375,
+    56.6504,
+    25.0,
+    25.0041,
+    15.2,
+    55.3405,
+    25.0,
+    25.0
+   ],
+   "midRuleYMm": 84.8357,
+   "midRuleSegmentsMm": [
+    {
+     "yMm": 84.8357,
+     "fromXMm": 108.4466,
+     "toXMm": 215.1011,
+     "lengthMm": 106.6545
+    },
+    {
+     "yMm": 84.8357,
+     "fromXMm": 230.3011,
+     "toXMm": 335.6416,
+     "lengthMm": 105.3405
+    }
+   ]
+  },
+  "gapBetweenTablesMm": 7.665,
+  "blockAsAWhole": {
+   "leftXMm": 94.0716,
+   "rightXMm": 335.6416,
+   "topYMm": 148.5007,
+   "bottomYMm": 76.8357,
+   "widthMm": 241.57,
+   "heightMm": 71.665,
+   "placementOfBottomLeft": {
+    "pageMm": [
+     94.0716,
+     76.8357
+    ],
+    "fromFrameMm": {
+     "left": 74.0716,
+     "right": 320.9284,
+     "bottom": 71.8357,
+     "top": 215.1643
+    },
+    "fractionOfFrame": {
+     "x": 0.187523,
+     "y": 0.250299
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -123.4284,
+     "y": -71.6643
+    }
+   },
+   "placementOfTopRight": {
+    "pageMm": [
+     335.6416,
+     148.5007
+    ],
+    "fromFrameMm": {
+     "left": 315.6416,
+     "right": 79.3584,
+     "bottom": 143.5007,
+     "top": 143.4993
+    },
+    "fractionOfFrame": {
+     "x": 0.799093,
+     "y": 0.500002
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 118.1416,
+     "y": 0.0007
+    }
+   }
+  }
+ },
+ "sheetTexts": [
+  {
+   "index": 31,
+   "entity": "TEXT",
+   "text": "БАТЛАВ",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    207.4834,
+    278.0737
+   ],
+   "placement": {
+    "pageMm": [
+     207.4834,
+     278.0737
+    ],
+    "fromFrameMm": {
+     "left": 187.4834,
+     "right": 207.5166,
+     "bottom": 273.0737,
+     "top": 13.9263
+    },
+    "fractionOfFrame": {
+     "x": 0.474642,
+     "y": 0.951476
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -10.0166,
+     "y": 129.5737
+    }
+   },
+   "insertionMm": [
+    207.4834,
+    278.0737
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 32,
+   "entity": "TEXT",
+   "text": ":",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    221.052,
+    278.0737
+   ],
+   "placement": {
+    "pageMm": [
+     221.052,
+     278.0737
+    ],
+    "fromFrameMm": {
+     "left": 201.052,
+     "right": 193.948,
+     "bottom": 273.0737,
+     "top": 13.9263
+    },
+    "fractionOfFrame": {
+     "x": 0.508992,
+     "y": 0.951476
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 3.552,
+     "y": 129.5737
+    }
+   },
+   "insertionMm": [
+    221.052,
+    278.0737
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 33,
+   "entity": "TEXT",
+   "text": "НИЙСЛЭЛИЙН ЕРӨНХИЙ АРХИТЕКТОР",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    138.5491,
+    268.5545
+   ],
+   "placement": {
+    "pageMm": [
+     138.5491,
+     268.5545
+    ],
+    "fromFrameMm": {
+     "left": 118.5491,
+     "right": 276.4509,
+     "bottom": 263.5545,
+     "top": 23.4455
+    },
+    "fractionOfFrame": {
+     "x": 0.300124,
+     "y": 0.918308
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -78.9509,
+     "y": 120.0545
+    }
+   },
+   "insertionMm": [
+    138.5491,
+    268.5545
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 74,
+   "entity": "TEXT",
+   "text": " Б.БАТЦОЛМОН ",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    245.9491,
+    268.5545
+   ],
+   "placement": {
+    "pageMm": [
+     245.9491,
+     268.5545
+    ],
+    "fromFrameMm": {
+     "left": 225.9491,
+     "right": 169.0509,
+     "bottom": 263.5545,
+     "top": 23.4455
+    },
+    "fractionOfFrame": {
+     "x": 0.572023,
+     "y": 0.918308
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 28.4491,
+     "y": 120.0545
+    }
+   },
+   "insertionMm": [
+    245.9491,
+    268.5545
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 26,
+   "entity": "TEXT",
+   "text": "УЛААНБААТАР ХОТ",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    168.0716,
+    204.5968
+   ],
+   "placement": {
+    "pageMm": [
+     168.0716,
+     204.5968
+    ],
+    "fromFrameMm": {
+     "left": 148.0716,
+     "right": 246.9284,
+     "bottom": 199.5968,
+     "top": 87.4032
+    },
+    "fractionOfFrame": {
+     "x": 0.374865,
+     "y": 0.695459
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -49.4284,
+     "y": 56.0968
+    }
+   },
+   "insertionMm": [
+    168.0716,
+    204.5968
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 27,
+   "entity": "TEXT",
+   "text": ",",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    201.3909,
+    204.5968
+   ],
+   "placement": {
+    "pageMm": [
+     201.3909,
+     204.5968
+    ],
+    "fromFrameMm": {
+     "left": 181.3909,
+     "right": 213.6091,
+     "bottom": 199.5968,
+     "top": 87.4032
+    },
+    "fractionOfFrame": {
+     "x": 0.459217,
+     "y": 0.695459
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -16.1091,
+     "y": 56.0968
+    }
+   },
+   "insertionMm": [
+    201.3909,
+    204.5968
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 28,
+   "entity": "TEXT",
+   "text": " . . . . . . . . . . . . . . . ДҮҮРГИЙН . . . . -Р ХОРОО",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    202.7632,
+    204.5968
+   ],
+   "placement": {
+    "pageMm": [
+     202.7632,
+     204.5968
+    ],
+    "fromFrameMm": {
+     "left": 182.7632,
+     "right": 212.2368,
+     "bottom": 199.5968,
+     "top": 87.4032
+    },
+    "fractionOfFrame": {
+     "x": 0.462692,
+     "y": 0.695459
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -14.7368,
+     "y": 56.0968
+    }
+   },
+   "insertionMm": [
+    202.7632,
+    204.5968
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 29,
+   "entity": "TEXT",
+   "text": "ТӨЛӨВЛӨЖ БУЙ БАРИЛГЫН",
+   "heightMm": 8.0,
+   "layer": "1-TEXT",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    144.4049,
+    191.8663
+   ],
+   "placement": {
+    "pageMm": [
+     144.4049,
+     191.8663
+    ],
+    "fromFrameMm": {
+     "left": 124.4049,
+     "right": 270.5951,
+     "bottom": 186.8663,
+     "top": 100.1337
+    },
+    "fractionOfFrame": {
+     "x": 0.314949,
+     "y": 0.651102
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -73.0951,
+     "y": 43.3663
+    }
+   },
+   "insertionMm": [
+    144.4049,
+    191.8663
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 30,
+   "entity": "TEXT",
+   "text": "НЭР, ТӨРӨЛ",
+   "heightMm": 8.0,
+   "layer": "1-TEXT",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    180.9158,
+    180.4316
+   ],
+   "placement": {
+    "pageMm": [
+     180.9158,
+     180.4316
+    ],
+    "fromFrameMm": {
+     "left": 160.9158,
+     "right": 234.0842,
+     "bottom": 175.4316,
+     "top": 111.5684
+    },
+    "fractionOfFrame": {
+     "x": 0.407382,
+     "y": 0.61126
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -36.5842,
+     "y": 31.9316
+    }
+   },
+   "insertionMm": [
+    180.9158,
+    180.4316
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 34,
+   "entity": "TEXT",
+   "text": "/ЗАГВАР ЗУРАГ/",
+   "heightMm": 2.475,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    202.8031,
+    172.2992
+   ],
+   "placement": {
+    "pageMm": [
+     202.8031,
+     172.2992
+    ],
+    "fromFrameMm": {
+     "left": 182.8031,
+     "right": 212.1969,
+     "bottom": 167.2992,
+     "top": 119.7008
+    },
+    "fractionOfFrame": {
+     "x": 0.462793,
+     "y": 0.582924
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -14.6969,
+     "y": 23.7992
+    }
+   },
+   "insertionMm": [
+    202.8031,
+    172.2992
+   ],
+   "alignmentPointMm": null,
+   "horizontalJustify": "left",
+   "verticalJustify": "baseline",
+   "widthFactor": 1.0,
+   "obliqueDeg": 0.0
+  },
+  {
+   "index": 35,
+   "entity": "MTEXT",
+   "text": "ЗӨВШИЛЦСӨН.",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    94.1698,
+    152.3752
+   ],
+   "placement": {
+    "pageMm": [
+     94.1698,
+     152.3752
+    ],
+    "fromFrameMm": {
+     "left": 74.1698,
+     "right": 320.8302,
+     "bottom": 147.3752,
+     "top": 139.6248
+    },
+    "fractionOfFrame": {
+     "x": 0.187772,
+     "y": 0.513502
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -123.3302,
+     "y": 3.8752
+    }
+   },
+   "insertionMm": [
+    94.1698,
+    152.3752
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 38.485,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;ЗӨВШИЛЦСӨН}."
+  },
+  {
+   "index": 16,
+   "entity": "MTEXT",
+   "text": "ХЯНАСАН.",
+   "heightMm": 2.5,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    215.1736,
+    152.3581
+   ],
+   "placement": {
+    "pageMm": [
+     215.1736,
+     152.3581
+    ],
+    "fromFrameMm": {
+     "left": 195.1736,
+     "right": 199.8264,
+     "bottom": 147.3581,
+     "top": 139.6419
+    },
+    "fractionOfFrame": {
+     "x": 0.49411,
+     "y": 0.513443
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -2.3264,
+     "y": 3.8581
+    }
+   },
+   "insertionMm": [
+    215.1736,
+    152.3581
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 29.0296,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;ХЯНАСАН}.{\\fArial|b0|i0|c204|p34; }"
+  },
+  {
+   "index": 50,
+   "entity": "MTEXT",
+   "text": "ЗАХИАЛАГЧ.",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    217.412,
+    98.3655
+   ],
+   "placement": {
+    "pageMm": [
+     217.412,
+     98.3655
+    ],
+    "fromFrameMm": {
+     "left": 197.412,
+     "right": 197.588,
+     "bottom": 93.3655,
+     "top": 193.6345
+    },
+    "fractionOfFrame": {
+     "x": 0.499777,
+     "y": 0.325315
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -0.088,
+     "y": -50.1345
+    }
+   },
+   "insertionMm": [
+    217.412,
+    98.3655
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 53.9656,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;ЗАХИАЛАГЧ}."
+  },
+  {
+   "index": 73,
+   "entity": "MTEXT",
+   "text": "ГҮЙЦЭТГЭГЧ.",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    95.4707,
+    98.3655
+   ],
+   "placement": {
+    "pageMm": [
+     95.4707,
+     98.3655
+    ],
+    "fromFrameMm": {
+     "left": 75.4707,
+     "right": 319.5293,
+     "bottom": 93.3655,
+     "top": 193.6345
+    },
+    "fractionOfFrame": {
+     "x": 0.191065,
+     "y": 0.325315
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -122.0293,
+     "y": -50.1345
+    }
+   },
+   "insertionMm": [
+    95.4707,
+    98.3655
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 53.9656,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;ГҮЙЦЭТГЭГЧ}."
+  },
+  {
+   "index": 2,
+   "entity": "MTEXT",
+   "text": "УЛААНБААТАР ХОТ 2026 ОН",
+   "heightMm": 2.8286,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    217.5,
+    15.0
+   ],
+   "placement": {
+    "pageMm": [
+     217.5,
+     15.0
+    ],
+    "fromFrameMm": {
+     "left": 197.5,
+     "right": 197.5,
+     "bottom": 10.0,
+     "top": 277.0
+    },
+    "fractionOfFrame": {
+     "x": 0.5,
+     "y": 0.034843
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 0.0,
+     "y": -133.5
+    }
+   },
+   "insertionMm": [
+    217.5,
+    15.0
+   ],
+   "attachmentPoint": "middle-centre",
+   "referenceWidthMm": 77.2157,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "УЛААНБААТАР ХОТ 2026 ОН"
+  }
+ ],
+ "tableTexts": [
+  {
+   "index": 7,
+   "entity": "MTEXT",
+   "text": "Албан тушаал",
+   "heightMm": 3.0,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    110.1315,
+    146.3615
+   ],
+   "placement": {
+    "pageMm": [
+     110.1315,
+     146.3615
+    ],
+    "fromFrameMm": {
+     "left": 90.1315,
+     "right": 304.8685,
+     "bottom": 141.3615,
+     "top": 145.6385
+    },
+    "fractionOfFrame": {
+     "x": 0.228181,
+     "y": 0.492549
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -107.3685,
+     "y": -2.1385
+    }
+   },
+   "insertionMm": [
+    110.1315,
+    146.3615
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 38.485,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;\\H0.86667x;Албан тушаал\\H1.1538x; }"
+  },
+  {
+   "index": 68,
+   "entity": "MTEXT",
+   "text": "Албан тушаал",
+   "heightMm": 3.0,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    243.9568,
+    146.3615
+   ],
+   "placement": {
+    "pageMm": [
+     243.9568,
+     146.3615
+    ],
+    "fromFrameMm": {
+     "left": 223.9568,
+     "right": 171.0432,
+     "bottom": 141.3615,
+     "top": 145.6385
+    },
+    "fractionOfFrame": {
+     "x": 0.566979,
+     "y": 0.492549
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 26.4568,
+     "y": -2.1385
+    }
+   },
+   "insertionMm": [
+    243.9568,
+    146.3615
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 38.485,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;\\H0.86667x;Албан тушаал\\H1.1538x; }"
+  },
+  {
+   "index": 11,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "heightMm": 3.0,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    167.3933,
+    146.0658
+   ],
+   "placement": {
+    "pageMm": [
+     167.3933,
+     146.0658
+    ],
+    "fromFrameMm": {
+     "left": 147.3933,
+     "right": 247.6067,
+     "bottom": 141.0658,
+     "top": 145.9342
+    },
+    "fractionOfFrame": {
+     "x": 0.373148,
+     "y": 0.491518
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -50.1067,
+     "y": -2.4342
+    }
+   },
+   "insertionMm": [
+    167.3933,
+    146.0658
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 6.5811,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;\\H0.86667x;Нэр\\H1.1538x; }"
+  },
+  {
+   "index": 14,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    192.1516,
+    146.0658
+   ],
+   "placement": {
+    "pageMm": [
+     192.1516,
+     146.0658
+    ],
+    "fromFrameMm": {
+     "left": 172.1516,
+     "right": 222.8484,
+     "bottom": 141.0658,
+     "top": 145.9342
+    },
+    "fractionOfFrame": {
+     "x": 0.435827,
+     "y": 0.491518
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -25.3484,
+     "y": -2.4342
+    }
+   },
+   "insertionMm": [
+    192.1516,
+    146.0658
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 25.3631,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Гарын үсэг }"
+  },
+  {
+   "index": 66,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    293.9537,
+    145.8225
+   ],
+   "placement": {
+    "pageMm": [
+     293.9537,
+     145.8225
+    ],
+    "fromFrameMm": {
+     "left": 273.9537,
+     "right": 121.0463,
+     "bottom": 140.8225,
+     "top": 146.1775
+    },
+    "fractionOfFrame": {
+     "x": 0.693554,
+     "y": 0.490671
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 76.4537,
+     "y": -2.6775
+    }
+   },
+   "insertionMm": [
+    293.9537,
+    145.8225
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 9.0811,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Нэр }"
+  },
+  {
+   "index": 67,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    313.9979,
+    145.726
+   ],
+   "placement": {
+    "pageMm": [
+     313.9979,
+     145.726
+    ],
+    "fromFrameMm": {
+     "left": 293.9979,
+     "right": 101.0021,
+     "bottom": 140.726,
+     "top": 146.274
+    },
+    "fractionOfFrame": {
+     "x": 0.744298,
+     "y": 0.490334
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 96.4979,
+     "y": -2.774
+    }
+   },
+   "insertionMm": [
+    313.9979,
+    145.726
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 25.3631,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Гарын үсэг }"
+  },
+  {
+   "index": 24,
+   "entity": "MTEXT",
+   "text": "Байгаль орчин, уур амьсгалын өөрчлөлтийн яамны Тусгай хамгаалалттай бүс нутгийн удирдлагын газрын дарга",
+   "heightMm": 2.5,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    95.0475,
+    138.2949
+   ],
+   "placement": {
+    "pageMm": [
+     95.0475,
+     138.2949
+    ],
+    "fromFrameMm": {
+     "left": 75.0475,
+     "right": 319.9525,
+     "bottom": 133.2949,
+     "top": 153.7051
+    },
+    "fractionOfFrame": {
+     "x": 0.189994,
+     "y": 0.464442
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -122.4525,
+     "y": -10.2051
+    }
+   },
+   "insertionMm": [
+    95.0475,
+    138.2949
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 71.6044,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArabic Transparent|b0|i0|c204|p34;Байгаль орчин\\fArabic Transparent|b0|i0|c0|p34;,\\fArabic Transparent|b0|i0|c204|p34; уур амьсгалын \\fArabic Transparent|b0|i0|c0|p34;\\P\\fArabic Transparent|b0|i0|c204|p34;өөрчлөлтийн яам\\fArial|b0|i0|c204|p34;ны\\fArabic Transparent|b0|i0|c204|p34; Тусгай хамгаалалттай\\fArabic Transparent|b0|i0|c0|p34; \\fArabic Transparent|b0|i0|c204|p34;бүс нутгийн удирдлагын газрын дарга}"
+  },
+  {
+   "index": 18,
+   "entity": "MTEXT",
+   "text": "Хот байгуулалт, хотын стандартын газрын Хариуцсан хэлтсийн дарга",
+   "heightMm": 2.5,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    218.6329,
+    135.5148
+   ],
+   "placement": {
+    "pageMm": [
+     218.6329,
+     135.5148
+    ],
+    "fromFrameMm": {
+     "left": 198.6329,
+     "right": 196.3671,
+     "bottom": 130.5148,
+     "top": 156.4852
+    },
+    "fractionOfFrame": {
+     "x": 0.502868,
+     "y": 0.454755
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 1.1329,
+     "y": -12.9852
+    }
+   },
+   "insertionMm": [
+    218.6329,
+    135.5148
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 62.2372,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "\\pxt25;{\\fArial|b0|i0|c204|p34;Хот байгуулалт, хотын стандартын газрын Хариуцсан хэлтсийн дарга}"
+  },
+  {
+   "index": 25,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    170.3258,
+    132.8966
+   ],
+   "placement": {
+    "pageMm": [
+     170.3258,
+     132.8966
+    ],
+    "fromFrameMm": {
+     "left": 150.3258,
+     "right": 244.6742,
+     "bottom": 127.8966,
+     "top": 159.1034
+    },
+    "fractionOfFrame": {
+     "x": 0.380572,
+     "y": 0.445633
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -47.1742,
+     "y": -15.6034
+    }
+   },
+   "insertionMm": [
+    170.3258,
+    132.8966
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . . . . . }"
+  },
+  {
+   "index": 70,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    290.8704,
+    132.5116
+   ],
+   "placement": {
+    "pageMm": [
+     290.8704,
+     132.5116
+    ],
+    "fromFrameMm": {
+     "left": 270.8704,
+     "right": 124.1296,
+     "bottom": 127.5116,
+     "top": 159.4884
+    },
+    "fractionOfFrame": {
+     "x": 0.685748,
+     "y": 0.444291
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 73.3704,
+     "y": -15.9884
+    }
+   },
+   "insertionMm": [
+    290.8704,
+    132.5116
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . . . . . }"
+  },
+  {
+   "index": 72,
+   "entity": "MTEXT",
+   "text": "ОБЕГ-ын ГТТГ-ын Гал түймрийн улсын хяналтын хэлтсийн дарга, хурандаа",
+   "heightMm": 2.5,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    96.3801,
+    122.3626
+   ],
+   "placement": {
+    "pageMm": [
+     96.3801,
+     122.3626
+    ],
+    "fromFrameMm": {
+     "left": 76.3801,
+     "right": 318.6199,
+     "bottom": 117.3626,
+     "top": 169.6374
+    },
+    "fractionOfFrame": {
+     "x": 0.193367,
+     "y": 0.408929
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -121.1199,
+     "y": -26.1374
+    }
+   },
+   "insertionMm": [
+    96.3801,
+    122.3626
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArabic Transparent|b0|i0|c204|p34;ОБЕГ-ын ГТТГ-ын Гал түймрийн улсын \\Pхяналтын хэлтсийн дарга, хурандаа}"
+  },
+  {
+   "index": 64,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    170.3258,
+    120.8966
+   ],
+   "placement": {
+    "pageMm": [
+     170.3258,
+     120.8966
+    ],
+    "fromFrameMm": {
+     "left": 150.3258,
+     "right": 244.6742,
+     "bottom": 115.8966,
+     "top": 171.1034
+    },
+    "fractionOfFrame": {
+     "x": 0.380572,
+     "y": 0.403821
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -47.1742,
+     "y": -27.6034
+    }
+   },
+   "insertionMm": [
+    170.3258,
+    120.8966
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . . . . . }"
+  },
+  {
+   "index": 65,
+   "entity": "MTEXT",
+   "text": "Хот байгуулалт, хотын стандартын газрын Хот байгуулалт хариуцсан мэргэжилтэн",
+   "heightMm": 2.5,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    218.3954,
+    117.2126
+   ],
+   "placement": {
+    "pageMm": [
+     218.3954,
+     117.2126
+    ],
+    "fromFrameMm": {
+     "left": 198.3954,
+     "right": 196.6046,
+     "bottom": 112.2126,
+     "top": 174.7874
+    },
+    "fractionOfFrame": {
+     "x": 0.502267,
+     "y": 0.390985
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 0.8954,
+     "y": -31.2874
+    }
+   },
+   "insertionMm": [
+    218.3954,
+    117.2126
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Хот байгуулалт, хотын стандартын \\Pгазрын} {\\fArabic Transparent|b0|i0|c204|p34;Хот байгуулалт хариуцсан \\Pмэргэжилтэн}"
+  },
+  {
+   "index": 71,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    290.8704,
+    111.6866
+   ],
+   "placement": {
+    "pageMm": [
+     290.8704,
+     111.6866
+    ],
+    "fromFrameMm": {
+     "left": 270.8704,
+     "right": 124.1296,
+     "bottom": 106.6866,
+     "top": 180.3134
+    },
+    "fractionOfFrame": {
+     "x": 0.685748,
+     "y": 0.37173
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 73.3704,
+     "y": -36.8134
+    }
+   },
+   "insertionMm": [
+    290.8704,
+    111.6866
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . . . . . }"
+  },
+  {
+   "index": 36,
+   "entity": "MTEXT",
+   "text": "Нийслэлийн эрүүл мэндийн газрын Эрүүл мэндийн хяналтын хэлтсийн дарга",
+   "heightMm": 2.5,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    96.3801,
+    110.3626
+   ],
+   "placement": {
+    "pageMm": [
+     96.3801,
+     110.3626
+    ],
+    "fromFrameMm": {
+     "left": 76.3801,
+     "right": 318.6199,
+     "bottom": 105.3626,
+     "top": 181.6374
+    },
+    "fractionOfFrame": {
+     "x": 0.193367,
+     "y": 0.367117
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -121.1199,
+     "y": -38.1374
+    }
+   },
+   "insertionMm": [
+    96.3801,
+    110.3626
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArabic Transparent|b0|i0|c204|p34;Нийслэлийн эрүүл мэндийн газрын \\fArabic Transparent|b0|i0|c0|p34;\\P\\fArabic Transparent|b0|i0|c204|p34;Эрүүл мэндийн хяналтын хэлтсийн дарга}"
+  },
+  {
+   "index": 15,
+   "entity": "MTEXT",
+   "text": ". . . . . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    170.5008,
+    108.8966
+   ],
+   "placement": {
+    "pageMm": [
+     170.5008,
+     108.8966
+    ],
+    "fromFrameMm": {
+     "left": 150.5008,
+     "right": 244.4992,
+     "bottom": 103.8966,
+     "top": 183.1034
+    },
+    "fractionOfFrame": {
+     "x": 0.381015,
+     "y": 0.362009
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -46.9992,
+     "y": -39.6034
+    }
+   },
+   "insertionMm": [
+    170.5008,
+    108.8966
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 0.0,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . . . . . }"
+  },
+  {
+   "index": 45,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    313.9979,
+    90.3567
+   ],
+   "placement": {
+    "pageMm": [
+     313.9979,
+     90.3567
+    ],
+    "fromFrameMm": {
+     "left": 293.9979,
+     "right": 101.0021,
+     "bottom": 85.3567,
+     "top": 201.6433
+    },
+    "fractionOfFrame": {
+     "x": 0.744298,
+     "y": 0.29741
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 96.4979,
+     "y": -58.1433
+    }
+   },
+   "insertionMm": [
+    313.9979,
+    90.3567
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 25.3631,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Гарын үсэг }"
+  },
+  {
+   "index": 57,
+   "entity": "MTEXT",
+   "text": "Гарын үсэг",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    193.4533,
+    90.3567
+   ],
+   "placement": {
+    "pageMm": [
+     193.4533,
+     90.3567
+    ],
+    "fromFrameMm": {
+     "left": 173.4533,
+     "right": 221.5467,
+     "bottom": 85.3567,
+     "top": 201.6433
+    },
+    "fractionOfFrame": {
+     "x": 0.439122,
+     "y": 0.29741
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -24.0467,
+     "y": -58.1433
+    }
+   },
+   "insertionMm": [
+    193.4533,
+    90.3567
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 25.3631,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Гарын үсэг }"
+  },
+  {
+   "index": 51,
+   "entity": "MTEXT",
+   "text": "Албан тушаал / Иргэн",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    232.0448,
+    90.2583
+   ],
+   "placement": {
+    "pageMm": [
+     232.0448,
+     90.2583
+    ],
+    "fromFrameMm": {
+     "left": 212.0448,
+     "right": 182.9552,
+     "bottom": 85.2583,
+     "top": 201.7417
+    },
+    "fractionOfFrame": {
+     "x": 0.536822,
+     "y": 0.297067
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 14.5448,
+     "y": -58.2417
+    }
+   },
+   "insertionMm": [
+    232.0448,
+    90.2583
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 38.485,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Албан тушаал} {\\fArial|b0|i0|c0|p34;/\\fArial|b0|i0|c204|p34; Иргэн }"
+  },
+  {
+   "index": 61,
+   "entity": "MTEXT",
+   "text": "Албан тушаал",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    109.8044,
+    90.2583
+   ],
+   "placement": {
+    "pageMm": [
+     109.8044,
+     90.2583
+    ],
+    "fromFrameMm": {
+     "left": 89.8044,
+     "right": 305.1956,
+     "bottom": 85.2583,
+     "top": 201.7417
+    },
+    "fractionOfFrame": {
+     "x": 0.227353,
+     "y": 0.297067
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -107.6956,
+     "y": -58.2417
+    }
+   },
+   "insertionMm": [
+    109.8044,
+    90.2583
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 47.9403,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Албан тушаал} {\\fArial|b0|i0|c204|p34; }"
+  },
+  {
+   "index": 46,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    293.9537,
+    90.2561
+   ],
+   "placement": {
+    "pageMm": [
+     293.9537,
+     90.2561
+    ],
+    "fromFrameMm": {
+     "left": 273.9537,
+     "right": 121.0463,
+     "bottom": 85.2561,
+     "top": 201.7439
+    },
+    "fractionOfFrame": {
+     "x": 0.693554,
+     "y": 0.29706
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 76.4537,
+     "y": -58.2439
+    }
+   },
+   "insertionMm": [
+    293.9537,
+    90.2561
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 9.0811,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Нэр }"
+  },
+  {
+   "index": 58,
+   "entity": "MTEXT",
+   "text": "Нэр",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    173.409,
+    90.2561
+   ],
+   "placement": {
+    "pageMm": [
+     173.409,
+     90.2561
+    ],
+    "fromFrameMm": {
+     "left": 153.409,
+     "right": 241.591,
+     "bottom": 85.2561,
+     "top": 201.7439
+    },
+    "fractionOfFrame": {
+     "x": 0.388377,
+     "y": 0.29706
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -44.091,
+     "y": -58.2439
+    }
+   },
+   "insertionMm": [
+    173.409,
+    90.2561
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 9.0811,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Нэр }"
+  },
+  {
+   "index": 47,
+   "entity": "MTEXT",
+   "text": "Лого",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    218.1855,
+    86.4668
+   ],
+   "placement": {
+    "pageMm": [
+     218.1855,
+     86.4668
+    ],
+    "fromFrameMm": {
+     "left": 198.1855,
+     "right": 196.8145,
+     "bottom": 81.4668,
+     "top": 205.5332
+    },
+    "fractionOfFrame": {
+     "x": 0.501735,
+     "y": 0.283856
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 0.6855,
+     "y": -62.0332
+    }
+   },
+   "insertionMm": [
+    218.1855,
+    86.4668
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 10.6573,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Лого}"
+  },
+  {
+   "index": 59,
+   "entity": "MTEXT",
+   "text": "Лого",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    97.1611,
+    86.4668
+   ],
+   "placement": {
+    "pageMm": [
+     97.1611,
+     86.4668
+    ],
+    "fromFrameMm": {
+     "left": 77.1611,
+     "right": 317.8389,
+     "bottom": 81.4668,
+     "top": 205.5332
+    },
+    "fractionOfFrame": {
+     "x": 0.195345,
+     "y": 0.283856
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -120.3389,
+     "y": -62.0332
+    }
+   },
+   "insertionMm": [
+    97.1611,
+    86.4668
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 10.6573,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;Лого}"
+  },
+  {
+   "index": 49,
+   "entity": "MTEXT",
+   "text": "\" . . . . . \" ХХК-ийн захирал",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    231.5904,
+    82.1743
+   ],
+   "placement": {
+    "pageMm": [
+     231.5904,
+     82.1743
+    ],
+    "fromFrameMm": {
+     "left": 211.5904,
+     "right": 183.4096,
+     "bottom": 77.1743,
+     "top": 209.8257
+    },
+    "fractionOfFrame": {
+     "x": 0.535672,
+     "y": 0.2689
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 14.0904,
+     "y": -66.3257
+    }
+   },
+   "insertionMm": [
+    231.5904,
+    82.1743
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 78.7938,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;\" . . . . . \" ХХК-ийн захирал}"
+  },
+  {
+   "index": 60,
+   "entity": "MTEXT",
+   "text": "\" . . . . . \" ХХК-ийн захирал",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    109.421,
+    82.1743
+   ],
+   "placement": {
+    "pageMm": [
+     109.421,
+     82.1743
+    ],
+    "fromFrameMm": {
+     "left": 89.421,
+     "right": 305.579,
+     "bottom": 77.1743,
+     "top": 209.8257
+    },
+    "fractionOfFrame": {
+     "x": 0.226382,
+     "y": 0.2689
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -108.079,
+     "y": -66.3257
+    }
+   },
+   "insertionMm": [
+    109.421,
+    82.1743
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 88.2492,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;\" . . . . . \" ХХК-ийн захирал}"
+  },
+  {
+   "index": 38,
+   "entity": "MTEXT",
+   "text": ". . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    293.7844,
+    81.9227
+   ],
+   "placement": {
+    "pageMm": [
+     293.7844,
+     81.9227
+    ],
+    "fromFrameMm": {
+     "left": 273.7844,
+     "right": 121.2156,
+     "bottom": 76.9227,
+     "top": 210.0773
+    },
+    "fractionOfFrame": {
+     "x": 0.693125,
+     "y": 0.268023
+    },
+    "offsetFromFrameCentreMm": {
+     "x": 76.2844,
+     "y": -66.5773
+    }
+   },
+   "insertionMm": [
+    293.7844,
+    81.9227
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 24.356,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . .  }"
+  },
+  {
+   "index": 53,
+   "entity": "MTEXT",
+   "text": ". . . . .",
+   "heightMm": 2.6,
+   "layer": "0",
+   "style": "STANDARD",
+   "rotationDeg": 0.0,
+   "colorCode": 0,
+   "anchorMm": [
+    173.2397,
+    81.9227
+   ],
+   "placement": {
+    "pageMm": [
+     173.2397,
+     81.9227
+    ],
+    "fromFrameMm": {
+     "left": 153.2397,
+     "right": 241.7603,
+     "bottom": 76.9227,
+     "top": 210.0773
+    },
+    "fractionOfFrame": {
+     "x": 0.387949,
+     "y": 0.268023
+    },
+    "offsetFromFrameCentreMm": {
+     "x": -44.2603,
+     "y": -66.5773
+    }
+   },
+   "insertionMm": [
+    173.2397,
+    81.9227
+   ],
+   "attachmentPoint": "top-left",
+   "referenceWidthMm": 24.356,
+   "actualWidthMm": null,
+   "actualHeightMm": null,
+   "lineSpacingFactor": 1.0,
+   "rawText": "{\\fArial|b0|i0|c204|p34;. . . . .  }"
+  }
+ ],
+ "lines": [
+  {
+   "index": 0,
+   "entity": "LWPOLYLINE",
+   "pointsMm": [
+    [
+     0.0,
+     297.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     420.0,
+     0.0
+    ],
+    [
+     420.0,
+     297.0
+    ]
+   ],
+   "vertexCount": 4,
+   "closedFlag": 1,
+   "boundingBoxMm": {
+    "xMm": 0.0,
+    "yMm": 0.0,
+    "widthMm": 420.0,
+    "heightMm": 297.0
+   },
+   "layer": "0",
+   "colorCode": null,
+   "lineweightCode": null
+  },
+  {
+   "index": 1,
+   "entity": "LWPOLYLINE",
+   "pointsMm": [
+    [
+     20.0,
+     292.0
+    ],
+    [
+     20.0,
+     5.0
+    ],
+    [
+     415.0,
+     5.0
+    ],
+    [
+     415.0,
+     292.0
+    ]
+   ],
+   "vertexCount": 4,
+   "closedFlag": 1,
+   "boundingBoxMm": {
+    "xMm": 20.0,
+    "yMm": 5.0,
+    "widthMm": 395.0,
+    "heightMm": 287.0
+   },
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 3,
+   "orientation": "vertical",
+   "startMm": [
+    310.6416,
+    148.5007
+   ],
+   "endMm": [
+    310.6416,
+    116.5007
+   ],
+   "lengthMm": 32.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 4,
+   "orientation": "vertical",
+   "startMm": [
+    310.6416,
+    116.5007
+   ],
+   "endMm": [
+    310.6416,
+    100.5007
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 5,
+   "orientation": "vertical",
+   "startMm": [
+    94.0716,
+    148.5007
+   ],
+   "endMm": [
+    94.0716,
+    100.5007
+   ],
+   "lengthMm": 48.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 6,
+   "orientation": "horizontal",
+   "startMm": [
+    94.0716,
+    140.5007
+   ],
+   "endMm": [
+    335.6416,
+    140.5007
+   ],
+   "lengthMm": 241.57,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 8,
+   "orientation": "horizontal",
+   "startMm": [
+    94.0716,
+    124.5007
+   ],
+   "endMm": [
+    215.097,
+    124.5007
+   ],
+   "lengthMm": 121.0253,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 9,
+   "orientation": "horizontal",
+   "startMm": [
+    94.0716,
+    148.5007
+   ],
+   "endMm": [
+    335.6416,
+    148.5007
+   ],
+   "lengthMm": 241.57,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 10,
+   "orientation": "vertical",
+   "startMm": [
+    165.097,
+    148.5007
+   ],
+   "endMm": [
+    165.097,
+    100.5007
+   ],
+   "lengthMm": 48.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 12,
+   "orientation": "vertical",
+   "startMm": [
+    215.097,
+    148.5007
+   ],
+   "endMm": [
+    215.097,
+    100.5007
+   ],
+   "lengthMm": 48.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 13,
+   "orientation": "vertical",
+   "startMm": [
+    190.097,
+    148.5007
+   ],
+   "endMm": [
+    190.097,
+    100.5007
+   ],
+   "lengthMm": 48.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 17,
+   "orientation": "horizontal",
+   "startMm": [
+    215.097,
+    120.5007
+   ],
+   "endMm": [
+    335.6416,
+    120.5007
+   ],
+   "lengthMm": 120.5447,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 19,
+   "orientation": "vertical",
+   "startMm": [
+    335.6416,
+    148.5007
+   ],
+   "endMm": [
+    335.6416,
+    100.5007
+   ],
+   "lengthMm": 48.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 20,
+   "orientation": "vertical",
+   "startMm": [
+    285.6416,
+    116.5007
+   ],
+   "endMm": [
+    285.6416,
+    100.5007
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 21,
+   "orientation": "horizontal",
+   "startMm": [
+    215.097,
+    112.5007
+   ],
+   "endMm": [
+    94.0716,
+    112.5007
+   ],
+   "lengthMm": 121.0253,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 22,
+   "orientation": "vertical",
+   "startMm": [
+    285.6416,
+    148.5007
+   ],
+   "endMm": [
+    285.6416,
+    116.5007
+   ],
+   "lengthMm": 32.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 23,
+   "orientation": "horizontal",
+   "startMm": [
+    94.0716,
+    100.5007
+   ],
+   "endMm": [
+    335.6416,
+    100.5007
+   ],
+   "lengthMm": 241.57,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 37,
+   "orientation": "vertical",
+   "startMm": [
+    310.6416,
+    92.8357
+   ],
+   "endMm": [
+    310.6416,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 39,
+   "orientation": "horizontal",
+   "startMm": [
+    94.0716,
+    92.8357
+   ],
+   "endMm": [
+    335.6416,
+    92.8357
+   ],
+   "lengthMm": 241.57,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 40,
+   "orientation": "vertical",
+   "startMm": [
+    335.6416,
+    124.8357
+   ],
+   "endMm": [
+    335.6416,
+    100.5007
+   ],
+   "lengthMm": 24.335,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 41,
+   "orientation": "vertical",
+   "startMm": [
+    335.6416,
+    92.8357
+   ],
+   "endMm": [
+    335.6416,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 42,
+   "orientation": "vertical",
+   "startMm": [
+    285.6416,
+    92.8357
+   ],
+   "endMm": [
+    285.6416,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 43,
+   "orientation": "horizontal",
+   "startMm": [
+    230.3011,
+    84.8357
+   ],
+   "endMm": [
+    335.6416,
+    84.8357
+   ],
+   "lengthMm": 105.3405,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 44,
+   "orientation": "vertical",
+   "startMm": [
+    230.3011,
+    92.8357
+   ],
+   "endMm": [
+    230.3011,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 48,
+   "orientation": "horizontal",
+   "startMm": [
+    94.0716,
+    76.8357
+   ],
+   "endMm": [
+    335.6416,
+    76.8357
+   ],
+   "lengthMm": 241.57,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 52,
+   "orientation": "vertical",
+   "startMm": [
+    190.097,
+    92.8357
+   ],
+   "endMm": [
+    190.097,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 54,
+   "orientation": "vertical",
+   "startMm": [
+    165.097,
+    92.8357
+   ],
+   "endMm": [
+    165.097,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 55,
+   "orientation": "horizontal",
+   "startMm": [
+    108.4466,
+    84.8357
+   ],
+   "endMm": [
+    215.1011,
+    84.8357
+   ],
+   "lengthMm": 106.6545,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 56,
+   "orientation": "vertical",
+   "startMm": [
+    108.4466,
+    92.8357
+   ],
+   "endMm": [
+    108.4466,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 62,
+   "entity": "LWPOLYLINE",
+   "pointsMm": [
+    [
+     94.0716,
+     76.8357
+    ],
+    [
+     94.0716,
+     92.8357
+    ]
+   ],
+   "vertexCount": 2,
+   "closedFlag": 0,
+   "boundingBoxMm": {
+    "xMm": 94.0716,
+    "yMm": 76.8357,
+    "widthMm": 0.0,
+    "heightMm": 16.0
+   },
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 63,
+   "orientation": "vertical",
+   "startMm": [
+    215.1011,
+    92.8357
+   ],
+   "endMm": [
+    215.1011,
+    76.8357
+   ],
+   "lengthMm": 16.0,
+   "layer": "0",
+   "colorCode": 7,
+   "lineweightCode": 30
+  },
+  {
+   "index": 69,
+   "entity": "LWPOLYLINE",
+   "pointsMm": [
+    [
+     215.097,
+     140.5007
+    ],
+    [
+     215.097,
+     100.5007
+    ]
+   ],
+   "vertexCount": 2,
+   "closedFlag": 0,
+   "boundingBoxMm": {
+    "xMm": 215.097,
+    "yMm": 100.5007,
+    "widthMm": 0.0,
+    "heightMm": 40.0
+   },
+   "layer": "0",
+   "colorCode": 0,
+   "lineweightCode": null
+  }
+ ],
+ "textHeightsMm": {
+  "2.475": 8,
+  "2.5": 6,
+  "2.6": 23,
+  "2.8286": 1,
+  "3.0": 3,
+  "8.0": 2
+ },
+ "stylesUsed": [
+  "STANDARD"
+ ],
+ "recheckOfPreviousFile": {
+  "why": "Өмнөх файлын хоёр тоог тусгайлан бататгах хүсэлт ирсэн.",
+  "tableBottomFromFrameMm": {
+   "previous": 71.8357,
+   "remeasured": 71.8357
+  },
+  "tableLeftFromFrameMm": {
+   "previous": 74.0716,
+   "remeasured": 74.0716
+  },
+  "frameMarginsMm": {
+   "previous": {
+    "left": 20.0,
+    "right": 5.0,
+    "bottom": 5.0,
+    "top": 5.0
+   },
+   "remeasured": {
+    "left": 20.0,
+    "right": 5.0,
+    "bottom": 5.0,
+    "top": 5.0
+   }
+  },
+  "topTableColumnsMm": {
+   "previous": [
+    71.0254,
+    25.0,
+    25.0,
+    70.5446,
+    25.0,
+    25.0
+   ],
+   "remeasured": [
+    71.0254,
+    25.0,
+    25.0,
+    70.5446,
+    25.0,
+    25.0
+   ]
+  },
+  "bottomTableColumnsMm": {
+   "previous": [
+    14.375,
+    56.6504,
+    25.0,
+    25.0041,
+    15.2,
+    55.3405,
+    25.0,
+    25.0
+   ],
+   "remeasured": [
+    14.375,
+    56.6504,
+    25.0,
+    25.0041,
+    15.2,
+    55.3405,
+    25.0,
+    25.0
+   ]
+  }
+ },
+ "sheetTextsComparedToA4": {
+  "why": "Эдгээр мөрүүд өмнөх файлд БАЙГААГҮЙ тул хэрэгжүүлэгч A4-ээс гаргаж авсан. Хоёрын ялгааг баримт болгон энд тавив.",
+  "matchedByText": [
+   {
+    "text": ":",
+    "a4Mm": [
+     159.75,
+     188.49
+    ],
+    "a3Mm": [
+     221.052,
+     278.0737
+    ],
+    "a4HeightMm": 2.475,
+    "a3HeightMm": 2.475,
+    "heightSame": true,
+    "a4TimesSqrt2Mm": [
+     225.9206,
+     266.5651
+    ]
+   },
+   {
+    "text": "ТӨЛӨВЛӨЖ БУЙ БАРИЛГЫН",
+    "a4Mm": [
+     83.11,
+     136.45
+    ],
+    "a3Mm": [
+     144.4049,
+     191.8663
+    ],
+    "a4HeightMm": 8.0,
+    "a3HeightMm": 8.0,
+    "heightSame": true,
+    "a4TimesSqrt2Mm": [
+     117.5353,
+     192.9694
+    ]
+   },
+   {
+    "text": "НЭР, ТӨРӨЛ",
+    "a4Mm": [
+     119.62,
+     125.01
+    ],
+    "a3Mm": [
+     180.9158,
+     180.4316
+    ],
+    "a4HeightMm": 8.0,
+    "a3HeightMm": 8.0,
+    "heightSame": true,
+    "a4TimesSqrt2Mm": [
+     169.1682,
+     176.7908
+    ]
+   },
+   {
+    "text": "/ЗАГВАР ЗУРАГ/",
+    "a4Mm": [
+     141.51,
+     116.88
+    ],
+    "a3Mm": [
+     202.8031,
+     172.2992
+    ],
+    "a4HeightMm": 2.475,
+    "a3HeightMm": 2.475,
+    "heightSame": true,
+    "a4TimesSqrt2Mm": [
+     200.1254,
+     165.2933
+    ]
+   },
+   {
+    "text": "УЛААНБААТАР ХОТ 2026 ОН",
+    "a4Mm": [
+     126.5,
+     13.53
+    ],
+    "a3Mm": [
+     217.5,
+     15.0
+    ],
+    "a4HeightMm": 2.829,
+    "a3HeightMm": 2.8286,
+    "heightSame": false,
+    "a4TimesSqrt2Mm": [
+     178.898,
+     19.1343
+    ]
+   }
+  ],
+  "verdict": "Текстийн ӨНДӨР хоёр зурагт ижил (8.0 ба 2.475 мм) — ӨӨРЧЛӨГДӨӨГҮЙ. Харин БАЙРЛАЛ нь sqrt(2)-оор ч, шилжүүлгээр ч A4-ээс гарахгүй: доорх a4TimesSqrt2Mm баганыг a3Mm-тэй харьцуул."
+ },
+ "centredOnFrameCentreLine": {
+  "frameCentreXMm": 217.5,
+  "toleranceMm": 0.2,
+  "texts": [
+   {
+    "text": "ЗАХИАЛАГЧ.",
+    "anchorXMm": 217.412,
+    "offsetMm": -0.088
+   },
+   {
+    "text": "УЛААНБААТАР ХОТ 2026 ОН",
+    "anchorXMm": 217.5,
+    "offsetMm": 0.0
+   }
+  ]
+ },
+ "howTextsWereClassified": "sheetTexts ба tableTexts-ийг ЗӨВХӨН геометрээр ялгав: зангуу нь хүснэгтийн дээд/доод шугамын ХООРОНД байвал tableTexts, үгүй бол sheetTexts. Тиймээс хүснэгтийн дөрвөн ГАРЧИГ (ЗӨВШИЛЦСӨН, ХЯНАСАН, ГҮЙЦЭТГЭГЧ, ЗАХИАЛАГЧ) нь хүснэгтийнхээ ДЭЭР бичигдсэн тул sheetTexts дотор байна — алдаа биш, тэдгээр нь үнэхээр хүснэгтийн гадна сууж байгаа.",
+ "notMeasured": [
+  "Шугамын зузаан: обьект бүрийн lineweightCode энд байгаа боловч ихэнх нь тодорхойлогдоогүй (давхаргын анхдагчийг залгамжилна). A4 гэрээний 0.30 мм утгыг энэ зургаас ДАХИН баталгаажуулаагүй.",
+  "Блок, зураг (raster), лого: энэ зурагт БАЙХГҮЙ. Логоны нүд нь хоосон нүд — дотор нь «Лого» гэсэн текст л бий.",
+  "A3 зурагт ЗӨВШИЛЦСӨН-ий 2-МӨРТ хувилбар байхгүй (зөвхөн 3 мөртэй). «Мөр нэмэгдэхэд нийт өндөр 48 мм хэвээр» дүрэм энэ зургаас бие даан батлагдахгүй; A4 зураг хоёр хувилбарыг агуулдаг тул тэндээс хүчинтэй хэвээр.",
+  "Хуудас ЗАГВАР ОРОН ЗАЙД (Model) зурагдсан, layout биш — хэвлэлтийн масштаб эх зурагт заагдаагүй.",
+  "MTEXT-ийн доторх фонтын дарааллыг (\\fArial, \\fArabic Transparent) rawText талбарт бүтнээр үлдээв; аль үсэг аль фонтоор гарахыг задлаагүй."
+ ]
+}

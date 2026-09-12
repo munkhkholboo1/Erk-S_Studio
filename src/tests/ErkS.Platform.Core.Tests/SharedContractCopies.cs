@@ -26,6 +26,32 @@ internal static class SharedContractCopies
     public const string ConceptCoverA3 = "concept-cover-A3-2026-09-11.json";
 
     /// <summary>
+    /// The same sheet, measured WHOLE: all 75 objects, with every text and line.
+    ///
+    /// 🔴 REGISTERED LATE, AND THE GAP WAS THE ONE THIS FILE WARNS ABOUT. The role
+    /// labels' four anchors and the six column headings were taken from this file on
+    /// 2026-09-12 and turned into product constants, while the file itself stayed
+    /// unvendored - so it was outside the drift comparison, and a revised measurement
+    /// would have left those constants asserting the old sheet, green. That is the same
+    /// fault recorded against ProjectAddressVectors below, committed in the same folder
+    /// a few lines away from the warning about it.
+    /// </summary>
+    public const string ConceptCoverA3Full = "concept-cover-A3-full-2026-09-12.json";
+
+    /// <summary>
+    /// MTEXT attachment points, TEXT justification, and the ten TEXT extents AutoCAD
+    /// measured for itself.
+    ///
+    /// This is the file that settles which convention a coordinate is in, and the
+    /// answers are not uniform: the title block's ten entities are TEXT with no
+    /// attachment point, so their anchor is a baseline, while every label and heading is
+    /// top-left MTEXT. It also states what could NOT be measured - textbox returns nil
+    /// on MTEXT - which is why «the headings are centred» is a choice here and not a
+    /// measurement.
+    /// </summary>
+    public const string ConceptCoverA3TextExtents = "concept-cover-A3-text-extents-2026-09-12.json";
+
+    /// <summary>
     /// The project-address vectors.
     ///
     /// 🔴 THIS FILE WAS VENDORED AND NOT REGISTERED - the exact silent failure
@@ -74,6 +100,8 @@ public sealed class SharedContractCopyTests
     [InlineData(SharedContractCopies.AdministrativeDivisions)]
     [InlineData(SharedContractCopies.EnvelopeSample)]
     [InlineData(SharedContractCopies.ConceptCoverA3)]
+    [InlineData(SharedContractCopies.ConceptCoverA3Full)]
+    [InlineData(SharedContractCopies.ConceptCoverA3TextExtents)]
     [InlineData(SharedContractCopies.ProjectAddressVectors)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
@@ -94,6 +122,43 @@ public sealed class SharedContractCopyTests
             fileName + " has changed in _shared. Copy it over the file in " +
             "tests/ErkS.Platform.Core.Tests/contracts/ and check what the change means - " +
             "these tests are asserting the older contract until you do.");
+    }
+
+    [Fact]
+    public void EVERYRegisteredCopyIsACaseOfTheDriftComparison()
+    {
+        // 🔴 REGISTERING A COPY AND FORGETTING THE CASE IS THE SAME SILENT GAP AS NOT
+        // REGISTERING IT AT ALL - the constant makes it LOOK covered. Derived from the
+        // class's own constants so a new one cannot be added without being compared.
+        string[] registered = typeof(SharedContractCopies)
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .ToArray();
+
+        Assert.NotEmpty(registered);
+
+        IEnumerable<string> cases = typeof(SharedContractCopyTests)
+            .GetMethod(nameof(ACopyThatHasDRIFTEDFromTheOriginalIsLoud))!
+            .GetCustomAttributes(typeof(InlineDataAttribute), false)
+            .Cast<InlineDataAttribute>()
+            .Select(attribute => (string)attribute.GetData(null!).First()[0]!);
+        var compared = new HashSet<string>(cases, StringComparer.Ordinal);
+
+        foreach (string fileName in registered)
+        {
+            Assert.True(
+                compared.Contains(fileName),
+                fileName + " is registered but is not a case of the drift comparison");
+        }
+
+        // And every vendored file is registered - a copy in the folder that no constant
+        // names is reachable by path and outside all of this.
+        foreach (string path in Directory.GetFiles(
+                     Path.Combine(AppContext.BaseDirectory, "contracts"), "*.json"))
+        {
+            Assert.Contains(Path.GetFileName(path), registered);
+        }
     }
 
     [Fact]
