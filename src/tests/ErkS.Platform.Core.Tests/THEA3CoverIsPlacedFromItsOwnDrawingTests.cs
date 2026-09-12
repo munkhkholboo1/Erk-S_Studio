@@ -112,9 +112,12 @@ public sealed class THEA3CoverIsPlacedFromItsOwnDrawingTests
         // that shape is kept.
         foreach (string key in new[]
                  {
+                     // ⚠ THE TITLE IS NOT IN THIS LIST ANY MORE. It is replaced text too,
+                     // so centring it would be consistent - but the axis to centre ON was
+                     // a guess the measurement disproved, and no width was measured to
+                     // recover a real one. Consistency with an unknown is not a reason.
                      ConceptCoverTitleBlock.Approver,
                      ConceptCoverTitleBlock.SiteAddress,
-                     ConceptCoverTitleBlock.ProjectTitle,
                  })
         {
             Assert.False(
@@ -124,21 +127,39 @@ public sealed class THEA3CoverIsPlacedFromItsOwnDrawingTests
     }
 
     [Fact]
-    public void THETitleSitsOnTheFRAMESAxisAndNotThePAGES()
+    public void THETitleSTARTSWhereTheDrawingStartsItAndIsNOTCentred()
     {
-        // 🔴 A4 USES ITS PAGE CENTRE AND NOBODY WROTE DOWN WHY. On A4 the two differ by
-        // 5.3 mm; inheriting that would be inheriting an accident. The frame is the
-        // axis this drawing states exactly - the footer measures 0.0000 from the
-        // frame's centre - so the frame is the axis the title uses too.
-        Assert.Equal(
-            ConceptCoverLayout.A3.TablesMiddleMm,
-            ConceptCoverTitleBlock.A3TitleCentreXMm,
-            6);
-        Assert.Equal(217.5, ConceptCoverTitleBlock.A3TitleCentreXMm, 4);
+        // 🔴 THIS TEST ASSERTED THE OPPOSITE FOR ONE COMMIT, AND THE MEASUREMENT
+        // DISPROVED IT. The reference file lists every text within 0.2 mm of the
+        // frame's centre line - exactly two, «ЗАХИАЛАГЧ.» and the footer - and the
+        // title's placeholder lines are not among them. Borrowing the footer's axis
+        // for its neighbour felt tidy and was a guess.
+        //
+        // ⚠ THE CENTRE IS NOT RECOVERABLE FROM WHAT WAS MEASURED: the placeholder
+        // lines are left-justified TEXT, so their START is known and their WIDTH is
+        // not. No width, no centre - so the title is anchored where the drawing puts
+        // it, which invents nothing and leaves the decision to centre it, if anybody
+        // wants that, resting on a measurement nobody has yet.
+        ConceptCoverTitleLine title = ConceptCoverTitleBlock.MeasuredOnA3
+            .Single(line => line.Key == ConceptCoverTitleBlock.ProjectTitle);
 
-        // Derived from the sheet, so a frame change carries the title with it rather
-        // than leaving a constant behind.
-        Assert.NotEqual(ConceptCoverLayout.A3.PageWidthMm / 2, ConceptCoverTitleBlock.A3TitleCentreXMm);
+        Assert.Equal(144.4049, title.CentreXMm, 4);
+        Assert.True(title.AnchorIsLeftEdge, "the title must start where the drawing starts it");
+        Assert.NotEqual(ConceptCoverLayout.A3.TablesMiddleMm, title.CentreXMm);
+    }
+
+    [Fact]
+    public void ONLYTheFooterIsPlacedOnTheFramesCentreLine()
+    {
+        // The positive half: the one placement the drawing states exactly is the
+        // footer's, measured at 0.0000 from the frame's centre. It keeps the axis;
+        // nothing else borrows it.
+        Assert.Equal(217.5, ConceptCoverLayout.A3.TablesMiddleMm, 4);
+
+        foreach (ConceptCoverTitleLine line in ConceptCoverTitleBlock.MeasuredOnA3)
+        {
+            Assert.NotEqual(ConceptCoverLayout.A3.TablesMiddleMm, line.CentreXMm);
+        }
     }
 
     [Fact]

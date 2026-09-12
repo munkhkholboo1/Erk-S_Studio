@@ -119,11 +119,28 @@ public static class ConceptCoverTitleBlock
         baselineMm + (capHeightMm / 2);
 
     /// <summary>
-    /// The title's axis: the frame's horizontal centre, 217.5 mm on A3.
+    /// Where the title STARTS: 144.4049 mm, the left insertion of the first
+    /// placeholder line.
     ///
-    /// Computed from the sheet rather than written down, so a frame change carries it.
+    /// 🔴 THIS WAS 217.5 - THE FRAME'S CENTRE - AND THE MEASUREMENT DISPROVED IT.
+    /// The reference file lists, itself, every text that sits on the frame's centre
+    /// line within 0.2 mm: there are exactly TWO, «ЗАХИАЛАГЧ.» and the footer. The
+    /// title's two placeholder lines are NOT among them. Centring it there was a guess
+    /// that felt tidy - the footer's axis borrowed for a neighbour - and guessing an
+    /// axis is what put the text in the wrong place to begin with.
+    ///
+    /// ⚠ AND THE CENTRE CANNOT BE COMPUTED FROM WHAT WAS MEASURED. The two lines are
+    /// TEXT with left justification, so what is known is where each STARTS; their
+    /// widths are not in the file, and MTEXT's own attachment point was not extracted
+    /// either. Without a width there is no centre to recover - so the title is anchored
+    /// where the drawing actually puts it and runs right, which invents nothing.
+    ///
+    /// ⚠ THE COST, SAID PLAINLY: a SHORT project name will sit left of the sheet's
+    /// middle rather than centred. That is what the drawing shows. If the owner wants
+    /// it centred, that is a decision about the sheet and not a reading of it - and it
+    /// needs the placeholder's width from PFA before it can be done honestly.
     /// </summary>
-    public static double A3TitleCentreXMm { get; } = ConceptCoverLayout.A3.TablesMiddleMm;
+    public static double A3TitleLeftXMm { get; } = 144.4049;
 
     /// <summary>
     /// The title's height: the middle of the ink of the two placeholder lines -
@@ -168,7 +185,13 @@ public static class ConceptCoverTitleBlock
         // Replaced by the project: the measured point is the axis to centre on.
         new(Approver, 245.9491, CentreFromBaselineMm(268.5545, BodyCapMm), 90.0, BodyCapMm),
         new(SiteAddress, 168.0716, CentreFromBaselineMm(204.5968, BodyCapMm), 200.0, BodyCapMm),
-        new(ProjectTitle, A3TitleCentreXMm, A3TitleCentreYMm, 230.0, 8.0),
+        new(
+            ProjectTitle,
+            A3TitleLeftXMm,
+            A3TitleCentreYMm,
+            230.0,
+            8.0,
+            AnchorIsLeftEdge: true),
     ];
 
     /// <summary>The middle of the block's ink on A4 - 152.685 mm.</summary>
