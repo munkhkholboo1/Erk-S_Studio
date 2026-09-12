@@ -26,7 +26,41 @@ internal static class StudioAlbumDrawSentence
         // delete files while DecidedAtUtc is still null. Returning early there
         // would have made the deletion invisible - the notice hidden by a rule that
         // has nothing to do with it.
-        return DecisionMn(record) + SweepClauseMn(record);
+        return DecisionMn(record) + PreparationClauseMn(record) + SweepClauseMn(record);
+    }
+
+    /// <summary>
+    /// What bringing the images down to the album's density did.
+    ///
+    /// 🔴 THE FIRST BUILD COSTS TWICE AND THE OWNER SHOULD SEE BOTH HALVES. It
+    /// redraws because the project changed AND it prepares 26 images for the first
+    /// time; naming only the first would make the album look mysteriously slow once
+    /// and never again.
+    ///
+    /// 🔴 AND THE FALLBACK IS NAMED, NEVER SILENT. An image that could not be
+    /// prepared goes in at source size on purpose - one bad render must not cost a
+    /// 46-page album - but an album quietly heavier than its own rule is how a
+    /// two-gigabyte file gets shipped without anybody deciding to.
+    /// </summary>
+    private static string PreparationClauseMn(AlbumDrawRecord record)
+    {
+        var clause = "";
+        if (record.LastPreparedImageCount > 0)
+        {
+            string when = record.LastPreparedAtUtc is null
+                ? ""
+                : " (" + record.LastPreparedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") + ")";
+            clause = $" Бэлтгэл{when}: {record.LastPreparedImageCount} зураг " +
+                $"{AlbumRasterRule.DotsPerInch:0} dpi-д бууруулсан.";
+        }
+
+        if (record.LastUnpreparedImageCount > 0)
+        {
+            clause += $" {record.LastUnpreparedImageCount} зураг бэлтгэгдээгүй тул " +
+                "эх хэмжээгээр орсон.";
+        }
+
+        return clause;
     }
 
     /// <summary>What the album decision itself says.</summary>

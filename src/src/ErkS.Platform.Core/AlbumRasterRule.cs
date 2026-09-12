@@ -53,4 +53,26 @@ public static class AlbumRasterRule
         millimetres <= 0d
             ? 1
             : Math.Max(1, (int)Math.Ceiling(millimetres / MillimetresPerPixel));
+
+    /// <summary>
+    /// The JPEG quality a prepared raster image is written at.
+    ///
+    /// 🔴 IT BELONGS BESIDE THE DENSITY BECAUSE THE TWO DECIDE ONE THING
+    /// TOGETHER. Pixels alone do not give a file size: 300 DPI at quality 40 is a
+    /// blotched page and at quality 100 is several times the bytes for no visible
+    /// gain. Kept apart, the next person tuning one would have no way of knowing
+    /// the other had been chosen against it.
+    ///
+    /// 🔴 AND IT IS A MEASUREMENT, NOT A PREFERENCE. The owner's own album
+    /// (albums/cloud/…R41-f4ca475d.pdf, 2026-09-12) carries its raster pages at
+    /// 0.59-1.67 MB for 3507 × 2480; quality 90 on the same content measured about
+    /// 1 MB an image, which lands inside that range. The number was taken from what
+    /// they already ship, so the album Studio produces is the weight they are used
+    /// to rather than a figure chosen here.
+    ///
+    /// ⚠ NOT A FILE-SIZE GUARANTEE. Quality is a compression setting, not a
+    /// budget: a noisy render compresses worse than a clean one, and 26 images will
+    /// not each be 1 MB. The full-album size is a measurement still owed.
+    /// </summary>
+    public const int JpegQuality = 90;
 }

@@ -74,6 +74,26 @@ public sealed class AlbumDrawRecord
     /// </summary>
     public string LastSweepRefusalMn { get; set; } = "";
 
+    /// <summary>
+    /// Visualisation images brought down to the album's density by the last pass
+    /// that actually did so. History, like the sweep's numbers: a later build that
+    /// only reuses the prepared copies has nothing to say and must not erase this.
+    /// </summary>
+    public int LastPreparedImageCount { get; set; }
+
+    /// <summary>When that preparation happened.</summary>
+    public DateTimeOffset? LastPreparedAtUtc { get; set; }
+
+    /// <summary>
+    /// Images that went into the album AT SOURCE SIZE because preparing them failed.
+    ///
+    /// 🔴 A DESCRIPTION OF THE ALBUM AS IT STANDS, NOT HISTORY - so unlike the
+    /// count above it is rewritten on every recorded pass, including down to zero.
+    /// One unreadable render must not cost the owner the whole album, but they are
+    /// owed the sentence saying their album is heavier than the rule, and by how many.
+    /// </summary>
+    public int LastUnpreparedImageCount { get; set; }
+
     public AlbumDrawRecord Clone() => new()
     {
         DecidedAtUtc = DecidedAtUtc,
@@ -85,6 +105,9 @@ public sealed class AlbumDrawRecord
         LastSweepRemovedBytes = LastSweepRemovedBytes,
         LastSweptAtUtc = LastSweptAtUtc,
         LastSweepRefusalMn = LastSweepRefusalMn,
+        LastPreparedImageCount = LastPreparedImageCount,
+        LastPreparedAtUtc = LastPreparedAtUtc,
+        LastUnpreparedImageCount = LastUnpreparedImageCount,
     };
 
     /// <summary>
@@ -137,5 +160,26 @@ public sealed class AlbumDrawRecord
         LastSweepRemovedCount = removedCount;
         LastSweepRemovedBytes = Math.Max(0, removedBytes);
         LastSweptAtUtc = atUtc;
+    }
+
+    /// <summary>
+    /// Notes what bringing the visualisation images to the album's density did.
+    ///
+    /// The two numbers have opposite lifetimes, for the same reason as the sweep's:
+    /// «I prepared 26 images» is something that happened and stays; «2 images are in
+    /// there at source size» describes the album sitting on disk right now, and has
+    /// to be able to go back to zero.
+    /// </summary>
+    public void RecordRasterPreparation(
+        int preparedCount,
+        int unpreparedCount,
+        DateTimeOffset atUtc)
+    {
+        LastUnpreparedImageCount = Math.Max(0, unpreparedCount);
+        if (preparedCount <= 0)
+            return;
+
+        LastPreparedImageCount = preparedCount;
+        LastPreparedAtUtc = atUtc;
     }
 }

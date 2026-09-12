@@ -1301,12 +1301,51 @@ public sealed class AppState : IDisposable
         };
     }
 
-    private ProjectVisualizationSource CreateAlbumVisualizationSnapshot() =>
-        StudioAuxiliarySourceLocalityPolicy.CreateLocalVisualizationSnapshot(
-            Project,
-            runtimeIdentity.OwnerEmail,
-            runtimeIdentity.DeviceFingerprint,
-            HasVerifiedPayload);
+    /// <summary>
+    /// The visualisation images the album will be drawn from, brought down to the
+    /// album's own density.
+    ///
+    /// 🔴 PREPARED HERE BECAUSE THIS IS WHERE THE SNAPSHOT IS MADE, and the
+    /// snapshot is what the fingerprint is taken from. Preparing later - at the
+    /// writer, say - would fingerprint the originals and draw the prepared copies,
+    /// so the album would be declared current against a project it does not match.
+    ///
+    /// 🔴 THE SNAPSHOT IS A CLONE, which is what makes this safe: the owner's
+    /// own records keep pointing at their 16k renders.
+    /// </summary>
+    private ProjectVisualizationSource CreateAlbumVisualizationSnapshot()
+    {
+        ProjectVisualizationSource snapshot =
+            StudioAuxiliarySourceLocalityPolicy.CreateLocalVisualizationSnapshot(
+                Project,
+                runtimeIdentity.OwnerEmail,
+                runtimeIdentity.DeviceFingerprint,
+                HasVerifiedPayload);
+
+        VisualizationRasterPreparation preparation =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(snapshot, ProjectPath);
+        LastVisualizationRasterPreparation = preparation;
+
+        // 🔴 RECORDED WHEN THERE IS SOMETHING TO SAY, AND ALSO WHEN THERE IS
+        // SOMETHING TO STOP SAYING. A pass that only reuses prepared copies is the
+        // ordinary one and writes nothing; but a stored «2 images at source size»
+        // that has since been fixed must be cleared, or the line keeps making a
+        // statement about an album that no longer exists.
+        int wasUnprepared = Project.PrimaryAlbum.LastDraw?.LastUnpreparedImageCount ?? 0;
+        if (preparation.PreparedCount > 0 ||
+            preparation.FailedCount > 0 ||
+            wasUnprepared > 0)
+        {
+            Project.PrimaryAlbum.LastDraw ??= new AlbumDrawRecord();
+            Project.PrimaryAlbum.LastDraw.RecordRasterPreparation(
+                preparation.PreparedCount,
+                preparation.FailedCount,
+                DateTimeOffset.UtcNow);
+            SaveProject();
+        }
+
+        return snapshot;
+    }
 
     private static string FirstAlbumValue(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
@@ -1424,6 +1463,12 @@ public sealed class AppState : IDisposable
     /// exactly that distinction.
     /// </summary>
     internal VisualizationStoreSweepResult? LastVisualizationStoreSweep { get; private set; }
+
+    /// <summary>
+    /// What the last raster preparation pass did. In memory only - the parts worth
+    /// keeping past a restart are on the album's draw record.
+    /// </summary>
+    internal VisualizationRasterPreparation? LastVisualizationRasterPreparation { get; private set; }
 
     /// <summary>
     /// Whether any linked render has been overwritten since the project copied it.
