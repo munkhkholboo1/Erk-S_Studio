@@ -26,37 +26,23 @@ public sealed record VisualizationRasterPlan(int PixelWidth, int PixelHeight, bo
 /// 395 mm tile would starve it, and on a small tile would keep four times the
 /// pixels needed. What is constant is millimetres per pixel on the page.
 ///
-///   180 mm → 2126 px      260 mm → 3071 px      395 mm → 4665 px
+///   180 mm → 2126 px      260 mm → 3071 px      395 mm → 4666 px
 ///
-/// 🔴 300 IS NOT A GUESS. Measured 2026-09-12 in the owner's own album
-/// (albums/cloud/…R41-f4ca475d.pdf): every raster page in it is 3507 × 2480 at A4
-/// - exactly 300 DPI, JPEG, 0.59-1.67 MB each. The ceiling is the album's own
-/// existing standard, not a new one introduced here.
+/// 🔴 AND THE DENSITY DOES NOT LIVE HERE. 300 DPI is the OWNER'S declared raster
+/// rule, not a setting of the visualisation pages - «яг зөв растерийн дүрэм
+/// 300dpi», 2026-09-12 - so it lives in <see cref="AlbumRasterRule"/> under one
+/// name. A copy beside this class would be a second home, and the next raster path
+/// would then have two numbers to choose between, both looking authoritative.
+/// This class applies the rule; it does not own it.
 /// </summary>
 public static class VisualizationRasterBudget
 {
-    /// <summary>
-    /// The density a placed image is allowed to reach. Dated because it is a
-    /// measurement of the album as it stood on 2026-09-12, not a law: if the
-    /// album's own raster pages move, this number is stale and so is its reason.
-    /// </summary>
-    public const double TargetDotsPerInch = 300d;
-
-    public const double MillimetresPerInch = 25.4d;
-
     /// <summary>Millimetres one allowed pixel covers on the page.</summary>
-    public static double MillimetresPerPixel => MillimetresPerInch / TargetDotsPerInch;
+    public static double MillimetresPerPixel => AlbumRasterRule.MillimetresPerPixel;
 
-    /// <summary>
-    /// How many pixels a placed span of <paramref name="millimetres"/> needs.
-    ///
-    /// Rounded UP: landing a pixel short of the target to save a rounding error
-    /// is a visible loss on a printed sheet and an invisible saving in the file.
-    /// </summary>
+    /// <summary>How many pixels a placed span needs. The album's rule, applied.</summary>
     public static int PixelsAcross(double millimetres) =>
-        millimetres <= 0d
-            ? 1
-            : Math.Max(1, (int)Math.Ceiling(millimetres / MillimetresPerPixel));
+        AlbumRasterRule.PixelsAcross(millimetres);
 
     /// <summary>
     /// What to prepare for this image in this frame.

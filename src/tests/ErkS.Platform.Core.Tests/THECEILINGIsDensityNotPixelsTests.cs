@@ -37,7 +37,18 @@ public sealed class THECEILINGIsDensityNotPixelsTests
     [Fact]
     public void THEDensityIsTHREEHUNDREDDotsPerInchAndSaysSo()
     {
-        Assert.Equal(300d, VisualizationRasterBudget.TargetDotsPerInch);
+        // 🔴 ONE HOME, AND THIS ASSERTS IT. The number is the OWNER'S declared
+        // raster rule - «яг зөв растерийн дүрэм 300dpi» - not a setting of the
+        // visualisation pages, so the budget must READ it rather than keep a copy.
+        // Two constants would agree today and drift the first time one moved,
+        // leaving the next raster path two authoritative-looking numbers.
+        Assert.Equal(300d, AlbumRasterRule.DotsPerInch);
+        Assert.Equal(
+            AlbumRasterRule.MillimetresPerPixel,
+            VisualizationRasterBudget.MillimetresPerPixel);
+        Assert.Equal(
+            AlbumRasterRule.PixelsAcross(180d),
+            VisualizationRasterBudget.PixelsAcross(180d));
 
         // One inch of page is exactly the target many pixels - the definition,
         // asserted so a change to the arithmetic cannot pass as a change to the
