@@ -58,6 +58,18 @@ public static class ConceptCoverTitleBlock
 {
     public const string ApprovalLabel = "approval-label";
     public const string Approver = "approver";
+
+    /// <summary>
+    /// The approving official's post, beside their name on the same line.
+    ///
+    /// 🔴 MEASURED ALL ALONG AND NEVER DRAWN, found by the full 75-object
+    /// reconciliation rather than by anyone noticing. The drawing carries TWO texts on
+    /// this baseline - the post at 138.5491 and the person at 245.9491 - and only the
+    /// person reached the page, so the sheet stated who signed without stating who they
+    /// are. On a document whose purpose is to record an approval that is the half that
+    /// matters. A3 only: A4's own sheet has no measurement for it.
+    /// </summary>
+    public const string ApproverPosition = "approver-position";
     public const string SiteAddress = "site-address";
     public const string ProjectTitle = "project-title";
     public const string StageLine = "stage-line";
@@ -182,9 +194,42 @@ public static class ConceptCoverTitleBlock
             BodyCapMm,
             AnchorIsLeftEdge: true),
 
-        // Replaced by the project: the measured point is the axis to centre on.
-        new(Approver, 245.9491, CentreFromBaselineMm(268.5545, BodyCapMm), 90.0, BodyCapMm),
-        new(SiteAddress, 168.0716, CentreFromBaselineMm(204.5968, BodyCapMm), 200.0, BodyCapMm),
+        // 🔴 REPLACED BY THE PROJECT, AND STILL ANCHORED AT ITS LEFT EDGE. These two
+        // were centred on their measured point, on the reasoning that project text is
+        // longer or shorter than the placeholder and a fixed left edge would run one of
+        // them off the sheet. The justification measurement
+        // (concept-cover-A3-text-extents-2026-09-12.json) disposes of both halves: all
+        // ten TEXT entities are horizontalJustify «left» with insertionXMeans «left edge
+        // of the text», so there is no axis to centre on - and left-anchored these reach
+        // 335.95 and 368.07 mm inside a frame ending at 415, while CENTRED is what
+        // collides, a 90 mm box on 245.9491 starting at 200.95 against a «БАТЛАВ:»
+        // that ends at 221.71.
+        //
+        // ⚠ THIRD RETRACTION OF ONE ASSUMPTION IN THIS LIST. The title was exempted
+        // first, for exactly this reason; the exemption was the rule.
+        new(
+            ApproverPosition,
+            138.5491,
+            CentreFromBaselineMm(268.5545, BodyCapMm),
+            // Narrower than the 107.4 mm gap to the name column, so a long post wraps
+            // rather than running into the name beside it.
+            100.0,
+            BodyCapMm,
+            AnchorIsLeftEdge: true),
+        new(
+            Approver,
+            245.9491,
+            CentreFromBaselineMm(268.5545, BodyCapMm),
+            90.0,
+            BodyCapMm,
+            AnchorIsLeftEdge: true),
+        new(
+            SiteAddress,
+            168.0716,
+            CentreFromBaselineMm(204.5968, BodyCapMm),
+            200.0,
+            BodyCapMm,
+            AnchorIsLeftEdge: true),
         new(
             ProjectTitle,
             A3TitleLeftXMm,

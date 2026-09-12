@@ -104,26 +104,73 @@ public sealed class THEA3CoverIsPlacedFromItsOwnDrawingTests
     }
 
     [Fact]
-    public void REPLACEDTextIsCENTREDBecauseItsLengthIsUnknown()
+    public void EVERYA3TitleLineStartsWhereTheDrawingStartsIt()
     {
-        // The other half of the same distinction: an approver's name, an address and a
-        // building's name are all longer or shorter than the placeholder, so a fixed
-        // left edge would run one of them off the sheet. A4 has always centred these;
-        // that shape is kept.
-        foreach (string key in new[]
-                 {
-                     // ⚠ THE TITLE IS NOT IN THIS LIST ANY MORE. It is replaced text too,
-                     // so centring it would be consistent - but the axis to centre ON was
-                     // a guess the measurement disproved, and no width was measured to
-                     // recover a real one. Consistency with an unknown is not a reason.
-                     ConceptCoverTitleBlock.Approver,
-                     ConceptCoverTitleBlock.SiteAddress,
-                 })
+        // 🔴 THIS TEST ASSERTED THE OPPOSITE, AND PFA'S JUSTIFICATION MEASUREMENT
+        // SETTLED IT FOR ALL TEN AT ONCE. It used to say replaced text must be CENTRED on
+        // its measured point, on the reasoning that «an approver's name, an address and a
+        // building's name are longer or shorter than the placeholder, so a fixed left
+        // edge would run one of them off the sheet». Both halves turned out wrong:
+        //
+        //   THE AXIS DOES NOT EXIST. concept-cover-A3-text-extents-2026-09-12.json
+        //     measures all ten TEXT entities as horizontalJustify «left» with
+        //     insertionXMeans «left edge of the text». There is no centre to centre on -
+        //     the same guess the TITLE was already exempted from, in this same list, for
+        //     this same reason. Third retraction of one assumption.
+        //
+        //   AND THE STATED RISK IS THE OTHER WAY ROUND. Left-anchored, the approver's box
+        //     reaches 335.95 mm and the address's 368.07 mm, both inside a frame that
+        //     ends at 415 - nothing runs off. CENTRED is what collides: a 90 mm box
+        //     centred on 245.9491 starts at 200.95, and «БАТЛАВ:» ends at 221.71, so
+        //     any name wider than 48.5 mm overlaps the label it sits beside.
+        //
+        // ⚠ A4 IS NOT TOUCHED. Its own sheet was never measured for justification, and
+        // its centred shape is left exactly as it was.
+        foreach (ConceptCoverTitleLine line in ConceptCoverTitleBlock.MeasuredOnA3)
         {
-            Assert.False(
-                ConceptCoverTitleBlock.MeasuredOnA3.Single(l => l.Key == key).AnchorIsLeftEdge,
-                key + " is replaced by the project and must be centred on its axis");
+            Assert.True(
+                line.AnchorIsLeftEdge,
+                line.Key + " is measured left-justified; its X is a left edge, not an axis");
         }
+    }
+
+    [Fact]
+    public void THEAPPROVERSPositionIsDrawnAndNotOnlyTheirName()
+    {
+        // 🔴 FOUND BY THE FULL RECONCILIATION, NOT BY A BUG REPORT. The drawing has
+        // TWO texts on the approver's line - the position at 138.5491 and the person at
+        // 245.9491 - and the product drew only the person. The sheet therefore read
+        // «БАТЛАВ: … Б.Батцолмон» with no statement of who that is, on a document
+        // whose whole purpose is to record who approved it.
+        //
+        // Nothing was missing but the line: the data is on ProjectApprovalEntry and
+        // DisplayPosition already composes it for the roster rows.
+        ConceptCoverTitleLine position = ConceptCoverTitleBlock.MeasuredOnA3
+            .Single(line => line.Key == ConceptCoverTitleBlock.ApproverPosition);
+
+        Assert.Equal(138.5491, position.CentreXMm, 4);
+        Assert.True(position.AnchorIsLeftEdge);
+
+        // Shares the person's baseline: one line of the sheet, two columns of it.
+        Assert.Equal(
+            ConceptCoverTitleBlock.MeasuredOnA3
+                .Single(line => line.Key == ConceptCoverTitleBlock.Approver).CentreYMm,
+            position.CentreYMm,
+            6);
+
+        // ⚠ AND IT STOPS SHORT OF THE NAME COLUMN. The gap between the two measured
+        // starts is 107.4 mm; the box is narrower than that, so a long title wraps
+        // instead of running into the name beside it.
+        Assert.True(
+            position.WidthMm < 245.9491 - 138.5491,
+            "the position column must not reach into the name column");
+
+        // And the writer supplies the words - a measured line nobody fills is a blank.
+        string compact = new string(ReadPdfSource("PdfSharpAlbumWriter.ConceptCover2026.cs")
+            .Where(c => !char.IsWhiteSpace(c)).ToArray());
+        Assert.Contains(
+            "ConceptCoverTitleBlock.ApproverPosition=>", compact, StringComparison.Ordinal);
+        Assert.Contains("DisplayPosition(", compact, StringComparison.Ordinal);
     }
 
     [Fact]

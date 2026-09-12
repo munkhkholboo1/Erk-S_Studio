@@ -130,9 +130,10 @@ public sealed partial class PdfSharpAlbumWriter
         AlbumProject project,
         ConceptCoverLayout layout)
     {
-        string approver = ConceptCoverApprovalResolver
+        ProjectApprovalEntry? approving = ConceptCoverApprovalResolver
             .Resolve(project.ApprovalWorkflow, project.PlanningTask)
-            .ApprovedBy.FirstOrDefault()?.PersonName ?? "";
+            .ApprovedBy.FirstOrDefault();
+        string approver = approving?.PersonName ?? "";
 
         foreach (ConceptCoverTitleLine line in ConceptCoverTitleBlock.For(layout))
         {
@@ -146,6 +147,10 @@ public sealed partial class PdfSharpAlbumWriter
                 // the line to correct.
                 ConceptCoverTitleBlock.ApprovalLabel => "БАТЛАВ:",
                 ConceptCoverTitleBlock.Approver => approver,
+                // The post beside the name. Composed by the same resolver the roster
+                // rows use, so the two cannot disagree about how a post is written.
+                ConceptCoverTitleBlock.ApproverPosition =>
+                    ConceptCoverApprovalResolver.DisplayPosition(approving),
                 ConceptCoverTitleBlock.SiteAddress => ProjectSiteAddress.Compose(
                     project.InitiationBasis.SiteLocation,
                     project.InitiationBasis.SiteAddress),

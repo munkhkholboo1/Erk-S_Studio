@@ -149,13 +149,34 @@ public sealed class ConceptCoverTitleBlockTests
         // the drawing measures where text STARTS and not how wide its box is.
         IReadOnlyList<ConceptCoverTitleLine> a3 = ConceptCoverTitleBlock.MeasuredOnA3;
 
-        Assert.Equal(ConceptCoverTitleBlock.MeasuredOnA4.Count, a3.Count);
-        foreach (ConceptCoverTitleLine line in a3)
+        // 🔴 THE NAMES, NOT THE COUNT - AND THE COUNT WENT FALSE-RED THE DAY THE SET
+        // GREEW. This asserted the two lists were the same LENGTH, which held only while
+        // the sheets carried the same lines. A3's reconciliation then found a sixth line
+        // the drawing has and the product never drew (the approver's post), and a count
+        // lock turns a correct addition into a failure - so the shared keys are compared
+        // by name and the unshared one is named.
+        var a4Keys = ConceptCoverTitleBlock.MeasuredOnA4
+            .Select(line => line.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (ConceptCoverTitleLine line in a3.Where(line => a4Keys.Contains(line.Key)))
         {
             ConceptCoverTitleLine a4 = ConceptCoverTitleBlock.MeasuredOnA4
                 .Single(item => item.Key == line.Key);
             Assert.Equal(a4.CapHeightMm, line.CapHeightMm, Tolerance);
             Assert.Equal(a4.WidthMm, line.WidthMm, Tolerance);
         }
+
+        // ⚠ EXACTLY ONE LINE IS A3'S ALONE, AND IT IS NAMED. Left as a bare inequality
+        // this would let any future addition in unexamined - which is how the sixth line
+        // went missing in the first place.
+        Assert.Equal(
+            [ConceptCoverTitleBlock.ApproverPosition],
+            a3.Select(line => line.Key).Where(key => !a4Keys.Contains(key)).ToArray());
+
+        // And every A4 line still has an A3 counterpart: the sheet grew, nothing was
+        // dropped.
+        foreach (string key in a4Keys)
+            Assert.Contains(key, a3.Select(line => line.Key));
     }
 }
