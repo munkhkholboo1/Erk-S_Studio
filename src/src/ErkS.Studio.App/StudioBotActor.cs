@@ -96,4 +96,26 @@ internal static class StudioBotActor
         string? seatEnteredByEmail,
         string? signedInEmail) =>
         !IsTheBotActing(deviceHoldsBotSeat, seatEnteredByEmail, signedInEmail);
+
+    /// <summary>
+    /// Whether THIS machine may be asked to give its own seat up.
+    ///
+    /// 🔴 DELIBERATELY LOOSER THAN <see cref="MayManageSeats"/>, AND THE REASON IS
+    /// A TRAP AVOIDED. Tightening seat MANAGEMENT to «that owner only» was right - it
+    /// reaches the organisation's other seats through the server. Tightening the way
+    /// OUT with it was not: an account that becomes unreachable - a forgotten
+    /// password, an employee who left, a company that split - would leave the machine
+    /// locked to it with no door at all. A guard must not block its own exit.
+    ///
+    /// 🔴 AND GIVING A SEAT UP DESTROYS NOTHING. The code that does it says so in
+    /// its own sentence: «төслийн файл, эх үүсвэр, альбомд хүрээгүй». What it costs is
+    /// a seat the owner can grant again; what the alternative costs is a computer.
+    ///
+    /// This is the rule that shipped before the identity check, kept for this one
+    /// action on purpose.
+    /// </summary>
+    public static bool MayReleaseThisMachinesSeat(
+        bool deviceHoldsBotSeat,
+        bool anyOwnerSessionInHand) =>
+        !deviceHoldsBotSeat || anyOwnerSessionInHand;
 }

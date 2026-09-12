@@ -200,6 +200,17 @@ internal sealed partial class ShellView
     private bool MayManageSeats => !ActingAsBot;
 
     /// <summary>
+    /// Whether this machine may be asked to give up its OWN seat.
+    ///
+    /// 🔴 LOOSER THAN <see cref="MayManageSeats"/> ON PURPOSE - see
+    /// <see cref="StudioBotActor.MayReleaseThisMachinesSeat"/>. Tightening the exit
+    /// along with the management would lock a machine to an account that has become
+    /// unreachable, which is a worse fault than the mixing the tightening prevents.
+    /// </summary>
+    private bool MayReleaseThisMachinesSeat =>
+        StudioBotActor.MayReleaseThisMachinesSeat(SeatedAsBot, account.IsSignedIn);
+
+    /// <summary>
     /// Refuses a seat-management action and says why. Called by each action for
     /// itself: a hidden menu item is not a boundary.
     /// </summary>
@@ -1031,8 +1042,18 @@ internal sealed partial class ShellView
 
     private async Task LeaveBotStateAsync()
     {
-        if (RefuseSeatManagementWhenSeated())
+        // 🔴 THE EXIT IS GATED MORE LOOSELY THAN THE MANAGEMENT, AND THAT IS THE
+        // WHOLE POINT. Any owner session may free THIS machine; only the seat's own
+        // owner may reach the organisation's seats. Gated the same way, a seat whose
+        // owner account became unreachable would hold the computer for ever - the
+        // guard would be blocking its own door.
+        if (!MayReleaseThisMachinesSeat)
+        {
+            SetStatus(
+                "Суудлыг чөлөөлөхийн тулд Studio бүртгэлээр нэвтэрнэ үү — " +
+                "төслийн файл, эх үүсвэр, альбомд хүрэхгүй.");
             return;
+        }
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
         if (seat is null)
         {

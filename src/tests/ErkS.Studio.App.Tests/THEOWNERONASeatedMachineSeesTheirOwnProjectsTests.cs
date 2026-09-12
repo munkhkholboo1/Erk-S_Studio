@@ -58,6 +58,56 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
                 deviceHoldsBotSeat, seatEnteredByEmail, signedInEmail));
     }
 
+    [Fact]
+    public void THEWayOutIsNEVERLockedToAnUnreachableAccount()
+    {
+        // 🔴 A GUARD MUST NOT BLOCK ITS OWN EXIT. Tightening seat MANAGEMENT to
+        // «that owner only» is right - it reaches the organisation's other seats
+        // through the server. Tightening the way OUT with it would leave a machine
+        // locked to an account nobody can sign into any more: a forgotten password, an
+        // employee who left, a company that split. The trap would be worse than the
+        // mixing the tightening prevents, and it would look exactly like the one that
+        // cost the owner a day.
+        Assert.False(StudioBotActor.MayManageSeats(true, Owner, Stranger));
+        Assert.True(
+            StudioBotActor.MayReleaseThisMachinesSeat(true, anyOwnerSessionInHand: true),
+            "a machine could not be freed by anybody but an unreachable account");
+
+        // Still not by NOBODY: freeing a seat is an owner's action, just not that
+        // particular owner's.
+        Assert.False(StudioBotActor.MayReleaseThisMachinesSeat(true, false));
+
+        // And a machine holding no seat has nothing to refuse.
+        Assert.True(StudioBotActor.MayReleaseThisMachinesSeat(false, false));
+    }
+
+    [Fact]
+    public void THELeaveActionUsesTheLooserGateAndTheOthersDoNOT()
+    {
+        // ⚠ SOURCE-ANCHORED: the three guarded actions need a window and a server.
+        // What is pinned is WHICH gate each one asks, because that is the distinction
+        // the trap turns on - and a tidy-up that unified them would restore it.
+        string seat = ReadAppSource("ShellView.BotSeat.cs");
+        string leave = MethodBody(seat, "private async Task LeaveBotStateAsync()");
+        string manage = MethodBody(seat, "private async Task ShowBotManagementAsync()");
+        string seatThis = MethodBody(seat, "private async Task SeatThisDeviceAsync()");
+
+        Assert.Contains("MayReleaseThisMachinesSeat", leave, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefuseSeatManagementWhenSeated", leave, StringComparison.Ordinal);
+        Assert.Contains("RefuseSeatManagementWhenSeated", manage, StringComparison.Ordinal);
+        Assert.Contains("RefuseSeatManagementWhenSeated", seatThis, StringComparison.Ordinal);
+    }
+
+    private static string MethodBody(string source, string signature)
+    {
+        string normalised = source.Replace("\r\n", "\n");
+        int start = normalised.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start > 0, signature + " was not found");
+        int end = normalised.IndexOf("\n    }", start, StringComparison.Ordinal);
+        Assert.True(end > start, "the end of " + signature + " was not found");
+        return normalised[start..end];
+    }
+
     private const string Owner = "owner@erk-s.mn";
     private const string Stranger = "someone.else@erk-s.mn";
 
