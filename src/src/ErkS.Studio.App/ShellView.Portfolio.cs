@@ -617,12 +617,26 @@ internal sealed partial class ShellView
             string outputPath = Path.Combine(
                 outputFolder,
                 SafeFileName(Portfolio.Title) + ".pdf");
+            // 🔴 THE SAME CEILING AS THE ALBUM'S PAGES, AND FOR THE SAME FILES. The
+            // portfolio's intake copies image.RelativePath off the owner's
+            // visualisation records, so capping one writer and not this one meant the
+            // 16k renders came back the moment they exported a portfolio.
+            (IReadOnlyList<PortfolioBuildItem> items, PortfolioRasterPreparation prepared) =
+                StudioPortfolioRasterPreparer.Prepare(
+                    Portfolio.OrderedVisibleItems().Select(ResolveBuildItem).ToList(),
+                    state.ProjectPath,
+                    Portfolio.PageWidthMm,
+                    Portfolio.PageHeightMm,
+                    Portfolio.UsesSourcePageSize);
+            if (prepared.PreparedCount > 0)
+                AnnounceRasterPreparation(prepared.PreparedCount);
+
             var request = new PortfolioBuildRequest(
                 Portfolio.Title,
                 outputPath,
                 Portfolio.PageWidthMm,
                 Portfolio.PageHeightMm,
-                Portfolio.OrderedVisibleItems().Select(ResolveBuildItem).ToList(),
+                items,
                 Portfolio.UsesSourcePageSize);
 
             PortfolioBuildResult result = PortfolioPdfWriter.Build(request);
@@ -634,9 +648,20 @@ internal sealed partial class ShellView
             Portfolio.LastBuiltAtUtc = DateTimeOffset.UtcNow;
             state.SaveProject();
             RefreshPortfolio();
+            // 🔴 WHAT THE CEILING DID IS SAID ON THE SAME LINE, for the reason the
+            // album's line exists: the owner has to be able to see that a reduction
+            // happened, and that a drawing which could not be reduced went in whole.
+            string ceiling = "";
+            if (prepared.PreparedCount > 0)
+                ceiling += $" {prepared.PreparedCount} зураг {AlbumRasterRule.DotsPerInch:0} dpi-д бууруулсан.";
+            if (prepared.FailedCount > 0)
+                ceiling += $" {prepared.FailedCount} зураг бэлтгэгдээгүй тул эх хэмжээгээр орсон.";
+            if (prepared.RemovedCount > 0)
+                ceiling += $" Хуучин бэлтгэл {prepared.RemovedCount} файл чөлөөлөгдсөн.";
+
             SetStatus(result.Warnings.Count == 0
-                ? $"Портфолио {result.PageCount} хуудсаар үүслээ."
-                : $"Портфолио {result.PageCount} хуудсаар үүслээ. " +
+                ? $"Портфолио {result.PageCount} хуудсаар үүслээ.{ceiling}"
+                : $"Портфолио {result.PageCount} хуудсаар үүслээ.{ceiling} " +
                   string.Join(" ", result.Warnings.Take(3)));
         }
         catch (Exception exception) when (

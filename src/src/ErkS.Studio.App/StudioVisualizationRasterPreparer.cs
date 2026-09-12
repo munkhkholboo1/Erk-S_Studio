@@ -309,6 +309,38 @@ internal static class StudioVisualizationRasterPreparer
     /// only when the record has none - an uninspected record must not silently share
     /// a cache entry with a different picture.
     /// </summary>
+    /// <summary>
+    /// The cache name for one prepared copy: what the picture IS, and what it is
+    /// needed AT.
+    ///
+    /// 🔴 SHARED WITH THE PORTFOLIO RATHER THAN COPIED. Two writers place the same
+    /// files at different sizes, and a second spelling of this name would give the two
+    /// caches different opinions about whether a copy already exists - which shows up
+    /// as re-encoding on every export, and looks like slowness rather than a bug.
+    /// </summary>
+    internal static string PreparedFileName(
+        string? declaredSha256,
+        string sourcePath,
+        VisualizationRasterPlan plan)
+    {
+        string declared = (declaredSha256 ?? "").Trim().ToLowerInvariant();
+        string key = declared.Length > 0
+            ? declared
+            : ProjectVisualizationFileStore.ComputeSha256(sourcePath);
+        return $"{key}-{plan.PixelWidth}x{plan.PixelHeight}q{AlbumRasterRule.JpegQuality}.jpg";
+    }
+
+    /// <summary>Encodes one prepared copy. Shared, for the reason above.</summary>
+    internal static void WritePrepared(
+        string sourcePath,
+        string preparedPath,
+        VisualizationRasterPlan plan) =>
+        Write(sourcePath, preparedPath, plan);
+
+    /// <summary>What counts as «this file would not cooperate». Shared.</summary>
+    internal static bool IsFileTroubleForSharing(Exception exception) =>
+        IsFileTrouble(exception);
+
     private static string ContentKey(ProjectVisualizationImage image, string sourcePath)
     {
         string declared = (image.Sha256 ?? "").Trim().ToLowerInvariant();

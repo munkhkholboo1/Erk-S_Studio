@@ -1,3 +1,4 @@
+using ErkS.Platform.Core;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -113,8 +114,12 @@ public static class PortfolioPlacement
 public static class PortfolioPdfWriter
 {
     private const double PointsPerMm = 72.0 / 25.4;
-    private const double ContainMarginMm = 14;
-    private const double CaptionBandMm = 16;
+    // 🔴 MOVED TO CORE, WHERE THE RASTER RULE CAN SEE THEM. Working out how many
+    // pixels a page needs means working out the frame, and the frame is these two
+    // numbers - so a private copy here would have been the second home that stops
+    // being updated. Read through, not restated.
+    private const double ContainMarginMm = PortfolioPageGeometry.ContainMarginMm;
+    private const double CaptionBandMm = PortfolioPageGeometry.CaptionBandMm;
 
     private static readonly XSolidBrush PaperBrush = new(XColors.White);
     private static readonly XSolidBrush BleedBrush = new(XColor.FromArgb(24, 26, 30));
