@@ -163,14 +163,25 @@ public sealed partial class PdfSharpAlbumWriter
                 centreXMm: line.CentreXMm,
                 centreYMm: line.CentreYMm,
                 widthMm: line.WidthMm,
-                heightMm: line.CapHeightMm);
+                heightMm: line.CapHeightMm,
+                anchorIsLeftEdge: line.AnchorIsLeftEdge);
         }
 
         DrawConceptCover2026Text(
             gfx,
             layout,
             ConceptCover2026Footer(project),
-            centreXMm: ConceptCoverTitleBlock.HorizontalShiftMm(layout) + 148.5,
+            // 🔴 CENTRED ON THE FRAME, NOT CARRIED OVER FROM A4. The reference
+            // states this one exactly - fractionOfFrame.x = 0.5 and an offset from the
+            // frame's centre of 0.0000 - which is the only placement the drawing spells
+            // out rather than leaves to be measured. Written as a constant it would
+            // read as a coincidence; written as centring it is the rule.
+            //
+            // ⚠ The height needs no change and that is a POSITIVE CONTROL, not luck:
+            // the existing frame-relative rule puts this line 9.99 mm above the frame,
+            // and the A3 drawing measures 10.00. An offset from the frame was the right
+            // coordinate to keep.
+            centreXMm: layout.TablesMiddleMm,
             centreYMm: layout.FrameBottomMm + (13.53 - ConceptCoverLayout.A4.FrameBottomMm),
             widthMm: 200.0,
             heightMm: 2.829);
@@ -195,7 +206,8 @@ public sealed partial class PdfSharpAlbumWriter
         double centreXMm,
         double centreYMm,
         double widthMm,
-        double heightMm)
+        double heightMm,
+        bool anchorIsLeftEdge = false)
     {
         // 🔴 centreYMm, not a baseline. This box spans [c - h, c + h] and the
         // glyph is centred in it, so the value positions the MIDDLE of the
@@ -207,13 +219,16 @@ public sealed partial class PdfSharpAlbumWriter
             gfx,
             text,
             new XRect(
-                Mm(centreXMm - widthMm / 2),
+                Mm(anchorIsLeftEdge ? centreXMm : centreXMm - widthMm / 2),
                 ConceptCover2026Y(layout, topMm),
                 Mm(widthMm),
                 Mm(heightMm * 2)),
             heightMm,
             false,
-            XStringFormats.Center,
+            // A label anchored at the drawing's own insertion point is drawn FROM
+            // there; centring it inside the same box would put it back where the
+            // measured point was being misread as a middle.
+            anchorIsLeftEdge ? XStringFormats.CenterLeft : XStringFormats.Center,
             FontName);
     }
 

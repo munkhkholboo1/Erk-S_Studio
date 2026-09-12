@@ -30,27 +30,38 @@ public sealed class ConceptCoverTitleBlockTests
     }
 
     [Fact]
-    public void THEBlockIsCENTREDOnA3TheWayTheOLDCoverCentresItsOwn()
+    public void THECENTRINGRuleAppliesToASheetWithNoMeasurementOfItsOwn()
     {
-        // The user asked for this to be judged against the cover Studio already
-        // prints. That sheet is A3 too, and it puts its block at the middle of
-        // its free area less about three millimetres - it does NOT hang it off
-        // the top of its table. Measured: -3.45 mm in a 130.14 mm band.
+        // 🔴 THIS TEST USED TO MAKE THIS CLAIM ABOUT A3, AND A MEASUREMENT DISPROVED
+        // IT (2026-09-12). The A3 block was being placed by centring A4's block in
+        // A3's free area, less A4's own offset. PFA measured the real A3 drawing and
+        // the lines are not there - and not on A4 * sqrt(2) either, X differing by up
+        // to 27 mm. A3 now uses its own measurement
+        // (ConceptCoverTitleBlock.MeasuredOnA3), so the rule this test describes no
+        // longer decides anything the product draws.
         //
-        // So this one is centred too, less the offset measured on A4.
+        // It is kept, pointed at a sheet that has no measurement, because the rule is
+        // still the answer for such a sheet - and because deleting the test would
+        // delete the record of what was believed and why it was wrong.
+        var unmeasured = new ConceptCoverLayout("A2", 594, 420, 25, 5, 564, 410);
+
         double blockCentre = ConceptCoverTextBox.BlockCentreMm(
-            ConceptCoverTitleBlock.For(ConceptCoverLayout.A3)
+            ConceptCoverTitleBlock.For(unmeasured)
                 .Select(line => (line.CentreYMm, line.CapHeightMm)));
-        double freeCentre = ConceptCoverTitleBlock.FreeAreaCentreMm(ConceptCoverLayout.A3);
+        double freeCentre = ConceptCoverTitleBlock.FreeAreaCentreMm(unmeasured);
 
         Assert.Equal(ConceptCoverTitleBlock.OffsetFromFreeAreaCentreMm, blockCentre - freeCentre, Tolerance);
         Assert.Equal(-3.06, blockCentre - freeCentre, 0.01);
+    }
 
-        // And it really is a long way from where anchoring to the tables put it:
-        // that version sat about 43 mm lower, a quarter of the band.
-        Assert.True(
-            ConceptCoverTitleBlock.VerticalShiftMm(ConceptCoverLayout.A3) > 40.0,
-            "the A3 block should rise out of the tables, not sit on them");
+    [Fact]
+    public void A3IsNOLONGERDerivedFromA4AtAll()
+    {
+        // The positive statement of what replaced the rule above, so «the derivation
+        // is gone» is asserted rather than left as the absence of a test.
+        Assert.Same(
+            ConceptCoverTitleBlock.MeasuredOnA3,
+            ConceptCoverTitleBlock.For(ConceptCoverLayout.A3));
     }
 
     [Fact]
@@ -102,26 +113,49 @@ public sealed class ConceptCoverTitleBlockTests
     }
 
     [Fact]
-    public void THEBlockKeepsItsWIDTHSAndHEIGHTSOnTheBiggerSheet()
+    public void THEBlockKeepsItsWIDTHSAndHEIGHTSOnAnUnmeasuredSheet()
     {
-        // Moved, never resized - the whole instruction in one assertion.
-        IReadOnlyList<ConceptCoverTitleLine> a3 = ConceptCoverTitleBlock.For(ConceptCoverLayout.A3);
-        for (int index = 0; index < a3.Count; index++)
+        // Moved, never resized - the whole instruction in one assertion. Aimed at a
+        // sheet with no measurement of its own, since A3 no longer goes through this
+        // path: its line heights and widths come from its own drawing, and its
+        // SPACING is the drawing's, not A4's carried across.
+        var unmeasured = new ConceptCoverLayout("A2", 594, 420, 25, 5, 564, 410);
+        IReadOnlyList<ConceptCoverTitleLine> shifted = ConceptCoverTitleBlock.For(unmeasured);
+
+        for (int index = 0; index < shifted.Count; index++)
         {
             ConceptCoverTitleLine measured = ConceptCoverTitleBlock.MeasuredOnA4[index];
-            Assert.Equal(measured.Key, a3[index].Key);
-            Assert.Equal(measured.CapHeightMm, a3[index].CapHeightMm, Tolerance);
-            Assert.Equal(measured.WidthMm, a3[index].WidthMm, Tolerance);
+            Assert.Equal(measured.Key, shifted[index].Key);
+            Assert.Equal(measured.CapHeightMm, shifted[index].CapHeightMm, Tolerance);
+            Assert.Equal(measured.WidthMm, shifted[index].WidthMm, Tolerance);
         }
 
         // The lines keep their spacing too: the block moves as one piece.
-        for (int index = 1; index < a3.Count; index++)
+        for (int index = 1; index < shifted.Count; index++)
         {
             Assert.Equal(
                 ConceptCoverTitleBlock.MeasuredOnA4[index - 1].CentreYMm
                     - ConceptCoverTitleBlock.MeasuredOnA4[index].CentreYMm,
-                a3[index - 1].CentreYMm - a3[index].CentreYMm,
+                shifted[index - 1].CentreYMm - shifted[index].CentreYMm,
                 Tolerance);
+        }
+    }
+
+    [Fact]
+    public void A3KEEPSTheHEIGHTSItsOwnDrawingMeasured()
+    {
+        // The replacement claim for A3: the cap heights are the drawing's - body text
+        // at 2.475 and the title at 8 - and the box widths are carried over, because
+        // the drawing measures where text STARTS and not how wide its box is.
+        IReadOnlyList<ConceptCoverTitleLine> a3 = ConceptCoverTitleBlock.MeasuredOnA3;
+
+        Assert.Equal(ConceptCoverTitleBlock.MeasuredOnA4.Count, a3.Count);
+        foreach (ConceptCoverTitleLine line in a3)
+        {
+            ConceptCoverTitleLine a4 = ConceptCoverTitleBlock.MeasuredOnA4
+                .Single(item => item.Key == line.Key);
+            Assert.Equal(a4.CapHeightMm, line.CapHeightMm, Tolerance);
+            Assert.Equal(a4.WidthMm, line.WidthMm, Tolerance);
         }
     }
 }
