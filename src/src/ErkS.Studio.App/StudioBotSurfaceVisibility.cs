@@ -20,11 +20,31 @@ namespace ErkS.Studio;
 internal static class StudioBotSurfaceVisibility
 {
     /// <summary>
-    /// The owner's administration: the organisation library and the project's own
-    /// information. Named by the page, so the rule can be read without opening
-    /// the shell.
+    /// Surfaces withheld from a seat. EMPTY, BY THE OWNER'S DECISION - not by
+    /// oversight, and not waiting to be filled in.
+    ///
+    /// 🔴 THE OWNER MADE IT A GENERAL RULE, TWICE OVER (2026-09-12): «компани
+    /// цэсийг алга болгох заавал шаардлага байхгүй. идэвхгүй байхад л болно», and
+    /// then, watching the create button ask for a passport: «ботоос шинэ төсөл
+    /// үүсгэх дарж болж байна. гэхдээ үндсэн эзэмшигчээр нэвтрэхийг шаардаж байна.
+    /// энэ маш зөв үйлдэл». So what a seat is stopped at is the ACTION, which asks
+    /// for the owner - never the surface.
+    ///
+    /// 🔴 AND THE REASONING IS THEIRS, NOT A PREFERENCE: a hidden surface reads
+    /// as «this program cannot do that», while a surface that is present and asks
+    /// for a sign-in says WHAT TO DO. The worker should meet a door, not a wall, and
+    /// should be able to see who is behind it.
+    ///
+    /// ⚠ CONTENT IS A DIFFERENT QUESTION AND IS STILL WITHHELD: «компани болон
+    /// төслийн мэдээлэл нь л харагдахгүй». The Companies page opens on a seat and
+    /// holds no organisations. Surface is not content; one rule for both would
+    /// produce the opposite defect.
+    ///
+    /// The list and the check are kept rather than deleted so that the day one
+    /// surface genuinely must go, it is one line here and not a re-threading -
+    /// but nothing is protected by it today, and it must not be read as a guard.
     /// </summary>
-    public static readonly IReadOnlyList<string> HiddenFromABot = ["Companies", "Foundation"];
+    public static readonly IReadOnlyList<string> HiddenFromABot = [];
 
     /// <summary>
     /// Every page the shell can show. Kept here so a page added to the shell and

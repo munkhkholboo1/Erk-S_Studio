@@ -19,12 +19,44 @@ namespace ErkS.Studio.App.Tests;
 public sealed class ABOTSeesWhatAnotherUserSeesTests
 {
     [Fact]
-    public void ABOTDoesNotSeeTheOWNERSAdministration()
+    public void ABOTSeesEVERYSurfaceAndIsStoppedAtTheACTION()
     {
-        // The organisation library and the project's own information: the two
-        // the owner named, and nothing else.
-        Assert.False(StudioBotSurfaceVisibility.IsVisible(actingAsBot: true, "Companies"));
-        Assert.False(StudioBotSurfaceVisibility.IsVisible(actingAsBot: true, "Foundation"));
+        // 🔴 THE OWNER REVERSED THIS, DELIBERATELY AND TWICE (2026-09-12). First:
+        // «компани цэсийг алга болгох заавал шаардлага байхгүй. идэвхгүй байхад л
+        // болно». Then, watching the create button ask for a passport: «ботоос шинэ
+        // төсөл үүсгэх дарж болж байна. гэхдээ үндсэн эзэмшигчээр нэвтрэхийг
+        // шаардаж байна. энэ маш зөв үйлдэл». So the seat is stopped at the ACTION,
+        // and the surface stays where it is.
+        //
+        // 🔴 ASSERTED AS EMPTY ON PURPOSE, WITH ITS REASON. An empty list makes
+        // every other assertion here vacuous, which is exactly how somebody
+        // «restores» the hiding next month and quietly undoes a decision. This test
+        // is the record: the list is empty because the owner chose that.
+        Assert.Empty(StudioBotSurfaceVisibility.HiddenFromABot);
+
+        foreach (string page in StudioBotSurfaceVisibility.AllPages)
+        {
+            Assert.True(
+                StudioBotSurfaceVisibility.IsVisible(actingAsBot: true, page),
+                page + " is hidden from a seat, which the owner ruled against");
+        }
+    }
+
+    [Fact]
+    public void CONTENTIsStillWithheldAndTHATIsADifferentQuestion()
+    {
+        // ⚠ THE HALF THAT DID NOT CHANGE: «компани болон төслийн мэдээлэл нь л
+        // харагдахгүй». The Companies page opens on a seat and holds no
+        // organisations. Surface is not content - and the project LIST is the
+        // content rule anyone can check from here.
+        var assignedNothing = new HashSet<string>(StringComparer.Ordinal);
+
+        Assert.False(
+            StudioBotProjectVisibility.IsVisible(actingAsBot: true, assignedNothing, "p1"),
+            "a seat assigned nothing was shown a project");
+        Assert.True(
+            StudioBotProjectVisibility.IsVisible(actingAsBot: false, null, "p1"),
+            "an owner lost their own project");
     }
 
     [Fact]
@@ -81,6 +113,11 @@ public sealed class ABOTSeesWhatAnotherUserSeesTests
     {
         // The other direction: a name misspelled here hides nothing and would
         // never be noticed, because the page simply keeps appearing.
+        //
+        // ⚠ VACUOUS TODAY - the list is empty by the owner's decision, asserted as
+        // such in ABOTSeesEVERYSurfaceAndIsStoppedAtTheACTION. Kept because the day
+        // one surface genuinely must go, a typo in its name would hide nothing and
+        // nobody would notice; the check costs one line and waits.
         foreach (string hidden in StudioBotSurfaceVisibility.HiddenFromABot)
             Assert.Contains(hidden, StudioBotSurfaceVisibility.AllPages);
     }

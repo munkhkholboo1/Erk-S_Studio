@@ -94,20 +94,19 @@ public sealed class THEMENUMovesWithWhoIsActingTests
     }
 
     [Fact]
-    public void THEMenuRuleItselfStillAnswersForBothActors()
+    public void AREBUILDNowPutsEVERYPageBackForEitherActor()
     {
-        // The composition, so this file does not only assert call sites: a bot is
-        // offered no administration, and the owner on the same seated machine is.
-        foreach (string page in StudioBotSurfaceVisibility.HiddenFromABot)
+        // The composition, so this file does not only assert call sites. Since the
+        // owner ruled that surfaces stay and actions ask, a rebuild must produce the
+        // same navigation for both - which is what makes the rebuild itself the
+        // thing that matters rather than the rule it consults.
+        Assert.Empty(StudioBotSurfaceVisibility.HiddenFromABot);
+        foreach (string page in StudioBotSurfaceVisibility.AllPages)
         {
-            Assert.False(
-                StudioBotSurfaceVisibility.IsVisible(
-                    StudioBotActor.IsTheBotActing(true, ownerSessionInHand: false),
-                    page));
-            Assert.True(
-                StudioBotSurfaceVisibility.IsVisible(
-                    StudioBotActor.IsTheBotActing(true, ownerSessionInHand: true),
-                    page));
+            Assert.True(StudioBotSurfaceVisibility.IsVisible(
+                StudioBotActor.IsTheBotActing(true, ownerSessionInHand: false), page));
+            Assert.True(StudioBotSurfaceVisibility.IsVisible(
+                StudioBotActor.IsTheBotActing(true, ownerSessionInHand: true), page));
         }
     }
 

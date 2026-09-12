@@ -80,21 +80,21 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
     }
 
     [Fact]
-    public void THEOwnersADMINISTRATIONComesBackWithThem()
+    public void EVERYSurfaceIsOfferedToBOTHActorsNow()
     {
-        // The same conflation hid Companies and Foundation from the owner on their
-        // own seated machine - the surfaces the decree hides from a BOT.
+        // ⚠ THIS TEST USED TO ASSERT THE OPPOSITE FOR A BOT, and the owner changed
+        // the rule underneath it: surfaces stay, actions ask for the owner. What it
+        // still guards is the half that was the defect - the owner on a seated
+        // machine losing their own administration - now by the stronger statement
+        // that NOBODY loses a surface.
         bool owner = StudioBotActor.IsTheBotActing(true, ownerSessionInHand: true);
         bool bot = StudioBotActor.IsTheBotActing(true, ownerSessionInHand: false);
 
-        foreach (string page in StudioBotSurfaceVisibility.HiddenFromABot)
+        Assert.Empty(StudioBotSurfaceVisibility.HiddenFromABot);
+        foreach (string page in StudioBotSurfaceVisibility.AllPages)
         {
-            Assert.True(
-                StudioBotSurfaceVisibility.IsVisible(owner, page),
-                page + " stayed hidden from the owner on their own machine");
-            Assert.False(
-                StudioBotSurfaceVisibility.IsVisible(bot, page),
-                page + " is offered to a bot");
+            Assert.True(StudioBotSurfaceVisibility.IsVisible(owner, page), page);
+            Assert.True(StudioBotSurfaceVisibility.IsVisible(bot, page), page);
         }
     }
 

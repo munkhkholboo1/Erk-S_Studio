@@ -78,12 +78,58 @@ internal static class StudioBotProjectVisibility
             hasFile ? fileIdentity : rowProjectId);
 
     /// <summary>
+    /// The assignment list has not been read at all. Not the same as «assigned
+    /// nothing», and the two must never share a sentence.
+    /// </summary>
+    public const string AssignmentsUnreadMn =
+        "Ботын томилолт уншигдаагүй тул төслүүд харагдахгүй. " +
+        "Сервертэй холбогдоод дахин оролдоно уу.";
+
+    /// <summary>
+    /// «This seat has no projects», as a noun phrase.
+    ///
+    /// 🔴 ONE HOME, BECAUSE TWO PLACES SAY IT. The status line under the shell
+    /// has been saying it correctly all along while the empty project list said
+    /// «Cloud ERA бүртгэлээр нэвтэрнэ үү» - advice that is false on a seat, which
+    /// signed in with its PIN and would change nothing by following it. Two
+    /// spellings of one fact is how they come to disagree; the seat's own words
+    /// were already right, so they are the ones that are shared.
+    /// </summary>
+    public const string NoAssignedProjectsMn = "томилогдсон төсөл алга";
+
+    /// <summary>
     /// Why a project is not visible, in the words the person needs. Only ever
     /// called for a project that failed <see cref="IsVisible"/>.
     /// </summary>
     public static string ExplainRefusal(IReadOnlySet<string>? assignedProjectIds) =>
         assignedProjectIds is null
-            ? "Ботын томилолт уншигдаагүй тул төслүүд харагдахгүй. " +
-              "Сервертэй холбогдоод дахин оролдоно уу."
+            ? AssignmentsUnreadMn
             : "Энэ төсөл энэ суудалд томилогдоогүй байна.";
+
+    /// <summary>
+    /// Why the project LIST is empty on a seat - a title and a sentence.
+    ///
+    /// 🔴 THE EMPTY LIST HAD ONE SENTENCE FOR THREE DIFFERENT REASONS: «not
+    /// signed in», «a seat with no assignment» and «an owner with no projects». A
+    /// seat is signed in - by its PIN - so «нэвтэрнэ үү» sent the reader to a door
+    /// that would change nothing, or out of bot state altogether.
+    ///
+    /// 🔴 UNREAD AND ASSIGNED-NOTHING STAY APART. One is «ask the server again»,
+    /// the other is «ask the licence holder for an assignment». Folding them would
+    /// tell somebody to check their network about a decision nobody has made yet.
+    /// </summary>
+    public static (string Title, string Message) ExplainEmptyList(
+        IReadOnlySet<string>? assignedProjectIds) =>
+        assignedProjectIds is null
+            ? ("Ботын томилолт уншигдаагүй", AssignmentsUnreadMn)
+            : (Capitalised(NoAssignedProjectsMn),
+               "Энэ суудалд төсөл томилогдмогц энд харагдана. " +
+               "Томилолтыг лиценз эзэмшигч хийнэ.");
+
+    /// <summary>
+    /// The shared phrase as a heading. Derived rather than typed a second time -
+    /// a title that merely LOOKS like the phrase is the divergence this avoids.
+    /// </summary>
+    internal static string Capitalised(string phrase) =>
+        phrase.Length == 0 ? phrase : char.ToUpperInvariant(phrase[0]) + phrase[1..];
 }

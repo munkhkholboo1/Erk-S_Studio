@@ -417,7 +417,8 @@ internal sealed partial class ShellView
                 : "гишүүн: " +
                     StudioActingIdentityBadge.NamedOrUnknown(resumed.Member.DisplayName);
             SetStatus(resumed.AssignedProjects.Count == 0
-                ? $"«{seat.DisplayName}» — {member} · томилогдсон төсөл алга."
+                ? $"«{seat.DisplayName}» — {member} · " +
+                  $"{StudioBotProjectVisibility.NoAssignedProjectsMn}."
                 : $"«{seat.DisplayName}» — {member} · {appointment}{more}");
         }
         catch (StudioAccountException refused)

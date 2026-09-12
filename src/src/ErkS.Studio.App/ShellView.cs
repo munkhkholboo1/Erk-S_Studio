@@ -1814,7 +1814,21 @@ internal sealed partial class ShellView : IDisposable
         ApplyProjectBrowserView(BuildProjectBrowserItems(visibleRows));
         _ = EnsurePartnerOrganizationLogosAsync(visibleRows);
 
-        if (!account.IsSignedIn)
+        if (ActingAsBot)
+        {
+            // 🔴 ASKED BEFORE «not signed in», BECAUSE A SEAT IS NOT SIGNED IN AND
+            // IS NOT WAITING TO BE. It came in through its PIN, and «Cloud ERA
+            // бүртгэлээр нэвтэрнэ үү» is advice that changes nothing if followed -
+            // or that talks somebody out of bot state to fix a list that is empty
+            // for an entirely different reason. The owner said what it should say:
+            // «Тухайн суудалд томилогдсон төсөл одоогоор байхгүй».
+            (string title, string message) =
+                StudioBotProjectVisibility.ExplainEmptyList(botAssignedProjectIds);
+            projectsSummaryText.Text = "0 төсөл";
+            projectsEmptyTitle.Text = title;
+            projectsEmptyMessage.Text = message;
+        }
+        else if (!account.IsSignedIn)
         {
             projectsSummaryText.Text = "Нэвтрээгүй";
             projectsEmptyTitle.Text = "Cloud ERA бүртгэлээр нэвтэрнэ үү";
