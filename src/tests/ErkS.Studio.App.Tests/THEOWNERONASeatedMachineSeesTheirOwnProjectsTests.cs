@@ -23,21 +23,43 @@ namespace ErkS.Studio.App.Tests;
 public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
 {
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    public void THEBOTIsActingOnlyWhenNoOwnerSessionIsInHand(
+    // not seated: nobody is ever the bot
+    [InlineData(false, Owner, Owner, false)]
+    [InlineData(false, "", "", false)]
+    // seated, nobody signed in: the seat is acting
+    [InlineData(true, Owner, "", true)]
+    [InlineData(true, "", "", true)]
+    // seated, THE seat's own owner signed in: they are acting, not the bot
+    [InlineData(true, Owner, Owner, false)]
+    [InlineData(true, Owner, "OWNER@Erk-S.MN", false)]
+    // 🔴 seated, a DIFFERENT owner signed in: the seat's rights are not theirs
+    [InlineData(true, Owner, Stranger, true)]
+    // ⚠ seated by a build that never recorded its owner: the older behaviour
+    [InlineData(true, "", Owner, false)]
+    public void THEBOTIsActingUnlessTHATOwnerIsHere(
         bool deviceHoldsBotSeat,
-        bool ownerSessionInHand,
+        string seatEnteredByEmail,
+        string signedInEmail,
         bool expected)
     {
-        // The fourth row is the one that was wrong everywhere: a seated machine WITH
-        // the owner signed in. The PIN opens the seat; the passport opens the owner.
+        // 🔴 THE OWNER DREW THIS LINE THEMSELVES (2026-09-12, Decision 29): «өөр
+        // эзэмшигчийн ботыг өөр эзэмшигчийн эрхтэй хольж хутгаж болохгуй шүү». The
+        // question was «is somebody signed in», which answers the same for the seat's
+        // owner and for a stranger - and a stranger taking a seat's identity is the
+        // one failure nobody could undo.
+        //
+        // ⚠ THE LAST ROW IS A KNOWN HOLE WITH A KNOWN SHAPE. EnteredByEmail was
+        // never written before 2026-09-12, so seats made earlier cannot answer; failing
+        // closed there would tell the owner on their own machine that the bot is
+        // acting, which is the fault fixed hours ago. Recorded, not hidden.
         Assert.Equal(
             expected,
-            StudioBotActor.IsTheBotActing(deviceHoldsBotSeat, ownerSessionInHand));
+            StudioBotActor.IsTheBotActing(
+                deviceHoldsBotSeat, seatEnteredByEmail, signedInEmail));
     }
+
+    private const string Owner = "owner@erk-s.mn";
+    private const string Stranger = "someone.else@erk-s.mn";
 
     [Fact]
     public void ASEATEDMachineWithTheOwnerSignedInShowsTHEIRProjects()
@@ -45,9 +67,7 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
         // 🔴 THE DEFECT, END TO END THROUGH BOTH RULES. The assignment list is null
         // because the resume correctly threw away the seat's - and that null used to
         // mean «hide everything» about the owner.
-        bool actingAsBot = StudioBotActor.IsTheBotActing(
-            deviceHoldsBotSeat: true,
-            ownerSessionInHand: true);
+        bool actingAsBot = StudioBotActor.IsTheBotActing(true, Owner, Owner);
 
         Assert.True(StudioBotProjectVisibility.IsVisible(actingAsBot, null, "project-1"));
         Assert.True(StudioBotProjectVisibility.MayOpen(
@@ -65,9 +85,7 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
         // төсөл дээр үүргийнхээ дагуу л оролцоно. Бусад төсөл харагдахгүй.» A fix
         // that made the owner's list come back by weakening this would have traded
         // one fault for a worse one.
-        bool actingAsBot = StudioBotActor.IsTheBotActing(
-            deviceHoldsBotSeat: true,
-            ownerSessionInHand: false);
+        bool actingAsBot = StudioBotActor.IsTheBotActing(true, Owner, signedInEmail: "");
 
         Assert.True(actingAsBot);
         Assert.False(
@@ -87,8 +105,8 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
         // still guards is the half that was the defect - the owner on a seated
         // machine losing their own administration - now by the stronger statement
         // that NOBODY loses a surface.
-        bool owner = StudioBotActor.IsTheBotActing(true, ownerSessionInHand: true);
-        bool bot = StudioBotActor.IsTheBotActing(true, ownerSessionInHand: false);
+        bool owner = StudioBotActor.IsTheBotActing(true, Owner, Owner);
+        bool bot = StudioBotActor.IsTheBotActing(true, Owner, signedInEmail: "");
 
         Assert.Empty(StudioBotSurfaceVisibility.HiddenFromABot);
         foreach (string page in StudioBotSurfaceVisibility.AllPages)
@@ -108,9 +126,7 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
         // all: every scoped action in their own open project refused, locally, with the
         // server never asked.
         string[] personal = ["project.read", "project.write"];
-        StudioSessionKind kind = StudioBotActor.IsTheBotActing(
-            deviceHoldsBotSeat: true,
-            ownerSessionInHand: true)
+        StudioSessionKind kind = StudioBotActor.IsTheBotActing(true, Owner, Owner)
             ? StudioSessionKind.BotSeat
             : StudioSessionKind.Personal;
 
@@ -125,9 +141,7 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
         // seat's own scopes are in force, the owner's are not borrowed, and an unread
         // seat answer is still «nothing» rather than somebody else's rights.
         string[] personal = ["project.write"];
-        StudioSessionKind kind = StudioBotActor.IsTheBotActing(
-            deviceHoldsBotSeat: true,
-            ownerSessionInHand: false)
+        StudioSessionKind kind = StudioBotActor.IsTheBotActing(true, Owner, signedInEmail: "")
             ? StudioSessionKind.BotSeat
             : StudioSessionKind.Personal;
 
@@ -154,19 +168,37 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void SEATManagementKeepsTheAnswerItAlwaysGave(bool seated, bool signedIn)
+    [InlineData(false, Owner)]
+    [InlineData(false, "")]
+    [InlineData(true, "")]
+    [InlineData(true, Owner)]
+    public void SEATManagementKeepsTheAnswerItAlwaysGaveForTHATOwner(
+        bool seated,
+        string signedIn)
     {
         // 🔴 THE REFACTOR HAD TO BE TRUTH-PRESERVING, AND «!seated || signed in» IS
         // THE BEHAVIOUR THAT SHIPPED. Written out here independently as the
-        // specification being preserved: the new form is derived from the actor rule,
-        // and if the two ever disagree it is this test that says so.
+        // specification being preserved - for the seat's OWN owner, which is every
+        // case the old formula was ever asked about on a real machine.
         Assert.Equal(
-            !seated || signedIn,
-            StudioBotActor.MayManageSeats(seated, signedIn));
+            !seated || signedIn.Length > 0,
+            StudioBotActor.MayManageSeats(seated, Owner, signedIn));
+    }
+
+    [Fact]
+    public void ADIFFERENTOwnerMayNOTManageThisMachinesSeat()
+    {
+        // 🔴 STRICTER THAN WHAT SHIPPED, ON PURPOSE. «!seated || signed in» said yes
+        // to anybody holding a session; a seat belongs to the licence holder who made
+        // it, and releasing or renaming somebody else's seat is the mixing the owner
+        // ruled out. This row is where the old formula and the new one disagree, and
+        // the disagreement is the decision.
+        Assert.False(StudioBotActor.MayManageSeats(true, Owner, Stranger));
+        Assert.True(StudioBotActor.MayManageSeats(true, Owner, Owner));
+
+        // ⚠ And on a seat that never recorded its owner it stays permissive, for the
+        // same reason the actor rule does.
+        Assert.True(StudioBotActor.MayManageSeats(true, "", Stranger));
     }
 
     [Fact]
@@ -203,7 +235,8 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
 
         // And the truth table has ONE home: the shell derives it, never spells it.
         Assert.Contains(
-            "StudioBotActor.IsTheBotActing(SeatedAsBot, account.IsSignedIn)",
+            "StudioBotActor.IsTheBotActing(\n                seat is not null,\n" +
+            "                seat?.EnteredByEmail,\n                account.Current?.Email)",
             Lf(seat),
             StringComparison.Ordinal);
         Assert.DoesNotContain(

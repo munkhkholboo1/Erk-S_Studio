@@ -127,8 +127,19 @@ internal sealed partial class ShellView
     /// a refusal record must say the machine was seated because that is the fact
     /// being diagnosed.
     /// </summary>
-    private bool ActingAsBot =>
-        StudioBotActor.IsTheBotActing(SeatedAsBot, account.IsSignedIn);
+    private bool ActingAsBot
+    {
+        get
+        {
+            // Read ONCE: the seat's owner and the fact of being seated come from the
+            // same file, and two reads could straddle a transition.
+            StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+            return StudioBotActor.IsTheBotActing(
+                seat is not null,
+                seat?.EnteredByEmail,
+                account.Current?.Email);
+        }
+    }
 
     /// <summary>
     /// Whether this machine carries the durable trace of having been a seat.
@@ -186,8 +197,7 @@ internal sealed partial class ShellView
     // Was «!SeatedAsBot || account.IsSignedIn», which is the same truth table
     // written a second way. Derived from the one rule instead, so the two cannot
     // drift into disagreeing about a case neither author thought of.
-    private bool MayManageSeats =>
-        StudioBotActor.MayManageSeats(SeatedAsBot, account.IsSignedIn);
+    private bool MayManageSeats => !ActingAsBot;
 
     /// <summary>
     /// Refuses a seat-management action and says why. Called by each action for

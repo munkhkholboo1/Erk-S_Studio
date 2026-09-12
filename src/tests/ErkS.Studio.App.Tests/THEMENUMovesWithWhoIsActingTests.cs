@@ -104,11 +104,13 @@ public sealed class THEMENUMovesWithWhoIsActingTests
         foreach (string page in StudioBotSurfaceVisibility.AllPages)
         {
             Assert.True(StudioBotSurfaceVisibility.IsVisible(
-                StudioBotActor.IsTheBotActing(true, ownerSessionInHand: false), page));
+                StudioBotActor.IsTheBotActing(true, SeatOwner, signedInEmail: ""), page));
             Assert.True(StudioBotSurfaceVisibility.IsVisible(
-                StudioBotActor.IsTheBotActing(true, ownerSessionInHand: true), page));
+                StudioBotActor.IsTheBotActing(true, SeatOwner, SeatOwner), page));
         }
     }
+
+    private const string SeatOwner = "owner@erk-s.mn";
 
     private static int Occurrences(string text, string needle) => text.Split(needle).Length - 1;
 

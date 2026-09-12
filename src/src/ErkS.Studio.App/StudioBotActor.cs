@@ -35,17 +35,65 @@ internal static class StudioBotActor
     /// This machine's own state, from the device seat store. Survives the owner
     /// signing in, which is the whole reason this method is needed.
     /// </param>
-    /// <param name="ownerSessionInHand">An owner is signed in on this machine.</param>
-    public static bool IsTheBotActing(bool deviceHoldsBotSeat, bool ownerSessionInHand) =>
-        deviceHoldsBotSeat && !ownerSessionInHand;
+    /// <param name="seatEnteredByEmail">
+    /// The owner who put this machine into bot state, as the seat recorded it.
+    /// </param>
+    /// <param name="signedInEmail">Whoever is signed in on this machine now.</param>
+    public static bool IsTheBotActing(
+        bool deviceHoldsBotSeat,
+        string? seatEnteredByEmail,
+        string? signedInEmail)
+    {
+        if (!deviceHoldsBotSeat)
+            return false;
+
+        string signedIn = Normalise(signedInEmail);
+        if (signedIn.Length == 0)
+            return true;
+
+        // 🔴 IT IS NOT «SOMEBODY SIGNED IN», IT IS «THAT OWNER». The owner drew
+        // the line themselves: «өөр эзэмшигчийн ботыг өөр эзэмшигчийн эрхтэй хольж
+        // хутгаж болохгуй шүү». A seat belongs to the licence holder who created it;
+        // for anybody else it must not exist at all, so a different owner signing in
+        // here leaves the machine acting as the bot and takes none of its rights.
+        string seatOwner = Normalise(seatEnteredByEmail);
+
+        // ⚠ AND WHEN THE SEAT NEVER RECORDED ITS OWNER, THIS CANNOT ASK. The field
+        // existed from 2026-09-04 and was written for the first time on 2026-09-12:
+        // it had been read out of the account AFTER the transition that erases the
+        // account, so every seat made before that fix carries an empty string.
+        // Failing closed there would answer «the bot is acting» to the owner on their
+        // own machine - the exact fault fixed hours ago, reinstated. So an unrecorded
+        // seat keeps the older behaviour, and every seat made from now on can answer.
+        // This is a known hole with a known shape, not an oversight.
+        if (seatOwner.Length == 0)
+            return false;
+
+        return !seatOwner.Equals(signedIn, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// One spelling for one address. The same trim-and-lower the rest of the app
+    /// uses on account emails; comparing them raw would make case a boundary.
+    /// </summary>
+    private static string Normalise(string? email) =>
+        (email ?? "").Trim().ToLowerInvariant();
 
     /// <summary>
     /// Whether a machine may be asked to manage seats.
     ///
     /// Derived from the one question rather than spelled a second way: the old
-    /// «!seated || signed in» is the same truth table, and two spellings of one
-    /// question is how they come to disagree about a case neither author had in mind.
+    /// «!seated || signed in» was the same truth table until the owner's decision
+    /// split one of its rows, and two spellings of one question is how they come to
+    /// disagree about a case neither author had in mind.
+    ///
+    /// 🔴 STRICTER THAN IT WAS, ON PURPOSE: a DIFFERENT owner signing in on this
+    /// machine may no longer manage its seat. The old formula said yes to anybody
+    /// with a session.
     /// </summary>
-    public static bool MayManageSeats(bool deviceHoldsBotSeat, bool ownerSessionInHand) =>
-        !IsTheBotActing(deviceHoldsBotSeat, ownerSessionInHand);
+    public static bool MayManageSeats(
+        bool deviceHoldsBotSeat,
+        string? seatEnteredByEmail,
+        string? signedInEmail) =>
+        !IsTheBotActing(deviceHoldsBotSeat, seatEnteredByEmail, signedInEmail);
 }
