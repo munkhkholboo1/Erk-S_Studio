@@ -254,6 +254,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout.TablesLeftMm,
             layout.TablesMiddleMm,
             "ЗӨВШИЛЦСӨН.",
+            ConceptCoverTableHeadings.Concurring,
             concurring,
             // ⚠ ONE, WHICH IS NOT THE DRAWING'S THREE. Left as it was: how many
             // lines this side prints when nobody has filled it is part of the
@@ -281,6 +282,7 @@ public sealed partial class PdfSharpAlbumWriter
             layout.TablesMiddleMm,
             layout.TablesRightMm,
             "ХЯНАСАН.",
+            ConceptCoverTableHeadings.Reviewing,
             reviewing,
             // Two, from the measured sheet: rightRowHeightsMm is [20.0, 20.0].
             drawnRowMinimum: ConceptCoverSheetGrid.MeasuredUpperRowHeightsForTwo.Count);
@@ -293,6 +295,7 @@ public sealed partial class PdfSharpAlbumWriter
         double leftMm,
         double rightMm,
         string label,
+        ConceptCoverRoleLabelPlacement placement,
         IReadOnlyList<ProjectApprovalEntry> rows,
         int drawnRowMinimum)
     {
@@ -304,10 +307,27 @@ public sealed partial class PdfSharpAlbumWriter
 
         gfx.DrawRectangle(pen, ConceptCover2026Rect(layout, leftMm, bottom, rightMm, top));
         ConceptCover2026Line(gfx, pen, layout, leftMm, headerBottom, rightMm, headerBottom);
-        ConceptCover2026Line(gfx, pen, layout, roleRight, bottom, roleRight, headerBottom);
-        ConceptCover2026Line(gfx, pen, layout, nameRight, bottom, nameRight, headerBottom);
 
-        DrawConceptCover2026Cell(gfx, layout, label, leftMm, headerBottom, rightMm, top, bold: true);
+        // 🔴 THE FULL HEIGHT OF THE TABLE, BECAUSE THE HEADER ROW IS THREE CELLS.
+        // These stopped at headerBottom, which made the row one merged cell - and a
+        // merged row is what made a single centred label look like the right thing to
+        // put in it. The drawing's own rules are 48 mm long: the whole table, from its
+        // top edge down.
+        ConceptCover2026Line(gfx, pen, layout, roleRight, bottom, roleRight, top);
+        ConceptCover2026Line(gfx, pen, layout, nameRight, bottom, nameRight, top);
+
+        // 🔴 THE COLUMN HEADINGS, WHICH THIS SHEET HAS NEVER DRAWN. The role label
+        // was occupying this row; the reference puts «Албан тушаал | Нэр | Гарын
+        // үсэг» here, one per column. Nobody asked what belonged in the row because
+        // something was already printed across it.
+        DrawConceptCover2026Cell(
+            gfx, layout, ConceptCoverTableHeadings.Position, leftMm, headerBottom, roleRight, top);
+        DrawConceptCover2026Cell(
+            gfx, layout, ConceptCoverTableHeadings.PersonName, roleRight, headerBottom, nameRight, top);
+        DrawConceptCover2026Cell(
+            gfx, layout, ConceptCoverTableHeadings.Signature, nameRight, headerBottom, rightMm, top);
+
+        DrawConceptCover2026RoleLabel(gfx, layout, label, placement, leftMm, rightMm, top);
 
         // An empty table still has its rows: the sheet is signed by hand, so a
         // party with no name recorded needs a line to sign on.
@@ -361,6 +381,8 @@ public sealed partial class PdfSharpAlbumWriter
             layout.TablesLeftMm,
             layout.TablesMiddleMm,
             "ГҮЙЦЭТГЭГЧ.",
+            ConceptCoverTableHeadings.Performing,
+            ConceptCoverTableHeadings.Position,
             representative.Role,
             representative.Name,
             company);
@@ -372,6 +394,10 @@ public sealed partial class PdfSharpAlbumWriter
             layout.TablesMiddleMm,
             layout.TablesRightMm,
             "ЗАХИАЛАГЧ.",
+            ConceptCoverTableHeadings.Commissioning,
+            // ⚠ MEASURED, NOT REASONED: the client's table is the one that spells its
+            // heading differently, because a client can be a private person.
+            ConceptCoverTableHeadings.PositionOrCitizen,
             ProjectClientTypes.ResolveCoverRole(
                 clientType,
                 project.InitiationBasis.ClientName,
@@ -393,6 +419,8 @@ public sealed partial class PdfSharpAlbumWriter
         double leftMm,
         double rightMm,
         string label,
+        ConceptCoverRoleLabelPlacement placement,
+        string positionHeading,
         string? role,
         string? personName,
         CompanyProfile? logoOwner)
@@ -413,7 +441,17 @@ public sealed partial class PdfSharpAlbumWriter
         // cut the logo in half.
         ConceptCover2026Line(gfx, pen, layout, logoRight, middle, rightMm, middle);
 
-        DrawConceptCover2026Cell(gfx, layout, label, logoRight, middle, roleRight, top, bold: true);
+        // The upper row is the HEADING row here too - the role and the name go in the
+        // row beneath it, which is what the reference draws.
+        DrawConceptCover2026Cell(
+            gfx, layout, positionHeading, logoRight, middle, roleRight, top);
+        DrawConceptCover2026Cell(
+            gfx, layout, ConceptCoverTableHeadings.PersonName, roleRight, middle, nameRight, top);
+        DrawConceptCover2026Cell(
+            gfx, layout, ConceptCoverTableHeadings.Signature, nameRight, middle, rightMm, top);
+
+        DrawConceptCover2026RoleLabel(gfx, layout, label, placement, leftMm, rightMm, top);
+
         DrawConceptCover2026Cell(gfx, layout, role, logoRight, bottom, roleRight, middle);
         DrawConceptCover2026Cell(gfx, layout, personName, roleRight, bottom, nameRight, middle);
 
@@ -435,6 +473,42 @@ public sealed partial class PdfSharpAlbumWriter
                 ConceptCover2026Rect(layout, leftMm, bottom, logoRight, top));
         }
     }
+
+    /// <summary>
+    /// A role label, drawn OUTSIDE the table it names.
+    ///
+    /// 🔴 OUTSIDE, AND LEFT-ANCHORED, BOTH FROM THE MEASUREMENT. The reference
+    /// records these four as top-left MTEXT above their tables; the album drew them
+    /// across the header row instead, bold and centred, which is about half a table
+    /// width and four millimetres out. Left-anchored because a top-left anchor IS the
+    /// left edge of the writing - centring it in the same box is exactly the error the
+    /// title block made when a measured point was read as a middle.
+    ///
+    /// ⚠ NOT BOLD: every label and heading on the sheet is b0 in its own MTEXT format
+    /// run. The header cell it used to live in asked for bold.
+    ///
+    /// One home for the arithmetic, called by both pairs - the step from the measured
+    /// TOP to the middle the writer positions belongs in
+    /// <see cref="ConceptCoverRoleLabelPlacement.CentreAboveTableMm"/>, not in two
+    /// callers that could drift apart.
+    /// </summary>
+    private static void DrawConceptCover2026RoleLabel(
+        XGraphics gfx,
+        ConceptCoverLayout layout,
+        string label,
+        ConceptCoverRoleLabelPlacement placement,
+        double leftMm,
+        double rightMm,
+        double topMm) =>
+        DrawConceptCover2026Text(
+            gfx,
+            layout,
+            label,
+            centreXMm: leftMm + placement.LeftOffsetMm,
+            centreYMm: topMm + placement.CentreAboveTableMm,
+            widthMm: rightMm - leftMm,
+            heightMm: placement.CapHeightMm,
+            anchorIsLeftEdge: true);
 
     private static void DrawConceptCover2026Cell(
         XGraphics gfx,
