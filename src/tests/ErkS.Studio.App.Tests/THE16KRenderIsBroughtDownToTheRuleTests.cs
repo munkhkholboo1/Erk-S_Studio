@@ -348,6 +348,131 @@ public sealed class THE16KRenderIsBroughtDownToTheRuleTests : IDisposable
     }
 
     [Fact]
+    public void OVERWRITINGOneRenderRePREPARESONLYThatOne()
+    {
+        // 🔴 THE OWNER'S EVERYDAY ACTION, AND THE NUMBER THEY ARE OWED. «тэр
+        // хангалтгүй хэмжээнд байгаа зурагнаа сайжруулсаар байх болно» - they
+        // re-render one image and save it over the old one. Nothing about the page
+        // moves: the record's pixel dimensions are unchanged, so the layout is
+        // identical and every other image keeps its prepared copy. Only the changed
+        // one has a new content hash, so only it is encoded again.
+        //
+        // ⚠ THE FIRST VERSION OF THIS TEST MEASURED 0 AND THE FIXTURE WAS AT FAULT.
+        // Add() names each image's hash 'a', 'b', 'c'… by position, and the «improved»
+        // hash I picked was 'e' - image five's. The two records then keyed to one
+        // prepared copy, which already existed, so the pass reported a reuse. The
+        // comment beside Add() warns about exactly this; writing the warning is not
+        // the same as heeding it.
+        (ProjectVisualizationSource source, string projectPath) = Album(7);
+
+        VisualizationRasterPreparation first =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+        Assert.Equal(6, first.PreparedCount);
+
+        (ProjectVisualizationSource improved, _) = Reopen(source);
+        improved.Images[2].Sha256 = new string('z', 64);
+        VisualizationRasterPreparation second =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(improved, projectPath);
+
+        Assert.Equal(1, second.PreparedCount);
+        Assert.Equal(5, second.ReusedCount);
+    }
+
+    [Fact]
+    public void REMOVINGTheLastImageRePREPARESNOTHING()
+    {
+        // 🔴 THE COST IS PER FRAME, NOT PER ALBUM. Taking away the image that sat
+        // alone on the final page leaves every other page composed exactly as it was,
+        // so every frame is the same size and every prepared copy is still the right
+        // one. This is the measurement that decides whether «changing the composition»
+        // is a forty-second operation or a free one - and it is neither in general: it
+        // is free exactly when no frame moves.
+        (ProjectVisualizationSource source, string projectPath) = Album(7);
+        StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+
+        (ProjectVisualizationSource shorter, _) = Reopen(source);
+        shorter.Images.RemoveAt(6);
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(shorter, projectPath);
+
+        Assert.Equal(0, result.PreparedCount);
+        Assert.Equal(6, result.ReusedCount);
+    }
+
+    [Fact]
+    public void REMOVINGTheFirstImageCostsONLYTheImageWhoseFrameActuallyChanged()
+    {
+        // 🔴 THE CASE I EXPECTED TO BE EXPENSIVE, AND THE MEASUREMENT SAID ONE.
+        // Removing the first image shifts EVERY later image to a different page and a
+        // different slot, so the composition changes for all six. Five of them are
+        // reused anyway: the prepared copy is keyed by the needed PIXEL SIZE, and an
+        // image of the same shape in the same kind of slot needs the same size, wherever
+        // it sits. «The composition changed» is not the question. «Did THIS image's
+        // frame change» is.
+        //
+        // The one that is prepared again is the last image: it had a page to itself,
+        // which is the full content area and coarser than the rule wants, so nothing
+        // had been prepared for it. Losing an image moves it onto a shared page, where
+        // its frame is half the width - and a smaller frame is the case that needs a
+        // smaller file. So the cost is not «the album» and not «the page»; it is
+        // exactly the images whose frame moved.
+        (ProjectVisualizationSource source, string projectPath) = Album(7);
+        VisualizationRasterPreparation first =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+        Assert.Equal(1, first.AlreadyCoarseCount);
+
+        (ProjectVisualizationSource shifted, _) = Reopen(source);
+        shifted.Images.RemoveAt(0);
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(shifted, projectPath);
+
+        Assert.Equal(1, result.PreparedCount);
+        Assert.Equal(5, result.ReusedCount);
+        Assert.Equal(0, result.AlreadyCoarseCount);
+    }
+
+    [Fact]
+    public void ADIFFERENTLYShapedRenderIsWhatActuallyMovesTheFrames()
+    {
+        // 🔴 AND HERE IS THE CASE THAT DOES COST SOMETHING, so the claim above is
+        // not read as «composition is always free». The layout is scored from the
+        // images' aspect ratios, so a render saved back at a DIFFERENT shape can move
+        // its page's tiles - and the images sharing that page are then prepared again
+        // at their new sizes. Bounded by the page, not by the album.
+        (ProjectVisualizationSource source, string projectPath) = Album(7);
+        StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+
+        (ProjectVisualizationSource reshaped, _) = Reopen(source);
+        reshaped.Images[0].PixelWidth = SmallDenseHeight;
+        reshaped.Images[0].PixelHeight = SmallDenseWidth;
+        reshaped.Images[0].Sha256 = new string('f', 64);
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(reshaped, projectPath);
+
+        // At least the reshaped image itself, and never the whole album.
+        Assert.InRange(result.PreparedCount, 1, 3);
+        Assert.True(
+            result.PreparedCount + result.ReusedCount + result.AlreadyCoarseCount == 7,
+            "every image must be accounted for");
+    }
+
+    /// <summary>
+    /// An album of <paramref name="images"/> renders, two to a page.
+    ///
+    /// Two per page rather than the default four so the tiles are small enough for a
+    /// cheap fixture to be «denser than the rule» - the dense single-tile template is
+    /// 4700 px wide and encoding a page of them per test is seconds each.
+    /// </summary>
+    private (ProjectVisualizationSource Source, string ProjectPath) Album(int images)
+    {
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        source.ImagesPerPage = 2;
+        for (var i = 0; i < images; i++)
+            Add(source, projectPath, SmallDenseWidth, SmallDenseHeight);
+        return (source, projectPath);
+    }
+
+    [Fact]
     public void ANIMPROVEDRenderLEAVESNoSupersededCopyBehind()
     {
         // 🔴 THE FIX FOR THE STORE'S GROWTH CREATED THE SAME GROWTH ONE FOLDER
@@ -674,6 +799,16 @@ public sealed class THE16KRenderIsBroughtDownToTheRuleTests : IDisposable
     private const int DenseWidth = 4700;
     private const int DenseHeight = 3200;
 
+    /// <summary>
+    /// Dense enough for a HALF-width tile, which is all the album-shaped tests need.
+    /// A 390 mm tile wants about 4600 px; a 195 mm tile wants about 2300.
+    /// </summary>
+    private const int SmallDenseWidth = 2400;
+    private const int SmallDenseHeight = 1600;
+
+    private static readonly Lazy<byte[]> SmallDenseRender =
+        new(() => EncodePng(SmallDenseWidth, SmallDenseHeight));
+
     private ProjectVisualizationImage AddDense(
         ProjectVisualizationSource source,
         string projectPath) =>
@@ -689,11 +824,16 @@ public sealed class THE16KRenderIsBroughtDownToTheRuleTests : IDisposable
             Path.GetDirectoryName(projectPath)!, "sources", "visualizations", "images");
         Directory.CreateDirectory(store);
 
+        // Distinct per image and stable across a Reopen: the cache is keyed by
+        // content hash, so two fixtures sharing one would share a prepared copy and
+        // hide exactly the sums these tests measure.
         var hash = new string((char)('a' + source.Images.Count), 64);
         string fileName = hash + ".png";
         string fullPath = Path.Combine(store, fileName);
         if (pixelWidth == DenseWidth && pixelHeight == DenseHeight)
             File.WriteAllBytes(fullPath, DenseRender.Value);
+        else if (pixelWidth == SmallDenseWidth && pixelHeight == SmallDenseHeight)
+            File.WriteAllBytes(fullPath, SmallDenseRender.Value);
         else
             WritePng(fullPath, pixelWidth, pixelHeight);
 

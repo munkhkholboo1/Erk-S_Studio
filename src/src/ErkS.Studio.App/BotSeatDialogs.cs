@@ -176,6 +176,14 @@ internal sealed class BotSeatCreateDialog : Window
             resultText.Text = "ПИН тавьж байна…";
             _ = await account.SetBotPinAsync(seat.BotId, pinBox.Text.Trim());
 
+            // 🔴 READ BEFORE THE STEP THAT DESTROYS IT. EnterBotStateAsync ends
+            // with EraseOwnerCredentialForBotState, which sets Current to null - that
+            // is its JOB. So «account.Current?.Email» taken afterwards was not
+            // occasionally empty, it was ALWAYS empty, and had been since the field
+            // was added on 2026-09-04. The owner found the blank in their own seat
+            // file; the field had never once been written.
+            string enteredByEmail = account.Current?.Email ?? "";
+
             // The seat is created and the PIN is set; the last step erases this
             // machine's owner credential. If that fails the whole transition is
             // rolled back inside the service - a machine that is half seated is
@@ -196,7 +204,7 @@ internal sealed class BotSeatCreateDialog : Window
                     pinBox.Text.Trim(),
                     StudioBotDeviceState.ResolveSeatIdentity(seat.BotId, seat.InternalEmail)).Blob),
                 EnteredAtUtc = DateTimeOffset.UtcNow,
-                EnteredByEmail = account.Current?.Email ?? "",
+                EnteredByEmail = enteredByEmail,
             };
             DialogResult = true;
         }
