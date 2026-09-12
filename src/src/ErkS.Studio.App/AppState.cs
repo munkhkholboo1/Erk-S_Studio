@@ -1385,6 +1385,31 @@ public sealed class AppState : IDisposable
                ApplyCityGenProjectSiteReconciliation(siteResult);
     }
 
+    /// <summary>
+    /// Whether any linked render has been overwritten since the project copied it.
+    /// READS ONLY - the rebuild decision may not write to the project.
+    /// </summary>
+    public LinkedSourceSurvey SurveyLinkedVisualizationSources()
+    {
+        if (!HasOpenProject || string.IsNullOrWhiteSpace(ProjectPath))
+            return new LinkedSourceSurvey(0, 0);
+
+        try
+        {
+            return ProjectAssetSourceReconciler.SurveyLinkedVisualizationSources(
+                Project,
+                ProjectPath);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException)
+        {
+            // A question that throws is worse than a question with no answer: the
+            // album would stop being drawable because a share was offline.
+            return new LinkedSourceSurvey(0, 0);
+        }
+    }
+
     private ProjectAssetSourceReconciliationResult ReconcileProjectAssetSourcesCore()
     {
         if (!HasOpenProject || string.IsNullOrWhiteSpace(ProjectPath))

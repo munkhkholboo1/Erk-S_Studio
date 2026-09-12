@@ -25,6 +25,16 @@ internal enum AlbumRebuildReason
     /// <summary>The work moved on.</summary>
     FingerprintChanged,
 
+    /// <summary>
+    /// A linked render was overwritten at its source.
+    ///
+    /// 🔴 THE FINGERPRINT CANNOT SEE THIS. It is computed from the project record,
+    /// and the record still holds the old sha256 until something reconciles - which
+    /// happens inside the draw. So the one change the owner makes most often was
+    /// invisible to the only question that decides whether to draw.
+    /// </summary>
+    LinkedSourceMoved,
+
     /// <summary>The one reason NOT to draw.</summary>
     NothingChanged,
 }
@@ -98,6 +108,8 @@ internal static class StudioAlbumRebuildPolicy
             "энэ альбом юунаас бүтснийг бүртгээгүй тул",
         AlbumRebuildReason.FingerprintChanged =>
             "төсөл өөрчлөгдсөн тул",
+        AlbumRebuildReason.LinkedSourceMoved =>
+            "эх рендер шинэчлэгдсэн тул",
         AlbumRebuildReason.NothingChanged =>
             "юу ч өөрчлөгдөөгүй тул",
 

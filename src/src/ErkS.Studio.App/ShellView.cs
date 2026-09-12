@@ -3844,6 +3844,10 @@ internal sealed partial class ShellView : IDisposable
         StudioWorkspaceOperation origin = StudioWorkspaceOperation.ExplicitAlbumEdit)
     {
         lastAlbumUpdateException = null;
+
+        // A fresh look each pass: the owner may have saved a render since the last
+        // one, and a memo that outlived its pass would answer for the old disk.
+        linkedSourceSurveyThisPass = null;
         if (!state.HasOpenProject)
         {
             return false;
@@ -3866,9 +3870,16 @@ internal sealed partial class ShellView : IDisposable
         try
         {
             bool collectUi = StudioRefreshSyncOperationPolicy.ShouldCollectProjectUi(origin);
+            // 🔴 THE DECISION IS HALF THE FIX; THIS IS THE OTHER HALF. Only
+            // ExplicitAlbumEdit reconciles by origin, so a sync or a source refresh
+            // draws from the copy the project already holds. Deciding «the render
+            // moved» and then drawing the OLD one would be worse than today: the
+            // album would report a rebuild that changed nothing, and we would
+            // believe it was fixed.
             bool reconcileLinkedProjectAssets =
                 StudioRefreshSyncOperationPolicy.ShouldReconcileLinkedProjectAssets(
-                    origin);
+                    origin) ||
+                LinkedVisualizationSourcesHaveMoved();
             AlbumBuildResult result;
             AlbumBuildResult cloudUnion = null!;
             bool cloudUnionBuilt = false;
@@ -4036,10 +4047,42 @@ internal sealed partial class ShellView : IDisposable
         return decision.MustDraw;
     }
 
+
+    /// <summary>
+    /// Whether a linked render has been overwritten since the project copied it -
+    /// asked ONCE per album pass.
+    ///
+    /// 🔴 ONE ANSWER, BECAUSE TWO CALLERS ACT ON IT. The rebuild decision uses it
+    /// to say «draw», and the build uses it to say «reconcile». Surveying the disk
+    /// twice would let a file land between the two reads: the album would be drawn
+    /// for a reason the build then declined to act on, and the result would be a
+    /// rebuild that changed nothing while reporting that it had. The memo is
+    /// cleared at the start of each pass, so a second update in the same session
+    /// looks again.
+    /// </summary>
+    private bool LinkedVisualizationSourcesHaveMoved()
+    {
+        linkedSourceSurveyThisPass ??= state.SurveyLinkedVisualizationSources();
+        return linkedSourceSurveyThisPass.AnyMoved;
+    }
+
+    /// <summary>
+    /// The survey taken during the album pass in progress, or null before one has
+    /// been taken. Not a cache across passes - a memo within one.
+    /// </summary>
+    private LinkedSourceSurvey? linkedSourceSurveyThisPass;
+
     private AlbumRebuildDecision DecideWhetherToDrawAlbum(StudioWorkspaceOperation origin)
     {
         if (StudioAlbumRebuildPolicy.AlwaysDraws(origin))
             return new AlbumRebuildDecision(true, AlbumRebuildReason.OriginAlwaysDraws);
+
+        // 🔴 ASKED BEFORE THE FINGERPRINT, BECAUSE THE FINGERPRINT CANNOT SEE IT.
+        // A render overwritten at its source leaves the project record untouched -
+        // the stored sha256 is still the old one - so the fingerprint does not
+        // move and «nothing changed» is the wrong answer. Reads only.
+        if (LinkedVisualizationSourcesHaveMoved())
+            return new AlbumRebuildDecision(true, AlbumRebuildReason.LinkedSourceMoved);
 
         string fingerprint = "";
         try

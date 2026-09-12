@@ -543,4 +543,89 @@ public static class ProjectAssetSourceReconciler
             return "";
         }
     }
+
+    /// <summary>
+    /// Whether any linked visualisation source has moved since the project last
+    /// took a copy of it - ASKED WITHOUT WRITING ANYTHING.
+    ///
+    /// 🔴 THE OWNER'S WHOLE WAY OF WORKING DEPENDS ON THIS QUESTION BEING ASKED.
+    /// «би төслийн харагдах байдал хангалтгүй байсан ч рендерлээд хуудсанд
+    /// оруулчихна. дараа нь тэр хангалтгүй хэмжээнд байгаа зурагнуудаа сайжруулсаар
+    /// байх болно» - they overwrite a render under the same name and expect the
+    /// album to follow. Measured 2026-09-12: nothing watched for it. The album's
+    /// rebuild decision computes its fingerprint from UN-reconciled state, so the
+    /// stored sha256 is still the old one, the fingerprint does not move, no draw
+    /// happens - and the reconciliation that would have noticed lives INSIDE the
+    /// draw. The one path that could see the new file decided it was unnecessary
+    /// without looking.
+    ///
+    /// 🔴 AND THIS REUSES <see cref="CanUseCachedVisualizationInspection"/> RATHER
+    /// THAN RE-DERIVING IT. A second staleness comparison would be the worse bug:
+    /// the decision would say «moved» while the reconciler's own cache check said
+    /// «unchanged, skip», and the album would report a rebuild that changed
+    /// nothing. One comparison, asked twice.
+    ///
+    /// Reads only. «A question about whether to do work must not itself be the
+    /// work» is the rule the rebuild decision is built on, and it still holds.
+    /// </summary>
+    public static LinkedSourceSurvey SurveyLinkedVisualizationSources(
+        ProjectWorkspace project,
+        string projectPath)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+
+        string fullProjectPath = Path.GetFullPath(projectPath);
+        var moved = 0;
+        var unreachable = 0;
+
+        foreach (ProjectVisualizationImage image in project.Visualizations
+                     .ImagesForProject(project.ProjectId))
+        {
+            if (string.IsNullOrWhiteSpace(image.LinkedSourcePath))
+                continue;
+
+            string storedPath = ResolveProjectPath(fullProjectPath, image.RelativePath);
+            string linkedPath = ResolveOptionalFullPath(image.LinkedSourcePath);
+
+            // 🔴 «GONE» IS NOT «MOVED», AND IT GETS ITS OWN COUNT. The owner's
+            // renders live on D:\Cloud Work\…; an unplugged drive must not be read
+            // as a change, or every album would redraw whenever that share was
+            // offline - and redraw from the stored copy, achieving nothing.
+            if (!FileExists(linkedPath))
+            {
+                unreachable++;
+                continue;
+            }
+
+            if (!CanUseCachedVisualizationInspection(
+                    image,
+                    linkedPath,
+                    storedPath,
+                    hasLinkedSource: true))
+            {
+                moved++;
+            }
+        }
+
+        return new LinkedSourceSurvey(moved, unreachable);
+    }
+}
+
+/// <summary>
+/// What a read-only look at the linked sources found.
+/// </summary>
+/// <param name="MovedCount">
+/// How many linked sources no longer match the copy the project holds - compared
+/// on write time AND size, which is the comparison the reconciler itself uses.
+/// </param>
+/// <param name="UnreachableCount">
+/// How many could not be looked at: an unplugged drive, a moved folder, a
+/// permission. A THIRD state on purpose - «gone» read as «changed» would redraw
+/// every album whenever a share was offline, and redraw from the stored copy,
+/// achieving nothing but the delay.
+/// </param>
+public sealed record LinkedSourceSurvey(int MovedCount, int UnreachableCount)
+{
+    /// <summary>Whether the album is now drawn from something out of date.</summary>
+    public bool AnyMoved => MovedCount > 0;
 }
