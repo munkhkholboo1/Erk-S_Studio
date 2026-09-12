@@ -63,6 +63,16 @@ internal static class StudioAlbumDrawSentence
                 "эх хэмжээгээр орсон.";
         }
 
+        // 🔴 NAMED AS «OLD PREPARATIONS», NOT FOLDED INTO THE OTHER CLEANUP. Both
+        // sentences report deleted files, but one deletes the owner's renders and this
+        // one deletes copies Studio made and can make again. On the day a deletion
+        // turns out to have been wrong, the line has to say WHICH KIND went.
+        if (record.LastPreparedCacheRemovedCount > 0)
+        {
+            clause += $" Хуучин бэлтгэл {record.LastPreparedCacheRemovedCount} файл " +
+                $"({SizeMn(record.LastPreparedCacheRemovedBytes)}) чөлөөлөгдсөн.";
+        }
+
         return clause;
     }
 

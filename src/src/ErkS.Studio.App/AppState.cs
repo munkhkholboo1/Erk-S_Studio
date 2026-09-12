@@ -1342,6 +1342,9 @@ public sealed class AppState : IDisposable
                 preparation.FailedCount,
                 preparation.Seconds,
                 DateTimeOffset.UtcNow);
+            Project.PrimaryAlbum.LastDraw.RecordPreparedCacheSweep(
+                preparation.CacheRemovedCount,
+                preparation.CacheRemovedBytes);
             SaveProject();
         }
 

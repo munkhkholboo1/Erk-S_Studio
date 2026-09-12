@@ -348,6 +348,146 @@ public sealed class THE16KRenderIsBroughtDownToTheRuleTests : IDisposable
     }
 
     [Fact]
+    public void ANIMPROVEDRenderLEAVESNoSupersededCopyBehind()
+    {
+        // 🔴 THE FIX FOR THE STORE'S GROWTH CREATED THE SAME GROWTH ONE FOLDER
+        // OVER. Prepared copies are named by content hash too, so each render the owner
+        // improves leaves its previous prepared copy behind - and improving renders is
+        // their whole way of working. 26 stale copies at a few megabytes each is not
+        // the 1.8 GB the payload store leaked, but it is the identical defect and it
+        // arrived with my own feature.
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        AddDense(source, projectPath);
+
+        StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+        string firstCopy = Full(projectPath, source.Images[0].RelativePath);
+
+        (ProjectVisualizationSource improved, _) = Reopen(source);
+        improved.Images[0].Sha256 = new string('c', 64);
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(improved, projectPath);
+
+        string secondCopy = Full(projectPath, improved.Images[0].RelativePath);
+        Assert.NotEqual(firstCopy, secondCopy);
+        Assert.True(File.Exists(secondCopy), "the new prepared copy is missing");
+        Assert.False(File.Exists(firstCopy), "the superseded copy was left behind");
+        Assert.Equal(1, result.CacheRemovedCount);
+        Assert.True(result.CacheRemovedBytes > 0);
+    }
+
+    [Fact]
+    public void TICKINGAnImageOutRELAYSThePageAndREPREPARESTheRest()
+    {
+        // 🔴 THIS TEST WAS WRITTEN TO PROVE THE OPPOSITE AND DISPROVED IT. The
+        // claim was that gating the sweep on «something new appeared» spares a
+        // ticked-out image its prepared copy, so ticking it back in is free. It is not:
+        // removing an image RE-LAYS OUT the page, the remaining ones land in bigger
+        // frames, need more pixels, and are prepared afresh - so the pass writes new
+        // copies and sweeps the superseded ones.
+        //
+        // ⚠ THE COST IS REAL AND BELONGS ON THE RECORD: changing the composition of
+        // a 26-image album re-encodes everything still in it. It is inherent to sizing
+        // by placed size, which is the owner's rule - a fixed pixel count would avoid
+        // it and starve every large tile instead.
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        AddDense(source, projectPath);
+        AddDense(source, projectPath);
+
+        StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+        string twoUpCopy = Full(projectPath, source.Images[0].RelativePath);
+        string tickedOutCopy = Full(projectPath, source.Images[1].RelativePath);
+
+        (ProjectVisualizationSource again, _) = Reopen(source);
+        again.Images[1].IsIncludedInAlbum = false;
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(again, projectPath);
+
+        // One image alone gets the whole content area, so it needs MORE pixels than it
+        // did sharing the page - a different file, not the one already on disk.
+        Assert.Equal(1, result.PreparedCount);
+        Assert.NotEqual(twoUpCopy, Full(projectPath, again.Images[0].RelativePath));
+        Assert.True(File.Exists(Full(projectPath, again.Images[0].RelativePath)));
+
+        // And both copies from the two-up layout are now referenced by nothing.
+        Assert.Equal(2, result.CacheRemovedCount);
+        Assert.False(File.Exists(twoUpCopy), "the superseded two-up copy was left behind");
+        Assert.False(File.Exists(tickedOutCopy), "the ticked-out copy was left behind");
+    }
+
+    [Fact]
+    public void IMPROVINGOneRenderLEAVESTheOtherImagesCopiesAlone()
+    {
+        // 🔴 THE MOST DANGEROUS CASE IN A CACHE SWEEP: deleting a live entry for an
+        // image nobody touched. A reference set built only from the copies written THIS
+        // pass would name one image and orphan the other twenty-five - so every build
+        // after an improvement would re-encode the whole album, for ever, and the first
+        // symptom would be «why is it always slow now».
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        AddDense(source, projectPath);
+        AddDense(source, projectPath);
+
+        StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+        string untouched = Full(projectPath, source.Images[1].RelativePath);
+
+        (ProjectVisualizationSource improved, _) = Reopen(source);
+        improved.Images[0].Sha256 = new string('z', 64);
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(improved, projectPath);
+
+        Assert.Equal(1, result.PreparedCount);
+        Assert.Equal(1, result.ReusedCount);
+        Assert.Equal(1, result.CacheRemovedCount);
+        Assert.True(
+            File.Exists(untouched),
+            "the prepared copy of an image that did not change was swept away");
+    }
+
+    [Fact]
+    public void THECacheSweepNEVERReachesTheOwnersPayloads()
+    {
+        // 🔴 DELETION CODE, SO THE LIMIT IS ASSERTED RATHER THAN REASONED ABOUT.
+        // The prepared cache and the payload store are sibling folders; a sweep that
+        // took the wrong one would remove the renders this whole feature exists to
+        // preserve.
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        AddDense(source, projectPath);
+        string payload = Full(projectPath, source.Images[0].OriginalFileName);
+
+        StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+
+        (ProjectVisualizationSource improved, _) = Reopen(source);
+        improved.Images[0].Sha256 = new string('c', 64);
+        VisualizationRasterPreparation result =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(improved, projectPath);
+
+        Assert.Equal(1, result.CacheRemovedCount);
+        Assert.True(File.Exists(payload), "the sweep reached into the payload store");
+    }
+
+    [Fact]
+    public void APASSWithNothingPreparedRemovesNothing()
+    {
+        // «Nothing to keep» and «keep nothing» must never be the same instruction in
+        // deletion code. A pass over images already coarse enough writes no copy and
+        // must take none away.
+        //
+        // ⚠ WHAT IS NOT CLAIMED HERE: the «only sweep when something was written»
+        // gate is a COST choice, not a correctness one, and no test pins it. Sweeping
+        // on every pass would remove nothing extra - reused copies are in the reference
+        // set too, and a pass with an empty set is refused by the rule in Core. The gate
+        // spares the steady state a directory listing, which is all it spares. Writing
+        // a test that pretended otherwise would be a test of my own comment.
+        (ProjectVisualizationSource source, string projectPath) = Project();
+        Add(source, projectPath, 120, 90);
+
+        VisualizationRasterPreparation coarse =
+            StudioVisualizationRasterPreparer.PrepareForAlbum(source, projectPath);
+
+        Assert.Equal(0, coarse.PreparedCount);
+        Assert.Equal(0, coarse.CacheRemovedCount);
+    }
+
+    [Fact]
     public void THEPassREPORTSHowLongItTook()
     {
         // 🔴 THE NUMBER HAS TO COME FROM THE WORK, NOT FROM A GUESS. Master asked

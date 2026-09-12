@@ -105,6 +105,19 @@ public sealed class AlbumDrawRecord
     /// </summary>
     public int LastUnpreparedImageCount { get; set; }
 
+    /// <summary>
+    /// Superseded prepared copies the last sweep of the prepared cache removed.
+    ///
+    /// 🔴 KEPT APART FROM THE PAYLOAD SWEEP'S NUMBERS ON PURPOSE. These files are
+    /// DERIVED - losing one costs a re-encode, losing a payload costs the owner a
+    /// render they made. One combined figure would be the wrong trace on the day
+    /// something goes wrong, because it could not say which kind of file went.
+    /// </summary>
+    public int LastPreparedCacheRemovedCount { get; set; }
+
+    /// <summary>How much disk that gave back.</summary>
+    public long LastPreparedCacheRemovedBytes { get; set; }
+
     public AlbumDrawRecord Clone() => new()
     {
         DecidedAtUtc = DecidedAtUtc,
@@ -120,6 +133,8 @@ public sealed class AlbumDrawRecord
         LastPreparedAtUtc = LastPreparedAtUtc,
         LastPreparedSeconds = LastPreparedSeconds,
         LastUnpreparedImageCount = LastUnpreparedImageCount,
+        LastPreparedCacheRemovedCount = LastPreparedCacheRemovedCount,
+        LastPreparedCacheRemovedBytes = LastPreparedCacheRemovedBytes,
     };
 
     /// <summary>
@@ -195,5 +210,20 @@ public sealed class AlbumDrawRecord
         LastPreparedImageCount = preparedCount;
         LastPreparedAtUtc = atUtc;
         LastPreparedSeconds = Math.Max(0d, seconds);
+    }
+
+    /// <summary>
+    /// Notes what the sweep of the DERIVED prepared copies removed.
+    ///
+    /// History, like the payload sweep's numbers: a pass that found nothing
+    /// superseded must not erase the one that did.
+    /// </summary>
+    public void RecordPreparedCacheSweep(int removedCount, long removedBytes)
+    {
+        if (removedCount <= 0)
+            return;
+
+        LastPreparedCacheRemovedCount = removedCount;
+        LastPreparedCacheRemovedBytes = Math.Max(0, removedBytes);
     }
 }

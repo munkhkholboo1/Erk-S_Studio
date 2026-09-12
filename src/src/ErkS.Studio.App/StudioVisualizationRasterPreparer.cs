@@ -26,6 +26,18 @@ namespace ErkS.Studio;
 /// because nothing here could have prepared it.
 /// </param>
 /// <param name="PreparedBytes">Total size of the prepared copies now in use.</param>
+/// <param name="CacheRemovedCount">
+/// Superseded prepared copies deleted.
+///
+/// 🔴 THE FEATURE THAT FIXED THE STORE'S GROWTH CREATED ITS OWN. Prepared copies
+/// are named by content hash too, so every render the owner improves leaves its
+/// previous prepared copy behind - the same defect, one folder over, introduced by
+/// the fix for the first one. Reported separately from the payload sweep because
+/// these files are DERIVED: losing one costs a re-encode, losing a payload costs the
+/// owner their render, and a single number would make the two indistinguishable on
+/// the day one of them goes wrong.
+/// </param>
+/// <param name="CacheRemovedBytes">How much disk those gave back.</param>
 /// <param name="Seconds">
 /// How long the pass took.
 ///
@@ -43,7 +55,9 @@ internal sealed record VisualizationRasterPreparation(
     int FailedCount,
     int MissingCount,
     long PreparedBytes,
-    double Seconds = 0d)
+    double Seconds = 0d,
+    int CacheRemovedCount = 0,
+    long CacheRemovedBytes = 0L)
 {
     internal static VisualizationRasterPreparation Nothing { get; } =
         new(0, 0, 0, 0, 0, 0);
@@ -126,6 +140,7 @@ internal static class StudioVisualizationRasterPreparer
             VisualizationPageLayoutPlanner.Create(snapshot, firstPageNumber: 1);
 
         long startedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        var inUse = new List<string>();
         var prepared = 0;
         var reused = 0;
         var alreadyCoarse = 0;
@@ -172,6 +187,7 @@ internal static class StudioVisualizationRasterPreparer
 
                     image.RelativePath =
                         ProjectWorkspacePaths.ToRelativePath(projectPath, preparedPath);
+                    inUse.Add(image.RelativePath);
                     bytes += new FileInfo(preparedPath).Length;
                     if (existed)
                         reused++;
@@ -188,6 +204,27 @@ internal static class StudioVisualizationRasterPreparer
             }
         }
 
+        // 🔴 SWEPT ONLY WHEN A NEW COPY WAS WRITTEN, BECAUSE THAT IS THE ONLY WAY
+        // GARBAGE APPEARS. Nothing in the prepared folder can become unreferenced
+        // during a pass that wrote nothing, so the steady state - every copy reused,
+        // which is every build after the first - does not even enumerate the folder.
+        //
+        // ⚠ A FIRST DRAFT OF THIS COMMENT CLAIMED THE GATE ALSO SPARED AN IMAGE
+        // TICKED OUT OF THE ALBUM ITS PREPARED COPY. A test disproved it: removing one
+        // image RE-LAYS OUT the page, so every remaining image lands in a bigger frame,
+        // needs more pixels, and is prepared afresh - which makes the pass a
+        // «something new appeared» pass after all, and sweeps the superseded copies
+        // including the ticked-out one. That is correct behaviour and it is not free:
+        // changing the composition of a 26-image album re-encodes what is still in it.
+        // Inherent to sizing per frame, which is the rule; named rather than hidden.
+        //
+        // ⚠ AND AN IMAGE DELETED FROM THE PROJECT while nothing else changes leaves
+        // its prepared copy until the next pass that prepares anything. Disk, not
+        // correctness, bounded by the number of images.
+        VisualizationStoreSweepResult cacheSweep = prepared > 0
+            ? StudioVisualizationStoreMaintenance.SweepFolder(projectPath, preparedFolder, inUse)
+            : new VisualizationStoreSweepResult(0, 0, 0, "");
+
         return new VisualizationRasterPreparation(
             prepared,
             reused,
@@ -196,7 +233,9 @@ internal static class StudioVisualizationRasterPreparer
             missing,
             bytes,
             (double)(System.Diagnostics.Stopwatch.GetTimestamp() - startedTicks) /
-                System.Diagnostics.Stopwatch.Frequency);
+                System.Diagnostics.Stopwatch.Frequency,
+            cacheSweep.RemovedCount,
+            cacheSweep.RemovedBytes);
     }
 
     /// <summary>

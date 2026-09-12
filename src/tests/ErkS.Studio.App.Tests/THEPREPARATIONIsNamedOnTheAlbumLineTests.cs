@@ -145,6 +145,44 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
     }
 
     [Fact]
+    public void ASUPERSEDEDPreparationIsNamedAsSUCHNotAsACleanup()
+    {
+        // 🔴 BOTH SENTENCES REPORT DELETED FILES AND THEY MUST NOT READ ALIKE. The
+        // other cleanup removes the OWNER'S renders; this one removes copies Studio
+        // made and can make again. On the day a deletion turns out to have been wrong,
+        // this line is the only record, and it has to say which kind of file went.
+        var record = new AlbumDrawRecord();
+        record.Record(drew: true, AlbumRebuildReason.FingerprintChanged.ToString(), Now);
+        record.RecordRasterPreparation(1, 0, 3.2d, Now);
+        record.RecordPreparedCacheSweep(26, 78L * 1024 * 1024);
+        record.RecordStoreSweep(4, 120L * 1024 * 1024, "", Now);
+
+        string sentence = StudioAlbumDrawSentence.For(record);
+
+        Assert.Contains("Хуучин бэлтгэл 26 файл", sentence);
+        Assert.Contains("78 МБ", sentence);
+        Assert.Contains("Цэвэрлэгээ", sentence);
+        Assert.Contains("120 МБ", sentence);
+
+        // Distinguishable, not merely both present: the two counts and the two sizes
+        // must not have been folded into one figure.
+        Assert.NotEqual(
+            sentence.IndexOf("78 МБ", StringComparison.Ordinal),
+            sentence.IndexOf("120 МБ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void APASSThatFoundNothingSupersededDoesNOTEraseTheLastOne()
+    {
+        var record = new AlbumDrawRecord();
+        record.RecordPreparedCacheSweep(26, 78L * 1024 * 1024);
+        record.RecordPreparedCacheSweep(0, 0);
+
+        Assert.Equal(26, record.LastPreparedCacheRemovedCount);
+        Assert.Equal(78L * 1024 * 1024, record.Clone().LastPreparedCacheRemovedBytes);
+    }
+
+    [Fact]
     public void APROJECTThatNeverPreparedAnythingSaysNOTHING()
     {
         // 🔴 NO LIMB THAT READS «0». Most albums will be built from images already
@@ -155,6 +193,7 @@ public sealed class THEPREPARATIONIsNamedOnTheAlbumLineTests
 
         Assert.DoesNotContain("Бэлтгэл", StudioAlbumDrawSentence.For(record));
         Assert.DoesNotContain("эх хэмжээгээр", StudioAlbumDrawSentence.For(record));
+        Assert.DoesNotContain("Хуучин", StudioAlbumDrawSentence.For(record));
     }
 
     [Fact]

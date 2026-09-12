@@ -69,30 +69,11 @@ internal static class StudioVisualizationStoreMaintenance
             storeFolder = Path.Combine(
                 ProjectWorkspacePaths.GetProjectFolder(projectPath),
                 Path.Combine(StoreSegments));
-            if (!Directory.Exists(storeFolder))
-                return new VisualizationStoreSweepResult(0, 0, 0, "");
         }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or
-                ArgumentException or NotSupportedException or InvalidDataException)
+        catch (Exception exception) when (IsFileTrouble(exception))
         {
             // A tidy-up that throws would take the album build down with it. The
             // store simply goes unswept, which costs disk and nothing else.
-            return new VisualizationStoreSweepResult(0, 0, 0, "");
-        }
-
-        List<string> present;
-        try
-        {
-            present = Directory
-                .EnumerateFiles(storeFolder, "*", SearchOption.TopDirectoryOnly)
-                .Select(path => ProjectWorkspacePaths.ToRelativePath(projectPath, path))
-                .ToList();
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or
-                ArgumentException or NotSupportedException or InvalidDataException)
-        {
             return new VisualizationStoreSweepResult(0, 0, 0, "");
         }
 
@@ -105,6 +86,44 @@ internal static class StudioVisualizationStoreMaintenance
             .Where(image => !string.IsNullOrWhiteSpace(image.RelativePath))
             .Select(image => image.RelativePath)
             .ToList();
+
+        return SweepFolder(projectPath, storeFolder, referenced);
+    }
+
+    /// <summary>
+    /// Deletes everything in <paramref name="folder"/> that
+    /// <paramref name="referenced"/> does not name.
+    ///
+    /// 🔴 ONE EXECUTOR, TWO REFERENCE SETS - THE OPERATION IS SHARED, THE
+    /// QUESTION IS NOT. The payload store is kept against the project's records; the
+    /// prepared cache is kept against what the current album composition actually
+    /// needs. Copying this loop for the second caller is how one copy keeps the
+    /// IsInside re-check and the other quietly loses it - and both of them delete.
+    ///
+    /// 🔴 THE RULE STILL LIVES IN CORE. Which files are orphans, and the refusal
+    /// on an empty reference set, are <see cref="VisualizationStoreCleanup"/>'s and
+    /// have their own tests. This is only the part that touches the disk.
+    /// </summary>
+    internal static VisualizationStoreSweepResult SweepFolder(
+        string projectPath,
+        string folder,
+        IReadOnlyList<string> referenced)
+    {
+        List<string> present;
+        try
+        {
+            if (!Directory.Exists(folder))
+                return new VisualizationStoreSweepResult(0, 0, 0, "");
+
+            present = Directory
+                .EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly)
+                .Select(path => ProjectWorkspacePaths.ToRelativePath(projectPath, path))
+                .ToList();
+        }
+        catch (Exception exception) when (IsFileTrouble(exception))
+        {
+            return new VisualizationStoreSweepResult(0, 0, 0, "");
+        }
 
         VisualizationStoreSweep plan = VisualizationStoreCleanup.Plan(present, referenced);
         if (!plan.WillRemoveAnything)
@@ -129,8 +148,8 @@ internal static class StudioVisualizationStoreMaintenance
                 // 🔴 CHECKED AGAIN AT THE MOMENT OF DELETION. The plan works on
                 // relative strings; this is the only place that knows they resolve
                 // where they should, and a record holding «..\..\something» must not
-                // be able to reach out of the store.
-                if (!ProjectWorkspacePaths.IsInside(storeFolder, fullPath) ||
+                // be able to reach out of the folder being swept.
+                if (!ProjectWorkspacePaths.IsInside(folder, fullPath) ||
                     !File.Exists(fullPath))
                 {
                     continue;
@@ -141,9 +160,7 @@ internal static class StudioVisualizationStoreMaintenance
                 removed++;
                 bytes += size;
             }
-            catch (Exception exception) when (
-                exception is IOException or UnauthorizedAccessException or
-                    ArgumentException or NotSupportedException or InvalidDataException)
+            catch (Exception exception) when (IsFileTrouble(exception))
             {
                 // One file that will not go is not a reason to stop: the rest are
                 // just as orphaned, and a locked file comes back next time.
@@ -157,4 +174,12 @@ internal static class StudioVisualizationStoreMaintenance
             "",
             present.Count);
     }
+
+    /// <summary>
+    /// What counts as «the filesystem would not cooperate» rather than a defect.
+    /// One list, so the folder lookup and the per-file deletion cannot drift apart.
+    /// </summary>
+    private static bool IsFileTrouble(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException or ArgumentException or
+            NotSupportedException or InvalidDataException;
 }
