@@ -675,8 +675,15 @@ public sealed class THE16KRenderIsBroughtDownToTheRuleTests : IDisposable
             ReadAppSource("AppState.cs"),
             "private ProjectVisualizationSource CreateAlbumVisualizationSnapshot()");
 
-        Assert.Contains("PrepareForAlbum(snapshot,", body);
-        Assert.DoesNotContain("PrepareForAlbum(Project.", body);
+        // ⚠ COMPARED WITH THE WHITESPACE REMOVED. The first version of this
+        // assertion matched the call as it was then written on one line, and went red
+        // the day an argument was added and the call wrapped - a red about formatting,
+        // on a test whose claim had not changed. The claim is WHICH OBJECT is passed.
+        string compact = new string(body.Where(c => !char.IsWhiteSpace(c)).ToArray());
+
+        Assert.Contains("PrepareForAlbum(snapshot,", compact, StringComparison.Ordinal);
+        Assert.DoesNotContain("PrepareForAlbum(Project.", compact, StringComparison.Ordinal);
+        Assert.DoesNotContain("PrepareForAlbum(Project.Visualizations", compact, StringComparison.Ordinal);
     }
 
     [Fact]

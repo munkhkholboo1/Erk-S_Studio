@@ -111,6 +111,31 @@ public sealed class THEEMPTYListSaysWHYItIsEmptyTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void THEOFFLINEFallbackNAMESTheWideningItDoes()
+    {
+        // 🔴 THE ONE BRANCH THAT LISTS EVERY PROJECT ON THE DISK. Everywhere else a
+        // cloud folder appears only because the server returned it for THIS account;
+        // when the cloud call fails, every local project is listed so the person can
+        // work - and until this line said so, that widening was silent.
+        //
+        // ⚠ THE PROJECT FOLDER IS PER WINDOWS USER, NOT PER ACCOUNT, and a plain
+        // local project carries no owner field, so two accounts on one machine meet
+        // here. The owner warned about exactly this: «локал төслүүд өөр өөр
+        // эзэмшигчийн хаяг дээр харагдаад байх вий». Closing the gap needs their
+        // decision; saying it out loud did not.
+        string source = ReadAppSource("ShellView.cs");
+
+        Assert.Contains(
+            "зөвхөн энэ компьютер дээрх төслүүд",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "өөр бүртгэлийн төсөл байж болно",
+            source,
+            StringComparison.Ordinal);
+    }
+
     private static HashSet<string> Assigned() => new(StringComparer.Ordinal);
 
     private static string MethodBody(string source, string anchor)

@@ -68,6 +68,30 @@ internal sealed record VisualizationRasterPreparation(
 }
 
 /// <summary>
+/// One image's share of a preparation pass, decided WITHOUT touching the disk.
+///
+/// 🔴 THE SPLIT EXISTS SO THE COUNT IS KNOWN BEFORE THE WORK STARTS. «26 images
+/// are being prepared, once» cannot be said by a loop that discovers its own size as
+/// it goes - and a window that freezes for forty seconds without saying why is
+/// indistinguishable from a hang. It is also the seam the work will move across when
+/// it leaves the UI thread: the plan is what the album fingerprint is taken from, so
+/// it must stay synchronous and cheap, while the encoding need not.
+/// </summary>
+/// <param name="Image">The record whose path will be repointed.</param>
+/// <param name="SourcePath">The payload on this disk.</param>
+/// <param name="PreparedPath">Where the prepared copy goes.</param>
+/// <param name="PreparedRelativePath">That path as the project names it.</param>
+/// <param name="Plan">The size the rule asks for.</param>
+/// <param name="AlreadyWritten">A previous pass wrote it; nothing to encode.</param>
+internal sealed record VisualizationRasterStep(
+    ProjectVisualizationImage Image,
+    string SourcePath,
+    string PreparedPath,
+    string PreparedRelativePath,
+    VisualizationRasterPlan Plan,
+    bool AlreadyWritten);
+
+/// <summary>
 /// Brings every visualisation image down to the album's own density before it is
 /// drawn.
 ///
@@ -110,9 +134,21 @@ internal static class StudioVisualizationRasterPreparer
     /// The snapshot's images are clones, so their RelativePath is repointed at the
     /// prepared copy. Anything that cannot be prepared keeps its original path.
     /// </summary>
+    /// <param name="announceWork">
+    /// Told how many images are about to be ENCODED, before the first one is, and
+    /// only when that number is more than zero.
+    ///
+    /// 🔴 A SILENT FORTY SECONDS IS A HANG AS FAR AS ANYBODY CAN TELL. The owner's
+    /// complaint was «программ ингэтлээ гацаад байвал хэн ч хэрэглэхгүй»; the first
+    /// album build after a set of renders pays this once and never again, and saying
+    /// so is the difference between a wait and a fault. It cannot be said from inside
+    /// the loop - by then the window is already blocked - so the plan is made first
+    /// and counted.
+    /// </param>
     public static VisualizationRasterPreparation PrepareForAlbum(
         ProjectVisualizationSource? snapshot,
-        string? projectPath)
+        string? projectPath,
+        Action<int>? announceWork = null)
     {
         if (snapshot is null || string.IsNullOrWhiteSpace(projectPath))
             return VisualizationRasterPreparation.Nothing;
@@ -148,6 +184,12 @@ internal static class StudioVisualizationRasterPreparer
         var missing = 0;
         long bytes = 0;
 
+        // 🔴 PLANNED FIRST, WORKED SECOND. Nothing here touches an image's bytes,
+        // so the whole plan - and with it the number of files that will be encoded -
+        // is known before the expensive part begins. That is what makes «26 зургийг
+        // нэг удаа бэлтгэж байна» sayable, and it is the seam the encoding will move
+        // across when it leaves the UI thread.
+        var steps = new List<VisualizationRasterStep>();
         foreach (VisualizationAlbumPagePlan page in plans)
         {
             foreach (VisualizationImageTilePlan tile in page.Tiles)
@@ -177,30 +219,51 @@ internal static class StudioVisualizationRasterPreparer
                     string fileName =
                         $"{key}-{plan.PixelWidth}x{plan.PixelHeight}q{AlbumRasterRule.JpegQuality}.jpg";
                     string preparedPath = Path.Combine(preparedFolder, fileName);
-
-                    bool existed = File.Exists(preparedPath);
-                    if (!existed)
-                    {
-                        Directory.CreateDirectory(preparedFolder);
-                        Write(sourcePath, preparedPath, plan);
-                    }
-
-                    image.RelativePath =
-                        ProjectWorkspacePaths.ToRelativePath(projectPath, preparedPath);
-                    inUse.Add(image.RelativePath);
-                    bytes += new FileInfo(preparedPath).Length;
-                    if (existed)
-                        reused++;
-                    else
-                        prepared++;
+                    steps.Add(new VisualizationRasterStep(
+                        image,
+                        sourcePath,
+                        preparedPath,
+                        ProjectWorkspacePaths.ToRelativePath(projectPath, preparedPath),
+                        plan,
+                        File.Exists(preparedPath)));
                 }
                 catch (Exception exception) when (IsFileTrouble(exception))
                 {
-                    // 🔴 THE SOURCE PATH IS LEFT IN PLACE ON PURPOSE. The owner gets
-                    // their image at full size on that one tile - a heavier album,
-                    // not a missing page and not a failed build.
+                    // Planning can still fail on a path: the hash of a record that has
+                    // none is read from the file. Counted as the pass it would have been.
                     failed++;
                 }
+            }
+        }
+
+        int toEncode = steps.Count(step => !step.AlreadyWritten);
+        if (toEncode > 0)
+            announceWork?.Invoke(toEncode);
+
+        foreach (VisualizationRasterStep step in steps)
+        {
+            try
+            {
+                if (!step.AlreadyWritten)
+                {
+                    Directory.CreateDirectory(preparedFolder);
+                    Write(step.SourcePath, step.PreparedPath, step.Plan);
+                }
+
+                step.Image.RelativePath = step.PreparedRelativePath;
+                inUse.Add(step.PreparedRelativePath);
+                bytes += new FileInfo(step.PreparedPath).Length;
+                if (step.AlreadyWritten)
+                    reused++;
+                else
+                    prepared++;
+            }
+            catch (Exception exception) when (IsFileTrouble(exception))
+            {
+                // 🔴 THE SOURCE PATH IS LEFT IN PLACE ON PURPOSE. The owner gets
+                // their image at full size on that one tile - a heavier album, not a
+                // missing page and not a failed build.
+                failed++;
             }
         }
 

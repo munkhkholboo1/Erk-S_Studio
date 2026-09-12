@@ -332,8 +332,45 @@ internal sealed partial class ShellView : IDisposable
 
     public UIElement Root { get; }
 
+    /// <summary>
+    /// Says that images are being prepared, and makes sure the sentence is SEEN.
+    ///
+    /// 🔴 SETTING THE TEXT IS NOT SHOWING IT. The preparation runs on this thread,
+    /// so the window will not repaint again until it finishes - the status would
+    /// appear only once the wait was over, which is exactly when it is useless. One
+    /// render pass is pumped before the work starts.
+    ///
+    /// ⚠ THIS IS NOT A PROGRESS BAR AND DOES NOT PRETEND TO BE. Per-image progress
+    /// needs the work off this thread; that is a bigger change and a separate
+    /// decision. What this buys is the difference between «it hung» and «it is doing
+    /// a thing, once» - and the second one is worth having on its own.
+    /// </summary>
+    private void AnnounceRasterPreparation(int images)
+    {
+        if (images <= 0)
+            return;
+
+        SetStatus(
+            $"Харагдах байдлын {images} зургийг {AlbumRasterRule.DotsPerInch:0} dpi-д " +
+            "бэлтгэж байна — энэ нь нэг удаагийн ажил, дараагийн build дээр давтагдахгүй.");
+
+        try
+        {
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                () => { },
+                System.Windows.Threading.DispatcherPriority.Render);
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or TaskCanceledException)
+        {
+            // No dispatcher to pump - a test, or a shutting-down window. The sentence
+            // is set either way; only its immediate appearance is lost.
+        }
+    }
+
     public ShellView()
     {
+        state.AnnounceRasterPreparation = AnnounceRasterPreparation;
         cloudSyncButton.Width = 40;
         cloudSyncButton.Height = 36;
         cloudSyncButton.Margin = new Thickness(8, 0, 0, 0);
@@ -1772,8 +1809,24 @@ internal sealed partial class ShellView : IDisposable
             if (!IsOperationContextCurrent(operationContext))
                 return;
             cloudError = exception.Message;
+
+            // 🔴 THIS BRANCH WIDENS WHAT IS SHOWN, AND SAYS SO. Everywhere else a
+            // cloud-origin folder appears only because the SERVER returned that
+            // project for this account; here every project on the disk is listed,
+            // because being able to work offline is the point. The behaviour is not
+            // being changed - the silent part is.
+            //
+            // ⚠ AND THE REASON IT MATTERS IS THE OWNER'S OWN WARNING (Decision 29):
+            // «локал төслүүд өөр өөр эзэмшигчийн хаяг дээр харагдаад байх вий». The
+            // project folder is per WINDOWS user, not per account, and a plain local
+            // project carries no owner field at all - so on a machine two accounts
+            // share, this list is the one place they meet. Naming it is what a reader
+            // needs until that gap is closed by a decision.
             rows.AddRange(localProjects.Select(ToProjectRow));
-            SetStatus("Cloud ERA төслийн жагсаалт шинэчлэгдсэнгүй: " + cloudError);
+            SetStatus(
+                "Cloud ERA төслийн жагсаалт шинэчлэгдсэнгүй: " + cloudError +
+                " Сервертэй холбогдох хүртэл зөвхөн энэ компьютер дээрх төслүүд " +
+                "харагдана — тэдгээрийн дунд өөр бүртгэлийн төсөл байж болно.");
         }
 
         if (!IsOperationContextCurrent(operationContext))

@@ -1323,7 +1323,10 @@ public sealed class AppState : IDisposable
                 HasVerifiedPayload);
 
         VisualizationRasterPreparation preparation =
-            StudioVisualizationRasterPreparer.PrepareForAlbum(snapshot, ProjectPath);
+            StudioVisualizationRasterPreparer.PrepareForAlbum(
+                snapshot,
+                ProjectPath,
+                AnnounceRasterPreparation);
         LastVisualizationRasterPreparation = preparation;
 
         // 🔴 RECORDED WHEN THERE IS SOMETHING TO SAY, AND ALSO WHEN THERE IS
@@ -1473,6 +1476,17 @@ public sealed class AppState : IDisposable
     /// keeping past a restart are on the album's draw record.
     /// </summary>
     internal VisualizationRasterPreparation? LastVisualizationRasterPreparation { get; private set; }
+
+    /// <summary>
+    /// Told how many images are about to be encoded, before the first one is.
+    ///
+    /// 🔴 THE SHELL SETS THIS, AND THAT IS THE WHOLE COUPLING. The preparation runs
+    /// deep inside making a build project, which knows nothing about windows; the
+    /// number it can supply is «how many files, starting now», and what the shell
+    /// does with it - a sentence, a bar, nothing at all in a test - is the shell's
+    /// business. A silent forty seconds reads as a hang, and the owner said so.
+    /// </summary>
+    internal Action<int>? AnnounceRasterPreparation { get; set; }
 
     /// <summary>
     /// Whether any linked render has been overwritten since the project copied it.
