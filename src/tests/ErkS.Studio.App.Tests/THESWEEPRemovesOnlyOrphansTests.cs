@@ -66,6 +66,54 @@ public sealed class THESWEEPRemovesOnlyOrphansTests : IDisposable
     }
 
     [Fact]
+    public void ARECORDOwnedByANOTHERProjectIdStillProtectsItsCopy()
+    {
+        // 🔴 THE PARTIAL SUBSET, WHICH THE EMPTY-SET REFUSAL CANNOT CATCH.
+        // ImagesForProject gates on the SOURCE's owner id first - a mismatch there
+        // returns an empty list, and the refusal above stops that. But once the
+        // source DOES belong to this project it goes on to filter IMAGE BY IMAGE on
+        // image.OwnerProjectId, and an image whose own id differs is dropped while
+        // its siblings are kept. That reference set is not empty, so no refusal
+        // fires, and every dropped record's copy reads as an orphan.
+        //
+        // Records like that are ordinary: Normalize fills an EMPTY image owner id
+        // from the project, but leaves a non-empty different one exactly as it
+        // found it - which is what a project saved under a new id, or images
+        // carried over from another project's file, produces.
+        //
+        // ⚠ AND THIS IS WHY THE COUNT CROSS-CHECK WAS NOT BUILT. Comparing the
+        // reference count with the project's declared count derives both numbers
+        // from the SAME enumeration, so narrowing that enumeration moves both and
+        // the comparison still agrees. The hazard is in the code, so the guard has
+        // to be a test - this one, plus the source lock beside it.
+        (ProjectWorkspace project, string projectPath, string store) = Project();
+
+        // The configured state, in which the narrowing would be PARTIAL rather
+        // than total - an unconfigured source fails the gate above and is already
+        // covered by the empty-set refusal.
+        project.Visualizations.OwnerProjectId = project.ProjectId;
+
+        string mine = Copy(store, "mine.png", 512);
+        string theirs = Copy(store, "theirs.png", 1024);
+        string orphan = Copy(store, "orphan.png", 256);
+        Reference(project, projectPath, mine);
+        Reference(project, projectPath, theirs).OwnerProjectId =
+            "b7e1c0d94f1a4e2f8c3d5a6b7e8f9012";
+
+        VisualizationStoreSweepResult result =
+            StudioVisualizationStoreMaintenance.Sweep(project, projectPath);
+
+        Assert.True(
+            File.Exists(theirs),
+            "a record whose owner id differs from the project's lost its copy");
+        Assert.True(File.Exists(mine));
+        Assert.False(File.Exists(orphan), "the orphan was left behind");
+        Assert.Equal(1, result.RemovedCount);
+        Assert.Equal(2, result.KeptCount);
+        Assert.Equal("", result.RefusalMn);
+    }
+
+    [Fact]
     public void NOTHINGOutsideTheStoreIsTouched()
     {
         // The sweep enumerates ONE folder, so a neighbouring file - a project file,
@@ -188,6 +236,33 @@ public sealed class THESWEEPRemovesOnlyOrphansTests : IDisposable
 
         Assert.True(branch > 0, "the reconciliation branch is gone");
         Assert.True(sweep > branch, "the sweep escaped the changed-something branch");
+    }
+
+    [Fact]
+    public void THERemovalIsWrittenDownWHEREItHappensAndSAVED()
+    {
+        // 🔴 RECORDED AT THE SWEEP, NOT AT THE CALLERS. Half a dozen places ask
+        // for a build project and any of them may reconcile; a deletion written down
+        // by each caller is a deletion the next caller added forgets to write down.
+        //
+        // 🔴 AND SAVED AFTERWARDS, WHICH NEEDS ITS OWN SAVE. The save above has
+        // to come BEFORE the sweep, so a save that failed could never leave the
+        // project on disk naming a file already deleted. The price of that order is
+        // that the trace is not in it - and a trace gone by the next restart is no
+        // trace of a deletion at all.
+        string body = MethodBody(
+            ReadAppSource("AppState.cs"),
+            "public AlbumProject CreateAlbumBuildProject(");
+
+        int sweep = body.IndexOf(
+            "StudioVisualizationStoreMaintenance.Sweep(",
+            StringComparison.Ordinal);
+        int record = body.IndexOf("RecordStoreSweep(", StringComparison.Ordinal);
+        int save = body.IndexOf("SaveProject();", record, StringComparison.Ordinal);
+
+        Assert.True(sweep > 0, "the sweep is gone");
+        Assert.True(record > sweep, "the sweep result is no longer written to the record");
+        Assert.True(save > record, "the trace is never saved, so it dies with the session");
     }
 
     /// <summary>A project whose store folder exists and is empty.</summary>

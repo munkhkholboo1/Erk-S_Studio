@@ -1137,8 +1137,30 @@ public sealed class AppState : IDisposable
                 // a sweep there would find no orphan and do nothing but read the
                 // disk. And a sweep before the save could delete a copy the project
                 // on disk still names, if the save then failed.
-                LastVisualizationStoreSweep =
+                VisualizationStoreSweepResult sweep =
                     StudioVisualizationStoreMaintenance.Sweep(Project, ProjectPath);
+                LastVisualizationStoreSweep = sweep;
+
+                // 🔴 THE DELETION IS WRITTEN DOWN WHERE IT HAPPENS, NOT AT THE
+                // CALLERS. Half a dozen places ask for a build project and any of
+                // them may reconcile; recording the sweep at each would let the
+                // next one added escape being written down - the same reason the
+                // draw decision is recorded at its one exit.
+                Project.PrimaryAlbum.LastDraw ??= new AlbumDrawRecord();
+                Project.PrimaryAlbum.LastDraw.RecordStoreSweep(
+                    sweep.RemovedCount,
+                    sweep.RemovedBytes,
+                    sweep.RefusalMn,
+                    DateTimeOffset.UtcNow);
+
+                // 🔴 SAVED AGAIN, AND ONLY WHEN THERE IS SOMETHING TO SAY. The
+                // save above had to come BEFORE the sweep, so that a save which
+                // failed could never leave the project on disk naming a file that
+                // was already deleted. The cost of that ordering is that the trace
+                // of the deletion is not in it - and a trace that does not survive
+                // the next restart is not a trace of anything.
+                if (sweep.RemovedCount > 0 || sweep.RefusalMn.Length > 0)
+                    SaveProject();
             }
         }
 

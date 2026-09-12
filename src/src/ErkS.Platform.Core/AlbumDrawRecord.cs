@@ -48,6 +48,32 @@ public sealed class AlbumDrawRecord
     /// <summary>How long the drawing took, when it happened.</summary>
     public double LastDrewSeconds { get; set; }
 
+    /// <summary>
+    /// Copies the last sweep of the visualisation store removed.
+    ///
+    /// 🔴 THE DELETION HAS TO LEAVE A MARK THAT OUTLIVES THE SESSION. The
+    /// sweep removes the owner's own files; if one day it removes a wrong one,
+    /// this is the only place that will say how many went and how much came
+    /// back. A number held in memory until the next restart is not a trace.
+    /// </summary>
+    public int LastSweepRemovedCount { get; set; }
+
+    /// <summary>How much disk the last sweep gave back.</summary>
+    public long LastSweepRemovedBytes { get; set; }
+
+    /// <summary>When that sweep ran. Null until one has removed something.</summary>
+    public DateTimeOffset? LastSweptAtUtc { get; set; }
+
+    /// <summary>
+    /// Why the most recent sweep refused, empty when it ran.
+    ///
+    /// 🔴 KEPT SEPARATELY FROM THE NUMBERS BECAUSE IT EXPIRES DIFFERENTLY. A
+    /// removal is history and stays; a refusal describes the state of the
+    /// project NOW, so a later healthy sweep must clear it. A stale refusal on
+    /// screen would be a confident false statement about today.
+    /// </summary>
+    public string LastSweepRefusalMn { get; set; } = "";
+
     public AlbumDrawRecord Clone() => new()
     {
         DecidedAtUtc = DecidedAtUtc,
@@ -55,6 +81,10 @@ public sealed class AlbumDrawRecord
         ReasonCode = ReasonCode,
         LastDrewAtUtc = LastDrewAtUtc,
         LastDrewSeconds = LastDrewSeconds,
+        LastSweepRemovedCount = LastSweepRemovedCount,
+        LastSweepRemovedBytes = LastSweepRemovedBytes,
+        LastSweptAtUtc = LastSweptAtUtc,
+        LastSweepRefusalMn = LastSweepRefusalMn,
     };
 
     /// <summary>
@@ -79,5 +109,33 @@ public sealed class AlbumDrawRecord
     {
         LastDrewAtUtc = atUtc;
         LastDrewSeconds = Math.Max(0, seconds);
+    }
+
+    /// <summary>
+    /// Notes what a sweep of the visualisation store did.
+    ///
+    /// 🔴 A SWEEP THAT REMOVED NOTHING MUST NOT ERASE THE ONE THAT DID -
+    /// the same hazard <see cref="Record"/> already guards for the draw. Sweeps
+    /// run on every reconciling build and almost all of them find nothing; if
+    /// each one cleared the numbers, the record of the deletion would survive
+    /// exactly until the next build, which is to say not at all.
+    ///
+    /// The refusal is the opposite and is always written: it is a statement
+    /// about the project as it stands, and yesterday's refusal shown today
+    /// would be a confident lie.
+    /// </summary>
+    public void RecordStoreSweep(
+        int removedCount,
+        long removedBytes,
+        string? refusalMn,
+        DateTimeOffset atUtc)
+    {
+        LastSweepRefusalMn = (refusalMn ?? "").Trim();
+        if (removedCount <= 0)
+            return;
+
+        LastSweepRemovedCount = removedCount;
+        LastSweepRemovedBytes = Math.Max(0, removedBytes);
+        LastSweptAtUtc = atUtc;
     }
 }
