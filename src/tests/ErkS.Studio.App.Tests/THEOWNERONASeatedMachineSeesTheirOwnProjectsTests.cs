@@ -98,6 +98,61 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
         }
     }
 
+    [Fact]
+    public void THEOwnerACTINGOnASeatedMachineIsJudgedByTHEIROwnScopes()
+    {
+        // 🔴 THE SECOND FACE OF THE DEFECT, AND WORSE THAN THE EMPTY LIST. Authority
+        // in the open project came from the SEAT's scopes «whenever the machine holds a
+        // seat» - and the resume had just cleared those as another identity's. An
+        // unknown source yields the empty set, correctly, so the owner had NO scopes at
+        // all: every scoped action in their own open project refused, locally, with the
+        // server never asked.
+        string[] personal = ["project.read", "project.write"];
+        StudioSessionKind kind = StudioBotActor.IsTheBotActing(
+            deviceHoldsBotSeat: true,
+            ownerSessionInHand: true)
+            ? StudioSessionKind.BotSeat
+            : StudioSessionKind.Personal;
+
+        Assert.Equal(StudioSessionKind.Personal, kind);
+        Assert.True(StudioEffectiveAuthority.Allows(kind, personal, seatScopes: null, "project.write"));
+    }
+
+    [Fact]
+    public void ASEATIsStillJudgedByItsSeatAndNOTHINGElse()
+    {
+        // The other direction, which the fix must not cost: with no owner session the
+        // seat's own scopes are in force, the owner's are not borrowed, and an unread
+        // seat answer is still «nothing» rather than somebody else's rights.
+        string[] personal = ["project.write"];
+        StudioSessionKind kind = StudioBotActor.IsTheBotActing(
+            deviceHoldsBotSeat: true,
+            ownerSessionInHand: false)
+            ? StudioSessionKind.BotSeat
+            : StudioSessionKind.Personal;
+
+        Assert.Equal(StudioSessionKind.BotSeat, kind);
+        Assert.False(
+            StudioEffectiveAuthority.Allows(kind, personal, seatScopes: null, "project.write"),
+            "a seat borrowed the owner's scopes");
+        Assert.False(
+            StudioEffectiveAuthority.Allows(kind, personal, seatScopes: [], "project.write"),
+            "a seat assigned nothing was given something");
+    }
+
+    [Fact]
+    public void AUTHORITYAsksTheActorTooAndSaysSoInSource()
+    {
+        // ⚠ Source-anchored for the same reason as the wiring assertions above: the
+        // shell property needs a ShellView instance to observe. The rule composition is
+        // tested directly in the two tests above; this pins that the shell feeds it the
+        // actor rather than the machine.
+        Assert.Contains(
+            "ActingAsBot ? StudioSessionKind.BotSeat : StudioSessionKind.Personal",
+            ReadAppSource("ShellView.BotSeat.cs"),
+            StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]

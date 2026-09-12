@@ -42,11 +42,26 @@ internal sealed partial class ShellView
     private StudioCloudBotSeatMember? botSeatMember;
 
     /// <summary>
-    /// Which authority this session acts with. The seat's, whenever the machine
-    /// holds one - never a blend of the two.
+    /// Which authority this session acts with. One or the other - never a blend.
+    ///
+    /// 🔴 THE SECOND FACE OF THE SAME DEFECT, AND THE WORSE ONE. This read
+    /// «whenever the MACHINE holds a seat», and the machine keeps its seat while the
+    /// owner works on it. So on a seated computer the owner's authority was computed
+    /// from the SEAT's project scopes - which the resume had just cleared as another
+    /// identity's - and ScopesFor answers an unknown source with the empty set. Every
+    /// scoped action in the open project was therefore refused to the owner on their
+    /// own machine, which is a worse symptom than the empty project list beside it.
+    ///
+    /// ⚠ THIS CHANGES A DOCUMENTED DECISION, AND DELIBERATELY. The old sentence said
+    /// «the seat's, whenever the machine holds one». Choosing the owner's own
+    /// server-issued scopes when the owner is the one acting is not a blend and not a
+    /// new right - the personal branch is still gated on the permission snapshot
+    /// belonging to THIS account, and the server still refuses anything they are not
+    /// entitled to. What is being corrected is which of the two authorities is in
+    /// force, not how much either one carries.
     /// </summary>
     private StudioSessionKind SessionKind =>
-        SeatedAsBot ? StudioSessionKind.BotSeat : StudioSessionKind.Personal;
+        ActingAsBot ? StudioSessionKind.BotSeat : StudioSessionKind.Personal;
 
     /// <summary>
     /// Whether the CURRENT session may do something in the open project.
@@ -567,7 +582,6 @@ internal sealed partial class ShellView
         }
     }
 
-    private static bool IsSeatedAsBot => StudioBotDeviceStateStore.Read() is not null;
 
     /// <summary>
     /// Builds the bot entries of the account menu. Both are hidden while signed
