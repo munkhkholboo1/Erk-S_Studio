@@ -108,6 +108,17 @@ public sealed partial class PdfSharpAlbumWriter
     /// what to fill in. The red project-title placeholder IS drawn, because it
     /// is a field rather than an instruction: colour does not decide this, and
     /// sorting by colour would have got both of them wrong.
+    ///
+    /// ⚠ WHICH DRAWING THIS PARAGRAPH DESCRIBES IS UNKNOWN, AND THE SHEET THIS METHOD
+    /// ACTUALLY DRAWS HAS NONE OF IT. The 2026-09-12 reconciliation counted all 75
+    /// objects of the A3 reference: no instruction notes, no watermark, and no recorded
+    /// colour that is red - 44 objects at colour 0, 30 at colour 7, and one with no
+    /// colour recorded at all, which is the page outline nothing draws. So this is either about
+    /// the 2026-09-06 A4 template or about a state of the file that no longer exists.
+    /// Left in place rather than moved or deleted, because moving it on a guess would
+    /// put a claim on a sheet nobody measured for it - but flagged, so it stops reading
+    /// as a checked statement about THIS sheet. What IS checked is the absence, by
+    /// THEA3ReferenceHasNoTemplateFurnitureTests.
     /// </summary>
     /// <summary>
     /// The lines above the tables. WHICH lines those are, and where the block
