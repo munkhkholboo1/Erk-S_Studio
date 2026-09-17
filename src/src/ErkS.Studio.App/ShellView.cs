@@ -2944,13 +2944,21 @@ internal sealed partial class ShellView : IDisposable
                 // deliveries are MEANT to be passed over - 48 of them in one folder the
                 // owner reported - so printing it would put a large number on every
                 // ordinary scan and train the reader to ignore this line.
-                if (scan.SkippedForeignManifestCount > 0 || scan.UnattributedManifestCount > 0)
+                // ⚠ REJECTIONS TOO, AND THEY WERE THE OTHER HALF OF THE ASYMMETRY. A
+                // package that loads but fails verification is refused by the library and
+                // recorded in quarantine - and BuildSourceRefreshSummary, which the manual
+                // refresh uses, has always said so. Only this startup path stayed quiet,
+                // so the same loss was visible or invisible depending on how the scan was
+                // started. The two paths now name the same three losses.
+                if (scan.SkippedForeignManifestCount > 0 ||
+                    scan.UnattributedManifestCount > 0 ||
+                    scan.RejectedPackageCount > 0)
                 {
                     SetStatus(
                         $"Source scan: {scan.SkippedForeignManifestCount} багц өөр эх " +
                         $"үүсвэрийнх гэж алгасагдав, {scan.UnattributedManifestCount} эзэнгүй багц " +
                         "авсан. Алгасагдсан багцын хуудас номын санд ОРООГҮЙ — хавтас ба эх " +
-                        "үүсвэрийн хамаарлыг шалгана уу.");
+                        $"үүсвэрийн хамаарлыг шалгана уу. Татгалзагдсан: {scan.RejectedPackageCount}.");
                 }
 
                 if (scan.SilentlyHydratedManifestCount > 0 && activePage == StudioPage.Sources)

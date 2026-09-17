@@ -113,6 +113,43 @@ public sealed class THESILENTLYDroppedDeliveryIsNamedTests
         Assert.Contains("SkippedForeignManifestCount", CodeOnly(ReportingBody()), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BOTHScanReportersNameTheSameTHREELosses()
+    {
+        // 🔴 THE SAME LOSS WAS VISIBLE OR INVISIBLE DEPENDING ON HOW THE SCAN STARTED.
+        // A scan can lose work three ways - dropped as foreign, adopted unattributed, or
+        // rejected on verification - and each reporter named a DIFFERENT two of them. The
+        // startup path (project open, which is what hydrates the library) omitted
+        // rejections; the manual refresh omitted the foreign skip. A reader comparing the
+        // two would conclude the quiet one had nothing to say.
+        string startup = CodeOnly(ReportingBody());
+        string manual = CodeOnly(SummaryBody());
+
+        foreach (string counter in new[]
+                 {
+                     "SkippedForeignManifestCount",
+                     "UnattributedManifestCount",
+                     "RejectedPackageCount",
+                 })
+        {
+            Assert.Contains(counter, startup, StringComparison.Ordinal);
+            Assert.Contains(counter, manual, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>The manual refresh's summary, which the Sources page shows.</summary>
+    private static string SummaryBody()
+    {
+        string source = ReadAppSource("ShellView.Workspaces.cs")
+            .Replace("\r\n", "\n");
+        const string anchor = "private static string BuildSourceRefreshSummary(";
+        int at = source.IndexOf(anchor, StringComparison.Ordinal);
+        Assert.True(at > 0, anchor + " was not found");
+        int end = source.IndexOf("\n    }", at, StringComparison.Ordinal);
+        Assert.True(end > at, "the end of the summary was not found");
+        return source[at..end];
+    }
+
     /// <summary>
     /// The method with its comments removed, so a ban applies to what executes.
     ///

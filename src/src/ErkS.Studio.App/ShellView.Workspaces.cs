@@ -605,6 +605,13 @@ internal sealed partial class ShellView
         }
         if (scan.RejectedPackageCount > 0)
             summary += $", Rejected package: {scan.RejectedPackageCount}";
+        // ⚠ THE THIRD LOSS, WHICH THIS SUMMARY ALSO PASSED OVER. A manifest whose source
+        // or project id disagrees with its folder's registration is counted and dropped -
+        // not rejected, so the line above never covered it, and not an error, so nothing
+        // else did either. Reported beside its two siblings so a scan cannot lose work in
+        // three ways and report it in two.
+        if (scan.SkippedForeignManifestCount > 0)
+            summary += $", өөр эх үүсвэрийнх гэж алгассан: {scan.SkippedForeignManifestCount}";
         // Accepted, not rejected: an old-schema manifest names no source of its
         // own, so the ownership check could not have refused it. Said out loud
         // so a package that landed in the wrong inbox is not adopted unnoticed.
