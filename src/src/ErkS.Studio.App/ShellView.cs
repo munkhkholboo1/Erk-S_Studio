@@ -501,6 +501,21 @@ internal sealed partial class ShellView : IDisposable
             }));
         };
         account.StateChanged += () => dispatcher.BeginInvoke(new Action(UpdateAccountUi));
+        // 🔴 A CLEARED LIBRARY READS EXACTLY LIKE AN EMPTY ONE. An identity change
+        // empties it and re-registers the watchers without scanning, so from that moment
+        // every local source reports «received: 0 sheet» and the album stops updating,
+        // while deliveries go on landing on disk unread. The answer is the same background
+        // rescan a project open does - on a worker, because the announcement arrives on
+        // the UI thread and the scan is not cheap.
+        state.SourceWatchersReset += () => dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (state.HasOpenProject)
+            {
+                _ = RescanOpenedProjectPackagesAsync(
+                    state.Project.ProjectId,
+                    state.ProjectPath);
+            }
+        }));
         ((FrameworkElement)Root).Loaded += OnRootLoaded;
         UpdateAccountUi();
         SetStatus("Erk-S Studio бүртгэл болон лицензийг шалгаж байна...");

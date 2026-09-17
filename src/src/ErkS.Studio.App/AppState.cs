@@ -96,6 +96,22 @@ public sealed class AppState : IDisposable
         Builder = new AlbumBuilder(new PdfSharpAlbumWriter());
     }
 
+    /// <summary>
+    /// Raised when an identity change has CLEARED the sheet library and re-registered
+    /// the watchers, so somebody must read the deliveries again.
+    ///
+    /// 🔴 THE CLEAR WAS SILENT AND NOTHING REFILLED IT. Both identity paths empty the
+    /// library and re-watch WITHOUT scanning - correctly, because WatchFolder scans
+    /// synchronously and these run on the UI thread, so scanning here would freeze Studio
+    /// on every sign-in and every seat switch. The missing half was telling anyone. The
+    /// owner switched between bot and owner repeatedly, and after each switch every local
+    /// source read «received: 0 sheet» while deliveries kept landing on disk unread.
+    ///
+    /// Announced rather than scanned here so the answer can be given on a worker thread -
+    /// the project-open path already has one.
+    /// </summary>
+    public event Action? SourceWatchersReset;
+
     public void ConfigureSourceRuntimeContext(
         string? currentAccountEmail,
         string? currentDeviceFingerprint)
@@ -119,7 +135,11 @@ public sealed class AppState : IDisposable
         if (HasOpenProject)
         {
             _ = UpgradeSourceMetadata();
+            // ⚠ STILL false, AND DELIBERATELY: WatchFolder scans synchronously on the
+            // calling thread, and this one is the UI thread. The refill is announced
+            // instead, so it can happen on a worker.
             ResetRuntimeServices(scanExistingPackages: false);
+            SourceWatchersReset?.Invoke();
         }
     }
 
@@ -141,7 +161,11 @@ public sealed class AppState : IDisposable
         if (HasOpenProject)
         {
             _ = UpgradeSourceMetadata();
+            // ⚠ STILL false, AND DELIBERATELY: WatchFolder scans synchronously on the
+            // calling thread, and this one is the UI thread. The refill is announced
+            // instead, so it can happen on a worker.
             ResetRuntimeServices(scanExistingPackages: false);
+            SourceWatchersReset?.Invoke();
         }
     }
 
