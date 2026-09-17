@@ -1542,6 +1542,21 @@ internal sealed partial class ShellView : IDisposable
 
         await EnforceCompanionLicenseAsync();
 
+        // 🔴 THE FIRST MOMENT THE SESSION IS FINAL IS THE FIRST MOMENT THIS CAN BE
+        // ASKED. A seated machine is covered by the constructor before anyone is signed
+        // in - deliberately, so the shell is never usable behind an unfinished restore -
+        // and the owner asked for the PIN only when switching INTO bot state. Asked any
+        // earlier this reads an empty session and leaves the lock exactly where it was.
+        ReleaseBotLockIfOwnerIsActing();
+
+        // ⚠ AND THE NAVIGATION, ON THE SILENT PATH TOO. RebuildNavigation was added to
+        // the INTERACTIVE sign-in when the owner lost their menu - «компани цэс алга
+        // болчихсон» - and the ordinary launch, which restores silently and shows no
+        // dialog, was left without it. Harmless only while HiddenFromABot is empty by
+        // decision №28; the day an entry is added, the ordinary launch loses the menu
+        // again. Idempotent, so an unseated machine pays a rebuild and nothing else.
+        RebuildNavigation();
+
         // 🔴 EVERY WAY OF ARRIVING SIGNED IN ENDS HERE, AND ONLY ONE OF THEM
         // USED TO ASK FOR THE PROOF. The token was fetched inside the
         // interactive sign-in only, so the ordinary launch - where Studio

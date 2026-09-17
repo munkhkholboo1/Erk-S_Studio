@@ -121,11 +121,17 @@ internal sealed partial class ShellView
     /// differently in the fourth place - so it has a name, and the places that
     /// mean it use the name.
     ///
-    /// ⚠ WHAT MUST KEEP ASKING THE MACHINE QUESTION: the lock screen, seat
+    /// ⚠ WHAT MUST KEEP ASKING THE MACHINE QUESTION: INSTALLING the lock, seat
     /// management, entering and leaving the seat, and the seated flag on boundary
-    /// records. A seated machine must lock on start-up whoever signs in later, and
-    /// a refusal record must say the machine was seated because that is the fact
-    /// being diagnosed.
+    /// records. A refusal record must say the machine was seated because that is the
+    /// fact being diagnosed.
+    ///
+    /// 🔴 THE LOCK IS NOW SPLIT ACROSS BOTH QUESTIONS, 2026-09-17, BY THE OWNER'S
+    /// DECISION. This paragraph used to end «a seated machine must lock on start-up
+    /// whoever signs in later». The owner asked for the opposite - «Бот төлөвт
+    /// шилжсэн үед л пин асуудаг байя» - so INSTALLING still asks the machine
+    /// question and fails closed, while RELEASING asks this one. See
+    /// <see cref="ReleaseBotLockIfOwnerIsActing"/> for why it cannot be one question.
     /// </summary>
     private bool ActingAsBot
     {
@@ -365,6 +371,33 @@ internal sealed partial class ShellView
             await VerifyOwnerOnSeatedDeviceAsync();
         botLockScreen.LockedOut += async () => await ReportBotLockoutAsync();
         botLockHost.Children.Add(botLockScreen);
+    }
+
+    /// <summary>
+    /// Takes the lock off when the OWNER, not the bot, is the one acting.
+    ///
+    /// 🔴 THE OWNER MOVED THE RULE: «Бот төлөвт шилжсэн үед л пин асуудаг
+    /// байя». The old rule - lock on start-up whoever signs in later - was deliberate
+    /// and is written down beside <see cref="ActingAsBot"/>; it is being changed, not
+    /// repaired. What has NOT changed is the discriminator: «is it THAT owner», never
+    /// «did somebody sign in» (№29).
+    ///
+    /// 🔴 AND IT IS A RELEASE RATHER THAN A DIFFERENT INSTALL, FOR A MEASURED REASON.
+    /// <see cref="InstallBotLockIfSeated"/> runs in the constructor; the session is
+    /// restored later, in OnRootLoaded, behind an ApplicationIdle hop. Asking the actor
+    /// question at the install site reads an empty session, answers «the bot is acting»
+    /// and changes nothing at all - a fix that looks applied. Covering first and
+    /// uncovering once the session is final is also the only order that cannot leave the
+    /// owner's shell usable while the restore is still running.
+    ///
+    /// Safe to call when no lock is up: the ordinary launch of an unseated machine.
+    /// </summary>
+    private void ReleaseBotLockIfOwnerIsActing()
+    {
+        if (botLockScreen is null || ActingAsBot)
+            return;
+
+        RemoveBotLock();
     }
 
     private void RemoveBotLock()
