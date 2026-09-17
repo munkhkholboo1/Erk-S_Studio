@@ -137,6 +137,31 @@ public sealed class THESILENTLYDroppedDeliveryIsNamedTests
         }
     }
 
+    [Fact]
+    public void ADARKSourceIsReportedSoTheZEROESMeanSomething()
+    {
+        // 🔴 THE HOLE IN THE COUNTS, CLOSED. All three counters are produced BY a
+        // scan, and every scan walks the watcher table - so a source nothing watches
+        // reports zero of everything, exactly like a healthy one. Without this line the
+        // instrument shipped yesterday is quietly reassuring in the one case it was
+        // built to catch.
+        string startup = CodeOnly(ReportingBody());
+
+        Assert.Contains("UnwatchedSourceNames()", startup, StringComparison.Ordinal);
+
+        // Named, not merely counted: «1 source is not watched» with no name sends the
+        // reader through every source they have.
+        Assert.Contains("string.Join(", startup, StringComparison.Ordinal);
+
+        // ⚠ REPORTED SEPARATELY FROM THE LOSS COUNTS, because it is a different fact -
+        // not «something was lost» but «nothing was looked at». Folding it into the same
+        // condition would make a dark source announce losses it cannot have measured.
+        Assert.DoesNotContain(
+            "dark.Count > 0 || scan.", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "scan.SkippedForeignManifestCount > 0 || dark", startup, StringComparison.Ordinal);
+    }
+
     /// <summary>The manual refresh's summary, which the Sources page shows.</summary>
     private static string SummaryBody()
     {

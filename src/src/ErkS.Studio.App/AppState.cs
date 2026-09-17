@@ -1078,6 +1078,26 @@ public sealed class AppState : IDisposable
         SaveProject();
     }
 
+    /// <summary>
+    /// Configured sources that nothing is watching.
+    ///
+    /// 🔴 WITHOUT THIS, «ZERO DROPPED, ZERO REJECTED» IS AMBIGUOUS. Every scan walks
+    /// the watcher table, so a source whose folder was never registered produces zero of
+    /// every counter - indistinguishable from a source that is perfectly healthy. The
+    /// project knows what it configured; the intake knows what it watches; nobody was
+    /// comparing the two.
+    /// </summary>
+    public IReadOnlyList<string> UnwatchedSourceNames()
+    {
+        if (!HasOpenProject)
+            return [];
+
+        return StudioSourceWatchCoverage.UnwatchedSourceNames(
+            (Project.Sources ?? []).Select(source =>
+                new WatchedSourceCandidate(source.DisplayName, source.InboxFolder)),
+            Intake.WatchedFolders);
+    }
+
     public IReadOnlyList<SheetPackageCheckpoint> CurrentSourcePackageCheckpoints()
     {
         if (!HasOpenProject)

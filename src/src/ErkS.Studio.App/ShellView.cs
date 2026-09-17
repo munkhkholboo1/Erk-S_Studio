@@ -2961,6 +2961,20 @@ internal sealed partial class ShellView : IDisposable
                         $"үүсвэрийн хамаарлыг шалгана уу. Татгалзагдсан: {scan.RejectedPackageCount}.");
                 }
 
+                // 🔴 AND THE READING THAT MAKES THE ZEROES MEAN SOMETHING. All three
+                // counts above are produced BY a scan, and a scan only visits folders that
+                // are being watched - so a source nothing watches reports zero of
+                // everything, exactly like a healthy one. Said separately because it is a
+                // different fact: not «something was lost» but «nothing was looked at».
+                IReadOnlyList<string> dark = state.UnwatchedSourceNames();
+                if (dark.Count > 0)
+                {
+                    SetStatus(
+                        $"⚠ {dark.Count} эх үүсвэр АЖИГЛАГДАХГҮЙ байна: " +
+                        $"{string.Join(", ", dark)}. Шинэ хүргэлт ирсэн ч уншигдахгүй — " +
+                        "төслөө дахин нээх эсвэл эх үүсвэрийн хуудснаас шинэчлэнэ үү.");
+                }
+
                 if (scan.SilentlyHydratedManifestCount > 0 && activePage == StudioPage.Sources)
                     RefreshSourceWorkspace();
             }
