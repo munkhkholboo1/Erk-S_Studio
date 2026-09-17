@@ -2923,9 +2923,39 @@ internal sealed partial class ShellView : IDisposable
             }
 
             if (scan.ErrorCount > 0)
+            {
                 SetStatus($"Source background scan: {scan.ErrorCount} алдаа илэрлээ.");
-            else if (scan.SilentlyHydratedManifestCount > 0 && activePage == StudioPage.Sources)
-                RefreshSourceWorkspace();
+            }
+            else
+            {
+                // 🔴 A DELIVERY DROPPED HERE USED TO SAY NOTHING AT ALL. A manifest
+                // sitting in a watched folder whose source id disagrees with that folder's
+                // registration is counted and passed over - not absorbed, not rejected, no
+                // error, no quarantine entry. The scan ends with ErrorCount == 0 and the
+                // only thing reaching the owner is «Хүлээн авсан: 0 sheet» with no reason
+                // attached to it. The number was already being computed; it had no reader.
+                //
+                // ⚠ AND THE FILE SAID IT WAS VISIBLE: beside UnattributedManifestCount,
+                // «the compatibility is deliberate, the silence was not - ... so the count
+                // makes that visible». Nothing read it. The sentence was true of the
+                // counter and false of the product.
+                //
+                // ⚠ SkippedHistoricalManifestCount is deliberately NOT here: superseded
+                // deliveries are MEANT to be passed over - 48 of them in one folder the
+                // owner reported - so printing it would put a large number on every
+                // ordinary scan and train the reader to ignore this line.
+                if (scan.SkippedForeignManifestCount > 0 || scan.UnattributedManifestCount > 0)
+                {
+                    SetStatus(
+                        $"Source scan: {scan.SkippedForeignManifestCount} багц өөр эх " +
+                        $"үүсвэрийнх гэж алгасагдав, {scan.UnattributedManifestCount} эзэнгүй багц " +
+                        "авсан. Алгасагдсан багцын хуудас номын санд ОРООГҮЙ — хавтас ба эх " +
+                        "үүсвэрийн хамаарлыг шалгана уу.");
+                }
+
+                if (scan.SilentlyHydratedManifestCount > 0 && activePage == StudioPage.Sources)
+                    RefreshSourceWorkspace();
+            }
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or InvalidDataException)
