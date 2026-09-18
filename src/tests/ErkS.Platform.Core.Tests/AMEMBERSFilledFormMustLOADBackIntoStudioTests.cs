@@ -117,16 +117,42 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
     [Fact]
     public void THEWRITTENQuestionsComeLastOnThePageToo()
     {
-        ProjectCitizenSurvey survey = Owners();
+        // 🔴 THE FIXTURE PUTS A WRITTEN QUESTION IN THE MIDDLE, AND IT HAS TO. On the
+        // owner's own form the written two are already last, so ticked-then-written and
+        // plain document order produce the SAME page - and a sabotage sweep proved the
+        // point: swapping the ordering for OrderedQuestions() left this test green. A
+        // test that can only go red on data where the two orders differ must be handed
+        // that data, or it is holding nothing at all.
+        var survey = new ProjectCitizenSurvey
+        {
+            Questions =
+            [
+                new() { Id = "a", Order = 1, Text = "ТИКНЭЛТ НЭГ",
+                        Kind = CitizenSurveyQuestionKinds.SingleChoice,
+                        Options = [new() { Id = "o", Text = "сонголт" }] },
+                new() { Id = "w", Order = 2, Text = "БИЧМЭЛ ДУНД",
+                        Kind = CitizenSurveyQuestionKinds.FreeText },
+                new() { Id = "b", Order = 3, Text = "ТИКНЭЛТ ХОЁР",
+                        Kind = CitizenSurveyQuestionKinds.Number },
+            ],
+        };
+
         string html = CitizenSurveyFormHtml.Build(survey);
 
-        int lastTicked = survey.TickedQuestions()
-            .Max(question => html.IndexOf(question.Text, StringComparison.Ordinal));
-        int firstWritten = survey.WrittenQuestions()
-            .Min(question => html.IndexOf(question.Text, StringComparison.Ordinal));
+        int written = html.IndexOf("БИЧМЭЛ ДУНД", StringComparison.Ordinal);
+        int lastTicked = html.IndexOf("ТИКНЭЛТ ХОЁР", StringComparison.Ordinal);
 
-        Assert.True(firstWritten > lastTicked, "a written question was drawn among the ticked ones");
+        Assert.True(written > lastTicked, "a written question was drawn among the ticked ones");
         Assert.Contains("Бичмэл хэсэг", html, StringComparison.Ordinal);
+
+        // And the owner's own form still reads the way their paper does.
+        ProjectCitizenSurvey theirs = Owners();
+        string ownersHtml = CitizenSurveyFormHtml.Build(theirs);
+        int theirLastTicked = theirs.TickedQuestions()
+            .Max(question => ownersHtml.IndexOf(question.Text, StringComparison.Ordinal));
+        int theirFirstWritten = theirs.WrittenQuestions()
+            .Min(question => ownersHtml.IndexOf(question.Text, StringComparison.Ordinal));
+        Assert.True(theirFirstWritten > theirLastTicked);
     }
 
     [Fact]

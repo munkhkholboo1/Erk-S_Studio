@@ -91,6 +91,54 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
     }
 
     [Fact]
+    public void TWOWriteInLinesInONEQuestionAreREFUSED()
+    {
+        // \U0001F534 A SABOTAGE SWEEP FOUND NOTHING HOLDING THIS. The rule was written after
+        // SRV pointed the hazard out, the comment explained it well, and no test failed
+        // when the guard was deleted - which is the exact shape of a rule that quietly
+        // stops working later. An answer carries ONE Text per question, so a second
+        // «Бусад: ___» line loses whichever word the page read first, silently, in a
+        // consultation document.
+        var survey = new ProjectCitizenSurvey
+        {
+            Questions =
+            [
+                new()
+                {
+                    Id = "q", Order = 1, Text = "Хоёр бичих мөртэй асуулт",
+                    Kind = CitizenSurveyQuestionKinds.MultipleChoice,
+                    Options =
+                    [
+                        new() { Id = "o1", Text = "Нэг" },
+                        new() { Id = "o2", Text = "Бусад", InvitesOwnWords = true },
+                        new() { Id = "o3", Text = "Өөр бусад", InvitesOwnWords = true },
+                    ],
+                },
+            ],
+        };
+
+        InvalidDataException refused =
+            Assert.Throws<InvalidDataException>(() => CitizenSurveyPublication.For(survey));
+
+        // It names the question, because whoever edited the form has to find it.
+        Assert.Contains("Хоёр бичих мөртэй асуулт", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ONEWriteInLineIsSTILLAllowed()
+    {
+        // The positive control: the refusal must not be «any write-in line at all»,
+        // which would refuse the owner's own form.
+        ProjectCitizenSurvey survey = Owners();
+
+        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(survey);
+
+        Assert.Equal(
+            4, published.Questions.Count(question =>
+                question.Options.Any(option => option.InvitesOwnWords)));
+    }
+
+    [Fact]
     public void THEOWNERSWordingCrossesUnchangedToo()
     {
         ProjectCitizenSurvey survey = Owners();
