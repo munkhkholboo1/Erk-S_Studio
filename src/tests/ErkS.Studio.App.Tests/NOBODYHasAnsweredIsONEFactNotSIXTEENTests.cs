@@ -59,6 +59,47 @@ public sealed class NOBODYHasAnsweredIsONEFactNotSIXTEENTests
     }
 
     [Fact]
+    public void ONEAnswerMustNotBringBackTheWallOfCards()
+    {
+        // 🔴 THE FIRST FIX ONLY MOVED THE DEFECT. Zero responses was special-cased; the
+        // owner's own first submission put the page straight back into sixteen identical
+        // «not enough answers» cards, because the reading threshold is thirty. Between 1
+        // and 29 the wall returned in full.
+        ProjectCitizenSurvey survey =
+            CitizenSurveyTemplate.CreatePartialMasterPlanSurvey("Зуунмод");
+        CitizenSurveyQuestion first = survey.TickedQuestions()[0];
+
+        var one = new CitizenSurveyResponse
+        {
+            Id = "r1",
+            Answers =
+            [
+                new CitizenSurveyAnswer
+                {
+                    QuestionId = first.Id,
+                    OptionIds = [first.Options[0].Id],
+                },
+            ],
+        };
+
+        CitizenSurveyResult result = CitizenSurveyTally.Of(survey, [one]);
+        IReadOnlyList<CitizenSurveyFinding> findings = CitizenSurveyFindings.Read(result);
+
+        Assert.Equal(1, result.ResponseCount);
+        Assert.NotEmpty(findings);
+        Assert.All(findings, finding =>
+            Assert.Equal(CitizenSurveyFindingWeights.TooFew, finding.Weight));
+
+        // So the page cannot key the summary off the response count alone.
+        string page = CodeOnly(ReadAppSource("ShellView.Surveys.cs"));
+        Assert.Contains("nothingReadableYet", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "finding.Weight == CitizenSurveyFindingWeights.TooFew",
+            page,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WIDTHCappedBlocksStayAtTheLeftMargin()
     {
         // ⚠ A MaxWidth inside a stretching StackPanel lets WPF CENTRE the child. On a wide

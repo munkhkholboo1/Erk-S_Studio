@@ -301,11 +301,31 @@ internal sealed partial class ShellView
         // only happens for a survey with NO QUESTIONS; a survey with questions and no
         // answers produces one card per question. The sentence existed, was correct, and
         // was unreachable - so the empty state was written and never shown.
+        // 🔴 «НЭГ Ч АСУУЛТ БОСГОНД ХҮРЭЭГҮЙ» БАС НЭГ БАРИМТ. Below the reading threshold
+        // every question yields its own «not enough answers» card. That is right once
+        // SOME questions can be read and others cannot - the contrast is the information.
+        // While NONE of them can, sixteen identical cards say one thing sixteen times and
+        // bury the number that actually matters: how many people have answered so far.
+        //
+        // ⚠ The first version of this only caught ZERO responses. The owner's own first
+        // submission put the page straight back into the same wall of cards - the defect
+        // had not been fixed, only moved from 0 to the range 1..29.
+        bool nothingReadableYet = findings.Count > 0 &&
+            findings.All(finding => finding.Weight == CitizenSurveyFindingWeights.TooFew);
+
         if (result.ResponseCount == 0)
         {
             surveyDetailPanel.Children.Add(Muted(
                 "Хариулт хараахан ирээгүй байна. QR тараасны дараа энд оролцогчдын тоо, " +
                 "асуулт бүрийн диаграмм, задаргаа болон дүгнэлт гарч ирнэ."));
+        }
+        else if (nothingReadableYet)
+        {
+            surveyDetailPanel.Children.Add(Muted(
+                $"Одоогоор {result.ResponseCount} хүн хариулсан. Асуулт бүрийн тоон үр дүн " +
+                "доор бэлэн байна, харин дүгнэлт гаргахад " +
+                $"{CitizenSurveyFindings.MinimumBase} хариулт шаардлагатай тул нэг ч " +
+                "асуултаар дүгнэлт хийгээгүй байна."));
         }
         else if (findings.Count == 0)
         {
@@ -316,6 +336,10 @@ internal sealed partial class ShellView
             foreach (CitizenSurveyFinding finding in findings)
                 surveyDetailPanel.Children.Add(FindingCard(finding));
         }
+
+        // ⚠ THE NUMBERS STAY EITHER WAY. Only the READING is withheld below the base;
+        // the counts, the bars and the split are shown from the first answer, because
+        // they are facts rather than conclusions.
 
         // 🔴 TICKED FIRST, WRITTEN LAST, AND SEPARATELY - the owner's instruction, and
         // their own paper already reads that way. The two blocks are counted differently
