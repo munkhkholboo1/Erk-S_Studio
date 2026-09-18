@@ -124,6 +124,27 @@ public sealed class ProjectCitizenSurvey
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
+    /// <summary>Where it sits in the project's list of surveys.</summary>
+    public int Order { get; set; }
+
+    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Where this survey's answers are kept, relative to the project folder.
+    ///
+    /// 🔴 THEIR OWN FILE, BECAUSE A CONSULTATION IS THOUSANDS OF ROWS. Held inside the
+    /// project file, a few hundred citizens would make every ordinary save rewrite - and
+    /// eventually re-verify - a document that is opened on every screen in Studio. The
+    /// album keeps its pages the same way, for the same reason.
+    /// </summary>
+    public string ResponsesRelativePath { get; set; } = "";
+
+    /// <summary>The code the public form is reached by - erk-s.mn/s/{code}.</summary>
+    public string PublicCode { get; set; } = "";
+
+    /// <summary>The full address the QR encodes, as the server issued it.</summary>
+    public string PublicFormUrl { get; set; } = "";
+
     /// <summary>«ИРГЭДИЙН САНАЛ АСУУЛГА», over the project's own heading.</summary>
     public string Title { get; set; } = "";
 

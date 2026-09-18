@@ -194,9 +194,8 @@ public sealed class THESURVEYIsTheOWNERSDocumentNotMineTests
         // And a project carries one without being given one, so an older file that has
         // never heard of a survey opens with an empty one rather than a null.
         var project = new ProjectWorkspace();
-        Assert.NotNull(project.CitizenSurvey);
-        Assert.False(project.CitizenSurvey.HasQuestions);
-        Assert.False(project.CitizenSurvey.IsOpen);
+        Assert.NotNull(project.CitizenSurveys);
+        Assert.Empty(project.CitizenSurveys.Surveys);
     }
 
     [Fact]

@@ -120,7 +120,7 @@ public sealed class ProjectWorkspace
     public ProjectSiteContextMap SiteContext { get; set; } = new();
 
     /// <summary>
-    /// The citizens' survey this project collects, and the form its QR code opens.
+    /// The citizens' surveys this project runs, and the forms their QR codes open.
     ///
     /// 🔴 ADDITIVE, AND THE FORMAT VERSION DOES NOT MOVE. The reader contract is
     /// explicit - «Талбар нэмэх нь хувилбар өсгөхгүй» - because AutoCAD and Revit each
@@ -128,7 +128,7 @@ public sealed class ProjectWorkspace
     /// they know. Raising it to ship a survey would stop the owner's plugins opening every
     /// project they have, to add a section those plugins never read.
     /// </summary>
-    public ProjectCitizenSurvey CitizenSurvey { get; set; } = new();
+    public ProjectCitizenSurveySeries CitizenSurveys { get; set; } = new();
 
     public ProjectDeliverables Deliverables { get; set; } = new();
 
