@@ -1172,6 +1172,15 @@ internal sealed partial class ShellView : IDisposable
         {
             RefreshBoards();
         }
+        else if (page == StudioPage.Surveys)
+        {
+            // 🔴 CODE EXISTS, NOBODY CALLS IT - and this is the shape it took: the survey
+            // list, its detail panel and even the «pick a survey» hint were all built and
+            // all reachable, and the only caller was the «new survey» button. So opening
+            // the page on a project that had no survey yet showed an EMPTY PANE with no
+            // explanation - not a bug in any rule, just a telephone line never connected.
+            RefreshSurveyWorkspace();
+        }
         else if (page == StudioPage.Companies)
         {
             _ = RefreshCompaniesAsync();
@@ -2675,6 +2684,11 @@ internal sealed partial class ShellView : IDisposable
         if (activePage == StudioPage.Albums && state.HasOpenProject)
         {
             RefreshAlbumWorkspace();
+        }
+        if (activePage == StudioPage.Surveys && state.HasOpenProject)
+        {
+            // The other half: already standing on the page when a project opens.
+            RefreshSurveyWorkspace();
         }
         if (activePage == StudioPage.Companies)
         {

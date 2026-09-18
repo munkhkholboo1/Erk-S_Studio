@@ -42,7 +42,13 @@ internal sealed partial class ShellView
     {
         var root = new DockPanel { Margin = new Thickness(18) };
 
-        var toolbar = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var toolbar = new DockPanel
+        {
+            Margin = new Thickness(0, 0, 0, 12),
+
+            // Otherwise the last button stretches across the whole window.
+            LastChildFill = false,
+        };
         Button addButton = StudioWidgets.CreatePrimaryButton("Шинэ санал асуулга");
         addButton.Margin = new Thickness(0, 0, 8, 0);
         addButton.Click += (_, _) =>
@@ -138,7 +144,24 @@ internal sealed partial class ShellView
             .ToList();
 
         surveyListBox.ItemsSource = rows;
-        if (rows.Count > 0 && rows.All(row => row.Id != selectedSurveyId))
+        if (rows.Count == 0)
+        {
+            // ⚠ AN EMPTY PAGE EXPLAINS ITSELF. A blank pane reads as «broken», and the
+            // owner asked exactly the right question about one: is this where my form
+            // appears? It is - once there is one - and the page should be the thing that
+            // says so rather than a message somewhere else.
+            selectedSurveyId = "";
+            surveyDetailPanel?.Children.Clear();
+            surveyDetailPanel?.Children.Add(SectionTitle(
+                "Энэ төсөлд санал асуулга хараахан үүсээгүй байна."));
+            surveyDetailPanel?.Children.Add(Muted(
+                "Дээрх жагсаалтаас маягтаа сонгоод «Шинэ санал асуулга» дарна уу. " +
+                "Асуулга үүсмэгц зүүн талын жагсаалтад гарч ирнэ; дээр нь дарахад " +
+                "оролцогчдын тоо, диаграмм, дүгнэлт, ба QR нь нээгдэнэ."));
+            return;
+        }
+
+        if (rows.All(row => row.Id != selectedSurveyId))
             selectedSurveyId = rows[0].Id;
         surveyListBox.SelectedValue = selectedSurveyId;
         RefreshSurveyDetail();
