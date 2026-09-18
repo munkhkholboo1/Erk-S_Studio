@@ -32,6 +32,9 @@ internal sealed partial class ShellView
     private string selectedSurveyId = "";
     private string selectedSplitQuestionId = "";
 
+    /// <summary>Set while the detail panel is being rebuilt. See RefreshSurveyDetail.</summary>
+    private bool refreshingSurveyDetail;
+
     /// <summary>The bar track, in pixels. A fixed width keeps every question comparable.</summary>
     private const double SurveyTrackWidth = 320;
 
@@ -107,6 +110,10 @@ internal sealed partial class ShellView
             DisplayMemberPath = "Label",
             SelectedValuePath = "Id",
         };
+        // The same hazard one level up: RefreshSurveyWorkspace assigns SelectedValue,
+        // which raises this. It is not fatal here - RefreshSurveyDetail does not rebuild
+        // the list - but it did refresh the panel twice on every project open, and the
+        // guard above now makes the second pass a no-op rather than duplicated work.
         surveyListBox.SelectionChanged += (_, _) =>
         {
             selectedSurveyId = (surveyListBox.SelectedValue as string) ?? "";
@@ -206,6 +213,31 @@ internal sealed partial class ShellView
     }
 
     private void RefreshSurveyDetail()
+    {
+        if (surveyDetailPanel is null || !state.HasOpenProject)
+            return;
+
+        // 🔴 A SECOND LOCK, BECAUSE THE FIRST ONE IS AN ORDERING CONVENTION. Selecting
+        // before subscribing fixes today's recursion, but every control added here in
+        // future carries the same trap: this method rebuilds the whole panel, so any
+        // handler that reaches it re-enters. One StackOverflow is unrecoverable - no
+        // catch block runs, no message is shown, the window simply disappears - so the
+        // cost of a redundant guard is nothing against what it prevents.
+        if (refreshingSurveyDetail)
+            return;
+
+        refreshingSurveyDetail = true;
+        try
+        {
+            RefreshSurveyDetailCore();
+        }
+        finally
+        {
+            refreshingSurveyDetail = false;
+        }
+    }
+
+    private void RefreshSurveyDetailCore()
     {
         if (surveyDetailPanel is null || !state.HasOpenProject)
             return;
@@ -965,6 +997,17 @@ internal sealed partial class ShellView
         if (splitters.Count == 0)
             return Muted("Ангилахад тохирох нэг сонголттой асуулт алга.");
 
+        // 🔴 SELECT FIRST, SUBSCRIBE AFTERWARDS - THE ORDER IS THE WHOLE RULE. This method
+        // runs inside RefreshSurveyDetail and builds a NEW ComboBox each time. Assigning
+        // SelectedValue on a fresh box always raises SelectionChanged, so subscribing
+        // before the assignment made the handler call RefreshSurveyDetail, which built
+        // another box, which raised again - unbounded recursion ending in a
+        // StackOverflowException, which .NET cannot catch: the whole window vanishes with
+        // no error at all. That is what the owner saw when opening this page.
+        //
+        // ⚠ AND IT WAS HIDDEN BEHIND A DISCONNECTED WIRE. Nothing called this page's
+        // refresh until 2d49027, so the page was merely blank rather than fatal; fixing
+        // the missing call is what exposed it. A dead path hides its own defects.
         surveySplitBox = new ComboBox
         {
             Width = 420,
@@ -973,14 +1016,19 @@ internal sealed partial class ShellView
             SelectedValuePath = "Id",
             Margin = new Thickness(0, 0, 0, 10),
         };
+
+        if (string.IsNullOrEmpty(selectedSplitQuestionId) ||
+            splitters.All(question => question.Id != selectedSplitQuestionId))
+        {
+            selectedSplitQuestionId = splitters[0].Id;
+        }
+
+        surveySplitBox.SelectedValue = selectedSplitQuestionId;
         surveySplitBox.SelectionChanged += (_, _) =>
         {
             selectedSplitQuestionId = (surveySplitBox.SelectedValue as string) ?? "";
             RefreshSurveyDetail();
         };
-        if (string.IsNullOrEmpty(selectedSplitQuestionId))
-            selectedSplitQuestionId = splitters[0].Id;
-        surveySplitBox.SelectedValue = selectedSplitQuestionId;
         panel.Children.Add(surveySplitBox);
 
         foreach (CitizenSurveyQuestion question in survey.OrderedQuestions())
