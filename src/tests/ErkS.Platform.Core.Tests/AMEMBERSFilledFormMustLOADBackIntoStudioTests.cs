@@ -172,6 +172,26 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
     }
 
     [Fact]
+    public void ANEWRespondentIsDECLAREDRatherThanGuessedAt()
+    {
+        // ONE PHONE, TWO PEOPLE. A key that never clears makes the second person a
+        // duplicate of the first and their answers vanish; a key cleared on every save
+        // makes a retry into a second person and counts somebody twice. The page cannot
+        // tell those apart - so it asks, and the key survives until somebody says so.
+        string html = CitizenSurveyFormHtml.Build(Owners());
+
+        Assert.Contains("id=\"next\"", html, StringComparison.Ordinal);
+        Assert.Contains("window.erksResponseId = null", html, StringComparison.Ordinal);
+        Assert.Contains("getElementById('f').reset()", html, StringComparison.Ordinal);
+
+        // It is offered on BOTH routes: the served one and the folder one. The offline
+        // route is the one the trial is running on today, and it is the route where a
+        // device is handed around a table.
+        Assert.Contains("getElementById('next').hidden = false", html, StringComparison.Ordinal);
+        Assert.Equal(2, html.Split("getElementById('next').hidden = false").Length - 1);
+    }
+
+    [Fact]
     public void ANUNREADABLENumberSTOPSTheFormInsteadOfVanishing()
     {
         // SRV spotted this by reading the script: Number("abc") is NaN, and NaN survives

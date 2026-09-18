@@ -69,6 +69,8 @@ public static class CitizenSurveyFormHtml
 
         page.AppendLine("</form>");
         page.AppendLine("<button id=\"save\" type=\"button\">\u0425\u0430\u0440\u0438\u0443\u043b\u0442\u044b\u0433 \u0445\u0430\u0434\u0433\u0430\u043b\u0430\u0445</button>");
+        page.AppendLine(
+            "<button id=\"next\" type=\"button\" hidden>\u0414\u0430\u0440\u0430\u0430\u0433\u0438\u0439\u043d \u0445\u04af\u043d \u0431\u04e9\u0433\u043b\u04e9\u0445</button>");
         page.AppendLine("<p class=\"note\" id=\"done\"></p>");
         page.Append(Script(survey.Id));
         page.AppendLine("</body></html>");
@@ -189,9 +191,10 @@ public static class CitizenSurveyFormHtml
             document.getElementById('done').textContent = 'Хариулт бөглөөгүй байна.';
             return;
           }
-          // \u26a0 MINTED ONCE PER FILLED-IN FORM, NOT PER ATTEMPT. A phone on a weak
-          // signal retries; a new id per attempt would enter that person two, three
-          // times and nothing downstream could tell the copies apart from real people.
+          // \u26a0 ONE KEY PER RESPONDENT, NOT PER ATTEMPT AND NOT PER PAGE LOAD. A phone
+          // on a weak signal retries, and a new key per attempt would enter that person
+          // two or three times with nothing downstream able to tell the copies from real
+          // people. It is cleared by «\u0414\u0430\u0440\u0430\u0430\u0433\u0438\u0439\u043d \u0445\u04af\u043d» below - a declaration, never a guess.
           window.erksResponseId = window.erksResponseId ||
             (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random())
               .replace(/-/g, '');
@@ -217,6 +220,7 @@ public static class CitizenSurveyFormHtml
               if (!r.ok) throw new Error(String(r.status));
               said.textContent = 'Баярлалаа. Таны хариулт хүлээн авагдлаа.';
               document.getElementById('save').disabled = true;
+              document.getElementById('next').hidden = false;
             }).catch(function () {
               said.textContent =
                 'Илгээж чадсангүй. Дахин дарна уу — давхар бүртгэгдэхгүй.';
@@ -229,6 +233,26 @@ public static class CitizenSurveyFormHtml
           a.download = doc.Responses[0].Id + '{{CitizenSurveyFormHtml.AnswerFileExtension}}';
           a.click();
           said.textContent = 'Хадгалагдлаа. Файлыг төслийн ажилтанд өгнө үү.';
+          document.getElementById('next').hidden = false;
+        });
+
+        // \U0001F534 ONE PHONE, TWO PEOPLE - AND NOBODY GUESSES WHICH. SRV found the half of
+        // this that bites: the response key is minted once and never cleared, so a second
+        // person filling the same page in would submit under the first person's key and
+        // be discarded as a repeat. Clearing it on every save would break the other half
+        // just as badly - a retry after a dropped connection would arrive as a NEW person
+        // and count somebody twice.
+        //
+        // Both hazards are the same question - is this a repeat or a new respondent? - and
+        // the page cannot tell. So it stops inferring and ASKS: the key survives until
+        // somebody declares the next person, which is the one moment the answer is known.
+        document.getElementById('next').addEventListener('click', function () {
+          window.erksResponseId = null;
+          document.getElementById('f').reset();
+          document.getElementById('save').disabled = false;
+          document.getElementById('next').hidden = true;
+          document.getElementById('done').textContent = '';
+          window.scrollTo(0, 0);
         });
         </script>
         """;
