@@ -119,6 +119,17 @@ public sealed class ProjectWorkspace
     /// <summary>Studio-owned location scheme and surroundings overview map source.</summary>
     public ProjectSiteContextMap SiteContext { get; set; } = new();
 
+    /// <summary>
+    /// The citizens' survey this project collects, and the form its QR code opens.
+    ///
+    /// 🔴 ADDITIVE, AND THE FORMAT VERSION DOES NOT MOVE. The reader contract is
+    /// explicit - «Талбар нэмэх нь хувилбар өсгөхгүй» - because AutoCAD and Revit each
+    /// hold their own SupportedProjectFormatVersion and REFUSE a file numbered higher than
+    /// they know. Raising it to ship a survey would stop the owner's plugins opening every
+    /// project they have, to add a section those plugins never read.
+    /// </summary>
+    public ProjectCitizenSurvey CitizenSurvey { get; set; } = new();
+
     public ProjectDeliverables Deliverables { get; set; } = new();
 
     public ProjectArchive Archive { get; set; } = new();

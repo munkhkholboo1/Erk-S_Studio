@@ -61,6 +61,17 @@ internal static class SharedContractCopies
     /// </summary>
     public const string ProjectAddressVectors = "project-address-vectors.json";
 
+    /// <summary>
+    /// The owner's citizens' survey, as they wrote it in Word.
+    ///
+    /// ⚠ NOT A CROSS-PRODUCT CONTRACT: its original is a .docx in the owner's Downloads
+    /// folder, not a file in _shared, so the drift comparison below has nothing to compare
+    /// it against and will skip it. It is registered anyway so that it is COVERED by the
+    /// folder audit rather than being a file no constant names - yesterday's silent gap.
+    /// If the owner revises the survey, this copy has to be re-extracted by hand.
+    /// </summary>
+    public const string CitizenSurveyZuunmod = "citizen-survey-zuunmod-2026-09-18.json";
+
     /// <summary>The copy that travels with the tests. Always present.</summary>
     public static string Read(string fileName) =>
         File.ReadAllText(PathTo(fileName), Encoding.UTF8);
@@ -103,6 +114,7 @@ public sealed class SharedContractCopyTests
     [InlineData(SharedContractCopies.ConceptCoverA3Full)]
     [InlineData(SharedContractCopies.ConceptCoverA3TextExtents)]
     [InlineData(SharedContractCopies.ProjectAddressVectors)]
+    [InlineData(SharedContractCopies.CitizenSurveyZuunmod)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
         string? original = SharedContractCopies.TryFindOriginal(fileName);
