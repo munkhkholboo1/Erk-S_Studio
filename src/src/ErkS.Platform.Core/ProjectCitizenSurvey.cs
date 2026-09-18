@@ -145,6 +145,14 @@ public sealed class ProjectCitizenSurvey
     /// <summary>The full address the QR encodes, as the server issued it.</summary>
     public string PublicFormUrl { get; set; } = "";
 
+    /// <summary>
+    /// True when the address above was entered by hand rather than returned by publishing.
+    ///
+    /// ⚠ Both doors that set a link write this field, so it is never stale: see
+    /// <see cref="AcceptPublicLink"/> and <see cref="AcceptManualLink"/>.
+    /// </summary>
+    public bool IsManualLink { get; set; }
+
     /// <summary>«ИРГЭДИЙН САНАЛ АСУУЛГА», over the project's own heading.</summary>
     /// <summary>
     /// The form this survey was started from, as named by <see cref="CitizenSurveyTemplates"/>.
@@ -244,6 +252,31 @@ public sealed class ProjectCitizenSurvey
 
         PublicCode = (code ?? "").Trim();
         PublicFormUrl = (formUrl ?? "").Trim();
+
+        // A link the publish route returned. Anything entered by hand stops being so.
+        IsManualLink = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Records an address somebody was given by hand, before the publish route exists.
+    ///
+    /// 🔴 MARKED, AND THE MARK IS THE WHOLE REASON THIS IS A SEPARATE DOOR. Studio did
+    /// not obtain this link and cannot vouch for it: the publish route may later issue a
+    /// DIFFERENT code, and the one artefact this feature produces is a QR that gets
+    /// PRINTED. So the mark travels with the link and is said wherever it is shown.
+    ///
+    /// ⚠ The code is taken from the address rather than typed beside it, so the two
+    /// cannot disagree - and <see cref="AcceptPublicLink"/> still runs its check, so a
+    /// malformed address is refused instead of inventing a code.
+    /// </summary>
+    public bool AcceptManualLink(string? formUrl)
+    {
+        string code = CitizenSurveyPublicLink.CodeFromUrl(formUrl);
+        if (!AcceptPublicLink(code, formUrl))
+            return false;
+
+        IsManualLink = true;
         return true;
     }
 

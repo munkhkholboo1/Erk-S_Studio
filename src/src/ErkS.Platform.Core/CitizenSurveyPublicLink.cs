@@ -63,6 +63,32 @@ public static class CitizenSurveyPublicLink
     }
 
     /// <summary>
+    /// The code inside an address somebody pasted, or empty when there is none to take.
+    ///
+    /// 🔴 THE ADDRESS IS THE AUTHORITY HERE, NOT A CODE TYPED BESIDE IT. The owner is
+    /// given a URL by whoever stood the form up; asking them to retype the code as well
+    /// would let the two disagree, and the pair disagreeing is exactly what
+    /// <see cref="Check"/> exists to refuse. Taking the code FROM the address means the
+    /// two cannot disagree - and the check still runs, so a malformed address is refused
+    /// rather than producing a code out of nothing.
+    /// </summary>
+    public static string CodeFromUrl(string? formUrl)
+    {
+        string address = (formUrl ?? "").Trim();
+        if (!Uri.TryCreate(address, UriKind.Absolute, out Uri? parsed) ||
+            (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        {
+            return "";
+        }
+
+        string[] segments = parsed.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 2 &&
+               segments[^2].Equals(PublicFormSegment, StringComparison.Ordinal)
+            ? segments[^1]
+            : "";
+    }
+
+    /// <summary>
     /// The link for a code under a base the owner set, when the server cannot know its own.
     /// </summary>
     public static string Build(string? baseUrl, string? code)

@@ -1,7 +1,11 @@
 using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
@@ -55,10 +59,26 @@ internal sealed partial class ShellView
         };
         surveyTemplateBox.SelectedIndex = 0;
 
+        var formButton = new Button
+        {
+            Content = "Маягт гаргах",
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        formButton.Click += (_, _) => ExportSurveyForm();
+
+        var importButton = new Button
+        {
+            Content = "Хариулт оруулах",
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        importButton.Click += (_, _) => ImportSurveyAnswers();
+
         var refreshButton = new Button { Content = "Үр дүнг шинэчлэх" };
         refreshButton.Click += (_, _) => RefreshSurveyDetail();
         toolbar.Children.Add(surveyTemplateBox);
         toolbar.Children.Add(addButton);
+        toolbar.Children.Add(formButton);
+        toolbar.Children.Add(importButton);
         toolbar.Children.Add(refreshButton);
         DockPanel.SetDock(toolbar, Dock.Top);
         root.Children.Add(toolbar);
@@ -245,6 +265,138 @@ internal sealed partial class ShellView
         }
     }
 
+    /// <summary>
+    /// Writes the survey out as one self-contained page somebody can fill in.
+    ///
+    /// 🔴 THE TRIAL RUNS ON THIS, NOT ON THE QR. The server route is not built, and the
+    /// owner is having the project's members fill the survey in to check that the
+    /// processing works. A file on a shared folder needs no server, no network and no
+    /// account - and the answers it produces go through exactly the same reader, tally and
+    /// analysis as collected ones will.
+    /// </summary>
+    private void ExportSurveyForm()
+    {
+        ProjectCitizenSurvey? survey = state.Project.CitizenSurveys.Find(selectedSurveyId);
+        if (survey is null)
+        {
+            SetStatus("Санал асуулга сонгоно уу.");
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Санал асуулгын маягт хадгалах",
+            Filter = "Веб маягт (*.html)|*.html",
+            FileName = "санал-асуулга.html",
+            OverwritePrompt = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            File.WriteAllText(
+                dialog.FileName, CitizenSurveyFormHtml.Build(survey), Encoding.UTF8);
+            SetStatus(
+                $"Маягт гарлаа: {dialog.FileName} — " +
+                $"{survey.Questions.Count} асуулт. Бөглөсний дараа «Хариулт оруулах».");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            SetStatus($"Маягт бичигдсэнгүй: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Reads filled-in files back in and merges them onto the survey.
+    ///
+    /// 🔴 A FILE FOR ANOTHER SURVEY IS REFUSED BY NAME, NOT COUNTED. Two rounds in one
+    /// project ask different questions; merging one round's answers into the other would
+    /// produce a result that is arithmetically perfect and about nothing. The answer ids
+    /// also mean the same file read twice adds nobody.
+    /// </summary>
+    private void ImportSurveyAnswers()
+    {
+        ProjectCitizenSurvey? survey = state.Project.CitizenSurveys.Find(selectedSurveyId);
+        if (survey is null)
+        {
+            SetStatus("Санал асуулга сонгоно уу.");
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Бөглөсөн хариултуудыг сонгох",
+            Filter =
+                "Санал асуулгын хариулт (*" + CitizenSurveyFormHtml.AnswerFileExtension +
+                ")|*" + CitizenSurveyFormHtml.AnswerFileExtension + "|JSON (*.json)|*.json",
+            Multiselect = true,
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        CitizenSurveyResponseDocument held;
+        try
+        {
+            held = CitizenSurveyResponseStore.LoadDocument(state.ProjectPath, survey);
+        }
+        catch (InvalidDataException unreadable)
+        {
+            SetStatus(unreadable.Message);
+            return;
+        }
+
+        var added = 0;
+        var foreign = 0;
+        var unreadableFiles = new List<string>();
+
+        foreach (string path in dialog.FileNames)
+        {
+            try
+            {
+                CitizenSurveyResponseDocument? arriving =
+                    JsonSerializer.Deserialize<CitizenSurveyResponseDocument>(
+                        File.ReadAllText(path, Encoding.UTF8));
+                if (arriving is null)
+                {
+                    unreadableFiles.Add(Path.GetFileName(path));
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(arriving.SurveyId) &&
+                    !arriving.SurveyId.Equals(survey.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreign++;
+                    continue;
+                }
+
+                added += CitizenSurveyResponseStore.Merge(held, arriving.Responses, null);
+            }
+            catch (Exception exception) when (
+                exception is JsonException or IOException or UnauthorizedAccessException)
+            {
+                unreadableFiles.Add(Path.GetFileName(path));
+            }
+        }
+
+        if (added > 0)
+            CitizenSurveyResponseStore.Save(state.ProjectPath, survey, held);
+
+        // ⚠ EVERY OUTCOME NAMED, INCLUDING THE ZEROES. «0 нэмэгдлээ» from re-reading files
+        // already merged and «0» from files nothing could read are different facts, and
+        // a single silent number would let the second pass for the first.
+        var said = new List<string> { $"{added} шинэ хариулт нэмэгдлээ" };
+        if (foreign > 0)
+            said.Add($"{foreign} файл ӨӨР асуулгынх тул АВААГҮЙ");
+        if (unreadableFiles.Count > 0)
+            said.Add($"уншигдсангүй: {string.Join(", ", unreadableFiles)}");
+        said.Add($"нийт {held.Responses.Count}");
+
+        SetStatus(string.Join(" — ", said));
+        RefreshSurveyDetail();
+    }
+
     private UIElement SurveyHeading(ProjectCitizenSurvey survey)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
@@ -264,10 +416,26 @@ internal sealed partial class ShellView
         CitizenSurveyLinkCheck link =
             CitizenSurveyPublicLink.Check(survey.PublicCode, survey.PublicFormUrl);
         if (link.IsUsable)
+        {
             panel.Children.Add(Muted($"Маягт: {survey.PublicFormUrl}"));
-        else
-            panel.Children.Add(Warning("⚠ " + link.Refusal));
 
+            // 🔴 SAID EVERY TIME THE LINK IS SHOWN, not once when it was entered. This is
+            // the sentence that stops a stand-in QR going onto a printed notice.
+            if (survey.IsManualLink)
+            {
+                panel.Children.Add(Warning(
+                    "⚠ ГАРААР БҮРТГЭСЭН хаяг — Студио өөрөө нийтлээгүй. Ажиллаж " +
+                    "байгааг нь утснаас нэг удаа шалгана уу. Нийтлэх үед код өөрчлөгдвөл QR-ыг дахин үүсгэнэ."));
+            }
+
+            panel.Children.Add(SurveyQrBlock(survey));
+        }
+        else
+        {
+            panel.Children.Add(Warning("⚠ " + link.Refusal));
+        }
+
+        panel.Children.Add(ManualLinkRow(survey));
         return panel;
     }
 
@@ -278,6 +446,118 @@ internal sealed partial class ShellView
     /// a single value drawn as a bar has nothing to compare against - it is a number
     /// wearing a chart's clothes.
     /// </summary>
+    /// <summary>
+    /// Lets the owner paste in the address the form was stood up at.
+    ///
+    /// 🔴 BECAUSE THE PEOPLE ANSWERING HAVE PHONES, NOT STUDIO. The owner's own words:
+    /// «судалгаан хамрагдагсадад студио байхгүй шүү. жирийн иргэд. вэб браузер
+    /// ашиглах байх … гар утаснаасаа.» A phone needs a URL, and until the publish route
+    /// exists the URL comes from whoever stood the page up. Waiting for the route would
+    /// mean no trial at all; inventing an address would mean a QR that leads nowhere. So
+    /// the owner pastes the real one and Studio says plainly that it did not issue it.
+    /// </summary>
+    private UIElement ManualLinkRow(ProjectCitizenSurvey survey)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        panel.Children.Add(Muted(
+            "Маягт байрлах хаяг (жишээ https://erk-s.mn/s/xxxxx) — буулгаад бүртгэхэд QR гарна:"));
+
+        var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var box = new TextBox
+        {
+            Text = survey.PublicFormUrl,
+            Width = 380,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        var button = new Button { Content = "Хаяг бүртгэх" };
+        button.Click += (_, _) =>
+        {
+            if (!survey.AcceptManualLink(box.Text))
+            {
+                SetStatus(
+                    "Хаяг бүртгэгдсэнгүй — https://.../s/<код> хэлбэртэй байх ёстой.");
+                return;
+            }
+
+            state.SaveProject();
+            SetStatus($"Хаяг бүртгэгдлээ: {survey.PublicFormUrl} — QR бэлэн.");
+            RefreshSurveyDetail();
+        };
+
+        DockPanel.SetDock(button, Dock.Right);
+        row.Children.Add(button);
+        row.Children.Add(box);
+        panel.Children.Add(row);
+        return panel;
+    }
+
+    /// <summary>
+    /// The QR for a published survey, drawn from the link that was checked.
+    ///
+    /// ⚠ IT APPEARS ONLY WHEN THE LINK PASSED. A square drawn from an unchecked address
+    /// scans perfectly and leads nowhere, and it is printed - so the page shows the fault
+    /// instead, and there is nothing here to photograph by mistake.
+    /// </summary>
+    private UIElement SurveyQrBlock(ProjectCitizenSurvey survey)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+
+        CitizenSurveyQrImage qr = CitizenSurveyQrCode.For(survey.PublicCode, survey.PublicFormUrl);
+        if (!qr.IsDrawn)
+        {
+            panel.Children.Add(Warning("⚠ " + qr.Refusal));
+            return panel;
+        }
+
+        var source = new BitmapImage();
+        source.BeginInit();
+        source.StreamSource = new MemoryStream(qr.Png);
+        source.CacheOption = BitmapCacheOption.OnLoad;
+        source.EndInit();
+        source.Freeze();
+
+        panel.Children.Add(new Image
+        {
+            Source = source,
+            Width = 180,
+            Height = 180,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 6),
+        });
+
+        var save = new Button
+        {
+            Content = "QR-ыг зургаар хадгалах",
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        save.Click += (_, _) => SaveSurveyQr(survey, qr);
+        panel.Children.Add(save);
+        return panel;
+    }
+
+    private void SaveSurveyQr(ProjectCitizenSurvey survey, CitizenSurveyQrImage qr)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "QR хадгалах",
+            Filter = "PNG зураг (*.png)|*.png",
+            FileName = $"qr-{survey.PublicCode}.png",
+            OverwritePrompt = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            File.WriteAllBytes(dialog.FileName, qr.Png);
+            SetStatus($"QR хадгалагдлаа: {dialog.FileName}");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            SetStatus($"QR бичигдсэнгүй: {exception.Message}");
+        }
+    }
+
     private UIElement SurveyKpiRow(ProjectCitizenSurvey survey, CitizenSurveyResult result)
     {
         var row = new WrapPanel { Margin = new Thickness(0, 0, 0, 16) };
