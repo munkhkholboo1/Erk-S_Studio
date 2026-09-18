@@ -128,6 +128,60 @@ public static class CitizenSurveyResponseStore
         File.WriteAllText(path, JsonSerializer.Serialize(document, Options), Encoding.UTF8);
     }
 
+    /// <summary>What a clear-out moved, and where it put it.</summary>
+    /// <param name="ArchivePath">Empty when there was nothing to move.</param>
+    public sealed record CitizenSurveyClearOutcome(int Removed, string ArchivePath);
+
+    /// <summary>
+    /// Sets the collected answers aside so a trial run does not become part of a
+    /// consultation's result.
+    ///
+    /// 🔴 IT MOVES, IT DOES NOT DELETE, AND THAT IS NOT TIMIDITY. Everything else in
+    /// this feature can be recomputed; what a person submitted cannot. The owner asked for
+    /// a way to clear test answers before going live, which is a real need - but the same
+    /// button will sit there when the answers are real, and one mis-click would end a
+    /// consultation with nothing to show for it. A rename costs a file on disk and makes
+    /// the worst outcome recoverable.
+    ///
+    /// ⚠ THE CURSOR SURVIVES ON PURPOSE. It is the watermark of what has already been
+    /// collected, so keeping it means cleared answers do NOT come back on the next fetch -
+    /// which is exactly what clearing a trial is for. Resetting it would quietly refill
+    /// the survey with the very responses somebody just removed.
+    ///
+    /// ⚠ AND THE SERVER STILL HAS ITS OWN COPY. This clears what the project holds;
+    /// re-importing the same file puts them straight back. The caller says so - a clear
+    /// that looked total but was not would be worse than no clear at all.
+    /// </summary>
+    public static CitizenSurveyClearOutcome Clear(
+        string? projectPath,
+        ProjectCitizenSurvey? survey,
+        DateTimeOffset stampUtc)
+    {
+        string? path = ResolvePath(projectPath, survey);
+        if (path is null || !File.Exists(path))
+            return new CitizenSurveyClearOutcome(0, "");
+
+        CitizenSurveyResponseDocument held = LoadDocument(projectPath, survey);
+        if (held.Responses.Count == 0)
+            return new CitizenSurveyClearOutcome(0, "");
+
+        string archive = Path.Combine(
+            Path.GetDirectoryName(path)!,
+            Path.GetFileNameWithoutExtension(path) +
+            stampUtc.ToLocalTime().ToString(".yyyy-MM-dd-HHmmss") + ".cleared.json");
+
+        File.Move(path, archive, overwrite: false);
+
+        Save(projectPath, survey, new CitizenSurveyResponseDocument
+        {
+            SurveyId = held.SurveyId,
+            Cursor = held.Cursor,
+            CollectedAtUtc = held.CollectedAtUtc,
+        });
+
+        return new CitizenSurveyClearOutcome(held.Responses.Count, archive);
+    }
+
     private static string? ResolvePath(string? projectPath, ProjectCitizenSurvey? survey)
     {
         if (survey is null ||

@@ -99,6 +99,14 @@ internal sealed partial class ShellView
         toolbar.Children.Add(formButton);
         toolbar.Children.Add(importButton);
         toolbar.Children.Add(definitionButton);
+
+        var clearButton = new Button
+        {
+            Content = "Хариулт цэвэрлэх",
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        clearButton.Click += (_, _) => ClearSurveyAnswers();
+        toolbar.Children.Add(clearButton);
         toolbar.Children.Add(refreshButton);
         DockPanel.SetDock(toolbar, Dock.Top);
         root.Children.Add(toolbar);
@@ -498,6 +506,80 @@ internal sealed partial class ShellView
             exception is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             SetStatus($"Тодорхойлолт бичигдсэнгүй: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sets a trial run's answers aside so they do not become part of the result.
+    ///
+    /// 🔴 THE OWNER ASKED FOR THIS AND THE NEED IS REAL - a rehearsal's answers must
+    /// not be counted among the public's. The danger is that the same button is still here
+    /// when the answers ARE the public's, and what somebody submitted is the one thing in
+    /// this feature that cannot be recomputed. Three things follow from that:
+    ///
+    ///   it names the COUNT and the SURVEY before doing anything, so the confirmation is
+    ///     about this survey rather than about the word «clear»;
+    ///   it MOVES the file rather than deleting it, so a mis-click costs a rename;
+    ///   it says out loud that the SERVER still has its own copy, because a clear that
+    ///     looked total but was not would be worse than no clear at all.
+    /// </summary>
+    private void ClearSurveyAnswers()
+    {
+        ProjectCitizenSurvey? survey = state.Project.CitizenSurveys.Find(selectedSurveyId);
+        if (survey is null)
+        {
+            SetStatus("Санал асуулга сонгоно уу.");
+            return;
+        }
+
+        int held;
+        try
+        {
+            held = CitizenSurveyResponseStore.LoadDocument(state.ProjectPath, survey)
+                .Responses.Count;
+        }
+        catch (InvalidDataException unreadable)
+        {
+            SetStatus(unreadable.Message);
+            return;
+        }
+
+        if (held == 0)
+        {
+            SetStatus("Цэвэрлэх хариулт алга.");
+            return;
+        }
+
+        // ⚠ THE COUNT IS IN THE QUESTION. «Are you sure?» is answered yes by reflex;
+        // «19 answers from this survey» is read.
+        if (MessageBox.Show(
+                $"«{Blank(survey.Title, "Нэргүй асуулга")}» асуулгын {held} хариултыг " +
+                "цэвэрлэх үү?\n\n" +
+                "Файл устахгүй — хажууд нь хуулбар үлдэнэ. Сервер өөрийн " +
+                "хуулбараа хадгалсаар байна.",
+                "Хариулт цэвэрлэх",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            CitizenSurveyResponseStore.CitizenSurveyClearOutcome cleared =
+                CitizenSurveyResponseStore.Clear(
+                    state.ProjectPath, survey, DateTimeOffset.UtcNow);
+
+            SetStatus(
+                $"{cleared.Removed} хариулт цэвэрлэгдлээ. Хуулбар: " +
+                $"{Path.GetFileName(cleared.ArchivePath)}. Сервер дээр хэвээр байгаа тул " +
+                "дахин оруулбал буцаж ирнэ.");
+            RefreshSurveyDetail();
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"Цэвэрлэж чадсангүй: {exception.Message}");
         }
     }
 
