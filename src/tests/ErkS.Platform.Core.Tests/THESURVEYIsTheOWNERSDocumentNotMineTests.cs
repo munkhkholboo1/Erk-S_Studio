@@ -199,6 +199,51 @@ public sealed class THESURVEYIsTheOWNERSDocumentNotMineTests
         Assert.False(project.CitizenSurvey.IsOpen);
     }
 
+    [Fact]
+    public void EDITINGAQuestionKEEPSItsIdsBecauseAnswersNameThem()
+    {
+        // 🔴 THE CONTRACT'S LOAD-BEARING INVARIANT. A gathered response names the
+        // option ids it ticked. Reissue those ids on the next publish - because a word was
+        // corrected, or an option reordered - and every answer already collected stops
+        // resolving. The tally would count them as unreadable and the result would shrink,
+        // with the citizens who gave them already gone home.
+        ProjectCitizenSurvey survey =
+            CitizenSurveyTemplate.CreatePartialMasterPlanSurvey(Zuunmod);
+        CitizenSurveyQuestion question = survey.Questions[0];
+        string questionId = question.Id;
+        List<string> optionIds = question.Options.Select(option => option.Id).ToList();
+
+        // The ordinary edits: fix a word, retitle an option, move it up the page.
+        question.Text = question.Text + " (засварлав)";
+        question.Options[0].Text = "1-р баг";
+        question.Order = 99;
+
+        Assert.Equal(questionId, question.Id);
+        Assert.Equal(optionIds, question.Options.Select(option => option.Id));
+
+        // And a clone carries them too - copying a survey must not orphan its answers.
+        CitizenSurveyQuestion copy = question.Clone();
+        Assert.Equal(questionId, copy.Id);
+        Assert.Equal(optionIds, copy.Options.Select(option => option.Id));
+    }
+
+    [Fact]
+    public void TWOProjectsGetTheirOWNIdsSoAnswersCannotCrossOver()
+    {
+        // Two towns running the same template must not share option ids: an answer
+        // collected in one project would otherwise resolve against the other's survey and
+        // be counted there, which is the worst possible failure in a public consultation.
+        ProjectCitizenSurvey first = CitizenSurveyTemplate.CreatePartialMasterPlanSurvey("Зуунмод");
+        ProjectCitizenSurvey second = CitizenSurveyTemplate.CreatePartialMasterPlanSurvey("Багануур");
+
+        var firstIds = first.Questions.SelectMany(q => q.Options).Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
+        var secondIds = second.Questions.SelectMany(q => q.Options).Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
+
+        Assert.NotEmpty(firstIds);
+        Assert.Empty(firstIds.Intersect(secondIds, StringComparer.Ordinal));
+        Assert.NotEqual(first.Id, second.Id);
+    }
+
     /// <summary>The owner's document, from the copy that travels with these tests.</summary>
     private static IReadOnlyList<string> DocumentLines()
     {

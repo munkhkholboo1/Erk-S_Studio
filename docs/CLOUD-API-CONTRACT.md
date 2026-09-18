@@ -324,6 +324,48 @@ These live outside `/api/cloud-era/v1` and outside the OpenAPI snapshot:
 - Site images referenced by the catalog are cached on disk with content-type
   and size limits; these requests never carry the bearer token.
 
+## Citizens' survey (`citizen-survey-v1`)
+
+A project may publish a citizens' survey; the public answers it through a QR code
+and Studio aggregates the results onto that project. Owner's request, 2026-09-18:
+«бид иргэдэд qr өгч энэ хүү судалгааг бөглүүлж авна … Аль төслөөс qr үүсгэхээ
+сонгодог байна … тухайн төсөл дээр нь нэгтгэгдэж үр дүн нь боловсруулагддаг».
+
+- Publish: `PUT /api/cloud-era/v1/projects/{projectId}/citizen-survey` — the
+  definition (title, purpose, ordered questions, options). Returns the public
+  `code` and the absolute `formUrl`.
+- Public form: `GET /s/{code}` — a page, not an API, and deliberately OUTSIDE the
+  Cloud ERA base for the same reason sign-in is: a citizen has no session.
+- Submit: the form posts to the server. Studio never sees this route.
+- Collect: `GET /api/cloud-era/v1/projects/{projectId}/citizen-survey/responses?since={cursor}`
+  — returns responses plus the next cursor.
+
+### Invariants this contract rests on
+
+1. **Option and question ids are STABLE across a re-publish.** A response names
+   the option ids it ticked. If a later publish reissues ids, every response
+   already gathered stops resolving and the result silently shrinks. Studio
+   generates an id once and keeps it through every edit; the server MUST store
+   what Studio sends and MUST NOT mint its own.
+2. **A response carries a server-issued id, and Studio counts by it.** Fetching
+   the same page twice must not double-count anybody. The cursor is a watermark,
+   not a promise of exactly-once delivery.
+3. **Studio receives no identifying data.** The survey asks for an age band, a sex
+   and a баг; nothing else about the person may reach Studio — no address, no IP,
+   no device id. What the server keeps for its own abuse control is the server's
+   business and stays there.
+4. **Closing a survey stops new answers and deletes none.** `isOpen: false` is a
+   gate on submission only.
+5. **An answer naming something the survey no longer has is returned as it was
+   recorded, not repaired.** Studio counts these separately and reports them; a
+   server that dropped them would make the result look complete when it is not.
+
+### Enforcement point
+
+`CloudEraFeatures.CitizenSurveyV1`, required before publishing or collecting. A
+server without it leaves the Studio page visible and its buttons refused, which
+is the same shape as every other feature-gated surface here.
+
 ## Contract change policy
 
 - Backward-compatible optional response fields may be added within API v1;

@@ -66,4 +66,15 @@ public static class CloudEraFeatures
     public const string IdempotentSync = "idempotent-sync";
     public const string RelationshipBoundary = "relationship-boundary";
     public const string NativeSourceRemainsLocal = "native-source-remains-local";
+
+    /// <summary>
+    /// Publishing a project's citizens' survey and collecting its answers.
+    ///
+    /// 🔴 THE INVARIANT THIS KEY GUARDS IS ID STABILITY. A response names the option
+    /// ids it ticked, so a server that minted its own ids on publish would make every
+    /// answer already gathered stop resolving - and the result would shrink without
+    /// anybody being told. The contract puts id ownership with Studio; this key is how
+    /// Studio refuses a server that has not agreed to it.
+    /// </summary>
+    public const string CitizenSurveyV1 = "citizen-survey-v1";
 }
