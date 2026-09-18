@@ -172,6 +172,21 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
     }
 
     [Fact]
+    public void ANUNREADABLENumberSTOPSTheFormInsteadOfVanishing()
+    {
+        // SRV spotted this by reading the script: Number("abc") is NaN, and NaN survives
+        // JSON.stringify as null - so on a browser that lets letters into a number box,
+        // the answer would arrive as «did not answer». The person would never know, the
+        // question s base would be one short, and every share computed from it slightly
+        // wrong in a direction nothing can detect.
+        string html = CitizenSurveyFormHtml.Build(Owners());
+
+        Assert.Contains("isFinite(num)", html, StringComparison.Ordinal);
+        Assert.Contains("unreadable.push", html, StringComparison.Ordinal);
+        Assert.Contains("unreadable.length", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void THEPAGEAsksTheNetworkForNOTHING()
     {
         // It is opened from a shared folder or a memory stick, possibly on a machine with

@@ -152,6 +152,7 @@ public static class CitizenSurveyFormHtml
         <script>
         document.getElementById('save').addEventListener('click', function () {
           var answers = [];
+          var unreadable = [];
           document.querySelectorAll('fieldset').forEach(function (box) {
             var id = box.getAttribute('data-q');
             var picked = [];
@@ -163,11 +164,27 @@ public static class CitizenSurveyFormHtml
               if (t.value && t.value.trim()) text = t.value.trim();
             });
             var numberBox = box.querySelector('[data-number]');
-            var num = numberBox && numberBox.value !== '' ? Number(numberBox.value) : null;
+            var num = null;
+            if (numberBox && numberBox.value !== '') {
+              num = Number(numberBox.value);
+              if (!isFinite(num)) {
+                // ABSENCE MUST NOT BE A VALUE. NaN survives JSON.stringify as null, so a
+                // box some mobile browsers let a person type letters into would arrive
+                // as «did not answer» - their answer gone, and the count quietly short.
+                unreadable.push(box.querySelector('legend').textContent);
+                num = null;
+              }
+            }
             if (picked.length || text || num !== null) {
               answers.push({ QuestionId: id, OptionIds: picked, Text: text, Number: num });
             }
           });
+          if (unreadable.length) {
+            document.getElementById('done').textContent =
+              'Тоон хариултыг уншиж чадсангүй: ' + unreadable.join('; ') +
+              ' — зөвхөн тоо бичнэ үү.';
+            return;
+          }
           if (!answers.length) {
             document.getElementById('done').textContent = 'Хариулт бөглөөгүй байна.';
             return;
