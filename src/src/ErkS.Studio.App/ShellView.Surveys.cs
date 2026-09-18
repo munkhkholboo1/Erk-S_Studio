@@ -35,6 +35,9 @@ internal sealed partial class ShellView
     /// <summary>The bar track, in pixels. A fixed width keeps every question comparable.</summary>
     private const double SurveyTrackWidth = 320;
 
+    /// <summary>Where a public form lives. Studio mints the code under it, by agreement.</summary>
+    private const string StudioSurveyBaseUrl = "https://erk-s.mn";
+
     private UIElement BuildSurveysPage()
     {
         var root = new DockPanel { Margin = new Thickness(18) };
@@ -73,12 +76,20 @@ internal sealed partial class ShellView
         };
         importButton.Click += (_, _) => ImportSurveyAnswers();
 
+        var definitionButton = new Button
+        {
+            Content = "Асуулгын JSON",
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        definitionButton.Click += (_, _) => ExportSurveyDefinition();
+
         var refreshButton = new Button { Content = "Үр дүнг шинэчлэх" };
         refreshButton.Click += (_, _) => RefreshSurveyDetail();
         toolbar.Children.Add(surveyTemplateBox);
         toolbar.Children.Add(addButton);
         toolbar.Children.Add(formButton);
         toolbar.Children.Add(importButton);
+        toolbar.Children.Add(definitionButton);
         toolbar.Children.Add(refreshButton);
         DockPanel.SetDock(toolbar, Dock.Top);
         root.Children.Add(toolbar);
@@ -308,6 +319,56 @@ internal sealed partial class ShellView
     }
 
     /// <summary>
+    /// Writes the definition the public form is built from.
+    ///
+    /// 🔴 THIS FILE CARRIES STUDIO'S IDENTIFIERS AND NOTHING MAY ALTER THEM. Every
+    /// answer that comes back names a question id and an option id from here; one of them
+    /// changed in transit and the answers resolve to nothing, while every number on the
+    /// results page still adds up perfectly. That is the one failure this feature cannot
+    /// detect from the outside, which is why the ids are pinned by a test rather than
+    /// trusted to a convention.
+    /// </summary>
+    private void ExportSurveyDefinition()
+    {
+        ProjectCitizenSurvey? survey = state.Project.CitizenSurveys.Find(selectedSurveyId);
+        if (survey is null)
+        {
+            SetStatus("Санал асуулга сонгоно уу.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(survey.PublicCode))
+        {
+            SetStatus("Эхлээд «Код үүсгэж QR гаргах» дарна уу — кодгүй маягт байршуулах боломжгүй.");
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Асуулгын тодорхойлолт хадгалах",
+            Filter = "JSON (*.json)|*.json",
+            FileName = $"survey-{survey.PublicCode}.json",
+            OverwritePrompt = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            File.WriteAllText(
+                dialog.FileName, CitizenSurveyPublication.ToJson(survey), Encoding.UTF8);
+            SetStatus(
+                $"Тодорхойлолт гарлаа: {dialog.FileName} — " +
+                $"{survey.Questions.Count} асуулт, код {survey.PublicCode}. Серверт өгнө үү.");
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"Тодорхойлолт бичигдсэнгүй: {exception.Message}");
+        }
+    }
+
+    /// <summary>
     /// Reads filled-in files back in and merges them onto the survey.
     ///
     /// 🔴 A FILE FOR ANOTHER SURVEY IS REFUSED BY NAME, NOT COUNTED. Two rounds in one
@@ -435,6 +496,9 @@ internal sealed partial class ShellView
             panel.Children.Add(Warning("⚠ " + link.Refusal));
         }
 
+        if (!link.IsUsable)
+            panel.Children.Add(IssueCodeRow(survey));
+
         panel.Children.Add(ManualLinkRow(survey));
         return panel;
     }
@@ -446,6 +510,44 @@ internal sealed partial class ShellView
     /// a single value drawn as a bar has nothing to compare against - it is a number
     /// wearing a chart's clothes.
     /// </summary>
+    /// <summary>
+    /// Mints this survey's public address so the QR can be printed today.
+    ///
+    /// 🔴 THE CODE IS OURS BY AGREEMENT, WHICH IS WHY THIS BUTTON CAN EXIST. SRV, on
+    /// reviewing the contract: «кодыг та үүсгэ, сервер түүнийг хадгалахаас өөр юу ч
+    /// хийхгүй». So the address does not change when the route is finally deployed,
+    /// and a poster printed now keeps working.
+    ///
+    /// ⚠ AND IT SAYS WHAT IS STILL MISSING. The QR is final; the page it opens is not
+    /// live until somebody deploys. Printing before then is a decision, not an accident,
+    /// so the sentence is on screen rather than in a document.
+    /// </summary>
+    private UIElement IssueCodeRow(ProjectCitizenSurvey survey)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var button = new Button
+        {
+            Content = "Код үүсгэж QR гаргах",
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        button.Click += (_, _) =>
+        {
+            if (!survey.IssuePublicCode(StudioSurveyBaseUrl))
+            {
+                SetStatus("Код үүсгэгдсэнгүй.");
+                return;
+            }
+
+            state.SaveProject();
+            SetStatus(
+                $"Код үүслээ: {survey.PublicFormUrl} — QR ҮНДСЭН, дахин өөрчлөгдөхгүй. " +
+                "Хуудас нь серверт тавигдсны дараа амьд болно.");
+            RefreshSurveyDetail();
+        };
+        panel.Children.Add(button);
+        return panel;
+    }
+
     /// <summary>
     /// Lets the owner paste in the address the form was stood up at.
     ///

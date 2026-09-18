@@ -259,6 +259,27 @@ public sealed class ProjectCitizenSurvey
     }
 
     /// <summary>
+    /// Mints this survey's own public code and the address it lives at.
+    ///
+    /// 🔴 STUDIO ISSUES IT, BY AGREEMENT WITH THE SERVER. The server stores the code and
+    /// never invents one, which is what lets a QR be printed before anything is deployed:
+    /// the address does not change when the route finally answers.
+    ///
+    /// ⚠ IT REFUSES TO REPLACE A CODE THAT IS ALREADY OUT IN THE WORLD. Re-minting after
+    /// a QR has been printed sends every existing poster to a page that will never exist,
+    /// and a poster cannot be recalled. Re-issuing is possible only for a survey that has
+    /// no usable link yet.
+    /// </summary>
+    public bool IssuePublicCode(string? baseUrl)
+    {
+        if (CitizenSurveyPublicLink.Check(PublicCode, PublicFormUrl).IsUsable)
+            return false;
+
+        string code = CitizenSurveyCode.Mint();
+        return AcceptPublicLink(code, CitizenSurveyPublicLink.Build(baseUrl, code));
+    }
+
+    /// <summary>
     /// Records an address somebody was given by hand, before the publish route exists.
     ///
     /// 🔴 MARKED, AND THE MARK IS THE WHOLE REASON THIS IS A SEPARATE DOOR. Studio did
