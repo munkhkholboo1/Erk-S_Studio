@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
@@ -99,6 +100,14 @@ internal sealed partial class ShellView
         toolbar.Children.Add(formButton);
         toolbar.Children.Add(importButton);
         toolbar.Children.Add(definitionButton);
+
+        var collectButton = new Button
+        {
+            Content = "Хариулт татах",
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        collectButton.Click += async (_, _) => await CollectSurveyAnswersAsync();
+        toolbar.Children.Add(collectButton);
 
         var clearButton = new Button
         {
@@ -506,6 +515,79 @@ internal sealed partial class ShellView
             exception is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             SetStatus($"Тодорхойлолт бичигдсэнгүй: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Brings the citizens' answers down from the server, without anybody moving a file.
+    ///
+    /// 🔴 THE CURSOR IS A WATERMARK, NOT A GUARANTEE, and the merge is what makes that
+    /// safe. Studio deduplicates on the response id, so a cursor that repeats work costs
+    /// bandwidth and nothing else - which is why the server was asked to return MORE than
+    /// requested whenever it is unsure. The opposite arrangement, a cursor trusted to be
+    /// exact, would lose a citizen's answer with no outward sign at all.
+    ///
+    /// ⚠ EVERY OUTCOME IS NAMED, INCLUDING THE ZEROES. «0 шинэ» after a real
+    /// collection and «0 шинэ» because nothing could be read are different facts, and
+    /// a single silent number would let the second pass for the first.
+    /// </summary>
+    private async Task CollectSurveyAnswersAsync()
+    {
+        ProjectCitizenSurvey? survey = state.Project.CitizenSurveys.Find(selectedSurveyId);
+        if (survey is null)
+        {
+            SetStatus("Санал асуулга сонгоно уу.");
+            return;
+        }
+
+        string projectId = state.Project.ProjectId;
+        if (string.IsNullOrWhiteSpace(projectId))
+        {
+            SetStatus("Төсөл үүлэнд бүртгэгдээгүй тул татах боломжгүй.");
+            return;
+        }
+
+        CitizenSurveyResponseDocument held;
+        try
+        {
+            held = CitizenSurveyResponseStore.LoadDocument(state.ProjectPath, survey);
+        }
+        catch (InvalidDataException unreadable)
+        {
+            SetStatus(unreadable.Message);
+            return;
+        }
+
+        SetStatus("Хариулт татаж байна…");
+
+        try
+        {
+            CitizenSurveyResponseDocument arriving =
+                await account.FetchCitizenSurveyResponsesAsync(
+                    projectId, survey.Id, held.Cursor);
+
+            int added = CitizenSurveyResponseStore.Merge(
+                held, arriving.Responses, arriving.Cursor);
+            CitizenSurveyResponseStore.Save(state.ProjectPath, survey, held);
+
+            SetStatus(
+                $"{added} шинэ хариулт татагдлаа — нийт {held.Responses.Count}. " +
+                (arriving.Responses.Count > added
+                    ? $"({arriving.Responses.Count - added} нь аль хэдийн байсан.)"
+                    : ""));
+            RefreshSurveyDetail();
+        }
+        catch (StudioAccountException failure)
+        {
+            // 🔴 THE SERVER'S OWN SENTENCE, NOT A SUMMARY OF IT. On a conflict it names
+            // the two definition files that both claim this survey - and that message is
+            // the only thing that tells somebody which file to remove.
+            SetStatus($"Татаж чадсангүй: {failure.Message}");
+        }
+        catch (Exception exception) when (
+            exception is HttpRequestException or IOException or InvalidDataException)
+        {
+            SetStatus($"Татаж чадсангүй: {exception.Message}");
         }
     }
 

@@ -1218,6 +1218,24 @@ internal sealed class StudioAccountService :
             cancellationToken).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Collects the citizens' answers for one survey, from a watermark onwards.
+    /// </summary>
+    public async Task<CitizenSurveyResponseDocument> FetchCitizenSurveyResponsesAsync(
+        string projectId,
+        string surveyId,
+        string? since,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await cloudEraClient.FetchCitizenSurveyResponsesAsync(
+            CurrentCloudEraContext(),
+            projectId,
+            surveyId,
+            since,
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<IReadOnlyList<StudioCloudDesignPackage>> ListDesignPackagesAsync(
         string projectId,
         CancellationToken cancellationToken = default)

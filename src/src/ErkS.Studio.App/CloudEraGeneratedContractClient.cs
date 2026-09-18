@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using ErkS.CloudEra.Client.Generated;
+using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 
@@ -147,6 +148,26 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 null,
                 null,
                 Convert<CloudEraSourcePackageCreateRequest>(request),
+                cancellationToken));
+
+    public Task<CitizenSurveyResponseDocument> FetchCitizenSurveyResponsesAsync(
+        CloudEraClientContext context,
+        string projectId,
+        string surveyId,
+        string? since,
+        CancellationToken cancellationToken = default) =>
+        ExecuteAsync<CitizenSurveyResponseDocumentRecord, CitizenSurveyResponseDocument>(
+            context,
+            client => client.ListCloudEraCitizenSurveyResponsesAsync(
+                projectId,
+                surveyId,
+
+                // ⚠ EMPTY MEANS «EVERYTHING», AND IT IS SENT AS ABSENT RATHER THAN BLANK.
+                // A `since=` with nothing after it asks the server to interpret emptiness;
+                // omitting the parameter says plainly that there is no watermark yet.
+                string.IsNullOrWhiteSpace(since) ? null : since,
+                null,
+                null,
                 cancellationToken));
 
     private async Task<TStudio> ExecuteAsync<TGenerated, TStudio>(

@@ -137,6 +137,48 @@ public sealed class THEWIRESpellingMustNotArriveEmptyTests
         Assert.DoesNotContain("since=", handler.RequestUri?.AbsoluteUri ?? "", StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task THEWRAPPERHandsCoreAPopulatedDocumentNotAnEmptyOne()
+    {
+        // 🔴 THE WHOLE JOURNEY IN ONE TEST: camelCase off the wire, through the generated
+        // client, through the Studio wrapper, into the Core document the response store
+        // merges. That conversion is the single place where the two spellings meet, and
+        // if it were wrong every field would be null while everything still reported
+        // success — which is exactly how a consultation comes back looking ignored.
+        var handler = new StubHandler(WireBody);
+        using var httpClient = new HttpClient(handler);
+        var wrapper = new CloudEraGeneratedContractClient(httpClient);
+
+        ErkS.Platform.Core.CitizenSurveyResponseDocument document =
+            await wrapper.FetchCitizenSurveyResponsesAsync(
+                new CloudEraClientContext("https://erk-s.mn/", "access-token"),
+                "88659be5416a4853adb6232ac8c7d689",
+                "05402a414b134b0cbb230795ea6b29c1",
+                since: null);
+
+        Assert.Equal("05402a414b134b0cbb230795ea6b29c1", document.SurveyId);
+        Assert.Equal("1:3f93d33ab042449fa071c38200f61beb", document.Cursor);
+        Assert.Single(document.Responses);
+        Assert.Equal("3f93d33ab042449fa071c38200f61beb", document.Responses[0].Id);
+        Assert.Equal(2, document.Responses[0].Answers.Count);
+
+        // ⚠ The two values that carry meaning rather than shape: a written word that
+        // travels with its tick, and a number that is still a number.
+        Assert.Equal("Өөр баг", document.Responses[0].Answers[0].Text);
+        Assert.Equal(3, document.Responses[0].Answers[1].Number);
+
+        // And it merges — the document is not merely populated, it is USABLE.
+        var held = new ErkS.Platform.Core.CitizenSurveyResponseDocument
+        {
+            SurveyId = document.SurveyId,
+        };
+        Assert.Equal(
+            1,
+            ErkS.Platform.Core.CitizenSurveyResponseStore.Merge(
+                held, document.Responses, document.Cursor));
+        Assert.Equal("1:3f93d33ab042449fa071c38200f61beb", held.Cursor);
+    }
+
     private sealed class StubHandler(string body) : HttpMessageHandler
     {
         public Uri? RequestUri { get; private set; }

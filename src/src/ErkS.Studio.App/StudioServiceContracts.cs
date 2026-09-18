@@ -1,5 +1,7 @@
 using ErkS.CloudEra.Client;
 
+using ErkS.Platform.Core;
+
 namespace ErkS.Studio;
 
 internal interface IStudioSessionClient
@@ -351,6 +353,22 @@ internal readonly record struct CloudEraClientContext(string ServerUrl, string A
 
 internal interface ICloudEraContractClient
 {
+    /// <summary>
+    /// The citizens' answers collected for one survey since a watermark.
+    ///
+    /// 🔴 THE DOCUMENT COMES BACK IN Core's SHAPE, NOT THE WIRE'S. The route answers
+    /// in camelCase and the file on disk is PascalCase; the conversion happens here, once,
+    /// so nothing downstream has to know there are two spellings. Reusing the file reader
+    /// on the wire body would have produced a document of nulls: no error, HTTP 200, an
+    /// empty list, and a consultation that looked ignored.
+    /// </summary>
+    Task<CitizenSurveyResponseDocument> FetchCitizenSurveyResponsesAsync(
+        CloudEraClientContext context,
+        string projectId,
+        string surveyId,
+        string? since,
+        CancellationToken cancellationToken = default);
+
     Task<StudioCloudProjectListResponse> ListProjectsAsync(
         CloudEraClientContext context,
         CancellationToken cancellationToken = default);
