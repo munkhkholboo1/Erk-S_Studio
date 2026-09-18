@@ -336,6 +336,19 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
   `code` and the absolute `formUrl`.
 - Public form: `GET /s/{code}` — a page, not an API, and deliberately OUTSIDE the
   Cloud ERA base for the same reason sign-in is: a citizen has no session.
+
+  🔴 IT MUST NOT BE RENDERED THROUGH THE SITE'S PAGE SHELL. That shell runs a
+  ~486-phrase substitution over every text node, so a survey drawn through it
+  would show the citizen a machine-substituted rendering of the owner's document
+  while the answers still recorded option ids — invariant 7, defeated, with every
+  number still looking right. The page is served as Studio composed it, byte for
+  byte. Today that holds because the route is written outside the shell; it is
+  recorded here as a REQUIREMENT rather than a happy accident, and pinned by a
+  test on the server side, because a later refactor that "unified" the page
+  rendering would break it silently.
+- Submit: `POST /s/{code}` — the form posts its own answer document back to the
+  address it was served from. A repeat carrying an id already stored is the same
+  submission and must not be recorded twice (invariant 2).
 - Submit: the form posts to the server. Studio never sees this route.
 - Collect: `GET /api/cloud-era/v1/projects/{projectId}/citizen-survey/responses?since={cursor}`
   — returns responses plus the next cursor.
@@ -347,19 +360,39 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
    already gathered stops resolving and the result silently shrinks. Studio
    generates an id once and keeps it through every edit; the server MUST store
    what Studio sends and MUST NOT mint its own.
-2. **A response carries a server-issued id, and Studio counts by it.** Fetching
-   the same page twice must not double-count anybody. The cursor is a watermark,
+2. **A response carries an id minted by the FORM, and the server preserves it.**
+   Fetching the same page twice must not double-count anybody, and neither must a
+   phone on a weak signal that retries a submission. The cursor is a watermark,
    not a promise of exactly-once delivery.
-3. **Studio receives no identifying data.** The survey asks for an age band, a sex
+
+   🔴 CORRECTED 2026-09-18, AND IT WAS MY MISTAKE. This clause said «a
+   server-issued id», which is wrong in the one situation that matters: a retry.
+   With server-issued ids, one person's two attempts become two different ids and
+   therefore two different people — the count rises and nothing downstream can
+   tell the copies apart. With a form-minted id the retry arrives carrying the
+   same key, and the merge recognises it and adds nobody. The id is an
+   idempotency key: the server stores it and MUST NOT substitute its own, and a
+   repeat of one is the same submission, never a second.
+
+   ⚠ The obvious objection — that a client can then choose its own ids — is not
+   a difference: a client that wants to submit twice simply posts twice, whatever
+   mints the id. Client-minted ids are strictly better at deduplication and no
+   worse against abuse.
+3. **A question offers at most ONE write-in line.** An answer carries a single
+   `Text` per question, so a question with two «Бусад: ___» options would keep
+   whichever the page read last and drop the other silently. Publication refuses
+   such a question rather than letting a citizen's words disappear. Lifting this
+   needs the answer shape to carry a line per option, not a looser check.
+4. **Studio receives no identifying data.** The survey asks for an age band, a sex
    and a баг; nothing else about the person may reach Studio — no address, no IP,
    no device id. What the server keeps for its own abuse control is the server's
    business and stays there.
-4. **Closing a survey stops new answers and deletes none.** `isOpen: false` is a
+5. **Closing a survey stops new answers and deletes none.** `isOpen: false` is a
    gate on submission only.
-5. **An answer naming something the survey no longer has is returned as it was
+6. **An answer naming something the survey no longer has is returned as it was
    recorded, not repaired.** Studio counts these separately and reports them; a
    server that dropped them would make the result look complete when it is not.
-6. **The citizen reads the owner's words, unchanged.** Only the page's own frame
+7. **The citizen reads the owner's words, unchanged.** Only the page's own frame
    — navigation, buttons, footer — may be localized. The title, the purpose, every
    question and every option are reproduced exactly as published, whatever
    language the visitor asked the site for.
@@ -377,11 +410,11 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
    It is also a legal matter and not only a technical one: the wording citizens
    answered is quoted back in the plan, so it has to be the wording the owner
    published.
-7. **The cursor is opaque.** Studio stores it and sends it back; it never parses
+8. **The cursor is opaque.** Studio stores it and sends it back; it never parses
    it, orders by it, or infers a time from it. The server may change what it is
    made of — a timestamp today, a monotone sequence tomorrow — without telling
    Studio, and a Studio that had read meaning into it would break silently.
-8. **`formUrl` must be `{base}/s/{code}`, and Studio checks it before printing.**
+9. **The public code is minted by STUDIO, and `formUrl` is `{base}/s/{code}`.**
    The pair is returned together and must agree; Studio refuses a publish whose
    `formUrl` does not end in its own `code`, and refuses one that arrives empty.
 
@@ -391,7 +424,18 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
    citizens reporting that the link is dead — weeks later, if at all. So the
    printed value is verified at the moment it is issued, and the owner may set
    the base in Studio when the server cannot know its own public address.
-9. **Publishing is a project-level change and sends `If-Match`.** The definition
+
+   🔴 WHO MINTS THE CODE CHANGED ON 2026-09-18, AT SRV'S SUGGESTION, and the
+   change is worth more than it looks: «кодыг та үүсгэ, сервер түүнийг
+   хадгалахаас өөр юу ч хийхгүй». Because Studio issues it, the address exists
+   before anything is deployed — so a QR can be printed while the route is still
+   being written, and it keeps working when the route answers. It is the same
+   principle as invariant 1, carried one step further.
+
+   ⚠ AND IT IS ISSUED ONCE. Re-minting under a printed QR sends every poster
+   already on a wall to a page that will never exist, and a poster cannot be
+   recalled; Studio refuses to replace a code that already has a usable link.
+10. **Publishing is a project-level change and sends `If-Match`.** The definition
    lives on the project record, so it obeys the optimistic-concurrency rule above
    rather than being an exception to it. This matters most on the re-publish that
    follows collection: two people editing one survey while answers arrive is
@@ -403,7 +447,7 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
 Two refusals reach a member of the public rather than Studio, so neither is a
 reason code — each is a page, and it must say what happened and what to do.
 
-- **A closed survey** (invariant 4): the survey is named, the visitor is told the
+- **A closed survey** (invariant 5): the survey is named, the visitor is told the
   collection has ended, and no form is drawn. Not an error page: answering late
   is not a mistake, and a citizen who arrives after the deadline was still
   willing to take part.

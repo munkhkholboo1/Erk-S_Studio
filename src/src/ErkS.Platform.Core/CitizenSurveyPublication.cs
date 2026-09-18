@@ -70,6 +70,20 @@ public static class CitizenSurveyPublication
                     option.Id, option.Text, option.InvitesOwnWords))
                 .ToList();
 
+            // \U0001F534 ASSERT THE LIMITATION RATHER THAN HOPING NOBODY MEETS IT. An answer
+            // carries ONE Text field per question, so a question offering two write-in
+            // lines would keep whichever the page read last and lose the other without
+            // saying so. SRV found this by reading the form. Until the answer shape can
+            // hold a line per option, a second one is refused at publication - loudly,
+            // while somebody is still looking at a screen.
+            if (options.Count(option => option.InvitesOwnWords) > 1)
+            {
+                throw new InvalidDataException(
+                    $"«{question.Text}» асуулт нэгээс олон бичих мөртэй байна. " +
+                    "Нэг асуултад ихдээ нэг «Бусад: ___» мөр байж болно — " +
+                    "эс бөгөөс бичсэн үгнүүдийн зөвхөн нэг нь хадгалагдана.");
+            }
+
             questions.Add(new CitizenSurveyPublishedQuestion(
                 question.Id,
                 question.Text,

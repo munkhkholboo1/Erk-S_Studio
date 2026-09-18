@@ -99,7 +99,7 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
     [Fact]
     public void THEOWNERSWordingReachesThePageUnchanged()
     {
-        // Contract invariant 6, on the offline route. Nothing substitutes phrases here,
+        // Contract invariant 7, on the offline route. Nothing substitutes phrases here,
         // and the escaping must not quietly reword anything either.
         ProjectCitizenSurvey survey = Owners();
         string html = CitizenSurveyFormHtml.Build(survey);
@@ -145,6 +145,30 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
 
         Assert.Contains($"type=\"radio\" name=\"{single.Id}\"", html, StringComparison.Ordinal);
         Assert.Contains($"type=\"checkbox\" name=\"{many.Id}\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void THEPAGEPOSTSWhenServedAndSavesAFileWhenOpenedFromAFolder()
+    {
+        // ONE FILE, TWO MODES. The people answering have phones and a browser, so the
+        // served page must submit by itself - a phone cannot hand a downloaded file to
+        // anybody. The offline branch stays because the server may not be up.
+        string html = CitizenSurveyFormHtml.Build(Owners());
+
+        Assert.Contains("location.protocol", html, StringComparison.Ordinal);
+        Assert.Contains("method: 'POST'", html, StringComparison.Ordinal);
+        Assert.Contains("a.download", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARETRIEDSubmissionCarriesTheSAMEIdSoNobodyIsCountedTwice()
+    {
+        // A phone on a weak signal retries. A fresh id per attempt would enter that
+        // person again, and no count downstream could tell the copies from real people.
+        string html = CitizenSurveyFormHtml.Build(Owners());
+
+        Assert.Contains("window.erksResponseId = window.erksResponseId ||", html, StringComparison.Ordinal);
+        Assert.Contains("Id: window.erksResponseId", html, StringComparison.Ordinal);
     }
 
     [Fact]

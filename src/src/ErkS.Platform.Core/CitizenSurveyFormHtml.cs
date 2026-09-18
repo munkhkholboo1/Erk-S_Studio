@@ -14,13 +14,18 @@ namespace ErkS.Platform.Core;
 /// stick, opened by whoever is filling it in.
 ///
 /// \U0001F534 THE OWNER'S WORDS, REPRODUCED EXACTLY - the same invariant the public form owes
-/// (contract invariant 6). No phrase substitution runs here because nothing here is
+/// (contract invariant 7). No phrase substitution runs here because nothing here is
 /// served; the text is written into the file as published. Every string that reaches the
 /// page goes through <see cref="Escape"/>, which is about HTML correctness, not rewording:
 /// an ampersand in a question must still read as an ampersand.
 ///
 /// \u26a0 TICKED FIRST, WRITTEN LAST, exactly as the window and the owner's own paper do it.
 /// A person who meets a blank box halfway through a form often stops there.
+///
+/// \U0001F534 ONE FILE, TWO MODES, AND THE PAGE DECIDES BY WHERE IT IS. Served over http(s)
+/// it POSTs back to its own address; opened from a folder it writes the file out instead.
+/// The body is byte-identical either way, so the offline route stays available if the
+/// server is not up - and neither mode is a second implementation that could drift.
 ///
 /// \u26a0 IT WRITES A <see cref="CitizenSurveyResponseDocument"/>, NOT A SHAPE OF ITS OWN. The
 /// file a member hands back is deserialised by the same reader that reads collected
@@ -167,24 +172,46 @@ public static class CitizenSurveyFormHtml
             document.getElementById('done').textContent = 'Хариулт бөглөөгүй байна.';
             return;
           }
+          // \u26a0 MINTED ONCE PER FILLED-IN FORM, NOT PER ATTEMPT. A phone on a weak
+          // signal retries; a new id per attempt would enter that person two, three
+          // times and nothing downstream could tell the copies apart from real people.
+          window.erksResponseId = window.erksResponseId ||
+            (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random())
+              .replace(/-/g, '');
           var doc = {
             SurveyId: '{{surveyId}}',
             Cursor: '',
             CollectedAtUtc: new Date().toISOString(),
             Responses: [{
-              Id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random())
-                    .replace(/-/g, ''),
+              Id: window.erksResponseId,
               SubmittedAtUtc: new Date().toISOString(),
               Answers: answers
             }]
           };
-          var blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+          var said = document.getElementById('done');
+          var body = JSON.stringify(doc, null, 2);
+          if (location.protocol === 'http:' || location.protocol === 'https:') {
+            said.textContent = 'Илгээж байна…';
+            fetch(location.pathname, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: body
+            }).then(function (r) {
+              if (!r.ok) throw new Error(String(r.status));
+              said.textContent = 'Баярлалаа. Таны хариулт хүлээн авагдлаа.';
+              document.getElementById('save').disabled = true;
+            }).catch(function () {
+              said.textContent =
+                'Илгээж чадсангүй. Дахин дарна уу — давхар бүртгэгдэхгүй.';
+            });
+            return;
+          }
+          var blob = new Blob([body], { type: 'application/json' });
           var a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
           a.download = doc.Responses[0].Id + '{{CitizenSurveyFormHtml.AnswerFileExtension}}';
           a.click();
-          document.getElementById('done').textContent =
-            'Хадгалагдлаа. Файлыг төслийн ажилтанд өгнө үү.';
+          said.textContent = 'Хадгалагдлаа. Файлыг төслийн ажилтанд өгнө үү.';
         });
         </script>
         """;
