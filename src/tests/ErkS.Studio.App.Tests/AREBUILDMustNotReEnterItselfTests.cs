@@ -136,6 +136,24 @@ public sealed class AREBUILDMustNotReEnterItselfTests
         Assert.Contains("finally", page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EITHERExportNamesTheFormAfterTheCODEWhenThereIsOne()
+    {
+        // 🔴 TWO BUTTONS, ONE SERVABLE NAME. SRV found the trap: this page exports the
+        // form from two places, and one of them wrote a fixed «санал-асуулга.html». That
+        // file is a perfectly good offline form and the server CANNOT serve it - the
+        // route looks it up by code - so on a busy day the wrong button puts a
+        // correct-looking file in the server folder and /s/<code> answers 404 beside it.
+        // Naming it by the code removes the choice instead of documenting it.
+        string page = CodeOnly(ReadAppSource("ShellView.Surveys.cs"));
+
+        Assert.Contains("$\"{survey.PublicCode}.html\"", page, StringComparison.Ordinal);
+
+        // And the descriptive name survives ONLY for the case that cannot be served
+        // anyway - a survey with no code yet, which is offline by definition.
+        Assert.Contains("IsNullOrWhiteSpace(survey.PublicCode)", page, StringComparison.Ordinal);
+    }
+
     private sealed record Row(string Id, string Label);
 
     private static void OnSta(Action body)

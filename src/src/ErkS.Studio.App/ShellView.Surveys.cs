@@ -353,7 +353,22 @@ internal sealed partial class ShellView
         {
             Title = "Санал асуулгын маягт хадгалах",
             Filter = "Веб маягт (*.html)|*.html",
-            FileName = "санал-асуулга.html",
+
+            // 🔴 THE SAME NAME EITHER BUTTON PRODUCES IT. SRV spotted the trap: this page
+            // has two exports, and this one used to write «санал-асуулга.html» - a
+            // perfectly good offline form that the server CANNOT serve, because the route
+            // looks the file up by code. On a busy day the wrong button gets pressed, the
+            // file lands in the server's folder, and /s/<code> answers 404 while a
+            // correct-looking html sits right there. Naming it by the code removes the
+            // choice rather than documenting it; offline use does not care what it is
+            // called, so nothing is lost.
+            //
+            // ⚠ Before a code is issued there is nothing to name it after, and that form
+            // is offline-only by definition - so it keeps a descriptive name and the
+            // status line says so, instead of inventing a code that would not match.
+            FileName = string.IsNullOrWhiteSpace(survey.PublicCode)
+                ? "санал-асуулга.html"
+                : $"{survey.PublicCode}.html",
             OverwritePrompt = true,
         };
         if (dialog.ShowDialog() != true)
@@ -364,8 +379,12 @@ internal sealed partial class ShellView
             File.WriteAllText(
                 dialog.FileName, CitizenSurveyFormHtml.Build(survey), Encoding.UTF8);
             SetStatus(
-                $"Маягт гарлаа: {dialog.FileName} — " +
-                $"{survey.Questions.Count} асуулт. Бөглөсний дараа «Хариулт оруулах».");
+                string.IsNullOrWhiteSpace(survey.PublicCode)
+                    ? $"Маягт гарлаа: {Path.GetFileName(dialog.FileName)} — " +
+                      $"{survey.Questions.Count} асуулт. Код үүсээгүй тул энэ нь ЗӨВХӨН " +
+                      "офлайн: серверт тавихад ажиллахгүй. Бөглөсний дараа «Хариулт оруулах»."
+                    : $"Маягт гарлаа: {Path.GetFileName(dialog.FileName)} — " +
+                      $"{survey.Questions.Count} асуулт. Серверт ч, офлайн ч ажиллана.");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

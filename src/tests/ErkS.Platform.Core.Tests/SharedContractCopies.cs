@@ -72,6 +72,26 @@ internal static class SharedContractCopies
     /// </summary>
     public const string CitizenSurveyZuunmod = "citizen-survey-zuunmod-2026-09-18.json";
 
+    /// <summary>
+    /// The survey as it is handed to whoever serves the public form, and one filled-in
+    /// submission captured FROM A REAL BROWSER RUN of that form (2026-09-18).
+    ///
+    /// 🔴 THE PAIR IS THE POINT, AND SO IS WHERE IT CAME FROM. Every id in the submission
+    /// was produced by the page itself, not typed here - so the test that reads them back
+    /// proves the one thing no text assertion could: that what a phone sends is what
+    /// Studio can read. The failure it guards against is silent, because a survey whose
+    /// answers all fail to resolve looks exactly like a survey nobody answered.
+    ///
+    /// ⚠ Re-capture both together or neither. The ids tie them to each other; a new
+    /// definition beside an old submission would resolve nothing and the test would be
+    /// measuring its own fixture rather than the product.
+    /// </summary>
+    public const string CitizenSurveyPublished = "citizen-survey-published-2026-09-18.json";
+
+    /// <summary><see cref="CitizenSurveyPublished"/> - its matching submission.</summary>
+    public const string CitizenSurveyBrowserSubmission =
+        "citizen-survey-browser-submission-2026-09-18.json";
+
     /// <summary>The copy that travels with the tests. Always present.</summary>
     public static string Read(string fileName) =>
         File.ReadAllText(PathTo(fileName), Encoding.UTF8);
@@ -115,6 +135,8 @@ public sealed class SharedContractCopyTests
     [InlineData(SharedContractCopies.ConceptCoverA3TextExtents)]
     [InlineData(SharedContractCopies.ProjectAddressVectors)]
     [InlineData(SharedContractCopies.CitizenSurveyZuunmod)]
+    [InlineData(SharedContractCopies.CitizenSurveyPublished)]
+    [InlineData(SharedContractCopies.CitizenSurveyBrowserSubmission)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
         string? original = SharedContractCopies.TryFindOriginal(fileName);

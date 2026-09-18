@@ -1,0 +1,394 @@
+﻿{
+  "SurveyId": "be7a3b718dbd46d99b30f6aad1550df4",
+  "Code": "1c0e98af6443",
+  "Title": "\u0418\u0420\u0413\u042D\u0414\u0418\u0419\u041D \u0421\u0410\u041D\u0410\u041B \u0410\u0421\u0423\u0423\u041B\u0413\u0410",
+  "Purpose": "\u0421\u0443\u0434\u0430\u043B\u0433\u0430\u0430\u043D\u044B \u0437\u043E\u0440\u0438\u043B\u0433\u043E: \u0425\u044D\u0441\u044D\u0433\u0447\u0438\u043B\u0441\u044D\u043D \u0415\u0440\u04E9\u043D\u0445\u0438\u0439 \u0442\u04E9\u043B\u04E9\u0432\u043B\u04E9\u0433\u04E9\u04E9 \u0431\u043E\u043B\u043E\u0432\u0441\u0440\u0443\u0443\u043B\u0430\u0445\u0430\u0434 \u0431\u043E\u0434\u0438\u0442 \u0431\u0430\u0439\u0434\u0430\u043B\u0434 \u043D\u0438\u0439\u0446\u04AF\u04AF\u043B\u044D\u043D \u0445\u044D\u0440\u044D\u0433\u0436\u04AF\u04AF\u043B\u044D\u0445 \u0431\u043E\u043B\u043E\u043C\u0436\u0442\u043E\u0439 \u0445\u044D\u0442\u0438\u0439\u043D \u0442\u04E9\u043B\u04E9\u0432\u043B\u04E9\u0433\u04E9\u04E9 \u0431\u043E\u043B\u043E\u0432\u0441\u0440\u0443\u0443\u043B\u0430\u0445\u0430\u0434 \u043E\u0440\u0448\u0438\u043D\u043E.",
+  "IsOpen": false,
+  "Questions": [
+    {
+      "QuestionId": "5dea36c7c4e04f65ad9d5ef1675bd428",
+      "Text": "\u0422\u0430\u043D\u044B \u043E\u0440\u0448\u0438\u043D \u0441\u0443\u0443\u0434\u0430\u0433 \u0431\u0430\u0433:",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "e9e710c9d3f14668970e1ca989b3f254",
+          "Text": "1-\u0440 \u0431\u0430\u0433 (\u041D\u043E\u043C\u0442)",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "112513d773664e6a9acb4eb1ca1a3f7d",
+          "Text": "2-\u0440 \u0431\u0430\u0433 (\u041B\u0430\u043D\u0441)",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "17701d3b1b804d61b6943acca1332b73",
+          "Text": "3-\u0440 \u0431\u0430\u0433 (\u0411\u0430\u044F\u043D\u0445\u043E\u0448\u0443\u0443)",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "54f07265b2cc49ef9359938705779ad7",
+          "Text": "4-\u0440 \u0431\u0430\u0433 (\u0417\u0443\u0443\u043D\u043C\u043E\u0434)",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "2ea07676665e4a47a3663d17b081c3c6",
+          "Text": "5-\u0440 \u0431\u0430\u0433 (\u041D\u0430\u0446\u0430\u0433\u0434\u043E\u0440\u0436)",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "dee41f55ad494ced9a511fd4d5136170",
+          "Text": "\u0411\u0443\u0441\u0430\u0434",
+          "InvitesOwnWords": true
+        }
+      ]
+    },
+    {
+      "QuestionId": "44a591a2487c485ab27cf87d6b483c5c",
+      "Text": "\u0422\u0430\u043D\u044B \u043D\u0430\u0441:",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "034efded896f45e997271b9d9dfcff64",
+          "Text": "18\u201324",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "abb4350fc7e24b3c9a56064c183f010a",
+          "Text": "25\u201339",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "c43abd5fb4364f9ab4a7ef4b1d8c1ee9",
+          "Text": "40\u201359",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "4920d4b7703d4c9b9fe1a279dff08225",
+          "Text": "60-\u0430\u0430\u0441 \u0434\u044D\u044D\u0448",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "42dc2c9726104e73a25ccdd743bba45e",
+      "Text": "\u0422\u0430\u043D\u044B \u0445\u04AF\u0439\u0441:",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "f26b05e4dd0c41a1be319e1a0973294d",
+          "Text": "\u042D\u0440\u044D\u0433\u0442\u044D\u0439",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "f52a0bd5ed2841b4b131531a8b650e6d",
+          "Text": "\u042D\u043C\u044D\u0433\u0442\u044D\u0439",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "f51095aa7cdd41ecb059267071d09e62",
+      "Text": "\u0410\u043C \u0431\u04AF\u043B\u0438\u0439\u043D \u0442\u043E\u043E:",
+      "Kind": "number",
+      "Required": false,
+      "Options": []
+    },
+    {
+      "QuestionId": "c9744248414a478397bda254e6cf807f",
+      "Text": "\u0422\u0430 \u044F\u043C\u0430\u0440 \u0441\u0443\u0443\u0446\u0430\u043D\u0434 \u0430\u043C\u044C\u0434\u0430\u0440\u0434\u0430\u0433 \u0432\u044D?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "b7397b12f0ef434591a94f4cbfc774b9",
+          "Text": "\u0413\u044D\u0440 \u0441\u0443\u0443\u0446, \u0445\u0430\u0448\u0430\u0430",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "422c3f6a28aa45e788ed23088fa72a95",
+          "Text": "\u0411\u0430\u0439\u0448\u0438\u043D \u0441\u0443\u0443\u0446, \u0445\u0430\u0448\u0430\u0430",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "22c0716e4ffe4cdaaa2ec79174f3c47d",
+          "Text": "\u041E\u0440\u043E\u043D \u0441\u0443\u0443\u0446",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "ca080512cb4a40ef83bae15302aedf27",
+          "Text": "\u041D\u0438\u0439\u0442\u0438\u0439\u043D \u0431\u0430\u0439\u0440",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "b63cfc3d221a4410973a42e4850a205d",
+      "Text": "\u0422\u0430 \u0442\u0443\u0445\u0430\u0439\u043D \u0433\u0430\u0437\u0430\u0440\u0442 \u0445\u044D\u0434\u044D\u043D \u0436\u0438\u043B \u0430\u043C\u044C\u0434\u0430\u0440\u0447 \u0431\u0430\u0439\u0433\u0430\u0430 \u0432\u044D?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "fa9c9109174e4d8d841ef4f8d769c318",
+          "Text": "\u0422\u04AF\u0440 \u043E\u0440\u0448\u0438\u043D \u0441\u0443\u0443\u0433\u0447",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "23369b8e7d3e4c8db5e1eefb596c043f",
+          "Text": "10 \u0445\u04AF\u0440\u0442\u044D\u043B\u0445 \u0436\u0438\u043B",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "89caed6ce4ee43ae8ea645413128e27d",
+          "Text": "10-20\u0436\u0438\u043B",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "8fb5db4d12ec4aa5bcd28d0420df281a",
+          "Text": "20-\u0430\u0430\u0441 \u0434\u044D\u044D\u0448 \u0436\u0438\u043B",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "53727d63fdb740b2a9e29f2907cdbde4",
+      "Text": "\u0422\u0430 \u0446\u0430\u0430\u0448\u0438\u0434 \u0448\u0438\u043D\u044D\u044D\u0440 \u0442\u04E9\u043B\u04E9\u0432\u043B\u04E9\u0436 \u0431\u0443\u0439 \u043E\u0440\u043E\u043D \u0441\u0443\u0443\u0446\u043D\u044B \u0445\u043E\u0440\u043E\u043E\u043B\u043E\u043B\u0434 \u0430\u043C\u044C\u0434\u0440\u0430\u0445 \u0443\u0443?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "d483b9a586ed495288df0718bec7cb20",
+          "Text": "\u0422\u0438\u0439\u043C",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "9460e4c306d147599646711811998846",
+          "Text": "\u04AE\u0433\u04AF\u0439",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "41630fdf42c7485582f8fced71d94489",
+      "Text": "\u0422\u0430 \u043E\u0434\u043E\u043E \u0430\u043C\u044C\u0434\u0430\u0440\u0447 \u0431\u0430\u0439\u0433\u0430\u0430 \u0445\u0430\u0448\u0430\u0430 \u0431\u0430\u0439\u0448\u0438\u043D\u0433\u0438\u0439\u043D \u043D\u04E9\u0445\u0446\u04E9\u043B\u04E9\u04E9 \u0441\u0430\u0439\u0436\u0440\u0443\u0443\u043B\u0430\u0445 \u0443\u0443?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "dab39c5f18f847e2b2da02da00afa3a8",
+          "Text": "\u0428\u0438\u043D\u044D\u044D\u0440 \u0431\u0430\u0439\u0448\u0438\u043D \u0431\u0430\u0440\u0438\u043D\u0430",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "88e4b99e5bd344868ff5dad0d91b8c90",
+          "Text": "\u041E\u0434\u043E\u043E \u0431\u0430\u0439\u0433\u0430\u0430 \u0431\u0430\u0439\u0448\u0438\u043D\u0433\u0430\u0430 \u04E9\u0440\u0433\u04E9\u0442\u0433\u04E9\u043D\u04E9",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "4d2f276a83d847e3af23fe0b428f550a",
+          "Text": "\u041E\u0440\u043E\u043D \u0441\u0443\u0443\u0446\u0430\u043D\u0434 \u043E\u0440\u043D\u043E",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "c9799b3833b84455903de47c4741435a",
+      "Text": "\u0422\u0430 \u0445\u0430\u0430\u043D\u0430 \u0430\u0436\u0438\u043B\u043B\u0430\u0434\u0430\u0433 \u0432\u044D?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "d0023267e03549428cc042054def0875",
+          "Text": "\u0425\u0443\u0432\u0438\u0439\u043D \u0431\u0430\u0439\u0433\u0443\u0443\u043B\u043B\u0430\u0433\u0430\u0434",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "a7cb69de3b7d475a873850af87711508",
+          "Text": "\u0422\u04E9\u0440\u0438\u0439\u043D \u0431\u0430\u0439\u0433\u0443\u0443\u043B\u043B\u0430\u0433\u0430\u0434",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "98085cc371f942c280bc42d6a4619758",
+          "Text": "\u0425\u0443\u0432\u0438\u0430\u0440\u0430\u0430 \u0431\u0438\u0437\u043D\u0435\u0441 \u044D\u0440\u0445\u043B\u044D\u0433\u0447",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "11bed02c00ae4e97a1e0ce193b6bc139",
+          "Text": "\u0411\u0443\u0441\u0430\u0434",
+          "InvitesOwnWords": true
+        }
+      ]
+    },
+    {
+      "QuestionId": "a610058c5c0541ed8c7558a9995f8aac",
+      "Text": "\u0422\u0430\u043D\u0430\u0439 \u04E9\u0440\u0445\u0438\u0439\u043D \u043E\u0440\u043B\u043E\u0433\u044B\u043D \u0445\u044D\u043C\u0436\u044D\u044D",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "7649922c3345440bb79537ab5225dbcb",
+          "Text": "500,000-1,000,000",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "dd0df8d5e7f443c48ea1351f975520ed",
+          "Text": "1,000,000-2,000,000",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "a7cbe556d05d41229ec1924ea72610bc",
+          "Text": "2,000,000- \u0442\u04E9\u0433\u0440\u04E9\u0433\u04E9\u04E9\u0441 \u0434\u044D\u044D\u0448",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "0ca1ba53f6ac4241992c505137efe34a",
+      "Text": "\u0417\u0443\u0443\u043D\u043C\u043E\u0434 \u0445\u043E\u0442\u044B\u043D \u0442\u04E9\u0432\u0438\u0439\u043D \u043E\u0439\u0440\u044B\u043D \u0438\u0440\u044D\u044D\u0434\u04AF\u0439\u0434 (5-10 \u0436\u0438\u043B) \u044F\u043C\u0430\u0440 \u0442\u04E9\u0440\u0438\u0439\u043D \u04AF\u0439\u043B\u0447\u0438\u043B\u0433\u044D\u044D\u043D\u0438\u0439 \u0431\u0430\u0439\u0433\u0443\u0443\u043B\u043B\u0430\u0433\u0443\u0443\u0434\u044B\u0433 \u043D\u044D\u043C\u044D\u0433\u0434\u04AF\u04AF\u043B\u044D\u0445 \u0448\u0430\u0430\u0440\u0434\u043B\u0430\u0433\u0430\u0442\u0430\u0439 \u0432\u044D?",
+      "Kind": "multi",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "f9ff108f10584bab910d54b34a3afa28",
+          "Text": "\u0426\u044D\u0446\u044D\u0440\u043B\u044D\u0433, \u0441\u0443\u0440\u0433\u0443\u0443\u043B\u044C",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "3683f6195121493ea20e10fa568d4dd6",
+          "Text": "\u04E8\u0440\u0445\u0438\u0439\u043D \u0431\u043E\u043B\u043E\u043D \u043D\u044D\u0433\u0434\u0441\u044D\u043D \u044D\u043C\u043D\u044D\u043B\u044D\u0433",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "82fe8c63668845e8a3fae99bba057855",
+          "Text": "\u0410\u0445\u043C\u0430\u0434\u044B\u043D \u0441\u0443\u0432\u0438\u043B\u0430\u043B",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "2bb6442139cd47cfa8ac82974936e036",
+          "Text": "\u0425\u04AF\u04AF\u0445\u044D\u0434, \u0437\u0430\u043B\u0443\u0443\u0447\u0443\u0443\u0434\u044B\u043D \u0445\u04E9\u0433\u0436\u043B\u0438\u0439\u043D \u0442\u04E9\u0432",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "2185c63c83664c318fb4044cb07625ea",
+          "Text": "\u0417\u043E\u0447\u0438\u0434 \u0431\u0443\u0443\u0434\u0430\u043B",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "dd731f8ab7a342929ce74ad64b99f306",
+          "Text": "\u04E8\u0434\u04E9\u0440 \u0442\u0443\u0442\u043C\u044B\u043D \u04E9\u0440\u0433\u04E9\u043D \u0445\u044D\u0440\u044D\u0433\u043B\u044D\u044D\u043D\u0438\u0439 \u0445\u0443\u0434\u0430\u043B\u0434\u0430\u0430\u043D\u044B \u0442\u04E9\u0432",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "06d09e5e5a4441fa985cf5588625d34a",
+          "Text": "\u0411\u0443\u0441\u0430\u0434",
+          "InvitesOwnWords": true
+        }
+      ]
+    },
+    {
+      "QuestionId": "c2db724240794896932af31cd9234b33",
+      "Text": "\u041E\u0434\u043E\u043E\u0433\u0438\u0439\u043D \u0445\u043E\u0442\u044B\u043D \u0442\u04E9\u0432\u0438\u0439\u043D \u0433\u0430\u0437\u0440\u044B\u043D \u0430\u0448\u0438\u0433\u043B\u0430\u043B\u0442\u044B\u0433 \u0442\u0430 \u0445\u044D\u0440\u0445\u044D\u043D \u0434\u04AF\u0433\u043D\u044D\u0436 \u0431\u0430\u0439\u043D\u0430 \u0432\u044D?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "b3904ead772d4056a6bb408f338f34d1",
+          "Text": "\u0411\u0430\u0440\u0438\u043B\u0433\u0430\u0436\u0438\u043B\u0442 \u0445\u044D\u0442 \u043D\u044F\u0433\u0442\u0430\u0440\u0448\u0441\u0430\u043D, \u0437\u0430\u0439 \u0442\u0430\u043B\u0431\u0430\u0439 \u0431\u0430\u0433\u0430\u0442\u0430\u0439",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "03ccb7990dbd476f8bd4695c68fb324e",
+          "Text": "\u0417\u0430\u0440\u0438\u043C \u0445\u044D\u0441\u044D\u0433\u0442 \u0430\u0448\u0438\u0433\u043B\u0430\u043B\u0442 \u043C\u0443\u0443, \u0434\u0430\u0445\u0438\u043D \u0442\u04E9\u043B\u04E9\u0432\u043B\u04E9\u043B\u0442 \u0445\u0438\u0439\u0445",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "5fb47beda7e54dceb9a59c68732d4859",
+          "Text": "\u0417\u043E\u0445\u0438\u043E\u043D \u0431\u0430\u0439\u0433\u0443\u0443\u043B\u0430\u043B\u0442 \u0441\u0430\u0439\u043D, \u0442\u044D\u043D\u0446\u0432\u044D\u0440\u0442\u044D\u0439",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "00b4d86b9697484e8dd52140add504d2",
+          "Text": "\u0422\u043E\u0434\u043E\u0440\u0445\u043E\u0439 \u043C\u044D\u0434\u044D\u044D\u043B\u044D\u043B\u0433\u04AF\u0439",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "eb030aaecd1d461a8d3d4f7dfc8b5bce",
+      "Text": "\u0417\u0443\u0443\u043D\u043C\u043E\u0434 \u0445\u043E\u0442\u044B\u043D \u0442\u04E9\u0432\u0438\u0439\u043D \u0438\u0440\u044D\u044D\u0434\u04AF\u0439\u0433 \u0445\u044D\u0440\u0445\u044D\u043D \u0445\u04E9\u0433\u0436\u04AF\u04AF\u043B\u044D\u0445\u0438\u0439\u0433 \u0445\u04AF\u0441\u044D\u0436 \u0431\u0430\u0439\u043D\u0430 \u0432\u044D?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "e0c09d6d1f344a9ead2fd3f2cc240a8d",
+          "Text": "\u04AE\u0439\u043B\u0434\u0432\u044D\u0440\u0436\u0438\u043B\u0442\u0438\u0439\u0433 \u0434\u044D\u043C\u0436\u0441\u044D\u043D",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "0138a518191c479d987a9a15e9c1f90d",
+          "Text": "\u0425\u04E9\u0434\u04E9\u04E9 \u0430\u0436 \u0430\u0445\u0443\u0439\u043D \u0441\u0430\u043B\u0431\u0430\u0440\u044B\u0433 \u0434\u044D\u043C\u0436\u0441\u044D\u043D",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "e3069f05fc7541cebc42e9256ce9d6f0",
+          "Text": "\u0410\u044F\u043B\u0430\u043B,\u0436\u0443\u0443\u043B\u0447\u043B\u0430\u043B\u044B\u0433 \u0434\u044D\u043C\u0436\u0441\u044D\u043D",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "efe2717855a547d69e9867ae1fe67c77",
+          "Text": "\u0425\u0430\u0440\u0438\u043B\u0446\u0430\u0430,\u0445\u043E\u043B\u0431\u043E\u043E,\u0445\u0443\u0434\u0430\u043B\u0434\u0430\u0430\u043D\u044B \u0441\u0430\u043B\u0431\u0430\u0440\u044B\u0433 \u0434\u044D\u043C\u0436\u0441\u044D\u043D",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "d92000deb0834685b75430bdb5ac183d",
+          "Text": "\u0411\u0443\u0441\u0430\u0434",
+          "InvitesOwnWords": true
+        }
+      ]
+    },
+    {
+      "QuestionId": "17ea6c19025c4855a93f5a4c145a82e7",
+      "Text": "\u0417\u0443\u0443\u043D\u043C\u043E\u0434 \u0445\u043E\u0442\u044B\u043D \u0442\u04E9\u0432\u0438\u0439\u043D \u043E\u0440\u0447\u0438\u043D, \u043D\u04E9\u0445\u0446\u04E9\u043B\u0438\u0439\u0433 \u0441\u0430\u0439\u0436\u0440\u0443\u0443\u043B\u0430\u0445 \u0447\u0438\u0433\u043B\u044D\u043B\u044D\u044D\u0440 \u044F\u043C\u0430\u0440 \u0431\u04AF\u0442\u044D\u044D\u043D \u0431\u0430\u0439\u0433\u0443\u0443\u043B\u0430\u043B\u0442\u0443\u0443\u0434 \u0445\u0438\u0439\u0445 \u0445\u044D\u0440\u044D\u0433\u0442\u044D\u0439 \u0432\u044D?",
+      "Kind": "single",
+      "Required": false,
+      "Options": [
+        {
+          "OptionId": "1e5c4a24b0ce4b1c93d7c6fde9cad3ae",
+          "Text": "\u0422\u04AF\u04AF\u0445\u044D\u043D \u0431\u0430 \u0441\u043E\u0451\u043B\u044B\u043D \u04E9\u0432 \u0443\u043B\u0430\u043C\u0436\u043B\u0430\u043B\u044B\u0433 \u0448\u0438\u043D\u0433\u044D\u044D\u0441\u044D\u043D",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "ae62bb1b3d2b4024be354753345d6cc9",
+          "Text": "\u042D\u043A\u043E, \u043D\u043E\u0433\u043E\u043E\u043D \u0431\u0430\u0440\u0438\u043B\u0433\u0430\u0436\u0438\u043B\u0442\u044B\u043D \u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442\u044B\u0433 \u0431\u0430\u0440\u0438\u043C\u0442\u0430\u043B\u0441\u0430\u043D",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "9541666338f245188708364d256b0a9a",
+          "Text": "\u041E\u043D\u043E\u0432\u0447\u0442\u043E\u0439, \u0438\u0445 \u0445\u043E\u0442\u044B\u043D \u0448\u0438\u043D\u044D\u043B\u044D\u0433 \u04E9\u043D\u0433\u04E9 \u0442\u04E9\u0440\u0445 \u0431\u04AF\u0445\u0438\u0439",
+          "InvitesOwnWords": false
+        },
+        {
+          "OptionId": "e158810a641e4dc9bc9fba19d1f8ae78",
+          "Text": "\u0411\u04AF\u0433\u0434\u0438\u0439\u0433 \u0445\u043E\u0441\u043B\u0443\u0443\u043B\u0441\u0430\u043D \u0437\u043E\u0445\u0438\u043E\u043D \u0431\u0430\u0439\u0433\u0443\u0443\u043B\u0430\u043B\u0442",
+          "InvitesOwnWords": false
+        }
+      ]
+    },
+    {
+      "QuestionId": "1cdba6f7d7014f56aea33225af5da87e",
+      "Text": "\u0417\u0443\u0443\u043D\u043C\u043E\u0434 \u0445\u043E\u0442\u044B\u043D \u0442\u04E9\u0432\u0438\u0439\u043D \u0445\u04E9\u0433\u0436\u043B\u0438\u0439\u0433 10 \u0436\u0438\u043B\u0438\u0439\u043D \u0434\u0430\u0440\u0430\u0430 \u044F\u043C\u0430\u0440 \u0431\u0430\u0439\u0445\u044B\u0433 \u0442\u04E9\u0441\u04E9\u04E9\u043B\u0436 \u0431\u0430\u0439\u043D\u0430 \u0432\u044D?",
+      "Kind": "text",
+      "Required": false,
+      "Options": []
+    },
+    {
+      "QuestionId": "9c644381a0a146038f1e165874f26622",
+      "Text": "\u0415\u0440\u04E9\u043D\u0445\u0438\u0439 \u0442\u04E9\u043B\u04E9\u0432\u043B\u04E9\u0433\u04E9\u04E9\u043D\u0434 \u0442\u0443\u0441\u0433\u0430\u0445 \u0442\u0430\u043D\u044B \u0441\u0430\u043D\u0430\u043B:",
+      "Kind": "text",
+      "Required": false,
+      "Options": []
+    }
+  ]
+}
