@@ -290,9 +290,26 @@ internal sealed partial class ShellView
 
         surveyDetailPanel.Children.Add(SectionTitle("Сонжоо — үр дүнгээс гарах дүгнэлт"));
         IReadOnlyList<CitizenSurveyFinding> findings = CitizenSurveyFindings.Read(result);
-        if (findings.Count == 0)
+
+        // 🔴 NOBODY HAS ANSWERED IS ONE FACT, NOT SIXTEEN. Below the reading threshold
+        // every question yields its own «not enough answers» card, which is right once
+        // answers are arriving and unreadable before any have: the page filled with
+        // sixteen identical cards saying nothing, and the one sentence a reader needed -
+        // that collection has not started - was nowhere on it.
+        //
+        // ⚠ The branch below it could never fire. It tested findings.Count == 0, which
+        // only happens for a survey with NO QUESTIONS; a survey with questions and no
+        // answers produces one card per question. The sentence existed, was correct, and
+        // was unreachable - so the empty state was written and never shown.
+        if (result.ResponseCount == 0)
         {
-            surveyDetailPanel.Children.Add(Muted("Хариулт ирээгүй тул дүгнэлт алга."));
+            surveyDetailPanel.Children.Add(Muted(
+                "Хариулт хараахан ирээгүй байна. QR тараасны дараа энд оролцогчдын тоо, " +
+                "асуулт бүрийн диаграмм, задаргаа болон дүгнэлт гарч ирнэ."));
+        }
+        else if (findings.Count == 0)
+        {
+            surveyDetailPanel.Children.Add(Muted("Дүгнэлт гаргах асуулт алга."));
         }
         else
         {
@@ -676,9 +693,12 @@ internal sealed partial class ShellView
             RefreshSurveyDetail();
         };
 
-        DockPanel.SetDock(button, Dock.Right);
-        row.Children.Add(button);
+        // The button belongs beside its box, not at the far edge of the window.
+        row.LastChildFill = false;
+        DockPanel.SetDock(box, Dock.Left);
+        DockPanel.SetDock(button, Dock.Left);
         row.Children.Add(box);
+        row.Children.Add(button);
         panel.Children.Add(row);
         return panel;
     }
@@ -848,13 +868,24 @@ internal sealed partial class ShellView
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 0, 0, 8),
             MaxWidth = 760,
+
+            // ⚠ LEFT, NOT CENTRED. A MaxWidth inside a stretching StackPanel leaves
+            // WPF free to centre the child, and on a wide window these drifted into
+            // the middle of the page while their own section headings stayed at the
+            // margin - reading as two unrelated columns.
+            HorizontalAlignment = HorizontalAlignment.Left,
             Child = panel,
         };
     }
 
     private UIElement QuestionBlock(CitizenSurveyQuestionTally question)
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 18), MaxWidth = 760 };
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 0, 18),
+            MaxWidth = 760,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
         panel.Children.Add(new TextBlock
         {
             Text = question.Text,
@@ -1002,6 +1033,12 @@ internal sealed partial class ShellView
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 10, 12, 10),
             MaxWidth = 760,
+
+            // ⚠ LEFT, NOT CENTRED. A MaxWidth inside a stretching StackPanel leaves
+            // WPF free to centre the child, and on a wide window these drifted into
+            // the middle of the page while their own section headings stayed at the
+            // margin - reading as two unrelated columns.
+            HorizontalAlignment = HorizontalAlignment.Left,
             Child = panel,
         };
     }
@@ -1081,7 +1118,12 @@ internal sealed partial class ShellView
     /// </summary>
     private UIElement CrossTabBlock(CitizenSurveyCrossTabResult tab)
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 18), MaxWidth = 760 };
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 0, 18),
+            MaxWidth = 760,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
         panel.Children.Add(new TextBlock
         {
             Text = tab.OfQuestionText,
