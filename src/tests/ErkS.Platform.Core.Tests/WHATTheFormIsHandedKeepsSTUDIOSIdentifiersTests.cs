@@ -176,8 +176,20 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
         // Today Guid.ToString("N") happens to be lowercase; that is a coincidence this
         // assertion turns into a guarantee, because the day somebody changes the format
         // is the day the posters stop working.
-        Assert.True(issued.All(Uri.IsHexDigit), issued + " is not plain hex");
-        Assert.Equal(issued.ToLowerInvariant(), issued);
+        //
+        // ⚠ THE ALPHABET IS SPELLED OUT RATHER THAN BORROWED. Uri.IsHexDigit plus a
+        // separate lowercase check is the same set today - but it is TWO assertions
+        // carrying one rule between them, and deleting either loosens the guard without
+        // looking like it. A test must demand the STRICT side of a boundary, not a
+        // superset of it that happens to be narrowed elsewhere. Master put it best:
+        // do not soften the test to match reality; make it require what production
+        // requires, so their rule changing turns this red and names who changed it.
+        Assert.All(
+            issued,
+            character => Assert.True(
+                (character >= '0' && character <= '9') ||
+                (character >= 'a' && character <= 'f'),
+                $"'{character}' is outside the alphabet the server admits (0-9 a-f)"));
         Assert.True(CitizenSurveyQrCode.For(survey.PublicCode, survey.PublicFormUrl).IsDrawn);
     }
 
