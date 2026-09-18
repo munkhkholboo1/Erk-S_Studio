@@ -258,10 +258,16 @@ internal sealed partial class ShellView
         });
         panel.Children.Add(Muted(Blank(survey.Purpose, "Зорилго бичигдээгүй.")));
 
-        string where = string.IsNullOrWhiteSpace(survey.PublicFormUrl)
-            ? "Хараахан нийтлэгдээгүй — QR үүсгэхийн тулд эхлээд нийтэлнэ."
-            : survey.PublicFormUrl;
-        panel.Children.Add(Muted($"Маягт: {where}"));
+        // 🔴 CHECKED, NOT PRINTED ON TRUST. The address shown here is the one that goes
+        // on the QR, and a QR cannot be recalled once it is on a notice board - so a pair
+        // that does not agree is named as a fault instead of being displayed as a link.
+        CitizenSurveyLinkCheck link =
+            CitizenSurveyPublicLink.Check(survey.PublicCode, survey.PublicFormUrl);
+        if (link.IsUsable)
+            panel.Children.Add(Muted($"Маягт: {survey.PublicFormUrl}"));
+        else
+            panel.Children.Add(Warning("⚠ " + link.Refusal));
+
         return panel;
     }
 

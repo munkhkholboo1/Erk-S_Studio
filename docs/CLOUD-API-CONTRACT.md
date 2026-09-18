@@ -359,6 +359,59 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
 5. **An answer naming something the survey no longer has is returned as it was
    recorded, not repaired.** Studio counts these separately and reports them; a
    server that dropped them would make the result look complete when it is not.
+6. **The citizen reads the owner's words, unchanged.** Only the page's own frame
+   — navigation, buttons, footer — may be localized. The title, the purpose, every
+   question and every option are reproduced exactly as published, whatever
+   language the visitor asked the site for.
+
+   🔴 THIS ONE WAS FOUND BY SRV, NOT BY ME, and it is the most dangerous
+   thing anybody has said about this feature. Their page shell runs a ~486-phrase
+   substitution over every text node, in both directions, so a visitor on
+   `?lang=en` would be shown a machine-substituted rendering of a Mongolian
+   consultation document. The answer would still record the OPTION ID — so
+   invariant 1 holds, the tally is arithmetically perfect, and the result looks
+   completely correct while the citizen answered a question nobody wrote. An
+   error that destroys the meaning of the data while leaving every number
+   plausible cannot be caught downstream, by Studio or by a reader.
+
+   It is also a legal matter and not only a technical one: the wording citizens
+   answered is quoted back in the plan, so it has to be the wording the owner
+   published.
+7. **The cursor is opaque.** Studio stores it and sends it back; it never parses
+   it, orders by it, or infers a time from it. The server may change what it is
+   made of — a timestamp today, a monotone sequence tomorrow — without telling
+   Studio, and a Studio that had read meaning into it would break silently.
+8. **`formUrl` must be `{base}/s/{code}`, and Studio checks it before printing.**
+   The pair is returned together and must agree; Studio refuses a publish whose
+   `formUrl` does not end in its own `code`, and refuses one that arrives empty.
+
+   ⚠ BECAUSE THIS VALUE GOES ON PAPER. Everything else in this contract can be
+   corrected by fetching again. A QR code is printed, posted on a notice board
+   and handed out; a wrong one cannot be recalled, and the failure shows up as
+   citizens reporting that the link is dead — weeks later, if at all. So the
+   printed value is verified at the moment it is issued, and the owner may set
+   the base in Studio when the server cannot know its own public address.
+9. **Publishing is a project-level change and sends `If-Match`.** The definition
+   lives on the project record, so it obeys the optimistic-concurrency rule above
+   rather than being an exception to it. This matters most on the re-publish that
+   follows collection: two people editing one survey while answers arrive is
+   exactly the case where a lost update would take question ids with it, and
+   invariant 1 depends on those ids surviving.
+
+### What the citizen sees when the form refuses
+
+Two refusals reach a member of the public rather than Studio, so neither is a
+reason code — each is a page, and it must say what happened and what to do.
+
+- **A closed survey** (invariant 4): the survey is named, the visitor is told the
+  collection has ended, and no form is drawn. Not an error page: answering late
+  is not a mistake, and a citizen who arrives after the deadline was still
+  willing to take part.
+- **An unrecognised code**: the visitor is told the link is not valid and asked to
+  check it — without saying whether some other code would be, which would turn
+  the page into a way of discovering other projects' surveys.
+
+Neither page invites a retry that cannot succeed, and neither blames the reader.
 
 ### Enforcement point
 

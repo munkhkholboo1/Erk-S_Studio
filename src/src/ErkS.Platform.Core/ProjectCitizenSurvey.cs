@@ -230,5 +230,22 @@ public sealed class ProjectCitizenSurvey
             question.Order = ++order;
     }
 
+    /// <summary>
+    /// Records the published link, or refuses the pair and keeps neither half.
+    ///
+    /// 🔴 NEITHER HALF, AND THAT IS THE POINT. Storing the code while rejecting the
+    /// address - or the reverse - leaves the project holding half a publication, which
+    /// reads on screen as «published» and prints as nothing.
+    /// </summary>
+    public bool AcceptPublicLink(string? code, string? formUrl)
+    {
+        if (!CitizenSurveyPublicLink.Check(code, formUrl).IsUsable)
+            return false;
+
+        PublicCode = (code ?? "").Trim();
+        PublicFormUrl = (formUrl ?? "").Trim();
+        return true;
+    }
+
     public bool HasQuestions => Questions.Count > 0;
 }
