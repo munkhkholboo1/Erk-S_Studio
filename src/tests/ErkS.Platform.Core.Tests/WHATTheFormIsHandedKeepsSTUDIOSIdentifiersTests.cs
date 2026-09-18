@@ -168,7 +168,16 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
         Assert.Equal(issued, survey.PublicCode);
 
         Assert.Equal(CitizenSurveyCode.Length, issued.Length);
+
+        // 🔴 LOWERCASE, AND THE FAR SIDE IS WHY. The server admits a code only if every
+        // character is 0-9 or a-f; an uppercase one answers 404 with nothing written
+        // anywhere saying so. Uri.IsHexDigit accepts A-F, so asserting only that would
+        // stay green while every printed QR died — SRV found this reading my test.
+        // Today Guid.ToString("N") happens to be lowercase; that is a coincidence this
+        // assertion turns into a guarantee, because the day somebody changes the format
+        // is the day the posters stop working.
         Assert.True(issued.All(Uri.IsHexDigit), issued + " is not plain hex");
+        Assert.Equal(issued.ToLowerInvariant(), issued);
         Assert.True(CitizenSurveyQrCode.For(survey.PublicCode, survey.PublicFormUrl).IsDrawn);
     }
 
