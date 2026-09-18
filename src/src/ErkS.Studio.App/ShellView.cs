@@ -32,6 +32,7 @@ internal sealed partial class ShellView : IDisposable
         Albums,
         Portfolio,
         Boards,
+        Surveys,
         Research,
         Records,
         Reports,
@@ -580,6 +581,7 @@ internal sealed partial class ShellView : IDisposable
         pages[StudioPage.Albums] = BuildAlbumPage();
         pages[StudioPage.Portfolio] = BuildPortfolioPage();
         pages[StudioPage.Boards] = BuildBoardsPage();
+        pages[StudioPage.Surveys] = BuildSurveysPage();
         pages[StudioPage.Research] = BuildResearchPage();
         pages[StudioPage.Records] = BuildRecordsPage();
         pages[StudioPage.Reports] = BuildReportsPage();
@@ -937,6 +939,7 @@ internal sealed partial class ShellView : IDisposable
         AddNavItem(StudioPage.Albums, ProjectSurfaceLabel("albums", "Альбум"), "icon-album.svg");
         AddNavItem(StudioPage.Portfolio, ProjectSurfaceLabel("portfolio", "Портфолио"), "icon-album.svg");
         AddNavItem(StudioPage.Boards, ProjectSurfaceLabel("boards", "Самбар"), "icon-album.svg");
+        AddNavItem(StudioPage.Surveys, ProjectSurfaceLabel("surveys", "Санал асуулга"), "icon-chat.svg");
         if (ProjectOwnsGeneralPlanLibraries())
         {
             AddNavItem(StudioPage.Research, ProjectSurfaceLabel("research", "Судалгаа"), "icon-sources.svg");

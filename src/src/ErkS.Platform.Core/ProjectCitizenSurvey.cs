@@ -146,6 +146,14 @@ public sealed class ProjectCitizenSurvey
     public string PublicFormUrl { get; set; } = "";
 
     /// <summary>«ИРГЭДИЙН САНАЛ АСУУЛГА», over the project's own heading.</summary>
+    /// <summary>
+    /// The form this survey was started from, as named by <see cref="CitizenSurveyTemplates"/>.
+    ///
+    /// Empty on a survey written by hand, and on one saved before forms were named - both
+    /// of which are legitimate, so nothing reads this as a guarantee.
+    /// </summary>
+    public string TemplateId { get; set; } = "";
+
     public string Title { get; set; } = "";
 
     /// <summary>«Судалгааны зорилго: …» - shown to the citizen before the questions.</summary>
@@ -178,6 +186,49 @@ public sealed class ProjectCitizenSurvey
     /// </summary>
     public IReadOnlyList<CitizenSurveyQuestion> OrderedQuestions() =>
         Questions.OrderBy(question => question.Order).ThenBy(question => question.Id, StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// The questions answered by ticking or writing a number - everything a citizen does
+    /// without composing a sentence.
+    /// </summary>
+    public IReadOnlyList<CitizenSurveyQuestion> TickedQuestions() => OrderedQuestions()
+        .Where(question => question.Kind != CitizenSurveyQuestionKinds.FreeText)
+        .ToList();
+
+    /// <summary>
+    /// The questions answered in the citizen's own sentences.
+    ///
+    /// 🔴 KEPT APART, AND KEPT LAST, AT THE OWNER'S INSTRUCTION: «бид тест шиг
+    /// ихэнх асуулгыг дандаа сонголтоор хийдэг болгох нь зүйтэй. үнэхээр гараар
+    /// бичдэг хэсэг байвал тусд нь оруулаарай … асуулгын төгсгөлд ч юм уу.»
+    ///
+    /// Their own paper already does this - the two written questions are its last two -
+    /// and the reason is not only tidiness: a citizen who meets a blank page halfway
+    /// through a form often stops there, and everything after it goes unanswered. Ticking
+    /// carries the survey; writing is offered once, at the end, to whoever still wants to.
+    /// </summary>
+    public IReadOnlyList<CitizenSurveyQuestion> WrittenQuestions() => OrderedQuestions()
+        .Where(question => question.Kind == CitizenSurveyQuestionKinds.FreeText)
+        .ToList();
+
+    /// <summary>
+    /// Renumbers the questions so the written ones come last, keeping each block's order.
+    ///
+    /// ⚠ IT MOVES AND NEVER REMOVES. A question out of place is a form that reads oddly;
+    /// a question dropped is something the public was never asked.
+    /// </summary>
+    public void Normalize()
+    {
+        Questions ??= [];
+        foreach (CitizenSurveyQuestion question in Questions)
+            question.Options ??= [];
+
+        var order = 0;
+        foreach (CitizenSurveyQuestion question in TickedQuestions())
+            question.Order = ++order;
+        foreach (CitizenSurveyQuestion question in WrittenQuestions())
+            question.Order = ++order;
+    }
 
     public bool HasQuestions => Questions.Count > 0;
 }

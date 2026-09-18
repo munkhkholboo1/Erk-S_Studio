@@ -52,9 +52,7 @@ public sealed class ProjectCitizenSurveySeries
         foreach (ProjectCitizenSurvey survey in OrderedSurveys())
         {
             survey.Order = ++order;
-            survey.Questions ??= [];
-            foreach (CitizenSurveyQuestion question in survey.Questions)
-                question.Options ??= [];
+            survey.Normalize();
         }
     }
 }

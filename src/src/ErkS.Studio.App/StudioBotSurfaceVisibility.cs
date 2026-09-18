@@ -54,7 +54,7 @@ internal static class StudioBotSurfaceVisibility
     public static readonly IReadOnlyList<string> AllPages =
     [
         "Home", "Projects", "Companies", "Foundation", "Participants", "Sources",
-        "Albums", "Portfolio", "Boards", "Research", "Records", "Reports", "Archive",
+        "Albums", "Portfolio", "Boards", "Surveys", "Research", "Records", "Reports", "Archive",
     ];
 
     /// <param name="actingAsBot">
