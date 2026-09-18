@@ -466,7 +466,9 @@ internal sealed partial class ShellView
             SetStatus(
                 $"Хоёр файл гарлаа: {Path.GetFileName(dialog.FileName)} ба " +
                 $"{Path.GetFileName(htmlPath)} — {survey.Questions.Count} асуулт, " +
-                $"код {survey.PublicCode}. Хоёуланг нь серверт өгнө үү.");
+                $"код {survey.PublicCode}, " +
+                (survey.IsOpen ? "НЭЭЛТТЭЙ" : "ХААЛТТАЙ (хариулт авахгүй!)") +
+                ". Хоёуланг нь серверт өгнө үү.");
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -603,6 +605,8 @@ internal sealed partial class ShellView
             panel.Children.Add(Warning("⚠ " + link.Refusal));
         }
 
+        panel.Children.Add(OpenStateRow(survey));
+
         if (!link.IsUsable)
             panel.Children.Add(IssueCodeRow(survey));
 
@@ -617,6 +621,67 @@ internal sealed partial class ShellView
     /// a single value drawn as a bar has nothing to compare against - it is a number
     /// wearing a chart's clothes.
     /// </summary>
+    /// <summary>
+    /// Whether the survey is accepting answers, and the one control that changes it.
+    ///
+    /// 🔴 THE FIELD EXISTED, THE SERVER ENFORCED IT, AND NOTHING COULD SET IT. A survey
+    /// is created closed; the public route answers 410 Gone to every submission while it
+    /// is. So the page would load on a citizen's phone, they would fill in sixteen
+    /// questions, press send - and lose all of it, with a message inviting them to try
+    /// again, which would fail the same way forever. Nobody would learn anything: the
+    /// owner sees no answers, the citizen sees a failure they cannot fix.
+    ///
+    /// Found by reading the owner's live project before they published it, not by a test.
+    /// The third instance today of the same shape: a rule written, enforced, and wired to
+    /// nothing that can satisfy it.
+    ///
+    /// ⚠ AND THE SERVER KEEPS ITS OWN COPY. Opening a survey here changes the project;
+    /// the public route reads the exported definition file. Until that file is exported
+    /// again the server still believes the survey is closed - so the row says so rather
+    /// than leaving somebody to discover it through a citizen's failed submission.
+    /// </summary>
+    private UIElement OpenStateRow(ProjectCitizenSurvey survey)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+
+        if (survey.IsOpen)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "● НЭЭЛТТЭЙ — бөглөсөн хариултыг хүлээж авна.",
+                FontWeight = FontWeights.SemiBold,
+                Foreground = StudioTheme.AccentBrush,
+                Margin = new Thickness(0, 0, 0, 4),
+            });
+        }
+        else
+        {
+            panel.Children.Add(Warning(
+                "⚠ ХААЛТТАЙ — иргэн маягтыг нээж бөглөнө, гэхдээ илгээх үед " +
+                "СЕРВЕР ТАТГАЛЗАНА. Тараахаас өмнө нээнэ үү."));
+        }
+
+        var button = new Button
+        {
+            Content = survey.IsOpen
+                ? "Асуулгыг хаах"
+                : "Асуулгыг нээх",
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        button.Click += (_, _) =>
+        {
+            survey.IsOpen = !survey.IsOpen;
+            state.SaveProject();
+            SetStatus(survey.IsOpen
+                ? "Асуулга НЭЭГДЛЭЭ. Сервер өөрийн хуулбараас уншдаг тул " +
+                  "«Асуулгын JSON»-ыг ДАХИН гаргаж серверт тавь."
+                : "Асуулга хаагдлаа. Ирсэн хариулт устахгүй.");
+            RefreshSurveyDetail();
+        };
+        panel.Children.Add(button);
+        return panel;
+    }
+
     /// <summary>
     /// Mints this survey's public address so the QR can be printed today.
     ///
