@@ -345,9 +345,9 @@ internal sealed partial class ShellView
 
         var dialog = new SaveFileDialog
         {
-            Title = "Асуулгын тодорхойлолт хадгалах",
+            Title = "Асуулгын тодорхойлолт ба маягт хадгалах",
             Filter = "JSON (*.json)|*.json",
-            FileName = $"survey-{survey.PublicCode}.json",
+            FileName = $"{survey.PublicCode}.json",
             OverwritePrompt = true,
         };
         if (dialog.ShowDialog() != true)
@@ -355,11 +355,27 @@ internal sealed partial class ShellView
 
         try
         {
+            // 🔴 TWO FILES, AND THE SECOND REMOVES THE RISKIEST WORK ON THE OTHER SIDE.
+            // Without the .html, whoever serves the form has to re-implement the collector
+            // script - the element hooks, the response key, the hand-over button and the
+            // document's exact keys. One key spelled differently there and Studio reads
+            // EVERY answer as empty, silently: a survey with no responses looks perfectly
+            // normal. This page's script is tested; a second copy of it would not be.
+            //
+            // ⚠ IT ALSO MAKES CONTRACT INVARIANT 7 STRUCTURAL. The server returns these
+            // bytes unchanged, so there is nothing on that side that could substitute
+            // phrases into the owner's wording - it never passes through a page shell.
+            string htmlPath = Path.ChangeExtension(dialog.FileName, ".html");
+
             File.WriteAllText(
                 dialog.FileName, CitizenSurveyPublication.ToJson(survey), Encoding.UTF8);
+            File.WriteAllText(
+                htmlPath, CitizenSurveyFormHtml.Build(survey), Encoding.UTF8);
+
             SetStatus(
-                $"Тодорхойлолт гарлаа: {dialog.FileName} — " +
-                $"{survey.Questions.Count} асуулт, код {survey.PublicCode}. Серверт өгнө үү.");
+                $"Хоёр файл гарлаа: {Path.GetFileName(dialog.FileName)} ба " +
+                $"{Path.GetFileName(htmlPath)} — {survey.Questions.Count} асуулт, " +
+                $"код {survey.PublicCode}. Хоёуланг нь серверт өгнө үү.");
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or InvalidDataException)

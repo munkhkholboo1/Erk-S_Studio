@@ -210,10 +210,34 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
         Assert.Contains("window.erksResponseId = null", html, StringComparison.Ordinal);
         Assert.Contains("getElementById('f').reset()", html, StringComparison.Ordinal);
 
-        // It is offered on BOTH routes: the served one and the folder one. The offline
-        // route is the one the trial is running on today, and it is the route where a
-        // device is handed around a table.
-        Assert.Contains("getElementById('next').hidden = false", html, StringComparison.Ordinal);
+        // \U0001F534 THE TWO ROUTES ARE NAMED, NOT COUNTED. Both must offer the hand-over:
+        // the served one, and the folder one that today's trial is actually running on -
+        // which is also the route where a device goes around a table. Each is identified
+        // by the sentence it says to the person, so this stays readable as a claim about
+        // WHICH routes rather than about how many lines happen to match.
+        foreach (string route in new[]
+                 {
+                     "\u0411\u0430\u044f\u0440\u043b\u0430\u043b\u0430\u0430. \u0422\u0430\u043d\u044b \u0445\u0430\u0440\u0438\u0443\u043b\u0442 \u0445\u04af\u043b\u044d\u044d\u043d \u0430\u0432\u0430\u0433\u0434\u043b\u0430\u0430.",
+                     "\u0425\u0430\u0434\u0433\u0430\u043b\u0430\u0433\u0434\u043b\u0430\u0430. \u0424\u0430\u0439\u043b\u044b\u0433 \u0442\u04e9\u0441\u043b\u0438\u0439\u043d \u0430\u0436\u0438\u043b\u0442\u0430\u043d\u0434 \u04e9\u0433\u043d\u04e9 \u04af\u04af.",
+                 })
+        {
+            int said = html.IndexOf(route, StringComparison.Ordinal);
+            Assert.True(said >= 0, "a success route vanished: " + route);
+
+            int reveals = html.IndexOf(
+                "getElementById('next').hidden = false", said, StringComparison.Ordinal);
+            Assert.True(
+                reveals > said && reveals - said < 400,
+                "this route succeeds without offering the next person: " + route);
+        }
+
+        // \u26a0 AND THE COUNT STAYS, DELIBERATELY, THOUGH SRV NOTED IT CAN GO FALSELY RED:
+        // folding the two reveals into one helper would break it while the behaviour is
+        // still correct. Kept anyway, because the two costs are not comparable - a false
+        // red costs somebody a minute and a glance at this comment, while a third success
+        // path added without a reveal costs a citizen their answers, silently. A future
+        // reader who hits this after an honest refactor should update the assertion to
+        // name the helper, not delete it.
         Assert.Equal(2, html.Split("getElementById('next').hidden = false").Length - 1);
     }
 
