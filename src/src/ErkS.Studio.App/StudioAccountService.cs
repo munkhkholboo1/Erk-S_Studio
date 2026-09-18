@@ -1221,7 +1221,7 @@ internal sealed class StudioAccountService :
     /// <summary>
     /// Collects the citizens' answers for one survey, from a watermark onwards.
     /// </summary>
-    public async Task<CitizenSurveyResponseDocument> FetchCitizenSurveyResponsesAsync(
+    public async Task<StudioCitizenSurveyFetch> FetchCitizenSurveyResponsesAsync(
         string projectId,
         string surveyId,
         string? since,

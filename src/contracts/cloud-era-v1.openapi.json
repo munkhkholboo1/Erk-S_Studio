@@ -3911,7 +3911,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CitizenSurveyResponseDocumentRecord"
+                  "$ref": "#/components/schemas/CitizenSurveyResponseFeedRecord"
                 }
               }
             }
@@ -5399,7 +5399,7 @@
           }
         }
       },
-      "CitizenSurveyResponseDocumentRecord": {
+      "CitizenSurveyResponseFeedRecord": {
         "type": "object",
         "properties": {
           "surveyId": {
@@ -5410,6 +5410,9 @@
           },
           "collectedAtUtc": {
             "type": "string"
+          },
+          "sinceAccepted": {
+            "type": "boolean"
           },
           "responses": {
             "type": "array",

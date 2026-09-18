@@ -562,18 +562,31 @@ internal sealed partial class ShellView
 
         try
         {
-            CitizenSurveyResponseDocument arriving =
+            string sentCursor = held.Cursor;
+            StudioCitizenSurveyFetch fetched =
                 await account.FetchCitizenSurveyResponsesAsync(
-                    projectId, survey.Id, held.Cursor);
+                    projectId, survey.Id, sentCursor);
+            CitizenSurveyResponseDocument arriving = fetched.Document;
 
             int added = CitizenSurveyResponseStore.Merge(
                 held, arriving.Responses, arriving.Cursor);
             CitizenSurveyResponseStore.Save(state.ProjectPath, survey, held);
 
+            // 🔴 A REFUSED CURSOR IS SAID OUT LOUD. The server returns everything when it
+            // cannot read the watermark - correct, and indistinguishable from an ordinary
+            // first read. If the format ever drifts, every collection silently re-downloads
+            // the whole consultation: still working, still green, only slower each time.
+            // Studio knows whether it SENT one, so only Studio can tell the two apart.
+            bool cursorRefused = !string.IsNullOrWhiteSpace(sentCursor) && !fetched.SinceAccepted;
+
             SetStatus(
                 $"{added} шинэ хариулт татагдлаа — нийт {held.Responses.Count}. " +
                 (arriving.Responses.Count > added
-                    ? $"({arriving.Responses.Count - added} нь аль хэдийн байсан.)"
+                    ? $"({arriving.Responses.Count - added} нь аль хэдийн байсан.) "
+                    : "") +
+                (cursorRefused
+                    ? "⚠ Сервер өмнөх тэмдэгийг таниагүй тул БҮГДИЙГ дахин татсан. " +
+                      "Нэг удаа бол хэвийн; давтагдвал хэлээрэй."
                     : ""));
             RefreshSurveyDetail();
         }

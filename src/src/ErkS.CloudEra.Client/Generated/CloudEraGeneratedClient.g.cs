@@ -1154,14 +1154,14 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+        System.Threading.Tasks.Task<CitizenSurveyResponseFeedRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
         /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CitizenSurveyResponseFeedRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
         /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
         /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
@@ -10557,7 +10557,7 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
+        public virtual System.Threading.Tasks.Task<CitizenSurveyResponseFeedRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
             return ListCloudEraCitizenSurveyResponsesAsync(projectId, surveyId, since, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
@@ -10567,7 +10567,7 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CitizenSurveyResponseFeedRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -10630,7 +10630,7 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<CitizenSurveyResponseDocumentRecord>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<CitizenSurveyResponseFeedRecord>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -13387,7 +13387,7 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial class CitizenSurveyResponseDocumentRecord
+    public partial class CitizenSurveyResponseFeedRecord
     {
 
         [System.Text.Json.Serialization.JsonPropertyName("surveyId")]
@@ -13398,6 +13398,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("collectedAtUtc")]
         public string CollectedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sinceAccepted")]
+        public bool SinceAccepted { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("responses")]
         public System.Collections.Generic.ICollection<CitizenSurveyResponseRecord> Responses { get; set; }

@@ -28,6 +28,7 @@ public sealed class THEWIRESpellingMustNotArriveEmptyTests
           "surveyId": "05402a414b134b0cbb230795ea6b29c1",
           "cursor": "1:3f93d33ab042449fa071c38200f61beb",
           "collectedAtUtc": "2026-09-19T04:03:42+00:00",
+          "sinceAccepted": false,
           "responses": [
             {
               "id": "3f93d33ab042449fa071c38200f61beb",
@@ -55,7 +56,7 @@ public sealed class THEWIRESpellingMustNotArriveEmptyTests
             AccessToken = "access-token",
         };
 
-        CitizenSurveyResponseDocumentRecord document =
+        CitizenSurveyResponseFeedRecord document =
             await client.ListCloudEraCitizenSurveyResponsesAsync(
                 "88659be5416a4853adb6232ac8c7d689",
                 "05402a414b134b0cbb230795ea6b29c1",
@@ -149,13 +150,14 @@ public sealed class THEWIRESpellingMustNotArriveEmptyTests
         using var httpClient = new HttpClient(handler);
         var wrapper = new CloudEraGeneratedContractClient(httpClient);
 
-        ErkS.Platform.Core.CitizenSurveyResponseDocument document =
+        StudioCitizenSurveyFetch fetched =
             await wrapper.FetchCitizenSurveyResponsesAsync(
                 new CloudEraClientContext("https://erk-s.mn/", "access-token"),
                 "88659be5416a4853adb6232ac8c7d689",
                 "05402a414b134b0cbb230795ea6b29c1",
                 since: null);
 
+        ErkS.Platform.Core.CitizenSurveyResponseDocument document = fetched.Document;
         Assert.Equal("05402a414b134b0cbb230795ea6b29c1", document.SurveyId);
         Assert.Equal("1:3f93d33ab042449fa071c38200f61beb", document.Cursor);
         Assert.Single(document.Responses);
@@ -177,6 +179,48 @@ public sealed class THEWIRESpellingMustNotArriveEmptyTests
             ErkS.Platform.Core.CitizenSurveyResponseStore.Merge(
                 held, document.Responses, document.Cursor));
         Assert.Equal("1:3f93d33ab042449fa071c38200f61beb", held.Cursor);
+    }
+
+    [Fact]
+    public async Task AREFUSEDCursorIsCARRIEDBackNotSwallowed()
+    {
+        // 🔴 THE FLAG EXISTS TO MAKE A SILENT COST VISIBLE, so it has to reach the caller.
+        // An unrecognised cursor makes the server return everything — correct, and
+        // identical in every outward way to an ordinary first read. If the format ever
+        // drifted, every collection would re-download the whole consultation forever:
+        // working, green, and quietly heavier each time. A field nobody reads would leave
+        // that exactly as invisible as it was before SRV added it.
+        var handler = new StubHandler(WireBody);
+        using var httpClient = new HttpClient(handler);
+        var wrapper = new CloudEraGeneratedContractClient(httpClient);
+
+        StudioCitizenSurveyFetch fetched = await wrapper.FetchCitizenSurveyResponsesAsync(
+            new CloudEraClientContext("https://erk-s.mn/", "access-token"),
+            "p", "s", since: "1:aaaa");
+
+        Assert.False(fetched.SinceAccepted);
+
+        // And the page reports it rather than keeping it to itself.
+        string page = File.ReadAllText(Path.Combine(
+            FindSourceRoot().FullName, "ErkS.Studio.App", "ShellView.Surveys.cs"),
+            System.Text.Encoding.UTF8);
+        Assert.Contains("fetched.SinceAccepted", page, StringComparison.Ordinal);
+        Assert.Contains("cursorRefused", page, StringComparison.Ordinal);
+    }
+
+    private static DirectoryInfo FindSourceRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(directory.FullName, "src", "src");
+            if (Directory.Exists(candidate))
+                return new DirectoryInfo(candidate);
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("the source tree was not found; this test reads it");
+        return new DirectoryInfo(".");
     }
 
     private sealed class StubHandler(string body) : HttpMessageHandler

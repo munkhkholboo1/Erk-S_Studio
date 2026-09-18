@@ -351,8 +351,30 @@ internal interface ICredentialStore
 
 internal readonly record struct CloudEraClientContext(string ServerUrl, string AccessToken);
 
+/// <summary>
+/// What one collection brought back.
+/// </summary>
+/// <param name="SinceAccepted">
+/// Whether the cursor Studio sent was understood and applied.
+///
+/// 🔴 IT EXISTS TO MAKE A SILENT COST VISIBLE. An unrecognised cursor makes the
+/// server return everything - correct, and indistinguishable from an ordinary first
+/// read. If the cursor format ever drifted, every collection would quietly re-download
+/// the whole consultation forever: still working, still green, only slower and larger
+/// each time. Sent a cursor and got false back means it was refused.
+///
+/// ⚠ False alone is not a fault: it is also what a first collection sees, because
+/// there was no cursor to accept. Only the CALLER knows which case it is, which is why
+/// the flag is reported rather than interpreted here.
+/// </param>
+internal readonly record struct StudioCitizenSurveyFetch(
+    CitizenSurveyResponseDocument Document,
+    bool SinceAccepted);
+
 internal interface ICloudEraContractClient
 {
+
+
     /// <summary>
     /// The citizens' answers collected for one survey since a watermark.
     ///
@@ -362,7 +384,7 @@ internal interface ICloudEraContractClient
     /// on the wire body would have produced a document of nulls: no error, HTTP 200, an
     /// empty list, and a consultation that looked ignored.
     /// </summary>
-    Task<CitizenSurveyResponseDocument> FetchCitizenSurveyResponsesAsync(
+    Task<StudioCitizenSurveyFetch> FetchCitizenSurveyResponsesAsync(
         CloudEraClientContext context,
         string projectId,
         string surveyId,

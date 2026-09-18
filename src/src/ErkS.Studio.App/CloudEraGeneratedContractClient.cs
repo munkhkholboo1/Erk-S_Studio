@@ -150,13 +150,15 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 Convert<CloudEraSourcePackageCreateRequest>(request),
                 cancellationToken));
 
-    public Task<CitizenSurveyResponseDocument> FetchCitizenSurveyResponsesAsync(
+    public async Task<StudioCitizenSurveyFetch> FetchCitizenSurveyResponsesAsync(
         CloudEraClientContext context,
         string projectId,
         string surveyId,
         string? since,
-        CancellationToken cancellationToken = default) =>
-        ExecuteAsync<CitizenSurveyResponseDocumentRecord, CitizenSurveyResponseDocument>(
+        CancellationToken cancellationToken = default)
+    {
+        CitizenSurveyResponseFeedRecord feed = await ExecuteAsync<
+            CitizenSurveyResponseFeedRecord, CitizenSurveyResponseFeedRecord>(
             context,
             client => client.ListCloudEraCitizenSurveyResponsesAsync(
                 projectId,
@@ -168,7 +170,27 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
                 string.IsNullOrWhiteSpace(since) ? null : since,
                 null,
                 null,
-                cancellationToken));
+                cancellationToken)).ConfigureAwait(false);
+
+        // 🔴 THE FEED IS NOT THE FILE, AND SRV SPLIT THEM ON PURPOSE. The on-disk
+        // document has no place for a flag about one request; folding them together would
+        // write a meaningless `sinceAccepted` into every `.responses.json` and grow it with
+        // every field the wire ever gains.
+        return new StudioCitizenSurveyFetch(
+            new CitizenSurveyResponseDocument
+            {
+                SurveyId = feed.SurveyId ?? "",
+                Cursor = feed.Cursor ?? "",
+                // ⚠ THE WIRE SENDS A STRING; parsing it here keeps the document's own type
+                // honest rather than letting a timestamp travel as text into storage.
+                CollectedAtUtc = DateTimeOffset.TryParse(
+                    feed.CollectedAtUtc, out DateTimeOffset collected)
+                    ? collected
+                    : DateTimeOffset.UtcNow,
+                Responses = Convert<List<CitizenSurveyResponse>>(feed.Responses ?? []),
+            },
+            feed.SinceAccepted);
+    }
 
     private async Task<TStudio> ExecuteAsync<TGenerated, TStudio>(
         CloudEraClientContext context,
