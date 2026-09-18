@@ -42,7 +42,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraStudioSessionResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -64,7 +71,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraStudioSessionResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -73,6 +87,1227 @@
       "get": {
         "tags": [
           "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/device/key/challenge": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraDeviceKeyChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/device/key/register": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraDeviceKeyRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraDeviceKeyRegisterResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/administrative-divisions/import": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ImportAdministrativeDivisions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAdministrativeImportReportDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/administrative-divisions": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "GetAdministrativeDivisions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAdministrativeCatalogueDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/administrative-divisions/{unitCode}": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ResolveAdministrativeDivision",
+        "parameters": [
+          {
+            "name": "unitCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAdministrativeResolveDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-seats": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotSeatListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotSeatCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotSeatDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotSeatListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotSeatCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotSeatDto"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotSeatDeleteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotSeatDeleteResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/pin": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotPinSetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotPinSetResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotPinRevealResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/pin": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotPinSetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotPinSetResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotPinRevealResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/pin/unlock": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/pin/unlock": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-state/pin/lockout": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotPinLockoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/state": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotStateEnterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotStateEnterResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/state": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotStateEnterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotStateEnterResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-state/challenge": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotStateChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotStateChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-state/session": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotStateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotStateSessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-state/resume": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotStateResumeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotStateResumeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-state/token": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotStateResumeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotStateTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/invitations": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotInvitationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotInvitationDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/invitations": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotInvitationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotInvitationDto"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/assignments": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotAssignmentListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotAssignmentWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotAssignmentDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotAssignmentListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotAssignmentWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotAssignmentDto"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/assignments/{assignmentId}/roles": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotAssignmentWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotAssignmentDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments/{assignmentId}/roles": {
+      "put": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraBotAssignmentWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotAssignmentDto"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-seats/{botId}/assignments/{assignmentId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments/{assignmentId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "description": "ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.",
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/cloud-era/v1/bot-invitations": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotInvitationListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-invitations/{invitationId}/accept": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraBotInvitationAcceptResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-invitations/{invitationId}/decline": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/bot-invitations/{invitationId}/cancel": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -661,6 +1896,96 @@
         }
       }
     },
+    "/api/cloud-era/v1/organizations/{organizationId}/documents": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "UploadCloudEraOrganizationDocument",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraOrganizationDocumentDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/documents/{documentId}/content": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/organizations/{organizationId}/documents/{documentId}": {
+      "delete": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/accounts/lookup": {
       "get": {
         "tags": [
@@ -708,6 +2033,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -737,6 +2078,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -772,6 +2129,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -792,6 +2165,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -809,6 +2198,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -843,6 +2248,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -930,6 +2351,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -957,6 +2394,22 @@
             "name": "participantId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -988,6 +2441,22 @@
             "name": "participantId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1031,6 +2500,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1070,6 +2555,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1088,6 +2589,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1132,6 +2649,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1203,6 +2736,22 @@
             "name": "sourceKey",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1373,6 +2922,68 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/design-organization/documents/{documentId}/content": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1411,6 +3022,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1438,6 +3065,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1489,6 +3132,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1537,6 +3196,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1565,6 +3240,22 @@
             "name": "participantEmail",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1598,6 +3289,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1623,6 +3330,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1674,6 +3397,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1719,6 +3458,22 @@
             "name": "commentId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1770,6 +3525,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1792,6 +3563,24 @@
           "ErkS.LicenseServer"
         ],
         "operationId": "ListCloudEraProjects",
+        "parameters": [
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1810,6 +3599,24 @@
           "ErkS.LicenseServer"
         ],
         "operationId": "CreateCloudEraProject",
+        "parameters": [
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1834,6 +3641,62 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/bot-assignments": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "GetCloudEraProjectBotAssignments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraProjectBotAssignmentsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/projects/{projectId}/design-organization": {
       "put": {
         "tags": [
@@ -1845,6 +3708,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -1888,6 +3767,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1928,6 +3823,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1947,6 +3858,67 @@
         }
       }
     },
+    "/api/cloud-era/v1/projects/{projectId}/citizen-surveys/{surveyId}/responses": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ListCloudEraCitizenSurveyResponses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "surveyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitizenSurveyResponseDocumentRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/projects/{projectId}/documents": {
       "get": {
         "tags": [
@@ -1958,6 +3930,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2002,6 +3990,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2029,6 +4033,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2065,6 +4085,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2084,6 +4120,242 @@
         }
       }
     },
+    "/api/cloud-era/v1/sso/handoff-token": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "IssueCloudEraSsoHandoffToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSsoHandoffTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSsoHandoffTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/sso/seat-handoff-token": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "IssueCloudEraSsoSeatHandoffToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSsoHandoffTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSsoHandoffTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/sso/plugin-license-resolve": {
+      "post": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "ResolveCloudEraSsoPluginLicense",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudEraSsoResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraSsoResolveResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-era/v1/projects/{projectId}/albums/change-summary": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "operationId": "GetCloudEraAlbumChangeSummary",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraAlbumChangeSummaryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudEraApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cloud-era/v1/projects/{projectId}/albums/ensure": {
       "post": {
         "tags": [
@@ -2095,6 +4367,22 @@
             "name": "projectId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2144,6 +4432,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2187,6 +4491,22 @@
             "name": "revisionId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2265,6 +4585,22 @@
             "name": "albumId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2350,6 +4686,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2415,6 +4767,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2470,6 +4838,22 @@
             "name": "albumId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2538,6 +4922,22 @@
             "name": "albumId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2636,6 +5036,22 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2679,6 +5095,22 @@
             "name": "uploadId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint",
+            "in": "header",
+            "description": "The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-ErkS-Device-Fingerprint-Legacy",
+            "in": "header",
+            "description": "The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.",
             "schema": {
               "type": "string"
             }
@@ -2745,7 +5177,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnlineLicenseResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2767,7 +5206,170 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnlineLicenseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/updates/latest": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "description": "Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "currentVersion",
+            "in": "query",
+            "description": "The version the client is running. Only isUpdateAvailable depends on it; the release returned is the same either way.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "revitVersion",
+            "in": "query",
+            "description": "Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "autocadVersion",
+            "in": "query",
+            "description": "Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateLatestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/installers/latest": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "description": "Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "revitVersion",
+            "in": "query",
+            "description": "Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "autocadVersion",
+            "in": "query",
+            "description": "Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateLatestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/updates/history": {
+      "get": {
+        "tags": [
+          "ErkS.LicenseServer"
+        ],
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "description": "Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "revitVersion",
+            "in": "query",
+            "description": "Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          },
+          {
+            "name": "autocadVersion",
+            "in": "query",
+            "description": "Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.",
+            "schema": {
+              "type": "string"
+            },
+            "example": ""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseHistoryEntry"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2775,6 +5377,236 @@
   },
   "components": {
     "schemas": {
+      "CitizenSurveyAnswerRecord": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "optionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "text": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "CitizenSurveyResponseDocumentRecord": {
+        "type": "object",
+        "properties": {
+          "surveyId": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "collectedAtUtc": {
+            "type": "string"
+          },
+          "responses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CitizenSurveyResponseRecord"
+            }
+          }
+        }
+      },
+      "CitizenSurveyResponseRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "submittedAtUtc": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CitizenSurveyAnswerRecord"
+            }
+          }
+        }
+      },
+      "CloudEraAdministrativeCatalogueDto": {
+        "type": "object",
+        "properties": {
+          "asOfUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "sourceAuthority": {
+            "type": "string"
+          },
+          "sourceEndpoint": {
+            "type": "string"
+          },
+          "unitCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAdministrativeUnitDto"
+            }
+          }
+        }
+      },
+      "CloudEraAdministrativeImportReportDto": {
+        "type": "object",
+        "properties": {
+          "succeeded": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "unitsRead": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "added": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "renamed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "addedCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "renamedCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "removedCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "asOfUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "origin": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraAdministrativeResolveDto": {
+        "type": "object",
+        "properties": {
+          "unitCode": {
+            "type": "string"
+          },
+          "known": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAdministrativeUnitDto"
+            }
+          },
+          "asOfUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraAdministrativeUnitDto": {
+        "type": "object",
+        "properties": {
+          "unitCode": {
+            "type": "string"
+          },
+          "parentUnitCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "string"
+          },
+          "nameMn": {
+            "type": "string"
+          },
+          "childPickerLabelMn": {
+            "type": "string"
+          },
+          "hasChildren": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CloudEraAlbumChangeSummaryDto": {
+        "type": "object",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "albumType": {
+            "type": "string"
+          },
+          "currentRevisionId": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pdfSha256": {
+            "type": "string"
+          },
+          "revisionCreatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraAlbumChangeSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projectConcurrencyToken": {
+            "type": "string"
+          },
+          "albums": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraAlbumChangeSummaryDto"
+            }
+          }
+        }
+      },
       "CloudEraAlbumComponentManifestUpdateRequest": {
         "type": "object",
         "properties": {
@@ -3048,6 +5880,12 @@
             "additionalProperties": {
               "type": "boolean"
             }
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraApiRuleDto"
+            }
           }
         }
       },
@@ -3055,6 +5893,9 @@
         "type": "object",
         "properties": {
           "code": {
+            "type": "string"
+          },
+          "reason": {
             "type": "string"
           },
           "message": {
@@ -3081,6 +5922,31 @@
               }
             },
             "nullable": true
+          }
+        }
+      },
+      "CloudEraApiRuleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "text": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3242,6 +6108,606 @@
             "items": {
               "$ref": "#/components/schemas/CloudEraFileDto2"
             }
+          }
+        }
+      },
+      "CloudEraBotAssignedProjectDto": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assignedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotAssignmentDto": {
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assignedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assignedByEmail": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotAssignmentListResponse": {
+        "type": "object",
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBotAssignmentDto"
+            }
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotAssignmentWriteRequest": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CloudEraBotInvitationAcceptResponse": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "linkedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "openedNewInterval": {
+            "type": "boolean"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotInvitationCreateRequest": {
+        "type": "object",
+        "properties": {
+          "targetEmail": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CloudEraBotInvitationDto": {
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "type": "string"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "botDisplayName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "seatAssignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBotAssignmentDto"
+            }
+          },
+          "targetEmail": {
+            "type": "string"
+          },
+          "invitedByEmail": {
+            "type": "string"
+          },
+          "invitedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotInvitationListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBotInvitationDto"
+            }
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotPinLockoutRequest": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotPinRevealResponse": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "pin": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "setAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotPinSetRequest": {
+        "type": "object",
+        "properties": {
+          "pin": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotPinSetResponse": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "setAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deviceMustReRegister": {
+            "type": "boolean"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotSeatCreateRequest": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "internalEmail": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotSeatDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "deviceReleased": {
+            "type": "boolean"
+          },
+          "memberRemoved": {
+            "type": "boolean"
+          },
+          "occupiedSeats": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deviceRights": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deviceRightsUnlimited": {
+            "type": "boolean"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotSeatDto": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "internalEmail": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdByEmail": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "deviceSeated": {
+            "type": "boolean"
+          },
+          "deviceSeatedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "memberEmail": {
+            "type": "string"
+          },
+          "memberDisplayName": {
+            "type": "string"
+          },
+          "createdByDisplayName": {
+            "type": "string"
+          },
+          "memberSinceUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "deviceSeatedByEmail": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotSeatListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBotSeatDto"
+            }
+          },
+          "occupiedSeats": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deviceRights": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deviceRightsUnlimited": {
+            "type": "boolean"
+          },
+          "licenceActive": {
+            "type": "boolean"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotSeatMemberDto": {
+        "type": "object",
+        "properties": {
+          "accountEmail": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "memberSinceUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "nullable": true
+      },
+      "CloudEraBotStateChallengeRequest": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotStateChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "nonce": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotStateEnterRequest": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotStateEnterResponse": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "enteredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ownerCredentialsRevoked": {
+            "$ref": "#/components/schemas/CloudEraOwnerCredentialRevocationDto"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotStateResumeRequest": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotStateResumeResponse": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdByDisplayName": {
+            "type": "string"
+          },
+          "seatStatus": {
+            "type": "string"
+          },
+          "pinLocked": {
+            "type": "boolean"
+          },
+          "assignedProjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBotAssignedProjectDto"
+            }
+          },
+          "member": {
+            "$ref": "#/components/schemas/CloudEraBotSeatMemberDto"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotStateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraBotStateSessionResponse": {
+        "type": "object",
+        "properties": {
+          "tokenType": {
+            "type": "string"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdByDisplayName": {
+            "type": "string"
+          },
+          "pinLocked": {
+            "type": "boolean"
+          },
+          "member": {
+            "$ref": "#/components/schemas/CloudEraBotSeatMemberDto"
+          },
+          "assignedProjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraBotAssignedProjectDto"
+            }
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraBotStateTokenResponse": {
+        "type": "object",
+        "properties": {
+          "tokenType": {
+            "type": "string"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -3417,6 +6883,55 @@
           }
         }
       },
+      "CloudEraDeviceKeyChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "nonce": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraDeviceKeyRegisterRequest": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "deviceFingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraDeviceKeyRegisterResponse": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "registeredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "CloudEraFileDto": {
         "type": "object",
         "properties": {
@@ -3565,6 +7080,44 @@
           }
         }
       },
+      "CloudEraOrganizationDocumentDto": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "originalFileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "contentUrl": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "CloudEraOrganizationDto": {
         "type": "object",
         "properties": {
@@ -3686,6 +7239,16 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "registrationCertificateDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraOrganizationDocumentDto"
+            }
+          },
+          "designLicenseDocuments": {
+            "type": "array",
+            "items": { }
           }
         }
       },
@@ -3810,6 +7373,16 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "registrationCertificateDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraOrganizationDocumentDto"
+            }
+          },
+          "designLicenseDocuments": {
+            "type": "array",
+            "items": { }
           }
         },
         "nullable": true
@@ -3949,6 +7522,16 @@
             "type": "number",
             "format": "double"
           },
+          "registrationCertificateDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraOrganizationDocumentDto"
+            }
+          },
+          "designLicenseDocuments": {
+            "type": "array",
+            "items": { }
+          },
           "isProjectSnapshot": {
             "type": "boolean"
           }
@@ -3960,6 +7543,9 @@
         "properties": {
           "baseConcurrencyToken": {
             "type": "string"
+          },
+          "supportsSeparateRepresentatives": {
+            "type": "boolean"
           },
           "registryFieldsIncluded": {
             "type": "boolean"
@@ -4049,6 +7635,24 @@
           }
         }
       },
+      "CloudEraOwnerCredentialRevocationDto": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": "string"
+          },
+          "revokedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clientObligation": {
+            "type": "string"
+          }
+        }
+      },
       "CloudEraParticipantDto": {
         "type": "object",
         "properties": {
@@ -4081,6 +7685,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "lastSeenAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "profileImageUrl": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string"
           },
           "scopes": {
             "type": "array",
@@ -4148,6 +7763,57 @@
             "type": "string"
           },
           "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraProjectBotAssignmentDto": {
+        "type": "object",
+        "properties": {
+          "botId": {
+            "type": "string"
+          },
+          "botDisplayName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "memberState": {
+            "type": "string"
+          },
+          "memberAccountEmail": {
+            "type": "string"
+          },
+          "memberDisplayName": {
+            "type": "string"
+          },
+          "assignedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CloudEraProjectBotAssignmentsResponse": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraProjectBotAssignmentDto"
+            }
+          },
+          "serverTimeUtc": {
             "type": "string",
             "format": "date-time"
           }
@@ -4313,6 +7979,30 @@
           }
         }
       },
+      "CloudEraProjectFieldConflictDto": {
+        "type": "object",
+        "properties": {
+          "fieldName": {
+            "type": "string"
+          },
+          "currentValue": {
+            "type": "string"
+          },
+          "proposedValue": {
+            "type": "string"
+          },
+          "currentSourceType": {
+            "type": "string"
+          },
+          "proposedSourceType": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "CloudEraProjectFoundationDto": {
         "type": "object",
         "properties": {
@@ -4372,6 +8062,9 @@
           },
           "atdSummary": {
             "type": "string"
+          },
+          "supportsFieldOverrides": {
+            "type": "boolean"
           }
         },
         "nullable": true
@@ -4396,6 +8089,9 @@
           },
           "location": {
             "type": "string"
+          },
+          "siteAddress": {
+            "$ref": "#/components/schemas/CloudEraProjectSiteAddressDto"
           },
           "buildingPurpose": {
             "type": "string"
@@ -4432,6 +8128,12 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "openFieldConflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudEraProjectFieldConflictDto"
+            }
           }
         }
       },
@@ -4531,6 +8233,46 @@
           }
         }
       },
+      "CloudEraProjectSiteAddressDto": {
+        "type": "object",
+        "properties": {
+          "provinceCode": {
+            "type": "string"
+          },
+          "provinceName": {
+            "type": "string"
+          },
+          "districtCode": {
+            "type": "string"
+          },
+          "districtName": {
+            "type": "string"
+          },
+          "wardCode": {
+            "type": "string"
+          },
+          "wardName": {
+            "type": "string"
+          },
+          "wardLabelMn": {
+            "type": "string"
+          },
+          "catalogueAsOfUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "addressLine": {
+            "type": "string"
+          },
+          "full": {
+            "type": "string"
+          },
+          "short": {
+            "type": "string"
+          }
+        }
+      },
       "CloudEraProjectSummaryDto": {
         "type": "object",
         "properties": {
@@ -4590,6 +8332,9 @@
             "type": "boolean"
           },
           "concurrencyToken": {
+            "type": "string"
+          },
+          "informationConcurrencyToken": {
             "type": "string"
           }
         }
@@ -4755,6 +8500,7 @@
             "type": "string"
           },
           "pageLabel": {
+            "maxLength": 240,
             "type": "string"
           },
           "pageNumber": {
@@ -4770,18 +8516,32 @@
             "format": "double"
           },
           "shape": {
+            "enum": [
+              "Pin",
+              "Rectangle",
+              "Arrow",
+              "Freehand",
+              "Cloud"
+            ],
             "type": "string"
           },
           "shapePoints": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CloudEraSheetCommentPointDto"
-            }
+            },
+            "description": "Хадгалахын өмнө сервер хамгийн ихдээ 400 цэг болгож сийрэгжүүлнэ; илүү нь жигд алхмаар хасагдана."
           },
           "kind": {
+            "enum": [
+              "Note",
+              "ChangeRequired",
+              "Approved"
+            ],
             "type": "string"
           },
           "body": {
+            "maxLength": 4000,
             "type": "string"
           }
         }
@@ -4796,6 +8556,7 @@
             "type": "string"
           },
           "pageLabel": {
+            "maxLength": 240,
             "type": "string"
           },
           "pageNumber": {
@@ -4811,21 +8572,39 @@
             "format": "double"
           },
           "shape": {
+            "enum": [
+              "Pin",
+              "Rectangle",
+              "Arrow",
+              "Freehand",
+              "Cloud"
+            ],
             "type": "string"
           },
           "shapePoints": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CloudEraSheetCommentPointDto"
-            }
+            },
+            "description": "Хадгалахын өмнө сервер хамгийн ихдээ 400 цэг болгож сийрэгжүүлнэ; илүү нь жигд алхмаар хасагдана."
           },
           "kind": {
+            "enum": [
+              "Note",
+              "ChangeRequired",
+              "Approved"
+            ],
             "type": "string"
           },
           "status": {
+            "enum": [
+              "Open",
+              "Resolved"
+            ],
             "type": "string"
           },
           "body": {
+            "maxLength": 4000,
             "type": "string"
           },
           "authorEmail": {
@@ -4930,6 +8709,7 @@
             "type": "string"
           },
           "body": {
+            "maxLength": 4000,
             "type": "string"
           },
           "createdAtUtc": {
@@ -4942,6 +8722,7 @@
         "type": "object",
         "properties": {
           "body": {
+            "maxLength": 4000,
             "type": "string"
           }
         }
@@ -4950,6 +8731,10 @@
         "type": "object",
         "properties": {
           "status": {
+            "enum": [
+              "Open",
+              "Resolved"
+            ],
             "type": "string"
           }
         }
@@ -5093,6 +8878,124 @@
           },
           "custodyStatus": {
             "type": "string"
+          },
+          "sourceOwnerKind": {
+            "type": "string"
+          },
+          "sourceOwnerRef": {
+            "type": "string"
+          },
+          "sourceOwnerDisplayName": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSsoHandoffTokenRequest": {
+        "type": "object",
+        "properties": {
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          },
+          "identityGeneration": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CloudEraSsoHandoffTokenResponse": {
+        "type": "object",
+        "properties": {
+          "handoffToken": {
+            "type": "string"
+          },
+          "issuedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "identityGeneration": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CloudEraSsoIdentityDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "accountEmail": {
+            "type": "string"
+          },
+          "botId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSsoResolveRequest": {
+        "type": "object",
+        "properties": {
+          "handoffToken": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "deviceFingerprint": {
+            "type": "string"
+          },
+          "legacyDeviceFingerprint": {
+            "type": "string"
+          },
+          "identityGeneration": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        }
+      },
+      "CloudEraSsoResolveResponse": {
+        "type": "object",
+        "properties": {
+          "resolved": {
+            "type": "boolean"
+          },
+          "identityGeneration": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/CloudEraSsoIdentityDto"
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "companionExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },
@@ -5229,9 +9132,94 @@
           }
         }
       },
+      "CloudEraStudioSessionResponse": {
+        "type": "object",
+        "properties": {
+          "tokenType": {
+            "type": "string"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accountEmail": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "familyName": {
+            "type": "string"
+          },
+          "givenName": {
+            "type": "string"
+          },
+          "profileImageUrl": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "licenseId": {
+            "type": "string"
+          },
+          "activationId": {
+            "type": "string"
+          },
+          "licenseType": {
+            "type": "string"
+          },
+          "licenseExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entitlements": {
+            "$ref": "#/components/schemas/OnlineEntitlements"
+          }
+        }
+      },
       "IFormFile": {
         "type": "string",
         "format": "binary"
+      },
+      "OnlineEntitlements": {
+        "type": "object",
+        "properties": {
+          "platformTier": {
+            "type": "string"
+          },
+          "cityGenTier": {
+            "type": "string"
+          },
+          "studioCompanion": {
+            "type": "boolean"
+          },
+          "companionExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        },
+        "nullable": true
       },
       "OnlineLicenseActivateRequest": {
         "type": "object",
@@ -5265,6 +9253,64 @@
           },
           "revitVersion": {
             "type": "string"
+          },
+          "hostApplication": {
+            "type": "string"
+          },
+          "hostVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "OnlineLicenseResponse": {
+        "type": "object",
+        "properties": {
+          "isValid": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "licenseId": {
+            "type": "string"
+          },
+          "activationId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "licenseType": {
+            "type": "string"
+          },
+          "durationHours": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "activatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refreshAfterUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entitlements": {
+            "$ref": "#/components/schemas/OnlineEntitlements"
           }
         }
       },
@@ -5299,6 +9345,12 @@
             "type": "string"
           },
           "revitVersion": {
+            "type": "string"
+          },
+          "hostApplication": {
+            "type": "string"
+          },
+          "hostVersion": {
             "type": "string"
           }
         }
@@ -5548,6 +9600,32 @@
       "ProjectInformationInput": {
         "type": "object",
         "properties": {
+          "siteProvinceCode": {
+            "type": "string"
+          },
+          "siteProvinceName": {
+            "type": "string"
+          },
+          "siteDistrictCode": {
+            "type": "string"
+          },
+          "siteDistrictName": {
+            "type": "string"
+          },
+          "siteWardCode": {
+            "type": "string"
+          },
+          "siteWardName": {
+            "type": "string"
+          },
+          "siteWardLabelMn": {
+            "type": "string"
+          },
+          "siteCatalogueAsOfUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
           "projectCode": {
             "type": "string"
           },
@@ -5580,6 +9658,65 @@
           },
           "foundation": {
             "$ref": "#/components/schemas/CloudEraProjectFoundationUpdateDto"
+          }
+        }
+      },
+      "ReleaseHistoryEntry": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "releaseNotes": {
+            "type": "string"
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "revitVersion": {
+            "type": "string"
+          },
+          "publishedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateLatestResponse": {
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "isUpdateAvailable": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "releaseNotes": {
+            "type": "string"
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "revitVersion": {
+            "type": "string"
+          },
+          "autoCADVersion": {
+            "type": "string"
           }
         }
       }

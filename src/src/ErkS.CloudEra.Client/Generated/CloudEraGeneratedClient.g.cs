@@ -38,21 +38,21 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task SessionAsync(CloudEraStudioSessionRequest body);
+        System.Threading.Tasks.Task<CloudEraStudioSessionResponse> SessionAsync(CloudEraStudioSessionRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task SessionAsync(CloudEraStudioSessionRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraStudioSessionResponse> SessionAsync(CloudEraStudioSessionRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task RefreshAsync(CloudEraStudioSessionRefreshRequest body);
+        System.Threading.Tasks.Task<CloudEraStudioSessionResponse> RefreshAsync(CloudEraStudioSessionRefreshRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task RefreshAsync(CloudEraStudioSessionRefreshRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraStudioSessionResponse> RefreshAsync(CloudEraStudioSessionRefreshRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -62,6 +62,470 @@ namespace ErkS.CloudEra.Client.Generated
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task PhotoAsync(System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraDeviceKeyChallengeResponse> ChallengeAsync();
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraDeviceKeyChallengeResponse> ChallengeAsync(System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraDeviceKeyRegisterResponse> RegisterAsync(CloudEraDeviceKeyRegisterRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraDeviceKeyRegisterResponse> RegisterAsync(CloudEraDeviceKeyRegisterRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAdministrativeImportReportDto> ImportAdministrativeDivisionsAsync();
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAdministrativeImportReportDto> ImportAdministrativeDivisionsAsync(System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAdministrativeCatalogueDto> GetAdministrativeDivisionsAsync();
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAdministrativeCatalogueDto> GetAdministrativeDivisionsAsync(System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAdministrativeResolveDto> ResolveAdministrativeDivisionAsync(string unitCode);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAdministrativeResolveDto> ResolveAdministrativeDivisionAsync(string unitCode, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGETAsync();
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGETAsync(System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOSTAsync(string organizationId, CloudEraBotSeatCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOSTAsync(string organizationId, CloudEraBotSeatCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGET2Async();
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGET2Async(System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOST2Async(string organizationId, CloudEraBotSeatCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOST2Async(string organizationId, CloudEraBotSeatCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETEAsync(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETEAsync(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETE2Async(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETE2Async(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUTAsync(string botId, CloudEraBotPinSetRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUTAsync(string botId, CloudEraBotPinSetRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGETAsync(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGETAsync(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUT2Async(string botId, CloudEraBotPinSetRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUT2Async(string botId, CloudEraBotPinSetRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGET2Async(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGET2Async(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task UnlockAsync(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task UnlockAsync(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task Unlock2Async(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task Unlock2Async(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task LockoutAsync(CloudEraBotPinLockoutRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task LockoutAsync(CloudEraBotPinLockoutRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOSTAsync(string botId, CloudEraBotStateEnterRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOSTAsync(string botId, CloudEraBotStateEnterRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task StateDELETEAsync(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task StateDELETEAsync(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOST2Async(string botId, CloudEraBotStateEnterRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOST2Async(string botId, CloudEraBotStateEnterRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task StateDELETE2Async(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task StateDELETE2Async(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateChallengeResponse> Challenge2Async(CloudEraBotStateChallengeRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateChallengeResponse> Challenge2Async(CloudEraBotStateChallengeRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateSessionResponse> Session2Async(CloudEraBotStateSessionRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateSessionResponse> Session2Async(CloudEraBotStateSessionRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateResumeResponse> ResumeAsync(CloudEraBotStateResumeRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateResumeResponse> ResumeAsync(CloudEraBotStateResumeRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateTokenResponse> TokenAsync(CloudEraBotStateResumeRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotStateTokenResponse> TokenAsync(CloudEraBotStateResumeRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotInvitationDto> InvitationsAsync(string botId, CloudEraBotInvitationCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotInvitationDto> InvitationsAsync(string botId, CloudEraBotInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotInvitationDto> Invitations2Async(string botId, CloudEraBotInvitationCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotInvitationDto> Invitations2Async(string botId, CloudEraBotInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGETAsync(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGETAsync(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOSTAsync(string botId, CloudEraBotAssignmentWriteRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOSTAsync(string botId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGET2Async(string botId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGET2Async(string botId, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOST2Async(string botId, CloudEraBotAssignmentWriteRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOST2Async(string botId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> RolesAsync(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> RolesAsync(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> Roles2Async(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task<CloudEraBotAssignmentDto> Roles2Async(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task AssignmentsDELETEAsync(string botId, string assignmentId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task AssignmentsDELETEAsync(string botId, string assignmentId, System.Threading.CancellationToken cancellationToken);
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task AssignmentsDELETE2Async(string botId, string assignmentId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        System.Threading.Tasks.Task AssignmentsDELETE2Async(string botId, string assignmentId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotInvitationListResponse> BotInvitationsAsync();
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotInvitationListResponse> BotInvitationsAsync(System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotInvitationAcceptResponse> AcceptAsync(string invitationId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraBotInvitationAcceptResponse> AcceptAsync(string invitationId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DeclineAsync(string invitationId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DeclineAsync(string invitationId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task CancelAsync(string invitationId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task CancelAsync(string invitationId, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -146,6 +610,33 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationDocumentDto> UploadCloudEraOrganizationDocumentAsync(string organizationId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraOrganizationDocumentDto> UploadCloudEraOrganizationDocumentAsync(string organizationId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ContentAsync(string organizationId, string documentId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ContentAsync(string organizationId, string documentId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DocumentsAsync(string organizationId, string documentId);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DocumentsAsync(string organizationId, string documentId, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task LookupAsync(string email);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
@@ -162,50 +653,70 @@ namespace ErkS.CloudEra.Client.Generated
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ProjectRolesAsync(System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task InformationAsync(string projectId, ProjectInformationInput body);
+        System.Threading.Tasks.Task InformationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectInformationInput body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task InformationAsync(string projectId, ProjectInformationInput body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task InformationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectInformationInput body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ClientLogoGETAsync(string projectId);
+        System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraBuildingCompositionUpdateDto body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraBuildingCompositionUpdateDto body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId);
+        System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -216,86 +727,114 @@ namespace ErkS.CloudEra.Client.Generated
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ProjectMembershipInvitationsAsync(System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, CloudEraProjectMembershipInvitationCreateRequest body);
+        System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipInvitationCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task Accept2Async(string invitationId);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, CloudEraProjectMembershipInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task Accept2Async(string invitationId, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task AcceptAsync(string invitationId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task AcceptAsync(string invitationId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task DeclineAsync(string invitationId);
+        System.Threading.Tasks.Task Decline2Async(string invitationId);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task DeclineAsync(string invitationId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task Decline2Async(string invitationId, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId);
+        System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, CloudEraParticipantRoleUpdateRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, CloudEraParticipantRoleUpdateRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, CloudEraConceptArchitectAssignmentRequest body);
+        System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, CloudEraConceptArchitectAssignmentRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId);
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraParticipantRoleUpdateRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraParticipantRoleUpdateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraConceptArchitectAssignmentRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraConceptArchitectAssignmentRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -306,14 +845,18 @@ namespace ErkS.CloudEra.Client.Generated
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ProjectMembershipExitRequestsGETAsync(System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, CloudEraProjectMembershipExitRequestCreateRequest body);
+        System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipExitRequestCreateRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, CloudEraProjectMembershipExitRequestCreateRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipExitRequestCreateRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -324,14 +867,18 @@ namespace ErkS.CloudEra.Client.Generated
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ProjectMembershipExitRequestsPOSTAsync(string requestId, string decision, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourceCustodianAssignRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -369,221 +916,396 @@ namespace ErkS.CloudEra.Client.Generated
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task ProjectsPOSTAsync(string grantId, CloudEraProjectCreateRequest body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task Logo2Async(string projectId);
+        System.Threading.Tasks.Task Logo2Async(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task Logo2Async(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task Logo2Async(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body);
+        System.Threading.Tasks.Task Content2Async(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task Content2Async(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId);
+        System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity);
+        System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.IO.Stream body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.IO.Stream body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body);
+        System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectChatReactionRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectChatReactionRequest body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId);
+        System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync();
+        System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync(System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentReplyRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentReplyRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentStatusRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentStatusRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>Created</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(CloudEraProjectCreateRequest body);
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectCreateRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>Created</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(CloudEraProjectCreateRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectBotAssignmentsResponse> GetCloudEraProjectBotAssignmentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectBotAssignmentsResponse> GetCloudEraProjectBotAssignmentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraDesignOrganizationAssignmentRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraDesignOrganizationAssignmentRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraStageAdvanceRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraStageAdvanceRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, CloudEraDesignOrganizationAssignmentRequest body);
+        System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, CloudEraDesignOrganizationAssignmentRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId);
+        System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoSeatHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoSeatHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId);
+        System.Threading.Tasks.Task<CloudEraSsoResolveResponse> ResolveCloudEraSsoPluginLicenseAsync(CloudEraSsoResolveRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraSsoResolveResponse> ResolveCloudEraSsoPluginLicenseAsync(CloudEraSsoResolveRequest body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId);
+        System.Threading.Tasks.Task<CloudEraAlbumChangeSummaryResponse> GetCloudEraAlbumChangeSummaryAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraAlbumChangeSummaryResponse> GetCloudEraAlbumChangeSummaryAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId);
+        System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, CloudEraAlbumComponentManifestUpdateRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, CloudEraAlbumComponentManifestUpdateRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId);
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumComponentManifestUpdateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumComponentManifestUpdateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
@@ -594,77 +1316,148 @@ namespace ErkS.CloudEra.Client.Generated
         /// <exception cref="ApiException">A server side error occurred.</exception>
         System.Threading.Tasks.Task FilesAsync(string fileId, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, CloudEraSourcePackageCreateRequest body);
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourcePackageCreateRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourcePackageCreateRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumUploadStartRequest body);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumUploadStartRequest body, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy);
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken);
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<OnlineLicenseResponse> ActivateAsync(OnlineLicenseActivateRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, CloudEraSourcePackageCreateRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<OnlineLicenseResponse> ActivateAsync(OnlineLicenseActivateRequest body, System.Threading.CancellationToken cancellationToken);
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId);
+        System.Threading.Tasks.Task<OnlineLicenseResponse> ValidateAsync(OnlineLicenseValidateRequest body);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<OnlineLicenseResponse> ValidateAsync(OnlineLicenseValidateRequest body, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="currentVersion">The version the client is running. Only isUpdateAvailable depends on it; the release returned is the same either way.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex);
+        System.Threading.Tasks.Task<UpdateLatestResponse> LatestAsync(string product, string currentVersion, string revitVersion, string autocadVersion);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="currentVersion">The version the client is running. Only isUpdateAvailable depends on it; the release returned is the same either way.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<UpdateLatestResponse> LatestAsync(string product, string currentVersion, string revitVersion, string autocadVersion, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId);
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, System.Threading.CancellationToken cancellationToken);
-
-        /// <returns>OK</returns>
-        /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ActivateAsync(OnlineLicenseActivateRequest body);
+        System.Threading.Tasks.Task<UpdateLatestResponse> Latest2Async(string product, string revitVersion, string autocadVersion);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ActivateAsync(OnlineLicenseActivateRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<UpdateLatestResponse> Latest2Async(string product, string revitVersion, string autocadVersion, System.Threading.CancellationToken cancellationToken);
 
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ValidateAsync(OnlineLicenseValidateRequest body);
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<ReleaseHistoryEntry>> HistoryAsync(string product, string revitVersion, string autocadVersion);
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task ValidateAsync(OnlineLicenseValidateRequest body, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<System.Collections.Generic.ICollection<ReleaseHistoryEntry>> HistoryAsync(string product, string revitVersion, string autocadVersion, System.Threading.CancellationToken cancellationToken);
 
     }
 
@@ -780,7 +1573,7 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task SessionAsync(CloudEraStudioSessionRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraStudioSessionResponse> SessionAsync(CloudEraStudioSessionRequest body)
         {
             return SessionAsync(body, System.Threading.CancellationToken.None);
         }
@@ -788,7 +1581,7 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task SessionAsync(CloudEraStudioSessionRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraStudioSessionResponse> SessionAsync(CloudEraStudioSessionRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -804,6 +1597,7 @@ namespace ErkS.CloudEra.Client.Generated
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -835,7 +1629,12 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraStudioSessionResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
                         }
                         else
                         {
@@ -859,7 +1658,7 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task RefreshAsync(CloudEraStudioSessionRefreshRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraStudioSessionResponse> RefreshAsync(CloudEraStudioSessionRefreshRequest body)
         {
             return RefreshAsync(body, System.Threading.CancellationToken.None);
         }
@@ -867,7 +1666,7 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task RefreshAsync(CloudEraStudioSessionRefreshRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraStudioSessionResponse> RefreshAsync(CloudEraStudioSessionRefreshRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -883,6 +1682,7 @@ namespace ErkS.CloudEra.Client.Generated
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -914,7 +1714,12 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraStudioSessionResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
                         }
                         else
                         {
@@ -960,6 +1765,3497 @@ namespace ErkS.CloudEra.Client.Generated
 
                     // Operation Path: "api/studio/profile/photo"
                     urlBuilder_.Append("api/studio/profile/photo");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraDeviceKeyChallengeResponse> ChallengeAsync()
+        {
+            return ChallengeAsync(System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraDeviceKeyChallengeResponse> ChallengeAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/device/key/challenge"
+                    urlBuilder_.Append("api/cloud-era/v1/device/key/challenge");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraDeviceKeyChallengeResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraDeviceKeyRegisterResponse> RegisterAsync(CloudEraDeviceKeyRegisterRequest body)
+        {
+            return RegisterAsync(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraDeviceKeyRegisterResponse> RegisterAsync(CloudEraDeviceKeyRegisterRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/device/key/register"
+                    urlBuilder_.Append("api/cloud-era/v1/device/key/register");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraDeviceKeyRegisterResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAdministrativeImportReportDto> ImportAdministrativeDivisionsAsync()
+        {
+            return ImportAdministrativeDivisionsAsync(System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAdministrativeImportReportDto> ImportAdministrativeDivisionsAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/administrative-divisions/import"
+                    urlBuilder_.Append("api/cloud-era/v1/administrative-divisions/import");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAdministrativeImportReportDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAdministrativeCatalogueDto> GetAdministrativeDivisionsAsync()
+        {
+            return GetAdministrativeDivisionsAsync(System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAdministrativeCatalogueDto> GetAdministrativeDivisionsAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/administrative-divisions"
+                    urlBuilder_.Append("api/cloud-era/v1/administrative-divisions");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAdministrativeCatalogueDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAdministrativeResolveDto> ResolveAdministrativeDivisionAsync(string unitCode)
+        {
+            return ResolveAdministrativeDivisionAsync(unitCode, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAdministrativeResolveDto> ResolveAdministrativeDivisionAsync(string unitCode, System.Threading.CancellationToken cancellationToken)
+        {
+            if (unitCode == null)
+                throw new System.ArgumentNullException("unitCode");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/administrative-divisions/{unitCode}"
+                    urlBuilder_.Append("api/cloud-era/v1/administrative-divisions/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(unitCode, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAdministrativeResolveDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGETAsync()
+        {
+            return BotSeatsGETAsync(System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGETAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotSeatListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOSTAsync(string organizationId, CloudEraBotSeatCreateRequest body)
+        {
+            return BotSeatsPOSTAsync(organizationId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOSTAsync(string organizationId, CloudEraBotSeatCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats");
+                    urlBuilder_.Append('?');
+                    if (organizationId != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("organizationId")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotSeatDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGET2Async()
+        {
+            return BotSeatsGET2Async(System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotSeatListResponse> BotSeatsGET2Async(System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotSeatListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOST2Async(string organizationId, CloudEraBotSeatCreateRequest body)
+        {
+            return BotSeatsPOST2Async(organizationId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotSeatDto> BotSeatsPOST2Async(string organizationId, CloudEraBotSeatCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/bot-seats");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotSeatDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETEAsync(string botId)
+        {
+            return BotSeatsDELETEAsync(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETEAsync(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotSeatDeleteResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETE2Async(string botId)
+        {
+            return BotSeatsDELETE2Async(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotSeatDeleteResponse> BotSeatsDELETE2Async(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotSeatDeleteResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUTAsync(string botId, CloudEraBotPinSetRequest body)
+        {
+            return PinPUTAsync(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUTAsync(string botId, CloudEraBotPinSetRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/pin"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/pin");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotPinSetResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGETAsync(string botId)
+        {
+            return PinGETAsync(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGETAsync(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/pin"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/pin");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotPinRevealResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUT2Async(string botId, CloudEraBotPinSetRequest body)
+        {
+            return PinPUT2Async(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotPinSetResponse> PinPUT2Async(string botId, CloudEraBotPinSetRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/pin"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/pin");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotPinSetResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGET2Async(string botId)
+        {
+            return PinGET2Async(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotPinRevealResponse> PinGET2Async(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/pin"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/pin");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotPinRevealResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task UnlockAsync(string botId)
+        {
+            return UnlockAsync(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task UnlockAsync(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/pin/unlock"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/pin/unlock");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task Unlock2Async(string botId)
+        {
+            return Unlock2Async(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task Unlock2Async(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/pin/unlock"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/pin/unlock");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task LockoutAsync(CloudEraBotPinLockoutRequest body)
+        {
+            return LockoutAsync(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task LockoutAsync(CloudEraBotPinLockoutRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-state/pin/lockout"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-state/pin/lockout");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOSTAsync(string botId, CloudEraBotStateEnterRequest body)
+        {
+            return StatePOSTAsync(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOSTAsync(string botId, CloudEraBotStateEnterRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/state"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/state");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotStateEnterResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task StateDELETEAsync(string botId)
+        {
+            return StateDELETEAsync(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task StateDELETEAsync(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/state"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/state");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOST2Async(string botId, CloudEraBotStateEnterRequest body)
+        {
+            return StatePOST2Async(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotStateEnterResponse> StatePOST2Async(string botId, CloudEraBotStateEnterRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/state"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/state");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotStateEnterResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task StateDELETE2Async(string botId)
+        {
+            return StateDELETE2Async(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task StateDELETE2Async(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/state"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/state");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotStateChallengeResponse> Challenge2Async(CloudEraBotStateChallengeRequest body)
+        {
+            return Challenge2Async(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotStateChallengeResponse> Challenge2Async(CloudEraBotStateChallengeRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-state/challenge"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-state/challenge");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotStateChallengeResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotStateSessionResponse> Session2Async(CloudEraBotStateSessionRequest body)
+        {
+            return Session2Async(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotStateSessionResponse> Session2Async(CloudEraBotStateSessionRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-state/session"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-state/session");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotStateSessionResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotStateResumeResponse> ResumeAsync(CloudEraBotStateResumeRequest body)
+        {
+            return ResumeAsync(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotStateResumeResponse> ResumeAsync(CloudEraBotStateResumeRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-state/resume"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-state/resume");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotStateResumeResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotStateTokenResponse> TokenAsync(CloudEraBotStateResumeRequest body)
+        {
+            return TokenAsync(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotStateTokenResponse> TokenAsync(CloudEraBotStateResumeRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-state/token"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-state/token");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotStateTokenResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotInvitationDto> InvitationsAsync(string botId, CloudEraBotInvitationCreateRequest body)
+        {
+            return InvitationsAsync(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotInvitationDto> InvitationsAsync(string botId, CloudEraBotInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/invitations"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/invitations");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotInvitationDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotInvitationDto> Invitations2Async(string botId, CloudEraBotInvitationCreateRequest body)
+        {
+            return Invitations2Async(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotInvitationDto> Invitations2Async(string botId, CloudEraBotInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/invitations"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/invitations");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotInvitationDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGETAsync(string botId)
+        {
+            return AssignmentsGETAsync(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGETAsync(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/assignments"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotAssignmentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOSTAsync(string botId, CloudEraBotAssignmentWriteRequest body)
+        {
+            return AssignmentsPOSTAsync(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOSTAsync(string botId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/assignments"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotAssignmentDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGET2Async(string botId)
+        {
+            return AssignmentsGET2Async(botId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotAssignmentListResponse> AssignmentsGET2Async(string botId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotAssignmentListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOST2Async(string botId, CloudEraBotAssignmentWriteRequest body)
+        {
+            return AssignmentsPOST2Async(botId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>Created</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotAssignmentDto> AssignmentsPOST2Async(string botId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 201)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotAssignmentDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotAssignmentDto> RolesAsync(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body)
+        {
+            return RolesAsync(botId, assignmentId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotAssignmentDto> RolesAsync(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (assignmentId == null)
+                throw new System.ArgumentNullException("assignmentId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/assignments/{assignmentId}/roles"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(assignmentId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/roles");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotAssignmentDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task<CloudEraBotAssignmentDto> Roles2Async(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body)
+        {
+            return Roles2Async(botId, assignmentId, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task<CloudEraBotAssignmentDto> Roles2Async(string botId, string assignmentId, CloudEraBotAssignmentWriteRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (assignmentId == null)
+                throw new System.ArgumentNullException("assignmentId");
+
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("PUT");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments/{assignmentId}/roles"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(assignmentId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/roles");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotAssignmentDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task AssignmentsDELETEAsync(string botId, string assignmentId)
+        {
+            return AssignmentsDELETEAsync(botId, assignmentId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task AssignmentsDELETEAsync(string botId, string assignmentId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (assignmentId == null)
+                throw new System.ArgumentNullException("assignmentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-seats/{botId}/assignments/{assignmentId}"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(assignmentId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual System.Threading.Tasks.Task AssignmentsDELETE2Async(string botId, string assignmentId)
+        {
+            return AssignmentsDELETE2Async(botId, assignmentId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <remarks>
+        /// ХУУЧИРСАН 2026-09-10. /api/cloud-era/v1/bot-seats… руу шилжинэ үү: суудал байгууллагад биш, лиценз зарцуулсан ДАНСАНД харьяалагдана. Энэ хаягийн {organizationId} нь зөвхөн шүүлтүүр — эрхийн шалгалт хоёр хаяг дээр ижил.
+        /// </remarks>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        [System.Obsolete]
+        public virtual async System.Threading.Tasks.Task AssignmentsDELETE2Async(string botId, string assignmentId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (botId == null)
+                throw new System.ArgumentNullException("botId");
+
+            if (assignmentId == null)
+                throw new System.ArgumentNullException("assignmentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/bot-seats/{botId}/assignments/{assignmentId}"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append("/bot-seats/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(botId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/assignments/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(assignmentId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotInvitationListResponse> BotInvitationsAsync()
+        {
+            return BotInvitationsAsync(System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotInvitationListResponse> BotInvitationsAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-invitations"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-invitations");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotInvitationListResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraBotInvitationAcceptResponse> AcceptAsync(string invitationId)
+        {
+            return AcceptAsync(invitationId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraBotInvitationAcceptResponse> AcceptAsync(string invitationId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (invitationId == null)
+                throw new System.ArgumentNullException("invitationId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-invitations/{invitationId}/accept"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-invitations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(invitationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/accept");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraBotInvitationAcceptResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task DeclineAsync(string invitationId)
+        {
+            return DeclineAsync(invitationId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task DeclineAsync(string invitationId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (invitationId == null)
+                throw new System.ArgumentNullException("invitationId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-invitations/{invitationId}/decline"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-invitations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(invitationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/decline");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task CancelAsync(string invitationId)
+        {
+            return CancelAsync(invitationId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task CancelAsync(string invitationId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (invitationId == null)
+                throw new System.ArgumentNullException("invitationId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/bot-invitations/{invitationId}/cancel"
+                    urlBuilder_.Append("api/cloud-era/v1/bot-invitations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(invitationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/cancel");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 
@@ -2066,6 +6362,253 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraOrganizationDocumentDto> UploadCloudEraOrganizationDocumentAsync(string organizationId)
+        {
+            return UploadCloudEraOrganizationDocumentAsync(organizationId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraOrganizationDocumentDto> UploadCloudEraOrganizationDocumentAsync(string organizationId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/documents"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/documents");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraOrganizationDocumentDto>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task ContentAsync(string organizationId, string documentId)
+        {
+            return ContentAsync(organizationId, documentId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task ContentAsync(string organizationId, string documentId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            if (documentId == null)
+                throw new System.ArgumentNullException("documentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/documents/{documentId}/content"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/documents/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(documentId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/content");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task DocumentsAsync(string organizationId, string documentId)
+        {
+            return DocumentsAsync(organizationId, documentId, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task DocumentsAsync(string organizationId, string documentId, System.Threading.CancellationToken cancellationToken)
+        {
+            if (organizationId == null)
+                throw new System.ArgumentNullException("organizationId");
+
+            if (documentId == null)
+                throw new System.ArgumentNullException("documentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("DELETE");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/organizations/{organizationId}/documents/{documentId}"
+                    urlBuilder_.Append("api/cloud-era/v1/organizations/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(organizationId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/documents/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(documentId, System.Globalization.CultureInfo.InvariantCulture)));
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
         public virtual System.Threading.Tasks.Task LookupAsync(string email)
         {
             return LookupAsync(email, System.Threading.CancellationToken.None);
@@ -2214,17 +6757,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task InformationAsync(string projectId, ProjectInformationInput body)
+        public virtual System.Threading.Tasks.Task InformationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectInformationInput body)
         {
-            return InformationAsync(projectId, body, System.Threading.CancellationToken.None);
+            return InformationAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task InformationAsync(string projectId, ProjectInformationInput body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task InformationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectInformationInput body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2238,6 +6785,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -2298,17 +6851,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body)
+        public virtual System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraBuildingCompositionUpdateDto body)
         {
-            return BuildingCompositionAsync(projectId, body, System.Threading.CancellationToken.None);
+            return BuildingCompositionAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, CloudEraBuildingCompositionUpdateDto body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task BuildingCompositionAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraBuildingCompositionUpdateDto body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2322,6 +6879,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -2382,17 +6945,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ClientLogoGETAsync(string projectId)
+        public virtual System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ClientLogoGETAsync(projectId, System.Threading.CancellationToken.None);
+            return ClientLogoGETAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task ClientLogoGETAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2403,6 +6970,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -2459,17 +7032,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId)
+        public virtual System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ClientLogoPOSTAsync(projectId, System.Threading.CancellationToken.None);
+            return ClientLogoPOSTAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task ClientLogoPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2480,6 +7057,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("POST");
 
@@ -2537,17 +7120,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId)
+        public virtual System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ClientLogoDELETEAsync(projectId, System.Threading.CancellationToken.None);
+            return ClientLogoDELETEAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task ClientLogoDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2558,6 +7145,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -2686,17 +7279,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, CloudEraProjectMembershipInvitationCreateRequest body)
+        public virtual System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipInvitationCreateRequest body)
         {
-            return MembershipInvitationsPOSTAsync(projectId, body, System.Threading.CancellationToken.None);
+            return MembershipInvitationsPOSTAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, CloudEraProjectMembershipInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task MembershipInvitationsPOSTAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipInvitationCreateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2710,6 +7307,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -2772,15 +7375,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task AcceptAsync(string invitationId)
+        public virtual System.Threading.Tasks.Task Accept2Async(string invitationId)
         {
-            return AcceptAsync(invitationId, System.Threading.CancellationToken.None);
+            return Accept2Async(invitationId, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task AcceptAsync(string invitationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task Accept2Async(string invitationId, System.Threading.CancellationToken cancellationToken)
         {
             if (invitationId == null)
                 throw new System.ArgumentNullException("invitationId");
@@ -2850,15 +7453,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task DeclineAsync(string invitationId)
+        public virtual System.Threading.Tasks.Task Decline2Async(string invitationId)
         {
-            return DeclineAsync(invitationId, System.Threading.CancellationToken.None);
+            return Decline2Async(invitationId, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task DeclineAsync(string invitationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task Decline2Async(string invitationId, System.Threading.CancellationToken cancellationToken)
         {
             if (invitationId == null)
                 throw new System.ArgumentNullException("invitationId");
@@ -2926,17 +7529,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId)
+        public virtual System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return MembershipInvitationsDELETEAsync(projectId, invitationId, System.Threading.CancellationToken.None);
+            return MembershipInvitationsDELETEAsync(projectId, invitationId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task MembershipInvitationsDELETEAsync(string projectId, string invitationId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -2950,6 +7557,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -3007,17 +7620,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId)
+        public virtual System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ParticipantsAsync(projectId, participantId, System.Threading.CancellationToken.None);
+            return ParticipantsAsync(projectId, participantId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task ParticipantsAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3031,6 +7648,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -3088,17 +7711,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, CloudEraParticipantRoleUpdateRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraParticipantRoleUpdateRequest body)
         {
-            return UpdateCloudEraParticipantRolesAsync(projectId, participantId, body, System.Threading.CancellationToken.None);
+            return UpdateCloudEraParticipantRolesAsync(projectId, participantId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, CloudEraParticipantRoleUpdateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> UpdateCloudEraParticipantRolesAsync(string projectId, string participantId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraParticipantRoleUpdateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3115,6 +7742,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -3183,17 +7816,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, CloudEraConceptArchitectAssignmentRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraConceptArchitectAssignmentRequest body)
         {
-            return AssignCloudEraConceptArchitectAsync(projectId, body, System.Threading.CancellationToken.None);
+            return AssignCloudEraConceptArchitectAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, CloudEraConceptArchitectAssignmentRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraConceptArchitectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraConceptArchitectAssignmentRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3207,6 +7844,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -3273,17 +7916,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId)
+        public virtual System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ProjectsDELETEAsync(projectId, System.Threading.CancellationToken.None);
+            return ProjectsDELETEAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task ProjectsDELETEAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3294,6 +7941,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -3349,17 +8002,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId)
+        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return GetCloudEraProjectAsync(projectId, System.Threading.CancellationToken.None);
+            return GetCloudEraProjectAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> GetCloudEraProjectAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3370,6 +8027,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -3509,17 +8172,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, CloudEraProjectMembershipExitRequestCreateRequest body)
+        public virtual System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipExitRequestCreateRequest body)
         {
-            return MembershipExitRequestsAsync(projectId, body, System.Threading.CancellationToken.None);
+            return MembershipExitRequestsAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, CloudEraProjectMembershipExitRequestCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task MembershipExitRequestsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectMembershipExitRequestCreateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3533,6 +8200,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -3675,17 +8348,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourceCustodianAssignRequest body)
         {
-            return AssignCloudEraSourceCustodianAsync(projectId, sourceKey, body, System.Threading.CancellationToken.None);
+            return AssignCloudEraSourceCustodianAsync(projectId, sourceKey, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> AssignCloudEraSourceCustodianAsync(string projectId, string sourceKey, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourceCustodianAssignRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -3702,6 +8379,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -4116,17 +8799,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task Logo2Async(string projectId)
+        public virtual System.Threading.Tasks.Task Logo2Async(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return Logo2Async(projectId, System.Threading.CancellationToken.None);
+            return Logo2Async(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task Logo2Async(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task Logo2Async(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4137,6 +8824,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -4193,17 +8886,113 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail)
+        public virtual System.Threading.Tasks.Task Content2Async(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return GetCloudEraProjectChatAsync(projectId, take, peerEmail, System.Threading.CancellationToken.None);
+            return Content2Async(projectId, documentId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task Content2Async(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (documentId == null)
+                throw new System.ArgumentNullException("documentId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/design-organization/documents/{documentId}/content"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/design-organization/documents/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(documentId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/content");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
+        {
+            return GetCloudEraProjectChatAsync(projectId, take, peerEmail, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> GetCloudEraProjectChatAsync(string projectId, int? take, string peerEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4214,6 +9003,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -4286,17 +9081,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body)
+        public virtual System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.IO.Stream body)
         {
-            return SendCloudEraProjectChatMessageAsync(projectId, body, System.Threading.CancellationToken.None);
+            return SendCloudEraProjectChatMessageAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, System.IO.Stream body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> SendCloudEraProjectChatMessageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.IO.Stream body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4310,6 +9109,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var content_ = new System.Net.Http.StreamContent(body);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("multipart/form-data");
                     request_.Content = content_;
@@ -4375,17 +9180,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body)
+        public virtual System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectChatReactionRequest body)
         {
-            return ReactToCloudEraProjectChatMessageAsync(projectId, messageId, body, System.Threading.CancellationToken.None);
+            return ReactToCloudEraProjectChatMessageAsync(projectId, messageId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, ProjectChatReactionRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<ProjectChatResponse> ReactToCloudEraProjectChatMessageAsync(string projectId, string messageId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, ProjectChatReactionRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4402,6 +9211,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -4470,17 +9285,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId)
+        public virtual System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return DownloadCloudEraProjectChatAttachmentAsync(projectId, attachmentId, System.Threading.CancellationToken.None);
+            return DownloadCloudEraProjectChatAttachmentAsync(projectId, attachmentId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task DownloadCloudEraProjectChatAttachmentAsync(string projectId, string attachmentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4494,6 +9313,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -4551,17 +9376,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail)
+        public virtual System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return GetCloudEraProjectChatParticipantPhotoAsync(projectId, participantEmail, System.Threading.CancellationToken.None);
+            return GetCloudEraProjectChatParticipantPhotoAsync(projectId, participantEmail, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task GetCloudEraProjectChatParticipantPhotoAsync(string projectId, string participantEmail, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4575,6 +9404,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
 
                     var urlBuilder_ = new System.Text.StringBuilder();
@@ -4633,17 +9468,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity)
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ListCloudEraSheetCommentsAsync(projectId, pageIdentity, System.Threading.CancellationToken.None);
+            return ListCloudEraSheetCommentsAsync(projectId, pageIdentity, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ListCloudEraSheetCommentsAsync(string projectId, string pageIdentity, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4654,6 +9493,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -4722,17 +9567,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentCreateRequest body)
         {
-            return CreateCloudEraSheetCommentAsync(projectId, body, System.Threading.CancellationToken.None);
+            return CreateCloudEraSheetCommentAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, CloudEraSheetCommentCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> CreateCloudEraSheetCommentAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentCreateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4746,6 +9595,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -4812,17 +9667,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentReplyRequest body)
         {
-            return ReplyToCloudEraSheetCommentAsync(projectId, commentId, body, System.Threading.CancellationToken.None);
+            return ReplyToCloudEraSheetCommentAsync(projectId, commentId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, CloudEraSheetCommentReplyRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> ReplyToCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentReplyRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4839,6 +9698,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -4907,17 +9772,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentStatusRequest body)
         {
-            return SetCloudEraSheetCommentStatusAsync(projectId, commentId, body, System.Threading.CancellationToken.None);
+            return SetCloudEraSheetCommentStatusAsync(projectId, commentId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, CloudEraSheetCommentStatusRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> SetCloudEraSheetCommentStatusAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSheetCommentStatusRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -4934,6 +9803,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -5002,17 +9877,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId)
+        public virtual System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return DeleteCloudEraSheetCommentAsync(projectId, commentId, System.Threading.CancellationToken.None);
+            return DeleteCloudEraSheetCommentAsync(projectId, commentId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSheetCommentListResponse> DeleteCloudEraSheetCommentAsync(string projectId, string commentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5026,6 +9905,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -5089,17 +9974,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync()
+        public virtual System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ListCloudEraProjectsAsync(System.Threading.CancellationToken.None);
+            return ListCloudEraProjectsAsync(x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync(System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectListResponse> ListCloudEraProjectsAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -5107,6 +9996,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -5167,17 +10062,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>Created</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(CloudEraProjectCreateRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectCreateRequest body)
         {
-            return CreateCloudEraProjectAsync(body, System.Threading.CancellationToken.None);
+            return CreateCloudEraProjectAsync(x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>Created</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(CloudEraProjectCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> CreateCloudEraProjectAsync(string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraProjectCreateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -5188,6 +10087,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -5252,17 +10157,124 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, CloudEraDesignOrganizationAssignmentRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraProjectBotAssignmentsResponse> GetCloudEraProjectBotAssignmentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return AssignCloudEraDesignOrganizationAsync(projectId, body, System.Threading.CancellationToken.None);
+            return GetCloudEraProjectBotAssignmentsAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, CloudEraDesignOrganizationAssignmentRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectBotAssignmentsResponse> GetCloudEraProjectBotAssignmentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/bot-assignments"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/bot-assignments");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraProjectBotAssignmentsResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 404)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Not Found", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraDesignOrganizationAssignmentRequest body)
+        {
+            return AssignCloudEraDesignOrganizationAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraProjectDetailDto> AssignCloudEraDesignOrganizationAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraDesignOrganizationAssignmentRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5276,6 +10288,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -5342,17 +10360,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraStageAdvanceRequest body)
         {
-            return AdvanceCloudEraProjectStageAsync(projectId, body, System.Threading.CancellationToken.None);
+            return AdvanceCloudEraProjectStageAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, CloudEraStageAdvanceRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraStageAdvanceResponse> AdvanceCloudEraProjectStageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraStageAdvanceRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5366,6 +10388,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -5432,17 +10460,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId)
+        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ListCloudEraBasisSourcesAsync(projectId, System.Threading.CancellationToken.None);
+            return ListCloudEraBasisSourcesAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraBasisSourceDto>> ListCloudEraBasisSourcesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5453,6 +10485,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -5515,17 +10553,125 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId)
+        public virtual System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ListCloudEraDocumentsAsync(projectId, System.Threading.CancellationToken.None);
+            return ListCloudEraCitizenSurveyResponsesAsync(projectId, surveyId, since, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CitizenSurveyResponseDocumentRecord> ListCloudEraCitizenSurveyResponsesAsync(string projectId, string surveyId, string since, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            if (surveyId == null)
+                throw new System.ArgumentNullException("surveyId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/citizen-surveys/{surveyId}/responses"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/citizen-surveys/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(surveyId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/responses");
+                    urlBuilder_.Append('?');
+                    if (since != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("since")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(since, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CitizenSurveyResponseDocumentRecord>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
+        {
+            return ListCloudEraDocumentsAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraControlledDocumentDto>> ListCloudEraDocumentsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5536,6 +10682,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -5598,17 +10750,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId)
+        public virtual System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ReplaceCloudEraControlledDocumentFilesAsync(projectId, documentId, System.Threading.CancellationToken.None);
+            return ReplaceCloudEraControlledDocumentFilesAsync(projectId, documentId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraControlledDocumentDto> ReplaceCloudEraControlledDocumentFilesAsync(string projectId, string documentId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5622,6 +10778,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
@@ -5687,17 +10849,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId)
+        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ListCloudEraDesignPackagesAsync(projectId, System.Threading.CancellationToken.None);
+            return ListCloudEraDesignPackagesAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraDesignPackageDto>> ListCloudEraDesignPackagesAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5708,6 +10874,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -5770,17 +10942,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId)
+        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return ListCloudEraAlbumsAsync(projectId, System.Threading.CancellationToken.None);
+            return ListCloudEraAlbumsAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<CloudEraAlbumDto>> ListCloudEraAlbumsAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5791,6 +10967,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -5855,15 +11037,364 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId)
+        public virtual System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body)
         {
-            return EnsureCloudEraConceptAlbumAsync(projectId, System.Threading.CancellationToken.None);
+            return IssueCloudEraSsoHandoffTokenAsync(body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/sso/handoff-token"
+                    urlBuilder_.Append("api/cloud-era/v1/sso/handoff-token");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSsoHandoffTokenResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoSeatHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body)
+        {
+            return IssueCloudEraSsoSeatHandoffTokenAsync(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSsoHandoffTokenResponse> IssueCloudEraSsoSeatHandoffTokenAsync(CloudEraSsoHandoffTokenRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/sso/seat-handoff-token"
+                    urlBuilder_.Append("api/cloud-era/v1/sso/seat-handoff-token");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSsoHandoffTokenResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 400)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Bad Request", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraSsoResolveResponse> ResolveCloudEraSsoPluginLicenseAsync(CloudEraSsoResolveRequest body)
+        {
+            return ResolveCloudEraSsoPluginLicenseAsync(body, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraSsoResolveResponse> ResolveCloudEraSsoPluginLicenseAsync(CloudEraSsoResolveRequest body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/sso/plugin-license-resolve"
+                    urlBuilder_.Append("api/cloud-era/v1/sso/plugin-license-resolve");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraSsoResolveResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 401)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Unauthorized", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 403)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Forbidden", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        if (status_ == 409)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Conflict", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumChangeSummaryResponse> GetCloudEraAlbumChangeSummaryAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
+        {
+            return GetCloudEraAlbumChangeSummaryAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumChangeSummaryResponse> GetCloudEraAlbumChangeSummaryAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5874,6 +11405,115 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/cloud-era/v1/projects/{projectId}/albums/change-summary"
+                    urlBuilder_.Append("api/cloud-era/v1/projects/");
+                    urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(projectId, System.Globalization.CultureInfo.InvariantCulture)));
+                    urlBuilder_.Append("/albums/change-summary");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraAlbumChangeSummaryResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ == 404)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<CloudEraApiError>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            throw new ApiException<CloudEraApiError>("Not Found", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
+        {
+            return EnsureCloudEraConceptAlbumAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumDto> EnsureCloudEraConceptAlbumAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
+        {
+            if (projectId == null)
+                throw new System.ArgumentNullException("projectId");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("POST");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
@@ -5937,17 +11577,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return GetCloudEraAlbumRevisionAsync(projectId, albumId, revisionId, System.Threading.CancellationToken.None);
+            return GetCloudEraAlbumRevisionAsync(projectId, albumId, revisionId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> GetCloudEraAlbumRevisionAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -5964,6 +11608,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("GET");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -6029,17 +11679,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, CloudEraAlbumComponentManifestUpdateRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumComponentManifestUpdateRequest body)
         {
-            return SetCloudEraAlbumComponentManifestAsync(projectId, albumId, revisionId, body, System.Threading.CancellationToken.None);
+            return SetCloudEraAlbumComponentManifestAsync(projectId, albumId, revisionId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, CloudEraAlbumComponentManifestUpdateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> SetCloudEraAlbumComponentManifestAsync(string projectId, string albumId, string revisionId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumComponentManifestUpdateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6059,6 +11713,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -6159,17 +11819,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return MergeCloudEraAlbumComponentsAsync(projectId, albumId, System.Threading.CancellationToken.None);
+            return MergeCloudEraAlbumComponentsAsync(projectId, albumId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> MergeCloudEraAlbumComponentsAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6183,6 +11847,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
@@ -6354,17 +12024,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, CloudEraSourcePackageCreateRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourcePackageCreateRequest body)
         {
-            return RegisterCloudEraSourcePackageAsync(projectId, body, System.Threading.CancellationToken.None);
+            return RegisterCloudEraSourcePackageAsync(projectId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, CloudEraSourcePackageCreateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> RegisterCloudEraSourcePackageAsync(string projectId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraSourcePackageCreateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6378,6 +12052,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -6454,17 +12134,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match)
+        public virtual System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return RetireCloudEraSourcePackageAsync(projectId, sourceId, if_Match, System.Threading.CancellationToken.None);
+            return RetireCloudEraSourcePackageAsync(projectId, sourceId, if_Match, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraSourcePackageDto> RetireCloudEraSourcePackageAsync(string projectId, string sourceId, string if_Match, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6481,6 +12165,12 @@ namespace ErkS.CloudEra.Client.Generated
 
                     if (if_Match != null)
                         request_.Headers.TryAddWithoutValidation("If-Match", ConvertToString(if_Match, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Method = new System.Net.Http.HttpMethod("DELETE");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
@@ -6564,17 +12254,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return UploadCloudEraAlbumRevisionAsync(projectId, albumId, System.Threading.CancellationToken.None);
+            return UploadCloudEraAlbumRevisionAsync(projectId, albumId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> UploadCloudEraAlbumRevisionAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6588,6 +12282,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("POST");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
@@ -6683,17 +12383,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumUploadStartRequest body)
         {
-            return StartCloudEraAlbumUploadAsync(projectId, albumId, body, System.Threading.CancellationToken.None);
+            return StartCloudEraAlbumUploadAsync(projectId, albumId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, body, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, CloudEraAlbumUploadStartRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> StartCloudEraAlbumUploadAsync(string projectId, string albumId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, CloudEraAlbumUploadStartRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6710,6 +12414,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
@@ -6808,17 +12518,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return UploadCloudEraAlbumChunkAsync(projectId, albumId, uploadId, chunkIndex, System.Threading.CancellationToken.None);
+            return UploadCloudEraAlbumChunkAsync(projectId, albumId, uploadId, chunkIndex, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumUploadSessionResponse> UploadCloudEraAlbumChunkAsync(string projectId, string albumId, string uploadId, int chunkIndex, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6838,6 +12552,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("PUT");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
@@ -6906,17 +12626,21 @@ namespace ErkS.CloudEra.Client.Generated
             }
         }
 
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId)
+        public virtual System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy)
         {
-            return CompleteCloudEraAlbumUploadAsync(projectId, albumId, uploadId, System.Threading.CancellationToken.None);
+            return CompleteCloudEraAlbumUploadAsync(projectId, albumId, uploadId, x_ErkS_Device_Fingerprint, x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken.None);
         }
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="x_ErkS_Device_Fingerprint">The writing machine's canonical device fingerprint. Optional, and worth sending: without it a concurrency conflict cannot say which machine changed the project, which for one person with two machines is the whole of the answer.</param>
+        /// <param name="x_ErkS_Device_Fingerprint_Legacy">The same machine's legacy fingerprint, where the client still has one. Send BOTH during the migration: a request carrying only one proves nothing about a record stored under the other.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<CloudEraAlbumRevisionDto> CompleteCloudEraAlbumUploadAsync(string projectId, string albumId, string uploadId, string x_ErkS_Device_Fingerprint, string x_ErkS_Device_Fingerprint_Legacy, System.Threading.CancellationToken cancellationToken)
         {
             if (projectId == null)
                 throw new System.ArgumentNullException("projectId");
@@ -6933,6 +12657,12 @@ namespace ErkS.CloudEra.Client.Generated
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
+
+                    if (x_ErkS_Device_Fingerprint != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint", ConvertToString(x_ErkS_Device_Fingerprint, System.Globalization.CultureInfo.InvariantCulture));
+
+                    if (x_ErkS_Device_Fingerprint_Legacy != null)
+                        request_.Headers.TryAddWithoutValidation("X-ErkS-Device-Fingerprint-Legacy", ConvertToString(x_ErkS_Device_Fingerprint_Legacy, System.Globalization.CultureInfo.InvariantCulture));
                     request_.Content = new System.Net.Http.StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json");
                     request_.Method = new System.Net.Http.HttpMethod("POST");
                     request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
@@ -7032,7 +12762,7 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ActivateAsync(OnlineLicenseActivateRequest body)
+        public virtual System.Threading.Tasks.Task<OnlineLicenseResponse> ActivateAsync(OnlineLicenseActivateRequest body)
         {
             return ActivateAsync(body, System.Threading.CancellationToken.None);
         }
@@ -7040,7 +12770,7 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ActivateAsync(OnlineLicenseActivateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<OnlineLicenseResponse> ActivateAsync(OnlineLicenseActivateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -7056,6 +12786,7 @@ namespace ErkS.CloudEra.Client.Generated
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -7087,7 +12818,12 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<OnlineLicenseResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
                         }
                         else
                         {
@@ -7111,7 +12847,7 @@ namespace ErkS.CloudEra.Client.Generated
 
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual System.Threading.Tasks.Task ValidateAsync(OnlineLicenseValidateRequest body)
+        public virtual System.Threading.Tasks.Task<OnlineLicenseResponse> ValidateAsync(OnlineLicenseValidateRequest body)
         {
             return ValidateAsync(body, System.Threading.CancellationToken.None);
         }
@@ -7119,7 +12855,7 @@ namespace ErkS.CloudEra.Client.Generated
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>OK</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task ValidateAsync(OnlineLicenseValidateRequest body, System.Threading.CancellationToken cancellationToken)
+        public virtual async System.Threading.Tasks.Task<OnlineLicenseResponse> ValidateAsync(OnlineLicenseValidateRequest body, System.Threading.CancellationToken cancellationToken)
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -7135,6 +12871,7 @@ namespace ErkS.CloudEra.Client.Generated
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
 
                     var urlBuilder_ = new System.Text.StringBuilder();
 
@@ -7166,7 +12903,312 @@ namespace ErkS.CloudEra.Client.Generated
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            return;
+                            var objectResponse_ = await ReadObjectResponseAsync<OnlineLicenseResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="currentVersion">The version the client is running. Only isUpdateAvailable depends on it; the release returned is the same either way.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<UpdateLatestResponse> LatestAsync(string product, string currentVersion, string revitVersion, string autocadVersion)
+        {
+            return LatestAsync(product, currentVersion, revitVersion, autocadVersion, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="currentVersion">The version the client is running. Only isUpdateAvailable depends on it; the release returned is the same either way.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<UpdateLatestResponse> LatestAsync(string product, string currentVersion, string revitVersion, string autocadVersion, System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/updates/latest"
+                    urlBuilder_.Append("api/updates/latest");
+                    urlBuilder_.Append('?');
+                    if (product != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("product")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(product, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (currentVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("currentVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(currentVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (revitVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("revitVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(revitVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (autocadVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("autocadVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(autocadVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<UpdateLatestResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<UpdateLatestResponse> Latest2Async(string product, string revitVersion, string autocadVersion)
+        {
+            return Latest2Async(product, revitVersion, autocadVersion, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<UpdateLatestResponse> Latest2Async(string product, string revitVersion, string autocadVersion, System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/installers/latest"
+                    urlBuilder_.Append("api/installers/latest");
+                    urlBuilder_.Append('?');
+                    if (product != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("product")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(product, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (revitVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("revitVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(revitVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (autocadVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("autocadVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(autocadVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<UpdateLatestResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new ApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual System.Threading.Tasks.Task<System.Collections.Generic.ICollection<ReleaseHistoryEntry>> HistoryAsync(string product, string revitVersion, string autocadVersion)
+        {
+            return HistoryAsync(product, revitVersion, autocadVersion, System.Threading.CancellationToken.None);
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <param name="product">Product code to ask about. Omitted means the legacy default, Erk-S Platform for Revit -- so a client that leaves this out is served a Revit release whatever it is running. Also accepted: productCode, product-code.</param>
+        /// <param name="revitVersion">Release channel for Revit products (for example 2026). Ignored for AutoCAD products, which read autocadVersion instead. Also accepted: revit-version, revit.</param>
+        /// <param name="autocadVersion">Release channel for AutoCAD products. Ignored for Revit products. Also accepted: autocad-version, acadVersion.</param>
+        /// <returns>OK</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<ReleaseHistoryEntry>> HistoryAsync(string product, string revitVersion, string autocadVersion, System.Threading.CancellationToken cancellationToken)
+        {
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+
+                    // Operation Path: "api/updates/history"
+                    urlBuilder_.Append("api/updates/history");
+                    urlBuilder_.Append('?');
+                    if (product != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("product")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(product, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (revitVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("revitVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(revitVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (autocadVersion != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("autocadVersion")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(autocadVersion, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<System.Collections.Generic.ICollection<ReleaseHistoryEntry>>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new ApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
                         }
                         else
                         {
@@ -7315,6 +13357,285 @@ namespace ErkS.CloudEra.Client.Generated
             var result = System.Convert.ToString(value, cultureInfo);
             return result == null ? "" : result;
         }
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CitizenSurveyAnswerRecord
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("questionId")]
+        public string QuestionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("optionIds")]
+        public System.Collections.Generic.ICollection<string> OptionIds { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("text")]
+        public string Text { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("number")]
+        public double? Number { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CitizenSurveyResponseDocumentRecord
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("surveyId")]
+        public string SurveyId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("cursor")]
+        public string Cursor { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("collectedAtUtc")]
+        public string CollectedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("responses")]
+        public System.Collections.Generic.ICollection<CitizenSurveyResponseRecord> Responses { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CitizenSurveyResponseRecord
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public string Id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("submittedAtUtc")]
+        public string SubmittedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("answers")]
+        public System.Collections.Generic.ICollection<CitizenSurveyAnswerRecord> Answers { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAdministrativeCatalogueDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("asOfUtc")]
+        public System.DateTimeOffset AsOfUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("origin")]
+        public string Origin { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceAuthority")]
+        public string SourceAuthority { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceEndpoint")]
+        public string SourceEndpoint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("unitCount")]
+        public int UnitCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("units")]
+        public System.Collections.Generic.ICollection<CloudEraAdministrativeUnitDto> Units { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAdministrativeImportReportDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("succeeded")]
+        public bool Succeeded { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("unitsRead")]
+        public int UnitsRead { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("added")]
+        public int Added { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("renamed")]
+        public int Renamed { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("removed")]
+        public int Removed { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("addedCodes")]
+        public System.Collections.Generic.ICollection<string> AddedCodes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("renamedCodes")]
+        public System.Collections.Generic.ICollection<string> RenamedCodes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("removedCodes")]
+        public System.Collections.Generic.ICollection<string> RemovedCodes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("asOfUtc")]
+        public System.DateTimeOffset AsOfUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("origin")]
+        public string Origin { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAdministrativeResolveDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("unitCode")]
+        public string UnitCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("known")]
+        public bool Known { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("path")]
+        public System.Collections.Generic.ICollection<CloudEraAdministrativeUnitDto> Path { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("asOfUtc")]
+        public System.DateTimeOffset AsOfUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAdministrativeUnitDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("unitCode")]
+        public string UnitCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("parentUnitCode")]
+        public string ParentUnitCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("level")]
+        public string Level { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nameMn")]
+        public string NameMn { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("childPickerLabelMn")]
+        public string ChildPickerLabelMn { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hasChildren")]
+        public bool HasChildren { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAlbumChangeSummaryDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("albumId")]
+        public string AlbumId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("albumType")]
+        public string AlbumType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentRevisionId")]
+        public string CurrentRevisionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("revisionNumber")]
+        public int RevisionNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pdfSha256")]
+        public string PdfSha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("revisionCreatedAtUtc")]
+        public System.DateTimeOffset RevisionCreatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraAlbumChangeSummaryResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("apiVersion")]
+        public string ApiVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectConcurrencyToken")]
+        public string ProjectConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("albums")]
+        public System.Collections.Generic.ICollection<CloudEraAlbumChangeSummaryDto> Albums { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
@@ -7618,6 +13939,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("features")]
         public System.Collections.Generic.IDictionary<string, bool> Features { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("rules")]
+        public System.Collections.Generic.ICollection<CloudEraApiRuleDto> Rules { get; set; }
+
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -7636,6 +13960,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("code")]
         public string Code { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("reason")]
+        public string Reason { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("message")]
         public string Message { get; set; }
 
@@ -7653,6 +13980,33 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("fieldErrors")]
         public System.Collections.Generic.IDictionary<string, System.Collections.Generic.ICollection<string>> FieldErrors { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraApiRuleDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public string Id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("version")]
+        public int Version { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("values")]
+        public System.Collections.Generic.IDictionary<string, long> Values { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("text")]
+        public System.Collections.Generic.IDictionary<string, string> Text { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -7848,6 +14202,792 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("files")]
         public System.Collections.Generic.ICollection<CloudEraFileDto2> Files { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotAssignedProjectDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("scopes")]
+        public System.Collections.Generic.ICollection<string> Scopes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignedAtUtc")]
+        public System.DateTimeOffset AssignedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotAssignmentDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignmentId")]
+        public string AssignmentId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectName")]
+        public string ProjectName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignedAtUtc")]
+        public System.DateTimeOffset AssignedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignedByEmail")]
+        public string AssignedByEmail { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotAssignmentListResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignments")]
+        public System.Collections.Generic.ICollection<CloudEraBotAssignmentDto> Assignments { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotAssignmentWriteRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotInvitationAcceptResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("linkedAtUtc")]
+        public System.DateTimeOffset LinkedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("openedNewInterval")]
+        public bool OpenedNewInterval { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotInvitationCreateRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("targetEmail")]
+        public string TargetEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotInvitationDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("invitationId")]
+        public string InvitationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("botDisplayName")]
+        public string BotDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("seatAssignments")]
+        public System.Collections.Generic.ICollection<CloudEraBotAssignmentDto> SeatAssignments { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("targetEmail")]
+        public string TargetEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("invitedByEmail")]
+        public string InvitedByEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("invitedAtUtc")]
+        public System.DateTimeOffset InvitedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("state")]
+        public string State { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotInvitationListResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("items")]
+        public System.Collections.Generic.ICollection<CloudEraBotInvitationDto> Items { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotPinLockoutRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotPinRevealResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pin")]
+        public string Pin { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("locked")]
+        public bool Locked { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("setAtUtc")]
+        public System.DateTimeOffset SetAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotPinSetRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("pin")]
+        public string Pin { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotPinSetResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("setAtUtc")]
+        public System.DateTimeOffset SetAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceMustReRegister")]
+        public bool DeviceMustReRegister { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotSeatCreateRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("internalEmail")]
+        public string InternalEmail { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotSeatDeleteResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceReleased")]
+        public bool DeviceReleased { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberRemoved")]
+        public bool MemberRemoved { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("occupiedSeats")]
+        public int OccupiedSeats { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceRights")]
+        public int DeviceRights { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceRightsUnlimited")]
+        public bool DeviceRightsUnlimited { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotSeatDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("internalEmail")]
+        public string InternalEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
+        public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdByEmail")]
+        public string CreatedByEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationName")]
+        public string OrganizationName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceSeated")]
+        public bool DeviceSeated { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceSeatedAtUtc")]
+        public System.DateTimeOffset? DeviceSeatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberEmail")]
+        public string MemberEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberDisplayName")]
+        public string MemberDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdByDisplayName")]
+        public string CreatedByDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberSinceUtc")]
+        public System.DateTimeOffset? MemberSinceUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceSeatedByEmail")]
+        public string DeviceSeatedByEmail { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotSeatListResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("items")]
+        public System.Collections.Generic.ICollection<CloudEraBotSeatDto> Items { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("occupiedSeats")]
+        public int OccupiedSeats { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceRights")]
+        public int DeviceRights { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceRightsUnlimited")]
+        public bool DeviceRightsUnlimited { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenceActive")]
+        public bool LicenceActive { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotSeatMemberDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("accountEmail")]
+        public string AccountEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberSinceUtc")]
+        public System.DateTimeOffset MemberSinceUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateChallengeRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateChallengeResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("nonce")]
+        public string Nonce { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateEnterRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceName")]
+        public string DeviceName { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateEnterResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("tokenId")]
+        public string TokenId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("enteredAtUtc")]
+        public System.DateTimeOffset EnteredAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("tokenType")]
+        public string TokenType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessToken")]
+        public string AccessToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessTokenExpiresAtUtc")]
+        public System.DateTimeOffset AccessTokenExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ownerCredentialsRevoked")]
+        public CloudEraOwnerCredentialRevocationDto OwnerCredentialsRevoked { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateResumeRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateResumeResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdByDisplayName")]
+        public string CreatedByDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("seatStatus")]
+        public string SeatStatus { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pinLocked")]
+        public bool PinLocked { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignedProjects")]
+        public System.Collections.Generic.ICollection<CloudEraBotAssignedProjectDto> AssignedProjects { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("member")]
+        public CloudEraBotSeatMemberDto Member { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateSessionRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nonce")]
+        public string Nonce { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("signature")]
+        public string Signature { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateSessionResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("tokenType")]
+        public string TokenType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessToken")]
+        public string AccessToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessTokenExpiresAtUtc")]
+        public System.DateTimeOffset AccessTokenExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdByDisplayName")]
+        public string CreatedByDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pinLocked")]
+        public bool PinLocked { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("member")]
+        public CloudEraBotSeatMemberDto Member { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignedProjects")]
+        public System.Collections.Generic.ICollection<CloudEraBotAssignedProjectDto> AssignedProjects { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraBotStateTokenResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("tokenType")]
+        public string TokenType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessToken")]
+        public string AccessToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessTokenExpiresAtUtc")]
+        public System.DateTimeOffset AccessTokenExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -8086,6 +15226,81 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraDeviceKeyChallengeResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("nonce")]
+        public string Nonce { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraDeviceKeyRegisterRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("publicKey")]
+        public string PublicKey { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nonce")]
+        public string Nonce { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("signature")]
+        public string Signature { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraDeviceKeyRegisterResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registeredAtUtc")]
+        public System.DateTimeOffset RegisteredAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraFileDto
     {
 
@@ -8260,6 +15475,51 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOrganizationDocumentDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("documentId")]
+        public string DocumentId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("category")]
+        public string Category { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("title")]
+        public string Title { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("originalFileName")]
+        public string OriginalFileName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("contentType")]
+        public string ContentType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sizeBytes")]
+        public long SizeBytes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("pageCount")]
+        public int PageCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sha256")]
+        public string Sha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("contentUrl")]
+        public string ContentUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("updatedAtUtc")]
+        public System.DateTimeOffset UpdatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraOrganizationDto
     {
 
@@ -8367,6 +15627,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("updatedAtUtc")]
         public System.DateTimeOffset UpdatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrationCertificateDocuments")]
+        public System.Collections.Generic.ICollection<CloudEraOrganizationDocumentDto> RegistrationCertificateDocuments { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designLicenseDocuments")]
+        public System.Collections.Generic.ICollection<object> DesignLicenseDocuments { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -8487,6 +15753,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("updatedAtUtc")]
         public System.DateTimeOffset UpdatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("registrationCertificateDocuments")]
+        public System.Collections.Generic.ICollection<CloudEraOrganizationDocumentDto> RegistrationCertificateDocuments { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designLicenseDocuments")]
+        public System.Collections.Generic.ICollection<object> DesignLicenseDocuments { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -8644,6 +15916,12 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("logoOffsetY")]
         public double LogoOffsetY { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("registrationCertificateDocuments")]
+        public System.Collections.Generic.ICollection<CloudEraOrganizationDocumentDto> RegistrationCertificateDocuments { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("designLicenseDocuments")]
+        public System.Collections.Generic.ICollection<object> DesignLicenseDocuments { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("isProjectSnapshot")]
         public bool IsProjectSnapshot { get; set; }
 
@@ -8664,6 +15942,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("baseConcurrencyToken")]
         public string BaseConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("supportsSeparateRepresentatives")]
+        public bool SupportsSeparateRepresentatives { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("registryFieldsIncluded")]
         public bool RegistryFieldsIncluded { get; set; }
@@ -8752,6 +16033,33 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraOwnerCredentialRevocationDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ownerEmail")]
+        public string OwnerEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("revokedAtUtc")]
+        public System.DateTimeOffset RevokedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("clientObligation")]
+        public string ClientObligation { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraParticipantDto
     {
 
@@ -8778,6 +16086,15 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("stageScopes")]
         public System.Collections.Generic.ICollection<string> StageScopes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastSeenAtUtc")]
+        public System.DateTimeOffset? LastSeenAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("profileImageUrl")]
+        public string ProfileImageUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("initials")]
+        public string Initials { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("scopes")]
         public System.Collections.Generic.ICollection<string> Scopes { get; set; }
@@ -8865,6 +16182,69 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
         public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraProjectBotAssignmentDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("botDisplayName")]
+        public string BotDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("roles")]
+        public System.Collections.Generic.ICollection<string> Roles { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberState")]
+        public string MemberState { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberAccountEmail")]
+        public string MemberAccountEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("memberDisplayName")]
+        public string MemberDisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignedAtUtc")]
+        public System.DateTimeOffset AssignedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraProjectBotAssignmentsResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("assignments")]
+        public System.Collections.Generic.ICollection<CloudEraProjectBotAssignmentDto> Assignments { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -9034,6 +16414,39 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraProjectFieldConflictDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("fieldName")]
+        public string FieldName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentValue")]
+        public string CurrentValue { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("proposedValue")]
+        public string ProposedValue { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentSourceType")]
+        public string CurrentSourceType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("proposedSourceType")]
+        public string ProposedSourceType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
+        public System.DateTimeOffset CreatedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraProjectFoundationDto
     {
 
@@ -9103,6 +16516,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("atdSummary")]
         public string AtdSummary { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("supportsFieldOverrides")]
+        public bool SupportsFieldOverrides { get; set; }
+
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -9136,6 +16552,9 @@ namespace ErkS.CloudEra.Client.Generated
         [System.Text.Json.Serialization.JsonPropertyName("location")]
         public string Location { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("siteAddress")]
+        public CloudEraProjectSiteAddressDto SiteAddress { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("buildingPurpose")]
         public string BuildingPurpose { get; set; }
 
@@ -9159,6 +16578,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("floorsBelowGround")]
         public int? FloorsBelowGround { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("openFieldConflicts")]
+        public System.Collections.Generic.ICollection<CloudEraProjectFieldConflictDto> OpenFieldConflicts { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -9298,6 +16720,54 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraProjectSiteAddressDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("provinceCode")]
+        public string ProvinceCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("provinceName")]
+        public string ProvinceName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("districtCode")]
+        public string DistrictCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("districtName")]
+        public string DistrictName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("wardCode")]
+        public string WardCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("wardName")]
+        public string WardName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("wardLabelMn")]
+        public string WardLabelMn { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("catalogueAsOfUtc")]
+        public System.DateTimeOffset? CatalogueAsOfUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("addressLine")]
+        public string AddressLine { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("full")]
+        public string Full { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("short")]
+        public string Short { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class CloudEraProjectSummaryDto
     {
 
@@ -9351,6 +16821,9 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("concurrencyToken")]
         public string ConcurrencyToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("informationConcurrencyToken")]
+        public string InformationConcurrencyToken { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -9560,6 +17033,7 @@ namespace ErkS.CloudEra.Client.Generated
         public string PageIdentity { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("pageLabel")]
+        [System.ComponentModel.DataAnnotations.StringLength(240)]
         public string PageLabel { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("pageNumber")]
@@ -9572,15 +17046,21 @@ namespace ErkS.CloudEra.Client.Generated
         public double AnchorY { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("shape")]
-        public string Shape { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CloudEraSheetCommentCreateRequestShape>))]
+        public CloudEraSheetCommentCreateRequestShape Shape { get; set; }
 
+        /// <summary>
+        /// Хадгалахын өмнө сервер хамгийн ихдээ 400 цэг болгож сийрэгжүүлнэ; илүү нь жигд алхмаар хасагдана.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("shapePoints")]
         public System.Collections.Generic.ICollection<CloudEraSheetCommentPointDto> ShapePoints { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("kind")]
-        public string Kind { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CloudEraSheetCommentCreateRequestKind>))]
+        public CloudEraSheetCommentCreateRequestKind Kind { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("body")]
+        [System.ComponentModel.DataAnnotations.StringLength(4000)]
         public string Body { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
@@ -9605,6 +17085,7 @@ namespace ErkS.CloudEra.Client.Generated
         public string PageIdentity { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("pageLabel")]
+        [System.ComponentModel.DataAnnotations.StringLength(240)]
         public string PageLabel { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("pageNumber")]
@@ -9617,18 +17098,25 @@ namespace ErkS.CloudEra.Client.Generated
         public double AnchorY { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("shape")]
-        public string Shape { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CloudEraSheetCommentDtoShape>))]
+        public CloudEraSheetCommentDtoShape Shape { get; set; }
 
+        /// <summary>
+        /// Хадгалахын өмнө сервер хамгийн ихдээ 400 цэг болгож сийрэгжүүлнэ; илүү нь жигд алхмаар хасагдана.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("shapePoints")]
         public System.Collections.Generic.ICollection<CloudEraSheetCommentPointDto> ShapePoints { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("kind")]
-        public string Kind { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CloudEraSheetCommentDtoKind>))]
+        public CloudEraSheetCommentDtoKind Kind { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
-        public string Status { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CloudEraSheetCommentDtoStatus>))]
+        public CloudEraSheetCommentDtoStatus Status { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("body")]
+        [System.ComponentModel.DataAnnotations.StringLength(4000)]
         public string Body { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("authorEmail")]
@@ -9749,6 +17237,7 @@ namespace ErkS.CloudEra.Client.Generated
         public string AuthorInitials { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("body")]
+        [System.ComponentModel.DataAnnotations.StringLength(4000)]
         public string Body { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("createdAtUtc")]
@@ -9770,6 +17259,7 @@ namespace ErkS.CloudEra.Client.Generated
     {
 
         [System.Text.Json.Serialization.JsonPropertyName("body")]
+        [System.ComponentModel.DataAnnotations.StringLength(4000)]
         public string Body { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
@@ -9788,7 +17278,8 @@ namespace ErkS.CloudEra.Client.Generated
     {
 
         [System.Text.Json.Serialization.JsonPropertyName("status")]
-        public string Status { get; set; }
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CloudEraSheetCommentStatusRequestStatus>))]
+        public CloudEraSheetCommentStatusRequestStatus Status { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -9957,6 +17448,162 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("custodyStatus")]
         public string CustodyStatus { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceOwnerKind")]
+        public string SourceOwnerKind { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceOwnerRef")]
+        public string SourceOwnerRef { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sourceOwnerDisplayName")]
+        public string SourceOwnerDisplayName { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSsoHandoffTokenRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("identityGeneration")]
+        public long IdentityGeneration { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSsoHandoffTokenResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("handoffToken")]
+        public string HandoffToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("issuedAtUtc")]
+        public System.DateTimeOffset IssuedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("identityGeneration")]
+        public long IdentityGeneration { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSsoIdentityDto
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("kind")]
+        public string Kind { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accountEmail")]
+        public string AccountEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("botId")]
+        public string BotId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("organizationId")]
+        public string OrganizationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSsoResolveRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("handoffToken")]
+        public string HandoffToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("productCode")]
+        public string ProductCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceFingerprint")]
+        public string DeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("legacyDeviceFingerprint")]
+        public string LegacyDeviceFingerprint { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("identityGeneration")]
+        public long IdentityGeneration { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("projectId")]
+        public string ProjectId { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraSsoResolveResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("resolved")]
+        public bool Resolved { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("identityGeneration")]
+        public long IdentityGeneration { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("identity")]
+        public CloudEraSsoIdentityDto Identity { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("features")]
+        public System.Collections.Generic.IDictionary<string, bool> Features { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("companionExpiresAtUtc")]
+        public System.DateTimeOffset? CompanionExpiresAtUtc { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -10147,6 +17794,99 @@ namespace ErkS.CloudEra.Client.Generated
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class CloudEraStudioSessionResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("tokenType")]
+        public string TokenType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accessToken")]
+        public string AccessToken { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("accountEmail")]
+        public string AccountEmail { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        public string DisplayName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("familyName")]
+        public string FamilyName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("givenName")]
+        public string GivenName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("profileImageUrl")]
+        public string ProfileImageUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("scopes")]
+        public System.Collections.Generic.ICollection<string> Scopes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("productCode")]
+        public string ProductCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseId")]
+        public string LicenseId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activationId")]
+        public string ActivationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseType")]
+        public string LicenseType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseExpiresAtUtc")]
+        public System.DateTimeOffset LicenseExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("entitlements")]
+        public OnlineEntitlements Entitlements { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class OnlineEntitlements
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("platformTier")]
+        public string PlatformTier { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("cityGenTier")]
+        public string CityGenTier { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("studioCompanion")]
+        public bool StudioCompanion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("companionExpiresAtUtc")]
+        public System.DateTimeOffset? CompanionExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("features")]
+        public System.Collections.Generic.IDictionary<string, bool> Features { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class OnlineLicenseActivateRequest
     {
 
@@ -10179,6 +17919,69 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("revitVersion")]
         public string RevitVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hostApplication")]
+        public string HostApplication { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hostVersion")]
+        public string HostVersion { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class OnlineLicenseResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("isValid")]
+        public bool IsValid { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseId")]
+        public string LicenseId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activationId")]
+        public string ActivationId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("productCode")]
+        public string ProductCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("email")]
+        public string Email { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("phone")]
+        public string Phone { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("licenseType")]
+        public string LicenseType { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("durationHours")]
+        public int DurationHours { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("activatedAtUtc")]
+        public System.DateTimeOffset ActivatedAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("expiresAtUtc")]
+        public System.DateTimeOffset ExpiresAtUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("serverTimeUtc")]
+        public System.DateTimeOffset ServerTimeUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("refreshAfterUtc")]
+        public System.DateTimeOffset RefreshAfterUtc { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("entitlements")]
+        public OnlineEntitlements Entitlements { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -10224,6 +18027,12 @@ namespace ErkS.CloudEra.Client.Generated
 
         [System.Text.Json.Serialization.JsonPropertyName("revitVersion")]
         public string RevitVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hostApplication")]
+        public string HostApplication { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hostVersion")]
+        public string HostVersion { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
 
@@ -10528,6 +18337,30 @@ namespace ErkS.CloudEra.Client.Generated
     public partial class ProjectInformationInput
     {
 
+        [System.Text.Json.Serialization.JsonPropertyName("siteProvinceCode")]
+        public string SiteProvinceCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteProvinceName")]
+        public string SiteProvinceName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteDistrictCode")]
+        public string SiteDistrictCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteDistrictName")]
+        public string SiteDistrictName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteWardCode")]
+        public string SiteWardCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteWardName")]
+        public string SiteWardName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteWardLabelMn")]
+        public string SiteWardLabelMn { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("siteCatalogueAsOfUtc")]
+        public System.DateTimeOffset? SiteCatalogueAsOfUtc { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("projectCode")]
         public string ProjectCode { get; set; }
 
@@ -10569,6 +18402,180 @@ namespace ErkS.CloudEra.Client.Generated
             get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
             set { _additionalProperties = value; }
         }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class ReleaseHistoryEntry
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("version")]
+        public string Version { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("downloadUrl")]
+        public string DownloadUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sha256")]
+        public string Sha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("releaseNotes")]
+        public string ReleaseNotes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("isRequired")]
+        public bool IsRequired { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("revitVersion")]
+        public string RevitVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("publishedAtUtc")]
+        public System.DateTimeOffset PublishedAtUtc { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class UpdateLatestResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("productCode")]
+        public string ProductCode { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("isUpdateAvailable")]
+        public bool IsUpdateAvailable { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("version")]
+        public string Version { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("downloadUrl")]
+        public string DownloadUrl { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("sha256")]
+        public string Sha256 { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("releaseNotes")]
+        public string ReleaseNotes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("isRequired")]
+        public bool IsRequired { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("revitVersion")]
+        public string RevitVersion { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("autoCADVersion")]
+        public string AutoCADVersion { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum CloudEraSheetCommentCreateRequestShape
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Pin")]
+        Pin = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Rectangle")]
+        Rectangle = 1,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Arrow")]
+        Arrow = 2,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Freehand")]
+        Freehand = 3,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Cloud")]
+        Cloud = 4,
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum CloudEraSheetCommentCreateRequestKind
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Note")]
+        Note = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"ChangeRequired")]
+        ChangeRequired = 1,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Approved")]
+        Approved = 2,
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum CloudEraSheetCommentDtoShape
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Pin")]
+        Pin = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Rectangle")]
+        Rectangle = 1,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Arrow")]
+        Arrow = 2,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Freehand")]
+        Freehand = 3,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Cloud")]
+        Cloud = 4,
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum CloudEraSheetCommentDtoKind
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Note")]
+        Note = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"ChangeRequired")]
+        ChangeRequired = 1,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Approved")]
+        Approved = 2,
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum CloudEraSheetCommentDtoStatus
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Open")]
+        Open = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Resolved")]
+        Resolved = 1,
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum CloudEraSheetCommentStatusRequestStatus
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Open")]
+        Open = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Resolved")]
+        Resolved = 1,
 
     }
 

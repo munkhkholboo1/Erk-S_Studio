@@ -5,6 +5,20 @@ using ErkS.CloudEra.Client.Generated;
 
 namespace ErkS.Studio;
 
+/// <summary>
+/// 🔴 THE NULLS ARE THE DEVICE-FINGERPRINT HEADERS, AND THEIR POSITION IS LOAD-BEARING.
+/// The server declares `X-ErkS-Device-Fingerprint` and its `-Legacy` twin on every Cloud
+/// ERA operation. They are optional, and the generated code writes a header only when the
+/// argument is not null - so null here sends exactly the request Studio sent before the
+/// contract was regenerated.
+///
+/// ⚠ THE ORDER IS: path parameters, query parameters, THESE TWO, body, cancellation
+/// token. Getting it wrong COMPILES, because every one of those parameters is a string:
+/// my first attempt put the nulls first everywhere and quietly sent the project id as a
+/// header on nine routes. Two runtime tests caught it; the compiler could not, and nine
+/// other call sites had nothing watching them. If a new call is added here, read the
+/// generated signature rather than copying the shape of the line above it.
+/// </summary>
 internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : ICloudEraContractClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -17,7 +31,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         CancellationToken cancellationToken = default) =>
         ExecuteAsync<CloudEraProjectListResponse, StudioCloudProjectListResponse>(
             context,
-            client => client.ListCloudEraProjectsAsync(cancellationToken));
+            client => client.ListCloudEraProjectsAsync(null, null, cancellationToken));
 
     public Task<StudioCloudProjectDetail> GetProjectAsync(
         CloudEraClientContext context,
@@ -25,7 +39,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         CancellationToken cancellationToken = default) =>
         ExecuteAsync<CloudEraProjectDetailDto, StudioCloudProjectDetail>(
             context,
-            client => client.GetCloudEraProjectAsync(projectId, cancellationToken));
+            client => client.GetCloudEraProjectAsync(projectId, null, null, cancellationToken));
 
     public Task<StudioCloudProjectDetail> CreateProjectAsync(
         CloudEraClientContext context,
@@ -34,6 +48,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         ExecuteAsync<CloudEraProjectDetailDto, StudioCloudProjectDetail>(
             context,
             client => client.CreateCloudEraProjectAsync(
+                null,
+                null,
                 Convert<CloudEraProjectCreateRequest>(request),
                 cancellationToken));
 
@@ -46,6 +62,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
             context,
             client => client.AssignCloudEraDesignOrganizationAsync(
                 projectId,
+                null,
+                null,
                 Convert<CloudEraDesignOrganizationAssignmentRequest>(request),
                 cancellationToken));
 
@@ -58,6 +76,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
             context,
             client => client.AdvanceCloudEraProjectStageAsync(
                 projectId,
+                null,
+                null,
                 Convert<CloudEraStageAdvanceRequest>(request),
                 cancellationToken));
 
@@ -72,6 +92,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
             client => client.UpdateCloudEraParticipantRolesAsync(
                 projectId,
                 participantId,
+                null,
+                null,
                 Convert<CloudEraParticipantRoleUpdateRequest>(request),
                 cancellationToken));
 
@@ -84,6 +106,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
             context,
             client => client.AssignCloudEraConceptArchitectAsync(
                 projectId,
+                null,
+                null,
                 Convert<CloudEraConceptArchitectAssignmentRequest>(request),
                 cancellationToken));
 
@@ -93,7 +117,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         CancellationToken cancellationToken = default) =>
         ExecuteAsync<ICollection<CloudEraDesignPackageDto>, IReadOnlyList<StudioCloudDesignPackage>>(
             context,
-            client => client.ListCloudEraDesignPackagesAsync(projectId, cancellationToken));
+            client => client.ListCloudEraDesignPackagesAsync(projectId, null, null, cancellationToken));
 
     public Task<IReadOnlyList<StudioCloudAlbum>> ListAlbumsAsync(
         CloudEraClientContext context,
@@ -101,7 +125,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         CancellationToken cancellationToken = default) =>
         ExecuteAsync<ICollection<CloudEraAlbumDto>, IReadOnlyList<StudioCloudAlbum>>(
             context,
-            client => client.ListCloudEraAlbumsAsync(projectId, cancellationToken));
+            client => client.ListCloudEraAlbumsAsync(projectId, null, null, cancellationToken));
 
     public Task<StudioCloudAlbum> EnsureConceptAlbumAsync(
         CloudEraClientContext context,
@@ -109,7 +133,7 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
         CancellationToken cancellationToken = default) =>
         ExecuteAsync<CloudEraAlbumDto, StudioCloudAlbum>(
             context,
-            client => client.EnsureCloudEraConceptAlbumAsync(projectId, cancellationToken));
+            client => client.EnsureCloudEraConceptAlbumAsync(projectId, null, null, cancellationToken));
 
     public Task<StudioCloudSourcePackage> RegisterSourcePackageAsync(
         CloudEraClientContext context,
@@ -120,6 +144,8 @@ internal sealed class CloudEraGeneratedContractClient(HttpClient httpClient) : I
             context,
             client => client.RegisterCloudEraSourcePackageAsync(
                 projectId,
+                null,
+                null,
                 Convert<CloudEraSourcePackageCreateRequest>(request),
                 cancellationToken));
 

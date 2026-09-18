@@ -27,7 +27,7 @@ public sealed class GeneratedCloudEraClientRuntimeTests
             AccessToken = "access-token",
         };
 
-        CloudEraProjectListResponse response = await client.ListCloudEraProjectsAsync(CancellationToken.None);
+        CloudEraProjectListResponse response = await client.ListCloudEraProjectsAsync(null, null, CancellationToken.None);
 
         Assert.Empty(response.Projects);
         Assert.Equal("https://erk-s.mn/api/cloud-era/v1/projects", handler.RequestUri?.AbsoluteUri);

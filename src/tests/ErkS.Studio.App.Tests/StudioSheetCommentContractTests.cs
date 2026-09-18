@@ -101,14 +101,37 @@ public sealed class StudioSheetCommentContractTests
     }
 
     [Fact]
-    public void TheContractStillPublishesNoneOfThisAndTheCopyIsStillNeeded()
+    public void THEOFFEREDKindsAreEXACTLYTheOnesTheContractAllows()
     {
-        // Not a check that the contract is correct - a check on why the copy
-        // above exists. The moment cloud-era-v1 starts declaring these values,
-        // this fails and says to read them from the generated client instead.
-        //
-        // Without it the copy simply stays forever: nothing else in a build
-        // would ever mention that it had become redundant.
+        // 🔴 THE ORDER IS OURS, THE SET IS THEIRS. Kinds is written down because this
+        // window offers «Засах шаардлагатай» first; the contract lists Note first. Taking
+        // the enum's order would have reordered the UI while looking like a tidy-up.
+        // So the order stays a decision and the SET is held to the contract — a kind
+        // added on the server can no longer arrive unoffered, and one removed goes red.
+        Assert.Equal(
+            StudioSheetCommentRules.ContractKinds.OrderBy(kind => kind, StringComparer.Ordinal),
+            StudioSheetCommentRules.Kinds.OrderBy(kind => kind, StringComparer.Ordinal));
+
+        // And the values themselves are the wire's, not C# identifiers that happen to match.
+        Assert.Contains("ChangeRequired", StudioSheetCommentRules.ContractKinds);
+        Assert.Contains("Note", StudioSheetCommentRules.ContractKinds);
+        Assert.Contains("Approved", StudioSheetCommentRules.ContractKinds);
+
+        // The two states came from the same publication on the same day.
+        Assert.Equal(
+            new[] { "Open", "Resolved" }.OrderBy(s => s, StringComparer.Ordinal),
+            StudioSheetCommentRules.ContractStatuses.OrderBy(s => s, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void THESCHEMASAreStillThereAndOURSETSStillMatchTHEIRS()
+    {
+        // 🔴 THIS REPLACES A TEST THAT EXPIRED ON PURPOSE. Its claim was «the contract
+        // publishes none of this, so the hand-written copy is still needed» — and on
+        // 2026-09-19 the contract published all three: kind, status and shape. The claim
+        // became false, so the test was retired rather than softened; what it was really
+        // protecting — that Studio's values are the server's — is now protected by
+        // reading them instead of by watching for the day we could.
         JsonElement schemas = ContractSchemas();
 
         foreach (string schemaName in new[]
@@ -119,35 +142,17 @@ public sealed class StudioSheetCommentContractTests
         {
             Assert.True(
                 schemas.TryGetProperty(schemaName, out JsonElement schema),
-                $"'{schemaName}' is gone from cloud-era-v1.openapi.json. Comment rules are "
-                + "copied from the server by hand because that contract publishes no values "
-                + "for them - check whether the replacement schema does.");
+                $"'{schemaName}' is gone from cloud-era-v1.openapi.json — the comment "
+                + "rules read their values from the generated client, so the schema "
+                + "disappearing means those readings are now pointing at nothing.");
 
-            if (!schema.TryGetProperty("properties", out JsonElement properties))
-                continue;
-
-            foreach (string field in new[] { "kind", "status", "shape" })
-            {
-                if (!properties.TryGetProperty(field, out JsonElement property))
-                    continue;
-
-                Assert.False(
-                    property.TryGetProperty("enum", out _),
-                    $"cloud-era-v1 now declares the allowed values for '{field}' on "
-                    + $"{schemaName}. StudioSheetCommentRules keeps a hand-written copy of "
-                    + "them only because the contract did not - read them from the generated "
-                    + "client and delete the copy.");
-            }
-
-            if (properties.TryGetProperty("body", out JsonElement body))
-            {
-                Assert.False(
-                    body.TryGetProperty("maxLength", out _),
-                    "cloud-era-v1 now declares the body length limit. "
-                    + "StudioSheetCommentRules.MaximumBodyLength is a hand-written copy of "
-                    + "it - take the generated one instead.");
-            }
+            Assert.True(schema.TryGetProperty("properties", out _));
         }
+
+        // ⚠ AND THE TEXT LENGTH IS STILL A COPY. The contract declares no maxLength, so
+        // this one number is still Studio's word against the server's. When that changes,
+        // it changes the same way the other three did.
+        Assert.True(StudioSheetCommentRules.MaximumBodyLength > 0);
     }
 
     private static JsonElement ContractSchemas()

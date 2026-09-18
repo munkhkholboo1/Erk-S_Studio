@@ -1,4 +1,6 @@
+using System.Runtime.Serialization;
 using System.Windows.Media;
+using ErkS.CloudEra.Client.Generated;
 using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
@@ -13,13 +15,12 @@ namespace ErkS.Studio;
 /// be pointing at a different drawing by the afternoon.
 /// </summary>
 /// <remarks>
-/// These values are also written out in the server's own SheetCommentRules, by
-/// hand, because the published contract does not carry them: cloud-era-v1
-/// declares the comment types but gives no enum for kind, status or shape and
-/// no maxLength for the text, so a generated client cannot know any of it.
-/// Until that changes, a copy is the only way a client can know the rules at
-/// all - and StudioSheetCommentContractTests holds the copy to the values and
-/// reports the day the contract starts publishing them.
+/// The KIND values now come from the contract itself (see <see cref="ContractKinds"/>):
+/// cloud-era-v1 began publishing them on 2026-09-19, and the test that had been waiting
+/// for that day failed with the instruction to read them from the generated client. The
+/// status, the shape and the text length are still copied by hand, because the contract
+/// still declares no values for those - StudioSheetCommentContractTests keeps watching
+/// them and will say the same thing again when it changes.
 ///
 /// The copy had already drifted when it was checked. The server cleans a
 /// comment before storing it, and the four cleaning rules were not all here, so
@@ -121,7 +122,61 @@ internal static class StudioSheetCommentRules
             : label[..MaximumPageLabelLength].TrimEnd();
     }
 
-    /// <summary>The kinds in the order they are offered and read.</summary>
+    /// <summary>
+    /// Every kind the contract allows, taken FROM the contract.
+    ///
+    /// 🔴 THE CONTRACT STARTED PUBLISHING THESE (2026-09-19) and a test written long
+    /// before said so the moment it happened - it failed with the instruction «read them
+    /// from the generated client and delete the copy». This is that reading: the set is
+    /// no longer anybody's opinion, and a kind added on the server arrives here by
+    /// regenerating rather than by somebody noticing.
+    /// </summary>
+    public static IReadOnlyList<string> ContractKinds { get; } =
+        WireValues<CloudEraSheetCommentDtoKind>();
+
+    /// <summary>
+    /// Every shape the contract allows, taken FROM the contract — the third of three that
+    /// were published together on 2026-09-19.
+    /// </summary>
+    public static IReadOnlyList<string> ContractShapes { get; } =
+        WireValues<CloudEraSheetCommentDtoShape>();
+
+    /// <summary>
+    /// The value the wire uses for each member of a generated enum.
+    ///
+    /// 🔴 THE EnumMember VALUE, NOT THE C# NAME. They are identical today for all
+    /// three of these enums, and that is a coincidence of how the server names things —
+    /// reading `ToString()` would work until the first member whose wire spelling differs
+    /// from its identifier, and then it would produce a value the server has never heard
+    /// of, silently.
+    /// </summary>
+    private static IReadOnlyList<string> WireValues<TEnum>() where TEnum : struct, Enum =>
+        Enum.GetValues<TEnum>()
+            .Select(member => typeof(TEnum)
+                .GetField(member.ToString())!
+                .GetCustomAttributes(typeof(EnumMemberAttribute), inherit: false)
+                .Cast<EnumMemberAttribute>()
+                .Single()
+                .Value!)
+            .ToList();
+
+    /// <summary>
+    /// Every status the contract allows, taken FROM the contract — same reading as
+    /// <see cref="ContractKinds"/>, and it fired on the same day for the same reason.
+    /// </summary>
+    public static IReadOnlyList<string> ContractStatuses { get; } =
+        WireValues<CloudEraSheetCommentDtoStatus>();
+
+    /// <summary>
+    /// The kinds in the order they are offered and read.
+    ///
+    /// ⚠ THE ORDER IS STUDIO'S, THE VALUES ARE THE CONTRACT'S, and conflating the two
+    /// would have been the easy mistake here. The contract lists Note first; this window
+    /// offers «Засах шаардлагатай» first because that is the one a reviewer reaches for.
+    /// Replacing this list with the enum's own order would have quietly reordered the UI
+    /// while looking like a tidy-up - so the order stays written down, and a test holds it
+    /// to the contract's SET so a new kind cannot go unoffered.
+    /// </summary>
     public static IReadOnlyList<string> Kinds { get; } =
     [
         KindChangeRequired,

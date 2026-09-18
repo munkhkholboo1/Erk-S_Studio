@@ -109,7 +109,7 @@ public sealed class CloudEraCapabilityPolicyTests
         };
         CloudEraGeneratedClient client = new(http);
 
-        CloudEraProjectListResponse response = await client.ListCloudEraProjectsAsync(CancellationToken.None);
+        CloudEraProjectListResponse response = await client.ListCloudEraProjectsAsync(null, null, CancellationToken.None);
 
         CloudEraProjectSummaryDto project = Assert.Single(response.Projects);
         Assert.Equal("project-1", project.ProjectId);
