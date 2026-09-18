@@ -14,6 +14,8 @@ namespace ErkS.Platform.Core.Tests;
 /// </summary>
 public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
 {
+    private const string Project = "project-under-test";
+
     private static ProjectCitizenSurvey Owners()
     {
         ProjectCitizenSurvey survey =
@@ -26,7 +28,7 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
     public void EVERYIdentifierCrossesUNCHANGED()
     {
         ProjectCitizenSurvey survey = Owners();
-        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(survey);
+        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(survey, Project);
 
         Assert.Equal(survey.Id, published.SurveyId);
         Assert.Equal(survey.PublicCode, published.Code);
@@ -47,7 +49,7 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
     [Fact]
     public void THEKINDSAreTheFOURAgreedWithTheServer()
     {
-        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(Owners());
+        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(Owners(), Project);
 
         var allowed = new[] { "single", "multi", "number", "text" };
         Assert.All(published.Questions, question => Assert.Contains(question.Kind, allowed));
@@ -74,13 +76,13 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
             Questions = [new() { Id = "q", Order = 1, Text = "x", Kind = "SomethingNew" }],
         };
 
-        Assert.Throws<InvalidDataException>(() => CitizenSurveyPublication.For(survey));
+        Assert.Throws<InvalidDataException>(() => CitizenSurveyPublication.For(survey, Project));
     }
 
     [Fact]
     public void ABUSADLineTravelsAsAnOPTIONNotAsAWrittenQuestion()
     {
-        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(Owners());
+        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(Owners(), Project);
 
         IReadOnlyList<CitizenSurveyPublishedQuestion> withLines = published.Questions
             .Where(question => question.Options.Any(option => option.InvitesOwnWords))
@@ -118,7 +120,7 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
         };
 
         InvalidDataException refused =
-            Assert.Throws<InvalidDataException>(() => CitizenSurveyPublication.For(survey));
+            Assert.Throws<InvalidDataException>(() => CitizenSurveyPublication.For(survey, Project));
 
         // It names the question, because whoever edited the form has to find it.
         Assert.Contains("Хоёр бичих мөртэй асуулт", refused.Message, StringComparison.Ordinal);
@@ -131,7 +133,7 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
         // which would refuse the owner's own form.
         ProjectCitizenSurvey survey = Owners();
 
-        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(survey);
+        CitizenSurveyPublishedDefinition published = CitizenSurveyPublication.For(survey, Project);
 
         Assert.Equal(
             4, published.Questions.Count(question =>
@@ -142,7 +144,7 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
     public void THEOWNERSWordingCrossesUnchangedToo()
     {
         ProjectCitizenSurvey survey = Owners();
-        string json = CitizenSurveyPublication.ToJson(survey);
+        string json = CitizenSurveyPublication.ToJson(survey, Project);
 
         foreach (CitizenSurveyQuestion question in survey.OrderedQuestions())
         {
@@ -176,5 +178,31 @@ public sealed class WHATTheFormIsHandedKeepsSTUDIOSIdentifiersTests
         var codes = new HashSet<string>(StringComparer.Ordinal);
         for (var index = 0; index < 200; index++)
             Assert.True(codes.Add(CitizenSurveyCode.Mint()));
+    }
+
+    [Fact]
+    public void THEPROJECTCrossesWithTheSurvey()
+    {
+        // 🔴 SRV FOUND THIS: nothing in the published file said which project the
+        // consultation belonged to, and the collect route is scoped by project. Without
+        // it they could not resolve (project, survey) to a code at all.
+        CitizenSurveyPublishedDefinition published =
+            CitizenSurveyPublication.For(Owners(), Project);
+
+        Assert.Equal(Project, published.ProjectId);
+    }
+
+    [Fact]
+    public void ADEFINITIONWithNoProjectIsREFUSEDRatherThanPublished()
+    {
+        // 🔴 A ONE-WAY TRIP. The form would serve, citizens would answer, and the answers
+        // could never be collected back - the route would have nothing to match on. That
+        // failure surfaces only after a consultation is finished, which is the point at
+        // which nothing can be done about it. Refused while somebody is still looking.
+        foreach (string? missing in new[] { null, "", "   " })
+        {
+            Assert.Throws<InvalidDataException>(
+                () => CitizenSurveyPublication.For(Owners(), missing));
+        }
     }
 }

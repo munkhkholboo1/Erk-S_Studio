@@ -18,7 +18,16 @@ public sealed record CitizenSurveyPublishedQuestion(
     IReadOnlyList<CitizenSurveyPublishedOption> Options);
 
 /// <summary>The whole survey, as the public form receives it.</summary>
+/// <param name="ProjectId">
+/// Which project's consultation this is.
+///
+/// 🔴 WITHOUT IT THE ANSWERS CANNOT BE COLLECTED BACK. The collect route is scoped
+/// by project - it is how the server decides who is allowed to read a consultation's
+/// answers at all - and nothing else in the published file says which project this
+/// belongs to. SRV found this: they had no way to resolve (project, survey) to a code.
+/// </param>
 public sealed record CitizenSurveyPublishedDefinition(
+    string ProjectId,
     string SurveyId,
     string Code,
     string Title,
@@ -58,9 +67,25 @@ public static class CitizenSurveyPublication
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 
-    public static CitizenSurveyPublishedDefinition For(ProjectCitizenSurvey? survey)
+    public static CitizenSurveyPublishedDefinition For(
+        ProjectCitizenSurvey? survey,
+        string? projectId)
     {
         ArgumentNullException.ThrowIfNull(survey);
+
+        // 🔴 A DEFINITION WITH NO PROJECT IS A ONE-WAY TRIP. The form would serve, the
+        // citizens would answer, and the answers could never be collected back - the
+        // collect route is scoped by project and would have nothing to match. Refused here,
+        // while somebody is looking at a screen, rather than discovered weeks later with a
+        // finished consultation stranded on a server.
+        string project = (projectId ?? "").Trim();
+        if (project.Length == 0)
+        {
+            throw new InvalidDataException(
+                "Төслийн ID алга — энэ тодорхойлолтоор нийтэлбэл хариуг буцааж авах " +
+                "боломжгүй болно.");
+        }
+
 
         var questions = new List<CitizenSurveyPublishedQuestion>();
         foreach (CitizenSurveyQuestion question in survey.OrderedQuestions())
@@ -98,6 +123,7 @@ public static class CitizenSurveyPublication
         }
 
         return new CitizenSurveyPublishedDefinition(
+            project,
             survey.Id,
             survey.PublicCode,
             survey.Title,
@@ -106,8 +132,8 @@ public static class CitizenSurveyPublication
             questions);
     }
 
-    public static string ToJson(ProjectCitizenSurvey? survey) =>
-        JsonSerializer.Serialize(For(survey), Options);
+    public static string ToJson(ProjectCitizenSurvey? survey, string? projectId) =>
+        JsonSerializer.Serialize(For(survey, projectId), Options);
 
     private static string Kind(string? studioKind) => studioKind switch
     {

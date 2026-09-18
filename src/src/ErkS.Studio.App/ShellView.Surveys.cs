@@ -483,7 +483,7 @@ internal sealed partial class ShellView
             string htmlPath = Path.ChangeExtension(dialog.FileName, ".html");
 
             File.WriteAllText(
-                dialog.FileName, CitizenSurveyPublication.ToJson(survey), Encoding.UTF8);
+                dialog.FileName, CitizenSurveyPublication.ToJson(survey, state.Project.ProjectId), Encoding.UTF8);
             File.WriteAllText(
                 htmlPath, CitizenSurveyFormHtml.Build(survey), Encoding.UTF8);
 

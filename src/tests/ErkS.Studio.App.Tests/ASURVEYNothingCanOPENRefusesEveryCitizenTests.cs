@@ -33,10 +33,10 @@ public sealed class ASURVEYNothingCanOPENRefusesEveryCitizenTests
         survey.IssuePublicCode("https://erk-s.mn");
 
         Assert.False(survey.IsOpen, "the template no longer starts closed; re-read this test");
-        Assert.False(CitizenSurveyPublication.For(survey).IsOpen);
+        Assert.False(CitizenSurveyPublication.For(survey, "project-under-test").IsOpen);
 
         survey.IsOpen = true;
-        Assert.True(CitizenSurveyPublication.For(survey).IsOpen);
+        Assert.True(CitizenSurveyPublication.For(survey, "project-under-test").IsOpen);
     }
 
     [Fact]

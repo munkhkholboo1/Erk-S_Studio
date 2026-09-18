@@ -332,8 +332,13 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
 сонгодог байна … тухайн төсөл дээр нь нэгтгэгдэж үр дүн нь боловсруулагддаг».
 
 - Publish: `PUT /api/cloud-era/v1/projects/{projectId}/citizen-survey` — the
-  definition (title, purpose, ordered questions, options). Returns the public
-  `code` and the absolute `formUrl`.
+  definition: `projectId`, `surveyId`, `code`, title, purpose, `isOpen`, and the
+  ordered questions with their options.
+
+  🔴 `projectId` TRAVELS IN THE DEFINITION. Without it the published survey is a
+  one-way trip: the form serves, citizens answer, and the answers can never be
+  collected, because the collect route is scoped by project and has nothing to
+  resolve against. Studio refuses to build a definition without one.
 - Public form: `GET /s/{code}` — a page, not an API, and deliberately OUTSIDE the
   Cloud ERA base for the same reason sign-in is: a citizen has no session.
 
@@ -350,8 +355,28 @@ and Studio aggregates the results onto that project. Owner's request, 2026-09-18
   address it was served from. A repeat carrying an id already stored is the same
   submission and must not be recorded twice (invariant 2).
 - Submit: the form posts to the server. Studio never sees this route.
-- Collect: `GET /api/cloud-era/v1/projects/{projectId}/citizen-survey/responses?since={cursor}`
-  — returns responses plus the next cursor.
+- Collect: `GET /api/cloud-era/v1/projects/{projectId}/citizen-surveys/{surveyId}/responses?since={cursor}`
+  — returns a response document plus the next cursor. Authenticated and scoped to
+  the project, like every other route here; never public.
+
+  🔴 THE SURVEY ID IS IN THE PATH, AND IT WAS MISSING FROM THE FIRST DRAFT. A
+  project holds MANY surveys - that is the owner's own requirement, because a
+  partial master plan consults the public more than once. A route without the
+  survey id would have returned one consultation's answers under another's name
+  the day a second survey was created, silently and with every number intact.
+  Found by SRV reading the model, not by a test.
+
+  ⚠ THE CURSOR IS AN ACCELERATOR, NOT AN INTEGRITY GUARANTEE. Studio
+  deduplicates on the response id (invariant 2), so a cursor that repeats work
+  costs bandwidth and nothing else, while a cursor that skips would lose a
+  citizen's answer with no outward sign. The server is therefore free to return
+  MORE than asked whenever it is unsure, and should. Empty cursor means
+  everything.
+
+  ⚠ A `(projectId, surveyId)` PAIR DECLARED BY TWO DEFINITIONS IS REFUSED, not
+  resolved by picking one. The definition files are placed by hand, so collision
+  is realistic, and "take the first" would hand one project's citizens' answers
+  to another project.
 
 ### Invariants this contract rests on
 
