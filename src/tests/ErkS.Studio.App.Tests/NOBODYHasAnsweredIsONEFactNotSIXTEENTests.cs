@@ -91,10 +91,72 @@ public sealed class NOBODYHasAnsweredIsONEFactNotSIXTEENTests
             Assert.Equal(CitizenSurveyFindingWeights.TooFew, finding.Weight));
 
         // So the page cannot key the summary off the response count alone.
+        //
+        // ⚠ THIS ASSERTION USED TO PIN THE WRONG IMPLEMENTATION. It required the page to
+        // ask «is every finding TooFew?», which is what I first wrote and what the owner's
+        // own submission then broke: a written answer yields a Note and the condition went
+        // false. A test that spells out HOW something is decided will defend a mistake as
+        // faithfully as it defends a rule — so it now names the decision instead.
         string page = CodeOnly(ReadAppSource("ShellView.Surveys.cs"));
         Assert.Contains("nothingReadableYet", page, StringComparison.Ordinal);
         Assert.Contains(
-            "finding.Weight == CitizenSurveyFindingWeights.TooFew",
+            "question.Answered < CitizenSurveyFindings.MinimumBase",
+            page,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AWRITTENAnswerMustNotBringTheWallBack()
+    {
+        // 🔴 THE OWNER'S OWN SUBMISSION BROKE MY FIX, AND I SAW IT ON THEIR SCREEN. The
+        // condition I wrote was «every finding is TooFew» — but a free-text question with
+        // words in it yields a Note («N бичмэл санал ирсэн»), which is not a reading and
+        // not a shortage. One written answer therefore made the condition false and the
+        // sixteen-card wall came straight back.
+        //
+        // The question is about the DATA, not about the findings list: has any question
+        // reached the base? Written notes are counts, and counts do not decide it.
+        ProjectCitizenSurvey survey =
+            CitizenSurveyTemplate.CreatePartialMasterPlanSurvey("Зуунмод");
+        CitizenSurveyQuestion ticked = survey.TickedQuestions()[0];
+        CitizenSurveyQuestion written = survey.WrittenQuestions()[0];
+
+        var one = new CitizenSurveyResponse
+        {
+            Id = "r1",
+            Answers =
+            [
+                new CitizenSurveyAnswer
+                {
+                    QuestionId = ticked.Id,
+                    OptionIds = [ticked.Options[0].Id],
+                },
+                new CitizenSurveyAnswer
+                {
+                    QuestionId = written.Id,
+                    Text = "Гудамжны гэрэлтүүлэг дутмаг байна.",
+                },
+            ],
+        };
+
+        CitizenSurveyResult result = CitizenSurveyTally.Of(survey, [one]);
+        IReadOnlyList<CitizenSurveyFinding> findings = CitizenSurveyFindings.Read(result);
+
+        // The premise that defeated the first condition.
+        Assert.Contains(findings, f => f.Weight != CitizenSurveyFindingWeights.TooFew);
+
+        // And the fact that should decide it instead.
+        Assert.All(
+            result.Questions,
+            question => Assert.True(question.Answered < CitizenSurveyFindings.MinimumBase));
+
+        string page = CodeOnly(ReadAppSource("ShellView.Surveys.cs"));
+        Assert.Contains(
+            "result.Questions.All(",
+            page,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "findings.All(finding => finding.Weight == CitizenSurveyFindingWeights.TooFew)",
             page,
             StringComparison.Ordinal);
     }

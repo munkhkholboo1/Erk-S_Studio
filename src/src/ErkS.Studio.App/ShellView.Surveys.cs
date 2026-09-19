@@ -327,8 +327,14 @@ internal sealed partial class ShellView
         // ⚠ The first version of this only caught ZERO responses. The owner's own first
         // submission put the page straight back into the same wall of cards - the defect
         // had not been fixed, only moved from 0 to the range 1..29.
-        bool nothingReadableYet = findings.Count > 0 &&
-            findings.All(finding => finding.Weight == CitizenSurveyFindingWeights.TooFew);
+        // 🔴 THE QUESTION IS ABOUT THE DATA, NOT ABOUT THE FINDINGS LIST — and my first
+        // version got that wrong in a way the owner saw on their own screen. It asked
+        // «is every finding TooFew?», but a free-text question with words in it yields a
+        // Note («N бичмэл санал ирсэн»), which is neither a reading nor a shortage. One
+        // written answer made the condition false and the sixteen-card wall came back.
+        bool nothingReadableYet = result.Questions.Count > 0 &&
+            result.Questions.All(
+                question => question.Answered < CitizenSurveyFindings.MinimumBase);
 
         if (result.ResponseCount == 0)
         {
@@ -352,6 +358,19 @@ internal sealed partial class ShellView
         {
             foreach (CitizenSurveyFinding finding in findings)
                 surveyDetailPanel.Children.Add(FindingCard(finding));
+        }
+
+        // ⚠ WHAT IS NOT A SHORTAGE IS STILL SHOWN. Below the base the «not enough
+        // answers» cards are noise - they repeat one sentence per question - but a
+        // written-answer note is a COUNT of something that actually arrived, and it is
+        // useful from the first submission. Suppressing the noise must not suppress it.
+        if (nothingReadableYet)
+        {
+            foreach (CitizenSurveyFinding finding in findings)
+            {
+                if (finding.Weight != CitizenSurveyFindingWeights.TooFew)
+                    surveyDetailPanel.Children.Add(FindingCard(finding));
+            }
         }
 
         // ⚠ THE NUMBERS STAY EITHER WAY. Only the READING is withheld below the base;
