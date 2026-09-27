@@ -61,6 +61,40 @@ public static class ProjectSiteContextEditingPolicy
             sourceOwnerEmail);
     }
 
+    /// <summary>
+    /// True when the lock names a source this project holds in NEITHER list -
+    /// not locally, and not in the cloud mirror.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 THIS STATE HAS NO EXIT, WHICH IS WHY IT NEEDS ITS OWN WORDS. A source
+    /// can be removed from a project after its site-context page has been built
+    /// and merged into a cloud album revision: the component survives, carrying
+    /// a sourceKey nothing can match again. Measured in the owner's own project
+    /// on 2026-09-27 - key 43e90b07…, component owned by them, album R22.
+    ///
+    /// Telling that reader the source "is not connected on this device" - the
+    /// wording for a source that exists elsewhere - sends them looking for a
+    /// machine to connect. Absent from the mirror is NOT proof a source never
+    /// existed, so this asks about both lists and says only what it can see.
+    /// </remarks>
+    public static bool CanonicalSourceIsGoneFromProject(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ProjectSiteContextSourceLock? sourceLock = ResolveCanonicalSourceLock(project);
+        if (sourceLock is null || string.IsNullOrWhiteSpace(sourceLock.SourceKey))
+            return false;
+
+        string key = sourceLock.SourceKey.Trim();
+        bool heldLocally = (project.Sources ?? []).Any(source =>
+            ProjectCloudSyncMetadata.CloudSourceKey(source).Equals(
+                key,
+                StringComparison.OrdinalIgnoreCase));
+        bool heldInMirror = (project.Cloud?.SharedSources ?? []).Any(shared =>
+            (shared.SourceKey ?? "").Trim().Equals(key, StringComparison.OrdinalIgnoreCase) ||
+            (shared.SourceId ?? "").Trim().Equals(key, StringComparison.OrdinalIgnoreCase));
+        return !heldLocally && !heldInMirror;
+    }
+
     public static bool MatchesCanonicalSource(
         ProjectWorkspace project,
         ProjectDesignSource source)
@@ -108,10 +142,33 @@ public static class ProjectSiteContextEditingPolicy
             currentEmail);
         if (localSource is null)
         {
+            // Three states, three sentences. The middle one used to wear the
+            // last one's words, and it is the only one of the three whose exit
+            // is not "connect the source" - because there is no longer a source
+            // to connect.
+            string message;
+            if (string.IsNullOrWhiteSpace(canonicalSourceKey))
+            {
+                message =
+                    "AutoCAD/CityGen эх үүсвэрээ Ерөнхий төлөвлөгөө гэж ангилсны дараа " +
+                    "байршлын зураг засах эрх нээгдэнэ.";
+            }
+            else if (CanonicalSourceIsGoneFromProject(project))
+            {
+                message =
+                    "Байршлын зураг түгжсэн ерөнхий төлөвлөгөөний эх үүсвэр төслөөс " +
+                    "хасагдсан байна. Шинэ ерөнхий төлөвлөгөөний эх үүсвэрээр дахин " +
+                    "эзэмших хэрэгтэй.";
+            }
+            else
+            {
+                message =
+                    "Энэ байршлын зурагт хамаарах ерөнхий төлөвлөгөөний эх үүсвэр " +
+                    "энэ төхөөрөмжид холбогдоогүй байна.";
+            }
+
             return Denied(
-                string.IsNullOrWhiteSpace(canonicalSourceKey)
-                    ? "AutoCAD/CityGen эх үүсвэрээ Ерөнхий төлөвлөгөө гэж ангилсны дараа байршлын зураг засах эрх нээгдэнэ."
-                    : "Энэ байршлын зурагт хамаарах ерөнхий төлөвлөгөөний эх үүсвэр энэ төхөөрөмжид холбогдоогүй байна.",
+                message,
                 sourceKey: canonicalSourceKey,
                 ownerEmail: canonicalOwnerEmail);
         }
