@@ -213,6 +213,18 @@ public enum DesignSourceKind
     CityGen,
     Pdf,
     Folder,
+
+    /// <summary>
+    /// Erk-S CAD, which delivers rendered diagram views into the portfolio.
+    /// </summary>
+    /// <remarks>
+    /// It behaves like <see cref="Folder"/> - the deliveries arrive in an inbox
+    /// and the native side is a folder, not a single document. It exists as its
+    /// own value because a local source's badge is read from this name: see
+    /// <see cref="DesignSourceCategory.ErkSCad"/>. Appended so the values older
+    /// projects hold keep their meaning.
+    /// </remarks>
+    ErkSCad,
 }
 
 public static class DesignSourceStatuses

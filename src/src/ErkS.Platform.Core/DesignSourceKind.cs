@@ -28,7 +28,16 @@ public enum DesignSourceCategory
     /// <summary>A CityGen site model.</summary>
     CityGen,
 
-    /// <summary>Erk-S CAD, delivering rendered diagram views.</summary>
+    /// <summary>
+    /// Erk-S CAD, delivering rendered diagram views.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A LOCAL SOURCE'S BADGE IS READ FROM ITS KIND'S NAME, not from the
+    /// application its packages report - the workspace row passes
+    /// <c>source.Kind.ToString()</c>. So this category was unreachable for a
+    /// local source until <see cref="DesignSourceKind"/> carried a matching
+    /// value; see <c>ALocalSourcesBadgeFollowsITSOWNKindName</c>.
+    /// </remarks>
     ErkSCad,
 
     /// <summary>Pages taken straight from a PDF.</summary>

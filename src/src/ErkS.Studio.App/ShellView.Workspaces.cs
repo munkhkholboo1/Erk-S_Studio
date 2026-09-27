@@ -831,9 +831,19 @@ internal sealed partial class ShellView
         RefreshSourceWorkspace(dialog.ResultSource.Id);
         if (dialog.ResultSource.Kind != DesignSourceKind.Pdf)
         {
-            SetStatus(dialog.ResultSource.Kind == DesignSourceKind.Revit
-                ? $"RVT эх үүсвэр холбогдлоо: {dialog.ResultSource.DisplayName}. Revit-ийн Альбум хэсгээс Studio руу илгээнэ."
-                : $"Эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}");
+            SetStatus(dialog.ResultSource.Kind switch
+            {
+                DesignSourceKind.Revit =>
+                    $"RVT эх үүсвэр холбогдлоо: {dialog.ResultSource.DisplayName}. " +
+                    "Revit-ийн Альбум хэсгээс Studio руу илгээнэ.",
+                // The exporter finds this row by the folder recorded above and
+                // writes into the inbox it names, so the person is told what
+                // makes the connection rather than only that a row appeared.
+                DesignSourceKind.ErkSCad =>
+                    $"Erk-S CAD эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}. " +
+                    "Erk-S CAD диаграмаа экспортлоход Портфолиод орно.",
+                _ => $"Эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}",
+            });
         }
     }
 

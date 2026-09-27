@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using ErkS.Platform.Core;
@@ -152,6 +152,7 @@ internal sealed class DesignSourceDialog : Window
             DesignSourceKind.AutoCad => "AutoCAD - Layout",
             DesignSourceKind.CityGen => "CityGen - Layout",
             DesignSourceKind.Pdf => "PDF баримт",
+            DesignSourceKind.ErkSCad => "Erk-S CAD диаграм",
             _ => "Хавтас",
         };
         nameBox.Text = defaultName;
@@ -184,6 +185,7 @@ internal sealed class DesignSourceDialog : Window
             DesignSourceKind.AutoCad => "DWG файл сонгох...",
             DesignSourceKind.CityGen => "CityGen DWG/өгөгдөл сонгох...",
             DesignSourceKind.Pdf => "PDF файл сонгох...",
+            DesignSourceKind.ErkSCad => "Erk-S CAD баримтын хавтас сонгох...",
             _ => "Хавтас сонгох...",
         };
         RefreshClassificationRows();
@@ -248,7 +250,11 @@ internal sealed class DesignSourceDialog : Window
             return;
         }
 
-        if (kind == DesignSourceKind.Folder)
+        // Erk-S CAD is picked the same way: its native side is the folder the
+        // .erks document lives in, not a single file. Its exporter matches its
+        // own source row by that folder, so a file picker here would hand it a
+        // path it cannot match.
+        if (kind is DesignSourceKind.Folder or DesignSourceKind.ErkSCad)
         {
             BrowseNativeFolder();
             return;
@@ -375,7 +381,9 @@ internal sealed class DesignSourceDialog : Window
             NativeDocumentTitle = documentTitleBox.Text.Trim(),
             NativeDocumentPath = documentPathBox.Text.Trim(),
             OwnerOrganizationName = ownerBox.Text.Trim(),
-            Status = kind is DesignSourceKind.Pdf or DesignSourceKind.Folder
+            Status = kind is DesignSourceKind.Pdf
+                or DesignSourceKind.Folder
+                or DesignSourceKind.ErkSCad
                 ? DesignSourceStatuses.Connected
                 : DesignSourceStatuses.WaitingForConnection,
         };
