@@ -92,6 +92,22 @@ internal static class SharedContractCopies
     public const string CitizenSurveyBrowserSubmission =
         "citizen-survey-browser-submission-2026-09-18.json";
 
+    /// <summary>
+    /// The sheet-package manifest Erk-S CAD writes beside a rendered diagram
+    /// (2026-09-27), as <see cref="SheetPackageWriter"/> itself produces it.
+    ///
+    /// 🔴 IT IS A CROSS-REPOSITORY CONTRACT AND THE OTHER SIDE DIFFS AGAINST IT.
+    /// Erk-S CAD is a separate repository writing this JSON by hand, and its
+    /// session said it would check both directions against whatever example was
+    /// published. So the example must be the writer's own output rather than
+    /// prose: a field's casing or an enum's spelling written by hand here would
+    /// have them matching my description instead of my reader.
+    ///
+    /// The drift comparison below covers the copy; the shape is asserted by
+    /// <c>ThePublishedExampleIsWHATTHISWRITERProduces</c>, which regenerates it.
+    /// </summary>
+    public const string ErkSCadDiagramManifest = "erks-cad-diagram-manifest-2026-09-27.json";
+
     /// <summary>The copy that travels with the tests. Always present.</summary>
     public static string Read(string fileName) =>
         File.ReadAllText(PathTo(fileName), Encoding.UTF8);
@@ -137,6 +153,7 @@ public sealed class SharedContractCopyTests
     [InlineData(SharedContractCopies.CitizenSurveyZuunmod)]
     [InlineData(SharedContractCopies.CitizenSurveyPublished)]
     [InlineData(SharedContractCopies.CitizenSurveyBrowserSubmission)]
+    [InlineData(SharedContractCopies.ErkSCadDiagramManifest)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
         string? original = SharedContractCopies.TryFindOriginal(fileName);

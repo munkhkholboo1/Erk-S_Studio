@@ -41,8 +41,13 @@ public static class PortfolioSheetImportService
         var deliveredKeys = new HashSet<string>(StringComparer.Ordinal);
         foreach (SheetPackageEntry entry in manifest.Sheets)
         {
+            // The payload may be a rendered image rather than a PDF - Erk-S CAD
+            // draws its diagrams on the GPU and has no vector original. The
+            // portfolio writer already chooses how to draw a page from its file
+            // extension, so an image needs no special case there; what it needs
+            // is to be let in here.
             if (!SheetDestinations.IsPortfolio(entry.Destination) ||
-                !loadResult.TryGetVerifiedPdfPath(entry, out string pdfPath))
+                !loadResult.TryGetVerifiedPayloadPath(entry, out string pdfPath))
             {
                 continue;
             }
@@ -96,6 +101,10 @@ public static class PortfolioSheetImportService
                     SourcePageNumber = sourcePageNumber,
                     SourceSheetKey = key,
                     SourceExportedAtUtc = manifest.ExportedAtUtc,
+                    // Carried for a raster page because the density rule needs
+                    // it; 0 for a PDF, which has no pixels to count.
+                    SourceWidthPixels = entry.PayloadWidthPixels,
+                    SourceHeightPixels = entry.PayloadHeightPixels,
                 });
                 createdItemCount++;
             }
@@ -125,6 +134,8 @@ public static class PortfolioSheetImportService
                 item.RelativePath = relativePath;
                 item.SourcePageNumber = sourcePageNumber;
                 item.SourceExportedAtUtc = manifest.ExportedAtUtc;
+                item.SourceWidthPixels = entry.PayloadWidthPixels;
+                item.SourceHeightPixels = entry.PayloadHeightPixels;
                 if (!userRemovedThisPage)
                     updatedItemCount++;
             }

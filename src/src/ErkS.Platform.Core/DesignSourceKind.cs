@@ -1,4 +1,4 @@
-namespace ErkS.Platform.Core;
+﻿namespace ErkS.Platform.Core;
 
 /// <summary>
 /// What kind of thing a design source is, for the reader rather than for the
@@ -27,6 +27,9 @@ public enum DesignSourceCategory
 
     /// <summary>A CityGen site model.</summary>
     CityGen,
+
+    /// <summary>Erk-S CAD, delivering rendered diagram views.</summary>
+    ErkSCad,
 
     /// <summary>Pages taken straight from a PDF.</summary>
     Pdf,
@@ -63,6 +66,19 @@ public static class DesignSourceCategories
         string name = (application ?? "").Trim();
         if (name.Contains("revit", StringComparison.OrdinalIgnoreCase))
             return DesignSourceCategory.Revit;
+        // Asked BEFORE AutoCAD, because the AutoCAD test is a substring test and
+        // this product's name ends in the same three letters. "Erk-S CAD" does
+        // not contain "autocad" or "acad" today, so the order costs nothing
+        // today - which is exactly when it is cheap to get right, rather than
+        // after a version string like "Erk-S CAD for AutoCAD hosts" makes the
+        // more general answer win.
+        if (name.Contains("erk-s cad", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("erkscad", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("erks cad", StringComparison.OrdinalIgnoreCase))
+        {
+            return DesignSourceCategory.ErkSCad;
+        }
+
         if (name.Contains("autocad", StringComparison.OrdinalIgnoreCase) ||
             name.Contains("acad", StringComparison.OrdinalIgnoreCase))
         {
@@ -84,6 +100,7 @@ public static class DesignSourceCategories
         DesignSourceCategory.AutoCad => "AutoCAD",
         DesignSourceCategory.Visualization => "Харагдах байдал",
         DesignSourceCategory.CityGen => "CityGen",
+        DesignSourceCategory.ErkSCad => "Erk-S CAD",
         DesignSourceCategory.Pdf => "PDF",
         DesignSourceCategory.Cloud => "Үүлнээс",
         _ => "Эх үүсвэр",

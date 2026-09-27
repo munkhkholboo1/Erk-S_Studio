@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -16,7 +16,20 @@ namespace ErkS.Platform.Contracts;
 /// </summary>
 public sealed class SheetPackageManifest
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
+
+    /// <summary>
+    /// The first schema that may carry a raster payload.
+    /// </summary>
+    /// <remarks>
+    /// A raster page declared under an older schema is refused rather than
+    /// accepted. The version is what tells a reader which rules the producer was
+    /// written against: a schema-5 producer that suddenly names a PNG either
+    /// does not know the pixel declaration is required, or is a newer exporter
+    /// that forgot to raise its version - and both are worth stopping over
+    /// rather than guessing through.
+    /// </remarks>
+    public const int FirstRasterPayloadSchemaVersion = 6;
 
     /// <summary>File suffix that marks a manifest: "MyExport.erks-sheets.json".</summary>
     public const string ManifestSuffix = ".erks-sheets.json";
@@ -86,6 +99,65 @@ public enum SheetSourceApplication
     Revit,
     CityGen,
     Pdf,
+
+    /// <summary>
+    /// Erk-S CAD, which delivers rendered diagram views rather than sheets.
+    /// </summary>
+    /// <remarks>
+    /// Appended rather than inserted: the numeric values are what older
+    /// manifests hold, so a new name in the middle would renumber them.
+    ///
+    /// It has to be a named value because the manifest is read with
+    /// <c>JsonStringEnumConverter</c>: an application name this enum does not
+    /// carry makes the whole package fail to deserialize. That is the loud,
+    /// correct behaviour - and it means a producer cannot start sending a name
+    /// before the name exists here.
+    /// </remarks>
+    ErkSCad,
+}
+
+/// <summary>
+/// What kind of file a package entry's payload is.
+/// </summary>
+/// <remarks>
+/// 🔴 IT IS DECLARED, NEVER INFERRED FROM THE FILE NAME. An extension is a
+/// string a producer chose; reading meaning out of its shape is the same guess
+/// this contract refuses to make between a content kind and a template slot.
+/// The declaration is checked against the bytes instead.
+///
+/// Empty means PDF, because every producer written before this field existed
+/// sent a PDF and said nothing about it. An unrecognised value is refused by
+/// name rather than treated as PDF: a reader that falls back to the one format
+/// it can parse will happily report success over a file it never read.
+/// </remarks>
+public static class SheetPayloadMediaTypes
+{
+    public const string Pdf = "application/pdf";
+
+    public const string Png = "image/png";
+
+    /// <summary>The value an empty declaration means.</summary>
+    public static string Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? Pdf : value.Trim();
+
+    public static bool IsKnown(string? value)
+    {
+        string normalized = Normalize(value);
+        return normalized.Equals(Pdf, StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals(Png, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True for a payload made of pixels. Such a payload has no pages to count
+    /// and no vector content to place, so the checks that prove a PDF are not
+    /// the checks that prove this.
+    /// </summary>
+    public static bool IsRaster(string? value) =>
+        Normalize(value).Equals(Png, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The file extension a payload of this type must carry.</summary>
+    public static string ExpectedExtension(string? value) =>
+        IsRaster(value) ? ".png" : ".pdf";
 }
 
 /// <summary>
@@ -215,11 +287,41 @@ public sealed class SheetPackageEntry
     /// <summary>Hash pinned by a released/archive album page.</summary>
     public string DrawingAssetSha256 { get; set; } = "";
 
-    /// <summary>PDF file name relative to the manifest folder.</summary>
+    /// <summary>
+    /// Payload file name relative to the manifest folder.
+    /// </summary>
+    /// <remarks>
+    /// Named for a PDF because that is all it ever held, and kept that way on
+    /// purpose: renaming it would silently retire the field every existing
+    /// producer writes. What the file IS comes from
+    /// <see cref="PayloadMediaType"/>, not from this name and not from the
+    /// extension.
+    /// </remarks>
     public string PdfFileName { get; set; } = "";
 
-    /// <summary>SHA-256 of the PDF file, lower-case hex.</summary>
+    /// <summary>SHA-256 of the payload file, lower-case hex.</summary>
     public string Sha256 { get; set; } = "";
+
+    /// <summary>
+    /// What kind of file <see cref="PdfFileName"/> is - see
+    /// <see cref="SheetPayloadMediaTypes"/>. Empty means PDF, which is what
+    /// every producer before schema 6 sent.
+    /// </summary>
+    public string PayloadMediaType { get; set; } = "";
+
+    /// <summary>
+    /// Pixel width of a raster payload; 0 for a PDF.
+    /// </summary>
+    /// <remarks>
+    /// Required for a raster payload, and checked against the file. The album's
+    /// density rule is 300 dpi, and a page cannot be brought down to it by a
+    /// reader that has to guess how dense it already is - a declaration that
+    /// disagrees with its own bytes would move the wrong page.
+    /// </remarks>
+    public int PayloadWidthPixels { get; set; }
+
+    /// <summary>Pixel height of a raster payload; 0 for a PDF.</summary>
+    public int PayloadHeightPixels { get; set; }
 
     /// <summary>
     /// One-based page in <see cref="PdfFileName"/> represented by this logical

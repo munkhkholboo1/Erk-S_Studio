@@ -90,19 +90,44 @@ public sealed class SheetPackageLoadResult
         verifiedManifestState = VerifiedFileState.Capture(ManifestPath);
 
     /// <summary>
-    /// Returns a package-contained path only after the entire package passed verification.
-    /// Consumers must not resolve manifest paths independently.
+    /// Returns a package-contained PDF path only after the entire package passed
+    /// verification. Consumers must not resolve manifest paths independently.
     /// </summary>
+    /// <remarks>
+    /// 🔴 REFUSES A RASTER PAYLOAD, WHATEVER THE CALLER INTENDED. The album
+    /// builder and the sheet library both ask for a path through this name and
+    /// then open it as a PDF. Neither of them was changed when raster diagrams
+    /// were let in, so the guard cannot be "the exporters that send images mark
+    /// them for the portfolio" - that is a fact about today's producers, not a
+    /// rule. Use <see cref="TryGetVerifiedPayloadPath"/> where the file type is
+    /// read from the entry.
+    /// </remarks>
     public bool TryGetVerifiedPdfPath(SheetPackageEntry entry, out string path)
     {
-        if (IsLossless && resolvedPdfPaths.TryGetValue(entry, out var resolved))
+        path = "";
+        if (entry is null || SheetPayloadMediaTypes.IsRaster(entry.PayloadMediaType))
         {
-            path = resolved;
-            return true;
+            return false;
         }
 
+        return TryGetVerifiedPayloadPath(entry, out path);
+    }
+
+    /// <summary>
+    /// Returns a package-contained payload path - of whatever type the entry
+    /// declares - only after the entire package passed verification.
+    /// </summary>
+    public bool TryGetVerifiedPayloadPath(SheetPackageEntry entry, out string path)
+    {
         path = "";
-        return false;
+        if (entry is null || !IsLossless ||
+            !resolvedPdfPaths.TryGetValue(entry, out string? resolved))
+        {
+            return false;
+        }
+
+        path = resolved;
+        return true;
     }
 
     /// <summary>
@@ -418,19 +443,34 @@ public static class SheetPackageReader
                     $"Sheet '{sheet.Number}': duplicate PDF page reference " +
                     $"'{sheet.PdfFileName}' page {sheet.PdfPageNumber}.");
             }
-            if (!string.Equals(Path.GetExtension(pdfPath), ".pdf", StringComparison.OrdinalIgnoreCase))
+            bool isRaster = SheetPayloadMediaTypes.IsRaster(sheet.PayloadMediaType);
+            string expectedExtension = SheetPayloadMediaTypes.ExpectedExtension(sheet.PayloadMediaType);
+            if (!string.Equals(Path.GetExtension(pdfPath), expectedExtension, StringComparison.OrdinalIgnoreCase))
             {
-                result.Issues.Add($"Sheet '{sheet.Number}': referenced package file is not a PDF.");
+                // The PDF sentence is left word for word as it was. A producer
+                // reads these strings, and a test pinned this one - rewording it
+                // to mention media types would have retired a refusal that has
+                // been in the contract since before payloads had a type.
+                result.Issues.Add(isRaster
+                    ? $"Sheet '{sheet.Number}': referenced package file is not a PNG."
+                    : $"Sheet '{sheet.Number}': referenced package file is not a PDF.");
                 continue;
             }
             if (!File.Exists(pdfPath))
             {
-                result.Issues.Add($"Sheet '{sheet.Number}': PDF file missing ({sheet.PdfFileName}).");
+                result.Issues.Add($"Sheet '{sheet.Number}': payload file missing ({sheet.PdfFileName}).");
                 continue;
             }
 
             VerifyHash(sheet, pdfPath, result.Issues, hashCache);
-            if (!recordedPackageBytes)
+            if (isRaster)
+            {
+                // A raster payload has no pages to count. What can be proved
+                // about it is that the pixels it declares are the pixels it has,
+                // and the album's density rule depends on exactly that.
+                VerifyRasterPayload(sheet, pdfPath, result.Issues);
+            }
+            else if (!recordedPackageBytes)
             {
                 VerifyPdfStructure(manifest, sheet, pdfPath, result.Issues, pdfStructureCache);
             }
@@ -492,6 +532,7 @@ public static class SheetPackageReader
         {
             issues.Add($"Sheet '{sheet.Number}': page count must be positive.");
         }
+        ValidatePayloadDeclaration(manifest, sheet, issues);
         if (manifest.SchemaVersion >= 5 && sheet.PdfPageNumber <= 0)
         {
             issues.Add($"Sheet '{sheet.Number}': PDF page number must be positive for schema version 5 or newer.");
@@ -544,6 +585,120 @@ public static class SheetPackageReader
             issues.Add($"Sheet '{sheet.Number}': content size does not match the format drawing area.");
         }
     }
+
+    /// <summary>
+    /// Checks what an entry SAYS its payload is, before anything opens it.
+    /// </summary>
+    private static void ValidatePayloadDeclaration(
+        SheetPackageManifest manifest,
+        SheetPackageEntry sheet,
+        ICollection<string> issues)
+    {
+        if (!SheetPayloadMediaTypes.IsKnown(sheet.PayloadMediaType))
+        {
+            // Named. A media type this version cannot read must not quietly
+            // become the one type it can.
+            issues.Add(
+                $"Sheet '{sheet.Number}': payload media type " +
+                $"'{sheet.PayloadMediaType}' is unsupported.");
+            return;
+        }
+
+        if (!SheetPayloadMediaTypes.IsRaster(sheet.PayloadMediaType))
+        {
+            if (sheet.PayloadWidthPixels != 0 || sheet.PayloadHeightPixels != 0)
+            {
+                issues.Add(
+                    $"Sheet '{sheet.Number}': a PDF payload must not declare pixel dimensions.");
+            }
+            return;
+        }
+
+        if (manifest.SchemaVersion < SheetPackageManifest.FirstRasterPayloadSchemaVersion)
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': a raster payload requires schema version " +
+                $"{SheetPackageManifest.FirstRasterPayloadSchemaVersion} or newer.");
+        }
+        if (sheet.PayloadWidthPixels <= 0 || sheet.PayloadHeightPixels <= 0)
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': a raster payload must declare positive pixel dimensions.");
+        }
+        if (sheet.IsCleanDrawingSpace)
+        {
+            // Clean drawing space is a promise that the frame, title and company
+            // table are absent so Studio may draw its own. A rendered image
+            // carries whatever the renderer drew into it, and a page framed
+            // twice is what believing otherwise produces.
+            issues.Add(
+                $"Sheet '{sheet.Number}': a raster payload cannot be clean drawing space.");
+        }
+    }
+
+    /// <summary>
+    /// Proves a raster payload is the image it claims to be: a PNG, and one
+    /// whose own header carries the declared pixel count.
+    /// </summary>
+    private static void VerifyRasterPayload(
+        SheetPackageEntry sheet,
+        string payloadPath,
+        ICollection<string> issues)
+    {
+        try
+        {
+            if (!TryReadPngSize(payloadPath, out int width, out int height))
+            {
+                issues.Add(
+                    $"Sheet '{sheet.Number}': payload is not a readable PNG ({sheet.PdfFileName}).");
+                return;
+            }
+            if (width != sheet.PayloadWidthPixels || height != sheet.PayloadHeightPixels)
+            {
+                issues.Add(
+                    $"Sheet '{sheet.Number}': manifest declares " +
+                    $"{sheet.PayloadWidthPixels}x{sheet.PayloadHeightPixels} pixels but the file is " +
+                    $"{width}x{height}.");
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': raster payload could not be read ({exception.Message}).");
+        }
+    }
+
+    private static bool TryReadPngSize(string path, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        ReadOnlySpan<byte> signature = [0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        var header = new byte[24];
+        using (FileStream file = File.OpenRead(path))
+        {
+            if (file.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) < header.Length)
+            {
+                return false;
+            }
+        }
+
+        if (!header.AsSpan(0, signature.Length).SequenceEqual(signature) ||
+            !header.AsSpan(12, 4).SequenceEqual("IHDR"u8))
+        {
+            return false;
+        }
+
+        width = BigEndianInt32(header, 16);
+        height = BigEndianInt32(header, 20);
+        return width > 0 && height > 0;
+    }
+
+    private static int BigEndianInt32(byte[] buffer, int offset) =>
+        (buffer[offset] << 24) |
+        (buffer[offset + 1] << 16) |
+        (buffer[offset + 2] << 8) |
+        buffer[offset + 3];
 
     private static void VerifyHash(
         SheetPackageEntry sheet,

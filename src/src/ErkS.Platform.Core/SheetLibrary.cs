@@ -157,13 +157,20 @@ public sealed class SheetLibrary
         var verifiedPaths = new Dictionary<SheetPackageEntry, string>(ReferenceEqualityComparer.Instance);
         foreach (var entry in manifest.Sheets)
         {
-            if (!loadResult.TryGetVerifiedPdfPath(entry, out var verifiedPath))
+            // Asked for by payload rather than by PDF: a package may carry a
+            // rendered diagram for the portfolio, and TryGetVerifiedPdfPath
+            // refuses those by design. Album records are still built only from
+            // non-portfolio entries below, so nothing here hands an image to
+            // something that wants a PDF - while a package whose payload cannot
+            // be resolved at all is still rejected whole, which is the property
+            // worth keeping.
+            if (!loadResult.TryGetVerifiedPayloadPath(entry, out var verifiedPath))
             {
                 return new SheetLibraryChange
                 {
                     PackageId = manifest.PackageId,
                     Rejected = true,
-                    Issues = ["Verified PDF path is unavailable."],
+                    Issues = ["Verified payload path is unavailable."],
                 };
             }
             verifiedPaths[entry] = verifiedPath;
