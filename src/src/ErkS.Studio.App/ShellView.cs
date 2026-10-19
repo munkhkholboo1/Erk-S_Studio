@@ -7274,6 +7274,7 @@ internal sealed partial class ShellView : IDisposable
         }
 
         SetStatus(displayMessage);
+        PersistCloudSyncFailure(operation, outcome, displayMessage);
         RecordDiagnosticOperation(
             operationId,
             operation,
@@ -7281,6 +7282,38 @@ internal sealed partial class ShellView : IDisposable
             reasonCode,
             displayMessage,
             exception);
+    }
+
+    /// <summary>
+    /// Keeps a failed or blocked cloud sync's sentence in the project.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 ERIN STOOD AT «Pending» FOR TWO MONTHS WITH lastSyncError EMPTY. Every
+    /// refusal reached the status line and the operation log and nothing else;
+    /// the line is overwritten by the next message and the log is not read by
+    /// anyone looking at the project. A cancellation is the person's own choice
+    /// and is not kept.
+    /// </remarks>
+    private void PersistCloudSyncFailure(string operation, string outcome, string displayMessage)
+    {
+        if (!string.Equals(operation, "cloud_sync", StringComparison.Ordinal) ||
+            outcome is not ("blocked" or "conflict" or "error") ||
+            !state.HasOpenProject)
+        {
+            return;
+        }
+
+        try
+        {
+            state.Project.Cloud.LastSyncError = displayMessage;
+            state.SaveProject();
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // The status line still carries it; a project that cannot be saved
+            // has a louder problem than this sentence.
+        }
     }
 
     private void RecordDiagnosticOperation(

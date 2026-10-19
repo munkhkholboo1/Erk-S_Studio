@@ -112,6 +112,20 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
         Assert.Contains("state.Project.Cloud.LastSyncNote = blocked;", shell, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ASyncThatFAILSKeepsItsSentenceInTheProject()
+    {
+        // Every cloud_sync refusal goes through SetOperationStatus; it is the one
+        // place that sees them all, so that is where the sentence is kept.
+        string shell = File.ReadAllText(ShellSource());
+        int setStatus = shell.IndexOf("private void SetOperationStatus(", StringComparison.Ordinal);
+        string body = shell[setStatus..shell.IndexOf("private void RecordDiagnosticOperation(", setStatus, StringComparison.Ordinal)];
+
+        Assert.Contains("PersistCloudSyncFailure(operation, outcome, displayMessage);", body, StringComparison.Ordinal);
+        Assert.Contains("state.Project.Cloud.LastSyncError = displayMessage;", body, StringComparison.Ordinal);
+        Assert.Contains("outcome is not (\"blocked\" or \"conflict\" or \"error\")", body, StringComparison.Ordinal);
+    }
+
     private static string ShellSource()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
