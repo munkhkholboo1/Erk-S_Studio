@@ -1241,9 +1241,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             project.InitiationBasis.ClientName,
             project.InitiationBasis.ClientRepresentativeName,
             project.ClientName);
-        var companyRole = string.IsNullOrWhiteSpace(companyName)
-            ? companyRepresentative.Role
-            : $"\"{companyName}\" {companyRepresentative.Role}".Trim();
+        var companyRole = CompanyRepresentativeLine(
+            company,
+            project.DesignOrganizationName,
+            companyRepresentative.Role);
 
         DrawCompanyLogoOrMark(gfx, company, TopLeftRect(x0, y0, x1, y4));
         DrawCellText(gfx, ProjectDisplayName(project), x1, y0, x2, y1, false, XStringFormats.CenterLeft);
@@ -1389,6 +1390,56 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     private static string ResolveArchitect(AlbumProject project)
     {
         return AppointedArchitectResolver.ForDocument(project.Participants);
+    }
+
+    /// <summary>
+    /// «"Компани" Гүйцэтгэх захирал» - the company's short name in quotes, once,
+    /// followed by the role; no legal form, as the owner's own covers write it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 THE NAME MAY ALREADY BE QUOTED. Mongolian company names are stored as
+    /// «"Нэр" ХХК», and wrapping that in quotes again printed
+    /// «""Алтанхөхийн Очир" ХХК» on the Batnasan cover - found by building the
+    /// real album on 2026-10-19. The short name is used when there is one;
+    /// otherwise the quoted part of the name, in whichever quote style it uses.
+    /// </remarks>
+    internal static string CompanyRepresentativeLine(
+        CompanyProfile company,
+        string? fallbackName,
+        string role)
+    {
+        ArgumentNullException.ThrowIfNull(company);
+        string core = QuotedCompanyCore(company.ShortName);
+        if (core.Length == 0)
+            core = QuotedCompanyCore(CompanyDisplayName(company, fallbackName ?? ""));
+        string trimmedRole = (role ?? "").Trim();
+        return core.Length == 0
+            ? trimmedRole
+            : $"\"{core}\" {trimmedRole}".Trim();
+    }
+
+    private static readonly char[] CompanyNameQuotes = ['"', '«', '»', '“', '”', '„'];
+
+    /// <summary>
+    /// The name inside its quotes when it has any, otherwise the whole name -
+    /// in both cases without a quote character left at either end.
+    /// </summary>
+    private static string QuotedCompanyCore(string? name)
+    {
+        string value = (name ?? "").Trim();
+        if (value.Length == 0)
+            return "";
+        int open = value.IndexOfAny(CompanyNameQuotes);
+        if (open >= 0)
+        {
+            int start = open;
+            while (start < value.Length && Array.IndexOf(CompanyNameQuotes, value[start]) >= 0)
+                start++;
+            int close = value.IndexOfAny(CompanyNameQuotes, start);
+            if (close > start)
+                return value[start..close].Trim();
+        }
+        return value.Trim(CompanyNameQuotes).Trim();
     }
 
     private static string CompanyDisplayName(CompanyProfile company, string fallback = "")
@@ -2279,9 +2330,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             request.Project.PlanningTask);
         var companyRepresentative = ResolveCompanyRepresentative(request.Project);
         var companyName = CompanyDisplayName(company, request.Project.DesignOrganizationName);
-        var companyRole = string.IsNullOrWhiteSpace(companyName)
-            ? companyRepresentative.Role
-            : $"\"{companyName}\" {companyRepresentative.Role}".Trim();
+        var companyRole = CompanyRepresentativeLine(
+            company,
+            request.Project.DesignOrganizationName,
+            companyRepresentative.Role);
         ProjectInitiationBasis initiationBasis = request.Project.InitiationBasis;
         var canonicalClientName = string.IsNullOrWhiteSpace(initiationBasis.ClientName)
             ? request.Project.ClientName
