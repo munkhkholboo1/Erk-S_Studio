@@ -57,6 +57,10 @@ internal sealed partial class ShellView
             Pages = album.Pages
                 .Where(page => availableSheetKeys.Contains(page.SheetKey))
                 .ToList(),
+            // The 01's explanatory note, composition and indicators travel with
+            // the album that is uploaded; without them the shared album's front
+            // matter was blank (Batnasan, 2026-10-20).
+            FrontMatter = (album.FrontMatter ?? new WorkingDrawingFrontMatter()).Clone(),
         };
 
         Directory.CreateDirectory(workFolder);
