@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using ErkS.Platform.Core;
 using ErkS.Platform.Contracts;
 using PdfSharp.Drawing;
@@ -1895,7 +1895,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawFittedText(gfx, "\u0428\u0430\u043b\u0433\u0430\u0441\u0430\u043d", X(27) + pad, Y(30) + pad, Mm(21) - pad * 2, rect.Bottom - Y(30) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
         IReadOnlyList<string> names = ResolveCanonicalHorizontalWorkingTitleBlockNames(
             project,
-            buildPage.Definition.RoleAssignments);
+            buildPage.Definition.RoleAssignments,
+            // The names the source sheet itself carries. A generated page has
+            // no source, and gets the company default exactly as before.
+            buildPage.Sheet?.Entry?.Roles);
         for (int row = 0; row < names.Count; row++)
         {
             double top = row == 0 ? 17 : row == 1 ? 23 : 30;
@@ -1963,9 +1966,21 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             ? sheetDate.ToLocalTime().ToString("yyyy.MM.dd")
             : "";
 
+    /// <summary>
+    /// The three names of a working sheet's corner table.
+    /// </summary>
+    /// <remarks>
+    /// Each role is answered by the first of three sources that has it: an
+    /// assignment the owner made in Studio, then the name the source sheet
+    /// carries, then the company's standing signer. The middle source used to be
+    /// missing, so a sheet migrated from Revit - which has no Studio assignments
+    /// yet - printed the company's names over the people who actually drew it.
+    /// The owner's assignment comes first so that re-exporting never undoes it.
+    /// </remarks>
     internal static IReadOnlyList<string> ResolveCanonicalHorizontalWorkingTitleBlockNames(
         AlbumProject project,
-        IEnumerable<AlbumPageRoleAssignment>? roleAssignments = null)
+        IEnumerable<AlbumPageRoleAssignment>? roleAssignments = null,
+        IEnumerable<SheetRoleSignature>? sourceRoles = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         return
@@ -1973,11 +1988,15 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             AlbumPageRoleAssignmentResolver.ResolveDocumentName(
                 roleAssignments,
                 AlbumPageRoleCodes.Architect,
-                project.Participants) ?? ResolveArchitect(project),
+                project.Participants) ??
+                SourceSheetName(sourceRoles, AlbumPageRoleCodes.Architect) ??
+                ResolveArchitect(project),
             AlbumPageRoleAssignmentResolver.ResolveDocumentName(
                 roleAssignments,
                 AlbumPageRoleCodes.PreparedBy,
-                project.Participants) ?? ResolveWorkingDrawingSigner(
+                project.Participants) ??
+                SourceSheetName(sourceRoles, AlbumPageRoleCodes.PreparedBy) ??
+                ResolveWorkingDrawingSigner(
                     project.Company.Signers,
                     "Гүйцэтгэсэн",
                     "Боловсруулсан",
@@ -1986,13 +2005,31 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             AlbumPageRoleAssignmentResolver.ResolveDocumentName(
                 roleAssignments,
                 AlbumPageRoleCodes.CheckedBy,
-                project.Participants) ?? ResolveWorkingDrawingSigner(
+                project.Participants) ??
+                SourceSheetName(sourceRoles, AlbumPageRoleCodes.CheckedBy) ??
+                ResolveWorkingDrawingSigner(
                     project.Company.Signers,
                     "Шалгасан",
                     "Хянасан",
                     "Checked",
                     "Reviewed"),
         ];
+    }
+
+    /// <summary>
+    /// The name a source sheet carries for a role, exactly as written, or null.
+    /// </summary>
+    private static string? SourceSheetName(
+        IEnumerable<SheetRoleSignature>? sourceRoles,
+        string roleCode)
+    {
+        string? name = (sourceRoles ?? [])
+            .FirstOrDefault(role => string.Equals(
+                (role?.RoleCode ?? "").Trim(),
+                roleCode,
+                StringComparison.Ordinal))
+            ?.FullName?.Trim();
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 
     private static string ResolveWorkingDrawingSigner(

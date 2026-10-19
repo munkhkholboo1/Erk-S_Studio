@@ -2,9 +2,12 @@ namespace ErkS.Platform.Core;
 
 public static class AlbumPageRoleCodes
 {
-    public const string Architect = "Architect";
-    public const string PreparedBy = "PreparedBy";
-    public const string CheckedBy = "CheckedBy";
+    // Built from the package contract's own constants rather than typed again:
+    // a sheet's role must land in the album cell of the same name, and two
+    // spellings of one vocabulary is how a role ends up matching nothing.
+    public const string Architect = ErkS.Platform.Contracts.SheetRoleCodes.Architect;
+    public const string PreparedBy = ErkS.Platform.Contracts.SheetRoleCodes.PreparedBy;
+    public const string CheckedBy = ErkS.Platform.Contracts.SheetRoleCodes.CheckedBy;
 
     public static IReadOnlyList<string> All { get; } =
         [Architect, PreparedBy, CheckedBy];

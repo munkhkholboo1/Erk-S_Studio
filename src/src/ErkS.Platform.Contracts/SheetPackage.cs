@@ -16,7 +16,20 @@ namespace ErkS.Platform.Contracts;
 /// </summary>
 public sealed class SheetPackageManifest
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
+
+    /// <summary>
+    /// The first schema whose entries may carry <see cref="SheetPackageEntry.Roles"/>.
+    /// </summary>
+    /// <remarks>
+    /// Required rather than merely allowed, and for a reason that is easy to
+    /// miss: a reader older than this field does not reject it - it DROPS it,
+    /// because unknown JSON members are ignored. The names would vanish and the
+    /// corner table would quietly fall back to the company's signers. Demanding
+    /// the version makes an older Studio refuse the whole package out loud
+    /// instead of losing the authors without a word.
+    /// </remarks>
+    public const int FirstSheetRolesSchemaVersion = 7;
 
     /// <summary>
     /// The first schema that may carry a raster payload.
@@ -114,6 +127,48 @@ public enum SheetSourceApplication
     /// before the name exists here.
     /// </remarks>
     ErkSCad,
+}
+
+/// <summary>
+/// The roles a working sheet's corner table names: Архитектор, Гүйцэтгэсэн,
+/// Шалгасан.
+/// </summary>
+/// <remarks>
+/// 🔴 ONE VOCABULARY. These are the words Studio's album already uses for the
+/// same three cells (<c>AlbumPageRoleCodes</c> in Core is built from these
+/// constants, not typed again), so a role a producer sends lands in the cell
+/// with the same name. A second spelling would match no cell and the table
+/// would fall back to the company default without saying anything.
+/// </remarks>
+public static class SheetRoleCodes
+{
+    /// <summary>Архитектор.</summary>
+    public const string Architect = "Architect";
+
+    /// <summary>Гүйцэтгэсэн.</summary>
+    public const string PreparedBy = "PreparedBy";
+
+    /// <summary>Шалгасан.</summary>
+    public const string CheckedBy = "CheckedBy";
+
+    public static IReadOnlyList<string> All { get; } = [Architect, PreparedBy, CheckedBy];
+
+    /// <summary>Exactly one of <see cref="All"/>, compared as written.</summary>
+    public static bool IsKnown(string? roleCode) =>
+        All.Contains((roleCode ?? "").Trim(), StringComparer.Ordinal);
+}
+
+/// <summary>One role on one sheet, with the name as the author wrote it.</summary>
+public sealed class SheetRoleSignature
+{
+    /// <summary>One of <see cref="SheetRoleCodes"/>.</summary>
+    public string RoleCode { get; set; } = "";
+
+    /// <summary>
+    /// The name exactly as it appears on the source sheet, e.g. "Э.Мөнххолбоо".
+    /// Not reformatted on the way in: it is what the author signed.
+    /// </summary>
+    public string FullName { get; set; } = "";
 }
 
 /// <summary>
@@ -322,6 +377,30 @@ public sealed class SheetPackageEntry
 
     /// <summary>Pixel height of a raster payload; 0 for a PDF.</summary>
     public int PayloadHeightPixels { get; set; }
+
+    /// <summary>
+    /// The people this sheet names in its corner table, in the order the source
+    /// lists them. Empty from every producer before schema 7.
+    /// </summary>
+    /// <remarks>
+    /// Per sheet, with no package-wide default to inherit from. A producer that
+    /// has one set of names for every sheet writes it on every sheet - cheap for
+    /// it, and it leaves Studio one place to read instead of a rule about which
+    /// of two places wins.
+    ///
+    /// Studio uses these only where the owner has not assigned the role inside
+    /// Studio: a re-export never overwrites the owner's choice.
+    ///
+    /// Null, and then not written at all, unless a producer sets it. Written as
+    /// an empty list on every entry it changed the output of every producer that
+    /// has never heard of roles - and the published Erk-S CAD example, which its
+    /// session diffs against, stopped matching the writer the moment this field
+    /// was added. Absent means "this producer does not send roles"; readers take
+    /// it as empty.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SheetRoleSignature>? Roles { get; set; }
 
     /// <summary>
     /// One-based page in <see cref="PdfFileName"/> represented by this logical

@@ -301,7 +301,11 @@ public sealed class ADIAGRAMArrivesAsARASTERPageOrIsREFUSEDTests : IDisposable
 
         var manifest = new SheetPackageManifest
         {
-            SchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
+            // The version Erk-S CAD actually writes. Following CurrentSchemaVersion
+            // here made this fixture move every time the contract grew, and the
+            // published example - which records what Erk-S CAD sends - stopped
+            // matching the day schema 7 arrived.
+            SchemaVersion = SheetPackageManifest.FirstRasterPayloadSchemaVersion,
             Source = new SheetPackageSource
             {
                 SourceId = SourceId,

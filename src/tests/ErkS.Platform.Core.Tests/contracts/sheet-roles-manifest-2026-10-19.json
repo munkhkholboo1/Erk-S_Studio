@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 7,
+  "packageId": "7d478ad2-8cfd-4967-bc49-ad4dcdce04cb",
+  "source": {
+    "sourceId": "batnasan-revit",
+    "application": "Revit",
+    "applicationVersion": "",
+    "documentPath": "D:\\Cloud Work\\Batnasan Apartment\\RVT\\Arch\\Arch_BN_SHEET V2.rvt",
+    "documentTitle": "Arch_BN_SHEET V2",
+    "projectCode": ""
+  },
+  "projectId": "",
+  "stageId": "",
+  "workPackageId": "",
+  "exportMode": "Sheets",
+  "packageScope": "Delta",
+  "exportedAtUtc": "2026-10-19T00:00:00+00:00",
+  "sheets": [
+    {
+      "sheetId": "ba-11",
+      "destination": "Album",
+      "number": "БА-11",
+      "name": "1-р давхрын төлөвлөлт",
+      "discipline": "",
+      "revision": "",
+      "scaleText": "",
+      "printColorMode": "Original",
+      "widthMm": 420,
+      "heightMm": 297,
+      "pageFormatId": "",
+      "format": null,
+      "isCleanDrawingSpace": false,
+      "contentWidthMm": 0,
+      "contentHeightMm": 0,
+      "contentKind": "",
+      "templateSlotId": "",
+      "sheetDescription": "",
+      "buildingId": "",
+      "buildingName": "",
+      "levelId": "",
+      "levelName": "",
+      "drawingAssetId": "",
+      "drawingAssetVersion": "",
+      "drawingAssetSha256": "",
+      "pdfFileName": "BA-11.pdf",
+      "sha256": "369f49aa2a1fa0c422f1f3cd262087c7fddf81e65754d8510efef1ed4128e342",
+      "payloadMediaType": "",
+      "payloadWidthPixels": 0,
+      "payloadHeightPixels": 0,
+      "roles": [
+        {
+          "roleCode": "Architect",
+          "fullName": "Э.Мөнххолбоо"
+        },
+        {
+          "roleCode": "PreparedBy",
+          "fullName": "М.Будбаясгалан"
+        },
+        {
+          "roleCode": "CheckedBy",
+          "fullName": "М.Насанжаргал"
+        }
+      ],
+      "pdfPageNumber": 1,
+      "pageCount": 1
+    }
+  ]
+}

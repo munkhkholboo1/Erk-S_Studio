@@ -108,6 +108,13 @@ internal static class SharedContractCopies
     /// </summary>
     public const string ErkSCadDiagramManifest = "erks-cad-diagram-manifest-2026-09-27.json";
 
+    /// <summary>
+    /// A Revit working sheet carrying its corner-table names (schema 7,
+    /// 2026-10-19), as <see cref="SheetPackageWriter"/> itself produces it.
+    /// Published for PFR, which writes these manifests in another repository.
+    /// </summary>
+    public const string SheetRolesManifest = "sheet-roles-manifest-2026-10-19.json";
+
     /// <summary>The copy that travels with the tests. Always present.</summary>
     public static string Read(string fileName) =>
         File.ReadAllText(PathTo(fileName), Encoding.UTF8);
@@ -154,6 +161,7 @@ public sealed class SharedContractCopyTests
     [InlineData(SharedContractCopies.CitizenSurveyPublished)]
     [InlineData(SharedContractCopies.CitizenSurveyBrowserSubmission)]
     [InlineData(SharedContractCopies.ErkSCadDiagramManifest)]
+    [InlineData(SharedContractCopies.SheetRolesManifest)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
         string? original = SharedContractCopies.TryFindOriginal(fileName);

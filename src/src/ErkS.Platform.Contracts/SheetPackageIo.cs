@@ -533,6 +533,7 @@ public static class SheetPackageReader
             issues.Add($"Sheet '{sheet.Number}': page count must be positive.");
         }
         ValidatePayloadDeclaration(manifest, sheet, issues);
+        ValidateRoles(manifest, sheet, issues);
         if (manifest.SchemaVersion >= 5 && sheet.PdfPageNumber <= 0)
         {
             issues.Add($"Sheet '{sheet.Number}': PDF page number must be positive for schema version 5 or newer.");
@@ -633,6 +634,51 @@ public static class SheetPackageReader
             // twice is what believing otherwise produces.
             issues.Add(
                 $"Sheet '{sheet.Number}': a raster payload cannot be clean drawing space.");
+        }
+    }
+
+    /// <summary>
+    /// Checks the names a sheet carries for its corner table.
+    /// </summary>
+    /// <remarks>
+    /// Every refusal here is a name that would otherwise have gone somewhere it
+    /// did not belong, or nowhere at all: an unknown role fills no cell, a role
+    /// named twice leaves the table to pick one, and a blank name prints an
+    /// empty signature line under a role that looks assigned.
+    /// </remarks>
+    private static void ValidateRoles(
+        SheetPackageManifest manifest,
+        SheetPackageEntry sheet,
+        ICollection<string> issues)
+    {
+        List<SheetRoleSignature> roles = sheet.Roles ?? [];
+        if (roles.Count == 0)
+            return;
+
+        if (manifest.SchemaVersion < SheetPackageManifest.FirstSheetRolesSchemaVersion)
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': sheet roles require schema version " +
+                $"{SheetPackageManifest.FirstSheetRolesSchemaVersion} or newer.");
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SheetRoleSignature role in roles)
+        {
+            string code = (role?.RoleCode ?? "").Trim();
+            if (!SheetRoleCodes.IsKnown(code))
+            {
+                issues.Add($"Sheet '{sheet.Number}': role code '{role?.RoleCode}' is unsupported.");
+                continue;
+            }
+            if (!seen.Add(code))
+            {
+                issues.Add($"Sheet '{sheet.Number}': role '{code}' is named twice.");
+            }
+            if (string.IsNullOrWhiteSpace(role!.FullName))
+            {
+                issues.Add($"Sheet '{sheet.Number}': role '{code}' has no name.");
+            }
         }
     }
 
