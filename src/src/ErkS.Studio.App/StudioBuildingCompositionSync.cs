@@ -506,6 +506,14 @@ internal static class StudioBuildingCompositionSync
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (SheetRecord record in library.Snapshot())
         {
+            // A general-plan sheet of the working drawings is never a
+            // building's (owner, 2026-10-20) - not even when the shared
+            // composition still says so; it is taken back out instead.
+            if (BuildingWorkingDrawingAlbumTemplate.ExcludesFromBuildings(project, record.Entry))
+            {
+                changed |= project.SheetBuildingAssignments.Remove(record.Key);
+                continue;
+            }
             if (onlyUnassigned &&
                 project.SheetBuildingAssignments.ContainsKey(record.Key))
             {
@@ -617,6 +625,8 @@ internal static class StudioBuildingCompositionSync
                     out string sheetId))
             {
                 authoritativeLocalKeys.Add(record.Key);
+                if (BuildingWorkingDrawingAlbumTemplate.ExcludesFromBuildings(project, record.Entry))
+                    continue;
                 if (TryGetAssignment(
                     portableAssignments,
                     sourceOwnerEmail,

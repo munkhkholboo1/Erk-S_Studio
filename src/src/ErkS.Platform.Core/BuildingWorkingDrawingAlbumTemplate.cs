@@ -101,6 +101,18 @@ public static class BuildingWorkingDrawingAlbumTemplate
         return changed;
     }
 
+    /// <summary>
+    /// Whether a sheet may be filed under a building in this project: never a
+    /// general-plan sheet of the working drawings, whoever - this machine, the
+    /// package, the shared composition on the server - would file it there.
+    /// </summary>
+    public static bool ExcludesFromBuildings(ProjectWorkspace project, SheetPackageEntry? entry)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return Supports(project.Identity.ProjectType, project.Identity.StageCode) &&
+               ProjectDesignSourceClassification.IsGeneralPlanSheet(entry);
+    }
+
     /// <summary>The part a delivered sheet stands in: a general-plan sheet in its own.</summary>
     public static Guid? ResolveSectionId(
         AlbumDefinition definition,
