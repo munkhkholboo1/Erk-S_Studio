@@ -54,6 +54,30 @@ public sealed class StudioCanonicalAlbumRebuildPolicyTests
     }
 
     [Fact]
+    public void AWorkingDrawingProjectAsksForNoSubCoverOnlyTheServersTombstones()
+    {
+        // Batnasan, 2026-10-20: a working-drawing album draws no building
+        // sub-cover, so asking for one kept the project pending forever.
+        ProjectWorkspace project = ProjectWithLocalPendingCover();
+        project.Identity.ProjectType = ErkS.Platform.Core.ProjectTypes.BuildingDesignProjectType.TypeId;
+        project.Identity.StageCode = "working-drawings";
+        StudioCloudProjectDetail cloud = CloudProject(
+            pending: true,
+            requiredVersion: 4,
+            revisionVersion: 3,
+            groups: [Group("building-a", "Building A", 1)],
+            tombstones: ["generated:building-sub-cover:studio-building:deleted-a"],
+            manifest: [SourceSlice("building-a")]);
+
+        StudioCanonicalAlbumRebuildResolution resolution =
+            StudioCanonicalAlbumRebuildPolicy.Resolve(project, cloud);
+
+        Assert.Equal(
+            ["generated:building-sub-cover:studio-building:deleted-a"],
+            resolution.PendingComponentCodes);
+    }
+
+    [Fact]
     public void InvalidServerTombstone_RemainsVisibleButCannotDeleteUnrelatedComponent()
     {
         ProjectWorkspace project = ProjectWithLocalPendingCover();

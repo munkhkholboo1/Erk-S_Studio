@@ -99,7 +99,14 @@ internal static class StudioCanonicalAlbumRebuildPolicy
                     .Select(component => component.Code.Trim())
                     .ToHashSet(StringComparer.OrdinalIgnoreCase)
                 : [];
+        // A working-drawing album draws no building sub-cover: asking for one
+        // kept the project pending forever (Batnasan, 2026-10-20). The server's
+        // tombstones still go - those remove covers the album should not have.
+        bool drawsSubCovers = !BuildingWorkingDrawingAlbumTemplate.Supports(
+            localProject.Identity?.ProjectType,
+            localProject.Identity?.StageCode);
         IEnumerable<string> groupCodes = groups
+            .Where(_ => drawsSubCovers)
             .Where(group => referencedGroupIds.Contains(group.Id))
             .Select(ProjectCloudSyncMetadata.BuildingSubCoverComponentCode)
             .Where(code => !currentCoverCodes.Contains(code));

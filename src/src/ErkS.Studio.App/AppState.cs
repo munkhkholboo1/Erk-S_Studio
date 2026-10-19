@@ -1678,6 +1678,21 @@ public sealed class AppState : IDisposable
         return true;
     }
 
+    /// <summary>The album composed from the shared album, recorded as the latest revision.</summary>
+    public void RecordShownAlbum(string outputPath, int pageCount, string pageSizeSummary, string createdBy)
+    {
+        if (!HasOpenProject || string.IsNullOrWhiteSpace(ProjectPath))
+            return;
+        ProjectCloudSyncMetadata.RecordShownAlbum(
+            Project,
+            AlbumDocument,
+            ProjectPath!,
+            outputPath,
+            pageCount,
+            pageSizeSummary,
+            createdBy);
+    }
+
     public void RecordBuiltAlbum(string outputPath, int pageCount, string pageSizeSummary, string createdBy)
     {
         ProjectCloudSyncMetadata.RecordBuiltAlbum(

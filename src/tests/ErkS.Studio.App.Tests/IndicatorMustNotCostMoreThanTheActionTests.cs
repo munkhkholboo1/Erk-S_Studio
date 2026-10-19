@@ -151,8 +151,10 @@ public sealed class IndicatorMustNotCostMoreThanTheActionTests
         // the product turns the guard red, and the cheapest way out is to put
         // the defect back. The step is still required - it is now required to
         // NAME the skip rather than count it.
+        // 2026-10-20: the step is NoDeliveryWaiting() - the survey is the
+        // check, so it is «nothing to do»; it still takes no count.
         Assert.Contains(
-            "AlbumRefreshReport.SourcesNotChecked(",
+            "AlbumRefreshReport.NoDeliveryWaiting()",
             refresh,
             StringComparison.Ordinal);
         Assert.DoesNotContain(

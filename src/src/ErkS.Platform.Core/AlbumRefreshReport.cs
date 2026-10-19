@@ -272,6 +272,17 @@ public sealed record AlbumRefreshReport
     /// Sources.Count as «how many were checked», and nothing had been checked.
     /// A number here would only be available to be mistaken for one again.
     /// </summary>
+    /// <summary>
+    /// The inbox survey found no package this project has not absorbed. The
+    /// survey is the check, so this is nothing to do - not a step left undone
+    /// (Batnasan, 2026-10-20: «бүрэн дуусаагүй» closed every such run). It still
+    /// carries no count: no package was read.
+    /// </summary>
+    public static AlbumRefreshStepResult NoDeliveryWaiting() =>
+        new(AlbumRefreshStep.ReadOwnSources, AlbumRefreshStepOutcome.NothingToDo,
+            "Эх үүсвэр: уншаагүй шинэ багц алга. Зураг засварласан бол Revit/AutoCAD-аасаа " +
+            "«Studio руу илгээх» хийсний дараа энэ товч түүнийг авна.");
+
     public static AlbumRefreshStepResult SourcesNotChecked(string whyMn) =>
         new(AlbumRefreshStep.ReadOwnSources, AlbumRefreshStepOutcome.Skipped,
             "Эх үүсвэр: " + whyMn);

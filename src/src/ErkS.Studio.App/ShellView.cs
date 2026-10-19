@@ -6727,8 +6727,15 @@ internal sealed partial class ShellView : IDisposable
         return Path.Combine(
             state.ResolveOutputFolder(),
             "cloud",
-            $"{SafeFileName(album.Title)}-R{revision.RevisionNumber}-{SafeFileName(revisionSegment)}.pdf");
+            // Named by Studio's own album, not the server record's title: the
+            // server created every album as «…загвар зургийн цомог», so a
+            // working-drawing album was saved under the concept album's name
+            // (Batnasan, 2026-10-20).
+            $"{SafeFileName(FirstNonEmptyTitle(state.Project.PrimaryAlbum.Title, album.Title))}-R{revision.RevisionNumber}-{SafeFileName(revisionSegment)}.pdf");
     }
+
+    private static string FirstNonEmptyTitle(string? studioTitle, string? serverTitle) =>
+        string.IsNullOrWhiteSpace(studioTitle) ? serverTitle?.Trim() ?? "" : studioTitle.Trim();
 
     private static StudioCloudAlbumRevision? CurrentCloudAlbumRevision(StudioCloudAlbum album) =>
         album.Revisions.FirstOrDefault(item =>

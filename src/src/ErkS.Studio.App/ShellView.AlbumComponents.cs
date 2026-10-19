@@ -751,6 +751,11 @@ internal sealed partial class ShellView
             album.LastPageCount = canonicalPreview.PageCount;
             album.LastPageSizeSummary = revision.PageSizeSummary?.Trim() ?? "";
             lastAlbumPath = outputPath;
+            state.RecordShownAlbum(
+                outputPath,
+                canonicalPreview.PageCount,
+                album.LastPageSizeSummary,
+                ownerEmail);
 
             result = new AlbumBuildResult
             {
@@ -1076,6 +1081,11 @@ internal sealed partial class ShellView
         album.LastPageCount = canonicalPreview.PageCount;
         album.LastPageSizeSummary = revision.PageSizeSummary?.Trim() ?? "";
         lastAlbumPath = previewPath;
+        state.RecordShownAlbum(
+            previewPath,
+            canonicalPreview.PageCount,
+            album.LastPageSizeSummary,
+            CurrentCloudOwnerEmail());
         var result = new AlbumBuildResult
         {
             OutputPath = previewPath,

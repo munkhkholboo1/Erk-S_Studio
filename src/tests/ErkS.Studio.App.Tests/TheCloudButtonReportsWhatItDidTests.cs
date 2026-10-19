@@ -28,7 +28,7 @@ public sealed class TheCloudButtonReportsWhatItDidTests
             ReadAppSource("ShellView.AlbumRefresh.cs"), "private async Task RefreshAlbumAsync()");
 
         Assert.DoesNotContain("SourceRefreshOutcome.Completed(", CodeOnly(body), StringComparison.Ordinal);
-        Assert.Contains("AlbumRefreshReport.SourcesNotChecked(", body, StringComparison.Ordinal);
+        Assert.Contains("AlbumRefreshReport.NoDeliveryWaiting()", body, StringComparison.Ordinal);
 
         // The expensive read still runs when something IS waiting - the skip is
         // a performance decision, not a removal.

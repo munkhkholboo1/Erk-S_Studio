@@ -543,22 +543,82 @@ public static class ProjectCloudSyncMetadata
         ArgumentNullException.ThrowIfNull(albumDocument);
         RecordBuiltAlbum(project, projectPath, outputPath, pageCount, pageSizeSummary);
         ProjectAlbumRecord album = project.PrimaryAlbum;
+        RecordAlbumRevision(
+            project,
+            albumDocument,
+            album.LastPdfPath,
+            album.LastPdfSha256,
+            pageCount,
+            pageSizeSummary,
+            createdBy,
+            "Studio canonical album build");
+    }
+
+    /// <summary>
+    /// Records, as the album's latest revision, the album now on screen when it
+    /// was composed from the shared album (the cloud union preview) rather than
+    /// built locally - with the packages it was drawn from.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 BATNASAN, 2026-10-20: a cloud-linked project never builds the local
+    /// album, so its .erksalbum kept R23 - an hour-old build from the previous
+    /// ЕТ package - while the album on screen was composed from the new ЕТ and
+    /// Revit packages. The Twin reads the album's truth from that file: one
+    /// file, one latest revision, the packages it used. The revision is a
+    /// record of what is shown, not new work - so unlike a local build it does
+    /// not mark the project pending (the shown album is the shared one).
+    /// The same snapshot twice is one revision (CreateDraft).
+    /// </remarks>
+    public static DeliverableRevisionRecord RecordShownAlbum(
+        ProjectWorkspace project,
+        StudioAlbumDocument albumDocument,
+        string projectPath,
+        string outputPath,
+        int pageCount,
+        string pageSizeSummary,
+        string createdBy)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(albumDocument);
+        if (!File.Exists(outputPath))
+            throw new FileNotFoundException("Shown album PDF was not found.", outputPath);
+        using FileStream stream = File.OpenRead(outputPath);
+        string sha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        return RecordAlbumRevision(
+            project,
+            albumDocument,
+            ProjectWorkspacePaths.ToRelativePath(projectPath, outputPath),
+            sha256,
+            Math.Max(1, pageCount),
+            pageSizeSummary,
+            createdBy,
+            "Studio album composed from the shared album");
+    }
+
+    private static DeliverableRevisionRecord RecordAlbumRevision(
+        ProjectWorkspace project,
+        StudioAlbumDocument albumDocument,
+        string pdfPath,
+        string sha256,
+        int pageCount,
+        string pageSizeSummary,
+        string createdBy,
+        string auditNote) =>
         DeliverableRevisionLifecycle.CreateDraft(
             albumDocument,
             new DeliverableRevisionInput
             {
-                PdfPath = album.LastPdfPath,
-                Sha256 = album.LastPdfSha256,
+                PdfPath = pdfPath,
+                Sha256 = sha256,
                 SourcePackageIds = SourcePackages(project).Select(item => item.ManifestId).ToList(),
                 FoundationVersion = project.Foundation.Version,
                 CompanySnapshotId = project.Foundation.DesignCompany.OrganizationId,
                 PageCount = pageCount,
-                PageSizeSummary = pageSizeSummary,
-                CreatedBy = createdBy,
-                AuditNote = "Studio canonical album build",
+                PageSizeSummary = pageSizeSummary ?? "",
+                CreatedBy = createdBy ?? "",
+                AuditNote = auditNote,
             },
             DateTimeOffset.UtcNow);
-    }
 
     public static void MarkSynced(
         ProjectWorkspace project,

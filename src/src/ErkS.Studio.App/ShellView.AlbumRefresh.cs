@@ -425,10 +425,7 @@ internal sealed partial class ShellView
             int changedCount = 0;
             if (!anyDeliveryWaiting)
             {
-                steps.Add(AlbumRefreshReport.SourcesNotChecked(
-                    "хүлээгдэж буй шинэ багц алга тул уншаагүй. " +
-                    "Зураг засварласан бол Revit/AutoCAD-аасаа «Studio руу илгээх» " +
-                    "хийсний дараа энэ товч түүнийг авна."));
+                steps.Add(AlbumRefreshReport.NoDeliveryWaiting());
             }
             else
             {

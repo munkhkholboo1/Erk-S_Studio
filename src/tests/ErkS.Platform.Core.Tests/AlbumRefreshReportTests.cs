@@ -159,6 +159,25 @@ public sealed class AlbumRefreshReportTests
     }
 
     [Fact]
+    public void NoDeliveryWaitingIsNothingToDoAndTheRunCanComplete()
+    {
+        // Batnasan, 2026-10-20: the inbox survey found no new package, and the
+        // run still closed «Альбомын шинэчлэл бүрэн дуусаагүй» - the survey IS
+        // the check; nothing waiting is nothing to do, not a step left undone.
+        AlbumRefreshReport report = AlbumRefreshReport.Create(
+            [
+                AlbumRefreshReport.NoDeliveryWaiting(),
+                AlbumRefreshReport.ContributionSent(0),
+                AlbumRefreshReport.CloudFetched(false, "r-6"),
+                AlbumRefreshReport.PagesRecomposed(59, 0),
+            ],
+            AlbumOnScreen.CloudCanonical);
+
+        Assert.True(report.IsComplete);
+        Assert.DoesNotContain("шалгав", AlbumRefreshReport.NoDeliveryWaiting().DetailMn, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ARunThatDidEVERYTHINGIsTheONLYWayToReachComplete()
     {
         // The positive control for IsComplete: it must be reachable, or every
