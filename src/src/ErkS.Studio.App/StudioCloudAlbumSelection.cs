@@ -17,6 +17,19 @@ namespace ErkS.Studio;
 /// </summary>
 internal static class StudioCloudAlbumSelection
 {
+    /// <summary>The server's album type for working drawings (SRV 88d049f).</summary>
+    public const string BuildingWorkingDrawingsAlbumType = "BuildingWorkingDrawings";
+
+    /// <summary>
+    /// Whether a server album is the project's building album - the concept
+    /// album, or, since the server types an album by its own stage (SRV
+    /// 88d049f, 2026-10-20), the working-drawing album. Asking for the concept
+    /// type alone would skip a working-drawing album in every fallback.
+    /// </summary>
+    public static bool IsBuildingAlbumType(string? albumType) =>
+        string.Equals(albumType, ErkS.Platform.Core.ProjectWorkspace.BuildingArchitectureConcept, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(albumType, BuildingWorkingDrawingsAlbumType, StringComparison.OrdinalIgnoreCase);
+
     public static StudioCloudAlbumRevision? CurrentRevision(StudioCloudProjectDetail? detail) =>
         (detail?.Albums ?? [])
             .OfType<StudioCloudAlbum>()

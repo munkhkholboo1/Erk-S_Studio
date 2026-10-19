@@ -379,9 +379,7 @@ internal static class StudioCanonicalAlbumRebuildPolicy
         IEnumerable<StudioCloudAlbum>? albums) =>
         (albums ?? [])
             .FirstOrDefault(album =>
-                album.AlbumType.Equals(
-                    ProjectWorkspace.BuildingArchitectureConcept,
-                    StringComparison.OrdinalIgnoreCase))
+                StudioCloudAlbumSelection.IsBuildingAlbumType(album.AlbumType))
         ?? (albums ?? []).FirstOrDefault();
 
     private static StudioCloudAlbumRevision? CurrentRevision(

@@ -5272,7 +5272,7 @@ internal sealed partial class ShellView : IDisposable
             StudioCloudAlbum serverAlbum = albums.FirstOrDefault(item =>
                     item.AlbumId.Equals(ensuredAlbum.AlbumId, StringComparison.OrdinalIgnoreCase))
                 ?? albums.FirstOrDefault(item =>
-                    item.AlbumType.Equals(ProjectWorkspace.BuildingArchitectureConcept, StringComparison.OrdinalIgnoreCase))
+                    StudioCloudAlbumSelection.IsBuildingAlbumType(item.AlbumType))
                 ?? ensuredAlbum;
             StudioCloudAlbumRevision? currentRevision = serverAlbum.Revisions.FirstOrDefault(item =>
                 item.RevisionId.Equals(serverAlbum.CurrentRevisionId, StringComparison.OrdinalIgnoreCase));
@@ -6461,9 +6461,7 @@ internal sealed partial class ShellView : IDisposable
                         preferredAlbumId,
                         StringComparison.OrdinalIgnoreCase))
                 ?? albums.FirstOrDefault(item =>
-                    item.AlbumType.Equals(
-                        ProjectWorkspace.BuildingArchitectureConcept,
-                        StringComparison.OrdinalIgnoreCase))
+                    StudioCloudAlbumSelection.IsBuildingAlbumType(item.AlbumType))
                 ?? albums.FirstOrDefault();
             StudioCloudAlbumRevision? revision = album is null
                 ? null
