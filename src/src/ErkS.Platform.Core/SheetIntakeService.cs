@@ -9,6 +9,18 @@ public sealed class RejectedSheetPackage
     public required string ManifestPath { get; init; }
     public Guid? PackageId { get; init; }
     public required IReadOnlyList<string> Issues { get; init; }
+
+    /// <summary>
+    /// The source the inbox was registered for when this was refused - an
+    /// ownership refusal depends on it, and a relink must look again.
+    /// </summary>
+    public string? SourceId { get; init; }
+
+    /// <summary>The reader that refused it: a newer Studio may accept it.</summary>
+    public int? ReaderSchemaVersion { get; init; }
+
+    /// <summary>The manifest's last write when refused: a re-export must be looked at again.</summary>
+    public long? ManifestLastWriteUtcTicks { get; init; }
 }
 
 public sealed class SheetIntakeScanResult
@@ -31,6 +43,14 @@ public sealed class SheetIntakeScanResult
     public int UpdatedSheetCount { get; internal set; }
     public int RemovedSheetCount { get; internal set; }
     public int RejectedPackageCount { get; internal set; }
+
+    /// <summary>
+    /// Rejected packages recognised from an earlier rejection - same file,
+    /// same source, same reader - and not opened again. Still counted as
+    /// rejected: they are in the inbox and still refused.
+    /// </summary>
+    public int SkippedKnownRejectedManifestCount { get; internal set; }
+
     public int ErrorCount { get; internal set; }
 
     internal void Add(SheetIntakeScanResult other)
@@ -44,6 +64,7 @@ public sealed class SheetIntakeScanResult
         UpdatedSheetCount += other.UpdatedSheetCount;
         RemovedSheetCount += other.RemovedSheetCount;
         RejectedPackageCount += other.RejectedPackageCount;
+        SkippedKnownRejectedManifestCount += other.SkippedKnownRejectedManifestCount;
         ErrorCount += other.ErrorCount;
     }
 }
@@ -300,6 +321,14 @@ public sealed class SheetIntakeService : IDisposable
                 }
 
                 scan.ManifestCount++;
+                if (IsKnownRejected(manifest, registration))
+                {
+                    scan.SkippedKnownRejectedManifestCount++;
+                    scan.RejectedPackageCount++;
+                    scan.ErrorCount++;
+                    continue;
+                }
+
                 bool silentlyHydrated = false;
                 SheetPackageCheckpoint? hydrationCheckpoint = FindCheckpoint(
                     registration,
@@ -563,7 +592,7 @@ public sealed class SheetIntakeService : IDisposable
             }
             if (change.Rejected)
             {
-                RecordRejectedPackage(result, registration.Folder);
+                RecordRejectedPackage(result, registration);
             }
             return change;
         }
@@ -695,8 +724,65 @@ public sealed class SheetIntakeService : IDisposable
     private static string? CleanIdentity(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private void RecordRejectedPackage(SheetPackageLoadResult result, string quarantineRoot)
+    /// <summary>
+    /// Whether this exact manifest was refused before, for this source, by
+    /// this reader, and has not been written since.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 THE REFUSAL USED TO LIVE ONLY IN THIS PROCESS. Erin's inbox holds six
+    /// packages of two since-removed sources; every Studio start re-read,
+    /// re-verified and re-refused them, and appended them to the audit again -
+    /// 94 lines for six folders. The audit is the memory now. Nothing is moved
+    /// or deleted: a relink, a re-export or a newer reader all look again.
+    /// </remarks>
+    private bool IsKnownRejected(string manifestPath, WatcherRegistration registration)
     {
+        try
+        {
+            string fullPath = Path.GetFullPath(manifestPath);
+            long lastWrite = File.GetLastWriteTimeUtc(fullPath).Ticks;
+            return LoadRejectionAudit(registration.Folder).Any(record =>
+                string.Equals(record.ManifestPath, fullPath, StringComparison.OrdinalIgnoreCase) &&
+                record.ManifestLastWriteUtcTicks == lastWrite &&
+                record.ReaderSchemaVersion == SheetPackageManifest.CurrentSchemaVersion &&
+                string.Equals(record.SourceId ?? "", registration.SourceId ?? "", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static IReadOnlyList<RejectedSheetPackage> LoadRejectionAudit(string quarantineRoot)
+    {
+        string auditPath = Path.Combine(quarantineRoot, ".erks-quarantine", "rejected-packages.jsonl");
+        if (!File.Exists(auditPath))
+            return [];
+
+        var records = new List<RejectedSheetPackage>();
+        foreach (string line in File.ReadLines(auditPath))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+            try
+            {
+                RejectedSheetPackage? record =
+                    JsonSerializer.Deserialize<RejectedSheetPackage>(line, AuditJsonOptions);
+                if (record is not null)
+                    records.Add(record);
+            }
+            catch (JsonException)
+            {
+                // A damaged line is simply not a known rejection.
+            }
+        }
+        return records;
+    }
+
+    private void RecordRejectedPackage(SheetPackageLoadResult result, WatcherRegistration registration)
+    {
+        string quarantineRoot = registration.Folder;
         var fullManifestPath = Path.GetFullPath(result.ManifestPath);
         var signature = string.Join('|',
             fullManifestPath.ToUpperInvariant(),
@@ -709,6 +795,11 @@ public sealed class SheetIntakeService : IDisposable
             ManifestPath = fullManifestPath,
             PackageId = result.Manifest?.PackageId,
             Issues = result.Issues.ToList(),
+            SourceId = registration.SourceId,
+            ReaderSchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
+            ManifestLastWriteUtcTicks = File.Exists(fullManifestPath)
+                ? File.GetLastWriteTimeUtc(fullManifestPath).Ticks
+                : null,
         };
 
         lock (sync)

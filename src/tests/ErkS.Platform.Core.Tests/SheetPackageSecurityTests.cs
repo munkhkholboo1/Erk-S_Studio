@@ -372,6 +372,90 @@ public sealed class SheetPackageSecurityTests : IDisposable
     }
 
     [Fact]
+    public void ARejectedPackageIsNOTReverifiedOrReauditedAfterARestart()
+    {
+        // 🔴 ERIN'S INBOX: six packages of two since-removed sources, rejected
+        // as foreign on every Studio start - 94 audit lines for six folders,
+        // each re-read, re-hashed and re-reported. The rejection lived only in
+        // the process's memory. It is kept beside the audit now, and a package
+        // untouched since is not opened again.
+        (PackageFiles package, string auditPath) = RejectedOnce("restart");
+
+        var library = new SheetLibrary();
+        using var intake = new SheetIntakeService(library);
+        intake.WatchFolder(Path.GetDirectoryName(package.ManifestPath)!, scanExisting: false);
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Single(File.ReadAllLines(auditPath));
+        Assert.Equal(1, scan.SkippedKnownRejectedManifestCount);
+        // Still reported as what it is: a rejected package in the inbox.
+        Assert.Equal(1, scan.RejectedPackageCount);
+        Assert.Empty(library.Snapshot());
+    }
+
+    [Fact]
+    public void APackageTouchedSinceItsRejectionIsVerifiedAgain()
+    {
+        (PackageFiles package, string auditPath) = RejectedOnce("touched");
+        File.SetLastWriteTimeUtc(package.ManifestPath, DateTime.UtcNow.AddMinutes(1));
+
+        using var intake = new SheetIntakeService(new SheetLibrary());
+        intake.WatchFolder(Path.GetDirectoryName(package.ManifestPath)!, scanExisting: false);
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Equal(0, scan.SkippedKnownRejectedManifestCount);
+        Assert.Equal(2, File.ReadAllLines(auditPath).Length);
+    }
+
+    [Fact]
+    public void ARejectionByAnOLDERReaderIsVerifiedAgain()
+    {
+        // A newer Studio may accept what an older one refused (a schema it did
+        // not know). The reader's version is part of the record; a rejection by
+        // another version is not trusted.
+        (PackageFiles package, string auditPath) = RejectedOnce("older-reader");
+        var line = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllLines(auditPath)[0])!.AsObject();
+        line["readerSchemaVersion"] = SheetPackageManifest.CurrentSchemaVersion - 1;
+        File.WriteAllText(auditPath, line.ToJsonString() + Environment.NewLine);
+
+        using var intake = new SheetIntakeService(new SheetLibrary());
+        intake.WatchFolder(Path.GetDirectoryName(package.ManifestPath)!, scanExisting: false);
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Equal(0, scan.SkippedKnownRejectedManifestCount);
+        Assert.Equal(2, File.ReadAllLines(auditPath).Length);
+    }
+
+    [Fact]
+    public void AnInboxRegisteredForANOTHERSourceLooksAgain()
+    {
+        // Erin's refusals are ownership refusals: "belongs to source X, not Y".
+        // An inbox relinked to another source must judge them afresh.
+        (PackageFiles package, string auditPath) = RejectedOnce("relinked");
+
+        using var intake = new SheetIntakeService(new SheetLibrary());
+        intake.WatchFolder(Path.GetDirectoryName(package.ManifestPath)!, sourceId: "another-source", scanExisting: false);
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Equal(0, scan.SkippedKnownRejectedManifestCount);
+        Assert.Equal(2, File.ReadAllLines(auditPath).Length);
+    }
+
+    private (PackageFiles Package, string AuditPath) RejectedOnce(string name)
+    {
+        PackageFiles package = WritePackage(name, ["A1"], SheetPackageScope.Delta, DateTimeOffset.UtcNow);
+        File.AppendAllText(package.PdfPaths[0], "tampered");
+        string folder = Path.GetDirectoryName(package.ManifestPath)!;
+        using (var first = new SheetIntakeService(new SheetLibrary()))
+        {
+            first.WatchFolder(folder);
+        }
+        string auditPath = Path.Combine(folder, ".erks-quarantine", "rejected-packages.jsonl");
+        Assert.Single(File.ReadAllLines(auditPath));
+        return (package, auditPath);
+    }
+
+    [Fact]
     public void InvalidPackage_DoesNotModifyAlbumPagesOrCloudSyncMetadata()
     {
         PackageFiles package = WritePackage(
