@@ -4712,6 +4712,7 @@ internal sealed partial class ShellView : IDisposable
                 state.SaveProject();
             }
 
+            RecordBlockedSyncNote(plan);
             if (!plan.HasUploads)
             {
                 SetOperationStatus(
@@ -4732,6 +4733,9 @@ internal sealed partial class ShellView : IDisposable
                 operationId,
                 operationContext,
                 sourceSnapshotVersion);
+            // The upload writes its own note; what it could not send is added
+            // after, so the reason outlives this session.
+            RecordBlockedSyncNote(plan);
             RequireOperationContext(operationContext, "cloud_sync_complete");
             StudioSourceSyncSnapshotGuard.Require(
                 state.Library,
@@ -4849,6 +4853,19 @@ internal sealed partial class ShellView : IDisposable
                     sourceRescanProjectPath);
             }
         }
+    }
+
+    /// <summary>
+    /// Writes what a sync could not send, and why, into the project's sync
+    /// note - the one place that outlives the session.
+    /// </summary>
+    private void RecordBlockedSyncNote(CloudSyncPreviewPlan plan)
+    {
+        string blocked = plan.BlockedSummary();
+        if (blocked.Length == 0)
+            return;
+        state.Project.Cloud.LastSyncNote = blocked;
+        state.SaveProject();
     }
 
     private async Task SyncCurrentProjectAsync(

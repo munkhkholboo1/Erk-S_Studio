@@ -233,9 +233,7 @@ internal static class StudioSourceRemovalOutbox
                 claim.OwnerEmail.Equals(
                     account,
                     StringComparison.OrdinalIgnoreCase) &&
-                claim.DeviceFingerprint.Equals(
-                    device,
-                    StringComparison.OrdinalIgnoreCase) &&
+                IsThisDevicesClaim(claim.DeviceFingerprint, device) &&
                 IsOwnedSourceCode(claim.ComponentCode))
             .OrderBy(claim => claim.ClaimedAtUtc)
             .ThenBy(claim => claim.ComponentCode, StringComparer.OrdinalIgnoreCase)
@@ -252,17 +250,62 @@ internal static class StudioSourceRemovalOutbox
         string account = Normalize(currentAccountEmail);
         string device = Normalize(currentDeviceFingerprint);
         ProjectLocalAlbumComponentClaim? claim =
-            ProjectCloudSyncMetadata.PendingAlbumComponentClaim(
-                project,
-                componentCode,
-                account,
-                device);
+            ClaimOfThisDevice(project, componentCode, account, device);
         return claim is
         {
             IsRemoval: true,
             RegistrySourceId.Length: > 0
         } &&
             IsOwnedSourceCode(claim.ComponentCode);
+    }
+
+    /// <summary>
+    /// The pending claim for a component made by this account on THIS
+    /// machine, under any name the machine has signed with.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Erin's two removals of 2026-08-20 carry this machine's older-salt
+    /// form; after a device key was adopted the machine answered with the key
+    /// form, an exact match found nothing, and both removals stood blocked on
+    /// every sync. The exact claim still wins when there is one.
+    /// </remarks>
+    public static ProjectLocalAlbumComponentClaim? ClaimOfThisDevice(
+        ProjectWorkspace project,
+        string componentCode,
+        string? currentAccountEmail,
+        string? currentDeviceFingerprint)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        string code = (componentCode ?? "").Trim();
+        string account = Normalize(currentAccountEmail);
+        string device = Normalize(currentDeviceFingerprint);
+        if (code.Length == 0 || account.Length == 0 || device.Length == 0)
+            return null;
+
+        return ProjectCloudSyncMetadata.PendingAlbumComponentClaim(project, code, account, device) ??
+            (project.Cloud.PendingAlbumComponentClaims ?? []).FirstOrDefault(claim =>
+                claim.ComponentCode.Equals(code, StringComparison.OrdinalIgnoreCase) &&
+                claim.OwnerEmail.Equals(account, StringComparison.OrdinalIgnoreCase) &&
+                IsThisDevicesClaim(claim.DeviceFingerprint, device));
+    }
+
+    /// <summary>
+    /// Whether a claim's device is the caller's. Exact equality, or - when the
+    /// caller is this machine - any form this machine can present. Widening
+    /// acceptance, never ownership: a caller that is not this machine gains
+    /// nothing, and another machine's claim is never this machine's.
+    /// </summary>
+    private static bool IsThisDevicesClaim(string? claimDevice, string currentDevice)
+    {
+        string claimed = Normalize(claimDevice);
+        if (claimed.Length == 0 || currentDevice.Length == 0)
+            return false;
+        if (claimed.Equals(currentDevice, StringComparison.Ordinal))
+            return true;
+
+        IReadOnlyList<string> forms = StudioDeviceIdentity.AllFormsOfThisDevice;
+        bool callerIsThisMachine = forms.Any(form => Normalize(form) == currentDevice);
+        return callerIsThisMachine && forms.Any(form => Normalize(form) == claimed);
     }
 
     public static bool IsSourceStaged(

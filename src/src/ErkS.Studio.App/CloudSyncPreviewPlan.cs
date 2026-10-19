@@ -83,6 +83,23 @@ internal sealed class CloudSyncPreviewPlan
 
     public bool AllPendingAuthorized => !HasBlockedPendingChanges;
 
+    /// <summary>
+    /// What stayed behind and why, in one sentence for the project's sync note.
+    /// Empty when nothing was blocked.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Erin stood at «Pending» for two months with an empty error and an
+    /// empty note: the blocked items were shown in a dialog and a status line,
+    /// and neither survives the session. A state nobody can explain afterwards
+    /// is one nobody fixes.
+    /// </remarks>
+    public string BlockedSummary() =>
+        Blocked.Count == 0
+            ? ""
+            : $"Илгээгдээгүй {Blocked.Count}: " + string.Join(
+                "; ",
+                Blocked.Select(item => $"{item.Title} ({item.Code}) — {item.Detail}"));
+
     public bool IsSourceAuthorized(ProjectSourceSyncCandidate candidate) =>
         authorizedSourceIdentities.Contains(SourceIdentity(candidate));
 
@@ -309,8 +326,11 @@ internal static class CloudSyncPreviewPlanner
             {
                 string code = componentCode.Trim();
                 authorizedComponents.Add(code);
+                // This machine's claim under any of its names: a removal staged
+                // before a device key was adopted is still this machine's, and
+                // a claim the plan does not acknowledge is never cleared.
                 ProjectLocalAlbumComponentClaim? claim =
-                    ProjectCloudSyncMetadata.PendingAlbumComponentClaim(
+                    StudioSourceRemovalOutbox.ClaimOfThisDevice(
                         project,
                         code,
                         currentEmail,
