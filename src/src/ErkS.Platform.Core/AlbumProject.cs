@@ -414,6 +414,12 @@ public sealed class AlbumDefinition
     /// every received sheet is merged as-is.
     /// </summary>
     public List<AlbumPageDefinition> Pages { get; set; } = [];
+
+    /// <summary>
+    /// The working drawings' explanatory note, composition and indicators,
+    /// written into the source's 01 frames (see <see cref="WorkingDrawingFrontMatter"/>).
+    /// </summary>
+    public WorkingDrawingFrontMatter FrontMatter { get; set; } = new();
 }
 
 public sealed class AlbumCompositionItem : IAlbumPageRoleOwner
@@ -487,6 +493,14 @@ public sealed class AlbumPageDefinition : IAlbumPageRoleOwner
 
     /// <summary>Project-template slot filled by this source sheet.</summary>
     public string TemplateSlotId { get; set; } = "";
+
+    /// <summary>
+    /// The source sheet reserved the front-matter frames and so stands in the
+    /// Studio component named by <see cref="TemplateSlotId"/> - the working
+    /// drawings' 01. Decided from the delivered entry on every reconciliation
+    /// (<see cref="WorkingDrawingFrontMatterSlot.Assign"/>).
+    /// </summary>
+    public bool FrontMatterOnSheet { get; set; }
 
     public Guid? SectionId { get; set; }
 

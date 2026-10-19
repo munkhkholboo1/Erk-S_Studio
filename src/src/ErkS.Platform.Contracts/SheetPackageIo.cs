@@ -602,6 +602,7 @@ public static class SheetPackageReader
         ValidatePayloadDeclaration(manifest, sheet, issues);
         ValidateRoles(manifest, sheet, issues);
         ValidateConsultationTable(manifest, sheet, issues);
+        ValidateFrontMatter(manifest, sheet, issues);
         if (manifest.SchemaVersion >= 5 && sheet.PdfPageNumber <= 0)
         {
             issues.Add($"Sheet '{sheet.Number}': PDF page number must be positive for schema version 5 or newer.");
@@ -795,6 +796,62 @@ public static class SheetPackageReader
              area.Y + area.Height > sheet.HeightMm + tolerance))
         {
             issues.Add($"Sheet '{sheet.Number}': consultation table lies outside the page.");
+        }
+    }
+
+    /// <remarks>
+    /// Each frame is checked on its own, and a frame Studio cannot name is a
+    /// refusal rather than something skipped: a frame left blank on a printed
+    /// sheet reads as a part the project forgot, not as a word Studio did not
+    /// know.
+    /// </remarks>
+    private static void ValidateFrontMatter(
+        SheetPackageManifest manifest,
+        SheetPackageEntry sheet,
+        ICollection<string> issues)
+    {
+        if (sheet.FrontMatterAreas is null)
+            return;
+
+        if (manifest.SchemaVersion < SheetPackageManifest.FirstFrontMatterSchemaVersion)
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': front-matter frames require schema version " +
+                $"{SheetPackageManifest.FirstFrontMatterSchemaVersion} or newer.");
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        const double tolerance = 0.01;
+        foreach (SheetFrontMatterArea frame in sheet.FrontMatterAreas)
+        {
+            string kind = (frame?.Kind ?? "").Trim();
+            if (!SheetFrontMatterKinds.IsKnown(kind))
+            {
+                issues.Add($"Sheet '{sheet.Number}': unknown front-matter frame kind '{kind}'.");
+                continue;
+            }
+            if (!seen.Add(kind))
+            {
+                issues.Add($"Sheet '{sheet.Number}': front-matter frame '{kind}' is declared twice.");
+                continue;
+            }
+
+            PageRectSpec? area = frame!.Area;
+            if (area is null ||
+                !double.IsFinite(area.X) || !double.IsFinite(area.Y) ||
+                !IsPositiveFinite(area.Width) || !IsPositiveFinite(area.Height))
+            {
+                issues.Add(
+                    $"Sheet '{sheet.Number}': front-matter frame '{kind}' must be a positive finite rectangle.");
+                continue;
+            }
+            if (IsPositiveFinite(sheet.WidthMm) && IsPositiveFinite(sheet.HeightMm) &&
+                (area.X < -tolerance || area.Y < -tolerance ||
+                 area.X + area.Width > sheet.WidthMm + tolerance ||
+                 area.Y + area.Height > sheet.HeightMm + tolerance))
+            {
+                issues.Add($"Sheet '{sheet.Number}': front-matter frame '{kind}' lies outside the page.");
+            }
         }
     }
 

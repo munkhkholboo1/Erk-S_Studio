@@ -386,7 +386,12 @@ public static class ProjectPackageReconciliationService
         // It keeps its place in the library and the source list; what it must
         // not do is print beside the page it duplicates. Checked before the
         // page is created rather than after, so there is nothing to undo.
-        if (StudioComposedPageCollision.Find(album, entry) is { } composed)
+        // A working sheet that reserves the front-matter frames is the 01 the
+        // owner chose to keep (2026-10-20), never a duplicate of Studio's list.
+        bool carriesFrontMatter = usesWorkingDrawingTemplate &&
+            WorkingDrawingFrontMatterSlot.CarriesFrontMatter(entry);
+        if (!carriesFrontMatter &&
+            StudioComposedPageCollision.Find(album, entry) is { } composed)
         {
             foreach (AlbumPageDefinition duplicate in pages)
                 album.Pages.Remove(duplicate);
@@ -438,6 +443,11 @@ public static class ProjectPackageReconciliationService
                             section.Title.Equals(slot.SectionTitle, StringComparison.OrdinalIgnoreCase))
                         ?.Id;
                 }
+            }
+            else if (usesWorkingDrawingTemplate &&
+                     WorkingDrawingFrontMatterSlot.Assign(album, page, entry))
+            {
+                // Takes the 01 place; nothing more to decide.
             }
             else if (usesWorkingDrawingTemplate)
             {

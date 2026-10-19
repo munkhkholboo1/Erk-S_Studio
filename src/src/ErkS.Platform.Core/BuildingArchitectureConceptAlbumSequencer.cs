@@ -90,7 +90,8 @@ public static class BuildingArchitectureConceptAlbumSequencer
                 StringComparer.OrdinalIgnoreCase);
 
         var candidates = pageList
-            .Where(page => BuildingArchitectureConceptAlbumTemplate.FindSlot(
+            .Where(page => page.FrontMatterOnSheet ||
+                BuildingArchitectureConceptAlbumTemplate.FindSlot(
                 definition,
                 page.TemplateSlotId)?.Kind != AlbumCompositionKind.Generated)
             .Select((page, index) => CreateCandidate(
@@ -384,7 +385,7 @@ public static class BuildingArchitectureConceptAlbumSequencer
             {
                 Kind: AlbumCompositionKind.SourceSlot,
                 AllowMultiple: false,
-            },
+            } || (page.FrontMatterOnSheet && slot is { Kind: AlbumCompositionKind.Generated }),
         };
     }
 

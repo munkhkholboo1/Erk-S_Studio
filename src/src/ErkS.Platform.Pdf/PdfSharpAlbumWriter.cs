@@ -160,6 +160,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                     ComposeFormattedPages(document, request.Project, buildPage);
                 }
                 AddConsultationOverflowWarning(warnings, request.Project, buildPage);
+                DrawFrontMatter(document, firstPageIndex, request, generatedPages, buildPage, warnings);
                 warnings.AddRange(GeneralPlanInformationWarnings(buildPage));
 
                 string sourceIdentity = !string.IsNullOrWhiteSpace(sheet.SourceId)

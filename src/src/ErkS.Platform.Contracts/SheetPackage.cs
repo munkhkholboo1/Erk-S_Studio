@@ -16,7 +16,7 @@ namespace ErkS.Platform.Contracts;
 /// </summary>
 public sealed class SheetPackageManifest
 {
-    public const int CurrentSchemaVersion = 8;
+    public const int CurrentSchemaVersion = 9;
 
     /// <summary>
     /// The first schema whose entries may carry <see cref="SheetPackageEntry.Roles"/>.
@@ -43,6 +43,14 @@ public sealed class SheetPackageManifest
     /// with empty information bands; the version makes it refuse out loud.
     /// </summary>
     public const int FirstSheetInfoSchemaVersion = 8;
+
+    /// <summary>
+    /// The first schema whose entries may reserve front-matter frames
+    /// (<see cref="SheetPackageEntry.FrontMatterAreas"/>): the drawing list,
+    /// the explanatory note, the set's composition and the technical indicators
+    /// that Studio writes onto the source's own «ЕРӨНХИЙ ХЭСЭГ» sheet.
+    /// </summary>
+    public const int FirstFrontMatterSchemaVersion = 9;
 
     /// <summary>
     /// The first schema that may carry a raster payload.
@@ -448,6 +456,24 @@ public sealed class SheetPackageEntry
     public int ConsultationTableRows { get; set; }
 
     /// <summary>
+    /// Empty frames the source reserved on this sheet for the album's front
+    /// matter, each named by its <see cref="SheetFrontMatterArea.Kind"/>. Null
+    /// when the sheet carries none.
+    /// </summary>
+    /// <remarks>
+    /// The owner decided on 2026-10-20 that the working drawings' 01
+    /// «ЕРӨНХИЙ ХЭСЭГ» stays the source's sheet - its site plan and elevation,
+    /// its number - and that the drawing list, the explanatory note, the set's
+    /// composition and the technical indicators are written by Studio into
+    /// frames the source leaves empty there. A sheet carrying the drawing-list
+    /// frame takes the album's 01 place; Studio does not add a page of its own.
+    /// Not written when null, as with <see cref="Roles"/>.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SheetFrontMatterArea>? FrontMatterAreas { get; set; }
+
+    /// <summary>
     /// One-based page in <see cref="PdfFileName"/> represented by this logical
     /// sheet. Schema 5 producers must set this value. Schema 1-4 readers ignore
     /// it and retain their legacy whole-PDF behavior.
@@ -509,6 +535,41 @@ public sealed class PageFormatSpec
 
     /// <summary>SHA-256 of the canonical physical geometry and render flags.</summary>
     public string GeometryHash { get; set; } = "";
+}
+
+/// <summary>One reserved front-matter frame on a source sheet.</summary>
+public sealed class SheetFrontMatterArea
+{
+    /// <summary>One of <see cref="SheetFrontMatterKinds"/>.</summary>
+    public string Kind { get; set; } = "";
+
+    /// <summary>
+    /// Millimetres from the page's top-left - the same origin as
+    /// <c>format.titleBlockArea</c>.
+    /// </summary>
+    public PageRectSpec? Area { get; set; }
+}
+
+/// <summary>The front-matter frames a source may reserve, by name.</summary>
+public static class SheetFrontMatterKinds
+{
+    /// <summary>«Зургийн жагсаалт»: every page of the album, number | title | mark.</summary>
+    public const string DrawingList = "drawing-list";
+
+    /// <summary>«Тайлбар бичиг»: the project's explanatory note.</summary>
+    public const string ExplanatoryNote = "explanatory-note";
+
+    /// <summary>«Ажлын зургийн иж бүрдлийн жагсаалт»: mark | section | sheet count.</summary>
+    public const string AlbumComposition = "album-composition";
+
+    /// <summary>«Техник эдийн засгийн үзүүлэлт»: № | indicator | unit | value.</summary>
+    public const string TechnicalIndicators = "technical-indicators";
+
+    public static readonly IReadOnlyList<string> All =
+        [DrawingList, ExplanatoryNote, AlbumComposition, TechnicalIndicators];
+
+    public static bool IsKnown(string? kind) =>
+        All.Contains((kind ?? "").Trim(), StringComparer.Ordinal);
 }
 
 public sealed class PageRectSpec

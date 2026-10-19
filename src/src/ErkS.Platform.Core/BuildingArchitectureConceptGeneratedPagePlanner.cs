@@ -65,6 +65,9 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
         int facesPerPage = DocumentPagesPerAlbumPage(project);
         foreach (AlbumCompositionItem component in project.Album.Composition
                      .Where(item => item.Kind == AlbumCompositionKind.Generated)
+                     // A source sheet that stands in this component's place
+                     // (the working drawings' 01) is drawn instead of it.
+                     .Where(item => !WorkingDrawingFrontMatterSlot.IsTakenBySource(project.Album, item))
                      .OrderBy(FixedGeneratedPageOrder)
                      .ThenBy(item => item.Order))
         {

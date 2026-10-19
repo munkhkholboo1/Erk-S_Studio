@@ -2599,6 +2599,13 @@ internal sealed partial class ShellView
             "Сонгосон Нүүр тал эсвэл Ерөнхий төлөвлөгөөний 55 мм дээд бүсийн тайлбарыг засна. " +
             "БАТЛАВ болон ХЯНАВ нь баталгаажуулалтын мэдээллээс уншигдана.";
         elevationInformation.Click += (_, _) => EditSelectedElevationSheetInformation();
+        var frontMatter = StudioWidgets.CreateIconTextButton(
+            "icon-project.svg",
+            "ЕХ мэдээлэл");
+        frontMatter.ToolTip =
+            "Ажлын зургийн 01 «ЕРӨНХИЙ ХЭСЭГ» хуудсанд хэвлэгдэх тайлбар бичиг, " +
+            "иж бүрдлийн жагсаалт, техник эдийн засгийн үзүүлэлтийг засна.";
+        frontMatter.Click += (_, _) => EditWorkingDrawingFrontMatter();
         var open = StudioWidgets.CreateButton("PDF нээх");
         open.Click += (_, _) =>
         {
@@ -2617,6 +2624,7 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(editSiteContext);
         documentGroup.Children.Add(editVisualizations);
         documentGroup.Children.Add(elevationInformation);
+        documentGroup.Children.Add(frontMatter);
         documentGroup.Children.Add(open);
         autoRebuildCheck.Content = "Auto шинэчлэлт";
         autoRebuildCheck.ToolTip = "Эх үүсвэр өөрчлөгдөхөд альбумыг автоматаар шинэчилнэ.";
@@ -2861,6 +2869,27 @@ internal sealed partial class ShellView
         state.SaveProject();
         RefreshAlbumWorkspace(selectItemKey: selected.SelectionKey);
         UpdateAlbum(silent: false, statusPrefix: "Хуудасны дээд мэдээлэл хадгалагдлаа");
+    }
+
+    /// <summary>
+    /// The working drawings' explanatory note, composition and indicators -
+    /// written by Studio into the frames the source reserved on its 01.
+    /// </summary>
+    private void EditWorkingDrawingFrontMatter()
+    {
+        if (!state.HasOpenProject || !CanEditProjectContent())
+            return;
+
+        var dialog = new WorkingDrawingFrontMatterDialog(state.Album.FrontMatter)
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        state.Album.FrontMatter = dialog.Result;
+        state.SaveProject();
+        UpdateAlbum(silent: false, statusPrefix: "Ерөнхий хэсгийн мэдээлэл хадгалагдлаа");
     }
 
     private UIElement BuildAlbumProperties()
@@ -3951,7 +3980,9 @@ internal sealed partial class ShellView
             previousContentKind,
             page.ContentKindOverride,
             StringComparison.OrdinalIgnoreCase);
-        if (sheet is not null)
+        // A sheet standing in the working drawings' 01 keeps that place; the
+        // concept vocabulary below knows nothing of it.
+        if (sheet is not null && !page.FrontMatterOnSheet)
         {
             AlbumCompositionItem? slot =
                 BuildingArchitectureConceptAlbumTemplate.FindSourceSlot(
