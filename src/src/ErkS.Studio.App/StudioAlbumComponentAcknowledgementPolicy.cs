@@ -28,13 +28,17 @@ internal static class StudioAlbumComponentAcknowledgementPolicy
         IReadOnlyDictionary<string, string> pendingCodeMap,
         IReadOnlyList<StudioCloudAlbumSection> verifiedManifest,
         IReadOnlyList<StudioAlbumComponentUpload> submittedUploads,
-        IReadOnlyCollection<string>? deferredCodes = null)
+        IReadOnlyCollection<string>? deferredCodes = null,
+        IReadOnlyCollection<string>? removalCodes = null)
     {
         ArgumentNullException.ThrowIfNull(pendingCodeMap);
         ArgumentNullException.ThrowIfNull(verifiedManifest);
         ArgumentNullException.ThrowIfNull(submittedUploads);
 
         HashSet<string> deferred = deferredCodes?
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? [];
+        HashSet<string> removals = removalCodes?
             .ToHashSet(StringComparer.OrdinalIgnoreCase)
             ?? [];
         var confirmed = new List<string>();
@@ -50,7 +54,14 @@ internal static class StudioAlbumComponentAcknowledgementPolicy
                 MatchesSubmittedRemoval(
                     upload.Code,
                     pending.Value));
-            if (removalSubmitted ? !present : present)
+            // A requested removal is done exactly when the album no longer has
+            // the component - submitted or not. With nothing left to remove no
+            // removal is ever submitted, and Erin's two removals waited two
+            // months on that.
+            bool done = removals.Contains(pending.Value)
+                ? !present
+                : removalSubmitted ? !present : present;
+            if (done)
                 confirmed.Add(pending.Key);
         }
         return confirmed;

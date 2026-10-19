@@ -1633,7 +1633,8 @@ internal sealed partial class ShellView
                     pendingCodeMap,
                     merged.SectionManifest,
                     uploads,
-                    missingResolution.DeferredCodes);
+                    missingResolution.DeferredCodes,
+                    missingResolution.RemovalCodes);
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,

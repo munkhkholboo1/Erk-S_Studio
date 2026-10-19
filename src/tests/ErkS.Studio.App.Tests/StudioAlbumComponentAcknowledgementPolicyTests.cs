@@ -53,6 +53,75 @@ public sealed class StudioAlbumComponentAcknowledgementPolicyTests
     }
 
     [Fact]
+    public void ARemovalOfAComponentTheAlbumNoLongerHasIsDONE()
+    {
+        // 🔴 ERIN'S TWO REMOVALS OF 2026-08-20. Their components were already
+        // gone from the canonical album, so the merge had nothing to remove,
+        // submitted no removal - and acknowledgement demanded a submitted
+        // removal. Every sync afterwards left them pending; R44 went up and
+        // they stayed. Absent is the state a removal asks for.
+        const string removed = "source:424d27cfbcb1bc9a:d0dbfe6831db46a49680471965dd7ace";
+        var pending = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["removed-source"] = removed,
+        };
+
+        IReadOnlyList<string> confirmed =
+            StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
+                pending,
+                [Component("generated:site-context:SiteContext", "Generated")],
+                [],
+                removalCodes: [removed]);
+
+        Assert.Equal(["removed-source"], confirmed);
+    }
+
+    [Fact]
+    public void TheMergePassesItsRemovalsToTheAcknowledgement()
+    {
+        string source = File.ReadAllText(Source("ShellView.AlbumComponents.cs"));
+        string call = string.Concat(source.Where(c => !char.IsWhiteSpace(c)));
+
+        Assert.Contains(
+            "missingResolution.DeferredCodes,missingResolution.RemovalCodes);",
+            call,
+            StringComparison.Ordinal);
+    }
+
+    private static string Source(string fileName)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App", fileName);
+            if (File.Exists(candidate))
+                return candidate;
+            directory = directory.Parent;
+        }
+        Assert.Fail(fileName + " was not found; this test reads it from source");
+        return "";
+    }
+
+    [Fact]
+    public void ARemovalStillPRESENTInTheAlbumIsNotDone()
+    {
+        const string removed = "source:424d27cfbcb1bc9a:d0dbfe6831db46a49680471965dd7ace";
+        var pending = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["removed-source"] = removed,
+        };
+
+        IReadOnlyList<string> confirmed =
+            StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
+                pending,
+                [Component(removed, "Source")],
+                [],
+                removalCodes: [removed]);
+
+        Assert.Empty(confirmed);
+    }
+
+    [Fact]
     public void MissingRequestedSubCoverRemainsPending()
     {
         var pending = new Dictionary<string, string>(
