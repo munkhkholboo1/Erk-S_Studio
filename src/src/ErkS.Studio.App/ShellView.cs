@@ -3885,7 +3885,10 @@ internal sealed partial class ShellView : IDisposable
             atdSummaryBox.Text,
             atdDocumentDrafts,
             CaptureConceptDesignApprovalDraft(),
-            projectCodeBox.Text);
+            projectCodeBox.Text)
+        {
+            SectionConsent = CaptureSectionConsentDraft(),
+        };
     }
 
     private bool FoundationDraftDiffersFromProject(ProjectFoundationEditDraft draft)
@@ -3913,7 +3916,10 @@ internal sealed partial class ShellView : IDisposable
             !string.Equals(atd.Status, draft.AtdStatus, StringComparison.Ordinal) ||
             !string.Equals(atd.Summary, draft.AtdSummary, StringComparison.Ordinal) ||
             AtdDocumentDraftsDifferFromProject(draft.AtdDocuments) ||
-            ConceptApprovalDiffers(project.Foundation.ApprovalWorkflow, draft.ConceptDesignApproval);
+            ConceptApprovalDiffers(project.Foundation.ApprovalWorkflow, draft.ConceptDesignApproval) ||
+            WorkingDrawingSectionConsentList.Differs(
+                project.Foundation.ApprovalWorkflow.WorkingDrawingSectionConsent,
+                draft.SectionConsent);
     }
 
     private bool ApplyStudioFoundationMetadata(ProjectFoundationEditDraft draft)
@@ -3934,7 +3940,10 @@ internal sealed partial class ShellView : IDisposable
             !string.Equals(atd.Status, draft.AtdStatus, StringComparison.Ordinal) ||
             !string.Equals(atd.Summary, draft.AtdSummary, StringComparison.Ordinal) ||
             AtdDocumentDraftsDifferFromProject(draft.AtdDocuments) ||
-            ConceptApprovalDiffers(state.Project.Foundation.ApprovalWorkflow, draft.ConceptDesignApproval);
+            ConceptApprovalDiffers(state.Project.Foundation.ApprovalWorkflow, draft.ConceptDesignApproval) ||
+            WorkingDrawingSectionConsentList.Differs(
+                state.Project.Foundation.ApprovalWorkflow.WorkingDrawingSectionConsent,
+                draft.SectionConsent);
 
         basis.SourceType = draft.BasisSourceType;
         basis.RequestNumber = draft.RequestNumber;
@@ -3958,6 +3967,7 @@ internal sealed partial class ShellView : IDisposable
         atd.Summary = draft.AtdSummary;
         ApplyAtdDocumentDrafts(draft.AtdDocuments);
         ApplyConceptApprovalDraft(draft.ConceptDesignApproval);
+        ApplySectionConsentDraft(draft.SectionConsent);
         return changed;
     }
 

@@ -15,6 +15,12 @@ internal sealed partial class ShellView
     private readonly List<ApprovalEditorRow> concurredByEditorRows = [];
     private readonly StackPanel reviewedByRowsPanel = new();
     private readonly List<ApprovalEditorRow> reviewedByEditorRows = [];
+    private readonly StackPanel sectionConsentRowsPanel = new();
+    private readonly List<ApprovalEditorRow> sectionConsentEditorRows = [];
+    private readonly Button addSectionConsentButton = StudioWidgets.CreateGlyphTextButton(
+        "\uE710",
+        "Бүлгийн инженер нэмэх",
+        "Ажлын зургийн ЗӨВШӨӨРӨЛЦСӨН хүснэгтэд мөр нэмэх");
     private readonly Button addApprovedByButton = StudioWidgets.CreateGlyphTextButton(
         "\uE710",
         "Батлах албан тушаалтан нэмэх",
@@ -50,6 +56,7 @@ internal sealed partial class ShellView
             addEndorsedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.EndorsedBy);
             addConcurredByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ConcurredBy);
             addReviewedByButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.ReviewedBy);
+            addSectionConsentButton.Click += (_, _) => AddApprovalRow(ApprovalRosterKind.SectionConsent);
             suggestFromAddressButton.Click += (_, _) => SuggestApprovalsFromAddress();
             approvalEditorInitialized = true;
         }
@@ -96,6 +103,17 @@ internal sealed partial class ShellView
         root.Children.Add(reviewedByRowsPanel);
         addReviewedByButton.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(addReviewedByButton);
+
+        root.Children.Add(StudioWidgets.CreateSectionHeader("АЖЛЫН ЗУРГИЙН ЗӨВШӨӨРӨЛЦСӨН"));
+        root.Children.Add(StudioWidgets.CreateHint(
+            "Ажлын зургийн хуудас бүрийн булангийн хүснэгтийн дээрх хүснэгт: тухайн " +
+            "хуудсыг зөвшилцсөн бүлгийн инженерүүд (ББ, ХАС, ЦБУ, ХТ, ХД, ДГ …). " +
+            "Загвар зургийн ЗӨВШИЛЦСӨН-өөс тусдаа. Revit хүснэгтийн хүрээг нөөцөлсөн " +
+            "хуудсанд л хэвлэгдэнэ; хүрээнд багтаагүй хүнийг альбум үүсгэхэд мэдэгдэнэ."));
+        root.Children.Add(BuildApprovalColumnHeader(ApprovalRosterKind.SectionConsent));
+        root.Children.Add(sectionConsentRowsPanel);
+        addSectionConsentButton.HorizontalAlignment = HorizontalAlignment.Left;
+        root.Children.Add(addSectionConsentButton);
 
         suggestFromAddressButton.HorizontalAlignment = HorizontalAlignment.Left;
         suggestFromAddressButton.Margin = new Thickness(0, 12, 0, 0);
@@ -198,8 +216,9 @@ internal sealed partial class ShellView
         Grid grid = CreateApprovalGrid();
         grid.Margin = new Thickness(0, 4, 0, 4);
         AddHeader("№", 0, TextAlignment.Center);
-        AddHeader("Байгууллага", 1);
-        AddHeader("Албан тушаал", 2);
+        bool sectionConsent = kind == ApprovalRosterKind.SectionConsent;
+        AddHeader(sectionConsent ? "Бүлгийн марк" : "Байгууллага", 1);
+        AddHeader(sectionConsent ? "" : "Албан тушаал", 2);
         AddHeader("Нэр", 3);
         // «ХЯНАСАН» and «ХЯНАВ» are NOT the same thing, and the concept cover
         // is where they part: ХЯНАСАН is its own table on that sheet, while
@@ -250,7 +269,35 @@ internal sealed partial class ShellView
         ReplaceApprovalRows(
             ApprovalRosterKind.ReviewedBy,
             state.Project.Foundation.ApprovalWorkflow.ConceptDesign.ReviewedBy);
+        // The editor's rows carry a mark in the organisation box and a name in
+        // the name box; the position box is hidden for this roster.
+        ReplaceApprovalRows(
+            ApprovalRosterKind.SectionConsent,
+            state.Project.Foundation.ApprovalWorkflow.WorkingDrawingSectionConsent
+                .Select(entry => new ProjectApprovalEntry
+                {
+                    Id = entry.Id,
+                    OrganizationName = entry.SectionMark,
+                    PersonName = entry.PersonName,
+                }));
         RefreshConceptApprovalEditorUi();
+    }
+
+    private IReadOnlyList<WorkingDrawingSectionConsentEntry> CaptureSectionConsentDraft() =>
+        WorkingDrawingSectionConsentList.Clean(
+            ReadApprovalEntries(sectionConsentEditorRows).Select(entry => new WorkingDrawingSectionConsentEntry
+            {
+                Id = entry.Id,
+                SectionMark = entry.OrganizationName,
+                PersonName = entry.PersonName,
+            }));
+
+    private void ApplySectionConsentDraft(IReadOnlyList<WorkingDrawingSectionConsentEntry> draft)
+    {
+        state.Project.Foundation.ApprovalWorkflow ??= new ProjectApprovalWorkflow();
+        state.Project.Foundation.ApprovalWorkflow.WorkingDrawingSectionConsent = draft
+            .Select(entry => entry.Clone())
+            .ToList();
     }
 
     private ConceptDesignApprovalRoster CaptureConceptDesignApprovalDraft() => new()
@@ -422,7 +469,13 @@ internal sealed partial class ShellView
         root.Children.Add(number);
 
         var organization = new TextBox { Text = entry.OrganizationName, Margin = new Thickness(3, 0, 3, 0) };
-        var position = new TextBox { Text = entry.PositionTitle, Margin = new Thickness(3, 0, 3, 0) };
+        var position = new TextBox
+        {
+            Text = entry.PositionTitle,
+            Margin = new Thickness(3, 0, 3, 0),
+            // A section engineer is a mark and a name; there is no position to type.
+            Visibility = kind == ApprovalRosterKind.SectionConsent ? Visibility.Collapsed : Visibility.Visible,
+        };
         var person = new TextBox { Text = entry.PersonName, Margin = new Thickness(3, 0, 3, 0) };
         Grid.SetColumn(organization, 1);
         Grid.SetColumn(position, 2);
@@ -440,7 +493,7 @@ internal sealed partial class ShellView
             // ЗӨВШИЛЦСӨН has no elevation-header flag: its rows print in their
             // own table on the concept cover, not as a marked subset of another
             // section. Showing the box would offer a choice with no effect.
-            Visibility = kind == ApprovalRosterKind.ConcurredBy
+            Visibility = kind == ApprovalRosterKind.ConcurredBy || kind == ApprovalRosterKind.SectionConsent
                 ? Visibility.Collapsed
                 : Visibility.Visible,
             ToolTip = kind == ApprovalRosterKind.ApprovedBy
@@ -487,6 +540,8 @@ internal sealed partial class ShellView
             !foundationSaveInProgress && CanEditProjectInformation();
         RefreshRows(ApprovalRosterKind.ApprovedBy, editable);
         RefreshRows(ApprovalRosterKind.EndorsedBy, editable);
+        RefreshRows(ApprovalRosterKind.SectionConsent, editable);
+        addSectionConsentButton.IsEnabled = editable;
         addApprovedByButton.IsEnabled = editable &&
             approvedByEditorRows.Count < ProjectApprovalRosterLimits.MaxApprovedBy;
         addEndorsedByButton.IsEnabled = editable &&
@@ -543,6 +598,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.EndorsedBy => endorsedByEditorRows,
         ApprovalRosterKind.ConcurredBy => concurredByEditorRows,
         ApprovalRosterKind.ReviewedBy => reviewedByEditorRows,
+        ApprovalRosterKind.SectionConsent => sectionConsentEditorRows,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -552,6 +608,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.EndorsedBy => endorsedByRowsPanel,
         ApprovalRosterKind.ConcurredBy => concurredByRowsPanel,
         ApprovalRosterKind.ReviewedBy => reviewedByRowsPanel,
+        ApprovalRosterKind.SectionConsent => sectionConsentRowsPanel,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -561,6 +618,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MinEndorsedBy,
         ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MinConcurredBy,
         ApprovalRosterKind.ReviewedBy => ProjectApprovalRosterLimits.MinReviewedBy,
+        ApprovalRosterKind.SectionConsent => ProjectApprovalRosterLimits.MinSectionConsent,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -570,6 +628,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.EndorsedBy => ProjectApprovalRosterLimits.MaxEndorsedBy,
         ApprovalRosterKind.ConcurredBy => ProjectApprovalRosterLimits.MaxConcurredBy,
         ApprovalRosterKind.ReviewedBy => ProjectApprovalRosterLimits.MaxReviewedBy,
+        ApprovalRosterKind.SectionConsent => ProjectApprovalRosterLimits.MaxSectionConsent,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -590,6 +649,10 @@ internal sealed partial class ShellView
         // the store deliberately does not truncate: dropping a row at save time
         // would destroy their work with nothing on screen having said so.
         ApprovalRosterKind.ReviewedBy => true,
+
+        // The frame Revit reserved decides how many print; the build names the
+        // rest. Refusing here would leave no way to record the seventh engineer.
+        ApprovalRosterKind.SectionConsent => false,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -599,6 +662,7 @@ internal sealed partial class ShellView
         ApprovalRosterKind.EndorsedBy => "ЗӨВШӨӨРӨЛЦСӨН",
         ApprovalRosterKind.ConcurredBy => "ЗӨВШИЛЦСӨН",
         ApprovalRosterKind.ReviewedBy => "ХЯНАСАН",
+        ApprovalRosterKind.SectionConsent => "Ажлын зургийн ЗӨВШӨӨРӨЛЦСӨН",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -608,6 +672,7 @@ internal sealed partial class ShellView
         EndorsedBy,
         ConcurredBy,
         ReviewedBy,
+        SectionConsent,
     }
 
     private sealed record ApprovalEditorRow(

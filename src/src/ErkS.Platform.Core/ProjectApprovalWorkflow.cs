@@ -263,6 +263,14 @@ public static class ProjectApprovalRosterLimits
     /// </summary>
     public const int MinReviewedBy = 0;
     public const int MaxReviewedBy = 2;
+
+    /// <summary>
+    /// Working-sheet «ЗӨВШӨӨРӨЛЦСӨН»: the reserved frame decides how many rows
+    /// print (the owner's Batnasan frame holds six), so past six the editor
+    /// warns and the build names whoever did not fit - it never refuses.
+    /// </summary>
+    public const int MinSectionConsent = 0;
+    public const int MaxSectionConsent = 6;
 }
 
 public sealed record ConceptCoverApprovalSnapshot(
@@ -434,5 +442,48 @@ public static class ConceptCoverApprovalResolver
         if (role.Contains("Authority Specialist", StringComparison.OrdinalIgnoreCase))
             return "Хот байгуулалтын мэргэжилтэн";
         return role;
+    }
+}
+
+/// <summary>Comparison and cleaning for <see cref="ProjectApprovalWorkflow.WorkingDrawingSectionConsent"/>.</summary>
+public static class WorkingDrawingSectionConsentList
+{
+    /// <summary>Whether a typed list differs from the saved one in order, mark or name.</summary>
+    public static bool Differs(
+        IReadOnlyList<WorkingDrawingSectionConsentEntry> current,
+        IReadOnlyList<WorkingDrawingSectionConsentEntry> draft)
+    {
+        if (current.Count != draft.Count)
+            return true;
+        for (int index = 0; index < current.Count; index++)
+        {
+            if (!string.Equals(current[index].SectionMark, draft[index].SectionMark, StringComparison.Ordinal) ||
+                !string.Equals(current[index].PersonName, draft[index].PersonName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Trimmed copies, without rows that carry neither a mark nor a name: an
+    /// empty row would print a signature line under nobody.
+    /// </summary>
+    public static IReadOnlyList<WorkingDrawingSectionConsentEntry> Clean(
+        IEnumerable<WorkingDrawingSectionConsentEntry>? entries)
+    {
+        var kept = new List<WorkingDrawingSectionConsentEntry>();
+        foreach (WorkingDrawingSectionConsentEntry? entry in entries ?? [])
+        {
+            if (entry is null)
+                continue;
+            WorkingDrawingSectionConsentEntry copy = entry.Clone();
+            copy.Normalize();
+            if (copy.SectionMark.Length == 0 && copy.PersonName.Length == 0)
+                continue;
+            kept.Add(copy);
+        }
+        return kept;
     }
 }

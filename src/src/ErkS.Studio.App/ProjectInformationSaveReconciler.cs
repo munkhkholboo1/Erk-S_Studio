@@ -348,6 +348,9 @@ internal sealed class ProjectFoundationEditDraft
     public IReadOnlyList<ProjectFileReference> AtdDocuments { get; }
     public ConceptDesignApprovalRoster ConceptDesignApproval { get; }
 
+    /// <summary>The working sheets' «ЗӨВШӨӨРӨЛЦСӨН» rows as typed, already cleaned.</summary>
+    public IReadOnlyList<WorkingDrawingSectionConsentEntry> SectionConsent { get; init; } = [];
+
     public StudioCloudProjectInformationUpdateRequest CreateCloudRequest(
         string designOrganizationName,
         string capacityUnit) => new()
