@@ -22,6 +22,12 @@ public sealed class SheetRecord
     /// <summary>True when the package hash check passed for this sheet's package.</summary>
     public required bool IsVerified { get; init; }
 
+    /// <summary>
+    /// The package's `erks-sheet-info` document, shared by every sheet the
+    /// package carried; null when the producer sent none.
+    /// </summary>
+    public SheetInfoDocument? SheetInfo { get; init; }
+
     public string DisplayLabel =>
         string.IsNullOrWhiteSpace(Entry.Number) ? Entry.Name : $"{Entry.Number}  {Entry.Name}";
 
@@ -279,6 +285,7 @@ public sealed class SheetLibrary
                     SourceSheetIndex = sourceSheetIndex,
                     ExportedAtUtc = manifest.ExportedAtUtc,
                     IsVerified = true,
+                    SheetInfo = loadResult.SheetInfo,
                 };
 
                 // Latest export wins; ignore stale packages arriving late.

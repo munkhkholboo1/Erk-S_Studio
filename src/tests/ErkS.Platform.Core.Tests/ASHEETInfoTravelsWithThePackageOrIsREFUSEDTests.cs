@@ -59,6 +59,8 @@ public sealed class ASHEETInfoTravelsWithThePackageOrIsREFUSEDTests : IDisposabl
         Assert.Contains(info.Summary, row => row.Key == "far" && row.Value == 2.72);
         Assert.Contains("23-04-07", info.Notes["solar-study"]);
         Assert.Null(Assert.Single(info.Basis, line => line.Key == "land").Text);
+        // CGA's diagnostic list of what it could not measure - carried, not refused.
+        Assert.NotEmpty(info.Refusals);
     }
 
     [Theory]

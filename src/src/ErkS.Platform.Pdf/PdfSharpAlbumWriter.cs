@@ -160,6 +160,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                     ComposeFormattedPages(document, request.Project, buildPage);
                 }
                 AddConsultationOverflowWarning(warnings, request.Project, buildPage);
+                warnings.AddRange(GeneralPlanInformationWarnings(buildPage));
 
                 string sourceIdentity = !string.IsNullOrWhiteSpace(sheet.SourceId)
                     ? sheet.SourceId
@@ -842,6 +843,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             regions.TitleBlockArea,
             borderPen,
             finePen);
+        DrawGeneralPlanStrip(gfx, buildPage, regions, borderPen, finePen);
         double stampWidth = Math.Min(79, Math.Max(0, regions.Frame.Width - 2));
         DrawFittedText(
             gfx,
@@ -937,6 +939,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             project.ApprovalWorkflow,
             project.PlanningTask);
         DrawElevationRoster(gfx, roster, x0, xRole, xApproval, y0, y1);
+        if (DrawMasterPlanHeaderColumns(gfx, project, buildPage, xApproval, x1, y0, y1, borderPen))
+            return;
 
         const double paddingMm = 3.0;
         const double headingHeightMm = 5.0;

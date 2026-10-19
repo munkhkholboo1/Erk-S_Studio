@@ -1,505 +1,502 @@
 {
- "schema": "erks-sheet-info",
- "schemaVersion": 1,
- "producer": "CGA",
- "generatedAtUtc": "2026-10-19T12:00:00Z",
- "document": "Erin_MP_ZZ_VL.dwg",
- "site": {
-  "location": "Улаанбаатар хот, Баянгол дүүрэг, 29-р хороо",
-  "areaM2": 116337.7,
-  "northAngleDeg": 0.0,
-  "crs": "EPSG:32648"
- },
- "basis": [
-  {
-   "key": "land",
-   "text": null
+  "schema": "erks-sheet-info",
+  "schemaVersion": 1,
+  "producer": "CGA",
+  "generatedAtUtc": "2026-10-19T10:48:06Z",
+  "document": "Erin_MP_ZZ_VL.dwg",
+  "site": {
+    "areaM2": 116337.7,
+    "northAngleDeg": 0,
+    "crs": "EPSG:32648"
   },
-  {
-   "key": "planningTask",
-   "text": null
-  },
-  {
-   "key": "masterPlan",
-   "text": "Хот тосгоны төлөвлөлт, барилгажилтын норм ба дүрэм БНбД 30-01-04-ийн шаардлагыг хангаж, хотын ерөнхий төлөвлөгөөтэй уялдуулан боловсруулав."
-  }
- ],
- "buildings": [
-  {
-   "no": "039",
-   "name": "Инженерийн байгууламж",
-   "floors": "1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "055",
-   "name": "Хүүхдийн поликлиник",
-   "floors": "12/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "056",
-   "name": "Хүүхдийн сэргээн засах эмжилгээний барилга",
-   "floors": "4/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "057",
-   "name": "Туслах байгууламж",
-   "floors": "1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "058",
-   "name": "Туслах байгууламж",
-   "floors": "1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "059",
-   "name": "Хүүхдийн стацаньяр",
-   "floors": "7/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": null,
-   "name": "Газар доорх гараж (ашиглалттай дээвэр)",
-   "floors": "-1",
-   "stage": "Planned",
-   "count": 14
-  },
-  {
-   "no": "079",
-   "name": "Худалдаа, үйлчилгээ",
-   "floors": "2/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "092",
-   "name": "Цэцэрлэг",
-   "floors": "2/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "095",
-   "name": "Худалдаа, үйлчилгээ",
-   "floors": "2/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "096",
-   "name": "Худалдаа, үйлчилгээ",
-   "floors": "2/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "101",
-   "name": "Цэцэрлэг",
-   "floors": "2/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "104",
-   "name": "Худалдаа, үйлчилгээ",
-   "floors": "2/-1",
-   "stage": "Planned",
-   "count": 1
-  },
-  {
-   "no": "ОС-1",
-   "name": "2 секцтэй орон сууц (8 айл/давхар)",
-   "floors": "16/-1",
-   "stage": "Planned",
-   "count": 17
-  },
-  {
-   "no": "ОС-2",
-   "name": "Цэгэн орон сууц (5 айл/давхар)",
-   "floors": "16/-1",
-   "stage": "Planned",
-   "count": 8
-  },
-  {
-   "no": "015",
-   "name": "Инженерийн байгууламж",
-   "floors": "1",
-   "stage": "Existing",
-   "count": 1
-  },
-  {
-   "no": "046",
-   "name": "Гаалийн барилга",
-   "floors": "5",
-   "stage": "Existing",
-   "count": 1
-  }
- ],
- "summary": [
-  {
-   "key": "site",
-   "label": "Төлөвлөлтийн талбай",
-   "value": 116337.7,
-   "unit": "м²"
-  },
-  {
-   "key": "buildings",
-   "label": "Барилгын тоо (газар дээрх)",
-   "value": 37,
-   "unit": "ш"
-  },
-  {
-   "key": "garages",
-   "label": "Газар доорх гараж",
-   "value": 14,
-   "unit": "ш"
-  },
-  {
-   "key": "footprint",
-   "label": "Барилгажих талбай",
-   "value": 25237.9,
-   "unit": "м²"
-  },
-  {
-   "key": "gfa",
-   "label": "Барилгын нийт талбай",
-   "value": 316094.1,
-   "unit": "м²"
-  },
-  {
-   "key": "bcr",
-   "label": "Барилгажилтын эзлэх хувь",
-   "value": 22.1,
-   "unit": "%"
-  },
-  {
-   "key": "far",
-   "label": "Барилгажилтын нягтшил (FAR)",
-   "value": 2.72,
-   "unit": ""
-  },
-  {
-   "key": "units",
-   "label": "Орон сууцны айлын тоо",
-   "value": 2816,
-   "unit": "айл"
-  },
-  {
-   "key": "population",
-   "label": "Хүн амын тоо",
-   "value": 9574,
-   "unit": "хүн"
-  },
-  {
-   "key": "parking.open",
-   "label": "Ил авто зогсоол",
-   "value": 201,
-   "unit": "байр"
-  },
-  {
-   "key": "parking.underground",
-   "label": "Далд авто зогсоол",
-   "value": 452,
-   "unit": "байр"
-  },
-  {
-   "key": "green",
-   "label": "Ногоон байгууламж",
-   "value": 27478.0,
-   "unit": "м²"
-  }
- ],
- "legends": {
-  "master-plan": [
-   {
-    "key": "building.planned",
-    "label": "Төлөвлөж буй барилга",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#FF7F00",
-     "pattern": "SOLID",
-     "outline": "#000000"
+  "basis": [
+    {
+      "key": "land",
+      "text": null
     },
-    "quantity": 25237.9,
-    "unit": "м²"
-   },
-   {
-    "key": "garage.planned",
-    "label": "Газар доорх гараж (ашиглалттай дээвэр)",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#999999",
-     "pattern": "ANSI31",
-     "outline": "#000000"
+    {
+      "key": "planningTask",
+      "text": null
     },
-    "quantity": 10536.0,
-    "unit": "м²"
-   },
-   {
-    "key": "building.existing",
-    "label": "Одоо байгаа барилга",
-    "stage": "Existing",
-    "sample": {
-     "kind": "hatch",
-     "color": "#BFBFBF",
-     "pattern": "SOLID",
-     "outline": "#000000"
-    },
-    "quantity": 469.0,
-    "unit": "м²"
-   },
-   {
-    "key": "road.asphalt",
-    "label": "Авто зам, уулзвар",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#999999",
-     "pattern": "SOLID",
-     "outline": "#000000"
-    },
-    "quantity": 12456.4,
-    "unit": "м²"
-   },
-   {
-    "key": "parking",
-    "label": "Авто зогсоол, гарц",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#666666",
-     "pattern": "SOLID",
-     "outline": "#000000"
-    },
-    "quantity": 14737.2,
-    "unit": "м²"
-   },
-   {
-    "key": "pedestrian",
-    "label": "Явган хүний зам, талбай",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#808080",
-     "pattern": "AR-HBONE",
-     "outline": "#000000"
-    },
-    "quantity": 19466.2,
-    "unit": "м²"
-   },
-   {
-    "key": "play.sport",
-    "label": "Тоглоомын болон спорт талбай",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#E07A3F",
-     "pattern": "SOLID",
-     "outline": "#000000"
-    },
-    "quantity": 6055.5,
-    "unit": "м²"
-   },
-   {
-    "key": "green",
-    "label": "Ногоон байгууламж",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#7CA552",
-     "pattern": "SOLID",
-     "outline": "#000000"
-    },
-    "quantity": 27478.0,
-    "unit": "м²"
-   },
-   {
-    "key": "boundary",
-    "label": "Төлөвлөлтийн хил",
-    "stage": "Planned",
-    "sample": {
-     "kind": "line",
-     "color": "#FF0000",
-     "dash": "dashed"
-    },
-    "quantity": 116337.7,
-    "unit": "м²"
-   }
+    {
+      "key": "masterPlan",
+      "text": "Хот тосгоны төлөвлөлт, барилгажилтын норм ба дүрэм БНбД 30-01-04-ийн шаардлагыг хангаж, хотын ерөнхий төлөвлөгөөтэй уялдуулан боловсруулав."
+    }
   ],
-  "traffic-scheme": [
-   {
-    "key": "movement.vehicle",
-    "label": "Авто машины хөдөлгөөн",
-    "stage": "Planned",
-    "sample": {
-     "kind": "line",
-     "color": "#FF0000",
-     "dash": "dotted",
-     "arrow": true
+  "buildings": [
+    {
+      "no": "039",
+      "name": "Инженерийн барилга байгууламж",
+      "floors": "1",
+      "stage": "Planned",
+      "count": 1
     },
-    "quantity": 12456.4,
-    "unit": "м²"
-   },
-   {
-    "key": "movement.pedestrian",
-    "label": "Явган зорчигчийн хөдөлгөөн",
-    "stage": "Planned",
-    "sample": {
-     "kind": "line",
-     "color": "#00B050",
-     "dash": "dotted",
-     "arrow": true
+    {
+      "no": "055",
+      "name": "Хүүхдийн поликлиник",
+      "floors": "12/-1",
+      "stage": "Planned",
+      "count": 1
     },
-    "quantity": 21925.1,
-    "unit": "м²"
-   },
-   {
-    "key": "movement.cycle",
-    "label": "Дугуйн зам",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#FF7F7F",
-     "pattern": "SOLID",
-     "outline": "#000000"
+    {
+      "no": "056",
+      "name": "Хүүхдийн сэргээн засах эмжилгээний барилга",
+      "floors": "4/-1",
+      "stage": "Planned",
+      "count": 1
     },
-    "quantity": 3596.5,
-    "unit": "м²"
-   },
-   {
-    "key": "parking.stalls",
-    "label": "Ил авто зогсоол",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#666666",
-     "pattern": "SOLID",
-     "outline": "#000000"
+    {
+      "no": "057",
+      "name": "Орон сууц",
+      "floors": "1",
+      "stage": "Planned",
+      "count": 1
     },
-    "quantity": 201,
-    "unit": "байр"
-   },
-   {
-    "key": "parking.access",
-    "label": "Зогсоолын орц, гарц",
-    "stage": "Planned",
-    "sample": {
-     "kind": "line",
-     "color": "#FF0000",
-     "arrow": true
+    {
+      "no": "058",
+      "name": "Орон сууц",
+      "floors": "1",
+      "stage": "Planned",
+      "count": 1
     },
-    "quantity": 8,
-    "unit": "ш"
-   },
-   {
-    "key": "crosswalk",
-    "label": "Явган хүний гарц",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#FFFFFF",
-     "pattern": "ZEBRA",
-     "outline": "#000000"
+    {
+      "no": "059",
+      "name": "Хүүхдийн стацаньяр",
+      "floors": "7/-1",
+      "stage": "Planned",
+      "count": 1
     },
-    "quantity": 23,
-    "unit": "ш"
-   }
+    {
+      "no": "079",
+      "name": "Худалдаа, үйлчилгээ",
+      "floors": "2/-1",
+      "stage": "Planned",
+      "count": 1
+    },
+    {
+      "no": "092",
+      "name": "Цэцэрлэг",
+      "floors": "2/-1",
+      "stage": "Planned",
+      "count": 1
+    },
+    {
+      "no": "095",
+      "name": "Худалдаа, үйлчилгээ",
+      "floors": "2/-1",
+      "stage": "Planned",
+      "count": 1
+    },
+    {
+      "no": "096",
+      "name": "Худалдаа, үйлчилгээ",
+      "floors": "2/-1",
+      "stage": "Planned",
+      "count": 1
+    },
+    {
+      "no": "101",
+      "name": "Цэцэрлэг",
+      "floors": "2/-1",
+      "stage": "Planned",
+      "count": 1
+    },
+    {
+      "no": "104",
+      "name": "Худалдаа, үйлчилгээ",
+      "floors": "2/-1",
+      "stage": "Planned",
+      "count": 1
+    },
+    {
+      "no": "ОС-1",
+      "name": "Орон сууц",
+      "floors": "16/-1",
+      "stage": "Planned",
+      "count": 17
+    },
+    {
+      "no": "ОС-2",
+      "name": "Орон сууц",
+      "floors": "16/-1",
+      "stage": "Planned",
+      "count": 8
+    },
+    {
+      "no": null,
+      "name": "Газар доорх гараж (ашиглалттай дээвэр)",
+      "floors": "-1",
+      "stage": "Planned",
+      "count": 14
+    },
+    {
+      "no": "015",
+      "name": "Инженерийн барилга байгууламж",
+      "floors": "1",
+      "stage": "Existing",
+      "count": 1
+    },
+    {
+      "no": "046",
+      "name": "Орон сууц",
+      "floors": "5/-1",
+      "stage": "Existing",
+      "count": 1
+    }
   ],
-  "landscaping": [
-   {
-    "key": "green.lawn",
-    "label": "Ногоон байгууламж (зүлэг)",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#7CA552",
-     "pattern": "SOLID",
-     "outline": "#000000"
+  "summary": [
+    {
+      "key": "site",
+      "label": "Төлөвлөлтийн талбай",
+      "value": 116337.7,
+      "unit": "м²"
     },
-    "quantity": 19331.8,
-    "unit": "м²"
-   },
-   {
-    "key": "green.roof",
-    "label": "Ашиглалттай дээврийн ногоон байгууламж",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#999999",
-     "pattern": "GRASS",
-     "outline": "#000000"
+    {
+      "key": "buildings",
+      "label": "Барилгын тоо (газар дээрх)",
+      "value": 37,
+      "unit": "ш"
     },
-    "quantity": 5525.2,
-    "unit": "м²"
-   },
-   {
-    "key": "green.roadside",
-    "label": "Зам дагуух ногоон зурвас",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#7CA500",
-     "pattern": "SOLID",
-     "outline": "#000000"
+    {
+      "key": "garages",
+      "label": "Газар доорх гараж",
+      "value": 14,
+      "unit": "ш"
     },
-    "quantity": 2621.0,
-    "unit": "м²"
-   },
-   {
-    "key": "play",
-    "label": "Хүүхдийн тоглоомын талбай",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#E07A3F",
-     "pattern": "SOLID",
-     "outline": "#000000"
+    {
+      "key": "footprint",
+      "label": "Барилгажих талбай",
+      "value": 25237.9,
+      "unit": "м²"
     },
-    "quantity": 3112.9,
-    "unit": "м²"
-   },
-   {
-    "key": "sport",
-    "label": "Спорт талбай",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#C0504D",
-     "pattern": "SOLID",
-     "outline": "#000000"
+    {
+      "key": "gfa",
+      "label": "Барилгын нийт талбай",
+      "value": 316094.2,
+      "unit": "м²"
     },
-    "quantity": 1845.0,
-    "unit": "м²"
-   },
-   {
-    "key": "fitness",
-    "label": "Чийрэгжүүлэлтийн талбай",
-    "stage": "Planned",
-    "sample": {
-     "kind": "hatch",
-     "color": "#9BBB59",
-     "pattern": "SOLID",
-     "outline": "#000000"
+    {
+      "key": "bcr",
+      "label": "Барилгажилтын эзлэх хувь",
+      "value": 21.7,
+      "unit": "%"
     },
-    "quantity": 1097.6,
-    "unit": "м²"
-   }
+    {
+      "key": "far",
+      "label": "Барилгажилтын нягтшил (FAR)",
+      "value": 2.72,
+      "unit": ""
+    },
+    {
+      "key": "units",
+      "label": "Орон сууцны айлын тоо",
+      "value": 2820,
+      "unit": "айл"
+    },
+    {
+      "key": "population",
+      "label": "Хүн амын тоо",
+      "value": 10152,
+      "unit": "хүн"
+    },
+    {
+      "key": "parking.open",
+      "label": "Ил авто зогсоол",
+      "value": 400,
+      "unit": "байр"
+    },
+    {
+      "key": "green",
+      "label": "Ногоон байгууламж",
+      "value": 31159.5,
+      "unit": "м²"
+    }
   ],
-  "solar-study": []
- },
- "notes": {
-  "solar-study": "Орон сууц, олон нийтийн барилга, сууцны барилгажилтын бүсийн нарны тусгалын (ээвэрлэлтийн) хангамжийг БНбД 23-04-07-ийн 3.2 дахь заалтын дагуу 3 дугаар сарын 22, 9 дүгээр сарын 22-ны өдрийн 09:00, 11:00, 14:00, 17:00 цагийн сүүдрийн зураглалаар шалгав."
- }
+  "legends": {
+    "master-plan": [
+      {
+        "key": "building.planned",
+        "label": "Төлөвлөж буй барилга",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#FF7F00",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 25237.9,
+        "unit": "м²"
+      },
+      {
+        "key": "garage.planned",
+        "label": "Газар доорх гараж (ашиглалттай дээвэр)",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#BDBDBD",
+          "pattern": "ANSI31",
+          "outline": "#000000"
+        },
+        "quantity": 10536,
+        "unit": "м²"
+      },
+      {
+        "key": "building.existing",
+        "label": "Одоо байгаа барилга",
+        "stage": "Existing",
+        "sample": {
+          "kind": "hatch",
+          "color": "#BFBFBF",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 469,
+        "unit": "м²"
+      },
+      {
+        "key": "road.asphalt",
+        "label": "Авто зам, уулзвар",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#B6B6B6",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 11299.7,
+        "unit": "м²"
+      },
+      {
+        "key": "parking",
+        "label": "Авто зогсоол, гарц",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#A5A5A5",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 11401.2,
+        "unit": "м²"
+      },
+      {
+        "key": "pedestrian",
+        "label": "Явган хүний зам, талбай",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#808080",
+          "pattern": "AR-HBONE",
+          "outline": "#000000"
+        },
+        "quantity": 19523.7,
+        "unit": "м²"
+      },
+      {
+        "key": "cycle",
+        "label": "Дугуйн зам",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#FF7F7F",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 3376.5,
+        "unit": "м²"
+      },
+      {
+        "key": "play.sport",
+        "label": "Тоглоомын болон спорт талбай",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#E07A3F",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 5494.6,
+        "unit": "м²"
+      },
+      {
+        "key": "green",
+        "label": "Ногоон байгууламж",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#7FBF7F",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 31159.5,
+        "unit": "м²"
+      },
+      {
+        "key": "boundary",
+        "label": "Төлөвлөлтийн хил",
+        "stage": "Planned",
+        "sample": {
+          "kind": "line",
+          "color": "#FF0000",
+          "dash": "dashed"
+        },
+        "quantity": 116337.7,
+        "unit": "м²"
+      }
+    ],
+    "traffic-scheme": [
+      {
+        "key": "movement.vehicle",
+        "label": "Авто машины хөдөлгөөн",
+        "stage": "Planned",
+        "sample": {
+          "kind": "line",
+          "color": "#FF0000",
+          "dash": "dotted",
+          "arrow": true
+        },
+        "quantity": 11299.7,
+        "unit": "м²"
+      },
+      {
+        "key": "movement.pedestrian",
+        "label": "Явган зорчигчийн хөдөлгөөн",
+        "stage": "Planned",
+        "sample": {
+          "kind": "line",
+          "color": "#00B050",
+          "dash": "dotted",
+          "arrow": true
+        },
+        "quantity": 19523.7,
+        "unit": "м²"
+      },
+      {
+        "key": "movement.cycle",
+        "label": "Дугуйн зам",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#FF7F7F",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 3376.5,
+        "unit": "м²"
+      },
+      {
+        "key": "parking.stalls",
+        "label": "Ил авто зогсоол",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#A5A5A5",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 400,
+        "unit": "байр"
+      },
+      {
+        "key": "parking.access",
+        "label": "Зогсоолын орц, гарц",
+        "stage": "Planned",
+        "sample": {
+          "kind": "line",
+          "color": "#FF0000",
+          "arrow": true
+        },
+        "quantity": 8,
+        "unit": "ш"
+      },
+      {
+        "key": "crosswalk",
+        "label": "Явган хүний гарц",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#FFFFFF",
+          "pattern": "ZEBRA",
+          "outline": "#000000"
+        },
+        "quantity": 23,
+        "unit": "ш"
+      }
+    ],
+    "landscaping": [
+      {
+        "key": "green.lawn",
+        "label": "Ногоон байгууламж (зүлэг)",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#7FBF7F",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 22887.8,
+        "unit": "м²"
+      },
+      {
+        "key": "green.roof",
+        "label": "Ашиглалттай дээврийн ногоон байгууламж",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#A5D6A7",
+          "pattern": "GRASS",
+          "outline": "#000000"
+        },
+        "quantity": 5650.6,
+        "unit": "м²"
+      },
+      {
+        "key": "green.roadside",
+        "label": "Зам дагуух ногоон зурвас",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#55AA55",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 2621,
+        "unit": "м²"
+      },
+      {
+        "key": "play",
+        "label": "Хүүхдийн тоглоомын талбай",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#E07A3F",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 3010.6,
+        "unit": "м²"
+      },
+      {
+        "key": "sport",
+        "label": "Спорт талбай",
+        "stage": "Planned",
+        "sample": {
+          "kind": "hatch",
+          "color": "#C0504D",
+          "pattern": "SOLID",
+          "outline": "#000000"
+        },
+        "quantity": 2484,
+        "unit": "м²"
+      }
+    ],
+    "solar-study": []
+  },
+  "notes": {
+    "solar-study": "Орон сууц, олон нийтийн барилга, сууцны барилгажилтын бүсийн нарны тусгалын (ээвэрлэлтийн) хангамжийг БНбД 23-04-07-ийн 3.2 дахь заалтын дагуу 3 дугаар сарын 22, 9 дүгээр сарын 22-ны өдрийн 09:00, 11:00, 14:00, 17:00 цагийн сүүдрийн зураглалаар шалгав."
+  },
+  "refusals": [
+    "piece-region:BikeSurface:5E681E",
+    "sheet-info-region:walkway:5E67F9"
+  ]
 }

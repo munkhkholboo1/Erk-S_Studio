@@ -56,6 +56,13 @@ public sealed class SheetInfoDocument
 
     /// <summary>Free text by the sheet it belongs to (a template slot id).</summary>
     public Dictionary<string, string> Notes { get; set; } = [];
+
+    /// <summary>
+    /// What CGA could not measure (e.g. "piece-region:BikeSurface:5E681E").
+    /// Diagnostic only: not drawn, not a reason to refuse - the build names them,
+    /// because a quantity missing a region is a quantity that is too small.
+    /// </summary>
+    public List<string> Refusals { get; set; } = [];
 }
 
 public sealed class SheetInfoSite
@@ -236,6 +243,7 @@ public static partial class SheetInfoReader
         document.Summary ??= [];
         document.Legends ??= [];
         document.Notes ??= [];
+        document.Refusals ??= [];
 
         foreach (SheetInfoBuilding building in document.Buildings)
         {
