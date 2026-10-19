@@ -7,6 +7,16 @@ internal sealed record StudioSourceLocalRemovalCommit(
     ProjectLocalAlbumComponentClaim Claim,
     int RemovedAlbumPageCount);
 
+/// <summary>A removal whose registry retirement the server refused this time.</summary>
+internal sealed record StudioSourceRetirementFailure(
+    ProjectLocalAlbumComponentClaim Claim,
+    string Reason);
+
+/// <summary>What one pass over the pending removals did.</summary>
+internal sealed record StudioSourceRetirementRun(
+    IReadOnlyList<ProjectDesignSource> RetiredLocalSources,
+    IReadOnlyList<StudioSourceRetirementFailure> Failures);
+
 internal enum StudioSourceRegistryResolutionStatus
 {
     Exact,
@@ -443,6 +453,73 @@ internal static class StudioSourceRemovalOutbox
         validateContext?.Invoke();
         ApplyRegistryRetirement(project, claim);
         return local;
+    }
+
+    /// <summary>
+    /// Retires every pending removal of this account on this machine, one at a
+    /// time. A refusal leaves THAT removal pending and goes on to the next.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 AGREED WITH SRV, 2026-10-19. The first refused retirement used to
+    /// stop the whole sync, and nothing else - not a page, not a cover - could
+    /// go up behind it; that is how Erin stood still. A removal that is not
+    /// retired stays blocked from the album by the plan (its registry row is
+    /// still listed), so continuing cannot drop a source the server keeps.
+    /// A changed account or project still stops everything: that exception is
+    /// not one of these.
+    /// </remarks>
+    public static async Task<StudioSourceRetirementRun> RetirePendingAsync(
+        ProjectWorkspace project,
+        string? currentAccountEmail,
+        string? currentDeviceFingerprint,
+        Func<string, Task> retireAsync,
+        Action? validateContext = null)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(retireAsync);
+        var retired = new List<ProjectDesignSource>();
+        var failures = new List<StudioSourceRetirementFailure>();
+        foreach (ProjectLocalAlbumComponentClaim claim in
+                 Pending(project, currentAccountEmail, currentDeviceFingerprint))
+        {
+            try
+            {
+                ProjectDesignSource? local = await ConfirmRegistryRetirementAsync(
+                    project,
+                    claim,
+                    currentAccountEmail,
+                    currentDeviceFingerprint,
+                    retireAsync,
+                    validateContext);
+                if (local is not null)
+                    retired.Add(local);
+            }
+            catch (Exception exception) when (
+                exception is StudioAccountException or HttpRequestException or
+                    TaskCanceledException or InvalidOperationException)
+            {
+                failures.Add(new StudioSourceRetirementFailure(claim, exception.Message));
+            }
+        }
+        return new StudioSourceRetirementRun(retired, failures);
+    }
+
+    /// <summary>
+    /// Whether this machine's staged removal of a component is still waiting
+    /// for its registry row to be retired - the server's last snapshot still
+    /// lists it.
+    /// </summary>
+    public static bool IsRegistryRetirementPending(
+        ProjectWorkspace project,
+        string componentCode,
+        string? currentAccountEmail,
+        string? currentDeviceFingerprint)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ProjectLocalAlbumComponentClaim? claim =
+            ClaimOfThisDevice(project, componentCode, currentAccountEmail, currentDeviceFingerprint);
+        return claim is { IsRemoval: true } &&
+            ServerSnapshotStillLists(project, claim.RegistrySourceId);
     }
 
     public static async Task<StudioSourceRemoteRetirementResult>

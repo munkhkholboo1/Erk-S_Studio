@@ -418,6 +418,9 @@ public sealed class CloudSyncPreviewPlannerTests
             owner,
             device,
             hasVerifiedPayload: true);
+        // The sync retires the registry row before it plans; a row the server
+        // still lists keeps its removal out of the album.
+        project.Cloud.SharedSources.Remove(registry);
         string component =
             StudioAlbumComponentIdentity.SourceCode(owner, sourceKey);
 

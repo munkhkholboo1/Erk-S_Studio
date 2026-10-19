@@ -1026,47 +1026,37 @@ internal sealed partial class ShellView
         string projectId,
         StudioOperationContext operationContext)
     {
-        IReadOnlyList<ProjectLocalAlbumComponentClaim> pending =
-            StudioSourceRemovalOutbox.Pending(
+        RequireOperationContext(
+            operationContext,
+            "cloud_sync_source_retire_start");
+        // One refused retirement no longer stops the sync (agreed with SRV,
+        // 2026-10-19): it stays pending, the plan keeps it out of the album,
+        // and everything else goes on.
+        StudioSourceRetirementRun run =
+            await StudioSourceRemovalOutbox.RetirePendingAsync(
                 state.Project,
                 account.Current?.Email,
-                StudioDeviceIdentity.Fingerprint);
-        int removed = 0;
-        foreach (ProjectLocalAlbumComponentClaim claim in pending)
+                StudioDeviceIdentity.Fingerprint,
+                sourceId => account.RetireSourcePackageAsync(
+                    projectId,
+                    sourceId),
+                () => RequireOperationContext(
+                    operationContext,
+                    "cloud_sync_source_retire_acknowledgement"));
+        RequireOperationContext(
+            operationContext,
+            "cloud_sync_source_retire_apply");
+        foreach (ProjectDesignSource local in run.RetiredLocalSources)
+            state.RemoveDesignSource(local);
+        if (run.Failures.Count > 0)
         {
-            RequireOperationContext(
-                operationContext,
-                "cloud_sync_source_retire_start");
-            // DELETE is exact-current-source CAS and idempotent for an
-            // already retired row. Thus a timeout after a committed response
-            // is safely retried after restart.
-            ProjectDesignSource? local =
-                await StudioSourceRemovalOutbox.ConfirmRegistryRetirementAsync(
-                    state.Project,
-                    claim,
-                    account.Current?.Email,
-                    StudioDeviceIdentity.Fingerprint,
-                    sourceId => account.RetireSourcePackageAsync(
-                        projectId,
-                        sourceId),
-                    () => RequireOperationContext(
-                        operationContext,
-                        "cloud_sync_source_retire_acknowledgement"));
-            RequireOperationContext(
-                operationContext,
-                "cloud_sync_source_retire_apply");
-            if (local is not null)
-            {
-                state.RemoveDesignSource(local);
-                removed++;
-            }
-            else
-            {
-                state.SaveProject();
-            }
+            state.Project.Cloud.LastSyncNote =
+                $"Эх үүсвэрийн устгал хүлээгдсэн {run.Failures.Count}: " +
+                string.Join("; ", run.Failures.Select(failure =>
+                    $"{failure.Claim.ComponentCode} — {failure.Reason}"));
         }
-
-        return removed;
+        state.SaveProject();
+        return run.RetiredLocalSources.Count;
     }
 
     private void RelinkSelectedNativeSource()

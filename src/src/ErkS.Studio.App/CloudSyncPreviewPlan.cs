@@ -454,6 +454,21 @@ internal static class CloudSyncPreviewPlanner
                 currentEmail,
                 currentDeviceFingerprint))
         {
+            // A removal whose registry row the server still lists has not been
+            // retired: dropping its pages would leave a source the server keeps
+            // with no place in the album. It waits, by name, for the retirement.
+            if (StudioSourceRemovalOutbox.IsRegistryRetirementPending(
+                    project,
+                    code,
+                    currentEmail,
+                    currentDeviceFingerprint))
+            {
+                return new ComponentAuthority(
+                    false,
+                    "Альбумын source component устгах",
+                    "Cloud registry мөр retire хийгдээгүй (сервер татгалзсан эсвэл холбогдоогүй) тул альбумаас хасахгүй; дараагийн Sync дахин оролдоно.");
+            }
+
             return new ComponentAuthority(
                 true,
                 "Альбумын source component устгах",

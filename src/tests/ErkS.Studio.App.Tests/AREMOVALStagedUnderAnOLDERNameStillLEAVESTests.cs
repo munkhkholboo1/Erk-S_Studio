@@ -71,6 +71,8 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
     {
         ProjectWorkspace project = StagedUnder(StudioDeviceIdentity.TraitBasedFingerprints.Legacy);
         StudioDeviceIdentity.UseRegisteredKeyFingerprint(new string('F', 64));
+        // The sync retires the registry row first; the plan reads after it.
+        project.Cloud.SharedSources.RemoveAll(source => source.SourceId == RegistryId);
 
         CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
             project,
@@ -256,6 +258,87 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
 
         Assert.Single(project.Cloud.PendingAlbumComponentClaims);
         Assert.Contains(Component, project.Cloud.PendingAlbumComponentCodes);
+    }
+
+    [Fact]
+    public async Task ONERemovalTheServerRefusesDoesNotHoldBackTheOthers()
+    {
+        // Agreed with SRV on 2026-10-19: a refused retirement leaves THAT
+        // removal pending and lets the rest of the sync go on. Before, the
+        // first refusal stopped the whole sync - which is how Erin stood still.
+        ProjectWorkspace project = StagedUnder("device-a");
+        StageSecond(project, "device-a");
+        IReadOnlyList<ProjectLocalAlbumComponentClaim> pending =
+            StudioSourceRemovalOutbox.Pending(project, Owner, "device-a");
+        Assert.Equal(2, pending.Count);
+
+        StudioSourceRetirementRun run = await StudioSourceRemovalOutbox.RetirePendingAsync(
+            project,
+            Owner,
+            "device-a",
+            id => id == RegistryId
+                ? throw new StudioAccountException("forbidden", System.Net.HttpStatusCode.Forbidden, "forbidden")
+                : Task.CompletedTask);
+
+        StudioSourceRetirementFailure failure = Assert.Single(run.Failures);
+        Assert.Equal(RegistryId, failure.Claim.RegistrySourceId);
+        Assert.Contains("forbidden", failure.Reason, StringComparison.Ordinal);
+        Assert.Contains(project.Cloud.SharedSources, source => source.SourceId == RegistryId);
+        Assert.DoesNotContain(project.Cloud.SharedSources, source => source.SourceId == SecondRegistryId);
+    }
+
+    [Fact]
+    public void ARemovalWhoseRetirementHasNotHappenedIsNotSentToTheAlbum()
+    {
+        // The other half: the album must not drop a source the server still
+        // lists. The plan blocks it, by name, until the retirement goes through.
+        ProjectWorkspace project = StagedUnder("device-a");
+
+        CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
+            project,
+            Owner,
+            "this machine",
+            new StudioCloudProjectRefreshResult(false, null),
+            "device-a",
+            _ => true);
+
+        Assert.False(plan.IsComponentAuthorized(Component));
+        CloudSyncChangeItem blocked = Assert.Single(plan.Blocked, item => item.Code == Component);
+        Assert.Contains("retire", blocked.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TheSyncRetiresThroughTheContinuingPass()
+    {
+        string workspaces = File.ReadAllText(ShellSource().Replace("ShellView.cs", "ShellView.Workspaces.cs"));
+        int start = workspaces.IndexOf("ProcessPendingDesignSourceRemovalsAsync(", StringComparison.Ordinal);
+        string body = workspaces[start..workspaces.IndexOf("private void RelinkSelectedNativeSource()", start, StringComparison.Ordinal)];
+
+        Assert.Contains("StudioSourceRemovalOutbox.RetirePendingAsync(", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConfirmRegistryRetirementAsync(", body, StringComparison.Ordinal);
+    }
+
+    private const string SecondSourceKey = "second-retiring";
+    private const string SecondRegistryId = "registry-second";
+
+    private static void StageSecond(ProjectWorkspace project, string device)
+    {
+        var source = new ProjectDesignSource { Id = "local-second", Kind = DesignSourceKind.Revit };
+        ProjectCloudSyncMetadata.BindToCloudSource(project, source, SecondSourceKey);
+        ProjectCloudSyncMetadata.BindCloudOwner(source, Owner);
+        StudioLocalSourceBindingPolicy.Bind(source, Owner, device);
+        project.Sources.Add(source);
+        var registry = new ProjectCloudSourceReference
+        {
+            SourceId = SecondRegistryId,
+            SourceKey = SecondSourceKey,
+            RegisteredBy = Owner,
+            OwnerEmail = Owner,
+            Status = "Active",
+        };
+        project.Cloud.SharedSources.Add(registry);
+        StudioSourceRemovalOutbox.Stage(project, source, registry, Owner, device, hasVerifiedPayload: true);
+        project.Sources.Remove(source);
     }
 
     private static string ShellSource()
