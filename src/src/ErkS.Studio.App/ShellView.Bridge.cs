@@ -21,6 +21,9 @@ internal sealed partial class ShellView
     /// <summary>The plan the sync would have shown in its dialog, kept for the bridge's answer.</summary>
     private CloudSyncPreviewPlan? lastBridgeSyncPlan;
 
+    /// <summary>Every warning of the last album build - the status line names only the first.</summary>
+    private IReadOnlyList<string> lastAlbumBuildWarnings = [];
+
     private void StartBridge()
     {
         try
@@ -113,7 +116,7 @@ internal sealed partial class ShellView
             {
                 bool rebuilt = UpdateAlbum(silent: false, statusPrefix: "Гүүрээр альбум шинэчлэгдлээ");
                 return rebuilt
-                    ? StudioBridgeProtocol.Accept(request.Id, new { album = lastAlbumPath }, statusText.Text)
+                    ? StudioBridgeProtocol.Accept(request.Id, new { album = lastAlbumPath, warnings = lastAlbumBuildWarnings }, statusText.Text)
                     : StudioBridgeProtocol.Refuse(request.Id, "rebuild_failed", statusText.Text);
             }
             case "sync-preview":

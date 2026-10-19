@@ -4184,6 +4184,7 @@ internal sealed partial class ShellView : IDisposable
                     collectUi,
                     reconcileLinkedProjectAssets);
             }
+            lastAlbumBuildWarnings = result.Warnings.ToList();
             // A count leaves somebody to find which sheet across thirty-odd
             // pages, so the first one is named and the rest counted.
             var warningSuffix = result.Warnings.Count switch

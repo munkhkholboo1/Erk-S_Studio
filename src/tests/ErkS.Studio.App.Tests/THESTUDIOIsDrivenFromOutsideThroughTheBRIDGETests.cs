@@ -159,6 +159,8 @@ public sealed class THESTUDIOIsDrivenFromOutsideThroughTheBRIDGETests
 
         foreach (StudioBridgeAction action in StudioBridgeActionCatalog.All)
             Assert.Contains("\"" + action.Name + "\"", view, StringComparison.Ordinal);
+        // The status line names only the first warning; the caller gets them all.
+        Assert.Contains("warnings = lastAlbumBuildWarnings", view, StringComparison.Ordinal);
     }
 
     private static async Task<string> RoundTrip(string name, string request)
