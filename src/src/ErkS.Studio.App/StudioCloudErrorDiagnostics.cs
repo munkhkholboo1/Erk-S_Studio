@@ -66,6 +66,9 @@ internal static class StudioCloudErrorDetails
         "targetSite",
         "innerTargetSite",
         "stackTrace",
+        // The album review's findings (StudioAlbumReviewLogRow) - review
+        // sentences, no personal data, read by the Twin.
+        StudioAlbumReviewLogRow.FindingsField,
     ];
 
     public static Dictionary<string, string[]>? ForDiagnosticLog(
@@ -85,7 +88,7 @@ internal static class StudioCloudErrorDetails
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Select(StudioOperationDiagnosticLog.SanitizeMessage)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Take(8)
+                .Take(field.Equals(StudioAlbumReviewLogRow.FindingsField, StringComparison.OrdinalIgnoreCase) ? 64 : 8)
                 .ToArray();
             if (values.Length > 0)
                 safe[field] = values;

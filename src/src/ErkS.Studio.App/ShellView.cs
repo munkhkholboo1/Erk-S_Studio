@@ -4185,6 +4185,7 @@ internal sealed partial class ShellView : IDisposable
                     reconcileLinkedProjectAssets);
             }
             lastAlbumBuildWarnings = result.Warnings.ToList();
+            RecordAlbumReview(result.Warnings);
             // A count leaves somebody to find which sheet across thirty-odd
             // pages, so the first one is named and the rest counted.
             var warningSuffix = result.Warnings.Count switch
@@ -7407,6 +7408,28 @@ internal sealed partial class ShellView : IDisposable
                 diagnosticDetails));
         if (outcome is "blocked" or "conflict" or "error" or "cancelled" or "completed")
             operationDiagnosticIdentities.Remove(operationId);
+    }
+
+    /// <summary>
+    /// One «album_review» row per build for the Twin (StudioAlbumReviewLogRow).
+    /// </summary>
+    private void RecordAlbumReview(IEnumerable<string> buildWarnings)
+    {
+        StudioAlbumReviewLogRow row = StudioAlbumReviewLogRow.From(buildWarnings);
+        _ = operationDiagnosticLog.TryWrite(
+            new StudioOperationDiagnosticEvent(
+                StudioOperationDiagnosticLog.CreateOperationId(),
+                StudioAlbumReviewLogRow.Operation,
+                row.Outcome,
+                row.ReasonCode,
+                row.Message,
+                state.HasOpenProject
+                    ? FirstNonEmpty(state.Project.Cloud.ServerProjectId, state.Project.ProjectId)
+                    : "",
+                account.Current?.Email ?? "",
+                StudioDeviceIdentity.Fingerprint,
+                "",
+                row.Details));
     }
 
     private static IReadOnlyDictionary<string, string[]>? BuildOperationExceptionDetails(
