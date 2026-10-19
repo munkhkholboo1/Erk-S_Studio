@@ -32,6 +32,12 @@ public sealed class SheetPackageManifest
     public const int FirstSheetRolesSchemaVersion = 7;
 
     /// <summary>
+    /// The first schema whose entries may reserve a consultation table
+    /// (<see cref="SheetPackageEntry.ConsultationTableArea"/>).
+    /// </summary>
+    public const int FirstConsultationTableSchemaVersion = 7;
+
+    /// <summary>
     /// The first schema that may carry a raster payload.
     /// </summary>
     /// <remarks>
@@ -401,6 +407,29 @@ public sealed class SheetPackageEntry
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public List<SheetRoleSignature>? Roles { get; set; }
+
+    /// <summary>
+    /// The empty frame the source reserved for the working sheet's «Зөвшилцсөн»
+    /// table, in millimetres from the page's top-left - the same origin as
+    /// <c>format.titleBlockArea</c>. Null when the sheet has none.
+    /// </summary>
+    /// <remarks>
+    /// The source draws the frame and nothing in it; Studio writes the section
+    /// engineers into it from the project. Not written when null, for the same
+    /// reason as <see cref="Roles"/>: a producer that never heard of the table
+    /// must keep writing the manifest it always wrote.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public PageRectSpec? ConsultationTableArea { get; set; }
+
+    /// <summary>
+    /// How many name rows the reserved frame holds, not counting its header.
+    /// Zero, and then not written, when there is no frame.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int ConsultationTableRows { get; set; }
 
     /// <summary>
     /// One-based page in <see cref="PdfFileName"/> represented by this logical

@@ -26,10 +26,26 @@ public sealed class ProjectApprovalWorkflow
     /// </summary>
     public List<ProjectApprovalEntry> WorkingDrawingConsultedBy { get; set; } = [];
 
+    /// <summary>
+    /// Ажлын зургийн хуудас бүрийн «Зөвшилцсөн» хүснэгт: тухайн хуудсыг
+    /// зөвшилцсөн БҮЛГИЙН инженерүүд (ББ, ХАС, ЦБУ, ХТ, ХД, ДГ …), хэвлэгдэх
+    /// дарааллаараа.
+    ///
+    /// 🔴 <see cref="WorkingDrawingConsultedBy"/>-г ДАХИН АШИГЛААГҮЙ. Тэр нэр
+    /// уншигдах бүрдээ загвар зургийн <see cref="ConceptDesignApprovalRoster.ConcurredBy"/>
+    /// руу зөөгддөг (байгууллагууд), тиймээс түүнд шинэ утга өгвөл хуучин файлд
+    /// үлдсэн онцгой байдал, эрүүл ахуйн мөр инженерүүдийн хүснэгтэд орох байв.
+    /// Эзэн 2026-10-19: ажлын зургийн зөвшилцөл тусдаа жагсаалт.
+    /// </summary>
+    public List<WorkingDrawingSectionConsentEntry> WorkingDrawingSectionConsent { get; set; } = [];
+
     public ProjectApprovalWorkflow Clone() => new()
     {
         ConceptDesign = ConceptDesign.Clone(),
         WorkingDrawingConsultedBy = WorkingDrawingConsultedBy
+            .Select(entry => entry.Clone())
+            .ToList(),
+        WorkingDrawingSectionConsent = WorkingDrawingSectionConsent
             .Select(entry => entry.Clone())
             .ToList(),
     };
@@ -38,6 +54,7 @@ public sealed class ProjectApprovalWorkflow
     {
         ConceptDesign ??= new ConceptDesignApprovalRoster();
         WorkingDrawingConsultedBy ??= [];
+        WorkingDrawingSectionConsent ??= [];
 
         // ONE-WAY MOVE, not a fallback. Rows written under the old name belong
         // to the concept roster; once moved they are gone from here, so the two
@@ -49,6 +66,16 @@ public sealed class ProjectApprovalWorkflow
         }
 
         ConceptDesign.Normalize();
+
+        // Not truncated: the reserved frame decides how many rows print, and the
+        // build reports any it cannot fit (ConsultationTableLayout.Overflow).
+        for (var index = WorkingDrawingSectionConsent.Count - 1; index >= 0; index--)
+        {
+            if (WorkingDrawingSectionConsent[index] is null)
+                WorkingDrawingSectionConsent.RemoveAt(index);
+            else
+                WorkingDrawingSectionConsent[index].Normalize();
+        }
     }
 
     internal static void NormalizeEntries(List<ProjectApprovalEntry> entries)
@@ -173,6 +200,32 @@ public sealed class ProjectApprovalEntry
             Id = Guid.NewGuid().ToString("N");
         OrganizationName = OrganizationName?.Trim() ?? "";
         PositionTitle = PositionTitle?.Trim() ?? "";
+        PersonName = PersonName?.Trim() ?? "";
+    }
+}
+
+/// <summary>One row of a working sheet's «Зөвшилцсөн» table: section mark and engineer.</summary>
+public sealed class WorkingDrawingSectionConsentEntry
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Бүлгийн марк: ББ, ХАС, ЦБУ, ХТ, ХД, ДГ …</summary>
+    public string SectionMark { get; set; } = "";
+
+    public string PersonName { get; set; } = "";
+
+    public WorkingDrawingSectionConsentEntry Clone() => new()
+    {
+        Id = Id,
+        SectionMark = SectionMark,
+        PersonName = PersonName,
+    };
+
+    public void Normalize()
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+            Id = Guid.NewGuid().ToString("N");
+        SectionMark = SectionMark?.Trim() ?? "";
         PersonName = PersonName?.Trim() ?? "";
     }
 }

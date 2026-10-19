@@ -534,6 +534,7 @@ public static class SheetPackageReader
         }
         ValidatePayloadDeclaration(manifest, sheet, issues);
         ValidateRoles(manifest, sheet, issues);
+        ValidateConsultationTable(manifest, sheet, issues);
         if (manifest.SchemaVersion >= 5 && sheet.PdfPageNumber <= 0)
         {
             issues.Add($"Sheet '{sheet.Number}': PDF page number must be positive for schema version 5 or newer.");
@@ -679,6 +680,54 @@ public static class SheetPackageReader
             {
                 issues.Add($"Sheet '{sheet.Number}': role '{code}' has no name.");
             }
+        }
+    }
+
+    /// <summary>
+    /// Checks the frame a sheet reserves for its «Зөвшилцсөн» table.
+    /// </summary>
+    /// <remarks>
+    /// The frame and its row count travel together: a frame with no rows can
+    /// hold no names, and rows with no frame have nowhere to be drawn. Either
+    /// half alone would print a sheet whose consultation looks settled.
+    /// </remarks>
+    private static void ValidateConsultationTable(
+        SheetPackageManifest manifest,
+        SheetPackageEntry sheet,
+        ICollection<string> issues)
+    {
+        PageRectSpec? area = sheet.ConsultationTableArea;
+        if (area is null && sheet.ConsultationTableRows == 0)
+            return;
+
+        if (manifest.SchemaVersion < SheetPackageManifest.FirstConsultationTableSchemaVersion)
+        {
+            issues.Add(
+                $"Sheet '{sheet.Number}': a consultation table requires schema version " +
+                $"{SheetPackageManifest.FirstConsultationTableSchemaVersion} or newer.");
+        }
+        if (area is null)
+        {
+            issues.Add($"Sheet '{sheet.Number}': consultation table rows are declared without an area.");
+            return;
+        }
+        if (sheet.ConsultationTableRows <= 0)
+        {
+            issues.Add($"Sheet '{sheet.Number}': a consultation table must declare at least one row.");
+        }
+        if (!double.IsFinite(area.X) || !double.IsFinite(area.Y) ||
+            !IsPositiveFinite(area.Width) || !IsPositiveFinite(area.Height))
+        {
+            issues.Add($"Sheet '{sheet.Number}': consultation table area must be a positive finite rectangle.");
+            return;
+        }
+        const double tolerance = 0.01;
+        if (IsPositiveFinite(sheet.WidthMm) && IsPositiveFinite(sheet.HeightMm) &&
+            (area.X < -tolerance || area.Y < -tolerance ||
+             area.X + area.Width > sheet.WidthMm + tolerance ||
+             area.Y + area.Height > sheet.HeightMm + tolerance))
+        {
+            issues.Add($"Sheet '{sheet.Number}': consultation table lies outside the page.");
         }
     }
 

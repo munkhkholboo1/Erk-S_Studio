@@ -159,6 +159,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 {
                     ComposeFormattedPages(document, request.Project, buildPage);
                 }
+                AddConsultationOverflowWarning(warnings, request.Project, buildPage);
 
                 string sourceIdentity = !string.IsNullOrWhiteSpace(sheet.SourceId)
                     ? sheet.SourceId
@@ -662,6 +663,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawRevitWorkingSheetHeader(gfx, sheetHeader, buildPage, borderPen);
         gfx.DrawRectangle(borderPen, corner);
         DrawRevitWorkingTitleBlock(gfx, corner, project, buildPage, borderPen, finePen);
+        DrawConsultationTable(gfx, project, buildPage, paperBrush, borderPen, finePen);
         gfx.DrawRectangle(
             new XPen(XColor.FromArgb(185, 190, 196), 0.25),
             new XRect(0, 0, page.Width.Point, page.Height.Point));
@@ -2135,7 +2137,6 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             ResolveDesignCompanyProfile(project),
             new XRect(X(logo.X) + Mm(1), Y(logo.Y) + Mm(1), Mm(logo.Width) * sx - Mm(2), Mm(logo.Height) * sy - Mm(2)));
 
-        double pad = Mm(0.6);
         IReadOnlyList<WorkingTitleBlockCell> cells = VerticalWorkingTitleBlockLayout.Cells(
             project,
             buildPage.Title,
@@ -2144,6 +2145,85 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             buildPage.ScaleText,
             buildPage.Definition.RoleAssignments,
             buildPage.Sheet?.Entry?.Roles);
+        PaintWorkingTitleBlockCells(gfx, cells, rect, sx, sy);
+    }
+
+    /// <summary>
+    /// Fills the «ЗӨВШӨӨРӨЛЦСӨН» frame the source reserved, from the project's
+    /// section-consent list. A sheet that reserved no frame gets no table.
+    /// </summary>
+    private static void DrawConsultationTable(
+        XGraphics gfx,
+        AlbumProject project,
+        AlbumBuildPage buildPage,
+        XBrush paperBrush,
+        XPen borderPen,
+        XPen finePen)
+    {
+        SheetPackageEntry? entry = buildPage.Sheet?.Entry;
+        PageRectSpec? area = entry?.ConsultationTableArea;
+        int rows = entry?.ConsultationTableRows ?? 0;
+        if (area is null || rows <= 0 || area.Width <= 0 || area.Height <= 0)
+            return;
+
+        var rect = new XRect(Mm(area.X), Mm(area.Y), Mm(area.Width), Mm(area.Height));
+        gfx.DrawRectangle(paperBrush, rect);
+        gfx.DrawRectangle(borderPen, rect);
+        foreach (WorkingTitleBlockLine line in ConsultationTableLayout.Lines(area.Width, area.Height, rows))
+        {
+            // Bold under the title only; the name rows are ruled fine.
+            bool titleRule = Math.Abs(line.Y0Mm - line.Y1Mm) < 0.001 &&
+                             Math.Abs(line.Y0Mm - area.Height / (rows + 1)) < 0.001;
+            gfx.DrawLine(
+                titleRule ? borderPen : finePen,
+                rect.Left + Mm(line.X0Mm),
+                rect.Top + Mm(line.Y0Mm),
+                rect.Left + Mm(line.X1Mm),
+                rect.Top + Mm(line.Y1Mm));
+        }
+
+        PaintWorkingTitleBlockCells(
+            gfx,
+            ConsultationTableLayout.Cells(
+                area.Width,
+                area.Height,
+                rows,
+                project.ApprovalWorkflow?.WorkingDrawingSectionConsent),
+            rect,
+            1,
+            1);
+    }
+
+    private static void AddConsultationOverflowWarning(
+        List<string> warnings,
+        AlbumProject project,
+        AlbumBuildPage buildPage)
+    {
+        SheetPackageEntry? entry = buildPage.Sheet?.Entry;
+        if (entry?.ConsultationTableArea is null || entry.ConsultationTableRows <= 0)
+            return;
+        int overflow = ConsultationTableLayout.Overflow(
+            entry.ConsultationTableRows,
+            project.ApprovalWorkflow?.WorkingDrawingSectionConsent);
+        if (overflow > 0)
+        {
+            warnings.Add(
+                $"{buildPage.Number}: «{ConsultationTableLayout.Title}» хүснэгтэд " +
+                $"{entry.ConsultationTableRows} мөр байгаа тул {overflow} хүн хэвлэгдсэнгүй.");
+        }
+    }
+
+    /// <summary>Paints corner-table cells laid out in millimetres, scaled per axis.</summary>
+    private static void PaintWorkingTitleBlockCells(
+        XGraphics gfx,
+        IReadOnlyList<WorkingTitleBlockCell> cells,
+        XRect rect,
+        double sx,
+        double sy)
+    {
+        double X(double mm) => rect.Left + Mm(mm) * sx;
+        double Y(double mm) => rect.Top + Mm(mm) * sy;
+        double pad = Mm(0.6);
         foreach (WorkingTitleBlockCell cell in cells)
         {
             if (string.IsNullOrWhiteSpace(cell.Text))
