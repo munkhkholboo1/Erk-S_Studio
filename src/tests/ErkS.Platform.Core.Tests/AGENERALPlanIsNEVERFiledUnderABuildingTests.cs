@@ -269,3 +269,62 @@ public sealed class AGENERALPlanIsNEVERFiledUnderABuildingTests : IDisposable
         return (project, BuildingWorkingDrawingAlbumTemplate.CreateDefinition(""), library, loaded);
     }
 }
+
+/// <summary>
+/// A working-drawing album never draws a building sub-cover, so a change of
+/// the building composition must not leave one waiting to be sent forever
+/// (Батнасан, 2026-10-20: a sub-cover code stayed pending after every Sync).
+/// One the shared album still holds stays pending - it has to be removed.
+/// </summary>
+public sealed class ANALBUMWithoutSubCoversNeverWaitsForOneTests
+{
+    private static ProjectWorkspace Project(params string[] cloudCodes)
+    {
+        var project = new ProjectWorkspace();
+        project.BuildingGroups.Add(new ProjectBuildingGroup { Id = "b1", Name = "Барилга", Order = 1 });
+        project.Cloud.SharedAlbumComponents = cloudCodes
+            .Select(code => new ProjectCloudAlbumComponentReference { Code = code })
+            .ToList();
+        return project;
+    }
+
+    [Fact]
+    public void TheWorkingDrawingsMarkNoSubCoverTheyNeverDraw()
+    {
+        ProjectWorkspace project = Project();
+        string code = ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(project.BuildingGroups[0]);
+        project.Cloud.PendingAlbumComponentCodes = [code];
+
+        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(
+            project,
+            BuildingWorkingDrawingAlbumTemplate.CreateDefinition("BN"));
+
+        Assert.True(project.Cloud.BuildingCompositionPending);
+        Assert.DoesNotContain(code, ProjectCloudSyncMetadata.PendingAlbumComponents(project));
+    }
+
+    [Fact]
+    public void OneTheSharedAlbumStillHoldsWaitsToBeRemoved()
+    {
+        string stale = ProjectCloudSyncMetadata.BuildingSubCoverComponentCodePrefix + "studio-building:old";
+        ProjectWorkspace project = Project(stale);
+
+        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(
+            project,
+            BuildingWorkingDrawingAlbumTemplate.CreateDefinition("BN"));
+
+        Assert.Equal([stale], ProjectCloudSyncMetadata.PendingAlbumComponents(project));
+    }
+
+    [Fact]
+    public void AConceptAlbumStillMarksItsSubCovers()
+    {
+        ProjectWorkspace project = Project();
+
+        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+
+        Assert.Contains(
+            ProjectCloudSyncMetadata.BuildingSubCoverComponentCode(project.BuildingGroups[0]),
+            ProjectCloudSyncMetadata.PendingAlbumComponents(project));
+    }
+}

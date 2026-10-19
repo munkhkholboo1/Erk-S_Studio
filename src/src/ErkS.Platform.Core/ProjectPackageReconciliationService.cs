@@ -138,7 +138,7 @@ public static class ProjectPackageReconciliationService
             foreach (string key in staleBuildingAssignments)
                 project.SheetBuildingAssignments.Remove(key);
             if (staleBuildingAssignments.Count > 0)
-                ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+                ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project, album);
 
             HashSet<string> authoritativeSheetIds = albumSheets
                 .Select(entry => entry.SheetId?.Trim() ?? "")
@@ -224,7 +224,7 @@ public static class ProjectPackageReconciliationService
                 buildingSheets.Select(entry =>
                     SheetRecord.MakeKey(packageSource, entry, source.Id)));
         if (addedBuildingAssignments)
-            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project, album);
 
         if (usesConceptTemplate)
         {
@@ -640,7 +640,7 @@ public static class ProjectPackageReconciliationService
                 project.SheetBuildingAssignments.Remove(state.SheetKey);
             }
             project.SheetBuildingAssignments[restoredKey] = state.BuildingGroupId;
-            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
+            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project, album);
         }
     }
 

@@ -868,7 +868,7 @@ public sealed class AppState : IDisposable
         int removedPageCount =
             RemoveAlbumPagesForSource(source, knownSourceKeys);
         if (removedBuildingAssignments)
-            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
+            ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project, Album);
 
         CityGenProjectSiteReconciliationResult siteResult =
             ReconcileCityGenProjectSiteCore();
@@ -909,7 +909,7 @@ public sealed class AppState : IDisposable
             ProjectBuildingComposition.NormalizeAssignments(
                 assignments,
                 normalizedGroups);
-        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project);
+        ProjectCloudSyncMetadata.MarkBuildingCompositionPending(Project, Album);
 
         // 🔴 THE SUB-COVERS ARE NOT THE DRAWINGS. The call above marks the pages
         // that carry a group's title; the pages that carry its drawings live in

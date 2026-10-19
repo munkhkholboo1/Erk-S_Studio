@@ -416,17 +416,37 @@ public static class ProjectCloudSyncMetadata
                 .ToList();
     }
 
-    public static void MarkBuildingCompositionPending(ProjectWorkspace project)
+    /// <param name="album">
+    /// The album the composition is for. One that never draws a building
+    /// sub-cover (working drawings) marks only the sub-covers the shared album
+    /// still holds - to remove them - and lets go of any other one waiting:
+    /// nothing will ever render it, so it would wait forever (Batnasan,
+    /// 2026-10-20). Null keeps the concept behaviour.
+    /// </param>
+    public static void MarkBuildingCompositionPending(ProjectWorkspace project, AlbumDefinition? album = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         CaptureBuildingCompositionEditBase(project);
         project.Cloud.BuildingCompositionPending = true;
-        IEnumerable<string> currentCodes = ProjectBuildingComposition
+        List<string> currentCodes = ProjectBuildingComposition
             .NormalizeGroups(project.BuildingGroups)
-            .Select(BuildingSubCoverComponentCode);
-        IEnumerable<string> existingCodes = (project.Cloud.SharedAlbumComponents ?? [])
+            .Select(BuildingSubCoverComponentCode)
+            .ToList();
+        List<string> existingCodes = (project.Cloud.SharedAlbumComponents ?? [])
             .Select(component => component.Code?.Trim() ?? "")
-            .Where(IsBuildingSubCoverComponentCode);
+            .Where(IsBuildingSubCoverComponentCode)
+            .ToList();
+        if (album is not null && !AlbumBuilder.RendersBuildingSubCovers(album))
+        {
+            var held = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            MarkAlbumComponentsSynced(
+                project,
+                PendingAlbumComponents(project)
+                    .Where(code => IsBuildingSubCoverComponentCode(code) && !held.Contains(code)));
+            MarkAlbumComponentsPending(project, existingCodes);
+            return;
+        }
+
         MarkAlbumComponentsPending(project, currentCodes.Concat(existingCodes));
     }
 
