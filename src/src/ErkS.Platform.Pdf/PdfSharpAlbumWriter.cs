@@ -1471,6 +1471,17 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             : $"{name} {legalForm}";
     }
 
+    // Accessors for VerticalWorkingTitleBlockLayout, which lays the vertical
+    // corner table out as data and must print exactly what the other tables do.
+    internal static string CompanyPhoneTextFor(CompanyProfile company) =>
+        CompanyPhoneText(company) ?? "";
+
+    internal static string ProjectDisplayNameFor(AlbumProject project) =>
+        ProjectDisplayName(project);
+
+    internal static string CompanyLegalDisplayNameFor(CompanyProfile company, string? fallback) =>
+        CompanyLegalDisplayName(company, fallback ?? "");
+
     private static string CompanyPhoneText(CompanyProfile company)
     {
         var phoneNumbers = (company.PhoneNumbers ?? [])
@@ -2093,6 +2104,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         return signer?.FullName?.Trim() ?? "";
     }
 
+    /// <summary>
+    /// The vertical corner table, painted from <see cref="VerticalWorkingTitleBlockLayout"/>
+    /// - the owner's own 70 × 90 table, measured - scaled to the reserved rect.
+    /// </summary>
     private static void DrawVerticalRevitWorkingTitleBlock(
         XGraphics gfx,
         XRect rect,
@@ -2101,18 +2116,65 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XPen borderPen,
         XPen finePen)
     {
-        double y60 = rect.Top + rect.Height / 3d;
-        double y150 = rect.Top + rect.Height * 5d / 6d;
-        double x8 = rect.Left + rect.Width * 8d / 55d;
-        double x47 = rect.Right - rect.Width * 8d / 55d;
-        gfx.DrawLine(borderPen, rect.Left, y60, rect.Right, y60);
-        gfx.DrawLine(borderPen, rect.Left, y150, rect.Right, y150);
-        gfx.DrawLine(finePen, x8, rect.Top, x8, rect.Bottom);
-        gfx.DrawLine(finePen, x47, rect.Top, x47, rect.Bottom);
-        double pad = Mm(1.5);
-        DrawFittedText(gfx, CompanyDisplayName(project.Company, project.DesignOrganizationName), x8 + pad, rect.Top + pad, x47 - x8 - pad * 2, y60 - rect.Top - pad * 2, 7, true, XStringFormats.Center);
-        DrawFittedText(gfx, buildPage.Title, x8 + pad, y60 + pad, x47 - x8 - pad * 2, y150 - y60 - pad * 2, 8, true, XStringFormats.Center);
-        DrawFittedText(gfx, buildPage.Number, x8 + pad, y150 + pad, x47 - x8 - pad * 2, rect.Bottom - y150 - pad * 2, 8, true, XStringFormats.Center);
+        // Points per layout millimetre on each axis: a table clamped to a small
+        // sheet keeps its proportions instead of overflowing.
+        double sx = rect.Width / Mm(VerticalWorkingTitleBlockLayout.WidthMm);
+        double sy = rect.Height / Mm(VerticalWorkingTitleBlockLayout.HeightMm);
+        double X(double mm) => rect.Left + Mm(mm) * sx;
+        double Y(double mm) => rect.Top + Mm(mm) * sy;
+
+        foreach (WorkingTitleBlockLine line in VerticalWorkingTitleBlockLayout.Lines)
+        {
+            bool full = line.X0Mm <= 0.001 && line.X1Mm >= VerticalWorkingTitleBlockLayout.WidthMm - 0.001;
+            gfx.DrawLine(full ? borderPen : finePen, X(line.X0Mm), Y(line.Y0Mm), X(line.X1Mm), Y(line.Y1Mm));
+        }
+
+        var logo = VerticalWorkingTitleBlockLayout.LogoCellMm;
+        DrawDesignCompanyLogo(
+            gfx,
+            ResolveDesignCompanyProfile(project),
+            new XRect(X(logo.X) + Mm(1), Y(logo.Y) + Mm(1), Mm(logo.Width) * sx - Mm(2), Mm(logo.Height) * sy - Mm(2)));
+
+        double pad = Mm(0.6);
+        IReadOnlyList<WorkingTitleBlockCell> cells = VerticalWorkingTitleBlockLayout.Cells(
+            project,
+            buildPage.Title,
+            buildPage.Number,
+            buildPage.Sheet?.Entry?.Discipline,
+            buildPage.ScaleText,
+            buildPage.Definition.RoleAssignments,
+            buildPage.Sheet?.Entry?.Roles);
+        foreach (WorkingTitleBlockCell cell in cells)
+        {
+            if (string.IsNullOrWhiteSpace(cell.Text))
+                continue;
+            var box = new XRect(
+                X(cell.XMm) + pad,
+                Y(cell.YMm) + pad / 2,
+                Mm(cell.WidthMm) * sx - pad * 2,
+                Mm(cell.HeightMm) * sy - pad);
+            XStringFormat format = cell.Align == WorkingTitleBlockAlign.Left
+                ? XStringFormats.CenterLeft
+                : XStringFormats.Center;
+            if (cell.Wrap)
+            {
+                DrawWrappedCoverText(gfx, cell.Text, box, cell.TextHeightMm, cell.Bold, format, WorkingDrawingFontName);
+            }
+            else
+            {
+                DrawFittedText(
+                    gfx,
+                    cell.Text,
+                    box.X,
+                    box.Y,
+                    box.Width,
+                    box.Height,
+                    Mm(CoverFontEmSizeMm(cell.TextHeightMm)),
+                    cell.Bold,
+                    format,
+                    WorkingDrawingFontName);
+            }
+        }
     }
 
     private static void DrawFittedText(
