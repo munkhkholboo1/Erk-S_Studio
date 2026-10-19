@@ -123,6 +123,10 @@ public static class BuildingWorkingDrawingAlbumCatalog
             "ХТ,ДГ" => value is "ХТ,ДГ" or "ХТДГ" or "ДГ,ХТ" or "ДГХТ" or "ХТ" or "ДГ",
             // PFA numbers the general part with the Latin spelling as well.
             "ЕХ" => value is "ЕХ" or "EX",
+            // Technology (ТХ) sheets are part of the architecture album in PFA's
+            // catalogue, listed after the floor plans. Unknown here, they fell to
+            // the general part and were bound first.
+            "БА" => value is "БА" or "ТХ",
             _ => value.Equals(discipline.Mark, StringComparison.OrdinalIgnoreCase),
         };
     }

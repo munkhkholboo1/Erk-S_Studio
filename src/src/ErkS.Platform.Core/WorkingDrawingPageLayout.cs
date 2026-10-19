@@ -29,6 +29,19 @@ public static class WorkingDrawingPageLayout
     public const double EtalonBandMm = 5d;
     public const double HorizontalTitleBlockWidthMm = 180d;
     public const double HorizontalTitleBlockHeightMm = 36d;
+
+    /// <summary>
+    /// The vertical corner table: 70 × 90 mm, from
+    /// <c>_shared/corner-table-space-contract-2026-09-06.json</c>.
+    /// </summary>
+    /// <remarks>
+    /// Its own pair of numbers, NOT the horizontal table's two swapped. That swap
+    /// was this file's rule from its first commit, a month before the contract
+    /// existed, and it gave 36 × 180 - a strip over the drawing on one side and a
+    /// reserved space left half empty on the other.
+    /// </remarks>
+    public const double VerticalTitleBlockWidthMm = 70d;
+    public const double VerticalTitleBlockHeightMm = 90d;
     public const double SheetTitleWidthMm = 90d;
     public const double SheetTitleHeightMm = 24d;
 
@@ -77,8 +90,8 @@ public static class WorkingDrawingPageLayout
     private static PageRectMm NormalizeCornerTable(PageRectMm source, PageRectMm inner)
     {
         bool vertical = source.Height > source.Width;
-        double width = Math.Min(vertical ? HorizontalTitleBlockHeightMm : HorizontalTitleBlockWidthMm, inner.Width);
-        double height = Math.Min(vertical ? HorizontalTitleBlockWidthMm : HorizontalTitleBlockHeightMm, inner.Height);
+        double width = Math.Min(vertical ? VerticalTitleBlockWidthMm : HorizontalTitleBlockWidthMm, inner.Width);
+        double height = Math.Min(vertical ? VerticalTitleBlockHeightMm : HorizontalTitleBlockHeightMm, inner.Height);
         return new PageRectMm
         {
             X = inner.X + inner.Width - width,

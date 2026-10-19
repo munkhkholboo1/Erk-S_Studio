@@ -75,6 +75,38 @@ public sealed class BuildingWorkingDrawingAlbumCatalogTests
     }
 
     [Fact]
+    public void TECHNOLOGYSheetsBindIntoTheArchitectureSetAsPFADefinesThem()
+    {
+        // PFA's ArchitectureWorkingDrawingDiscipline: «The architecture album also
+        // carries ... technology (ТХ) sheets». It lists "ТХ - Технологийн
+        // байгуулалт" as the last sheet of the БА album, and its catalogue test
+        // asserts it there. This catalogue says it matches PFA's - and did not
+        // know the mark, so every ТХ sheet fell to the general part and was bound
+        // FIRST, ahead of the floor plans it belongs after. PFR measured it on the
+        // Batnasan project (sheets 58-63) on 2026-10-19 and warned about it on
+        // every export.
+        Assert.Equal(
+            "working-drawing-ba",
+            BuildingWorkingDrawingAlbumCatalog.FindByMark("ТХ")?.Id);
+        Assert.Equal(
+            BuildingWorkingDrawingAlbumCatalog.SectionOrder("БА"),
+            BuildingWorkingDrawingAlbumCatalog.SectionOrder("ТХ"));
+    }
+
+    [Fact]
+    public void TheArchitectureSetStillOwnsItsOwnMarkAndNoOther()
+    {
+        // The widening is ТХ alone. A set that silently took marks it never named
+        // would hide the next unknown mark in the same way ТХ was hidden.
+        IBuildingWorkingDrawingDiscipline architecture =
+            BuildingWorkingDrawingAlbumCatalog.All.Single(x => x.Id == "working-drawing-ba");
+
+        Assert.True(BuildingWorkingDrawingAlbumCatalog.MatchesMark(architecture, "БА"));
+        Assert.False(BuildingWorkingDrawingAlbumCatalog.MatchesMark(architecture, "ББ"));
+        Assert.False(BuildingWorkingDrawingAlbumCatalog.MatchesMark(architecture, "ЕХ"));
+    }
+
+    [Fact]
     public void GeneralPartLeadsTheAlbumAndUnmarkedPagesLeadWithIt()
     {
         Assert.Equal(0, BuildingWorkingDrawingAlbumCatalog.SectionOrder("ЕХ"));

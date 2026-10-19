@@ -30,6 +30,54 @@ public sealed class WorkingDrawingPageLayoutTests
     }
 
     [Fact]
+    public void AVerticalCornerTableIsTheCONTRACTS70By90NotTheHorizontalOneTurnedOnItsSide()
+    {
+        // 🔴 _shared/corner-table-space-contract-2026-09-06.json: the vertical
+        // corner table is 70 × 90 mm, read from PFR's own generator and the same
+        // in PFA. This layout used to produce 36 × 180 - the horizontal table's
+        // two numbers swapped - a rule from the first commit of this file, a month
+        // before the contract existed. A producer that reserves the contract's
+        // 70 × 90 would have had Studio reserve, and later draw, a strip 36 mm
+        // wide and twice as tall: over the drawing on one side, leaving the
+        // reserved space half empty on the other.
+        var format = new PageFormatDefinition
+        {
+            Kind = PageFormatKind.WorkingDrawing,
+            WidthMm = 297,
+            HeightMm = 420,
+            DrawingArea = new PageRectMm { X = 20, Y = 10, Width = 267, Height = 400 },
+            SheetTitleArea = new PageRectMm { X = 20, Y = 10, Width = 267, Height = 9 },
+            // What the producer reserved: the contract's vertical table.
+            TitleBlockArea = new PageRectMm { X = 217, Y = 320, Width = 70, Height = 90 },
+        };
+
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
+
+        // Bottom-right of the inner frame, as the contract's origin formula says:
+        // x = gridX + gridWidth - 70, y = gridY + gridHeight - 90.
+        Assert.Equal((217d, 320d, 70d, 90d), Rect(regions.TitleBlockArea));
+    }
+
+    [Fact]
+    public void AHorizontalCornerTableStaysTheContracts180By36()
+    {
+        // The positive control for the test above: the fix for the vertical
+        // table must not move the horizontal one, which was right all along.
+        var format = new PageFormatDefinition
+        {
+            Kind = PageFormatKind.WorkingDrawing,
+            WidthMm = 420,
+            HeightMm = 297,
+            DrawingArea = new PageRectMm { X = 20, Y = 10, Width = 390, Height = 277 },
+            TitleBlockArea = new PageRectMm { X = 230, Y = 251, Width = 180, Height = 36 },
+        };
+
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
+
+        Assert.Equal((230d, 251d, 180d, 36d), Rect(regions.TitleBlockArea));
+    }
+
+    [Fact]
     public void Resolve_LegacyWorkingFormatReceivesStudioOwnedTitleAndHorizontalCornerTable()
     {
         var format = new PageFormatDefinition
