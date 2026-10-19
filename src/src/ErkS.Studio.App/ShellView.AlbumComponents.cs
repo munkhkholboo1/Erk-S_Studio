@@ -612,6 +612,7 @@ internal sealed partial class ShellView
             StudioBuildingSubCoverSelection coverSelection =
                 StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
                     state.Project,
+                    state.Album,
                     rendered,
                     selected);
             if (coverSelection.MissingRequiredCoverCodes.Count > 0)
@@ -1486,6 +1487,7 @@ internal sealed partial class ShellView
             StudioBuildingSubCoverSelection coverSelection =
                 StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
                     state.Project,
+                    state.Album,
                     rendered,
                     selected);
             if (coverSelection.MissingRequiredCoverCodes.Count > 0)

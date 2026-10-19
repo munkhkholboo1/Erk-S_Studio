@@ -14,14 +14,31 @@ internal sealed record StudioBuildingSubCoverSelection(
 /// </summary>
 internal static class StudioBuildingSubCoverSelectionPolicy
 {
+    /// <remarks>
+    /// The album decides whether a cover can be required at all: one not built
+    /// in building sections never draws a sub-cover, and requiring one there
+    /// refused the whole sync (Batnasan's working drawings, 2026-10-20).
+    /// </remarks>
     public static StudioBuildingSubCoverSelection IncludeRequiredCovers(
         ProjectWorkspace project,
+        AlbumDefinition album,
         IReadOnlyList<StudioCloudAlbumSection> rendered,
         IEnumerable<StudioCloudAlbumSection> selected)
     {
         ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(album);
         ArgumentNullException.ThrowIfNull(rendered);
         ArgumentNullException.ThrowIfNull(selected);
+        if (!AlbumBuilder.RendersBuildingSubCovers(album))
+        {
+            HashSet<string> chosen = selected
+                .Where(component => component is not null)
+                .Select(component => component.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return new StudioBuildingSubCoverSelection(
+                rendered.Where(component => chosen.Contains(component.Code)).ToList(),
+                []);
+        }
 
         HashSet<string> selectedCodes = selected
             .Where(component => component is not null)

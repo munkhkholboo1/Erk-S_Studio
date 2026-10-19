@@ -33,6 +33,7 @@ public sealed class StudioBuildingSubCoverSelectionPolicyTests
         StudioBuildingSubCoverSelection selection =
             StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
                 project,
+                ConceptAlbum(),
                 [unrelated, cover, source],
                 [source]);
 
@@ -67,6 +68,7 @@ public sealed class StudioBuildingSubCoverSelectionPolicyTests
         StudioBuildingSubCoverSelection selection =
             StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
                 project,
+                ConceptAlbum(),
                 [source],
                 [source]);
 
@@ -126,6 +128,7 @@ public sealed class StudioBuildingSubCoverSelectionPolicyTests
         StudioBuildingSubCoverSelection selection =
             StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
                 project,
+                ConceptAlbum(),
                 [activeCover, source],
                 [source]);
 
@@ -134,6 +137,45 @@ public sealed class StudioBuildingSubCoverSelectionPolicyTests
             [activeCover.Code, source.Code],
             selection.Components.Select(component => component.Code));
     }
+
+    [Fact]
+    public void AWorkingDrawingAlbumRequiresNoSubCoverItNeverDraws()
+    {
+        // 🔴 MEASURED ON BATNASAN, 2026-10-20: the ЕТ source was assigned to
+        // «Барилга 1»; the working-drawing album is not built in building
+        // sections, so no sub-cover was ever rendered - and the sync refused
+        // the whole album for want of it. Only an album that draws sub-covers
+        // can be missing one.
+        ProjectWorkspace project = Project();
+        project.Cloud.SharedBuildingSheetAssignments =
+        [
+            new ProjectCloudBuildingSheetAssignmentReference
+            {
+                SourceOwnerEmail = "architect@example.com",
+                SourceKey = "school-autocad",
+                SheetId = "layout-1",
+                BuildingGroupId = "school",
+            },
+        ];
+        StudioCloudAlbumSection source = Component(
+            StudioAlbumComponentIdentity.SourceCode("architect@example.com", "school-autocad"),
+            "architect@example.com",
+            "school-autocad",
+            "Source");
+
+        StudioBuildingSubCoverSelection selection =
+            StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
+                project,
+                BuildingWorkingDrawingAlbumTemplate.CreateDefinition(""),
+                [source],
+                [source]);
+
+        Assert.Empty(selection.MissingRequiredCoverCodes);
+        Assert.Equal(source, Assert.Single(selection.Components));
+    }
+
+    private static AlbumDefinition ConceptAlbum() =>
+        BuildingArchitectureConceptAlbumTemplate.CreateDefinition("");
 
     private static ProjectWorkspace Project() => new()
     {

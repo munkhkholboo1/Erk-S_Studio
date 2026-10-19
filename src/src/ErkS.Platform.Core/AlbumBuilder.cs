@@ -247,10 +247,7 @@ public sealed class AlbumBuilder
     {
         RejectUnresolvedPages(project.Album.Pages, library);
 
-        if (string.Equals(
-                project.Album.TemplateId,
-                BuildingArchitectureConceptAlbumTemplate.TemplateId,
-                StringComparison.OrdinalIgnoreCase))
+        if (RendersBuildingSubCovers(project.Album))
         {
             return CreateConceptConfiguredRequest(project, library);
         }
@@ -405,6 +402,19 @@ public sealed class AlbumBuilder
                 .ToList(),
         };
     }
+
+    /// <summary>
+    /// Whether this album is built in building sections, each opened by a
+    /// Studio sub-cover. Only such an album can be missing a sub-cover; every
+    /// other one (working drawings, urban planning) never draws one, however
+    /// its sources are assigned to buildings.
+    /// </summary>
+    public static bool RendersBuildingSubCovers(AlbumDefinition? album) =>
+        album is not null &&
+        string.Equals(
+            album.TemplateId,
+            BuildingArchitectureConceptAlbumTemplate.TemplateId,
+            StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBuildingSectionKey(string key) =>
         key.StartsWith("studio-building:", StringComparison.OrdinalIgnoreCase) ||
