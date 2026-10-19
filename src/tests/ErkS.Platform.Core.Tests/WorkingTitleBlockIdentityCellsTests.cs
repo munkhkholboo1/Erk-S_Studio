@@ -211,6 +211,13 @@ public sealed class WorkingTitleBlockIdentityCellsTests
             start,
             StringComparison.Ordinal);
         Assert.True(end > start, "the helpers moved; this test reads the block above them");
-        return text[start..end];
+        string block = text[start..end];
+
+        // The block paints the measured layout; the fields are filled there.
+        Assert.Contains("HorizontalWorkingTitleBlockLayout.Cells(", block, StringComparison.Ordinal);
+        string layout = File.ReadAllText(
+            Path.Combine(Path.GetDirectoryName(source!)!, "HorizontalWorkingTitleBlockLayout.cs"),
+            Encoding.UTF8);
+        return block + layout;
     }
 }

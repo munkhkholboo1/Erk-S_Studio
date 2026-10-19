@@ -27,8 +27,14 @@ public static class WorkingDrawingGeneratedPageChromePolicy
 public static class WorkingDrawingPageLayout
 {
     public const double EtalonBandMm = 5d;
-    public const double HorizontalTitleBlockWidthMm = 180d;
-    public const double HorizontalTitleBlockHeightMm = 36d;
+    /// <summary>
+    /// The horizontal corner table: 170 × 34 mm - PFR's TitleBlockHorizontal.rfa,
+    /// confirmed by the owner and measured on the owner's own sheets (Eco Garden
+    /// AZ, Grand Mark AZ 2026: x 239 → 409 on A3). It was 180 × 36, a size from
+    /// the 2026-09-06 space contract that matched no family anyone places.
+    /// </summary>
+    public const double HorizontalTitleBlockWidthMm = 170d;
+    public const double HorizontalTitleBlockHeightMm = 34d;
 
     /// <summary>
     /// The vertical corner table: 70 × 90 mm, from

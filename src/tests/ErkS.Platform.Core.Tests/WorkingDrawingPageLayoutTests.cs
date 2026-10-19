@@ -24,7 +24,9 @@ public sealed class WorkingDrawingPageLayoutTests
         Assert.Equal((15d, 5d, 821d, 584d), Rect(regions.EtalonOuterFrame));
         Assert.Equal((20d, 10d, 811d, 574d), Rect(regions.EtalonInnerFrame));
         Assert.Equal((20d, 10d, 811d, 9d), Rect(regions.SheetTitleArea));
-        Assert.Equal((651d, 548d, 180d, 36d), Rect(regions.TitleBlockArea));
+        // A producer still reserving the old 180 × 36 gets the owner's 170 × 34,
+        // anchored to the same bottom-right corner.
+        Assert.Equal((661d, 550d, 170d, 34d), Rect(regions.TitleBlockArea));
         Assert.Equal(16, regions.GridColumns);
         Assert.Equal(12, regions.GridRows);
     }
@@ -59,22 +61,23 @@ public sealed class WorkingDrawingPageLayoutTests
     }
 
     [Fact]
-    public void AHorizontalCornerTableStaysTheContracts180By36()
+    public void AHorizontalCornerTableIsTheOwners170By34()
     {
-        // The positive control for the test above: the fix for the vertical
-        // table must not move the horizontal one, which was right all along.
+        // The positive control for the test above, and its own correction:
+        // the horizontal table was 180 × 36 here too, a size matching no family.
+        // PFR's TitleBlockHorizontal.rfa and the owner's sheets are 170 × 34.
         var format = new PageFormatDefinition
         {
             Kind = PageFormatKind.WorkingDrawing,
             WidthMm = 420,
             HeightMm = 297,
             DrawingArea = new PageRectMm { X = 20, Y = 10, Width = 390, Height = 277 },
-            TitleBlockArea = new PageRectMm { X = 230, Y = 251, Width = 180, Height = 36 },
+            TitleBlockArea = new PageRectMm { X = 240, Y = 253, Width = 170, Height = 34 },
         };
 
         WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
 
-        Assert.Equal((230d, 251d, 180d, 36d), Rect(regions.TitleBlockArea));
+        Assert.Equal((240d, 253d, 170d, 34d), Rect(regions.TitleBlockArea));
     }
 
     [Fact]
@@ -91,7 +94,7 @@ public sealed class WorkingDrawingPageLayoutTests
         WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(format);
 
         Assert.Equal((20d, 10d, 390d, 9d), Rect(regions.SheetTitleArea));
-        Assert.Equal((230d, 251d, 180d, 36d), Rect(regions.TitleBlockArea));
+        Assert.Equal((240d, 253d, 170d, 34d), Rect(regions.TitleBlockArea));
         Assert.Equal(8, regions.GridColumns);
         Assert.Equal(6, regions.GridRows);
     }

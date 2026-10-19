@@ -1915,6 +1915,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawFittedText(gfx, buildPage.Number, X(165) + pad, Y(29) + pad, rect.Right - X(165) - pad * 2, rect.Bottom - Y(29) - pad * 2, 5.5, true, XStringFormats.Center);
     }
 
+    /// <summary>
+    /// The horizontal corner table, painted from <see cref="HorizontalWorkingTitleBlockLayout"/>
+    /// - the owner's own 170 × 34 table, measured - scaled to the reserved rect.
+    /// </summary>
     private static void DrawCanonicalHorizontalWorkingTitleBlockV2(
         XGraphics gfx,
         XRect rect,
@@ -1923,68 +1927,39 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XPen borderPen,
         XPen finePen)
     {
-        double X(double mm) => rect.Left + Mm(mm);
-        double Y(double mm) => rect.Top + Mm(mm);
-        double pad = Mm(0.65);
-        double standardTextSize = Mm(CoverFontEmSizeMm(2.5));
-        double[] columns = [27, 48, 74, 101, 127, 153];
+        double sx = rect.Width / Mm(HorizontalWorkingTitleBlockLayout.WidthMm);
+        double sy = rect.Height / Mm(HorizontalWorkingTitleBlockLayout.HeightMm);
+        double X(double mm) => rect.Left + Mm(mm) * sx;
+        double Y(double mm) => rect.Top + Mm(mm) * sy;
 
-        gfx.DrawLine(borderPen, X(27), rect.Top, X(27), rect.Bottom);
-        gfx.DrawLine(finePen, X(27), Y(11), rect.Right, Y(11));
-        gfx.DrawLine(finePen, X(27), Y(17), rect.Right, Y(17));
-        // Signature area has three rows; the metadata area on the right has
-        // exactly two rows in the canonical horizontal family.
-        gfx.DrawLine(finePen, X(27), Y(23), X(101), Y(23));
-        gfx.DrawLine(finePen, X(27), Y(30), X(101), Y(30));
-        gfx.DrawLine(finePen, X(101), Y(26.5), rect.Right, Y(26.5));
-        foreach (double x in columns.Skip(1))
-            gfx.DrawLine(finePen, X(x), Y(17), X(x), rect.Bottom);
-
-        var logoCell = new XRect(rect.Left, Y(2), Mm(27), Mm(27));
-        gfx.DrawRectangle(finePen, logoCell);
-        CompanyProfile company = ResolveDesignCompanyProfile(project);
-        DrawDesignCompanyLogo(gfx, company, logoCell);
-        DrawWrappedCoverText(gfx, ProjectDisplayName(project),
-            new XRect(X(27) + pad, rect.Top + pad, rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
-            2.5, false, XStringFormats.Center, WorkingDrawingFontName);
-        DrawWrappedCoverText(gfx, ProjectSiteAddress.Compose(project.InitiationBasis.SiteLocation, project.InitiationBasis.SiteAddress),
-            new XRect(X(27) + pad, Y(5.5), rect.Right - X(27) - pad * 2, Mm(5.5) - pad),
-            2.5, false, XStringFormats.Center, WorkingDrawingFontName);
-        DrawWrappedCoverText(gfx, buildPage.Title,
-            new XRect(X(27) + pad, Y(11) + pad, rect.Right - X(27) - pad * 2, Mm(6) - pad * 2),
-            2.5, false, XStringFormats.CenterLeft, WorkingDrawingFontName);
-
-        DrawFittedText(gfx, "\u0410\u0440\u0445\u0438\u0442\u0435\u043a\u0442\u043e\u0440", X(27) + pad, Y(17) + pad, Mm(21) - pad * 2, Mm(6) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, "\u0413\u04af\u0439\u0446\u044d\u0442\u0433\u044d\u0441\u044d\u043d", X(27) + pad, Y(23) + pad, Mm(21) - pad * 2, Mm(7) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, "\u0428\u0430\u043b\u0433\u0430\u0441\u0430\u043d", X(27) + pad, Y(30) + pad, Mm(21) - pad * 2, rect.Bottom - Y(30) - pad * 2, standardTextSize, false, fontName: WorkingDrawingFontName);
-        IReadOnlyList<string> names = ResolveCanonicalHorizontalWorkingTitleBlockNames(
-            project,
-            buildPage.Definition.RoleAssignments,
-            // The names the source sheet itself carries. A generated page has
-            // no source, and gets the company default exactly as before.
-            buildPage.Sheet?.Entry?.Roles);
-        for (int row = 0; row < names.Count; row++)
+        foreach (WorkingTitleBlockLine line in HorizontalWorkingTitleBlockLayout.Lines)
         {
-            double top = row == 0 ? 17 : row == 1 ? 23 : 30;
-            double bottom = row == 0 ? 23 : row == 1 ? 30 : 36;
-            DrawFittedText(gfx, names[row], X(48) + pad, Y(top) + pad,
-                Mm(26) - pad * 2, Mm(bottom - top) - pad * 2, standardTextSize, false, XStringFormats.Center, WorkingDrawingFontName);
+            // The logo column's edge is the table's one bold inner rule.
+            bool bold = Math.Abs(line.X0Mm - 25) < 0.001 && Math.Abs(line.X1Mm - 25) < 0.001;
+            gfx.DrawLine(bold ? borderPen : finePen, X(line.X0Mm), Y(line.Y0Mm), X(line.X1Mm), Y(line.Y1Mm));
         }
 
-        double metadataFont = standardTextSize;
-        // The project CODE is Studio's own number (STUDIO-20260722-1906) and
-        // not an official cipher; printing it here said a code had been issued
-        // when none had. The cipher is entered, and an unfilled cell keeps its
-        // label so it reads as a form field rather than a rendering fault.
-        DrawFittedText(gfx, LabelledCell("\u0415\u0413 \u0448\u0438\u0444\u0440", project.GeneralDesignCipher), X(101) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, $"\u041c\u0430\u0441\u0448\u0442\u0430\u0431: {buildPage.ScaleText}", X(127) + pad, Y(17) + pad, Mm(26) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        // Taken from the CLOCK, this moved every time the album was rebuilt -
-        // a document date that meant "whenever this was last regenerated".
-        // The sheet date is entered and stored for exactly that reason.
-        DrawFittedText(gfx, LabelledCell("\u041e\u0433\u043d\u043e\u043e", SheetDateText(project)), X(153) + pad, Y(17) + pad, rect.Right - X(153) - pad * 2, Mm(9.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, LabelledCell("\u0422\u0413 \u0448\u0438\u0444\u0440", project.TechnicalDesignCipher), X(101) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, $"\u0417\u0443\u0440\u0433\u0438\u0439\u043d \u043c\u0430\u0440\u043a: {buildPage.Sheet.Entry.Discipline}", X(127) + pad, Y(26.5) + pad, Mm(26) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
-        DrawFittedText(gfx, $"\u0425\u0443\u0443\u0434\u0430\u0441: {buildPage.Number}", X(153) + pad, Y(26.5) + pad, rect.Right - X(153) - pad * 2, rect.Bottom - Y(26.5) - pad * 2, metadataFont, false, fontName: WorkingDrawingFontName);
+        var logo = HorizontalWorkingTitleBlockLayout.LogoCellMm;
+        DrawDesignCompanyLogo(
+            gfx,
+            ResolveDesignCompanyProfile(project),
+            new XRect(X(logo.X) + Mm(1), Y(logo.Y) + Mm(1), Mm(logo.Width) * sx - Mm(2), Mm(logo.Height) * sy - Mm(2)));
+
+        PaintWorkingTitleBlockCells(
+            gfx,
+            HorizontalWorkingTitleBlockLayout.Cells(
+                project,
+                buildPage.Title,
+                buildPage.Number,
+                buildPage.Sheet?.Entry?.Discipline,
+                buildPage.ScaleText,
+                buildPage.Definition.RoleAssignments,
+                // The names the source sheet itself carries. A generated page
+                // has no source, and gets the company default exactly as before.
+                buildPage.Sheet?.Entry?.Roles),
+            rect,
+            sx,
+            sy);
     }
 
     /// <summary>

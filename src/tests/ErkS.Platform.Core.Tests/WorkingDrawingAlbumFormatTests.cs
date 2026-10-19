@@ -59,14 +59,14 @@ public sealed class WorkingDrawingAlbumFormatTests
         Assert.Equal(format.DrawingArea.X, format.SheetTitleArea.X, 3);
         Assert.Equal(format.DrawingArea.Width, format.SheetTitleArea.Width, 3);
         Assert.Equal(9d, format.SheetTitleArea.Height, 3);
-        Assert.Equal(180d, format.TitleBlockArea.Width, 3);
-        Assert.Equal(36d, format.TitleBlockArea.Height, 3);
+        Assert.Equal(170d, format.TitleBlockArea.Width, 3);
+        Assert.Equal(34d, format.TitleBlockArea.Height, 3);
         Assert.Equal(
-            format.DrawingArea.X + format.DrawingArea.Width - 180d,
+            format.DrawingArea.X + format.DrawingArea.Width - 170d,
             format.TitleBlockArea.X,
             3);
         Assert.Equal(
-            format.DrawingArea.Y + format.DrawingArea.Height - 36d,
+            format.DrawingArea.Y + format.DrawingArea.Height - 34d,
             format.TitleBlockArea.Y,
             3);
     }
@@ -83,8 +83,8 @@ public sealed class WorkingDrawingAlbumFormatTests
         Assert.Equal(420d, format.WidthMm, 3);
         Assert.Equal(297d, format.HeightMm, 3);
         Assert.Equal(PageFormatKind.WorkingDrawing, format.Kind);
-        Assert.Equal(180d, format.TitleBlockArea.Width, 3);
-        Assert.Equal(36d, format.TitleBlockArea.Height, 3);
+        Assert.Equal(170d, format.TitleBlockArea.Width, 3);
+        Assert.Equal(34d, format.TitleBlockArea.Height, 3);
     }
 
     [Fact]
