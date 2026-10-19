@@ -16,7 +16,7 @@ namespace ErkS.Platform.Contracts;
 /// </summary>
 public sealed class SheetPackageManifest
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
 
     /// <summary>
     /// The first schema whose entries may carry <see cref="SheetPackageEntry.Roles"/>.
@@ -36,6 +36,13 @@ public sealed class SheetPackageManifest
     /// (<see cref="SheetPackageEntry.ConsultationTableArea"/>).
     /// </summary>
     public const int FirstConsultationTableSchemaVersion = 7;
+
+    /// <summary>
+    /// The first schema whose manifest may carry <see cref="SheetInfo"/>. An
+    /// older reader would drop the member without a word and print the sheets
+    /// with empty information bands; the version makes it refuse out loud.
+    /// </summary>
+    public const int FirstSheetInfoSchemaVersion = 8;
 
     /// <summary>
     /// The first schema that may carry a raster payload.
@@ -84,6 +91,15 @@ public sealed class SheetPackageManifest
     public DateTimeOffset ExportedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     public List<SheetPackageEntry> Sheets { get; set; } = [];
+
+    /// <summary>
+    /// The package's `erks-sheet-info` document (legends, building schedule,
+    /// ТЭЗ, norm text), packed by PFA from beside the CGA drawing. Null, and
+    /// then not written, when the producer has none.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public SheetInfoReference? SheetInfo { get; set; }
 }
 
 public enum SheetPackageScope

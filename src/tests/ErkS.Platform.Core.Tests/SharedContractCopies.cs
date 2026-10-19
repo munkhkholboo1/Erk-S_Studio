@@ -115,6 +115,13 @@ internal static class SharedContractCopies
     /// </summary>
     public const string SheetRolesManifest = "sheet-roles-manifest-2026-10-19.json";
 
+    /// <summary>
+    /// CGA's sample `erks-sheet-info` v1 document for Erin's general-plan sheets
+    /// (2026-10-19) - the information PFA packs beside the sheets and Studio
+    /// draws: legends with quantities, building schedule, ТЭЗ, norm text.
+    /// </summary>
+    public const string ErinSheetInfoSample = "erin-sheet-info-sample-2026-10-19.json";
+
     /// <summary>The copy that travels with the tests. Always present.</summary>
     public static string Read(string fileName) =>
         File.ReadAllText(PathTo(fileName), Encoding.UTF8);
@@ -162,6 +169,7 @@ public sealed class SharedContractCopyTests
     [InlineData(SharedContractCopies.CitizenSurveyBrowserSubmission)]
     [InlineData(SharedContractCopies.ErkSCadDiagramManifest)]
     [InlineData(SharedContractCopies.SheetRolesManifest)]
+    [InlineData(SharedContractCopies.ErinSheetInfoSample)]
     public void ACopyThatHasDRIFTEDFromTheOriginalIsLoud(string fileName)
     {
         string? original = SharedContractCopies.TryFindOriginal(fileName);

@@ -77,6 +77,12 @@ public sealed class SheetPackageLoadResult
 
     public List<string> Issues { get; } = [];
 
+    /// <summary>
+    /// The package's sheet information, set only when it was present, at a
+    /// schema that allows it, unchanged since packing and valid in itself.
+    /// </summary>
+    public SheetInfoDocument? SheetInfo { get; internal set; }
+
     /// <summary>True only when the manifest and every referenced PDF passed all checks.</summary>
     public bool IsLossless => Manifest is not null && Issues.Count == 0;
 
@@ -399,6 +405,7 @@ public static class SheetPackageReader
                 StringComparison.OrdinalIgnoreCase);
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(manifestPath)) ?? Directory.GetCurrentDirectory();
+        LoadSheetInfo(manifest, directory, result);
         var sheetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var fileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var resolvedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -486,6 +493,66 @@ public static class SheetPackageReader
         }
 
         return result;
+    }
+
+    private static void LoadSheetInfo(
+        SheetPackageManifest manifest,
+        string directory,
+        SheetPackageLoadResult result)
+    {
+        SheetInfoReference? reference = manifest.SheetInfo;
+        if (reference is null)
+            return;
+
+        if (manifest.SchemaVersion < SheetPackageManifest.FirstSheetInfoSchemaVersion)
+        {
+            result.Issues.Add(
+                "Sheet info requires schema version " +
+                $"{SheetPackageManifest.FirstSheetInfoSchemaVersion} or newer.");
+            return;
+        }
+        if (reference.SchemaVersion != SheetInfoDocument.CurrentSchemaVersion)
+        {
+            result.Issues.Add(
+                $"Sheet info schema version {reference.SchemaVersion} is unsupported; " +
+                $"this reader knows version {SheetInfoDocument.CurrentSchemaVersion}.");
+            return;
+        }
+        if (!SheetPackagePathSecurity.TryResolvePackageFile(directory, reference.File, out var path, out var pathIssue))
+        {
+            result.Issues.Add($"Sheet info: {pathIssue}");
+            return;
+        }
+        if (!File.Exists(path))
+        {
+            result.Issues.Add($"Sheet info file is missing ({reference.File}).");
+            return;
+        }
+
+        string actual;
+        try
+        {
+            actual = ComputeSha256(path);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            result.Issues.Add($"Sheet info could not be read ({reference.File}): {exception.Message}");
+            return;
+        }
+        if (!string.Equals(actual, (reference.Sha256 ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            result.Issues.Add($"Sheet info hash does not match its file ({reference.File}).");
+            return;
+        }
+
+        SheetInfoLoadResult info = SheetInfoReader.Load(path);
+        if (!info.IsLossless)
+        {
+            result.Issues.AddRange(info.Issues);
+            return;
+        }
+        result.SheetInfo = info.Document;
     }
 
     public static string ComputeSha256(string filePath)

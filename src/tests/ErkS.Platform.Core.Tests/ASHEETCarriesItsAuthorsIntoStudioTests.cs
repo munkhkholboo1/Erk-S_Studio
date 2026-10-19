@@ -262,7 +262,7 @@ public sealed class ASHEETCarriesItsAuthorsIntoStudioTests : IDisposable
 
         var manifest = new SheetPackageManifest
         {
-            SchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
+            SchemaVersion = SheetPackageManifest.FirstSheetRolesSchemaVersion,
             Source = new SheetPackageSource
             {
                 SourceId = "batnasan-revit",
