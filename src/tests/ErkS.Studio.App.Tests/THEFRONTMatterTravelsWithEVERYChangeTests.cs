@@ -132,3 +132,28 @@ public sealed class THEFRONTMatterTravelsWithEVERYChangeTests
         Assert.Contains("state.MarkAlbumComponentChanged(StudioFrontMatterComponentScope.GeneratedCode);", workspaces, StringComparison.Ordinal);
     }
 }
+
+/// <summary>
+/// In the shared album the front matter stands where it prints: right after
+/// the cover, before the general plan and the building's sets (Батнасан,
+/// 2026-10-20: the Revit 01 arrived as a new component and was put last).
+/// </summary>
+public sealed class THEFRONTMatterStandsAfterTheCOVERInTheSHAREDAlbumTests
+{
+    private static readonly Dictionary<string, int> NoSources = new(StringComparer.OrdinalIgnoreCase);
+
+    private static int Order(string code) =>
+        StudioAlbumComponentOrderPolicy.Resolve(new ProjectWorkspace(), code, "", 0, NoSources);
+
+    [Fact]
+    public void TheRevitOneAndStudiosListComeRightAfterTheCover()
+    {
+        string revitOne = StudioAlbumComponentIdentity.SourceSliceCode("owner@example.test", "revit", "", "drawing-list-and-notes");
+        string generalPlan = StudioAlbumComponentIdentity.SourceSliceCode("owner@example.test", "dwg", "", "working-drawing-sheets");
+
+        int cover = Order(ProjectCloudSyncMetadata.CoverComponentCode);
+        Assert.True(cover < Order(revitOne));
+        Assert.Equal(Order(revitOne), Order(StudioFrontMatterComponentScope.GeneratedCode));
+        Assert.True(Order(revitOne) < Order(generalPlan));
+    }
+}

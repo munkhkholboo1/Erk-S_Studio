@@ -219,6 +219,20 @@ internal static class StudioAlbumComponentOrderPolicy
             return true;
         }
 
+        // The working drawings' 01 - Studio's list page, or the Revit sheet
+        // whose frames carry it - stands where the table of contents does:
+        // right after the cover. A new Revit 01 was otherwise ordered as one
+        // more of its source's sheets and printed last (Batnasan, 2026-10-20).
+        if (code.StartsWith(
+                $"generated:{WorkingDrawingFrontMatterSlot.SlotId}:",
+                StringComparison.OrdinalIgnoreCase) ||
+            (StudioAlbumComponentIdentity.TryGetSourceSlice(code, out _, out string frontMatterSequence) &&
+             frontMatterSequence.Trim().Equals(WorkingDrawingFrontMatterSlot.SlotId, StringComparison.OrdinalIgnoreCase)))
+        {
+            order = 5_000;
+            return true;
+        }
+
         if (code.Equals(
                 ProjectCloudSyncMetadata.CompanyRegistrationComponentCode,
                 StringComparison.OrdinalIgnoreCase))
