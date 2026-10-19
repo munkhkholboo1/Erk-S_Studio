@@ -1090,18 +1090,27 @@ internal sealed partial class ShellView
         if (dialog.ShowDialog(Window.GetWindow(Root)) != true)
             return;
 
-        source.NativeDocumentPath = Path.GetFullPath(dialog.FileName);
-        source.NativeDocumentTitle = Path.GetFileName(dialog.FileName);
+        RelinkNativeSource(source, authority.OwnerEmail, dialog.FileName);
+    }
+
+    /// <summary>
+    /// «Эх файлыг солих» after the file is chosen - by the picker or by the
+    /// bridge. Returns whether the source now points at the file.
+    /// </summary>
+    private bool RelinkNativeSource(ProjectDesignSource source, string ownerEmail, string filePath)
+    {
+        source.NativeDocumentPath = Path.GetFullPath(filePath);
+        source.NativeDocumentTitle = Path.GetFileName(filePath);
         if (!StudioLocalSourceBindingPolicy.TryExplicitRelink(
                 source,
-                authority.OwnerEmail,
+                ownerEmail,
                 account.Current?.Email,
                 StudioDeviceIdentity.Fingerprint,
                 hasVerifiedPayload: File.Exists(source.NativeDocumentPath)))
         {
             SetStatus(
                 "Локал эх файлыг холбосонгүй: энэ бүртгэл source-ийн баталгаажсан хариуцагч биш эсвэл файл уншигдахгүй байна.");
-            return;
+            return false;
         }
         source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         source.Metadata["local.nativeRelinkedAtUtc"] = DateTimeOffset.UtcNow.ToString("O");
@@ -1130,13 +1139,14 @@ internal sealed partial class ShellView
                     $"PDF эх файл холбогдсон боловч хуудсуудыг баталгаатай импортлож чадсангүй: " +
                     exception.Message);
             }
-            return;
+            return true;
         }
 
         RefreshSourceWorkspace(source.Id);
         SetStatus(
             $"Локал эх файл дахин холбогдлоо: {source.NativeDocumentTitle}. " +
             "Файл болон бүтэн зам Cloud ERA руу илгээгдэхгүй.");
+        return true;
     }
 
     private static string NativeSourceFilter(DesignSourceKind kind) => kind switch
@@ -2887,9 +2897,15 @@ internal sealed partial class ShellView
         if (dialog.ShowDialog() != true)
             return;
 
-        state.Album.FrontMatter = dialog.Result;
+        ApplyWorkingDrawingFrontMatter(dialog.Result);
+    }
+
+    private bool ApplyWorkingDrawingFrontMatter(WorkingDrawingFrontMatter matter)
+    {
+        matter.Normalize();
+        state.Album.FrontMatter = matter;
         state.SaveProject();
-        UpdateAlbum(silent: false, statusPrefix: "Ерөнхий хэсгийн мэдээлэл хадгалагдлаа");
+        return UpdateAlbum(silent: false, statusPrefix: "Ерөнхий хэсгийн мэдээлэл хадгалагдлаа");
     }
 
     private UIElement BuildAlbumProperties()

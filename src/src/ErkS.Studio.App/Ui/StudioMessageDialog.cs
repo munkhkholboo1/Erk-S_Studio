@@ -13,6 +13,11 @@ internal static class StudioMessageDialog
         MessageBoxButton buttons = MessageBoxButton.OK,
         MessageBoxImage image = MessageBoxImage.None)
     {
+        // While the bridge drives Studio nobody is there to press a button: the
+        // safe answer is given and the text kept for the caller.
+        if (StudioBridgeQuietMode.Shared.IsActive)
+            return StudioBridgeQuietMode.Shared.Answer(title, message, buttons);
+
         var dialog = new MessageWindow(message, title, buttons, image);
         if (owner is not null && owner.IsVisible)
             dialog.Owner = owner;

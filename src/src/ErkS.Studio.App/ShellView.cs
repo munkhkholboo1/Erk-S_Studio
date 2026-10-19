@@ -518,12 +518,14 @@ internal sealed partial class ShellView : IDisposable
             }
         }));
         ((FrameworkElement)Root).Loaded += OnRootLoaded;
+        StartBridge();
         UpdateAccountUi();
         SetStatus("Erk-S Studio бүртгэл болон лицензийг шалгаж байна...");
     }
 
     public void Dispose()
     {
+        StopBridge();
         notificationRefreshTimer.Stop();
         projectChatRefreshTimer.Stop();
         projectChatLoadCancellation?.Cancel();
@@ -4666,11 +4668,23 @@ internal sealed partial class ShellView : IDisposable
                     StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
                         state.ProjectPath,
                         image));
-            var dialog = new CloudSyncPreviewDialog(plan)
+            // The bridge decides here instead of a person (docs/STU-BRIDGE.md);
+            // the plan is the same one the dialog would have shown.
+            bool approved;
+            if (bridgeSyncDecision is bool bridgeDecision)
             {
-                Owner = Window.GetWindow(Root),
-            };
-            if (dialog.ShowDialog() != true)
+                lastBridgeSyncPlan = plan;
+                approved = bridgeDecision;
+            }
+            else
+            {
+                var dialog = new CloudSyncPreviewDialog(plan)
+                {
+                    Owner = Window.GetWindow(Root),
+                };
+                approved = dialog.ShowDialog() == true;
+            }
+            if (!approved)
             {
                 SetOperationStatus(
                     operationId,

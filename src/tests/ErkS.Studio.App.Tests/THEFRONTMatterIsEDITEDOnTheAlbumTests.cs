@@ -25,12 +25,16 @@ public sealed class THEFRONTMatterIsEDITEDOnTheAlbumTests
     [Fact]
     public void TheEditIsSavedOnTheAlbumAndTheAlbumRedrawn()
     {
-        string edit = Body(ReadView("ShellView.Workspaces.cs"), "private void EditWorkingDrawingFrontMatter()");
+        string source = ReadView("ShellView.Workspaces.cs");
+        string edit = Body(source, "private void EditWorkingDrawingFrontMatter()");
+        // One function for the dialog and the bridge (docs/STU-BRIDGE.md).
+        string apply = Body(source, "private bool ApplyWorkingDrawingFrontMatter(WorkingDrawingFrontMatter matter)");
 
         Assert.Contains("CanEditProjectContent()", edit, StringComparison.Ordinal);
-        Assert.Contains("state.Album.FrontMatter = dialog.Result;", edit, StringComparison.Ordinal);
-        Assert.Contains("state.SaveProject();", edit, StringComparison.Ordinal);
-        Assert.Contains("UpdateAlbum(", edit, StringComparison.Ordinal);
+        Assert.Contains("ApplyWorkingDrawingFrontMatter(dialog.Result);", edit, StringComparison.Ordinal);
+        Assert.Contains("state.Album.FrontMatter = matter;", apply, StringComparison.Ordinal);
+        Assert.Contains("state.SaveProject();", apply, StringComparison.Ordinal);
+        Assert.Contains("UpdateAlbum(", apply, StringComparison.Ordinal);
     }
 
     [Fact]
