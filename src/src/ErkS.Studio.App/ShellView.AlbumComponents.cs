@@ -1864,8 +1864,16 @@ internal sealed partial class ShellView
         return normalized;
     }
 
+    /// <remarks>
+    /// Only an album that draws sub-covers can owe one. Anywhere else a pending
+    /// sub-cover is settled as a removal - it is not in the album, so it is done
+    /// - instead of waiting for a page the album never draws (Batnasan,
+    /// 2026-10-20).
+    /// </remarks>
     private bool IsCurrentBuildingSubCover(string componentCode)
     {
+        if (!AlbumBuilder.RendersBuildingSubCovers(state.Album))
+            return false;
         string code = StudioAlbumComponentIdentity.CanonicalBuildingSubCoverCode(
             state.Project,
             componentCode);

@@ -174,6 +174,22 @@ public sealed class StudioBuildingSubCoverSelectionPolicyTests
         Assert.Equal(source, Assert.Single(selection.Components));
     }
 
+    [Fact]
+    public void APendingSubCoverIsOwedOnlyByAnAlbumThatDrawsThem()
+    {
+        // Read from source, as the WPF view's neighbours are: a pending
+        // sub-cover in a working-drawing album was deferred for ever.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string view = File.ReadAllText(Path.Combine(
+            directory!.FullName, "src", "src", "ErkS.Studio.App", "ShellView.AlbumComponents.cs")).Replace("\r\n", "\n");
+        int start = view.IndexOf("private bool IsCurrentBuildingSubCover(string componentCode)", StringComparison.Ordinal);
+        string body = view[start..view.IndexOf("\n    private ", start + 10, StringComparison.Ordinal)];
+
+        Assert.Contains("if (!AlbumBuilder.RendersBuildingSubCovers(state.Album))", body, StringComparison.Ordinal);
+    }
+
     private static AlbumDefinition ConceptAlbum() =>
         BuildingArchitectureConceptAlbumTemplate.CreateDefinition("");
 
