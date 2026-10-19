@@ -85,6 +85,37 @@ public sealed class THEFRONTMatterTravelsWithEVERYChangeTests
     }
 
     [Fact]
+    public void StudiosListGivesWayToTheRevitOne()
+    {
+        StudioCloudAlbumSection revitOne = Component("source:ba|album-slice||drawing-list-and-notes", "drawing-list-and-notes");
+        StudioCloudAlbumSection sheets = Component("source:ba|album-slice||working-drawing-sheets", "working-drawing-sheets");
+
+        Assert.True(StudioFrontMatterComponentScope.IsReplacedBySource(StudioFrontMatterComponentScope.GeneratedCode, [revitOne, sheets]));
+        Assert.False(StudioFrontMatterComponentScope.IsReplacedBySource(StudioFrontMatterComponentScope.GeneratedCode, [sheets]));
+        Assert.False(StudioFrontMatterComponentScope.IsReplacedBySource("generated:cover:Cover", [revitOne]));
+    }
+
+    [Fact]
+    public void TheRendererGuardLetsTheReplacedListGo()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string components = File.ReadAllText(Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App", "ShellView.AlbumComponents.cs"));
+
+        int guards = 0;
+        int at = 0;
+        while ((at = components.IndexOf("string[] unrenderedRendererMigrations = missing", at, StringComparison.Ordinal)) >= 0)
+        {
+            int end = components.IndexOf(".ToArray();", at, StringComparison.Ordinal);
+            Assert.Contains("StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered)", components[at..end], StringComparison.Ordinal);
+            guards++;
+            at = end;
+        }
+        Assert.Equal(2, guards);
+    }
+
+    [Fact]
     public void TheSyncAndTheEditBothUseTheScope()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -33,6 +33,20 @@ internal static class StudioFrontMatterComponentScope
         component.SequenceKey.Trim().Equals(WorkingDrawingFrontMatterSlot.SlotId, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Whether Studio's list page is missing because a source sheet (the Revit
+    /// 01) carries the list instead. The Cloud's old list page is then removed,
+    /// not kept as a page the renderer failed to redraw.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 BATNASAN, 2026-10-20: the Revit package with the 01 frames arrived; the
+    /// list became the 01's, Studio's list page was no longer drawn - and Sync
+    /// stopped on «requires a renderer upgrade but could not be rendered».
+    /// </remarks>
+    public static bool IsReplacedBySource(string code, IReadOnlyList<StudioCloudAlbumSection> rendered) =>
+        (code ?? "").Trim().Equals(GeneratedCode, StringComparison.OrdinalIgnoreCase) &&
+        (rendered ?? []).Any(IsSourceCarrier);
+
+    /// <summary>
     /// The selection with the front-matter carriers added: for a working-drawing
     /// album, whenever anything else goes to the shared album or the front
     /// matter itself was edited. A source carrier is added only when this

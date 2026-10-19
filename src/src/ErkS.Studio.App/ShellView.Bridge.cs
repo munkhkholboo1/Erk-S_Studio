@@ -119,6 +119,8 @@ internal sealed partial class ShellView
                     ? StudioBridgeProtocol.Accept(request.Id, new { album = lastAlbumPath, warnings = lastAlbumBuildWarnings }, statusText.Text)
                     : StudioBridgeProtocol.Refuse(request.Id, "rebuild_failed", statusText.Text);
             }
+            case "components":
+                return BridgeComponents(request);
             case "sync-preview":
             case "sync":
                 return await BridgeSyncAsync(request, send: action == "sync");
@@ -129,6 +131,51 @@ internal sealed partial class ShellView
         }
 
         return StudioBridgeProtocol.Refuse(request.Id, "not_implemented", $"«{action}» гүүрт бүртгэгдсэн боловч хэрэгжээгүй.");
+    }
+
+    /// <summary>
+    /// What a Sync works from: the components this device's contribution build
+    /// renders (the same snapshot Sync renders), the Cloud album's components
+    /// and the codes waiting to go. Rendered into a temporary folder and
+    /// removed; nothing in the project changes.
+    /// </summary>
+    private StudioBridgeResponse BridgeComponents(StudioBridgeRequest request)
+    {
+        string workFolder = Path.Combine(Path.GetTempPath(), "erks-bridge-components-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            AlbumBuildResult build = BuildAlbumContributionSnapshot(workFolder);
+            return StudioBridgeProtocol.Accept(request.Id, new
+            {
+                local = build.Components.Select(component => new
+                {
+                    component.Code,
+                    component.SequenceKey,
+                    pages = component.PageNumbers.Count,
+                }),
+                cloud = (state.Project.Cloud.SharedAlbumComponents ?? []).Select(component => new
+                {
+                    component.Code,
+                    pages = component.PageNumbers?.Count ?? 0,
+                }),
+                pending = ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project),
+            });
+        }
+        catch (Exception exception)
+        {
+            return StudioBridgeProtocol.Refuse(request.Id, "components_failed", exception.Message);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(workFolder))
+                    Directory.Delete(workFolder, recursive: true);
+            }
+            catch
+            {
+            }
+        }
     }
 
     private object BridgeStatus()

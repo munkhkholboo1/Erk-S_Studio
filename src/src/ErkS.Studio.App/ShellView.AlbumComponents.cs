@@ -662,6 +662,9 @@ internal sealed partial class ShellView
                 .Where(code => rendererMigrationCodes.Contains(
                     code,
                     StringComparer.OrdinalIgnoreCase))
+                // Studio's list page is not drawn once the Revit 01 carries the
+                // list - that is a replacement, not a failure to render.
+                .Where(code => !StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered))
                 .ToArray();
             if (unrenderedRendererMigrations.Length > 0)
             {
@@ -1546,6 +1549,9 @@ internal sealed partial class ShellView
                 .Where(code => rendererMigrationCodes.Contains(
                     code,
                     StringComparer.OrdinalIgnoreCase))
+                // Studio's list page is not drawn once the Revit 01 carries the
+                // list - that is a replacement, not a failure to render.
+                .Where(code => !StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered))
                 .ToArray();
             if (unrenderedRendererMigrations.Length > 0)
             {
