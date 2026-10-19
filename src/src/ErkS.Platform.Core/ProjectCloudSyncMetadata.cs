@@ -341,25 +341,28 @@ public static class ProjectCloudSyncMetadata
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         string owner = (ownerEmail ?? "").Trim().ToLowerInvariant();
         string device = (deviceFingerprint ?? "").Trim().ToLowerInvariant();
-        Dictionary<string, string>? acceptedTokens = acceptedClaims?
+        // 🔴 AN ACKNOWLEDGED CLAIM IS MATCHED BY ITS TOKEN, NOT BY THE DEVICE
+        // NAME THE CALLER SIGNS WITH TODAY. Erin's two removals were made under
+        // the machine's older fingerprint; the sync acknowledged them (R44) and
+        // they stayed, because clearing demanded the current name exactly. The
+        // token is unique per claim and the caller acknowledges only claims of
+        // its own machine, so it identifies the claim on its own.
+        List<ProjectAlbumComponentClaimAcknowledgement>? accepted = acceptedClaims?
             .Where(claim =>
                 claim.OwnerEmail.Equals(owner, StringComparison.OrdinalIgnoreCase) &&
-                claim.DeviceFingerprint.Equals(device, StringComparison.OrdinalIgnoreCase) &&
                 completed.Contains(claim.ComponentCode) &&
                 !string.IsNullOrWhiteSpace(claim.ClaimToken))
-            .GroupBy(claim => claim.ComponentCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group => group.Last().ClaimToken,
-                StringComparer.OrdinalIgnoreCase);
+            .ToList();
         project.Cloud.PendingAlbumComponentClaims ??= [];
         project.Cloud.PendingAlbumComponentClaims.RemoveAll(claim =>
             completed.Contains(claim.ComponentCode) &&
             claim.OwnerEmail.Equals(owner, StringComparison.OrdinalIgnoreCase) &&
-            claim.DeviceFingerprint.Equals(device, StringComparison.OrdinalIgnoreCase) &&
-            (acceptedTokens is null ||
-             acceptedTokens.TryGetValue(claim.ComponentCode, out string? token) &&
-             claim.ClaimToken.Equals(token, StringComparison.OrdinalIgnoreCase)));
+            (accepted is null
+                ? claim.DeviceFingerprint.Equals(device, StringComparison.OrdinalIgnoreCase)
+                : accepted.Any(ack =>
+                    ack.ComponentCode.Equals(claim.ComponentCode, StringComparison.OrdinalIgnoreCase) &&
+                    ack.DeviceFingerprint.Equals(claim.DeviceFingerprint, StringComparison.OrdinalIgnoreCase) &&
+                    ack.ClaimToken.Equals(claim.ClaimToken, StringComparison.OrdinalIgnoreCase))));
 
         project.Cloud.PendingAlbumComponentCodes ??= [];
         project.Cloud.PendingAlbumComponentCodes.RemoveAll(code =>

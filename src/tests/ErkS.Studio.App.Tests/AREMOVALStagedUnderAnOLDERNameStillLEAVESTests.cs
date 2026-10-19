@@ -217,6 +217,47 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
         Assert.Contains("PersistCloudSyncFailure(\"cloud_sync\",\"blocked\",", call, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AnACKNOWLEDGEDClaimIsClearedWhateverNameItWasMadeUnder()
+    {
+        // 🔴 THE LAST LINK. Erin's sync went through (R44) and the two removals
+        // were acknowledged - and stayed, because clearing a claim demanded the
+        // caller's current fingerprint exactly, and these were made under the
+        // machine's older name. The claim token is unique and the plan only
+        // acknowledges this machine's own claims, so the token is the match.
+        ProjectWorkspace project = StagedUnder(StudioDeviceIdentity.TraitBasedFingerprints.Legacy);
+        StudioDeviceIdentity.UseRegisteredKeyFingerprint(new string('F', 64));
+        ProjectLocalAlbumComponentClaim claim = Assert.Single(project.Cloud.PendingAlbumComponentClaims);
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsSyncedForBinding(
+            project,
+            [Component],
+            Owner,
+            StudioDeviceIdentity.Fingerprint,
+            [new ProjectAlbumComponentClaimAcknowledgement(Component, claim.OwnerEmail, claim.DeviceFingerprint, claim.ClaimToken)]);
+
+        Assert.Empty(project.Cloud.PendingAlbumComponentClaims);
+        Assert.DoesNotContain(Component, project.Cloud.PendingAlbumComponentCodes);
+    }
+
+    [Fact]
+    public void AnACKNOWLEDGEMENTForAnotherTokenClearsNothing()
+    {
+        ProjectWorkspace project = StagedUnder(StudioDeviceIdentity.TraitBasedFingerprints.Legacy);
+        StudioDeviceIdentity.UseRegisteredKeyFingerprint(new string('F', 64));
+        ProjectLocalAlbumComponentClaim claim = Assert.Single(project.Cloud.PendingAlbumComponentClaims);
+
+        ProjectCloudSyncMetadata.MarkAlbumComponentsSyncedForBinding(
+            project,
+            [Component],
+            Owner,
+            StudioDeviceIdentity.Fingerprint,
+            [new ProjectAlbumComponentClaimAcknowledgement(Component, claim.OwnerEmail, claim.DeviceFingerprint, "another-token")]);
+
+        Assert.Single(project.Cloud.PendingAlbumComponentClaims);
+        Assert.Contains(Component, project.Cloud.PendingAlbumComponentCodes);
+    }
+
     private static string ShellSource()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
