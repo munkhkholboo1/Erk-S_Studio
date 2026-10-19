@@ -20,6 +20,12 @@ public static class ProjectDesignSourceClassification
     private const string BuildingGroupIdKey = "source.buildingGroupId";
 
     /// <summary>
+    /// Written when Studio corrected a source's stated purpose because every
+    /// sheet of a full package contradicted it; holds when and why.
+    /// </summary>
+    public const string PurposeCorrectedKey = "source.purposeCorrected";
+
+    /// <summary>
     /// What a newly added source is assumed to be before its package is read.
     ///
     /// AutoCAD carries both kinds of drawing - a building's sheets and the project's general
@@ -125,7 +131,28 @@ public static class ProjectDesignSourceClassification
 
         source.Metadata ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         source.Metadata[DetectedPurposeKey] = detected.ToString();
+
+        // 🔴 BATNASAN, 2026-10-20: an ЕТ DWG added as a building in August kept
+        // filing every general-plan sheet under «Барилга 1». A full package in
+        // which EVERY sheet is a general plan says what the source is more
+        // surely than a choice made before any sheet existed. A mixed package
+        // corrects nothing - its ЕТ sheets are filed one by one instead.
+        if (detected == ProjectDesignSourcePurpose.GeneralPlan &&
+            ExplicitPurpose(source) == ProjectDesignSourcePurpose.Building &&
+            manifest.PackageScope == SheetPackageScope.FullSnapshot &&
+            manifest.Sheets.Count > 0 &&
+            manifest.Sheets.All(IsGeneralPlanSheet))
+        {
+            SetExplicitPurpose(source, ProjectDesignSourcePurpose.GeneralPlan);
+            source.Metadata[PurposeCorrectedKey] =
+                $"{DateTimeOffset.UtcNow:O} Building→GeneralPlan: багцын бүх хуудас ерөнхий төлөвлөгөө (ЕТ)";
+        }
     }
+
+    /// <summary>A sheet that is the general plan by its own mark or kind.</summary>
+    public static bool IsGeneralPlanSheet(SheetPackageEntry? entry) =>
+        entry is not null &&
+        (IsGeneralPlanText(entry.ContentKind) || IsGeneralPlanText(entry.Discipline));
 
     public static bool ApplyDefaultBuildingGroupAssignments(
         ProjectWorkspace project,

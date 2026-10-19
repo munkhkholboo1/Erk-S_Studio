@@ -188,7 +188,24 @@ public static class ProjectPackageReconciliationService
         // album composes disciplines, not buildings, and the urban-planning album has no
         // building types at all - engineering infrastructure arrives there as its own source.
         bool composesBuildings = usesConceptTemplate;
-        bool addedBuildingAssignments =
+        // A general-plan sheet belongs to no building (owner, 2026-10-20) - in
+        // the working drawings it stands in its own part. An assignment it
+        // still carries is removed, whoever made it.
+        List<SheetPackageEntry> buildingSheets = albumSheets.ToList();
+        bool removedGeneralPlanAssignments = false;
+        if (usesWorkingDrawingTemplate)
+        {
+            buildingSheets = albumSheets
+                .Where(entry => !ProjectDesignSourceClassification.IsGeneralPlanSheet(entry))
+                .ToList();
+            foreach (SheetPackageEntry entry in albumSheets.Where(ProjectDesignSourceClassification.IsGeneralPlanSheet))
+            {
+                removedGeneralPlanAssignments |= project.SheetBuildingAssignments.Remove(
+                    SheetRecord.MakeKey(packageSource, entry, source.Id));
+            }
+        }
+        bool addedBuildingAssignments = removedGeneralPlanAssignments;
+        addedBuildingAssignments |=
             composesBuildings &&
             ProjectDesignSourceClassification.EnsureBuildingGroupForSource(
                 project,
@@ -198,13 +215,13 @@ public static class ProjectPackageReconciliationService
                 project,
                 source,
                 packageSource,
-                albumSheets,
+                buildingSheets,
                 composesBuildings);
         addedBuildingAssignments |=
             ProjectDesignSourceClassification.ApplyDefaultBuildingGroupAssignments(
                 project,
                 source,
-                albumSheets.Select(entry =>
+                buildingSheets.Select(entry =>
                     SheetRecord.MakeKey(packageSource, entry, source.Id)));
         if (addedBuildingAssignments)
             ProjectCloudSyncMetadata.MarkBuildingCompositionPending(project);
@@ -456,11 +473,7 @@ public static class ProjectPackageReconciliationService
                 if (slot is not null)
                 {
                     page.TemplateSlotId = slot.Id;
-                    page.SectionId = album.Sections
-                        .FirstOrDefault(section => section.Title.Equals(
-                            slot.SectionTitle,
-                            StringComparison.OrdinalIgnoreCase))
-                        ?.Id;
+                    page.SectionId = BuildingWorkingDrawingAlbumTemplate.ResolveSectionId(album, entry, slot);
                 }
             }
             PageFormatResolver.ApplySourceFormat(

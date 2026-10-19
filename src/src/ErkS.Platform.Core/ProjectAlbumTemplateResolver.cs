@@ -128,6 +128,11 @@ public static class ProjectAlbumTemplateResolver
             {
                 changed = true;
             }
+            if (isBuildingWorkingDrawing &&
+                BuildingWorkingDrawingAlbumTemplate.EnsureSections(album.Definition))
+            {
+                changed = true;
+            }
 
             // This front-matter page is owned by Studio. Migrate existing HET albums
             // without replacing their source pages or contributor content.
