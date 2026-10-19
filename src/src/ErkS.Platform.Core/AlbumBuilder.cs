@@ -290,7 +290,55 @@ public sealed class AlbumBuilder
             });
         }
 
+        NumberWorkingDrawingGeneralPlan(project, sections);
         return new AlbumBuildRequest { Project = project, Sections = sections };
+    }
+
+    /// <summary>
+    /// The general plan follows the general part: its sheets are numbered on
+    /// from Studio's own pages and the 01 (00 cover, 01 ЕХ, then 02, 03 …).
+    /// </summary>
+    /// <remarks>
+    /// 🔴 BATNASAN, 2026-10-20: the ЕТ DWG numbers its own layouts 01-04, and
+    /// the album printed 00, 01 - then 01, 02, 03, 04 again. The building's
+    /// sets keep the numbers their source gave them (the owner's reference
+    /// reserves 02-10 for ЕТ, 11 on for БА); only the general-plan part, which
+    /// no single source numbers for the album, is numbered here. A number set
+    /// by hand on the page still wins (NumberOverride).
+    /// </remarks>
+    private static void NumberWorkingDrawingGeneralPlan(AlbumProject project, List<AlbumBuildSection> sections)
+    {
+        if (!string.Equals(project.Album.TemplateId, BuildingWorkingDrawingAlbumTemplate.TemplateId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        int index = sections.FindIndex(section => section.Title.Equals(
+            BuildingWorkingDrawingAlbumTemplate.GeneralPlanSectionTitle,
+            StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+            return;
+
+        int next = BuildingArchitectureConceptGeneratedPagePlanner.Create(project).Count +
+                   sections
+                       .Where(section => section.Title.Equals(
+                           BuildingWorkingDrawingAlbumTemplate.GeneralPartSectionTitle,
+                           StringComparison.OrdinalIgnoreCase))
+                       .Sum(section => section.Pages.Count);
+        AlbumBuildSection generalPlan = sections[index];
+        sections[index] = new AlbumBuildSection
+        {
+            Key = generalPlan.Key,
+            Title = generalPlan.Title,
+            Kind = generalPlan.Kind,
+            Pages = generalPlan.Pages
+                .Select(page => new AlbumBuildPage
+                {
+                    Sheet = page.Sheet,
+                    Definition = page.Definition,
+                    Format = page.Format,
+                    StudioNumber = (next++).ToString("D2", System.Globalization.CultureInfo.InvariantCulture),
+                })
+                .ToList(),
+        };
     }
 
     private static bool IsUrbanPlanningAlbum(AlbumDefinition album) =>

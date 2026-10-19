@@ -134,6 +134,27 @@ public sealed class AGENERALPlanIsNEVERFiledUnderABuildingTests : IDisposable
     }
 
     [Fact]
+    public void TheGeneralPlanIsNumberedAfterTheGeneralPartNotWithItsOwnNumbers()
+    {
+        // 🔴 BATNASAN, 2026-10-20: the ЕТ DWG numbers its layouts 01-04, so the
+        // album printed 00 cover, 01 list - and then 01, 02, 03, 04 again. The
+        // general plan follows the general part: 02, 03 … (the owner's
+        // reference keeps 02-10 for ЕТ, the building's sets from 11).
+        (ProjectWorkspace project, AlbumDefinition album, SheetLibrary library, SheetPackageLoadResult loaded) =
+            Batnasan(["ЕТ", "ЕТ", "БА"]);
+        ProjectPackageReconciliationService.Apply(project, album, library, loaded);
+        var albumProject = new AlbumProject { Name = "BN", Album = album };
+
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
+
+        List<AlbumBuildPage> pages = request.Sections.SelectMany(section => section.Pages).ToList();
+        Assert.Equal(
+            ["02", "03"],
+            pages.Where(page => page.Sheet.Entry.Discipline == "ЕТ").Select(page => page.Number));
+        Assert.Equal("03", pages.Single(page => page.Sheet.Entry.Discipline == "БА").Number);
+    }
+
+    [Fact]
     public void AnOpenedAlbumIsGivenItsPartsByTheResolver()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
