@@ -422,7 +422,9 @@ internal static class StudioSourceRemovalOutbox
         {
             await retireAsync(claim.RegistrySourceId);
         }
-        catch (StudioAccountException exception) when (IsAlreadyRetired(exception))
+        catch (StudioAccountException exception) when (
+            IsAlreadyRetired(exception) &&
+            !ServerSnapshotStillLists(project, claim.RegistrySourceId))
         {
             // 🔴 THE ROW IS ALREADY GONE, WHICH IS WHAT THIS REMOVAL WANTS.
             // Erin's syncs stopped five times on 2026-10-19 with exactly this,
@@ -430,6 +432,13 @@ internal static class StudioSourceRemovalOutbox
             // the DELETE for a registry row the server no longer has. Only
             // "that source package is not found" counts - a project the server
             // will not show, a refusal or a changed row still stop.
+            //
+            // 🔴 AND ONLY WHEN THE SERVER'S OWN SNAPSHOT AGREES. SRV measured
+            // that this one 404 code stands for three things - a refused
+            // permission, a missing project, a missing package. The code alone
+            // cannot tell a removal already done from a removal refused; the
+            // last snapshot the server sent can: a row it still lists is not
+            // gone, and the sync stops as before.
         }
         validateContext?.Invoke();
         ApplyRegistryRetirement(project, claim);
@@ -485,6 +494,12 @@ internal static class StudioSourceRemovalOutbox
             !string.IsNullOrWhiteSpace(parts[1]) &&
             !string.IsNullOrWhiteSpace(parts[2]);
     }
+
+    private static bool ServerSnapshotStillLists(ProjectWorkspace project, string registrySourceId) =>
+        (project.Cloud.SharedSources ?? []).Any(source =>
+            source is not null &&
+            source.SourceId.Equals(registrySourceId, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(source.Status, "Removed", StringComparison.OrdinalIgnoreCase));
 
     private static bool IsAlreadyRetired(StudioAccountException exception) =>
         exception.StatusCode == System.Net.HttpStatusCode.NotFound &&

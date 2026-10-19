@@ -137,6 +137,8 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
         ProjectWorkspace project = StagedUnder("device-a");
         ProjectLocalAlbumComponentClaim claim = Assert.Single(
             StudioSourceRemovalOutbox.Pending(project, Owner, "device-a"));
+        // As on Erin: the server's last snapshot no longer lists the row.
+        project.Cloud.SharedSources.RemoveAll(source => source.SourceId == RegistryId);
 
         _ = await StudioSourceRemovalOutbox.ConfirmRegistryRetirementAsync(
             project,
@@ -149,6 +151,28 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
                 "source_package_not_found"));
 
         Assert.DoesNotContain(project.Cloud.SharedSources, source => source.SourceId == RegistryId);
+    }
+
+    [Fact]
+    public async Task ANOTFOUNDForARowTheServerStillLISTSStops()
+    {
+        // SRV: the same 404 code also means "permission refused". If the
+        // server's own snapshot still lists the row, the removal is not done.
+        ProjectWorkspace project = StagedUnder("device-a");
+        ProjectLocalAlbumComponentClaim claim = Assert.Single(
+            StudioSourceRemovalOutbox.Pending(project, Owner, "device-a"));
+
+        await Assert.ThrowsAsync<StudioAccountException>(() =>
+            StudioSourceRemovalOutbox.ConfirmRegistryRetirementAsync(
+                project,
+                claim,
+                Owner,
+                "device-a",
+                _ => throw new StudioAccountException(
+                    "Source package was not found.",
+                    System.Net.HttpStatusCode.NotFound,
+                    "source_package_not_found")));
+        Assert.Contains(project.Cloud.SharedSources, source => source.SourceId == RegistryId);
     }
 
     [Fact]
