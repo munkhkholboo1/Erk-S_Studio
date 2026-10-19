@@ -3295,6 +3295,14 @@ internal sealed partial class ShellView
             reconcileLinkedProjectAssets: false);
         IReadOnlyList<ConceptGeneratedPagePlan> generatedPlans =
             BuildingArchitectureConceptGeneratedPagePlanner.Create(buildProject);
+        IReadOnlyList<WorkingDrawingOutlineSection>? workingDrawingOutline =
+            WorkingDrawingAlbumOutline.Create(buildProject, state.Library);
+        if (workingDrawingOutline is not null)
+        {
+            AppendWorkingDrawingOutline(root, albumNodeKey, workingDrawingOutline);
+            return FlattenAlbumWorkspace(root);
+        }
+
         var sequence = BuildingArchitectureConceptAlbumSequencer.Create(
             state.Album,
             state.Album.Pages,
@@ -3319,23 +3327,7 @@ internal sealed partial class ShellView
             "Studio хуудас");
         foreach (ConceptGeneratedPagePlan plan in generatedPlans)
         {
-            studioPages.Children.Add(CreateAlbumWorkspacePage(new AlbumPageWorkspaceItem(
-                null,
-                plan.Component,
-                plan.Number,
-                plan.Number,
-                plan.Title,
-                plan.DocumentLabel,
-                "")
-            {
-                GeneratedPageIndex = plan.OutputIndex,
-                GeneratedNavigationKey = plan.NavigationKey,
-                CanonicalComponentCode =
-                    StudioAlbumPreviewPageMap.GeneratedComponentCode(
-                        plan.Component,
-                        plan.DocumentKind),
-                CanonicalComponentPageOffset = Math.Max(0, plan.BatchNumber - 1),
-            }));
+            studioPages.Children.Add(CreateAlbumWorkspacePage(CreateGeneratedPageWorkspaceItem(plan)));
         }
         root.Children.Add(studioPages);
 
@@ -3481,6 +3473,71 @@ internal sealed partial class ShellView
 
         return FlattenAlbumWorkspace(root);
     }
+
+    /// <summary>
+    /// The working-drawing album in the organizer: its three parts with the
+    /// numbers the album prints (<see cref="WorkingDrawingAlbumOutline"/>).
+    /// </summary>
+    private void AppendWorkingDrawingOutline(
+        AlbumWorkspaceNode root,
+        string albumNodeKey,
+        IReadOnlyList<WorkingDrawingOutlineSection> outline)
+    {
+        foreach (var (section, index) in outline.Select((section, index) => (section, index)))
+        {
+            AlbumWorkspaceNodeKind kind =
+                section.Title.Equals(BuildingWorkingDrawingAlbumTemplate.GeneralPartSectionTitle, StringComparison.OrdinalIgnoreCase)
+                    ? AlbumWorkspaceNodeKind.Studio
+                    : section.Title.Equals(BuildingWorkingDrawingAlbumTemplate.GeneralPlanSectionTitle, StringComparison.OrdinalIgnoreCase)
+                        ? AlbumWorkspaceNodeKind.GeneralPlan
+                        : AlbumWorkspaceNodeKind.Source;
+            AlbumWorkspaceNode node = CreateAlbumWorkspaceGroup(
+                $"{albumNodeKey}:part:{index.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+                kind,
+                section.Title);
+            foreach (WorkingDrawingOutlinePage page in section.Pages)
+            {
+                if (page.Generated is ConceptGeneratedPagePlan plan)
+                {
+                    node.Children.Add(CreateAlbumWorkspacePage(CreateGeneratedPageWorkspaceItem(plan)));
+                    continue;
+                }
+
+                AlbumBuildPage buildPage = page.Page!;
+                AlbumCompositionItem? slot = state.Album.Composition.FirstOrDefault(item =>
+                    item.Id.Equals(buildPage.Definition.TemplateSlotId, StringComparison.OrdinalIgnoreCase));
+                node.Children.Add(CreateAlbumWorkspacePage(new AlbumPageWorkspaceItem(
+                    buildPage.Definition,
+                    slot,
+                    page.Number,
+                    string.IsNullOrWhiteSpace(buildPage.StudioNumber)
+                        ? buildPage.Sheet.Entry.Number ?? page.Number
+                        : buildPage.StudioNumber,
+                    page.Title,
+                    "",
+                    "")));
+            }
+            root.Children.Add(node);
+        }
+    }
+
+    private static AlbumPageWorkspaceItem CreateGeneratedPageWorkspaceItem(ConceptGeneratedPagePlan plan) => new(
+        null,
+        plan.Component,
+        plan.Number,
+        plan.Number,
+        plan.Title,
+        plan.DocumentLabel,
+        "")
+    {
+        GeneratedPageIndex = plan.OutputIndex,
+        GeneratedNavigationKey = plan.NavigationKey,
+        CanonicalComponentCode =
+            StudioAlbumPreviewPageMap.GeneratedComponentCode(
+                plan.Component,
+                plan.DocumentKind),
+        CanonicalComponentPageOffset = Math.Max(0, plan.BatchNumber - 1),
+    };
 
     private List<AlbumPageWorkspaceItem> FlattenAlbumWorkspace(AlbumWorkspaceNode root)
     {

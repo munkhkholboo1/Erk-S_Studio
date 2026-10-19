@@ -155,6 +155,51 @@ public sealed class AGENERALPlanIsNEVERFiledUnderABuildingTests : IDisposable
     }
 
     [Fact]
+    public void TheOrganizerShowsTheThreePartsWithThePrintedNumbers()
+    {
+        // The organizer must show the working drawings as they print: the
+        // general part (Studio's pages first), the general plan, the sets of
+        // the building - not the concept tree with its own numbering.
+        (ProjectWorkspace project, AlbumDefinition album, SheetLibrary library, SheetPackageLoadResult loaded) =
+            Batnasan(["ЕТ", "ЕТ", "БА"]);
+        ProjectPackageReconciliationService.Apply(project, album, library, loaded);
+        var albumProject = new AlbumProject { Name = "BN", Album = album };
+
+        IReadOnlyList<WorkingDrawingOutlineSection>? outline = WorkingDrawingAlbumOutline.Create(albumProject, library);
+
+        Assert.NotNull(outline);
+        Assert.Equal(
+            [
+                BuildingWorkingDrawingAlbumTemplate.GeneralPartSectionTitle,
+                BuildingWorkingDrawingAlbumTemplate.GeneralPlanSectionTitle,
+                BuildingWorkingDrawingAlbumTemplate.SheetsSectionTitle,
+            ],
+            outline!.Select(section => section.Title));
+        IReadOnlyList<ConceptGeneratedPagePlan> generated = BuildingArchitectureConceptGeneratedPagePlanner.Create(albumProject);
+        Assert.Equal(
+            generated.Select(plan => plan.Number),
+            outline[0].Pages.Select(page => page.Number));
+        Assert.All(outline[0].Pages, page => Assert.NotNull(page.Generated));
+        Assert.Equal(["02", "03"], outline[1].Pages.Select(page => page.Number));
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
+        Assert.Equal(
+            request.Sections.SelectMany(section => section.Pages).Select(page => page.Number),
+            outline.SelectMany(section => section.Pages).Where(page => page.Page is not null).Select(page => page.Number));
+    }
+
+    [Fact]
+    public void AConceptAlbumHasNoWorkingDrawingOutline()
+    {
+        var albumProject = new AlbumProject
+        {
+            Name = "concept",
+            Album = new AlbumDefinition { TemplateId = BuildingArchitectureConceptAlbumTemplate.TemplateId },
+        };
+
+        Assert.Null(WorkingDrawingAlbumOutline.Create(albumProject, new SheetLibrary()));
+    }
+
+    [Fact]
     public void AnOpenedAlbumIsGivenItsPartsByTheResolver()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
