@@ -2904,6 +2904,9 @@ internal sealed partial class ShellView
     {
         matter.Normalize();
         state.Album.FrontMatter = matter;
+        // The list page and the Revit 01 that carry it go with the next Sync
+        // (StudioFrontMatterComponentScope); without this the edit stayed local.
+        state.MarkAlbumComponentChanged(StudioFrontMatterComponentScope.GeneratedCode);
         state.SaveProject();
         return UpdateAlbum(silent: false, statusPrefix: "Ерөнхий хэсгийн мэдээлэл хадгалагдлаа");
     }

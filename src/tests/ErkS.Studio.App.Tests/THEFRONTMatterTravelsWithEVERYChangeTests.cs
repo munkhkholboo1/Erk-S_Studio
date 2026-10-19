@@ -1,0 +1,103 @@
+using ErkS.Platform.Core;
+using ErkS.Studio;
+
+namespace ErkS.Studio.App.Tests;
+
+/// <summary>
+/// The components carrying a working-drawing album's front matter (Studio's
+/// list page, or the Revit 01 holding the frames) go to the shared album with
+/// every change, and with an edit of the front matter itself (Батнасан,
+/// 2026-10-20: the corner tables said 02-05 while the Cloud's list still said
+/// 01-04).
+/// </summary>
+public sealed class THEFRONTMatterTravelsWithEVERYChangeTests
+{
+    private const string Owner = "owner@example.test";
+
+    private static AlbumDefinition WorkingDrawings() =>
+        BuildingWorkingDrawingAlbumTemplate.CreateDefinition("BN");
+
+    private static StudioCloudAlbumSection Component(string code, string sequenceKey = "", string owner = "") => new()
+    {
+        Code = code,
+        SequenceKey = sequenceKey,
+        OwnerEmail = owner,
+    };
+
+    [Fact]
+    public void AnyChangeTakesTheListAndTheRevitOneAlong()
+    {
+        StudioCloudAlbumSection source = Component("source:et|album-slice|gp|working-drawing-sheets");
+        StudioCloudAlbumSection list = Component(StudioFrontMatterComponentScope.GeneratedCode);
+        StudioCloudAlbumSection revitOne = Component("source:ba|album-slice|gen|drawing-list-and-notes", "drawing-list-and-notes", Owner);
+        StudioCloudAlbumSection other = Component("source:ba|album-slice|ws|working-drawing-sheets");
+
+        List<StudioCloudAlbumSection> result = StudioFrontMatterComponentScope.IncludeCarriers(
+            WorkingDrawings(), [source, list, revitOne, other], [source], Owner, canManageCanonicalMetadata: true, frontMatterRequested: false);
+
+        Assert.Equal([source.Code, list.Code, revitOne.Code], result.Select(item => item.Code));
+    }
+
+    [Fact]
+    public void AnEditOfTheNoteAloneStillReachesTheSharedAlbum()
+    {
+        StudioCloudAlbumSection revitOne = Component("source:ba|album-slice|gen|drawing-list-and-notes", "drawing-list-and-notes");
+
+        List<StudioCloudAlbumSection> result = StudioFrontMatterComponentScope.IncludeCarriers(
+            WorkingDrawings(), [revitOne], [], Owner, canManageCanonicalMetadata: false, frontMatterRequested: true);
+
+        Assert.Equal([revitOne.Code], result.Select(item => item.Code));
+    }
+
+    [Fact]
+    public void NothingChangedSendsNothing()
+    {
+        StudioCloudAlbumSection list = Component(StudioFrontMatterComponentScope.GeneratedCode);
+
+        Assert.Empty(StudioFrontMatterComponentScope.IncludeCarriers(
+            WorkingDrawings(), [list], [], Owner, canManageCanonicalMetadata: true, frontMatterRequested: false));
+    }
+
+    [Fact]
+    public void ACarrierThisAccountMayNotWriteStaysOut()
+    {
+        StudioCloudAlbumSection source = Component("source:et|album-slice|gp|working-drawing-sheets");
+        StudioCloudAlbumSection list = Component(StudioFrontMatterComponentScope.GeneratedCode);
+        StudioCloudAlbumSection theirOne = Component("source:ba|album-slice|gen|drawing-list-and-notes", "drawing-list-and-notes", "pfr@example.test");
+
+        List<StudioCloudAlbumSection> result = StudioFrontMatterComponentScope.IncludeCarriers(
+            WorkingDrawings(), [source, list, theirOne], [source], Owner, canManageCanonicalMetadata: false, frontMatterRequested: false);
+
+        Assert.Equal([source.Code], result.Select(item => item.Code));
+    }
+
+    [Fact]
+    public void AConceptAlbumIsLeftAsItWas()
+    {
+        StudioCloudAlbumSection source = Component("source:et");
+        StudioCloudAlbumSection list = Component(StudioFrontMatterComponentScope.GeneratedCode);
+        var concept = new AlbumDefinition { TemplateId = BuildingArchitectureConceptAlbumTemplate.TemplateId };
+
+        Assert.Equal(
+            [source.Code],
+            StudioFrontMatterComponentScope.IncludeCarriers(concept, [source, list], [source], Owner, true, false)
+                .Select(item => item.Code));
+    }
+
+    [Fact]
+    public void TheSyncAndTheEditBothUseTheScope()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string app = Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App");
+        string components = File.ReadAllText(Path.Combine(app, "ShellView.AlbumComponents.cs"));
+        string workspaces = File.ReadAllText(Path.Combine(app, "ShellView.Workspaces.cs"));
+
+        int covers = components.IndexOf("selected = coverSelection.Components.ToList();", StringComparison.Ordinal);
+        int carriers = components.IndexOf("StudioFrontMatterComponentScope.IncludeCarriers(", StringComparison.Ordinal);
+        int missing = components.IndexOf("string[] missing = requestedCodes", StringComparison.Ordinal);
+        Assert.True(covers > 0 && carriers > covers && missing > carriers);
+        Assert.Contains("state.MarkAlbumComponentChanged(StudioFrontMatterComponentScope.GeneratedCode);", workspaces, StringComparison.Ordinal);
+    }
+}

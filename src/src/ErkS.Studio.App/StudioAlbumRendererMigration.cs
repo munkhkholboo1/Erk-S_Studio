@@ -18,8 +18,12 @@ internal static class StudioAlbumRendererMigration
     /// 5: the general plan no longer carries a second, concept-geometry corner
     /// table, an A4 table of contents in the middle of the set, or its sheets in
     /// template-slot order instead of the order they arrive from AutoCAD.
+    ///
+    /// 6: working drawings - the general plan is numbered after the general
+    /// part (02, 03 …) instead of with its DWG's own 01-04, so the drawing list
+    /// and the corner tables agree; the 01 carries Studio's front matter.
     /// </summary>
-    public const int CurrentRevision = 5;
+    public const int CurrentRevision = 6;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

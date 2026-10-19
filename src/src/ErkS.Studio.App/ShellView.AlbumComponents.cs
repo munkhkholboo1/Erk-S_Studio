@@ -627,6 +627,15 @@ internal sealed partial class ShellView
                     " [reason: building_subcover_render_missing]");
             }
             selected = coverSelection.Components.ToList();
+            selected = StudioFrontMatterComponentScope.IncludeCarriers(
+                state.Album,
+                rendered,
+                selected,
+                ownerEmail,
+                ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+                    state.Project.Cloud,
+                    ownerEmail),
+                requestedCodes.Contains(StudioFrontMatterComponentScope.GeneratedCode));
             string[] missing = requestedCodes
                 .Where(code => selected.All(component =>
                     !MatchesRequestedComponentCode(component, code)))
@@ -1502,6 +1511,15 @@ internal sealed partial class ShellView
                     " [reason: building_subcover_render_missing]");
             }
             selected = coverSelection.Components.ToList();
+            selected = StudioFrontMatterComponentScope.IncludeCarriers(
+                state.Album,
+                rendered,
+                selected,
+                ownerEmail,
+                ProjectCloudSyncAuthority.CanManageCanonicalMetadata(
+                    state.Project.Cloud,
+                    ownerEmail),
+                requestedCodes.Contains(StudioFrontMatterComponentScope.GeneratedCode));
             string[] missing = requestedCodes
                 .Where(code => selected.All(component =>
                     !MatchesRequestedComponentCode(component, code)))
