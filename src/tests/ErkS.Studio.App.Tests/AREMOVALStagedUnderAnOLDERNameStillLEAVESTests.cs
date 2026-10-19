@@ -126,6 +126,73 @@ public sealed class AREMOVALStagedUnderAnOLDERNameStillLEAVESTests : IDisposable
         Assert.Contains("outcome is not (\"blocked\" or \"conflict\" or \"error\")", body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ARowTheServerNoLongerHasIsALREADYRetired()
+    {
+        // 🔴 THE ACTUAL STOP. Studio's own log for 2026-10-19 holds five syncs,
+        // each blocked in under a second with source_package_not_found: the
+        // retirement DELETE for a registry row the server no longer has. The
+        // outcome the removal wants - the row gone - is already true, and the
+        // whole sync stopped over it, before anything else could be sent.
+        ProjectWorkspace project = StagedUnder("device-a");
+        ProjectLocalAlbumComponentClaim claim = Assert.Single(
+            StudioSourceRemovalOutbox.Pending(project, Owner, "device-a"));
+
+        _ = await StudioSourceRemovalOutbox.ConfirmRegistryRetirementAsync(
+            project,
+            claim,
+            Owner,
+            "device-a",
+            _ => throw new StudioAccountException(
+                "Source package was not found.",
+                System.Net.HttpStatusCode.NotFound,
+                "source_package_not_found"));
+
+        Assert.DoesNotContain(project.Cloud.SharedSources, source => source.SourceId == RegistryId);
+    }
+
+    [Fact]
+    public async Task ANYOTHERRefusalStillStopsTheRetirement()
+    {
+        // Only "that row is not there" means done. A project the server will not
+        // show, a permission refused, a row changed since - all still stop.
+        ProjectWorkspace project = StagedUnder("device-a");
+        ProjectLocalAlbumComponentClaim claim = Assert.Single(
+            StudioSourceRemovalOutbox.Pending(project, Owner, "device-a"));
+
+        foreach ((System.Net.HttpStatusCode status, string code) in new[]
+                 {
+                     (System.Net.HttpStatusCode.NotFound, "project_not_found"),
+                     (System.Net.HttpStatusCode.Forbidden, "forbidden"),
+                     (System.Net.HttpStatusCode.PreconditionFailed, "source_package_conflict"),
+                     // The code alone is not enough: not found must also be a 404.
+                     (System.Net.HttpStatusCode.Conflict, "source_package_not_found"),
+                 })
+        {
+            await Assert.ThrowsAsync<StudioAccountException>(() =>
+                StudioSourceRemovalOutbox.ConfirmRegistryRetirementAsync(
+                    project,
+                    claim,
+                    Owner,
+                    "device-a",
+                    _ => throw new StudioAccountException("refused", status, code)));
+            Assert.Contains(project.Cloud.SharedSources, source => source.SourceId == RegistryId);
+        }
+    }
+
+    [Fact]
+    public void TheACCESSRefusalBranchKeepsItsSentenceToo()
+    {
+        // The 403/404 branch of the sync records its sentence itself rather than
+        // through SetOperationStatus; it is the branch Erin's syncs took.
+        string shell = File.ReadAllText(ShellSource());
+        int at = shell.IndexOf("\"Cloud Sync зогслоо: сервер төслийг өгсөнгүй.\"", StringComparison.Ordinal);
+        Assert.True(at > 0);
+        string branch = shell[at..shell.IndexOf("_ = RefreshProjectsAsync();", at, StringComparison.Ordinal)];
+        string call = string.Concat(branch.Where(c => !char.IsWhiteSpace(c)));
+        Assert.Contains("PersistCloudSyncFailure(\"cloud_sync\",\"blocked\",", call, StringComparison.Ordinal);
+    }
+
     private static string ShellSource()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

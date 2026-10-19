@@ -4785,6 +4785,10 @@ internal sealed partial class ShellView : IDisposable
                 reasonCode,
                 "Cloud Sync зогслоо: сервер төслийг өгсөнгүй.",
                 exception);
+            PersistCloudSyncFailure(
+                "cloud_sync",
+                "blocked",
+                $"Cloud Sync зогслоо: сервер төслийг өгсөнгүй ({exception.Message}) [reason: {reasonCode}; operation: {shortOperationId}]");
 
             // 🔴 THIS USED TO CLOSE THE PROJECT UNCONDITIONALLY. A 403/404 here
             // was read as «your access has ended», the person was told their

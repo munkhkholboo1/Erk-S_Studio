@@ -418,7 +418,19 @@ internal static class StudioSourceRemovalOutbox
         }
 
         ProjectDesignSource? local = ResolveLocalSource(project, claim);
-        await retireAsync(claim.RegistrySourceId);
+        try
+        {
+            await retireAsync(claim.RegistrySourceId);
+        }
+        catch (StudioAccountException exception) when (IsAlreadyRetired(exception))
+        {
+            // 🔴 THE ROW IS ALREADY GONE, WHICH IS WHAT THIS REMOVAL WANTS.
+            // Erin's syncs stopped five times on 2026-10-19 with exactly this,
+            // each in under a second and before anything else could be sent:
+            // the DELETE for a registry row the server no longer has. Only
+            // "that source package is not found" counts - a project the server
+            // will not show, a refusal or a changed row still stop.
+        }
         validateContext?.Invoke();
         ApplyRegistryRetirement(project, claim);
         return local;
@@ -473,6 +485,10 @@ internal static class StudioSourceRemovalOutbox
             !string.IsNullOrWhiteSpace(parts[1]) &&
             !string.IsNullOrWhiteSpace(parts[2]);
     }
+
+    private static bool IsAlreadyRetired(StudioAccountException exception) =>
+        exception.StatusCode == System.Net.HttpStatusCode.NotFound &&
+        string.Equals(exception.ErrorCode, "source_package_not_found", StringComparison.OrdinalIgnoreCase);
 
     private static string Normalize(string? value) =>
         (value ?? "").Trim().ToLowerInvariant();
