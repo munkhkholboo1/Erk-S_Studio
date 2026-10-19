@@ -76,6 +76,32 @@ public sealed class THESHAREDCompositionCannotFileAGENERALPlanUnderABuildingTest
         Assert.Equal("building-1", project.SheetBuildingAssignments[sheet.Key]);
     }
 
+    [Fact]
+    public void ALeftoverLocalAssignmentIsNeverSentToTheServer()
+    {
+        (ProjectWorkspace project, SheetLibrary library, SheetRecord sheet) = Batnasan("ЕТ", workingDrawings: true);
+        project.BuildingGroups = [new ProjectBuildingGroup { Id = "building-1", Name = "Барилга 1", Order = 1 }];
+        project.SheetBuildingAssignments[sheet.Key] = "building-1";
+
+        StudioCloudBuildingCompositionUpdateRequest update =
+            StudioBuildingCompositionSync.CreateUpdate(project, library);
+
+        Assert.Empty(update.SheetAssignments);
+    }
+
+    [Fact]
+    public void ALocalArchitectureAssignmentIsStillSent()
+    {
+        (ProjectWorkspace project, SheetLibrary library, SheetRecord sheet) = Batnasan("БА", workingDrawings: true);
+        project.BuildingGroups = [new ProjectBuildingGroup { Id = "building-1", Name = "Барилга 1", Order = 1 }];
+        project.SheetBuildingAssignments[sheet.Key] = "building-1";
+
+        StudioCloudBuildingCompositionUpdateRequest update =
+            StudioBuildingCompositionSync.CreateUpdate(project, library);
+
+        Assert.Equal("building-1", Assert.Single(update.SheetAssignments).BuildingGroupId);
+    }
+
     private static StudioCloudBuildingComposition Canonical() => new()
     {
         Version = 3,

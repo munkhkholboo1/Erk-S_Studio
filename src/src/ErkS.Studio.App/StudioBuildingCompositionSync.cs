@@ -220,6 +220,7 @@ internal static class StudioBuildingCompositionSync
                 continue;
             SheetRecord? record = library.FindVerified(local.Key);
             if (record is null ||
+                BuildingWorkingDrawingAlbumTemplate.ExcludesFromBuildings(project, record.Entry) ||
                 !authoritativeSources.Any(source =>
                     RecordBelongsToSource(record, source)) ||
                 !TryPortableIdentity(
