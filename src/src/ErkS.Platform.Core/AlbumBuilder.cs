@@ -152,6 +152,9 @@ public sealed class AlbumBuilder
             // knows things this does not, and a build that stops is a build
             // that gets worked around.
             result.Warnings.AddRange(DrawingScaleSurvey.Review(request));
+            // The state review's repeated findings (магадлал), reported the
+            // same way - _shared/magadlal-ba-review-rules-2026-10-20.md.
+            result.Warnings.AddRange(AlbumReviewChecklist.Review(request));
 
             // No warning here for an unappointed architect, though it was
             // tried. A project without one yet is an ordinary early state, not
