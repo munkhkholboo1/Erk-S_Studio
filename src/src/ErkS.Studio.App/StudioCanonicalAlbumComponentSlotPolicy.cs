@@ -4,6 +4,61 @@ namespace ErkS.Studio;
 
 internal static class StudioCanonicalAlbumComponentSlotPolicy
 {
+    private const int OpenEndStep = 100;
+
+    /// <summary>
+    /// Gives each component the shared album does not have yet an order between
+    /// the components it stands between in this device's build - the build is
+    /// the album in print order.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 BATNASAN, 2026-10-20: the shared album's components are numbered
+    /// 0, 100, 200 once the server reflows them, while a new component got the
+    /// policy's absolute order (5 000 for the 01, 800 000 for a source) - so the
+    /// Revit 01, which prints second, came after the general plan's 200. A new
+    /// component's place is read off its neighbours, not off a scale the shared
+    /// album no longer uses.
+    /// </remarks>
+    /// <param name="localOrder">Every rendered component, in page order.</param>
+    /// <param name="isExisting">Whether the shared album already holds it (its order stands).</param>
+    public static void PlaceNewComponents(
+        IReadOnlyList<StudioCloudAlbumSection> localOrder,
+        Func<StudioCloudAlbumSection, bool> isExisting)
+    {
+        ArgumentNullException.ThrowIfNull(localOrder);
+        ArgumentNullException.ThrowIfNull(isExisting);
+        if (!localOrder.Any(isExisting))
+            return;
+
+        int index = 0;
+        while (index < localOrder.Count)
+        {
+            if (isExisting(localOrder[index]))
+            {
+                index++;
+                continue;
+            }
+
+            int start = index;
+            while (index < localOrder.Count && !isExisting(localOrder[index]))
+                index++;
+            int count = index - start;
+            int? previous = start > 0 ? localOrder[start - 1].Order : null;
+            int? next = index < localOrder.Count ? localOrder[index].Order : null;
+            for (int offset = 0; offset < count; offset++)
+            {
+                localOrder[start + offset].Order = (previous, next) switch
+                {
+                    (int p, int q) when (q - p) / (count + 1) >= 1 => p + (q - p) / (count + 1) * (offset + 1),
+                    (int p, int) => p,
+                    (int p, null) => p + OpenEndStep * (offset + 1),
+                    (null, int q) => q - OpenEndStep * (count - offset),
+                    _ => localOrder[start + offset].Order,
+                };
+            }
+        }
+    }
+
     public static int ResolveOrder(
         ProjectWorkspace project,
         StudioCloudAlbumSection rendered,

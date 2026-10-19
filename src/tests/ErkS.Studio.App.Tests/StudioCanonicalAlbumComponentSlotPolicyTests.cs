@@ -95,3 +95,70 @@ public sealed class StudioCanonicalAlbumComponentSlotPolicyTests
         Assert.Equal(314_159, resolved);
     }
 }
+
+/// <summary>
+/// A component the shared album does not have yet takes its place between the
+/// components it stands between in this device's build (Батнасан, 2026-10-20:
+/// the shared album numbers its components 0, 100, 200, and the new Revit 01
+/// with its policy order 5 000 printed after the general plan).
+/// </summary>
+public sealed class ANEWComponentTakesItsPlaceBetweenItsNEIGHBOURSTests
+{
+    private static StudioCloudAlbumSection Section(string code, int order) => new() { Code = code, Order = order };
+
+    [Fact]
+    public void TheRevitOneGoesBetweenTheCoverAndTheGeneralPlan()
+    {
+        StudioCloudAlbumSection cover = Section("cover", 0);
+        StudioCloudAlbumSection one = Section("revit-01", 5_000);
+        StudioCloudAlbumSection generalPlan = Section("et", 200);
+        StudioCloudAlbumSection sets = Section("revit-sheets", 800_079);
+        var existing = new HashSet<string> { "cover", "et" };
+
+        StudioCanonicalAlbumComponentSlotPolicy.PlaceNewComponents(
+            [cover, one, generalPlan, sets],
+            item => existing.Contains(item.Code));
+
+        Assert.Equal(["cover", "revit-01", "et", "revit-sheets"],
+            new[] { cover, one, generalPlan, sets }.OrderBy(item => item.Order).Select(item => item.Code));
+        Assert.Equal(0, cover.Order);
+        Assert.Equal(200, generalPlan.Order);
+    }
+
+    [Fact]
+    public void SeveralNewOnesShareTheGapInOrder()
+    {
+        StudioCloudAlbumSection a = Section("a", 0);
+        StudioCloudAlbumSection n1 = Section("n1", 900);
+        StudioCloudAlbumSection n2 = Section("n2", 1);
+        StudioCloudAlbumSection b = Section("b", 300);
+
+        StudioCanonicalAlbumComponentSlotPolicy.PlaceNewComponents([a, n1, n2, b], item => item.Code is "a" or "b");
+
+        Assert.Equal([100, 200], new[] { n1.Order, n2.Order });
+    }
+
+    [Fact]
+    public void AnAlbumWithNothingSharedKeepsThePolicyOrders()
+    {
+        StudioCloudAlbumSection a = Section("a", 5_000);
+        StudioCloudAlbumSection b = Section("b", 100_000);
+
+        StudioCanonicalAlbumComponentSlotPolicy.PlaceNewComponents([a, b], _ => false);
+
+        Assert.Equal([5_000, 100_000], new[] { a.Order, b.Order });
+    }
+
+    [Fact]
+    public void TheManifestIsPlacedBeforeItIsOrdered()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string components = File.ReadAllText(Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App", "ShellView.AlbumComponents.cs"));
+
+        int place = components.IndexOf("StudioCanonicalAlbumComponentSlotPolicy.PlaceNewComponents(", StringComparison.Ordinal);
+        int order = components.IndexOf("List<StudioCloudAlbumSection> manifest = merged.Values", StringComparison.Ordinal);
+        Assert.True(place > 0 && order > place);
+    }
+}

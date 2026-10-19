@@ -348,6 +348,9 @@ internal sealed partial class ShellView
                 section.SequenceKey = sequenceKey;
         }
 
+        StudioCanonicalAlbumComponentSlotPolicy.PlaceNewComponents(
+            merged.Values.OrderBy(item => item.PageNumbers.DefaultIfEmpty(int.MaxValue).Min()).ToList(),
+            item => existingByCode.ContainsKey(item.Code));
         List<StudioCloudAlbumSection> manifest = merged.Values
             .OrderBy(item => item.Order)
             .ThenBy(item => item.PageNumbers.FirstOrDefault())
