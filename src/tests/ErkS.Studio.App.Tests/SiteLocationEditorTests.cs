@@ -136,8 +136,10 @@ public sealed class SiteLocationEditorTests
         // same one: what the picker holds reaches the project file.
         Assert.Contains("ProjectSiteLocation after = CaptureSiteLocationDraft();", shell, StringComparison.Ordinal);
         Assert.Contains("basis.SiteLocation = after;", shell, StringComparison.Ordinal);
+        // Read from the box: on a Cloud save the typed line reaches the project
+        // only after this runs, so the box is what the person typed.
         Assert.Contains(
-            "ProjectSiteAddress.TypedAddressBecomesAdditional(before, after, basis.SiteAddress)",
+            "ProjectSiteAddress.TypedAddressBecomesAdditional(before, after, siteAddressBox.Text.Trim())",
             shell,
             StringComparison.Ordinal);
     }

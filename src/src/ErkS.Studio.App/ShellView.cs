@@ -3588,6 +3588,9 @@ internal sealed partial class ShellView : IDisposable
         // refresh them.
         bool cornerTableChanged = ApplySelectedCornerTable();
         foundationContentChanged |= cornerTableChanged;
+        // The ciphers, sheet date and site location do not travel in the Cloud
+        // draft either; written here for the same reason as the corner table.
+        foundationContentChanged |= ApplySelectedIdentityDetails();
         string baseConcurrencyToken = "";
         if (linked)
         {
@@ -5925,6 +5928,55 @@ internal sealed partial class ShellView : IDisposable
     /// Writes the chosen corner table into the project and says whether it
     /// changed.
     /// </summary>
+    /// <summary>
+    /// The ciphers, the sheet date and the site location: typed on the project
+    /// page, kept in the project file, never sent with the Cloud draft.
+    /// Returns true when any of them changed.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 ONE METHOD FOR BOTH SAVE PATHS. On a Cloud project «Хадгалах» used
+    /// only the draft that goes to the server, and these four are not in it -
+    /// Batnasan's cipher and address were typed, saved and gone (2026-10-20).
+    /// Like the corner table, they are written here once every guard has let
+    /// the save through.
+    /// </remarks>
+    private bool ApplySelectedIdentityDetails()
+    {
+        ProjectWorkspace project = state.Project;
+        ProjectInitiationBasis basis = project.Foundation.InitiationBasis;
+        string generalCipher = generalDesignCipherBox.Text.Trim();
+        string technicalCipher = technicalDesignCipherBox.Text.Trim();
+        // Kept as the date somebody chose, not as "now". Cleared means the cell
+        // stays empty on the sheet, which is the honest answer to "not entered".
+        DateTimeOffset? sheetDate = sheetDatePicker.SelectedDate is { } chosen
+            ? new DateTimeOffset(chosen.Date, TimeSpan.Zero)
+            : null;
+
+        // Told, never moved silently. The person typed that line when the only
+        // field was «Төслийн хаяг»; the moment a location makes it the ADDITIONAL
+        // half, they hear so. Its text is not touched - parsing an address into
+        // codes guesses, and names repeat across the country.
+        ProjectSiteLocation before = basis.SiteLocation;
+        ProjectSiteLocation after = CaptureSiteLocationDraft();
+        if (ProjectSiteAddress.TypedAddressBecomesAdditional(before, after, siteAddressBox.Text.Trim()))
+            SetStatus(ProjectSiteAddress.TypedAddressMovedNoticeMn);
+
+        bool changed =
+            !string.Equals(project.Identity.GeneralDesignCipher ?? "", generalCipher, StringComparison.Ordinal) ||
+            !string.Equals(project.Identity.TechnicalDesignCipher ?? "", technicalCipher, StringComparison.Ordinal) ||
+            project.Identity.SheetDateUtc != sheetDate ||
+            !string.Equals(
+                System.Text.Json.JsonSerializer.Serialize(before),
+                System.Text.Json.JsonSerializer.Serialize(after),
+                StringComparison.Ordinal);
+
+        project.Identity.GeneralDesignCipher = generalCipher;
+        project.Identity.TechnicalDesignCipher = technicalCipher;
+        project.Identity.SheetDateUtc = sheetDate;
+        basis.SiteLocation = after;
+        return changed;
+    }
+
     private bool ApplySelectedCornerTable()
     {
         string chosen = AlbumCornerTableStyles.Normalize(
@@ -6737,13 +6789,6 @@ internal sealed partial class ShellView : IDisposable
         var project = state.Project;
         project.Identity.Name = projectNameBox.Text.Trim();
         project.Identity.Code = projectCodeBox.Text.Trim();
-        project.Identity.GeneralDesignCipher = generalDesignCipherBox.Text.Trim();
-        project.Identity.TechnicalDesignCipher = technicalDesignCipherBox.Text.Trim();
-        // Kept as the date somebody chose, not as "now". Cleared means the cell
-        // stays empty on the sheet, which is the honest answer to "not entered".
-        project.Identity.SheetDateUtc = sheetDatePicker.SelectedDate is { } chosen
-            ? new DateTimeOffset(chosen.Date, TimeSpan.Zero)
-            : null;
         project.Identity.Description = basisSummaryBox.Text;
         ApplySelectedProjectClassification();
         var basis = project.Foundation.InitiationBasis;
@@ -6763,16 +6808,7 @@ internal sealed partial class ShellView : IDisposable
         basis.ClientOrganizationSnapshot.Name = basis.ClientName;
         basis.ClientOrganizationSnapshot.DisplayName = basis.ClientName;
         basis.SiteAddress = siteAddressBox.Text.Trim();
-
-        // Told, never moved silently. The person typed that line when the only
-        // field was «Төслийн хаяг»; the moment a location makes it the ADDITIONAL
-        // half, they hear so. Its text is not touched - parsing an address into
-        // codes guesses, and names repeat across the country.
-        ProjectSiteLocation before = basis.SiteLocation;
-        ProjectSiteLocation after = CaptureSiteLocationDraft();
-        if (ProjectSiteAddress.TypedAddressBecomesAdditional(before, after, basis.SiteAddress))
-            SetStatus(ProjectSiteAddress.TypedAddressMovedNoticeMn);
-        basis.SiteLocation = after;
+        _ = ApplySelectedIdentityDetails();
         basis.LandReference = landReferenceBox.Text.Trim();
         basis.SourceOrganizationName = basisSourceOrganizationBox.Text.Trim();
         basis.Summary = basisSummaryBox.Text;
