@@ -661,6 +661,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // rectangles only reserve these zones and are covered here.
         gfx.DrawRectangle(paperBrush, sheetHeader);
         gfx.DrawRectangle(paperBrush, corner);
+        // Covered BEFORE the frame and the corner table are drawn: covered
+        // after, it hid the corner table's top on a sheet whose frame stood
+        // above it, and the frame line it crossed.
+        CoverConsultationReservation(gfx, buildPage, paperBrush);
         DrawEtalonGrid(gfx, regions, borderPen, finePen);
         DrawRevitWorkingSheetHeader(gfx, sheetHeader, buildPage, borderPen);
         gfx.DrawRectangle(borderPen, corner);
@@ -2129,6 +2133,31 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     }
 
     /// <summary>
+    /// The source's own «ЗӨВШӨӨРӨЛЦСӨН» frame is a reservation like the corner
+    /// table's: covered wherever it stood - with half a millimetre for its
+    /// ruled edge - so its outline and what the sheet drew inside it do not
+    /// show beside the table drawn in its place.
+    /// </summary>
+    private static void CoverConsultationReservation(
+        XGraphics gfx,
+        AlbumBuildPage buildPage,
+        XBrush paperBrush)
+    {
+        SheetPackageEntry? entry = buildPage.Sheet?.Entry;
+        PageRectSpec? reserved = entry?.ConsultationTableArea;
+        if (reserved is null || (entry?.ConsultationTableRows ?? 0) <= 0 || reserved.Width <= 0 || reserved.Height <= 0)
+            return;
+        const double edgeMm = 0.5;
+        gfx.DrawRectangle(
+            paperBrush,
+            new XRect(
+                Mm(reserved.X - edgeMm),
+                Mm(reserved.Y - edgeMm),
+                Mm(reserved.Width + edgeMm * 2),
+                Mm(reserved.Height + edgeMm * 2)));
+    }
+
+    /// <summary>
     /// Fills the «ЗӨВШӨӨРӨЛЦСӨН» frame the source reserved, from the project's
     /// section-consent list. A sheet that reserved no frame gets no table.
     /// </summary>
@@ -2150,10 +2179,6 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // The source reserves the frame and decides its size; where it stands
         // is beside Studio's corner table (ConsultationTableLayout.Place).
         PageRectMm area = ConsultationTableLayout.Place(corner, reserved.Width, reserved.Height);
-        // The source's own frame is a reservation like the corner table's and
-        // is covered wherever it stood; otherwise its outline (and what the
-        // sheet drew inside it) showed beside the table that replaced it.
-        gfx.DrawRectangle(paperBrush, new XRect(Mm(reserved.X), Mm(reserved.Y), Mm(reserved.Width), Mm(reserved.Height)));
         var rect = new XRect(Mm(area.X), Mm(area.Y), Mm(area.Width), Mm(area.Height));
         gfx.DrawRectangle(paperBrush, rect);
         gfx.DrawRectangle(borderPen, rect);
