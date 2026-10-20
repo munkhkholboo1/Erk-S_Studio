@@ -2616,6 +2616,13 @@ internal sealed partial class ShellView
             "Ажлын зургийн 01 «ЕРӨНХИЙ ХЭСЭГ» хуудсанд хэвлэгдэх тайлбар бичиг, " +
             "иж бүрдлийн жагсаалт, техник эдийн засгийн үзүүлэлтийг засна.";
         frontMatter.Click += (_, _) => EditWorkingDrawingFrontMatter();
+        var frontMatterLayout = StudioWidgets.CreateIconTextButton(
+            "icon-project.svg",
+            "ЕХ байрлал");
+        frontMatterLayout.ToolTip =
+            "01 «ЕРӨНХИЙ ХЭСЭГ» хуудсан дээр зургийн жагсаалт, тайлбар бичиг, иж бүрдэл, ТЭЗҮ-г " +
+            "цэгэн бариул, туслах шугамаар зөөж, хэмжээ, баганын тоо, зайг тохируулна.";
+        frontMatterLayout.Click += (_, _) => EditWorkingDrawingFrontMatterLayout();
         var open = StudioWidgets.CreateButton("PDF нээх");
         open.Click += (_, _) =>
         {
@@ -2635,6 +2642,7 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(editVisualizations);
         documentGroup.Children.Add(elevationInformation);
         documentGroup.Children.Add(frontMatter);
+        documentGroup.Children.Add(frontMatterLayout);
         documentGroup.Children.Add(open);
         autoRebuildCheck.Content = "Auto шинэчлэлт";
         autoRebuildCheck.ToolTip = "Эх үүсвэр өөрчлөгдөхөд альбумыг автоматаар шинэчилнэ.";
@@ -2898,6 +2906,59 @@ internal sealed partial class ShellView
             return;
 
         ApplyWorkingDrawingFrontMatter(dialog.Result);
+    }
+
+    /// <summary>
+    /// The 01's blocks arranged on the page with grips and guides
+    /// (FrontMatterLayoutEditorWindow); the arrangement is kept on the album.
+    /// </summary>
+    private void EditWorkingDrawingFrontMatterLayout()
+    {
+        if (!state.HasOpenProject || !CanEditProjectContent())
+            return;
+        if (!TryResolveFrontMatterPage(out AlbumBuildPage? page))
+        {
+            SetStatus("01 «ЕРӨНХИЙ ХЭСЭГ» хуудас (ЕХ хүрээтэй Revit хуудас) альбумд алга.");
+            return;
+        }
+
+        WorkingDrawingFrontMatter matter = (state.Album.FrontMatter ?? new WorkingDrawingFrontMatter()).Clone();
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(page!.Format);
+        Dictionary<string, PageRectSpec> reserved = WorkingDrawingFrontMatterPlacement.ReservedFrames(page.Sheet.Entry);
+        double innerTop = WorkingDrawingFrontMatterPlacement.InnerTop(regions);
+        IReadOnlyList<FrontMatterBlockLayout> current =
+            WorkingDrawingFrontMatterPlacement.Resolve(reserved, regions.TitleBlockArea, innerTop, matter.Layout);
+        IReadOnlyList<FrontMatterBlockLayout> defaults =
+            WorkingDrawingFrontMatterPlacement.Resolve(reserved, regions.TitleBlockArea, innerTop, null);
+        var dialog = new FrontMatterLayoutEditorWindow(
+            sourceSheetPageImages,
+            page.Sheet,
+            regions.TitleBlockArea,
+            regions.EtalonInnerFrame,
+            reserved,
+            current,
+            defaults,
+            matter.Layout.Select(block => block.Kind).ToList())
+        {
+            Owner = Window.GetWindow(Root),
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        matter.Layout = dialog.Result.ToList();
+        ApplyWorkingDrawingFrontMatter(matter);
+    }
+
+    private bool TryResolveFrontMatterPage(out AlbumBuildPage? page)
+    {
+        page = null;
+        AlbumProject project = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
+        if (!AlbumBuilder.TryCreateRequest(project, state.Library, out AlbumBuildRequest request))
+            return false;
+        page = request.Sections
+            .SelectMany(section => section.Pages)
+            .FirstOrDefault(item => item.Definition.FrontMatterOnSheet);
+        return page is not null;
     }
 
     private bool ApplyWorkingDrawingFrontMatter(WorkingDrawingFrontMatter matter)

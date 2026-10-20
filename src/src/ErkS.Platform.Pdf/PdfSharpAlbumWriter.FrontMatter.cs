@@ -139,9 +139,7 @@ public sealed partial class PdfSharpAlbumWriter
         WorkingDrawingFrontMatter matter)
     {
         WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(buildPage.Format);
-        double innerTop = Math.Max(
-            regions.EtalonInnerFrame.Y,
-            regions.SheetTitleArea.Y + regions.SheetTitleArea.Height);
+        double innerTop = WorkingDrawingFrontMatterPlacement.InnerTop(regions);
         return WorkingDrawingFrontMatterPlacement.Resolve(
             reserved,
             regions.TitleBlockArea,

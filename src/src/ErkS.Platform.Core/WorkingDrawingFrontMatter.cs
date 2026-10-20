@@ -140,6 +140,22 @@ public static class WorkingDrawingFrontMatterPlacement
     public const double TopMarginMm = 5;
     public const int DefaultNoteColumns = 2;
 
+    /// <summary>Where the drawing area begins below the sheet header.</summary>
+    public static double InnerTop(WorkingDrawingPageRegions regions)
+    {
+        ArgumentNullException.ThrowIfNull(regions);
+        return Math.Max(
+            regions.EtalonInnerFrame.Y,
+            regions.SheetTitleArea.Y + regions.SheetTitleArea.Height);
+    }
+
+    /// <summary>The source's reserved frames by kind.</summary>
+    public static Dictionary<string, PageRectSpec> ReservedFrames(SheetPackageEntry? entry) =>
+        (entry?.FrontMatterAreas ?? [])
+            .Where(frame => frame?.Area is not null && SheetFrontMatterKinds.IsKnown(frame.Kind))
+            .GroupBy(frame => frame.Kind, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last().Area!, StringComparer.Ordinal);
+
     /// <param name="frames">The frames the source reserved (kind -> rectangle).</param>
     /// <param name="corner">The corner table Studio draws.</param>
     /// <param name="innerTopMm">Where the drawing area begins below the sheet header.</param>
