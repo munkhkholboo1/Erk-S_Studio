@@ -4127,7 +4127,9 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         {
             DrawRow(
                 index.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                buildPage.Number,
+                WorkingDrawingSheetNumbering.Applies(request.Project.Album)
+                    ? WorkingDrawingSheetNumbering.Label(buildPage.Sheet.Entry.Discipline, buildPage.Number)
+                    : buildPage.Number,
                 buildPage.Title,
                 // Was the source APPLICATION, printed as an English enum name -
                 // "Revit", "AutoCad", "Manual" - on a Mongolian sheet. Which

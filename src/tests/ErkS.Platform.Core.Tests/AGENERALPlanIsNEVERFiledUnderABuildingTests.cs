@@ -134,24 +134,77 @@ public sealed class AGENERALPlanIsNEVERFiledUnderABuildingTests : IDisposable
     }
 
     [Fact]
-    public void TheGeneralPlanIsNumberedAfterTheGeneralPartNotWithItsOwnNumbers()
+    public void EveryMarkIsNumberedFromOneInAlbumOrder()
     {
-        // 🔴 BATNASAN, 2026-10-20: the ЕТ DWG numbers its layouts 01-04, so the
-        // album printed 00 cover, 01 list - and then 01, 02, 03, 04 again. The
-        // general plan follows the general part: 02, 03 … (the owner's
-        // reference keeps 02-10 for ЕТ, the building's sets from 11).
+        // 🔴 OWNER, 2026-10-20: «ЕХ-1-2, ЕТ-1-4, БА-1-... гэх мэтээр
+        // дугаарлах ёстой … экспертүүд яг ингэж хийхийг байнга шаарддаг».
+        // Batnasan had printed one running number (ЕХ 00-01, ЕТ 02-05) and the
+        // Revit sheet numbers (БА 11-57). The source's number orders; the mark
+        // numbers.
         (ProjectWorkspace project, AlbumDefinition album, SheetLibrary library, SheetPackageLoadResult loaded) =
             Batnasan(["ЕТ", "ЕТ", "БА"]);
         ProjectPackageReconciliationService.Apply(project, album, library, loaded);
         var albumProject = new AlbumProject { Name = "BN", Album = album };
 
         AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
+        IReadOnlyList<ConceptGeneratedPagePlan> generated = BuildingArchitectureConceptGeneratedPagePlanner.Create(albumProject);
 
         List<AlbumBuildPage> pages = request.Sections.SelectMany(section => section.Pages).ToList();
         Assert.Equal(
-            ["02", "03"],
+            ["1", "2"],
             pages.Where(page => page.Sheet.Entry.Discipline == "ЕТ").Select(page => page.Number));
-        Assert.Equal("03", pages.Single(page => page.Sheet.Entry.Discipline == "БА").Number);
+        Assert.Equal("1", pages.Single(page => page.Sheet.Entry.Discipline == "БА").Number);
+        Assert.Equal(
+            Enumerable.Range(1, generated.Count).Select(number => number.ToString()),
+            generated.Select(plan => plan.Number));
+        Assert.Equal("ЕТ-2", WorkingDrawingSheetNumbering.Label("ЕТ", "2"));
+    }
+
+    [Fact]
+    public void TheDrawingListPrintsTheMarkWithTheNumber()
+    {
+        (ProjectWorkspace project, AlbumDefinition album, SheetLibrary library, SheetPackageLoadResult loaded) =
+            Batnasan(["ЕТ", "ЕТ", "БА"]);
+        ProjectPackageReconciliationService.Apply(project, album, library, loaded);
+        var albumProject = new AlbumProject { Name = "BN", Album = album };
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
+        IReadOnlyList<ConceptGeneratedPagePlan> generated = BuildingArchitectureConceptGeneratedPagePlanner.Create(albumProject);
+
+        var rows = PdfSharpAlbumWriter.FrontMatterListRows(generated, request.Sections);
+
+        Assert.Equal("ЕХ-1", rows[0].Number);
+        Assert.Equal(
+            ["ЕТ-1", "ЕТ-2", "БА-1"],
+            rows.Skip(generated.Count).Select(row => row.Number));
+    }
+
+    [Fact]
+    public void TheGeneralPartsSheetFollowsStudiosOwnPages()
+    {
+        // The 01 that Revit sends (mark ЕХ) continues after Studio's ЕХ pages.
+        (ProjectWorkspace project, AlbumDefinition album, SheetLibrary library, SheetPackageLoadResult loaded) =
+            Batnasan(["ЕХ", "ЕТ"]);
+        ProjectPackageReconciliationService.Apply(project, album, library, loaded);
+        var albumProject = new AlbumProject { Name = "BN", Album = album };
+
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
+        int generated = BuildingArchitectureConceptGeneratedPagePlanner.Create(albumProject).Count;
+
+        AlbumBuildPage general = request.Sections.SelectMany(section => section.Pages)
+            .Single(page => page.Sheet.Entry.Discipline == "ЕХ");
+        Assert.Equal((generated + 1).ToString(), general.Number);
+    }
+
+    [Fact]
+    public void AConceptAlbumKeepsItsRunningNumbers()
+    {
+        var albumProject = new AlbumProject
+        {
+            Name = "concept",
+            Album = new AlbumDefinition { TemplateId = BuildingArchitectureConceptAlbumTemplate.TemplateId },
+        };
+
+        Assert.False(WorkingDrawingSheetNumbering.Applies(albumProject.Album));
     }
 
     [Fact]
@@ -180,7 +233,7 @@ public sealed class AGENERALPlanIsNEVERFiledUnderABuildingTests : IDisposable
             generated.Select(plan => plan.Number),
             outline[0].Pages.Select(page => page.Number));
         Assert.All(outline[0].Pages, page => Assert.NotNull(page.Generated));
-        Assert.Equal(["02", "03"], outline[1].Pages.Select(page => page.Number));
+        Assert.Equal(["1", "2"], outline[1].Pages.Select(page => page.Number));
         AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
         Assert.Equal(
             request.Sections.SelectMany(section => section.Pages).Select(page => page.Number),

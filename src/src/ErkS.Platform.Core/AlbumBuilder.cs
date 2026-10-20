@@ -290,7 +290,7 @@ public sealed class AlbumBuilder
             });
         }
 
-        NumberWorkingDrawingGeneralPlan(project, sections);
+        NumberWorkingDrawingsByMark(project, sections);
         return new AlbumBuildRequest { Project = project, Sections = sections };
     }
 
@@ -306,39 +306,47 @@ public sealed class AlbumBuilder
     /// no single source numbers for the album, is numbered here. A number set
     /// by hand on the page still wins (NumberOverride).
     /// </remarks>
-    private static void NumberWorkingDrawingGeneralPlan(AlbumProject project, List<AlbumBuildSection> sections)
+    /// <remarks>
+    /// Superseded the same day by numbering by mark
+    /// (<see cref="WorkingDrawingSheetNumbering"/>): every mark starts at 1, in
+    /// album order; Studio's own pages open ЕХ. A number set by hand on the
+    /// page still wins (NumberOverride).
+    /// </remarks>
+    private static void NumberWorkingDrawingsByMark(AlbumProject project, List<AlbumBuildSection> sections)
     {
-        if (!string.Equals(project.Album.TemplateId, BuildingWorkingDrawingAlbumTemplate.TemplateId, StringComparison.OrdinalIgnoreCase))
+        if (!WorkingDrawingSheetNumbering.Applies(project.Album))
             return;
 
-        int index = sections.FindIndex(section => section.Title.Equals(
-            BuildingWorkingDrawingAlbumTemplate.GeneralPlanSectionTitle,
-            StringComparison.OrdinalIgnoreCase));
-        if (index < 0)
-            return;
-
-        int next = BuildingArchitectureConceptGeneratedPagePlanner.Create(project).Count +
-                   sections
-                       .Where(section => section.Title.Equals(
-                           BuildingWorkingDrawingAlbumTemplate.GeneralPartSectionTitle,
-                           StringComparison.OrdinalIgnoreCase))
-                       .Sum(section => section.Pages.Count);
-        AlbumBuildSection generalPlan = sections[index];
-        sections[index] = new AlbumBuildSection
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            Key = generalPlan.Key,
-            Title = generalPlan.Title,
-            Kind = generalPlan.Kind,
-            Pages = generalPlan.Pages
-                .Select(page => new AlbumBuildPage
-                {
-                    Sheet = page.Sheet,
-                    Definition = page.Definition,
-                    Format = page.Format,
-                    StudioNumber = (next++).ToString("D2", System.Globalization.CultureInfo.InvariantCulture),
-                })
-                .ToList(),
+            [WorkingDrawingSheetNumbering.GeneralPartMark] =
+                BuildingArchitectureConceptGeneratedPagePlanner.Create(project).Count,
         };
+        for (int index = 0; index < sections.Count; index++)
+        {
+            AlbumBuildSection section = sections[index];
+            sections[index] = new AlbumBuildSection
+            {
+                Key = section.Key,
+                Title = section.Title,
+                Kind = section.Kind,
+                Pages = section.Pages
+                    .Select(page =>
+                    {
+                        string mark = WorkingDrawingSheetNumbering.MarkOf(page.Sheet.Entry.Discipline);
+                        int ordinal = counts.GetValueOrDefault(mark) + 1;
+                        counts[mark] = ordinal;
+                        return new AlbumBuildPage
+                        {
+                            Sheet = page.Sheet,
+                            Definition = page.Definition,
+                            Format = page.Format,
+                            StudioNumber = WorkingDrawingSheetNumbering.Number(ordinal),
+                        };
+                    })
+                    .ToList(),
+            };
+        }
     }
 
     private static bool IsUrbanPlanningAlbum(AlbumDefinition album) =>

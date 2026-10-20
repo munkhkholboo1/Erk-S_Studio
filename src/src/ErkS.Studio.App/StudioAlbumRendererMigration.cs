@@ -28,8 +28,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 8: the «ЗӨВШӨӨРӨЛЦСӨН» table stands beside the corner table, bottoms
     /// aligned, instead of where the source's frame happened to be.
+    ///
+    /// 9: working drawings are numbered by mark - ЕХ-1, ЕТ-1…, БА-1… - in the
+    /// corner tables and the drawing list (WorkingDrawingSheetNumbering).
     /// </summary>
-    public const int CurrentRevision = 8;
+    public const int CurrentRevision = 9;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

@@ -23,11 +23,14 @@ public sealed partial class PdfSharpAlbumWriter
         IEnumerable<ConceptGeneratedPagePlan> generated,
         IEnumerable<AlbumBuildSection> sections) =>
         generated
-            .Select(plan => new WorkingDrawingFrontMatterLayout.ListRow(plan.Number, plan.Title, FrontMatterMark))
+            .Select(plan => new WorkingDrawingFrontMatterLayout.ListRow(
+                WorkingDrawingSheetNumbering.Label(FrontMatterMark, plan.Number),
+                plan.Title,
+                FrontMatterMark))
             .Concat(sections
                 .SelectMany(section => section.Pages)
                 .Select(page => new WorkingDrawingFrontMatterLayout.ListRow(
-                    page.Number,
+                    WorkingDrawingSheetNumbering.Label(page.Sheet.Entry.Discipline, page.Number),
                     page.Title,
                     (page.Sheet.Entry.Discipline ?? "").Trim())))
             .ToList();

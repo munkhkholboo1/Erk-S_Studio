@@ -131,7 +131,11 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
         {
             Component = draft.Component,
             OutputIndex = index,
-            Number = index.ToString($"D{width}", CultureInfo.InvariantCulture),
+            // Working drawings number by mark: Studio's pages are ЕХ-1, ЕХ-2 …
+            // (WorkingDrawingSheetNumbering); the concept album keeps 00, 01 …
+            Number = WorkingDrawingSheetNumbering.Applies(project.Album)
+                ? WorkingDrawingSheetNumbering.Number(index + 1)
+                : index.ToString($"D{width}", CultureInfo.InvariantCulture),
             Title = draft.Title,
             DocumentKind = draft.DocumentKind,
             DocumentLabel = draft.DocumentLabel,
