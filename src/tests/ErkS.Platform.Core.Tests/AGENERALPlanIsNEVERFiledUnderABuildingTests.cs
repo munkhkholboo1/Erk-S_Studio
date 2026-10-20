@@ -179,6 +179,25 @@ public sealed class AGENERALPlanIsNEVERFiledUnderABuildingTests : IDisposable
     }
 
     [Fact]
+    public void TheSourceNumberOrdersTheSheetsNotWhereTheyWereFirstFiled()
+    {
+        // OWNER, 2026-10-20: «жишгийн дарааллаар 04 Өндөржилт, 05 Картограмм,
+        // 06 Ногоон болго». The DWG was renumbered and resent; the album kept
+        // the order the pages were first filed in.
+        (ProjectWorkspace project, AlbumDefinition album, SheetLibrary library, SheetPackageLoadResult loaded) =
+            Batnasan(["ЕТ", "ЕТ", "ЕТ"]);
+        ProjectPackageReconciliationService.Apply(project, album, library, loaded);
+        album.Pages.Reverse();
+        var albumProject = new AlbumProject { Name = "BN", Album = album };
+
+        AlbumBuildRequest request = AlbumBuilder.CreateRequest(albumProject, library);
+
+        List<AlbumBuildPage> pages = request.Sections.SelectMany(section => section.Pages).ToList();
+        Assert.Equal(["01", "02", "03"], pages.Select(page => page.Sheet.Entry.Number));
+        Assert.Equal(["1", "2", "3"], pages.Select(page => page.Number));
+    }
+
+    [Fact]
     public void TheGeneralPartsSheetFollowsStudiosOwnPages()
     {
         // The 01 that Revit sends (mark ЕХ) continues after Studio's ЕХ pages.

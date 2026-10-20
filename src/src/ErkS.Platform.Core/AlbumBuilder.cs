@@ -269,6 +269,8 @@ public sealed class AlbumBuilder
                     project.Album,
                     project.Album.Pages.Where(page => page.SectionId == section.Id)),
                 library);
+            if (WorkingDrawingSheetNumbering.Applies(project.Album))
+                pages = WorkingDrawingSheetNumbering.OrderBySourceNumber(pages);
             if (pages.Count > 0)
             {
                 sections.Add(new AlbumBuildSection { Title = section.Title, Pages = pages });

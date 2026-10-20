@@ -40,6 +40,64 @@ public static class WorkingDrawingSheetNumbering
         return prefix + "-" + value;
     }
 
+    /// <summary>
+    /// A part's sheets in the order their source numbers them: one source's
+    /// sheets stay together, where that source first appears, and run in
+    /// their sheet-number order; a page whose number has no digits comes after
+    /// the numbered ones, in its stored order.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 OWNER, 2026-10-20: «жишгийн дарааллаар 04 Өндөржилт, 05 Картограмм,
+    /// 06 Ногоон болго». The DWG was renumbered and sent again - and the album
+    /// kept 04 Ногоон, because a page kept the place it was first filed in.
+    /// The source's number is what orders the sheets; the album's stored order
+    /// only breaks ties.
+    /// </remarks>
+    public static List<AlbumBuildPage> OrderBySourceNumber(IReadOnlyList<AlbumBuildPage> pages)
+    {
+        var sourceRank = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (AlbumBuildPage page in pages)
+        {
+            string source = SourceKey(page);
+            if (!sourceRank.ContainsKey(source))
+                sourceRank[source] = sourceRank.Count;
+        }
+
+        return pages
+            .Select((page, index) => (Page: page, Index: index))
+            .OrderBy(item => sourceRank[SourceKey(item.Page)])
+            .ThenBy(item => SheetNumberValue(item.Page.Sheet.Entry.Number) ?? double.MaxValue)
+            .ThenBy(item => item.Index)
+            .Select(item => item.Page)
+            .ToList();
+    }
+
+    private static string SourceKey(AlbumBuildPage page) =>
+        string.IsNullOrWhiteSpace(page.Sheet.SourceId)
+            ? (page.Sheet.SourceIdentity ?? "").Trim()
+            : page.Sheet.SourceId.Trim();
+
+    /// <summary>«04» → 4, «ЕТ-05» → 5, «11a» → 11; null when the number has no digits.</summary>
+    private static double? SheetNumberValue(string? number)
+    {
+        string text = (number ?? "").Trim();
+        int start = -1;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (char.IsDigit(text[i]))
+            {
+                start = i;
+                break;
+            }
+        }
+        if (start < 0)
+            return null;
+        int end = start;
+        while (end < text.Length && char.IsDigit(text[end]))
+            end++;
+        return double.Parse(text[start..end], CultureInfo.InvariantCulture);
+    }
+
     /// <summary>The n-th sheet of a mark, as it prints: «1», «2» …</summary>
     public static string Number(int ordinal) =>
         Math.Max(1, ordinal).ToString(CultureInfo.InvariantCulture);
