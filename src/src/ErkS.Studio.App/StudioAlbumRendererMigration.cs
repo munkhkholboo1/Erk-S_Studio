@@ -38,8 +38,11 @@ internal static class StudioAlbumRendererMigration
     /// 11: a page name too long for its column in the drawing list (and the
     /// composition and indicators) wraps and its row grows, instead of the
     /// name being squeezed.
+    ///
+    /// 12: the drawing list goes on to the bottom of its frame in blank ruled
+    /// rows instead of stopping short of it.
     /// </summary>
-    public const int CurrentRevision = 11;
+    public const int CurrentRevision = 12;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

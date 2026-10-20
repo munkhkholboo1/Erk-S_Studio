@@ -324,6 +324,26 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
+    public void AShortListGoesOnToTheFramesBottomInBlankRows()
+    {
+        // Owner, 2026-10-20: «энэ зайндаа яаж дүүргэх вэ». Ten sheets in a
+        // 280 mm frame: the rules run on to the bottom, the blank rows carry
+        // no text, nothing overflows.
+        WorkingDrawingFrontMatterTable table = WorkingDrawingFrontMatterLayout.DrawingList(102, 280, ListRows(10));
+
+        double bottom = table.Lines.Max(line => Math.Max(line.Y0Mm, line.Y1Mm));
+        Assert.Equal(280, bottom, 1);
+        Assert.Equal(0, table.Overflow);
+        Assert.Equal(10, table.Cells.Count(cell => cell.Text.StartsWith("ХУУДАС", StringComparison.Ordinal)));
+        Assert.True(table.Lines.Count(line => line.Y0Mm == line.Y1Mm) > 10 + 3);
+        AssertInside(table, 102, 280);
+
+        WorkingDrawingFrontMatterTable open = WorkingDrawingFrontMatterLayout.DrawingList(
+            102, 280, ListRows(10), fillToBottom: false);
+        Assert.True(open.Lines.Max(line => Math.Max(line.Y0Mm, line.Y1Mm)) < 200);
+    }
+
+    [Fact]
     public void WrappedNamesLeaveFewerRowsAndTheRestIsReported()
     {
         // A frame that held every one-line name no longer holds them all when

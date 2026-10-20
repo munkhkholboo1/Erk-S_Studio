@@ -51,7 +51,8 @@ internal static class WorkingDrawingFrontMatterLayout
         double heightMm,
         IReadOnlyList<ListRow> rows,
         string title = DrawingListTitle,
-        LineCounter? measure = null)
+        LineCounter? measure = null,
+        bool fillToBottom = true)
     {
         double titleHeight = Math.Min(HeaderMm, heightMm / 4);
         double header = Math.Min(HeaderMm, heightMm / 4);
@@ -66,7 +67,8 @@ internal static class WorkingDrawingFrontMatterLayout
             columns,
             rows.Select(row => new[] { row.Number, row.Title, row.Mark }).ToList(),
             leftAlignedColumn: 1,
-            measure: measure);
+            measure: measure,
+            fillToBottom: fillToBottom);
     }
 
     public static WorkingDrawingFrontMatterTable Composition(
@@ -144,7 +146,8 @@ internal static class WorkingDrawingFrontMatterLayout
         int leftAlignedColumn,
         string headerSpanTitle = "",
         int headerSpanColumns = 0,
-        LineCounter? measure = null)
+        LineCounter? measure = null,
+        bool fillToBottom = false)
     {
         var cells = new List<WorkingTitleBlockCell>();
         var lines = new List<WorkingTitleBlockLine>();
@@ -194,6 +197,24 @@ internal static class WorkingDrawingFrontMatterLayout
         double tableBottom = rowTops[drawn];
         double headerText = Math.Clamp(headerMm * 0.32, 1.6, 2.5);
 
+        // When every row is in and the frame has room left, the table goes on
+        // to the frame's bottom in blank ruled rows - room for sheets added
+        // later - instead of stopping short of it (owner, 2026-10-20: «энэ
+        // зайндаа яаж дүүргэх вэ»). The blank rows share the remainder evenly.
+        var blankTops = new List<double>();
+        double remaining = bodyTop + available - tableBottom;
+        if (fillToBottom && drawn == rows.Count && remaining > 0.01)
+        {
+            int blanks = (int)Math.Round(remaining / rowHeight);
+            if (blanks > 0)
+            {
+                double step = remaining / blanks;
+                for (int blank = 1; blank <= blanks; blank++)
+                    blankTops.Add(tableBottom + step * blank);
+                tableBottom = blankTops[^1];
+            }
+        }
+
         // Outer frame and horizontal rules.
         lines.Add(new(0, 0, widthMm, 0));
         lines.Add(new(0, 0, 0, tableBottom));
@@ -206,6 +227,8 @@ internal static class WorkingDrawingFrontMatterLayout
         lines.Add(new(0, bodyTop, widthMm, bodyTop));
         for (int row = 1; row <= drawn; row++)
             lines.Add(new(0, rowTops[row], widthMm, rowTops[row]));
+        foreach (double top in blankTops)
+            lines.Add(new(0, top, widthMm, top));
 
         // Column rules: a spanning header title has none between the spanned columns.
         double x = 0;
