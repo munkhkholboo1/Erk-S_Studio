@@ -31,8 +31,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 9: working drawings are numbered by mark - ЕХ-1, ЕТ-1…, БА-1… - in the
     /// corner tables and the drawing list (WorkingDrawingSheetNumbering).
+    ///
+    /// 10: the 01's explanatory note stands above the corner table in columns,
+    /// and every front-matter block takes the owner's layout.
     /// </summary>
-    public const int CurrentRevision = 9;
+    public const int CurrentRevision = 10;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -
