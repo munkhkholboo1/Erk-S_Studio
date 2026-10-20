@@ -74,10 +74,10 @@ public sealed partial class PdfSharpAlbumWriter
             if (frame.Area is null)
                 continue;
             reserved[frame.Kind] = frame.Area;
-            gfx.DrawRectangle(paperBrush, new XRect(Mm(frame.Area.X), Mm(frame.Area.Y), Mm(frame.Area.Width), Mm(frame.Area.Height)));
+            gfx.DrawRectangle(paperBrush, ReservedFrameCover(frame.Area, 0, 0));
         }
 
-        DrawSourceMoves(gfx, buildPage.Sheet!, matter.SourceMoves, paperBrush);
+        DrawSourceMoves(gfx, buildPage.Sheet!, matter.SourceMoves, paperBrush, reserved.Values.ToList());
         DrawFrontMatterBlocks(gfx, FrontMatterBlocks(buildPage, reserved, matter), rows, matter, warnings, number, paperBrush);
     }
 
@@ -191,11 +191,24 @@ public sealed partial class PdfSharpAlbumWriter
     /// place is cleared, then the same vector page is drawn again shifted,
     /// clipped to the part's new place. The source PDF is not touched.
     /// </summary>
+    /// <summary>
+    /// A reserved frame's paper, a little wider than the frame so the source's
+    /// outline - drawn on the frame's edge - goes under it too.
+    /// </summary>
+    internal const double ReservedFrameBleedMm = 0.5;
+
+    private static XRect ReservedFrameCover(PageRectSpec frame, double offsetX, double offsetY) => new(
+        Mm(frame.X + offsetX - ReservedFrameBleedMm),
+        Mm(frame.Y + offsetY - ReservedFrameBleedMm),
+        Mm(frame.Width + 2 * ReservedFrameBleedMm),
+        Mm(frame.Height + 2 * ReservedFrameBleedMm));
+
     private static void DrawSourceMoves(
         XGraphics gfx,
         SheetRecord sheet,
         IReadOnlyList<SourceRegionMove> moves,
-        XBrush paperBrush)
+        XBrush paperBrush,
+        IReadOnlyList<PageRectSpec>? reservedFrames = null)
     {
         List<SourceRegionMove> active = (moves ?? [])
             .Where(move => move.Width >= 1 && move.Height >= 1 &&
@@ -222,6 +235,11 @@ public sealed partial class PdfSharpAlbumWriter
             gfx.DrawRectangle(paperBrush, target);
             XRect desired = new(Mm(move.OffsetX), Mm(move.OffsetY), width, height);
             gfx.DrawImage(form, CalculatePdfSharpFormDrawRectangle(desired, width, height, mediaBox.X1, mediaBox.Y1));
+            // A part moved with a reserved frame's outline in it does not
+            // carry the outline along (owner, 2026-10-20: «ийм илүү дутуу
+            // зурааснуудыг байхгүй болгоорой»).
+            foreach (PageRectSpec frame in reservedFrames ?? [])
+                gfx.DrawRectangle(paperBrush, ReservedFrameCover(frame, move.OffsetX, move.OffsetY));
             gfx.Restore(state);
         }
     }

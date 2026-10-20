@@ -46,8 +46,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 14: the front-matter blocks are drawn in the order the owner left them
     /// (front / back), the ones he did not place behind.
+    ///
+    /// 15: a moved part of the 01 no longer carries the outlines of the
+    /// source's reserved frames along; the frames' paper bleeds 0.5 mm.
     /// </summary>
-    public const int CurrentRevision = 14;
+    public const int CurrentRevision = 15;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

@@ -65,6 +65,8 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
     private readonly Func<IReadOnlyList<FrontMatterBlockLayout>, Task<FrontMatterPreview>>? renderPreview;
     private readonly Image previewImage = new() { Stretch = Stretch.Fill, IsHitTestVisible = false };
     private readonly Canvas paperCover = new() { IsHitTestVisible = false };
+    // The moved parts of the drawing, under the front matter as in the print.
+    private readonly Canvas movesLayer = new() { IsHitTestVisible = false };
     private readonly System.Windows.Threading.DispatcherTimer previewTimer =
         new() { Interval = TimeSpan.FromMilliseconds(250) };
     private bool previewDirty = true;
@@ -180,6 +182,7 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         // The frames the source reserved are paper on the printed sheet; here
         // too, so their outlines do not read as part of the front matter.
         surface.Children.Add(paperCover);
+        surface.Children.Add(movesLayer);
         surface.Children.Add(previewImage);
         canvas.Width = surface.Width;
         canvas.Height = surface.Height;
@@ -268,11 +271,14 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         AddRect(corner, new SolidColorBrush(Color.FromArgb(40, 90, 90, 90)), new SolidColorBrush(Color.FromArgb(160, 90, 90, 90)), 1.2, null);
         AddLabel(corner.X, corner.Y + corner.Height / 2 - 4, corner.Width, "Булангийн хүснэгт", Color.FromRgb(90, 90, 90), center: true);
 
-        // The source's reserved frames are covered as the print covers them.
+        // The layers are stacked as the print draws them: the source page, its
+        // reserved frames and the moved parts' old places covered with paper,
+        // the moved parts at their new places, then the front matter on top.
         paperCover.Children.Clear();
+        movesLayer.Children.Clear();
         foreach (PageRectSpec frame in reserved.Values)
         {
-            const double bleed = 0.4;
+            const double bleed = 0.5;
             var paper = new Rectangle
             {
                 Width = (frame.Width + 2 * bleed) * Unit,
@@ -368,10 +374,16 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
     /// </summary>
     private void DrawMove(SourceRegionMove move, bool selected)
     {
+        // Its old place is paper, as in the print; a faint dashed outline
+        // says where it came from.
+        var origin = new Rectangle { Width = move.Width * Unit, Height = move.Height * Unit, Fill = Brushes.White };
+        Canvas.SetLeft(origin, move.X * Unit);
+        Canvas.SetTop(origin, move.Y * Unit);
+        paperCover.Children.Add(origin);
         AddRect(
             new PageRectMm { X = move.X, Y = move.Y, Width = move.Width, Height = move.Height },
-            new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-            new SolidColorBrush(Color.FromArgb(150, 140, 140, 140)),
+            null,
+            new SolidColorBrush(Color.FromArgb(selected ? (byte)150 : (byte)70, 140, 140, 140)),
             1,
             [3, 3]);
         var destination = new PageRectMm
@@ -399,17 +411,37 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
                 Stretch = Stretch.Fill,
                 IsHitTestVisible = false,
             };
-            var paper = new Rectangle { Width = image.Width, Height = image.Height, Fill = Brushes.White, IsHitTestVisible = false };
-            Canvas.SetLeft(paper, destination.X * Unit);
-            Canvas.SetTop(paper, destination.Y * Unit);
-            canvas.Children.Add(paper);
-            Canvas.SetLeft(image, destination.X * Unit);
-            Canvas.SetTop(image, destination.Y * Unit);
-            canvas.Children.Add(image);
+            // The moved part as the print draws it: paper, the drawing, and
+            // no reserved-frame outline carried along with it.
+            var part = new Canvas
+            {
+                Width = image.Width,
+                Height = image.Height,
+                ClipToBounds = true,
+                Background = Brushes.White,
+                IsHitTestVisible = false,
+            };
+            part.Children.Add(image);
+            foreach (PageRectSpec frame in reserved.Values)
+            {
+                const double bleed = 0.5;
+                var cover = new Rectangle
+                {
+                    Width = (frame.Width + 2 * bleed) * Unit,
+                    Height = (frame.Height + 2 * bleed) * Unit,
+                    Fill = Brushes.White,
+                };
+                Canvas.SetLeft(cover, (frame.X - move.X - bleed) * Unit);
+                Canvas.SetTop(cover, (frame.Y - move.Y - bleed) * Unit);
+                part.Children.Add(cover);
+            }
+            Canvas.SetLeft(part, destination.X * Unit);
+            Canvas.SetTop(part, destination.Y * Unit);
+            movesLayer.Children.Add(part);
         }
         AddRect(
             destination,
-            new SolidColorBrush(Color.FromArgb(selected ? (byte)28 : (byte)12, MoveColor.R, MoveColor.G, MoveColor.B)),
+            selected ? new SolidColorBrush(Color.FromArgb(14, MoveColor.R, MoveColor.G, MoveColor.B)) : null,
             new SolidColorBrush(Color.FromArgb(selected ? (byte)255 : (byte)180, MoveColor.R, MoveColor.G, MoveColor.B)),
             selected ? 2 : 1.2,
             null);

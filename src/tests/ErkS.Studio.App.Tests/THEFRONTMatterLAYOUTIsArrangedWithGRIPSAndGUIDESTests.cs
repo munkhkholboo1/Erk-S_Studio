@@ -115,7 +115,7 @@ public sealed class THEFRONTMatterLAYOUTIsArrangedWithGRIPSAndGUIDESTests
 
         Assert.Contains("arranged => RenderFrontMatterPreviewAsync(page, matter, arranged))", workspaces, StringComparison.Ordinal);
         Assert.Contains("PdfSharpAlbumWriter.WriteFrontMatterPreview(request, page, matter, arranged, path)", workspaces, StringComparison.Ordinal);
-        Assert.Contains("StudioBitmapClearWhite.Apply(bitmap)", workspaces, StringComparison.Ordinal);
+        Assert.Contains("StudioBitmapClearWhite.Apply(bitmap, blockAreas)", workspaces, StringComparison.Ordinal);
         Assert.Contains("surface.Children.Add(previewImage);", window, StringComparison.Ordinal);
         Assert.Contains("ShowPreviewWarnings();", window, StringComparison.Ordinal);
     }
@@ -203,5 +203,33 @@ public sealed class THEFRONTMatterLAYOUTIsArrangedWithGRIPSAndGUIDESTests
         Assert.Equal(0, result[7]);
         Assert.Equal(255, result[11]);
         Assert.Equal(255, result[15]);
+
+        // Inside a block the paper stays paper: the block covers what is under it.
+        System.Windows.Media.Imaging.BitmapSource kept = StudioBitmapClearWhite.Apply(
+            source, [new System.Windows.Rect(0, 0, 0.25, 1)]);
+        kept.CopyPixels(result, 16, 0);
+        Assert.Equal(255, result[3]);
+        Assert.Equal(0, result[7]);
+    }
+
+    [Fact]
+    public void TheEditorStacksItsLayersAsThePrintDrawsThem()
+    {
+        // Owner, 2026-10-20: «зургийг зөөхөд зураг хуучин байрандаа давхар
+        // үлдэхээс гадна бусад мэдээллээ дарж наана гарч ирж байна» - the
+        // saved print was right; the editor showed the old place and drew the
+        // moved part over the blocks.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string window = File.ReadAllText(Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App", "FrontMatterLayoutEditorWindow.cs"));
+        int page = window.IndexOf("surface.Children.Add(pageImage);", StringComparison.Ordinal);
+        int cover = window.IndexOf("surface.Children.Add(paperCover);", StringComparison.Ordinal);
+        int moves = window.IndexOf("surface.Children.Add(movesLayer);", StringComparison.Ordinal);
+        int preview = window.IndexOf("surface.Children.Add(previewImage);", StringComparison.Ordinal);
+        Assert.True(page < cover && cover < moves && moves < preview);
+        Assert.Contains("paperCover.Children.Add(origin);", window, StringComparison.Ordinal);
+        Assert.Contains("movesLayer.Children.Add(part);", window, StringComparison.Ordinal);
+        Assert.Contains("part.Children.Add(cover);", window, StringComparison.Ordinal);
     }
 }

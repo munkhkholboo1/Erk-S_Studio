@@ -482,6 +482,20 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
+    public void AMovedPartDoesNotCarryAReservedFramesOutlineAlong()
+    {
+        // Owner, 2026-10-20: «ийм илүү дутуу зурааснуудыг байхгүй болгоорой» -
+        // the outlines of Revit's frames came along with a moved part of the
+        // drawing. The moved part covers the frames at their moved places.
+        string writer = File.ReadAllText(Path.Combine(SourceRoot(), "src", "ErkS.Platform.Pdf", "PdfSharpAlbumWriter.FrontMatter.cs"));
+        int image = writer.IndexOf("gfx.DrawImage(form, CalculatePdfSharpFormDrawRectangle(desired", StringComparison.Ordinal);
+        int cover = writer.IndexOf("ReservedFrameCover(frame, move.OffsetX, move.OffsetY)", image, StringComparison.Ordinal);
+        int restore = writer.IndexOf("gfx.Restore(state);", image, StringComparison.Ordinal);
+        Assert.True(image > 0 && cover > image && restore > cover);
+        Assert.Contains("DrawSourceMoves(gfx, buildPage.Sheet!, matter.SourceMoves, paperBrush, reserved.Values.ToList());", writer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheWriterDrawsTheFramesAfterThePageIsComposed()
     {
         // The frames are written on the page as composed - after the sheet and

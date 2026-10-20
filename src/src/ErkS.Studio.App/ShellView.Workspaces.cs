@@ -2972,7 +2972,16 @@ internal sealed partial class ShellView
             var cache = new PdfPageImageCache();
             System.Windows.Media.Imaging.BitmapSource? bitmap =
                 await cache.GetPageAsync(path, 1, 2400, CancellationToken.None);
-            return new FrontMatterPreview(bitmap is null ? null : StudioBitmapClearWhite.Apply(bitmap), warnings);
+            double pageWidth = Math.Max(10, page.Sheet.Entry.WidthMm);
+            double pageHeight = Math.Max(10, page.Sheet.Entry.HeightMm);
+            List<System.Windows.Rect> blockAreas = arranged
+                .Select(block => new System.Windows.Rect(
+                    block.X / pageWidth,
+                    block.Y / pageHeight,
+                    Math.Max(0, block.Width) / pageWidth,
+                    Math.Max(0, block.Height) / pageHeight))
+                .ToList();
+            return new FrontMatterPreview(bitmap is null ? null : StudioBitmapClearWhite.Apply(bitmap, blockAreas), warnings);
         }
         finally
         {
