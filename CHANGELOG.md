@@ -5,6 +5,18 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.66] - 2026-10-20
+
+- Working drawings are numbered by mark, the way reviewers require: ЕХ-1, ЕХ-2, ЕТ-1…, БА-1…, ТХ-1…. The corner table, the drawing list and the note carry the same number; a source's own sheet number only sets the order. Concept albums are unchanged.
+- The working-drawing album has three parts - «Ерөнхий хэсэг», «Ерөнхий төлөвлөгөө», «Ажлын зураг». General-plan sheets go to their own part and are never filed under a building, here or on the server. The organizer shows the album exactly as it prints.
+- Studio draws the general part into the Revit 01 «ЕРӨНХИЙ ХЭСЭГ»: the drawing list, the explanatory note, the album composition and the technical indicators go into the frames Revit reserves (sheet package schema 9). The general-part information is edited in Studio («ЕХ мэдээлэл») or read from a draft; a blank left to fill prints as «……».
+- The «ЗӨВШӨӨРӨЛЦСӨН» table is written in Studio and printed on every working sheet, immediately left of the corner table. Sheet authors (Architect / Prepared / Checked) come across from the source.
+- General-plan sheets print their information blocks (legend, indicators, description, basis), and the corner tables follow the owner's measured 170 × 34 and 70 × 90 grids.
+- The review's recurring findings are checked on every build and reported as warnings, and written to the operations log for the platform twin.
+- Sync: the components carrying the general part go with every change; a new component takes its place between its neighbours; a server request to reorder is sent; a sub-cover is never requested for an album that draws none; a deferred component the server already holds is released; the album on screen is recorded as the album's latest revision with the packages it used. Sync and removal no longer stop on a source the server no longer has.
+- Studio can be driven from PowerShell or cmd through a local bridge (`tools/stu.ps1`) - the same functions as its buttons.
+
+
 ## [0.001.65] - 2026-09-19
 
 - Ask the citizens, on their own phones. A project can now hold as many consultations as it needs, the way it holds albums. Each is created from a named template - the first is the partial master plan questionnaire, copied from the owner's own document rather than invented - and a consultation carries its ticked questions, its written-answer section last, and its own results. Studio prints a QR code and a link; whoever scans it fills the form in an ordinary mobile browser with nothing installed, and presses send. «Хариулт татах» brings the answers down into the project, and the charts and the breakdown redraw from them. Answers already held are recognised and not counted twice, and a test run can be set aside with one button - moved, never deleted, so the trial's answers stop reaching the public result without being destroyed.
