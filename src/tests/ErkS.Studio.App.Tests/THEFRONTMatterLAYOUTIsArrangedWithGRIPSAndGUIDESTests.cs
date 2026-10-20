@@ -121,6 +121,29 @@ public sealed class THEFRONTMatterLAYOUTIsArrangedWithGRIPSAndGUIDESTests
     }
 
     [Fact]
+    public void ABackgroundPollNeverEndsStudio()
+    {
+        // 2026-10-20: a 502 from GetProjectAsync escaped the 45 s timer and
+        // closed Studio with the layout editor open.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string app = Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App");
+        string shell = File.ReadAllText(Path.Combine(app, "ShellView.cs")).Replace("\r\n", "\n");
+        string collaboration = File.ReadAllText(Path.Combine(app, "ShellView.Collaboration.cs")).Replace("\r\n", "\n");
+
+        int tick = shell.IndexOf("notificationRefreshTimer.Tick += async (_, _) =>", StringComparison.Ordinal);
+        int guard = shell.IndexOf("catch (Exception exception) when (exception is not OutOfMemoryException)", tick, StringComparison.Ordinal);
+        int access = shell.IndexOf("await CheckCurrentProjectAccessAsync();", tick, StringComparison.Ordinal);
+        Assert.True(tick > 0 && access > tick && guard > access);
+
+        int check = collaboration.IndexOf("private async Task CheckCurrentProjectAccessAsync()", StringComparison.Ordinal);
+        int end = collaboration.IndexOf("private async Task RefreshNotificationsAsync", check, StringComparison.Ordinal);
+        string body = collaboration[check..end];
+        Assert.Contains("catch (StudioAccountException)\n", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ThePapersWhiteIsMadeClearAndTheInkIsKept()
     {
         byte[] pixels =

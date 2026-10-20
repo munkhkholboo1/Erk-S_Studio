@@ -367,6 +367,13 @@ internal sealed partial class ShellView
                 return;
             // Түр сүлжээ тасрах нь project access цуцлагдсан гэсэн үг биш.
         }
+        catch (StudioAccountException)
+        {
+            // Any other answer - a 502 from the gateway, a 500 - says the
+            // server could not answer now, not that the access ended. It
+            // used to escape this timer check and end Studio with the owner's
+            // unsaved work in it (2026-10-20, 502 from GetProjectAsync).
+        }
     }
 
     private async Task RefreshNotificationsAsync(bool silent = true)

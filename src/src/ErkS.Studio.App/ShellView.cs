@@ -417,17 +417,27 @@ internal sealed partial class ShellView : IDisposable
         notificationRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
         notificationRefreshTimer.Tick += async (_, _) =>
         {
-            await RefreshNotificationsAsync();
-            await RefreshTeamPresenceIfVisibleAsync();
-            if (projectWorkspaceOpen &&
-                state.HasOpenProject &&
-                CurrentWorkspaceLifecycleDecision().Allowed)
+            // A background poll never ends Studio: whatever the server or the
+            // network does, the owner's open work stays (2026-10-20, a 502
+            // here closed Studio while the front-matter editor was open).
+            try
             {
-                await CheckCurrentProjectAccessAsync();
+                await RefreshNotificationsAsync();
+                await RefreshTeamPresenceIfVisibleAsync();
+                if (projectWorkspaceOpen &&
+                    state.HasOpenProject &&
+                    CurrentWorkspaceLifecycleDecision().Allowed)
+                {
+                    await CheckCurrentProjectAccessAsync();
+                }
+                else if (activePage == StudioPage.Projects)
+                {
+                    await RefreshProjectsAsync(refreshNotifications: false);
+                }
             }
-            else if (activePage == StudioPage.Projects)
+            catch (Exception exception) when (exception is not OutOfMemoryException)
             {
-                await RefreshProjectsAsync(refreshNotifications: false);
+                System.Diagnostics.Trace.TraceWarning("Studio background refresh failed: " + exception.Message);
             }
         };
         projectChatRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
