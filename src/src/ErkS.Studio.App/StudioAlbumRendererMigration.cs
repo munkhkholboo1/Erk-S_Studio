@@ -25,8 +25,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 7: a blank left in the explanatory note («⚠») prints as «……» instead of
     /// a missing-glyph box.
+    ///
+    /// 8: the «ЗӨВШӨӨРӨЛЦСӨН» table stands beside the corner table, bottoms
+    /// aligned, instead of where the source's frame happened to be.
     /// </summary>
-    public const int CurrentRevision = 7;
+    public const int CurrentRevision = 8;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

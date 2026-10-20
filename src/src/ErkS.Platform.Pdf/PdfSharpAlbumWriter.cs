@@ -665,7 +665,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         DrawRevitWorkingSheetHeader(gfx, sheetHeader, buildPage, borderPen);
         gfx.DrawRectangle(borderPen, corner);
         DrawRevitWorkingTitleBlock(gfx, corner, project, buildPage, borderPen, finePen);
-        DrawConsultationTable(gfx, project, buildPage, paperBrush, borderPen, finePen);
+        DrawConsultationTable(gfx, project, buildPage, regions.TitleBlockArea, paperBrush, borderPen, finePen);
         gfx.DrawRectangle(
             new XPen(XColor.FromArgb(185, 190, 196), 0.25),
             new XRect(0, 0, page.Width.Point, page.Height.Point));
@@ -2136,16 +2136,20 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         XGraphics gfx,
         AlbumProject project,
         AlbumBuildPage buildPage,
+        PageRectMm corner,
         XBrush paperBrush,
         XPen borderPen,
         XPen finePen)
     {
         SheetPackageEntry? entry = buildPage.Sheet?.Entry;
-        PageRectSpec? area = entry?.ConsultationTableArea;
+        PageRectSpec? reserved = entry?.ConsultationTableArea;
         int rows = entry?.ConsultationTableRows ?? 0;
-        if (area is null || rows <= 0 || area.Width <= 0 || area.Height <= 0)
+        if (reserved is null || rows <= 0 || reserved.Width <= 0 || reserved.Height <= 0)
             return;
 
+        // The source reserves the frame and decides its size; where it stands
+        // is beside Studio's corner table (ConsultationTableLayout.Place).
+        PageRectMm area = ConsultationTableLayout.Place(corner, reserved.Width, reserved.Height);
         var rect = new XRect(Mm(area.X), Mm(area.Y), Mm(area.Width), Mm(area.Height));
         gfx.DrawRectangle(paperBrush, rect);
         gfx.DrawRectangle(borderPen, rect);

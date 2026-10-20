@@ -24,6 +24,32 @@ internal static class ConsultationTableLayout
     private const double MarkShare = 0.15;
     private const double NameShare = 0.40;
 
+    /// <summary>
+    /// Where the table is drawn: immediately left of the corner table Studio
+    /// draws, bottom edges aligned - the source decides only its size.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 BATNASAN, 2026-10-20 (owner: «зөвшөөрөлцсөн хүснэгт хуудас бүр дээр
+    /// байрлал нь алдаатай байна»). The Revit frames came 3 mm below the
+    /// corner table and 1 mm into it (crossing the sheet frame), and on some
+    /// sheets above-right of it, overlapping its top. The corner table is
+    /// Studio's, so the table beside it is placed from it: the owner's rule is
+    /// «булангийн хүснэгтийн зүүн талын ЗӨВШӨӨРӨЛЦСӨН блок».
+    /// </remarks>
+    public static PageRectMm Place(PageRectMm corner, double widthMm, double heightMm)
+    {
+        ArgumentNullException.ThrowIfNull(corner);
+        double width = Math.Max(0, widthMm);
+        double height = Math.Max(0, heightMm);
+        return new PageRectMm
+        {
+            X = corner.X - width,
+            Y = corner.Y + corner.Height - height,
+            Width = width,
+            Height = height,
+        };
+    }
+
     /// <summary>Engineers the frame has no row for; the build reports them.</summary>
     public static int Overflow(int rows, IReadOnlyCollection<WorkingDrawingSectionConsentEntry>? sections) =>
         Math.Max(0, (sections?.Count ?? 0) - Math.Max(0, rows));
