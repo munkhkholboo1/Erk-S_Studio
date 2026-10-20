@@ -83,7 +83,7 @@ public sealed class StudioAlbumComponentAcknowledgementPolicyTests
         string call = string.Concat(source.Where(c => !char.IsWhiteSpace(c)));
 
         Assert.Contains(
-            "missingResolution.DeferredCodes,missingResolution.RemovalCodes);",
+            "missingResolution.DeferredCodes,missingResolution.RemovalCodes,",
             call,
             StringComparison.Ordinal);
     }

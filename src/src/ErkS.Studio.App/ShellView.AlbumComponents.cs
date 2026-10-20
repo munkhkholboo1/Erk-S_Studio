@@ -1677,7 +1677,8 @@ internal sealed partial class ShellView
                     merged.SectionManifest,
                     uploads,
                     missingResolution.DeferredCodes,
-                    missingResolution.RemovalCodes);
+                    missingResolution.RemovalCodes,
+                    component => StudioSubCoverServerState.IsCurrent(state.Project, component));
             return new AlbumComponentMergeOutcome(
                 merged,
                 uploads.Count,

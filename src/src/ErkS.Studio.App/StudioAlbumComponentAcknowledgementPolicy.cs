@@ -29,7 +29,8 @@ internal static class StudioAlbumComponentAcknowledgementPolicy
         IReadOnlyList<StudioCloudAlbumSection> verifiedManifest,
         IReadOnlyList<StudioAlbumComponentUpload> submittedUploads,
         IReadOnlyCollection<string>? deferredCodes = null,
-        IReadOnlyCollection<string>? removalCodes = null)
+        IReadOnlyCollection<string>? removalCodes = null,
+        Func<StudioCloudAlbumSection, bool>? deferredIsCurrentOnServer = null)
     {
         ArgumentNullException.ThrowIfNull(pendingCodeMap);
         ArgumentNullException.ThrowIfNull(verifiedManifest);
@@ -45,7 +46,21 @@ internal static class StudioAlbumComponentAcknowledgementPolicy
         foreach (KeyValuePair<string, string> pending in pendingCodeMap)
         {
             if (deferred.Contains(pending.Value))
+            {
+                // A component this device cannot draw waits for the member who
+                // can - unless the shared album already holds it as it stands
+                // here. Erin, 2026-10-20: the hospital's sub-cover was Available
+                // on R44 with the same title, and still waited on this device
+                // for another member's sync, forever.
+                if (deferredIsCurrentOnServer is not null &&
+                    verifiedManifest.Any(component =>
+                        MatchesRequestedComponent(component, pending.Value) &&
+                        deferredIsCurrentOnServer(component)))
+                {
+                    confirmed.Add(pending.Key);
+                }
                 continue;
+            }
 
             bool present = verifiedManifest.Any(component =>
                 MatchesRequestedComponent(component, pending.Value));
