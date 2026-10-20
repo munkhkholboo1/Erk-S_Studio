@@ -121,6 +121,8 @@ internal sealed partial class ShellView
             }
             case "components":
                 return BridgeComponents(request);
+            case "rearm-component":
+                return BridgeRearmComponent(request);
             case "sync-preview":
             case "sync":
                 return await BridgeSyncAsync(request, send: action == "sync");
@@ -164,6 +166,58 @@ internal sealed partial class ShellView
         catch (Exception exception)
         {
             return StudioBridgeProtocol.Refuse(request.Id, "components_failed", exception.Message);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(workFolder))
+                    Directory.Delete(workFolder, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// Marks one component this device draws for the next Sync - the way back
+    /// for work the shared album lost (Batnasan R12: the Revit sheets were
+    /// removed by a sync while the local build drew them). Only a component
+    /// the contribution build renders, in its canonical code, is accepted.
+    /// </summary>
+    private StudioBridgeResponse BridgeRearmComponent(StudioBridgeRequest request)
+    {
+        string? code = request.Arg("code")?.Trim();
+        if (string.IsNullOrWhiteSpace(code))
+            return StudioBridgeProtocol.Refuse(request.Id, "code_required", "code=<бүрдлийн код> өгнө үү.");
+        if (!CanEditProjectContent())
+            return StudioBridgeProtocol.Refuse(request.Id, "forbidden", statusText.Text);
+
+        string workFolder = Path.Combine(Path.GetTempPath(), "erks-bridge-rearm-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            AlbumBuildResult build = BuildAlbumContributionSnapshot(workFolder);
+            List<StudioCloudAlbumSection> rendered = CreateCanonicalComponentManifest(
+                build,
+                SharedCloudSources());
+            StudioCloudAlbumSection? component = rendered.FirstOrDefault(item =>
+                item.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+            if (component is null)
+            {
+                return StudioBridgeProtocol.Refuse(
+                    request.Id,
+                    "not_rendered",
+                    "Энэ төхөөрөмжийн угсралт уг бүрдлийг зурдаггүй: " + code);
+            }
+
+            state.MarkAlbumComponentChanged(component.Code);
+            state.SaveProject();
+            return StudioBridgeProtocol.Accept(request.Id, new { code = component.Code, pages = component.PageNumbers.Length });
+        }
+        catch (Exception exception)
+        {
+            return StudioBridgeProtocol.Refuse(request.Id, "rearm_failed", exception.Message);
         }
         finally
         {

@@ -28,6 +28,7 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 | `open-project` | Төслийн карт дарах | `path=<хавтас/.erksproject>` эсвэл `code=<код>` |
 | `check-sources` | «Эх үүсвэр шалгах» | — |
 | `rebuild-album` | Альбум шинэчлэх | — |
+| `rearm-component` | Cloud-д алга болсон, локал угсралт зурдаг хэсгийг дахин илгээхээр тэмдэглэх | `code=<canonical код>` |
 | `components` | (унших) синкийн хэсгүүд: локал угсралт, Cloud, хүлээгдэж буй код | — |
 | `sync-preview` | Cloud товч — төлөвлөгөөг харах, илгээхгүй | — |
 | `sync` | Cloud товч + «Sync хийх» | `confirm=true` |

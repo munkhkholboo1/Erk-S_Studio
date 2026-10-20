@@ -81,6 +81,25 @@ internal static class StudioFrontMatterComponentScope
                 result.Add(component);
         }
 
+        // 🔴 BATNASAN R12, 2026-10-20: the Revit 01 went alone, and a sync reads
+        // one slice of a source as the whole source re-rendered - so the
+        // source's 53 working sheets were taken for stale and REMOVED from the
+        // shared album (61 -> 8 pages). A source's slices go together.
+        foreach (StudioCloudAlbumSection carrier in result.Where(IsSourceCarrier).ToList())
+        {
+            string baseCode = StudioAlbumComponentIdentity.BaseSourceCode(carrier.Code);
+            foreach (StudioCloudAlbumSection sibling in rendered ?? [])
+            {
+                if (!StudioAlbumComponentIdentity.BaseSourceCode(sibling.Code)
+                        .Equals(baseCode, StringComparison.OrdinalIgnoreCase) ||
+                    result.Any(item => item.Code.Equals(sibling.Code, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+                result.Add(sibling);
+            }
+        }
+
         return result;
     }
 }

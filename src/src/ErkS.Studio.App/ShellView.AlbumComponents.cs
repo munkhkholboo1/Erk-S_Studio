@@ -724,7 +724,8 @@ internal sealed partial class ShellView
                 selected,
                 currentByCode.Values,
                 pendingSources,
-                ownerEmail);
+                ownerEmail,
+                rendered);
 
             string previewFolder = Path.Combine(state.ResolveOutputFolder(), "cloud-local");
             string outputPath = Path.Combine(
@@ -1652,7 +1653,9 @@ internal sealed partial class ShellView
                 selected,
                 currentByCode.Values,
                 pendingSources,
-                ownerEmail);
+                ownerEmail,
+                rendered);
+            StudioComponentRemovalGuard.Require(uploads, rendered);
             StudioCanonicalAlbumRebuildResolution canonicalRebuild =
                 StudioCanonicalAlbumRebuildPolicy.ResolvePersisted(
                     state.Project);
@@ -1991,8 +1994,13 @@ internal sealed partial class ShellView
         IReadOnlyList<StudioCloudAlbumSection> selected,
         IEnumerable<StudioCloudAlbumSection> current,
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
-        string ownerEmail)
+        string ownerEmail,
+        IReadOnlyList<StudioCloudAlbumSection> rendered)
     {
+        // What this device's build still draws is never stale (Batnasan R12).
+        HashSet<string> renderedCodes = (rendered ?? [])
+            .Select(component => component.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         HashSet<string> selectedCodes = selected
             .Where(IsSourceComponent)
             .Select(component => component.Code)
@@ -2008,7 +2016,8 @@ internal sealed partial class ShellView
         return current.Where(component =>
         {
             if (!IsSourceComponent(component) ||
-                selectedCodes.Contains(component.Code))
+                selectedCodes.Contains(component.Code) ||
+                renderedCodes.Contains(component.Code))
             {
                 return false;
             }
@@ -2027,13 +2036,15 @@ internal sealed partial class ShellView
         IReadOnlyList<StudioCloudAlbumSection> selected,
         IEnumerable<StudioCloudAlbumSection> current,
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
-        string ownerEmail)
+        string ownerEmail,
+        IReadOnlyList<StudioCloudAlbumSection> rendered)
     {
         foreach (StudioCloudAlbumSection component in StaleSourceComponents(
                      selected,
                      current,
                      pendingSources,
-                     ownerEmail))
+                     ownerEmail,
+                     rendered))
         {
             if (patches.Any(patch => patch.Code.Equals(
                     component.Code,
@@ -2055,13 +2066,15 @@ internal sealed partial class ShellView
         IReadOnlyList<StudioCloudAlbumSection> selected,
         IEnumerable<StudioCloudAlbumSection> current,
         IReadOnlyList<ProjectSourceSyncCandidate> pendingSources,
-        string ownerEmail)
+        string ownerEmail,
+        IReadOnlyList<StudioCloudAlbumSection> rendered)
     {
         foreach (StudioCloudAlbumSection component in StaleSourceComponents(
                      selected,
                      current,
                      pendingSources,
-                     ownerEmail))
+                     ownerEmail,
+                     rendered))
         {
             if (uploads.Any(upload => upload.Code.Equals(
                     component.Code,

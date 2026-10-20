@@ -35,7 +35,53 @@ public sealed class THEFRONTMatterTravelsWithEVERYChangeTests
         List<StudioCloudAlbumSection> result = StudioFrontMatterComponentScope.IncludeCarriers(
             WorkingDrawings(), [source, list, revitOne, other], [source], Owner, canManageCanonicalMetadata: true, frontMatterRequested: false);
 
-        Assert.Equal([source.Code, list.Code, revitOne.Code], result.Select(item => item.Code));
+        // The Revit 01 takes its source's other slice along: a source's slices
+        // go together (Batnasan R12 lost its 53 sheets when the 01 went alone).
+        Assert.Equal([source.Code, list.Code, revitOne.Code, other.Code], result.Select(item => item.Code));
+    }
+
+    [Fact]
+    public void TheRevitOneNeverGoesWithoutItsSourcesSheets()
+    {
+        // 🔴 BATNASAN R12, 2026-10-20: the ЕТ source changed; the Revit 01 was
+        // added as a carrier; the sync read the Revit source as re-rendered by
+        // that one slice and removed its 53 working sheets from the shared album.
+        string et = StudioAlbumComponentIdentity.SourceSliceCode(Owner, "et-source", "", "working-drawing-sheets");
+        string revitOne = StudioAlbumComponentIdentity.SourceSliceCode(Owner, "revit-source", "", "drawing-list-and-notes");
+        string revitSheets = StudioAlbumComponentIdentity.SourceSliceCode(Owner, "revit-source", "", "working-drawing-sheets");
+        StudioCloudAlbumSection etSlice = Component(et, "working-drawing-sheets", Owner);
+        StudioCloudAlbumSection oneSlice = Component(revitOne, "drawing-list-and-notes", Owner);
+        StudioCloudAlbumSection sheetsSlice = Component(revitSheets, "working-drawing-sheets", Owner);
+
+        List<StudioCloudAlbumSection> result = StudioFrontMatterComponentScope.IncludeCarriers(
+            WorkingDrawings(), [etSlice, oneSlice, sheetsSlice], [etSlice], Owner, canManageCanonicalMetadata: true, frontMatterRequested: false);
+
+        Assert.Contains(result, item => item.Code == revitOne);
+        Assert.Contains(result, item => item.Code == revitSheets);
+    }
+
+    [Fact]
+    public void ASyncMayNotRemoveWhatTheLocalBuildDraws()
+    {
+        string revitSheets = StudioAlbumComponentIdentity.SourceSliceCode(Owner, "revit-source", "", "working-drawing-sheets");
+        StudioCloudAlbumSection sheetsSlice = Component(revitSheets, "working-drawing-sheets", Owner);
+        var removal = new StudioAlbumComponentUpload(revitSheets, "Ажлын зураг", 300, "", Remove: true);
+        var other = new StudioAlbumComponentUpload("source:gone", "Хуучин", 400, "", Remove: true);
+
+        Assert.Throws<InvalidDataException>(() => StudioComponentRemovalGuard.Require([removal], [sheetsSlice]));
+        StudioComponentRemovalGuard.Require([other], [sheetsSlice]);
+    }
+
+    [Fact]
+    public void BothSyncPathsSkipAndGuardRenderedComponents()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string components = File.ReadAllText(Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App", "ShellView.AlbumComponents.cs"));
+
+        Assert.Contains("renderedCodes.Contains(component.Code))", components, StringComparison.Ordinal);
+        Assert.Contains("StudioComponentRemovalGuard.Require(uploads, rendered);", components, StringComparison.Ordinal);
     }
 
     [Fact]
