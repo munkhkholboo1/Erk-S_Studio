@@ -342,6 +342,27 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     // ---- the album ------------------------------------------------------
 
     [Fact]
+    public void APartOfThe01sDrawingMovedByTheOwnerIsDrawnAgainAtItsNewPlace()
+    {
+        // Owner, 2026-10-20: «цаад зургаа яаж зөөх вэ». The source PDF is not
+        // touched; the part is drawn again, vector, moved.
+        AlbumProject project = WorkingProject(out SheetLibrary library, frontOnSheet: true);
+        project.Album.FrontMatter = WorkingDrawingFrontMatterDraft.Parse(Draft);
+        project.Album.FrontMatter.SourceMoves =
+        [
+            new SourceRegionMove { X = 200, Y = 40, Width = 120, Height = 150, OffsetX = -60, OffsetY = 10 },
+        ];
+        string outputPath = Path.Combine(workDirectory, "bn-album-moved.pdf");
+
+        AlbumBuildResult result = new AlbumBuilder(new PdfSharpAlbumWriter()).Build(project, library, outputPath);
+
+        Assert.Equal(4, result.PageCount);
+        Assert.True(new FileInfo(outputPath).Length > 0);
+        WorkingDrawingFrontMatter copy = project.Album.FrontMatter.Clone();
+        Assert.Equal(-60, Assert.Single(copy.SourceMoves).OffsetX);
+    }
+
+    [Fact]
     public void TheBuiltAlbumIsCoverThenRevits01AndSaysWhatIsMissing()
     {
         AlbumProject project = WorkingProject(out SheetLibrary library, frontOnSheet: true);

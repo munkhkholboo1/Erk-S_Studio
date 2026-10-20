@@ -2938,7 +2938,8 @@ internal sealed partial class ShellView
             reserved,
             current,
             defaults,
-            matter.Layout.Select(block => block.Kind).ToList())
+            matter.Layout.Select(block => block.Kind).ToList(),
+            matter.SourceMoves)
         {
             Owner = Window.GetWindow(Root),
         };
@@ -2946,6 +2947,7 @@ internal sealed partial class ShellView
             return;
 
         matter.Layout = dialog.Result.ToList();
+        matter.SourceMoves = dialog.MovesResult.ToList();
         ApplyWorkingDrawingFrontMatter(matter);
     }
 

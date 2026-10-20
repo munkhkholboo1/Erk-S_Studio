@@ -29,6 +29,7 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
 
     private static readonly Color BlockColor = Color.FromRgb(0x2F, 0x80, 0xED);
     private static readonly Color GuideColor = Color.FromRgb(0xE0, 0x3E, 0x8C);
+    private static readonly Color MoveColor = Color.FromRgb(0xF2, 0x8C, 0x28);
 
     private readonly PdfPageImageCache imageCache;
     private readonly SheetRecord sheet;
@@ -49,6 +50,15 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
     private FrontMatterBlockLayout? dragStart;
     private double? guideX;
     private double? guideY;
+    private readonly List<SourceRegionMove> moves;
+    private int? selectedMove;
+    private SourceRegionMove? moveStart;
+    private bool selectingRegion;
+    private Point? regionStart;
+    private Point? regionCurrent;
+    private BitmapSource? pageBitmap;
+
+    public IReadOnlyList<SourceRegionMove> MovesResult => moves.Select(move => move.Clone()).ToList();
 
     public IReadOnlyList<FrontMatterBlockLayout> Result =>
         blocks.Where(block => placedByOwner.Contains(block.Kind)).Select(block => block.Normalized()).ToList();
@@ -61,8 +71,10 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         IReadOnlyDictionary<string, PageRectSpec> reserved,
         IReadOnlyList<FrontMatterBlockLayout> current,
         IReadOnlyList<FrontMatterBlockLayout> defaults,
-        IReadOnlyCollection<string> placedByOwner)
+        IReadOnlyCollection<string> placedByOwner,
+        IReadOnlyList<SourceRegionMove>? currentMoves = null)
     {
+        moves = (currentMoves ?? []).Select(move => move.Clone()).ToList();
         this.imageCache = imageCache;
         this.sheet = sheet;
         this.corner = corner;
@@ -98,6 +110,19 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 12, 0, 0),
         };
+        Button pickRegion = StudioWidgets.CreateButton("+ Зургийн хэсэг зөөх");
+        pickRegion.Margin = new Thickness(0, 0, 8, 0);
+        pickRegion.ToolTip = "Хуудасны зургийн хэсгийг (байршлын зураг, фасад г.м.) тэгш өнцөгтөөр сонгоод чирж зөөнө.";
+        pickRegion.Click += (_, _) =>
+        {
+            selectingRegion = true;
+            selectedKind = null;
+            selectedMove = null;
+            canvas.Cursor = Cursors.Cross;
+            statusText.Text = "Зөөх хэсгээ хулганаар тэгш өнцөгтөөр татаж сонгоно уу.";
+            Redraw();
+        };
+        actions.Children.Add(pickRegion);
         Button resetAll = StudioWidgets.CreateButton("Бүгдийг анхдагч руу");
         resetAll.Margin = new Thickness(0, 0, 8, 0);
         resetAll.Click += (_, _) =>
@@ -159,7 +184,11 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
                 2400,
                 CancellationToken.None);
             if (bitmap is not null)
+            {
                 pageImage.Source = bitmap;
+                pageBitmap = bitmap;
+                Redraw();
+            }
         }
         catch
         {
@@ -189,8 +218,28 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
                 [2, 3]);
         }
 
+        for (int index = 0; index < moves.Count; index++)
+            DrawMove(moves[index], index == selectedMove);
+
         foreach (FrontMatterBlockLayout block in blocks)
             DrawBlock(block, block.Kind == selectedKind);
+
+        if (regionStart is Point a && regionCurrent is Point b)
+        {
+            var selection = new Rectangle
+            {
+                Width = Math.Abs(b.X - a.X),
+                Height = Math.Abs(b.Y - a.Y),
+                Stroke = new SolidColorBrush(MoveColor),
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection([5, 3]),
+                Fill = new SolidColorBrush(Color.FromArgb(30, MoveColor.R, MoveColor.G, MoveColor.B)),
+                IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(selection, Math.Min(a.X, b.X));
+            Canvas.SetTop(selection, Math.Min(a.Y, b.Y));
+            canvas.Children.Add(selection);
+        }
 
         if (guideX is double gx)
             AddGuide(gx * Unit, 0, gx * Unit, canvas.Height);
@@ -244,6 +293,109 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
             AddGrip(gapCenter, block.Y + block.Height / 2, new SolidColorBrush(GuideColor), Brushes.White);
         }
         AddColumnBar(block);
+    }
+
+    /// <summary>
+    /// A moved part of the drawing: its old place as a dashed outline, the
+    /// part itself - a crop of the page - where it now stands.
+    /// </summary>
+    private void DrawMove(SourceRegionMove move, bool selected)
+    {
+        AddRect(
+            new PageRectMm { X = move.X, Y = move.Y, Width = move.Width, Height = move.Height },
+            new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+            new SolidColorBrush(Color.FromArgb(150, 140, 140, 140)),
+            1,
+            [3, 3]);
+        var destination = new PageRectMm
+        {
+            X = move.X + move.OffsetX,
+            Y = move.Y + move.OffsetY,
+            Width = move.Width,
+            Height = move.Height,
+        };
+        if (pageBitmap is not null)
+        {
+            double scale = pageBitmap.PixelWidth / pageWidthMm;
+            var crop = new Int32Rect(
+                (int)Math.Clamp(Math.Round(move.X * scale), 0, pageBitmap.PixelWidth - 1),
+                (int)Math.Clamp(Math.Round(move.Y * scale), 0, pageBitmap.PixelHeight - 1),
+                0,
+                0);
+            crop.Width = (int)Math.Clamp(Math.Round(move.Width * scale), 1, pageBitmap.PixelWidth - crop.X);
+            crop.Height = (int)Math.Clamp(Math.Round(move.Height * scale), 1, pageBitmap.PixelHeight - crop.Y);
+            var image = new Image
+            {
+                Source = new CroppedBitmap(pageBitmap, crop),
+                Width = destination.Width * Unit,
+                Height = destination.Height * Unit,
+                Stretch = Stretch.Fill,
+                IsHitTestVisible = false,
+            };
+            var paper = new Rectangle { Width = image.Width, Height = image.Height, Fill = Brushes.White, IsHitTestVisible = false };
+            Canvas.SetLeft(paper, destination.X * Unit);
+            Canvas.SetTop(paper, destination.Y * Unit);
+            canvas.Children.Add(paper);
+            Canvas.SetLeft(image, destination.X * Unit);
+            Canvas.SetTop(image, destination.Y * Unit);
+            canvas.Children.Add(image);
+        }
+        AddRect(
+            destination,
+            new SolidColorBrush(Color.FromArgb(selected ? (byte)28 : (byte)12, MoveColor.R, MoveColor.G, MoveColor.B)),
+            new SolidColorBrush(Color.FromArgb(selected ? (byte)255 : (byte)180, MoveColor.R, MoveColor.G, MoveColor.B)),
+            selected ? 2 : 1.2,
+            null);
+        AddLabel(destination.X + 2, destination.Y + 2, destination.Width - 4, "Зургийн хэсэг", MoveColor, center: false);
+        if (!selected)
+            return;
+
+        foreach ((double gx, double gy) in new[]
+                 {
+                     (destination.X, destination.Y),
+                     (destination.X + destination.Width, destination.Y),
+                     (destination.X, destination.Y + destination.Height),
+                     (destination.X + destination.Width, destination.Y + destination.Height),
+                 })
+        {
+            AddGrip(gx, gy, Brushes.White, new SolidColorBrush(MoveColor));
+        }
+
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Background = new SolidColorBrush(Color.FromArgb(235, 255, 255, 255)) };
+        Button back = SmallButton("Буцааж байранд нь");
+        back.Click += (_, _) =>
+        {
+            if (selectedMove is int index)
+            {
+                moves[index].OffsetX = 0;
+                moves[index].OffsetY = 0;
+                Redraw();
+            }
+        };
+        Button remove = SmallButton("Устгах");
+        remove.Margin = new Thickness(6, 0, 0, 0);
+        remove.Click += (_, _) =>
+        {
+            if (selectedMove is int index)
+            {
+                moves.RemoveAt(index);
+                selectedMove = null;
+                Redraw();
+            }
+        };
+        bar.Children.Add(back);
+        bar.Children.Add(remove);
+        var border = new Border
+        {
+            Child = bar,
+            BorderBrush = new SolidColorBrush(MoveColor),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(4, 2, 4, 2),
+        };
+        Canvas.SetLeft(border, destination.X * Unit);
+        Canvas.SetTop(border, Math.Max(0, destination.Y * Unit - 36));
+        canvas.Children.Add(border);
     }
 
     private void AddColumnBar(FrontMatterBlockLayout block)
@@ -406,6 +558,14 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         double xMm = at.X / Unit, yMm = at.Y / Unit;
         double reach = (GripRadius + 3) / Unit;
 
+        if (selectingRegion)
+        {
+            regionStart = at;
+            regionCurrent = at;
+            canvas.CaptureMouse();
+            return;
+        }
+
         FrontMatterBlockLayout? selected = Selected();
         if (selected is not null)
         {
@@ -432,8 +592,24 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
             xMm >= block.X && xMm <= block.X + block.Width &&
             yMm >= block.Y && yMm <= block.Y + block.Height);
         selectedKind = hit?.Kind;
+        selectedMove = null;
         if (hit is not null)
+        {
             BeginDrag(hit, FrontMatterGrip.Move, at);
+        }
+        else
+        {
+            int moveIndex = moves.FindLastIndex(move =>
+                xMm >= move.X + move.OffsetX && xMm <= move.X + move.OffsetX + move.Width &&
+                yMm >= move.Y + move.OffsetY && yMm <= move.Y + move.OffsetY + move.Height);
+            if (moveIndex >= 0)
+            {
+                selectedMove = moveIndex;
+                moveStart = moves[moveIndex].Clone();
+                dragOrigin = at;
+                canvas.CaptureMouse();
+            }
+        }
         Redraw();
     }
 
@@ -447,6 +623,17 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
 
     private void HandleMouseMove(object sender, MouseEventArgs e)
     {
+        if (selectingRegion && regionStart is not null && e.LeftButton == MouseButtonState.Pressed)
+        {
+            regionCurrent = e.GetPosition(canvas);
+            Redraw();
+            return;
+        }
+        if (moveStart is not null && selectedMove is int moving && e.LeftButton == MouseButtonState.Pressed)
+        {
+            DragMove(moving, e.GetPosition(canvas));
+            return;
+        }
         if (dragStart is null || e.LeftButton != MouseButtonState.Pressed)
         {
             UpdateCursor(e.GetPosition(canvas));
@@ -478,6 +665,38 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
 
     private void HandleMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (selectingRegion && regionStart is Point a && regionCurrent is Point b)
+        {
+            selectingRegion = false;
+            regionStart = null;
+            regionCurrent = null;
+            canvas.ReleaseMouseCapture();
+            canvas.Cursor = Cursors.Arrow;
+            var region = new SourceRegionMove
+            {
+                X = Math.Min(a.X, b.X) / Unit,
+                Y = Math.Min(a.Y, b.Y) / Unit,
+                Width = Math.Abs(b.X - a.X) / Unit,
+                Height = Math.Abs(b.Y - a.Y) / Unit,
+            };
+            if (region.Width >= FrontMatterBlockLayout.MinSizeMm && region.Height >= FrontMatterBlockLayout.MinSizeMm)
+            {
+                moves.Add(region);
+                selectedMove = moves.Count - 1;
+                statusText.Text = "Сонгосон хэсгээ чирж шинэ байранд нь тавина. «Буцааж байранд нь», «Устгах» дээд самбарт.";
+            }
+            Redraw();
+            return;
+        }
+        if (moveStart is not null)
+        {
+            moveStart = null;
+            guideX = null;
+            guideY = null;
+            canvas.ReleaseMouseCapture();
+            Redraw();
+            return;
+        }
         if (dragStart is null)
             return;
         dragStart = null;
@@ -520,8 +739,66 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         canvas.Cursor = cursor;
     }
 
+    /// <summary>A moved part follows the pointer; its new edges snap like a block's.</summary>
+    private void DragMove(int index, Point at)
+    {
+        SourceRegionMove start = moveStart!;
+        var asBlock = new FrontMatterBlockLayout
+        {
+            Kind = "source-move",
+            X = start.X + start.OffsetX,
+            Y = start.Y + start.OffsetY,
+            Width = start.Width,
+            Height = start.Height,
+        };
+        (List<double> xs, List<double> ys) = FrontMatterLayoutEditing.Guides(pageWidthMm, pageHeightMm, corner, innerFrame, blocks);
+        bool freehand = Keyboard.Modifiers.HasFlag(ModifierKeys.Alt);
+        FrontMatterDragResult result = FrontMatterLayoutEditing.Drag(
+            asBlock,
+            FrontMatterGrip.Move,
+            (at.X - dragOrigin.X) / Unit,
+            (at.Y - dragOrigin.Y) / Unit,
+            freehand ? [] : xs,
+            freehand ? [] : ys);
+        moves[index].OffsetX = result.Block.X - start.X;
+        moves[index].OffsetY = result.Block.Y - start.Y;
+        guideX = result.GuideX;
+        guideY = result.GuideY;
+        Redraw();
+    }
+
     private void HandleKey(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && selectingRegion)
+        {
+            selectingRegion = false;
+            regionStart = null;
+            regionCurrent = null;
+            canvas.Cursor = Cursors.Arrow;
+            Redraw();
+            e.Handled = true;
+            return;
+        }
+        if (selectedMove is int moving)
+        {
+            double moveStep = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 5 : 1;
+            (double mx, double my) = e.Key switch
+            {
+                Key.Left => (-moveStep, 0.0),
+                Key.Right => (moveStep, 0.0),
+                Key.Up => (0.0, -moveStep),
+                Key.Down => (0.0, moveStep),
+                _ => (0.0, 0.0),
+            };
+            if (mx != 0 || my != 0)
+            {
+                moves[moving].OffsetX += mx;
+                moves[moving].OffsetY += my;
+                Redraw();
+                e.Handled = true;
+            }
+            return;
+        }
         FrontMatterBlockLayout? selected = Selected();
         if (selected is null)
             return;

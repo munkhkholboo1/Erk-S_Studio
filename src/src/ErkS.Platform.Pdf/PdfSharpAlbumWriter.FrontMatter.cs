@@ -77,6 +77,8 @@ public sealed partial class PdfSharpAlbumWriter
             gfx.DrawRectangle(paperBrush, new XRect(Mm(frame.Area.X), Mm(frame.Area.Y), Mm(frame.Area.Width), Mm(frame.Area.Height)));
         }
 
+        DrawSourceMoves(gfx, buildPage.Sheet!, matter.SourceMoves, paperBrush);
+
         foreach (FrontMatterBlockLayout block in FrontMatterBlocks(buildPage, reserved, matter))
         {
             var rect = new XRect(Mm(block.X), Mm(block.Y), Mm(block.Width), Mm(block.Height));
@@ -125,6 +127,46 @@ public sealed partial class PdfSharpAlbumWriter
                     DrawExplanatoryNote(gfx, rect, matter.ExplanatoryNote, warnings, number, block.Columns, block.ColumnGapMm);
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    /// The parts of the sheet's own drawing the owner moved: each one's old
+    /// place is cleared, then the same vector page is drawn again shifted,
+    /// clipped to the part's new place. The source PDF is not touched.
+    /// </summary>
+    private static void DrawSourceMoves(
+        XGraphics gfx,
+        SheetRecord sheet,
+        IReadOnlyList<SourceRegionMove> moves,
+        XBrush paperBrush)
+    {
+        List<SourceRegionMove> active = (moves ?? [])
+            .Where(move => move.Width >= 1 && move.Height >= 1 &&
+                           (Math.Abs(move.OffsetX) > 0.01 || Math.Abs(move.OffsetY) > 0.01))
+            .ToList();
+        if (active.Count == 0 || !File.Exists(sheet.PdfPath))
+            return;
+
+        using XPdfForm form = XPdfForm.FromFile(sheet.PdfPath);
+        form.PageNumber = Math.Max(1, sheet.Entry.PdfPageNumber);
+        double width = Math.Max(1, form.PointWidth);
+        double height = Math.Max(1, form.PointHeight);
+        PdfRectangle mediaBox = form.Page?.MediaBox ??
+                                new PdfRectangle(new XPoint(0, 0), new XPoint(width, height));
+
+        foreach (SourceRegionMove move in active)
+            gfx.DrawRectangle(paperBrush, new XRect(Mm(move.X), Mm(move.Y), Mm(move.Width), Mm(move.Height)));
+
+        foreach (SourceRegionMove move in active)
+        {
+            var target = new XRect(Mm(move.X + move.OffsetX), Mm(move.Y + move.OffsetY), Mm(move.Width), Mm(move.Height));
+            XGraphicsState state = gfx.Save();
+            gfx.IntersectClip(target);
+            gfx.DrawRectangle(paperBrush, target);
+            XRect desired = new(Mm(move.OffsetX), Mm(move.OffsetY), width, height);
+            gfx.DrawImage(form, CalculatePdfSharpFormDrawRectangle(desired, width, height, mediaBox.X1, mediaBox.Y1));
+            gfx.Restore(state);
         }
     }
 

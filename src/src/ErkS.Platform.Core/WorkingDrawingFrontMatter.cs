@@ -34,6 +34,13 @@ public sealed class WorkingDrawingFrontMatter
     /// </summary>
     public List<FrontMatterBlockLayout> Layout { get; set; } = [];
 
+    /// <summary>
+    /// Parts of the 01's own drawing the owner moved to make room - the site
+    /// plan, the elevation. The source PDF is untouched: the part is drawn
+    /// again, vector, at its new place and its old place is cleared.
+    /// </summary>
+    public List<SourceRegionMove> SourceMoves { get; set; } = [];
+
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(ExplanatoryNote) && Composition.Count == 0 && Indicators.Count == 0;
 
@@ -43,6 +50,7 @@ public sealed class WorkingDrawingFrontMatter
         Composition = Composition.Select(row => row.Clone()).ToList(),
         Indicators = Indicators.Select(row => row.Clone()).ToList(),
         Layout = Layout.Select(block => block.Clone()).ToList(),
+        SourceMoves = SourceMoves.Select(move => move.Clone()).ToList(),
     };
 
     public void Normalize()
@@ -74,7 +82,39 @@ public sealed class WorkingDrawingFrontMatter
             .GroupBy(block => block.Kind.Trim(), StringComparer.Ordinal)
             .Select(group => group.Last().Normalized())
             .ToList();
+        SourceMoves = (SourceMoves ?? [])
+            .Where(move => move is not null && move.Width >= 1 && move.Height >= 1)
+            .Select(move => move.Clone())
+            .ToList();
     }
+}
+
+/// <summary>
+/// A rectangle of the source sheet (millimetres from the top-left) drawn again
+/// moved by (OffsetX, OffsetY).
+/// </summary>
+/// <remarks>
+/// Owner, 2026-10-20: «цаад зургаа яаж зөөх вэ» - the Revit site plan and
+/// elevation stood where the explanatory note now goes.
+/// </remarks>
+public sealed class SourceRegionMove
+{
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public double OffsetX { get; set; }
+    public double OffsetY { get; set; }
+
+    public SourceRegionMove Clone() => new()
+    {
+        X = X,
+        Y = Y,
+        Width = Width,
+        Height = Height,
+        OffsetX = OffsetX,
+        OffsetY = OffsetY,
+    };
 }
 
 /// <summary>

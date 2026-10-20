@@ -97,5 +97,6 @@ public sealed class THEFRONTMatterLAYOUTIsArrangedWithGRIPSAndGUIDESTests
         int apply = workspaces.IndexOf("matter.Layout = dialog.Result.ToList();", editor, StringComparison.Ordinal);
         int save = workspaces.IndexOf("ApplyWorkingDrawingFrontMatter(matter);", apply, StringComparison.Ordinal);
         Assert.True(editor > 0 && apply > editor && save > apply);
+        Assert.Contains("matter.SourceMoves = dialog.MovesResult.ToList();", workspaces, StringComparison.Ordinal);
     }
 }
