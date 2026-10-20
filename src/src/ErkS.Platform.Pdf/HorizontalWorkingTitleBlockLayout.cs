@@ -56,7 +56,8 @@ internal static class HorizontalWorkingTitleBlockLayout
         string? mark,
         string? scale,
         IEnumerable<AlbumPageRoleAssignment>? roleAssignments,
-        IEnumerable<SheetRoleSignature>? sourceRoles)
+        IEnumerable<SheetRoleSignature>? sourceRoles,
+        DateTimeOffset? sourceDate = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         CompanyProfile company = project.Company ?? new CompanyProfile();
@@ -90,10 +91,10 @@ internal static class HorizontalWorkingTitleBlockLayout
             new(95, 15, 25, RightRow - 15,
                 PdfSharpAlbumWriter.LabelledCell("ЕГ шифр", project.GeneralDesignCipher), 2.0,
                 Align: WorkingTitleBlockAlign.Left, Wrap: true),
-            new(120, 15, 25, RightRow - 15, $"Масштаб: {(scale ?? "").Trim()}", 2.0,
+            new(120, 15, 25, RightRow - 15, $"Масштаб: {PdfSharpAlbumWriter.ScaleCellText(scale)}", 2.0,
                 Align: WorkingTitleBlockAlign.Left, Wrap: true),
             new(145, 15, 25, RightRow - 15,
-                PdfSharpAlbumWriter.LabelledCell("Огноо", PdfSharpAlbumWriter.SheetDateText(project)), 2.0,
+                PdfSharpAlbumWriter.LabelledCell("Огноо", PdfSharpAlbumWriter.SheetDateText(project, sourceDate)), 2.0,
                 Align: WorkingTitleBlockAlign.Left, Wrap: true),
             new(95, RightRow, 25, HeightMm - RightRow,
                 PdfSharpAlbumWriter.LabelledCell("ТГ шифр", project.TechnicalDesignCipher), 2.0,

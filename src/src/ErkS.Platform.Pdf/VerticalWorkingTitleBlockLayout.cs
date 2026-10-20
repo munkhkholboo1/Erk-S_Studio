@@ -85,7 +85,8 @@ internal static class VerticalWorkingTitleBlockLayout
         string? mark,
         string? scale,
         IEnumerable<AlbumPageRoleAssignment>? roleAssignments,
-        IEnumerable<SheetRoleSignature>? sourceRoles)
+        IEnumerable<SheetRoleSignature>? sourceRoles,
+        DateTimeOffset? sourceDate = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         CompanyProfile company = project.Company ?? new CompanyProfile();
@@ -132,7 +133,7 @@ internal static class VerticalWorkingTitleBlockLayout
             new(0, 66, 70, 8, (sheetTitle ?? "").Trim(), 3.0, Bold: true, Wrap: true),
 
             new(0, 74, 25, 4, "Масштаб:", 1.8, Align: WorkingTitleBlockAlign.Left),
-            new(0, 78, 25, 4, (scale ?? "").Trim(), 2.5),
+            new(0, 78, 25, 4, PdfSharpAlbumWriter.ScaleCellText(scale), 2.5),
             new(25, 74, 25, 4, "Зургийн марк:", 1.8, Align: WorkingTitleBlockAlign.Left),
             new(25, 78, 25, 4, markText, 2.5, Bold: true),
             new(50, 74, 20, 4, "Хуудас", 1.8, Align: WorkingTitleBlockAlign.Left),
@@ -145,7 +146,7 @@ internal static class VerticalWorkingTitleBlockLayout
             new(25, 82, 25, 4, "Т.Г.Шифр:", 1.8, Align: WorkingTitleBlockAlign.Left),
             new(25, 86, 25, 4, (project.TechnicalDesignCipher ?? "").Trim(), 2.2),
             new(50, 82, 20, 4, "Огноо", 1.8, Align: WorkingTitleBlockAlign.Left),
-            new(50, 86, 20, 4, PdfSharpAlbumWriter.SheetDateText(project), 2.2),
+            new(50, 86, 20, 4, PdfSharpAlbumWriter.SheetDateText(project, sourceDate), 2.2),
         ];
     }
 }

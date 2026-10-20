@@ -1963,9 +1963,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 buildPage.Sheet?.Entry?.Discipline,
                 buildPage.ScaleText,
                 buildPage.Definition.RoleAssignments,
-                // The names the source sheet itself carries. A generated page
-                // has no source, and gets the company default exactly as before.
-                buildPage.Sheet?.Entry?.Roles),
+                // The names the source sheet itself carries, the album's for
+                // any role it does not.
+                SheetRolesWithAlbumFallback(buildPage),
+                SheetSourceDate(buildPage)),
             rect,
             sx,
             sy);
@@ -2009,10 +2010,42 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     /// been entered: a date is a fact about the document, and a rebuild is not
     /// an event that changes it.
     /// </summary>
-    internal static string SheetDateText(AlbumProject project) =>
+    internal static string SheetDateText(AlbumProject project, DateTimeOffset? sourceDate = null) =>
         project.SheetDateUtc is { } sheetDate
             ? sheetDate.ToLocalTime().ToString("yyyy.MM.dd")
-            : "";
+            : sourceDate is { } exported && exported.Year > 2000
+                ? exported.ToLocalTime().ToString("yyyy.MM.dd")
+                : "";
+
+    /// <summary>
+    /// When the sheet was drawn: the date its source exported it. Like the
+    /// entered date it is a fact about the document - a rebuild does not move
+    /// it, a new export of the drawing does (BN review, 2026-10-20, C2: every
+    /// «Огноо» was empty).
+    /// </summary>
+    internal static DateTimeOffset? SheetSourceDate(AlbumBuildPage buildPage) =>
+        buildPage.Sheet is { } sheet && sheet.ExportedAtUtc.Year > 2000 ? sheet.ExportedAtUtc : null;
+
+    /// <summary>A sheet's own names, and the album's for the roles it lacks.</summary>
+    internal static IReadOnlyList<SheetRoleSignature> SheetRolesWithAlbumFallback(AlbumBuildPage buildPage)
+    {
+        List<SheetRoleSignature> own = (buildPage.Sheet?.Entry?.Roles ?? [])
+            .Where(role => role is not null && !string.IsNullOrWhiteSpace(role.FullName))
+            .ToList();
+        foreach (SheetRoleSignature shared in buildPage.AlbumRoles ?? [])
+        {
+            if (!own.Any(role => string.Equals((role.RoleCode ?? "").Trim(), shared.RoleCode, StringComparison.Ordinal)))
+                own.Add(shared);
+        }
+        return own;
+    }
+
+    /// <summary>
+    /// A scale cell is never left blank: a sheet whose source gave no single
+    /// scale (a schedule, mixed details) prints a dash (BN review, C3).
+    /// </summary>
+    internal static string ScaleCellText(string? scale) =>
+        string.IsNullOrWhiteSpace(scale) ? "—" : scale.Trim();
 
     /// <summary>
     /// The three names of a working sheet's corner table.
@@ -2128,7 +2161,8 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             buildPage.Sheet?.Entry?.Discipline,
             buildPage.ScaleText,
             buildPage.Definition.RoleAssignments,
-            buildPage.Sheet?.Entry?.Roles);
+            SheetRolesWithAlbumFallback(buildPage),
+            SheetSourceDate(buildPage));
         PaintWorkingTitleBlockCells(gfx, cells, rect, sx, sy);
     }
 

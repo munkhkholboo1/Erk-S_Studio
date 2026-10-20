@@ -160,6 +160,7 @@ public sealed partial class PdfSharpAlbumWriter
                             area.Height,
                             matter.Composition,
                             mark => CountOfMark(rows, mark),
+                            AlbumCarriedCount(rows),
                             measure),
                         borderPen,
                         finePen,
@@ -334,6 +335,33 @@ public sealed partial class PdfSharpAlbumWriter
     /// A mark's pages in the album; null for a mark the album does not carry,
     /// which then stays blank rather than reading as zero.
     /// </summary>
+    /// <summary>
+    /// The count a composition row prints for a mark this album carries: the
+    /// whole album for its main mark (the set the album is - БА carries the
+    /// album's ЕХ, ЕТ and ТХ pages too), the mark's own pages for any other.
+    /// A typed count is the owner's for sets the album does not carry; for its
+    /// own the album is the fact (BN review, 2026-10-20, C4: «БА 59» stayed
+    /// after the album grew to 61).
+    /// </summary>
+    private static Func<string, int?> AlbumCarriedCount(IReadOnlyList<WorkingDrawingFrontMatterLayout.ListRow> rows)
+    {
+        string? main = rows
+            .GroupBy(row => (row.Mark ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Key.Length > 0 && group.Key != WorkingDrawingSheetNumbering.GeneralPartMark)
+            .OrderByDescending(group => group.Count())
+            .Select(group => group.Key)
+            .FirstOrDefault();
+        return mark =>
+        {
+            string wanted = (mark ?? "").Trim();
+            if (wanted.Length == 0)
+                return null;
+            if (main is not null && wanted.Equals(main, StringComparison.OrdinalIgnoreCase))
+                return rows.Count;
+            return CountOfMark(rows, wanted);
+        };
+    }
+
     private static int? CountOfMark(IReadOnlyList<WorkingDrawingFrontMatterLayout.ListRow> rows, string mark)
     {
         string wanted = (mark ?? "").Trim();

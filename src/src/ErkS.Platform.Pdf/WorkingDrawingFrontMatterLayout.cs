@@ -165,6 +165,7 @@ internal static class WorkingDrawingFrontMatterLayout
         double heightMm,
         IReadOnlyList<WorkingDrawingCompositionRow> rows,
         Func<string, int?> albumCountOfMark,
+        Func<string, int?>? albumCarriedCount = null,
         LineCounter? measure = null)
     {
         double header = Math.Min(HeaderMm, heightMm / 3);
@@ -174,9 +175,11 @@ internal static class WorkingDrawingFrontMatterLayout
             {
                 row.Mark,
                 row.Name,
-                row.SheetCount.Length > 0
-                    ? row.SheetCount
-                    : albumCountOfMark(row.Mark)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                albumCarriedCount?.Invoke(row.Mark) is int carried
+                    ? carried.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : row.SheetCount.Length > 0
+                        ? row.SheetCount
+                        : albumCountOfMark(row.Mark)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
             })
             .ToList();
         // The title spans mark and section; the count column names itself.

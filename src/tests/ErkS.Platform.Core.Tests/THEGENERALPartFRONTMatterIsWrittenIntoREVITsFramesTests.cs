@@ -402,6 +402,63 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
+    public void TheAlbumsOwnMarkIsCountedFromTheAlbumNotFromATypedCount()
+    {
+        // BN review, 2026-10-20, C4: «БА 59» stayed after the album grew to 61.
+        // A set the album does not carry keeps the owner's typed count.
+        WorkingDrawingFrontMatterTable table = WorkingDrawingFrontMatterLayout.Composition(
+            90,
+            60,
+            [
+                new() { Mark = "БА", Name = "Барилга архитектур", SheetCount = "59" },
+                new() { Mark = "ББ", Name = "Барилга бүтээц", SheetCount = "70" },
+            ],
+            mark => mark == "БА" ? 47 : null,
+            mark => mark == "БА" ? 61 : null);
+
+        string[] texts = table.Cells.Select(cell => cell.Text).ToArray();
+        Assert.Contains("61", texts);
+        Assert.DoesNotContain("59", texts);
+        Assert.Contains("70", texts);
+    }
+
+    [Fact]
+    public void ASheetWithoutNamesSignsWithTheAlbumsDatesFromItsExportAndNeverLeavesTheScaleBlank()
+    {
+        // BN review, 2026-10-20, C1-C3: the general plan's DWG sheets came
+        // without names, every «Огноо» was empty, three Revit sheets had no scale.
+        AlbumProject project = WorkingProject(out SheetLibrary library, frontOnSheet: true);
+        Assert.True(AlbumBuilder.TryCreateRequest(project, library, out AlbumBuildRequest request));
+        List<AlbumBuildPage> pages = request.Sections.SelectMany(section => section.Pages).ToList();
+        AlbumBuildPage signed = pages[0];
+        AlbumBuildPage unsigned = pages[^1];
+        signed.Sheet.Entry.Roles =
+        [
+            new SheetRoleSignature { RoleCode = SheetRoleCodes.Architect, FullName = "Э.Мөнххолбоо" },
+            new SheetRoleSignature { RoleCode = SheetRoleCodes.PreparedBy, FullName = "М.Будбаясгалан" },
+        ];
+        unsigned.Sheet.Entry.Roles = [new SheetRoleSignature { RoleCode = SheetRoleCodes.PreparedBy, FullName = "Б.Бат" }];
+
+        AlbumBuilder.ShareAlbumRoles(request);
+        IReadOnlyList<SheetRoleSignature> roles = PdfSharpAlbumWriter.SheetRolesWithAlbumFallback(unsigned);
+
+        Assert.Contains(roles, role => role.RoleCode == SheetRoleCodes.Architect && role.FullName == "Э.Мөнххолбоо");
+        Assert.Contains(roles, role => role.RoleCode == SheetRoleCodes.PreparedBy && role.FullName == "Б.Бат");
+        Assert.DoesNotContain(roles, role => role.FullName == "М.Будбаясгалан");
+
+        IReadOnlyList<WorkingTitleBlockCell> cells = HorizontalWorkingTitleBlockLayout.Cells(
+            project, "ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ", "1", "ЕТ", "", null, roles,
+            new DateTimeOffset(2026, 10, 19, 4, 0, 0, TimeSpan.Zero));
+        string[] texts = cells.Select(cell => cell.Text).ToArray();
+        Assert.Contains("Э.Мөнххолбоо", texts);
+        Assert.Contains("Масштаб: —", texts);
+        Assert.Contains(texts, text => text.Contains("2026.10.19", StringComparison.Ordinal));
+
+        project.SheetDateUtc = new DateTimeOffset(2026, 9, 1, 4, 0, 0, TimeSpan.Zero);
+        Assert.Equal("2026.09.01", PdfSharpAlbumWriter.SheetDateText(project, new DateTimeOffset(2026, 10, 19, 4, 0, 0, TimeSpan.Zero)));
+    }
+
+    [Fact]
     public void ACompositionRowWithoutACountCountsTheAlbumsOwnPages()
     {
         WorkingDrawingFrontMatterTable table = WorkingDrawingFrontMatterLayout.Composition(

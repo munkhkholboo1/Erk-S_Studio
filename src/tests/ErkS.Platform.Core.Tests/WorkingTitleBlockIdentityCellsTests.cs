@@ -71,7 +71,7 @@ public sealed class WorkingTitleBlockIdentityCellsTests
 
         Assert.Contains("project.GeneralDesignCipher", body, StringComparison.Ordinal);
         Assert.Contains("project.TechnicalDesignCipher", body, StringComparison.Ordinal);
-        Assert.Contains("SheetDateText(project)", body, StringComparison.Ordinal);
+        Assert.Contains("SheetDateText(project, sourceDate)", body, StringComparison.Ordinal);
     }
 
     [Fact]

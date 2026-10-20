@@ -52,8 +52,12 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 16: the 01's front matter is clipped to the drawing frame and kept
     /// off the corner table, so the sheet's own lines are never covered.
+    ///
+    /// 17: corner tables sign with the album's names where a sheet came
+    /// without, date from the sheet's export, never leave the scale blank;
+    /// the composition counts the album's own marks from the album.
     /// </summary>
-    public const int CurrentRevision = 16;
+    public const int CurrentRevision = 17;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

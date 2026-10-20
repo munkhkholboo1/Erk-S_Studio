@@ -64,6 +64,14 @@ public sealed class AlbumBuildPage
         : Definition.TitleOverride;
 
     public string ScaleText => DrawingScaleText.Resolve(Definition, Sheet.Entry);
+
+    /// <summary>
+    /// The names the album's sheets sign with, one per role - the name most
+    /// of its source sheets carry. A sheet that came without names (the
+    /// general plan's DWG layouts) prints these rather than blanks: one album
+    /// is one team (BN review, 2026-10-20, C1).
+    /// </summary>
+    public IReadOnlyList<ErkS.Platform.Contracts.SheetRoleSignature> AlbumRoles { get; set; } = [];
 }
 
 public sealed class AlbumBuildResult
@@ -217,9 +225,32 @@ public sealed class AlbumBuilder
 
     public static AlbumBuildRequest CreateRequest(AlbumProject project, SheetLibrary library)
     {
-        return project.Album.Pages.Count > 0
+        AlbumBuildRequest request = project.Album.Pages.Count > 0
             ? CreateConfiguredRequest(project, library)
             : CreateLegacyRequest(project, library);
+        ShareAlbumRoles(request);
+        return request;
+    }
+
+    /// <summary>Gives every page the names most of the album's sheets sign with.</summary>
+    public static void ShareAlbumRoles(AlbumBuildRequest request)
+    {
+        List<AlbumBuildPage> pages = request.Sections.SelectMany(section => section.Pages).ToList();
+        List<ErkS.Platform.Contracts.SheetRoleSignature> roles = pages
+            .SelectMany(page => page.Sheet?.Entry?.Roles ?? [])
+            .Where(role => role is not null &&
+                           !string.IsNullOrWhiteSpace(role.RoleCode) &&
+                           !string.IsNullOrWhiteSpace(role.FullName))
+            .GroupBy(role => role.RoleCode.Trim(), StringComparer.Ordinal)
+            .Select(group => group
+                .GroupBy(role => role.FullName.Trim(), StringComparer.Ordinal)
+                .OrderByDescending(names => names.Count())
+                .ThenBy(names => names.Key, StringComparer.Ordinal)
+                .Select(names => new ErkS.Platform.Contracts.SheetRoleSignature { RoleCode = group.Key, FullName = names.Key })
+                .First())
+            .ToList();
+        foreach (AlbumBuildPage page in pages)
+            page.AlbumRoles = roles;
     }
 
     /// <summary>
