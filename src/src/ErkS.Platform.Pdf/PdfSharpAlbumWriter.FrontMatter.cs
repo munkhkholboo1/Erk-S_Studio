@@ -185,6 +185,7 @@ public sealed partial class PdfSharpAlbumWriter
         int pending = text.Count(character => character == '⚠');
         if (pending > 0)
             warnings.Add($"{number}: тайлбар бичигт бөглөөгүй {pending} хэсэг ⚠ байна.");
+        text = PrintableNote(text);
 
         double pad = Mm(1);
         double width = rect.Width - pad * 2;
@@ -224,6 +225,15 @@ public sealed partial class PdfSharpAlbumWriter
             return;
         }
     }
+
+    /// <summary>
+    /// The note as it prints: a «⚠» left for the owner to fill becomes the
+    /// placeholder «……». The sheet font has no ⚠ glyph, so it printed as «□»
+    /// (PFR, Batnasan, 2026-10-20); a blank to fill is written «……» on a
+    /// Mongolian sheet. The build warning still counts the ⚠ in the source.
+    /// </summary>
+    internal static string PrintableNote(string text) =>
+        (text ?? "").Replace("⚠", "……", StringComparison.Ordinal);
 
     private static List<(string Text, bool Bold, double Gap)> NoteLines(
         XGraphics gfx,

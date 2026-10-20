@@ -22,8 +22,11 @@ internal static class StudioAlbumRendererMigration
     /// 6: working drawings - the general plan is numbered after the general
     /// part (02, 03 …) instead of with its DWG's own 01-04, so the drawing list
     /// and the corner tables agree; the 01 carries Studio's front matter.
+    ///
+    /// 7: a blank left in the explanatory note («⚠») prints as «……» instead of
+    /// a missing-glyph box.
     /// </summary>
-    public const int CurrentRevision = 6;
+    public const int CurrentRevision = 7;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -
