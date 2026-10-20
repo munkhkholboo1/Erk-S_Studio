@@ -39,8 +39,8 @@ internal static class StudioAlbumRendererMigration
     /// composition and indicators) wraps and its row grows, instead of the
     /// name being squeezed.
     ///
-    /// 12: the drawing list goes on to the bottom of its frame in blank ruled
-    /// rows instead of stopping short of it.
+    /// 12: the drawing list's columns are read down: the first fills to the
+    /// frame's bottom, the rest go on into the next, instead of an even split.
     /// </summary>
     public const int CurrentRevision = 12;
 

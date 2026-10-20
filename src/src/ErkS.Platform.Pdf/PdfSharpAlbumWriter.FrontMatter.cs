@@ -260,24 +260,17 @@ public sealed partial class PdfSharpAlbumWriter
         WorkingDrawingFrontMatterLayout.LineCounter? measure = null)
     {
         int columns = Math.Clamp(block.Columns, 1, FrontMatterBlockLayout.MaxColumns);
-        int perColumn = (int)Math.Ceiling(rows.Count / (double)columns);
         double columnWidth = block.ColumnWidthMm;
-        for (int column = 0; column < columns; column++)
+        IReadOnlyList<WorkingDrawingFrontMatterTable> tables =
+            WorkingDrawingFrontMatterLayout.DrawingListColumns(columnWidth, block.Height, rows, columns, measure);
+        for (int column = 0; column < tables.Count; column++)
         {
-            List<WorkingDrawingFrontMatterLayout.ListRow> slice = rows.Skip(column * perColumn).Take(perColumn).ToList();
-            if (slice.Count == 0 && column > 0)
-                break;
             double x = block.X + column * (columnWidth + block.ColumnGapMm);
             var rect = new XRect(Mm(x), Mm(block.Y), Mm(columnWidth), Mm(block.Height));
             PaintFrontMatterTable(
                 gfx,
                 rect,
-                WorkingDrawingFrontMatterLayout.DrawingList(
-                    columnWidth,
-                    block.Height,
-                    slice,
-                    column == 0 ? WorkingDrawingFrontMatterLayout.DrawingListTitle : WorkingDrawingFrontMatterLayout.DrawingListTitle + " (үргэлжлэл)",
-                    measure),
+                tables[column],
                 borderPen,
                 finePen,
                 warnings,

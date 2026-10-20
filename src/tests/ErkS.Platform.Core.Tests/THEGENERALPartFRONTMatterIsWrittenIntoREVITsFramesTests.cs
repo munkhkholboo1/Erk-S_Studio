@@ -324,23 +324,39 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
-    public void AShortListGoesOnToTheFramesBottomInBlankRows()
+    public void TheFirstColumnFillsDownAndTheRestGoOnIntoTheNext()
     {
-        // Owner, 2026-10-20: «энэ зайндаа яаж дүүргэх вэ». Ten sheets in a
-        // 280 mm frame: the rules run on to the bottom, the blank rows carry
-        // no text, nothing overflows.
-        WorkingDrawingFrontMatterTable table = WorkingDrawingFrontMatterLayout.DrawingList(102, 280, ListRows(10));
+        // Owner, 2026-10-20: «байгаа хуудаснууд нь доошоо дүүрээд үлдсэн нь
+        // арын багананд орно». 64 sheets in two 280 mm columns: the first
+        // column reaches the frame's bottom, the second takes what is left,
+        // no blank rows, nothing lost.
+        IReadOnlyList<WorkingDrawingFrontMatterTable> tables =
+            WorkingDrawingFrontMatterLayout.DrawingListColumns(100, 280, ListRows(64), 2);
 
-        double bottom = table.Lines.Max(line => Math.Max(line.Y0Mm, line.Y1Mm));
-        Assert.Equal(280, bottom, 1);
-        Assert.Equal(0, table.Overflow);
-        Assert.Equal(10, table.Cells.Count(cell => cell.Text.StartsWith("ХУУДАС", StringComparison.Ordinal)));
-        Assert.True(table.Lines.Count(line => line.Y0Mm == line.Y1Mm) > 10 + 3);
-        AssertInside(table, 102, 280);
+        Assert.Equal(2, tables.Count);
+        int first = tables[0].Cells.Count(cell => cell.Text.StartsWith("ХУУДАС", StringComparison.Ordinal));
+        int second = tables[1].Cells.Count(cell => cell.Text.StartsWith("ХУУДАС", StringComparison.Ordinal));
+        Assert.Equal(64, first + second);
+        Assert.True(first > second);
+        double firstBottom = tables[0].Lines.Max(line => Math.Max(line.Y0Mm, line.Y1Mm));
+        Assert.True(firstBottom > 280 - WorkingDrawingFrontMatterLayout.MaxRowMm);
+        Assert.Contains("ХУУДАС 0", tables[0].Cells.Select(cell => cell.Text));
+        Assert.Contains("ХУУДАС 63", tables[1].Cells.Select(cell => cell.Text));
+        Assert.All(tables, table => Assert.Equal(0, table.Overflow));
+        Assert.All(tables, table => AssertInside(table, 100, 280));
+    }
 
-        WorkingDrawingFrontMatterTable open = WorkingDrawingFrontMatterLayout.DrawingList(
-            102, 280, ListRows(10), fillToBottom: false);
-        Assert.True(open.Lines.Max(line => Math.Max(line.Y0Mm, line.Y1Mm)) < 200);
+    [Fact]
+    public void AListTooLongForAllColumnsShrinksItsRowsThenReportsTheRest()
+    {
+        IReadOnlyList<WorkingDrawingFrontMatterTable> fits =
+            WorkingDrawingFrontMatterLayout.DrawingListColumns(100, 120, ListRows(64), 2);
+        IReadOnlyList<WorkingDrawingFrontMatterTable> cut =
+            WorkingDrawingFrontMatterLayout.DrawingListColumns(100, 60, ListRows(64), 2);
+
+        Assert.Equal(0, fits[^1].Overflow);
+        Assert.True(cut[^1].Overflow > 0);
+        Assert.Equal(0, cut[0].Overflow);
     }
 
     [Fact]

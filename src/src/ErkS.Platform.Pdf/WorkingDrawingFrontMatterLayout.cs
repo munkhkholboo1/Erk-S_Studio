@@ -52,7 +52,7 @@ internal static class WorkingDrawingFrontMatterLayout
         IReadOnlyList<ListRow> rows,
         string title = DrawingListTitle,
         LineCounter? measure = null,
-        bool fillToBottom = true)
+        double rowHeightMm = 0)
     {
         double titleHeight = Math.Min(HeaderMm, heightMm / 4);
         double header = Math.Min(HeaderMm, heightMm / 4);
@@ -68,7 +68,96 @@ internal static class WorkingDrawingFrontMatterLayout
             rows.Select(row => new[] { row.Number, row.Title, row.Mark }).ToList(),
             leftAlignedColumn: 1,
             measure: measure,
-            fillToBottom: fillToBottom);
+            fixedRowMm: rowHeightMm);
+    }
+
+    /// <summary>
+    /// The drawing list set in columns the way a list is read: the first
+    /// column fills down to the frame's bottom, the rest go on into the next
+    /// (owner, 2026-10-20: «байгаа хуудаснууд нь доошоо дүүрээд үлдсэн нь
+    /// арын багананд орно»). One row height for every column - the tallest
+    /// up to <see cref="MaxRowMm"/> that lets all the rows in; what still
+    /// does not fit is the last column's overflow.
+    /// </summary>
+    public static IReadOnlyList<WorkingDrawingFrontMatterTable> DrawingListColumns(
+        double columnWidthMm,
+        double heightMm,
+        IReadOnlyList<ListRow> rows,
+        int columns,
+        LineCounter? measure = null)
+    {
+        columns = Math.Max(1, columns);
+        double rowHeight = FlowRowHeight(columnWidthMm, heightMm, rows, columns, measure);
+        var tables = new List<WorkingDrawingFrontMatterTable>();
+        int start = 0;
+        for (int column = 0; column < columns; column++)
+        {
+            List<ListRow> rest = rows.Skip(start).ToList();
+            if (rest.Count == 0 && column > 0)
+                break;
+            WorkingDrawingFrontMatterTable table = DrawingList(
+                columnWidthMm,
+                heightMm,
+                rest,
+                column == 0 ? DrawingListTitle : DrawingListTitle + " (үргэлжлэл)",
+                measure,
+                rowHeight);
+            int placed = rest.Count - table.Overflow;
+            if (placed == 0 && column > 0)
+                break;
+            start += placed;
+            tables.Add(table with { Overflow = 0 });
+        }
+        if (tables.Count > 0)
+            tables[^1] = tables[^1] with { Overflow = rows.Count - start };
+        return tables;
+    }
+
+    private static double FlowRowHeight(
+        double columnWidthMm,
+        double heightMm,
+        IReadOnlyList<ListRow> rows,
+        int columns,
+        LineCounter? measure)
+    {
+        double available = heightMm - 2 * Math.Min(HeaderMm, heightMm / 4);
+        double titleWidth = Math.Max(1, columnWidthMm * 0.70 - 1.2);
+        bool Fits(double rowHeight)
+        {
+            double textHeight = Math.Clamp(rowHeight * 0.5, 1.6, 2.5);
+            int column = 0;
+            double used = 0;
+            foreach (ListRow row in rows)
+            {
+                string name = (row.Title ?? "").Trim();
+                int lines = measure is null || name.Length == 0 ? 1 : Math.Max(1, measure(name, textHeight, titleWidth));
+                double need = rowHeight * lines;
+                if (used + need > available + 0.01)
+                {
+                    column++;
+                    used = 0;
+                    if (column >= columns || need > available + 0.01)
+                        return false;
+                }
+                used += need;
+            }
+            return true;
+        }
+
+        if (rows.Count == 0 || Fits(MaxRowMm))
+            return MaxRowMm;
+        if (!Fits(MinRowMm))
+            return MinRowMm;
+        double low = MinRowMm, high = MaxRowMm;
+        for (int step = 0; step < 14; step++)
+        {
+            double middle = (low + high) / 2;
+            if (Fits(middle))
+                low = middle;
+            else
+                high = middle;
+        }
+        return low;
     }
 
     public static WorkingDrawingFrontMatterTable Composition(
@@ -147,7 +236,7 @@ internal static class WorkingDrawingFrontMatterLayout
         string headerSpanTitle = "",
         int headerSpanColumns = 0,
         LineCounter? measure = null,
-        bool fillToBottom = false)
+        double fixedRowMm = 0)
     {
         var cells = new List<WorkingTitleBlockCell>();
         var lines = new List<WorkingTitleBlockLine>();
@@ -167,7 +256,9 @@ internal static class WorkingDrawingFrontMatterLayout
         for (int pass = 0; pass < 3; pass++)
         {
             int slots = Math.Max(1, lineCounts.Sum());
-            rowHeight = rows.Count == 0 ? MaxRowMm : Math.Clamp(available / slots, MinRowMm, MaxRowMm);
+            rowHeight = fixedRowMm > 0
+                ? fixedRowMm
+                : rows.Count == 0 ? MaxRowMm : Math.Clamp(available / slots, MinRowMm, MaxRowMm);
             textHeight = Math.Clamp(rowHeight * 0.5, 1.6, 2.5);
             if (measure is null || leftAlignedColumn < 0 || leftAlignedColumn >= columns.Count)
                 break;
@@ -197,23 +288,6 @@ internal static class WorkingDrawingFrontMatterLayout
         double tableBottom = rowTops[drawn];
         double headerText = Math.Clamp(headerMm * 0.32, 1.6, 2.5);
 
-        // When every row is in and the frame has room left, the table goes on
-        // to the frame's bottom in blank ruled rows - room for sheets added
-        // later - instead of stopping short of it (owner, 2026-10-20: «энэ
-        // зайндаа яаж дүүргэх вэ»). The blank rows share the remainder evenly.
-        var blankTops = new List<double>();
-        double remaining = bodyTop + available - tableBottom;
-        if (fillToBottom && drawn == rows.Count && remaining > 0.01)
-        {
-            int blanks = (int)Math.Round(remaining / rowHeight);
-            if (blanks > 0)
-            {
-                double step = remaining / blanks;
-                for (int blank = 1; blank <= blanks; blank++)
-                    blankTops.Add(tableBottom + step * blank);
-                tableBottom = blankTops[^1];
-            }
-        }
 
         // Outer frame and horizontal rules.
         lines.Add(new(0, 0, widthMm, 0));
@@ -227,8 +301,6 @@ internal static class WorkingDrawingFrontMatterLayout
         lines.Add(new(0, bodyTop, widthMm, bodyTop));
         for (int row = 1; row <= drawn; row++)
             lines.Add(new(0, rowTops[row], widthMm, rowTops[row]));
-        foreach (double top in blankTops)
-            lines.Add(new(0, top, widthMm, top));
 
         // Column rules: a spanning header title has none between the spanned columns.
         double x = 0;
