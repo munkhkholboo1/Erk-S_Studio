@@ -459,6 +459,23 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
+    public void EverySourceSheetIsListedWithTheNumberItPrintsUnder()
+    {
+        // BN review, 2026-10-20, B: sources cite sheets by Studio's number,
+        // read from here (_shared/sheet-reference-contract-2026-10-20.md).
+        AlbumProject project = WorkingProject(out SheetLibrary library, frontOnSheet: true);
+        Assert.True(AlbumBuilder.TryCreateRequest(project, library, out AlbumBuildRequest request));
+
+        IReadOnlyList<SheetPrintNumber> numbers = WorkingDrawingSheetNumbering.PrintNumbers(request);
+
+        int pages = request.Sections.Sum(section => section.Pages.Count);
+        Assert.Equal(pages, numbers.Count);
+        Assert.All(numbers, number => Assert.False(string.IsNullOrWhiteSpace(number.Label)));
+        Assert.All(numbers.Where(number => number.Mark.Length > 0),
+            number => Assert.StartsWith(number.Mark + "-", number.Label, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ACompositionRowWithoutACountCountsTheAlbumsOwnPages()
     {
         WorkingDrawingFrontMatterTable table = WorkingDrawingFrontMatterLayout.Composition(

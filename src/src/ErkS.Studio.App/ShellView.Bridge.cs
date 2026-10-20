@@ -121,6 +121,8 @@ internal sealed partial class ShellView
             }
             case "components":
                 return BridgeComponents(request);
+            case "sheet-numbers":
+                return BridgeSheetNumbers(request);
             case "rearm-component":
                 return BridgeRearmComponent(request);
             case "sync-preview":
@@ -141,6 +143,35 @@ internal sealed partial class ShellView
     /// and the codes waiting to go. Rendered into a temporary folder and
     /// removed; nothing in the project changes.
     /// </summary>
+    /// <summary>
+    /// Each source sheet's own number and the number the album prints it
+    /// under - what a source cites another sheet by
+    /// (_shared/sheet-reference-contract-2026-10-20.md).
+    /// </summary>
+    private StudioBridgeResponse BridgeSheetNumbers(StudioBridgeRequest request)
+    {
+        if (!state.HasOpenProject)
+            return StudioBridgeProtocol.Refuse(request.Id, "no_project", "Төсөл нээгээгүй байна.");
+        AlbumProject project = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
+        if (!AlbumBuilder.TryCreateRequest(project, state.Library, out AlbumBuildRequest build))
+            return StudioBridgeProtocol.Refuse(request.Id, "no_album", "Альбум угсрах эх хуудас алга.");
+        return StudioBridgeProtocol.Accept(request.Id, new
+        {
+            project = state.Project.Identity.Code,
+            sheets = WorkingDrawingSheetNumbering.PrintNumbers(build).Select(sheet => new
+            {
+                sheet.SourceId,
+                sheet.SheetId,
+                sheet.SourceNumber,
+                sheet.SheetName,
+                sheet.Mark,
+                sheet.PrintNumber,
+                sheet.Label,
+                sheet.Section,
+            }),
+        });
+    }
+
     private StudioBridgeResponse BridgeComponents(StudioBridgeRequest request)
     {
         string workFolder = Path.Combine(Path.GetTempPath(), "erks-bridge-components-" + Guid.NewGuid().ToString("N"));

@@ -101,4 +101,49 @@ public static class WorkingDrawingSheetNumbering
     /// <summary>The n-th sheet of a mark, as it prints: «1», «2» …</summary>
     public static string Number(int ordinal) =>
         Math.Max(1, ordinal).ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Every source sheet's number as the album prints it: the source's own
+    /// number (Revit «18») beside Studio's («БА-8»). A source writes its
+    /// cross-references - a note's «see sheet …», a section head - from this,
+    /// so they name the sheet the reader finds in the album (BN review,
+    /// 2026-10-20, B: notes and section heads still cited Revit's numbers).
+    /// Contract: _shared/sheet-reference-contract-2026-10-20.md.
+    /// </summary>
+    public static IReadOnlyList<SheetPrintNumber> PrintNumbers(AlbumBuildRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        bool marked = Applies(request.Project.Album);
+        var result = new List<SheetPrintNumber>();
+        foreach (AlbumBuildSection section in request.Sections)
+        {
+            foreach (AlbumBuildPage page in section.Pages)
+            {
+                if (page.Sheet is null)
+                    continue;
+                string mark = MarkOf(page.Sheet.Entry.Discipline);
+                result.Add(new SheetPrintNumber(
+                    page.Sheet.SourceId,
+                    page.Sheet.Entry.SheetId,
+                    (page.Sheet.Entry.Number ?? "").Trim(),
+                    page.Title,
+                    mark,
+                    page.Number,
+                    marked ? Label(mark, page.Number) : page.Number,
+                    section.Title ?? ""));
+            }
+        }
+        return result;
+    }
 }
+
+/// <summary>A source sheet's own number and the number it prints under in the album.</summary>
+public sealed record SheetPrintNumber(
+    string SourceId,
+    string SheetId,
+    string SourceNumber,
+    string SheetName,
+    string Mark,
+    string PrintNumber,
+    string Label,
+    string Section);

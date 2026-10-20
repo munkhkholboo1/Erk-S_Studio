@@ -29,6 +29,7 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 | `check-sources` | «Эх үүсвэр шалгах» | — |
 | `rebuild-album` | Альбум шинэчлэх | — |
 | `rearm-component` | Cloud-д алга болсон, локал угсралт зурдаг хэсгийг дахин илгээхээр тэмдэглэх | `code=<canonical код>` |
+| `sheet-numbers` | (унших) хуудас бүрийн эх дугаар ба альбумд хэвлэгдэх дугаар («БА-8») — эшлэлийн гэрээ `_shared/sheet-reference-contract-2026-10-20.md` | — |
 | `components` | (унших) синкийн хэсгүүд: локал угсралт, Cloud, хүлээгдэж буй код | — |
 | `sync-preview` | Cloud товч — төлөвлөгөөг харах, илгээхгүй | — |
 | `sync` | Cloud товч + «Sync хийх» | `confirm=true` |
