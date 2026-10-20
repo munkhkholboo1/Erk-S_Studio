@@ -706,8 +706,13 @@ public static class DrawingScaleText
 
     public static string Normalize(string? value)
     {
-        string text = string.Concat(
-            (value ?? "").Trim().Where(character => !char.IsWhiteSpace(character)));
+        string trimmed = (value ?? "").Trim();
+        // Only a numeric scale loses its spaces («1 : 100» → «1:100»). A
+        // worded one keeps them, single-spaced (PFR, 2026-10-21: «Заасны
+        // дагуу» printed as «Заасныдагуу»).
+        if (!trimmed.All(character => char.IsDigit(character) || char.IsWhiteSpace(character) || character is ':' or '/' or '.'))
+            return string.Join(' ', trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        string text = string.Concat(trimmed.Where(character => !char.IsWhiteSpace(character)));
         if (text.Length == 0)
             return "";
 

@@ -56,8 +56,11 @@ internal static class StudioAlbumRendererMigration
     /// 17: corner tables sign with the album's names where a sheet came
     /// without, date from the sheet's export, never leave the scale blank;
     /// the composition counts the album's own marks from the album.
+    ///
+    /// 18: a worded scale keeps its spaces («Заасны дагуу»); only a numeric
+    /// one is closed up («1 : 100» → «1:100»).
     /// </summary>
-    public const int CurrentRevision = 17;
+    public const int CurrentRevision = 18;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

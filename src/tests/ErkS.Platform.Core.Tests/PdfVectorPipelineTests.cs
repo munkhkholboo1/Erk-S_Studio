@@ -634,6 +634,8 @@ public sealed class PdfVectorPipelineTests : IDisposable
     [InlineData(" 1 : 500 ", "1:500")]
     [InlineData("1 / 1000", "1:1000")]
     [InlineData("NTS", "NTS")]
+    [InlineData(" Заасны  дагуу ", "Заасны дагуу")]
+    [InlineData("1:50, 1:100", "1:50, 1:100")]
     public void DrawingScaleText_NormalizesTitleBlockMetadataWithoutGeometryMeaning(
         string? input,
         string expected)
