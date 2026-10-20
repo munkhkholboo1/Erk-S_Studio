@@ -43,8 +43,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 13: the drawing list's columns are read down: the first fills to the
     /// frame's bottom, the rest go on into the next, instead of an even split.
+    ///
+    /// 14: the front-matter blocks are drawn in the order the owner left them
+    /// (front / back), the ones he did not place behind.
     /// </summary>
-    public const int CurrentRevision = 13;
+    public const int CurrentRevision = 14;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

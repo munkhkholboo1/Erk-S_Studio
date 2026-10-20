@@ -64,6 +64,7 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
     // текст ямар байдалтай болох нь мэдэгдэхгүй байх нь эрсдэлтэй»).
     private readonly Func<IReadOnlyList<FrontMatterBlockLayout>, Task<FrontMatterPreview>>? renderPreview;
     private readonly Image previewImage = new() { Stretch = Stretch.Fill, IsHitTestVisible = false };
+    private readonly Canvas paperCover = new() { IsHitTestVisible = false };
     private readonly System.Windows.Threading.DispatcherTimer previewTimer =
         new() { Interval = TimeSpan.FromMilliseconds(250) };
     private bool previewDirty = true;
@@ -176,6 +177,9 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
             Background = Brushes.White,
         };
         surface.Children.Add(pageImage);
+        // The frames the source reserved are paper on the printed sheet; here
+        // too, so their outlines do not read as part of the front matter.
+        surface.Children.Add(paperCover);
         surface.Children.Add(previewImage);
         canvas.Width = surface.Width;
         canvas.Height = surface.Height;
@@ -264,15 +268,20 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         AddRect(corner, new SolidColorBrush(Color.FromArgb(40, 90, 90, 90)), new SolidColorBrush(Color.FromArgb(160, 90, 90, 90)), 1.2, null);
         AddLabel(corner.X, corner.Y + corner.Height / 2 - 4, corner.Width, "Булангийн хүснэгт", Color.FromRgb(90, 90, 90), center: true);
 
-        // Where the source reserved the frames - faint, for orientation.
+        // The source's reserved frames are covered as the print covers them.
+        paperCover.Children.Clear();
         foreach (PageRectSpec frame in reserved.Values)
         {
-            AddRect(
-                new PageRectMm { X = frame.X, Y = frame.Y, Width = frame.Width, Height = frame.Height },
-                null,
-                new SolidColorBrush(Color.FromArgb(70, 150, 150, 150)),
-                0.8,
-                [2, 3]);
+            const double bleed = 0.4;
+            var paper = new Rectangle
+            {
+                Width = (frame.Width + 2 * bleed) * Unit,
+                Height = (frame.Height + 2 * bleed) * Unit,
+                Fill = Brushes.White,
+            };
+            Canvas.SetLeft(paper, (frame.X - bleed) * Unit);
+            Canvas.SetTop(paper, (frame.Y - bleed) * Unit);
+            paperCover.Children.Add(paper);
         }
 
         for (int index = 0; index < moves.Count; index++)
@@ -475,12 +484,22 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         };
         Button more = SmallButton("+");
         more.Click += (_, _) => ChangeColumns(1);
+        Button front = SmallButton("Наана");
+        front.Margin = new Thickness(8, 0, 0, 0);
+        front.ToolTip = "Бусад блокийн өмнө гаргана";
+        front.Click += (_, _) => MoveInOrder(toFront: true);
+        Button back = SmallButton("Цаана");
+        back.Margin = new Thickness(4, 0, 0, 0);
+        back.ToolTip = "Бусад блокийн ард оруулна";
+        back.Click += (_, _) => MoveInOrder(toFront: false);
         Button reset = SmallButton("Анхдагч");
         reset.Margin = new Thickness(8, 0, 0, 0);
         reset.Click += (_, _) => ResetSelected();
         bar.Children.Add(less);
         bar.Children.Add(count);
         bar.Children.Add(more);
+        bar.Children.Add(front);
+        bar.Children.Add(back);
         bar.Children.Add(reset);
         var border = new Border
         {
@@ -885,6 +904,26 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         if (selected is null)
             return;
         Replace(FrontMatterLayoutEditing.WithColumns(selected, selected.Columns + delta));
+        Redraw();
+    }
+
+    /// <summary>
+    /// Brings the selected block in front of the others or sends it behind
+    /// them. The order is the drawing order, so every block's place is saved
+    /// with it.
+    /// </summary>
+    private void MoveInOrder(bool toFront)
+    {
+        FrontMatterBlockLayout? selected = Selected();
+        if (selected is null)
+            return;
+        blocks.Remove(selected);
+        if (toFront)
+            blocks.Add(selected);
+        else
+            blocks.Insert(0, selected);
+        foreach (FrontMatterBlockLayout block in blocks)
+            placedByOwner.Add(block.Kind);
         Redraw();
     }
 

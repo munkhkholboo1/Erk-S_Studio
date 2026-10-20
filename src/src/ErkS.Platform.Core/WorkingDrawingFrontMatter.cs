@@ -222,7 +222,7 @@ public static class WorkingDrawingFrontMatterPlacement
                     ? own
                     : new FrontMatterBlockLayout { Kind = kind, X = frame.X, Y = frame.Y, Width = frame.Width, Height = frame.Height });
             }
-            return result;
+            return InDrawingOrder(result, saved);
         }
 
         // The right column above the corner table, top-down: composition,
@@ -278,7 +278,30 @@ public static class WorkingDrawingFrontMatterPlacement
                 });
         }
 
-        return result;
+        return InDrawingOrder(result, saved);
+    }
+
+    /// <summary>
+    /// The order the blocks are drawn in, back to front: the ones the owner
+    /// placed in the order he left them - the last is in front (owner,
+    /// 2026-10-20: «мэдээллүүд нэг нэгнээ дараад хаагаад байгаа … наана
+    /// цаана нь гарч болдог болгоорой») - behind them the ones he did not.
+    /// </summary>
+    private static IReadOnlyList<FrontMatterBlockLayout> InDrawingOrder(
+        List<FrontMatterBlockLayout> blocks,
+        IReadOnlyList<FrontMatterBlockLayout>? saved)
+    {
+        var order = new Dictionary<string, int>(StringComparer.Ordinal);
+        int index = 0;
+        foreach (FrontMatterBlockLayout block in saved ?? [])
+        {
+            if (block is not null)
+                order[block.Kind] = index;
+            index++;
+        }
+        return blocks
+            .OrderBy(block => order.TryGetValue(block.Kind, out int place) ? place : -1)
+            .ToList();
     }
 
     /// <summary>

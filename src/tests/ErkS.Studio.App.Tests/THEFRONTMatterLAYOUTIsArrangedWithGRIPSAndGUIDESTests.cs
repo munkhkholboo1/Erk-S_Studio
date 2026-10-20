@@ -121,6 +121,45 @@ public sealed class THEFRONTMatterLAYOUTIsArrangedWithGRIPSAndGUIDESTests
     }
 
     [Fact]
+    public void ABlockIsBroughtInFrontOrSentBehindAndTheSourcesFramesAreCovered()
+    {
+        // Owner, 2026-10-20: «сумаар заасан зураас юуны зураас юм бэ? … наана
+        // цаана нь гарч болдог болгоорой». The line was the source's reserved
+        // frame, paper in the print; the blocks get a drawing order.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string window = File.ReadAllText(Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App", "FrontMatterLayoutEditorWindow.cs"));
+
+        Assert.Contains("SmallButton(\"Наана\")", window, StringComparison.Ordinal);
+        Assert.Contains("SmallButton(\"Цаана\")", window, StringComparison.Ordinal);
+        Assert.Contains("surface.Children.Add(paperCover);", window, StringComparison.Ordinal);
+        Assert.True(window.IndexOf("surface.Children.Add(paperCover);", StringComparison.Ordinal) <
+                    window.IndexOf("surface.Children.Add(previewImage);", StringComparison.Ordinal));
+        Assert.DoesNotContain("Where the source reserved the frames - faint", window, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheBlocksAreDrawnInTheOrderTheOwnerLeftThem()
+    {
+        var frames = new Dictionary<string, PageRectSpec>(StringComparer.Ordinal)
+        {
+            [SheetFrontMatterKinds.DrawingList] = new() { X = 25, Y = 20, Width = 102, Height = 280 },
+            [SheetFrontMatterKinds.AlbumComposition] = new() { X = 140, Y = 20, Width = 100, Height = 50 },
+        };
+        FrontMatterBlockLayout list = new() { Kind = SheetFrontMatterKinds.DrawingList, X = 25, Y = 20, Width = 200, Height = 280 };
+        FrontMatterBlockLayout composition = new() { Kind = SheetFrontMatterKinds.AlbumComposition, X = 120, Y = 200, Width = 100, Height = 50 };
+
+        IReadOnlyList<FrontMatterBlockLayout> listInFront =
+            WorkingDrawingFrontMatterPlacement.Resolve(frames, Corner, 10, [composition, list]);
+        IReadOnlyList<FrontMatterBlockLayout> compositionInFront =
+            WorkingDrawingFrontMatterPlacement.Resolve(frames, Corner, 10, [list, composition]);
+
+        Assert.Equal(SheetFrontMatterKinds.DrawingList, listInFront[^1].Kind);
+        Assert.Equal(SheetFrontMatterKinds.AlbumComposition, compositionInFront[^1].Kind);
+    }
+
+    [Fact]
     public void ABackgroundPollNeverEndsStudio()
     {
         // 2026-10-20: a 502 from GetProjectAsync escaped the 45 s timer and
