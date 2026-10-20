@@ -2150,6 +2150,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         // The source reserves the frame and decides its size; where it stands
         // is beside Studio's corner table (ConsultationTableLayout.Place).
         PageRectMm area = ConsultationTableLayout.Place(corner, reserved.Width, reserved.Height);
+        // The source's own frame is a reservation like the corner table's and
+        // is covered wherever it stood; otherwise its outline (and what the
+        // sheet drew inside it) showed beside the table that replaced it.
+        gfx.DrawRectangle(paperBrush, new XRect(Mm(reserved.X), Mm(reserved.Y), Mm(reserved.Width), Mm(reserved.Height)));
         var rect = new XRect(Mm(area.X), Mm(area.Y), Mm(area.Width), Mm(area.Height));
         gfx.DrawRectangle(paperBrush, rect);
         gfx.DrawRectangle(borderPen, rect);

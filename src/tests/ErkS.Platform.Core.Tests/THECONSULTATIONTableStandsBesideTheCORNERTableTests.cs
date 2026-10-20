@@ -45,6 +45,8 @@ public sealed class THECONSULTATIONTableStandsBesideTheCORNERTableTests
         string writer = File.ReadAllText(Path.Combine(directory!.FullName, "src", "ErkS.Platform.Pdf", "PdfSharpAlbumWriter.cs"));
 
         Assert.Contains("DrawConsultationTable(gfx, project, buildPage, regions.TitleBlockArea,", writer, StringComparison.Ordinal);
-        Assert.Contains("ConsultationTableLayout.Place(corner, reserved.Width, reserved.Height)", writer, StringComparison.Ordinal);
+        int cover = writer.IndexOf("gfx.DrawRectangle(paperBrush, new XRect(Mm(reserved.X), Mm(reserved.Y), Mm(reserved.Width), Mm(reserved.Height)));", StringComparison.Ordinal);
+        int place = writer.IndexOf("ConsultationTableLayout.Place(corner, reserved.Width, reserved.Height)", StringComparison.Ordinal);
+        Assert.True(place > 0 && cover > place, "the source's frame is covered, then the table drawn beside the corner table");
     }
 }
