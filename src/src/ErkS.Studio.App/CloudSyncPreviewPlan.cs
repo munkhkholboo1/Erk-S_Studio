@@ -225,6 +225,22 @@ internal static class CloudSyncPreviewPlanner
             uploads,
             blocked);
 
+        // The server can ask for its album to be put back in its own order
+        // with no component to send - after its order policy changed (Batnasan,
+        // 2026-10-20: the Revit 01 moved after the cover). Without this item
+        // the plan had no upload, Sync said «no changes», and the album kept
+        // the wrong order forever.
+        StudioCloudAlbum? reflowAlbum = (remote.Project?.Albums ?? [])
+            .FirstOrDefault(album => StudioCloudAlbumSelection.IsBuildingAlbumType(album.AlbumType));
+        AddCanonicalChange(
+            reflowAlbum?.CanonicalReflowRequired == true,
+            canManageCanonical,
+            "canonical-album-reflow",
+            "Альбумын дараалал",
+            "Сервер альбумын бүрдлийг өөрийн дүрмээр дахин эрэмбэлнэ",
+            uploads,
+            blocked);
+
         AddCanonicalChange(
             project.Cloud.BuildingCompositionPending,
             canEditBuildingComposition,

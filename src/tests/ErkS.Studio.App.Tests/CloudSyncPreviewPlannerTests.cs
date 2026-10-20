@@ -174,6 +174,56 @@ public sealed class CloudSyncPreviewPlannerTests
     }
 
     [Fact]
+    public void AServerAskingForAReflowIsSomethingToSend()
+    {
+        // Batnasan, 2026-10-20: the server's order policy changed and it asked
+        // for a reflow (CanonicalReflowRequired) with no component work; the
+        // plan had no upload, Sync answered «no changes» and the album stayed
+        // in the wrong order forever.
+        ProjectWorkspace project = CloudProject("ProjectAdmin");
+        var canonical = new StudioCloudProjectDetail
+        {
+            Albums =
+            [
+                new StudioCloudAlbum
+                {
+                    AlbumId = "wd-album",
+                    AlbumType = "BuildingWorkingDrawings",
+                    CanonicalRebuildPending = true,
+                    CanonicalReflowRequired = true,
+                },
+            ],
+        };
+
+        CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
+            project,
+            "admin@example.com",
+            "WORKSTATION · reflow",
+            new StudioCloudProjectRefreshResult(true, canonical));
+
+        Assert.True(plan.HasUploads);
+        Assert.Contains(plan.Uploads, item => item.Code == "canonical-album-reflow");
+    }
+
+    [Fact]
+    public void NoReflowAskedIsNothingToSend()
+    {
+        ProjectWorkspace project = CloudProject("ProjectAdmin");
+        var canonical = new StudioCloudProjectDetail
+        {
+            Albums = [new StudioCloudAlbum { AlbumId = "wd-album", AlbumType = "BuildingWorkingDrawings" }],
+        };
+
+        CloudSyncPreviewPlan plan = CloudSyncPreviewPlanner.Build(
+            project,
+            "admin@example.com",
+            "WORKSTATION · reflow",
+            new StudioCloudProjectRefreshResult(true, canonical));
+
+        Assert.DoesNotContain(plan.Uploads, item => item.Code == "canonical-album-reflow");
+    }
+
+    [Fact]
     public void RemoteCanonicalRebuildSignal_AuthorizesNewSubcoverAndTombstoneInSameSync()
     {
         ProjectWorkspace project = CloudProject("ProjectAdmin");
