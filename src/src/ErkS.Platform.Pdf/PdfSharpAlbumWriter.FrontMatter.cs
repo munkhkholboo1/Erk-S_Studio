@@ -78,8 +78,63 @@ public sealed partial class PdfSharpAlbumWriter
         }
 
         DrawSourceMoves(gfx, buildPage.Sheet!, matter.SourceMoves, paperBrush);
+        DrawFrontMatterBlocks(gfx, FrontMatterBlocks(buildPage, reserved, matter), rows, matter, warnings, number, paperBrush);
+    }
 
-        foreach (FrontMatterBlockLayout block in FrontMatterBlocks(buildPage, reserved, matter))
+    /// <summary>
+    /// The front matter alone, as it will print, on a page of the 01's size -
+    /// for the layout editor to show the real text while the blocks are
+    /// arranged (owner, 2026-10-20: «хэмжээг тохируулахад текст ямар байдалтай
+    /// болох нь мэдэгдэхгүй байх нь эрсдэлтэй»). Returns what the build would
+    /// say about it - a row that did not fit, a note cut short.
+    /// </summary>
+    public static IReadOnlyList<string> WriteFrontMatterPreview(
+        AlbumBuildRequest request,
+        AlbumBuildPage frontMatterPage,
+        WorkingDrawingFrontMatter matter,
+        IReadOnlyList<FrontMatterBlockLayout> blocks,
+        string outputPath)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(frontMatterPage);
+        var warnings = new List<string>();
+        IReadOnlyList<ConceptGeneratedPagePlan> generated =
+            BuildingArchitectureConceptGeneratedPagePlanner.Create(request.Project);
+        IReadOnlyList<WorkingDrawingFrontMatterLayout.ListRow> rows =
+            FrontMatterListRows(generated, request.Sections);
+        using var document = new PdfDocument();
+        PdfPage page = document.AddPage();
+        page.Width = XUnit.FromMillimeter(Math.Max(10, frontMatterPage.Sheet.Entry.WidthMm));
+        page.Height = XUnit.FromMillimeter(Math.Max(10, frontMatterPage.Sheet.Entry.HeightMm));
+        using (XGraphics gfx = XGraphics.FromPdfPage(page))
+        {
+            DrawFrontMatterBlocks(
+                gfx,
+                blocks,
+                rows,
+                matter ?? new WorkingDrawingFrontMatter(),
+                warnings,
+                frontMatterPage.Number,
+                new XSolidBrush(XColor.FromArgb(254, 254, 254)));
+        }
+        document.Save(outputPath);
+        return warnings;
+    }
+
+    private static void DrawFrontMatterBlocks(
+        XGraphics gfx,
+        IEnumerable<FrontMatterBlockLayout> blocks,
+        IReadOnlyList<WorkingDrawingFrontMatterLayout.ListRow> rows,
+        WorkingDrawingFrontMatter matter,
+        List<string> warnings,
+        string number,
+        XBrush paperBrush)
+    {
+        var borderPen = new XPen(XColors.Black, Mm(0.35));
+        var finePen = new XPen(XColors.Black, Mm(0.10));
+        WorkingDrawingFrontMatterLayout.LineCounter measure = (text, heightMm, widthMm) =>
+            WrapCoverText(gfx, text, CreateCoverFont(heightMm, false, WorkingDrawingFontName), Mm(widthMm)).Count;
+        foreach (FrontMatterBlockLayout block in blocks)
         {
             var rect = new XRect(Mm(block.X), Mm(block.Y), Mm(block.Width), Mm(block.Height));
             gfx.DrawRectangle(paperBrush, rect);
@@ -87,7 +142,7 @@ public sealed partial class PdfSharpAlbumWriter
             switch (block.Kind)
             {
                 case SheetFrontMatterKinds.DrawingList:
-                    DrawDrawingListColumns(gfx, block, rows, borderPen, finePen, warnings, number);
+                    DrawDrawingListColumns(gfx, block, rows, borderPen, finePen, warnings, number, measure);
                     break;
                 case SheetFrontMatterKinds.AlbumComposition:
                     if (matter.Composition.Count == 0)
@@ -99,7 +154,8 @@ public sealed partial class PdfSharpAlbumWriter
                             area.Width,
                             area.Height,
                             matter.Composition,
-                            mark => CountOfMark(rows, mark)),
+                            mark => CountOfMark(rows, mark),
+                            measure),
                         borderPen,
                         finePen,
                         warnings,
@@ -116,7 +172,7 @@ public sealed partial class PdfSharpAlbumWriter
                     PaintFrontMatterTable(
                         gfx,
                         rect,
-                        WorkingDrawingFrontMatterLayout.Indicators(area.Width, area.Height, matter.Indicators),
+                        WorkingDrawingFrontMatterLayout.Indicators(area.Width, area.Height, matter.Indicators, measure),
                         borderPen,
                         finePen,
                         warnings,
@@ -200,7 +256,8 @@ public sealed partial class PdfSharpAlbumWriter
         XPen borderPen,
         XPen finePen,
         List<string> warnings,
-        string number)
+        string number,
+        WorkingDrawingFrontMatterLayout.LineCounter? measure = null)
     {
         int columns = Math.Clamp(block.Columns, 1, FrontMatterBlockLayout.MaxColumns);
         int perColumn = (int)Math.Ceiling(rows.Count / (double)columns);
@@ -219,7 +276,8 @@ public sealed partial class PdfSharpAlbumWriter
                     columnWidth,
                     block.Height,
                     slice,
-                    column == 0 ? WorkingDrawingFrontMatterLayout.DrawingListTitle : WorkingDrawingFrontMatterLayout.DrawingListTitle + " (үргэлжлэл)"),
+                    column == 0 ? WorkingDrawingFrontMatterLayout.DrawingListTitle : WorkingDrawingFrontMatterLayout.DrawingListTitle + " (үргэлжлэл)",
+                    measure),
                 borderPen,
                 finePen,
                 warnings,

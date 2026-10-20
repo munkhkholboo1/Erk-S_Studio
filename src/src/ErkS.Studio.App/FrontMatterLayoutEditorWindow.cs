@@ -58,6 +58,18 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
     private Point? regionCurrent;
     private BitmapSource? pageBitmap;
 
+    // The front matter as it will print, drawn by the album's own writer and
+    // laid over the page - the text, the wrapped names, the rows that do not
+    // fit are seen while arranging (owner, 2026-10-20: «хэмжээг тохируулахад
+    // текст ямар байдалтай болох нь мэдэгдэхгүй байх нь эрсдэлтэй»).
+    private readonly Func<IReadOnlyList<FrontMatterBlockLayout>, Task<FrontMatterPreview>>? renderPreview;
+    private readonly Image previewImage = new() { Stretch = Stretch.Fill, IsHitTestVisible = false };
+    private readonly System.Windows.Threading.DispatcherTimer previewTimer =
+        new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private bool previewDirty = true;
+    private bool previewRendering;
+    private IReadOnlyList<string> previewWarnings = [];
+
     public IReadOnlyList<SourceRegionMove> MovesResult => moves.Select(move => move.Clone()).ToList();
 
     public IReadOnlyList<FrontMatterBlockLayout> Result =>
@@ -72,9 +84,13 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         IReadOnlyList<FrontMatterBlockLayout> current,
         IReadOnlyList<FrontMatterBlockLayout> defaults,
         IReadOnlyCollection<string> placedByOwner,
-        IReadOnlyList<SourceRegionMove>? currentMoves = null)
+        IReadOnlyList<SourceRegionMove>? currentMoves = null,
+        Func<IReadOnlyList<FrontMatterBlockLayout>, Task<FrontMatterPreview>>? renderPreview = null)
     {
         moves = (currentMoves ?? []).Select(move => move.Clone()).ToList();
+        this.renderPreview = renderPreview;
+        previewTimer.Tick += async (_, _) => await RefreshPreviewAsync();
+        Closed += (_, _) => previewTimer.Stop();
         this.imageCache = imageCache;
         this.sheet = sheet;
         this.corner = corner;
@@ -95,7 +111,11 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
         ShowInTaskbar = false;
         StudioTheme.Apply(this);
         Content = BuildContent();
-        Loaded += async (_, _) => await LoadPageAsync();
+        Loaded += async (_, _) =>
+        {
+            await LoadPageAsync();
+            previewTimer.Start();
+        };
         PreviewKeyDown += HandleKey;
         Redraw();
     }
@@ -156,6 +176,7 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
             Background = Brushes.White,
         };
         surface.Children.Add(pageImage);
+        surface.Children.Add(previewImage);
         canvas.Width = surface.Width;
         canvas.Height = surface.Height;
         surface.Children.Add(canvas);
@@ -198,8 +219,44 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
 
     // ---- drawing ----------------------------------------------------------
 
+    private async Task RefreshPreviewAsync()
+    {
+        if (renderPreview is null || previewRendering || !previewDirty)
+            return;
+        previewRendering = true;
+        previewDirty = false;
+        try
+        {
+            FrontMatterPreview preview = await renderPreview(blocks.Select(block => block.Clone()).ToList());
+            if (preview.Image is not null)
+                previewImage.Source = preview.Image;
+            previewWarnings = preview.Warnings;
+            ShowPreviewWarnings();
+        }
+        catch (Exception exception)
+        {
+            statusText.Text = "Урьдчилан харах зураг гарсангүй: " + exception.Message;
+        }
+        finally
+        {
+            previewRendering = false;
+        }
+    }
+
+    private void ShowPreviewWarnings()
+    {
+        List<string> fits = previewWarnings
+            .Where(warning => warning.Contains("багтсангүй", StringComparison.Ordinal))
+            .ToList();
+        statusText.Foreground = fits.Count > 0 ? StudioTheme.DangerBrush : StudioTheme.MutedTextBrush;
+        statusText.Text = fits.Count > 0
+            ? "⚠ " + string.Join("  ·  ", fits.Select(warning => warning.Contains(": ") ? warning[(warning.IndexOf(": ", StringComparison.Ordinal) + 2)..] : warning))
+            : "Бүх мөр багтаж байна. Блок дээр дарж идэвхжүүлнэ; цэгээр хэмжээ, дотроос нь чирж байрлал, дунд цэгээр баганын зай; «−» «+» баганын тоо.";
+    }
+
     private void Redraw()
     {
+        previewDirty = true;
         canvas.Children.Clear();
 
         // The drawing frame and the corner table: fixed, shown as references.
@@ -250,7 +307,8 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
     private void DrawBlock(FrontMatterBlockLayout block, bool selected)
     {
         var rect = new PageRectMm { X = block.X, Y = block.Y, Width = block.Width, Height = block.Height };
-        byte fill = selected ? (byte)46 : (byte)26;
+        bool live = previewImage.Source is not null;
+        byte fill = live ? (selected ? (byte)14 : (byte)0) : (selected ? (byte)46 : (byte)26);
         AddRect(
             rect,
             new SolidColorBrush(Color.FromArgb(fill, BlockColor.R, BlockColor.G, BlockColor.B)),
@@ -272,7 +330,7 @@ internal sealed class FrontMatterLayoutEditorWindow : Window
                 AddLine(gapLeft * Unit, block.Y * Unit, gapLeft * Unit, (block.Y + block.Height) * Unit,
                     Color.FromArgb(140, BlockColor.R, BlockColor.G, BlockColor.B), 1, [3, 3]);
             }
-            for (double y = block.Y + 12; y < block.Y + block.Height - 4; y += 6)
+            for (double y = block.Y + 12; !live && y < block.Y + block.Height - 4; y += 6)
             {
                 AddLine((x + 2) * Unit, y * Unit, (x + columnWidth - 2) * Unit, y * Unit,
                     Color.FromArgb(55, BlockColor.R, BlockColor.G, BlockColor.B), 1.6, null);

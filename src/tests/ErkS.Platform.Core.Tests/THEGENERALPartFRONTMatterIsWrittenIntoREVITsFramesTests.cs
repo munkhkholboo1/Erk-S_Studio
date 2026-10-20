@@ -301,6 +301,71 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
+    public void ANameTooLongForItsColumnWrapsAndItsRowGrows()
+    {
+        // Owner, 2026-10-20: «хуудасны нэр багтахгүй бол мөр нэмэгдэж байгаа
+        // зэрэг нь мэдэгддэг байх». A long name takes three lines; its row is
+        // three slots tall and the cell wraps, the short names stay one line.
+        List<WorkingDrawingFrontMatterLayout.ListRow> rows = ListRows(10).ToList();
+        rows[3] = rows[3] with { Title = "ГАЗАР ДООРХ ГАРАЖИЙН ДАВХРЫН ПЛАН, ЗОГСООЛЫН БАЙР" };
+        WorkingDrawingFrontMatterLayout.LineCounter measure = (text, _, _) => text.Length > 20 ? 3 : 1;
+
+        WorkingDrawingFrontMatterTable plain = WorkingDrawingFrontMatterLayout.DrawingList(102, 280, rows);
+        WorkingDrawingFrontMatterTable wrapped = WorkingDrawingFrontMatterLayout.DrawingList(
+            102, 280, rows, measure: measure);
+
+        WorkingTitleBlockCell longCell = wrapped.Cells.Single(cell => cell.Text == rows[3].Title);
+        WorkingTitleBlockCell shortCell = wrapped.Cells.Single(cell => cell.Text == rows[4].Title);
+        Assert.True(longCell.Wrap);
+        Assert.False(shortCell.Wrap);
+        Assert.Equal(shortCell.HeightMm * 3, longCell.HeightMm, 3);
+        Assert.False(plain.Cells.Single(cell => cell.Text == rows[3].Title).Wrap);
+        AssertInside(wrapped, 102, 280);
+    }
+
+    [Fact]
+    public void WrappedNamesLeaveFewerRowsAndTheRestIsReported()
+    {
+        // A frame that held every one-line name no longer holds them all when
+        // the names wrap - the shortfall is counted, not cut silently.
+        WorkingDrawingFrontMatterTable plain = WorkingDrawingFrontMatterLayout.DrawingList(102, 60, ListRows(14));
+        WorkingDrawingFrontMatterTable wrapped = WorkingDrawingFrontMatterLayout.DrawingList(
+            102, 60, ListRows(14), measure: (_, _, _) => 2);
+
+        Assert.Equal(0, plain.Overflow);
+        Assert.True(wrapped.Overflow > 0);
+        AssertInside(wrapped, 102, 60);
+    }
+
+    [Fact]
+    public void ThePreviewDrawsTheBlocksAloneAndSaysWhatDidNotFit()
+    {
+        // The layout editor shows the front matter as it will print; a block
+        // made too small says so while it is being sized.
+        AlbumProject project = WorkingProject(out SheetLibrary library, frontOnSheet: true);
+        project.Album.FrontMatter = WorkingDrawingFrontMatterDraft.Parse(Draft);
+        Assert.True(AlbumBuilder.TryCreateRequest(project, library, out AlbumBuildRequest request));
+        AlbumBuildPage page = request.Sections
+            .SelectMany(section => section.Pages)
+            .First(item => item.Definition.FrontMatterOnSheet);
+        string roomy = Path.Combine(workDirectory, "preview-roomy.pdf");
+        string tight = Path.Combine(workDirectory, "preview-tight.pdf");
+
+        IReadOnlyList<string> fits = PdfSharpAlbumWriter.WriteFrontMatterPreview(
+            request, page, project.Album.FrontMatter,
+            [new FrontMatterBlockLayout { Kind = SheetFrontMatterKinds.DrawingList, X = 20, Y = 10, Width = 102, Height = 250 }],
+            roomy);
+        IReadOnlyList<string> cut = PdfSharpAlbumWriter.WriteFrontMatterPreview(
+            request, page, project.Album.FrontMatter,
+            [new FrontMatterBlockLayout { Kind = SheetFrontMatterKinds.DrawingList, X = 20, Y = 10, Width = 102, Height = 12 }],
+            tight);
+
+        Assert.True(new FileInfo(roomy).Length > 0);
+        Assert.DoesNotContain(fits, warning => warning.Contains("багтсангүй", StringComparison.Ordinal));
+        Assert.Contains(cut, warning => warning.Contains("багтсангүй", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ACompositionRowWithoutACountCountsTheAlbumsOwnPages()
     {
         WorkingDrawingFrontMatterTable table = WorkingDrawingFrontMatterLayout.Composition(

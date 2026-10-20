@@ -2,6 +2,9 @@ using ErkS.Platform.Core;
 
 namespace ErkS.Studio;
 
+/// <summary>The front matter rendered for the layout editor, and what the build said.</summary>
+internal sealed record FrontMatterPreview(System.Windows.Media.Imaging.BitmapSource? Image, IReadOnlyList<string> Warnings);
+
 /// <summary>Which grip of a selected block is being dragged.</summary>
 internal enum FrontMatterGrip
 {

@@ -37,11 +37,21 @@ internal static class WorkingDrawingFrontMatterLayout
 
     public sealed record ListRow(string Number, string Title, string Mark);
 
+    /// <summary>
+    /// How many lines a text takes in a column (text, text height mm, column
+    /// width mm). With one, a name too long for its column wraps and its row
+    /// grows instead of the name shrinking out of sight (owner, 2026-10-20:
+    /// «хуудасны нэр багтахгүй бол мөр нэмэгдэж байгаа зэрэг нь мэдэгддэг
+    /// байх»). Without one, every row is one line.
+    /// </summary>
+    public delegate int LineCounter(string text, double textHeightMm, double widthMm);
+
     public static WorkingDrawingFrontMatterTable DrawingList(
         double widthMm,
         double heightMm,
         IReadOnlyList<ListRow> rows,
-        string title = DrawingListTitle)
+        string title = DrawingListTitle,
+        LineCounter? measure = null)
     {
         double titleHeight = Math.Min(HeaderMm, heightMm / 4);
         double header = Math.Min(HeaderMm, heightMm / 4);
@@ -55,14 +65,16 @@ internal static class WorkingDrawingFrontMatterLayout
             ["Хуудасны дугаар", "Хуудасны нэр", "Зургийн марк"],
             columns,
             rows.Select(row => new[] { row.Number, row.Title, row.Mark }).ToList(),
-            leftAlignedColumn: 1);
+            leftAlignedColumn: 1,
+            measure: measure);
     }
 
     public static WorkingDrawingFrontMatterTable Composition(
         double widthMm,
         double heightMm,
         IReadOnlyList<WorkingDrawingCompositionRow> rows,
-        Func<string, int?> albumCountOfMark)
+        Func<string, int?> albumCountOfMark,
+        LineCounter? measure = null)
     {
         double header = Math.Min(HeaderMm, heightMm / 3);
         double[] columns = [widthMm * 0.15, widthMm * 0.62, widthMm * 0.23];
@@ -88,14 +100,16 @@ internal static class WorkingDrawingFrontMatterLayout
             values,
             leftAlignedColumn: 1,
             headerSpanTitle: CompositionTitle,
-            headerSpanColumns: 2);
+            headerSpanColumns: 2,
+            measure: measure);
         return table;
     }
 
     public static WorkingDrawingFrontMatterTable Indicators(
         double widthMm,
         double heightMm,
-        IReadOnlyList<WorkingDrawingIndicatorRow> rows)
+        IReadOnlyList<WorkingDrawingIndicatorRow> rows,
+        LineCounter? measure = null)
     {
         double header = Math.Min(HeaderMm, heightMm / 3);
         double[] columns = [widthMm * 0.12, widthMm * 0.53, widthMm * 0.15, widthMm * 0.20];
@@ -110,7 +124,8 @@ internal static class WorkingDrawingFrontMatterLayout
             rows.Select(row => new[] { row.Number, row.Name, row.Unit, row.Value }).ToList(),
             leftAlignedColumn: 1,
             headerSpanTitle: IndicatorsTitle,
-            headerSpanColumns: 2);
+            headerSpanColumns: 2,
+            measure: measure);
     }
 
     /// <summary>Indicators somebody named but nobody measured; the build reports them.</summary>
@@ -128,7 +143,8 @@ internal static class WorkingDrawingFrontMatterLayout
         IReadOnlyList<string[]> rows,
         int leftAlignedColumn,
         string headerSpanTitle = "",
-        int headerSpanColumns = 0)
+        int headerSpanColumns = 0,
+        LineCounter? measure = null)
     {
         var cells = new List<WorkingTitleBlockCell>();
         var lines = new List<WorkingTitleBlockLine>();
@@ -137,17 +153,45 @@ internal static class WorkingDrawingFrontMatterLayout
 
         double bodyTop = titleMm + headerMm;
         double available = Math.Max(0, heightMm - bodyTop);
-        double rowHeight = rows.Count == 0
-            ? MaxRowMm
-            : Math.Min(MaxRowMm, available / rows.Count);
-        int fitting = rowHeight >= MinRowMm
-            ? rows.Count
-            : (int)Math.Floor(available / MinRowMm);
-        if (rowHeight < MinRowMm)
-            rowHeight = MinRowMm;
-        int drawn = Math.Min(rows.Count, fitting);
-        double tableBottom = bodyTop + rowHeight * drawn;
-        double textHeight = Math.Clamp(rowHeight * 0.5, 1.6, 2.5);
+
+        // A row is as many line slots as its wrapped name needs. The slot is
+        // the frame shared out over all the slots, never taller than MaxRowMm
+        // nor shorter than MinRowMm; the name is measured again at the text
+        // height that slot gives.
+        int[] lineCounts = rows.Select(_ => 1).ToArray();
+        double rowHeight = MaxRowMm;
+        double textHeight = 2.5;
+        for (int pass = 0; pass < 3; pass++)
+        {
+            int slots = Math.Max(1, lineCounts.Sum());
+            rowHeight = rows.Count == 0 ? MaxRowMm : Math.Clamp(available / slots, MinRowMm, MaxRowMm);
+            textHeight = Math.Clamp(rowHeight * 0.5, 1.6, 2.5);
+            if (measure is null || leftAlignedColumn < 0 || leftAlignedColumn >= columns.Count)
+                break;
+            for (int row = 0; row < rows.Count; row++)
+            {
+                string name = leftAlignedColumn < rows[row].Length ? (rows[row][leftAlignedColumn] ?? "").Trim() : "";
+                lineCounts[row] = name.Length == 0
+                    ? 1
+                    : Math.Max(1, measure(name, textHeight, Math.Max(1, columns[leftAlignedColumn] - 1.2)));
+            }
+        }
+
+        int drawn = 0;
+        double used = 0;
+        for (int row = 0; row < rows.Count; row++)
+        {
+            double height = rowHeight * lineCounts[row];
+            if (used + height > available + 0.01)
+                break;
+            used += height;
+            drawn++;
+        }
+        var rowTops = new double[drawn + 1];
+        rowTops[0] = bodyTop;
+        for (int row = 0; row < drawn; row++)
+            rowTops[row + 1] = rowTops[row] + rowHeight * lineCounts[row];
+        double tableBottom = rowTops[drawn];
         double headerText = Math.Clamp(headerMm * 0.32, 1.6, 2.5);
 
         // Outer frame and horizontal rules.
@@ -161,7 +205,7 @@ internal static class WorkingDrawingFrontMatterLayout
         }
         lines.Add(new(0, bodyTop, widthMm, bodyTop));
         for (int row = 1; row <= drawn; row++)
-            lines.Add(new(0, bodyTop + rowHeight * row, widthMm, bodyTop + rowHeight * row));
+            lines.Add(new(0, rowTops[row], widthMm, rowTops[row]));
 
         // Column rules: a spanning header title has none between the spanned columns.
         double x = 0;
@@ -187,7 +231,8 @@ internal static class WorkingDrawingFrontMatterLayout
 
         for (int row = 0; row < drawn; row++)
         {
-            double y = bodyTop + rowHeight * row;
+            double y = rowTops[row];
+            double height = rowTops[row + 1] - rowTops[row];
             x = 0;
             for (int column = 0; column < columns.Count; column++)
             {
@@ -196,10 +241,11 @@ internal static class WorkingDrawingFrontMatterLayout
                     x,
                     y,
                     columns[column],
-                    rowHeight,
+                    height,
                     text,
                     textHeight,
-                    Align: column == leftAlignedColumn ? WorkingTitleBlockAlign.Left : WorkingTitleBlockAlign.Center));
+                    Align: column == leftAlignedColumn ? WorkingTitleBlockAlign.Left : WorkingTitleBlockAlign.Center,
+                    Wrap: column == leftAlignedColumn && lineCounts[row] > 1));
                 x += columns[column];
             }
         }

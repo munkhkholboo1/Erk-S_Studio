@@ -34,8 +34,12 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 10: the 01's explanatory note stands above the corner table in columns,
     /// and every front-matter block takes the owner's layout.
+    ///
+    /// 11: a page name too long for its column in the drawing list (and the
+    /// composition and indicators) wraps and its row grows, instead of the
+    /// name being squeezed.
     /// </summary>
-    public const int CurrentRevision = 10;
+    public const int CurrentRevision = 11;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

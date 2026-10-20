@@ -2939,7 +2939,8 @@ internal sealed partial class ShellView
             current,
             defaults,
             matter.Layout.Select(block => block.Kind).ToList(),
-            matter.SourceMoves)
+            matter.SourceMoves,
+            arranged => RenderFrontMatterPreviewAsync(page, matter, arranged))
         {
             Owner = Window.GetWindow(Root),
         };
@@ -2949,6 +2950,40 @@ internal sealed partial class ShellView
         matter.Layout = dialog.Result.ToList();
         matter.SourceMoves = dialog.MovesResult.ToList();
         ApplyWorkingDrawingFrontMatter(matter);
+    }
+
+    /// <summary>
+    /// The front matter drawn by the album's own writer for the arrangement in
+    /// the editor, rasterised with white made clear so the page shows through.
+    /// </summary>
+    private async Task<FrontMatterPreview> RenderFrontMatterPreviewAsync(
+        AlbumBuildPage page,
+        WorkingDrawingFrontMatter matter,
+        IReadOnlyList<FrontMatterBlockLayout> arranged)
+    {
+        AlbumProject project = state.CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
+        if (!AlbumBuilder.TryCreateRequest(project, state.Library, out AlbumBuildRequest request))
+            return new FrontMatterPreview(null, []);
+        string path = Path.Combine(Path.GetTempPath(), "erks-front-matter-preview-" + Guid.NewGuid().ToString("N") + ".pdf");
+        try
+        {
+            IReadOnlyList<string> warnings = await Task.Run(() =>
+                PdfSharpAlbumWriter.WriteFrontMatterPreview(request, page, matter, arranged, path));
+            var cache = new PdfPageImageCache();
+            System.Windows.Media.Imaging.BitmapSource? bitmap =
+                await cache.GetPageAsync(path, 1, 2400, CancellationToken.None);
+            return new FrontMatterPreview(bitmap is null ? null : StudioBitmapClearWhite.Apply(bitmap), warnings);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch
+            {
+            }
+        }
     }
 
     private bool TryResolveFrontMatterPage(out AlbumBuildPage? page)

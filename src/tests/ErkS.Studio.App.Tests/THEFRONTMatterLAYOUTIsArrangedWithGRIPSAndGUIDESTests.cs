@@ -99,4 +99,47 @@ public sealed class THEFRONTMatterLAYOUTIsArrangedWithGRIPSAndGUIDESTests
         Assert.True(editor > 0 && apply > editor && save > apply);
         Assert.Contains("matter.SourceMoves = dialog.MovesResult.ToList();", workspaces, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void TheEditorShowsTheFrontMatterAsItWillPrint()
+    {
+        // Owner, 2026-10-20: «хэмжээг тохируулахад текст ямар байдалтай болох
+        // нь мэдэгдэхгүй байх нь эрсдэлтэй». The editor is given the album's own
+        // writer to draw the arranged blocks, and says what did not fit.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "src", "ErkS.Studio.App")))
+            directory = directory.Parent;
+        string app = Path.Combine(directory!.FullName, "src", "src", "ErkS.Studio.App");
+        string workspaces = File.ReadAllText(Path.Combine(app, "ShellView.Workspaces.cs"));
+        string window = File.ReadAllText(Path.Combine(app, "FrontMatterLayoutEditorWindow.cs"));
+
+        Assert.Contains("arranged => RenderFrontMatterPreviewAsync(page, matter, arranged))", workspaces, StringComparison.Ordinal);
+        Assert.Contains("PdfSharpAlbumWriter.WriteFrontMatterPreview(request, page, matter, arranged, path)", workspaces, StringComparison.Ordinal);
+        Assert.Contains("StudioBitmapClearWhite.Apply(bitmap)", workspaces, StringComparison.Ordinal);
+        Assert.Contains("surface.Children.Add(previewImage);", window, StringComparison.Ordinal);
+        Assert.Contains("ShowPreviewWarnings();", window, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ThePapersWhiteIsMadeClearAndTheInkIsKept()
+    {
+        byte[] pixels =
+        [
+            255, 255, 255, 255, // white paper
+            250, 249, 248, 255, // near-white paper
+            0, 0, 0, 255,       // ink
+            200, 30, 30, 255,   // coloured ink
+        ];
+        System.Windows.Media.Imaging.BitmapSource source = System.Windows.Media.Imaging.BitmapSource.Create(
+            4, 1, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, 16);
+
+        System.Windows.Media.Imaging.BitmapSource clear = StudioBitmapClearWhite.Apply(source);
+
+        byte[] result = new byte[16];
+        clear.CopyPixels(result, 16, 0);
+        Assert.Equal(0, result[3]);
+        Assert.Equal(0, result[7]);
+        Assert.Equal(255, result[11]);
+        Assert.Equal(255, result[15]);
+    }
 }
