@@ -342,6 +342,9 @@ internal sealed partial class ShellView
                 indicators = matter.Indicators.Count,
                 blankIndicators = matter.Indicators.Count(row => string.IsNullOrWhiteSpace(row.Value)),
                 rebuilt,
+                // What the build said about it - a row that did not fit is
+                // reported here, not only on the status line (PFR, 2026-10-20).
+                warnings = lastAlbumBuildWarnings,
             },
             statusText.Text);
     }

@@ -29,7 +29,10 @@ internal static class WorkingDrawingFrontMatterLayout
     public const string IndicatorsTitle = "Техник эдийн засгийн үзүүлэлт";
 
     public const double MaxRowMm = 7;
-    public const double MinRowMm = 3;
+    // 2.5 rather than 3: the indicators frame Revit reserves (46 mm) took 12
+    // rows at 3 mm and the 13th was dropped (PFR, Batnasan, 2026-10-20); the
+    // text still fits at its 1.6 mm floor.
+    public const double MinRowMm = 2.5;
     private const double HeaderMm = 8;
 
     public sealed record ListRow(string Number, string Title, string Mark);

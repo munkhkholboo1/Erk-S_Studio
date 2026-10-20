@@ -169,9 +169,23 @@ public static partial class WorkingDrawingFrontMatterDraft
         bool noteDone = false;
         string tablesHeading = "";
         var paragraph = new List<string>();
+        // A list item runs on over the lines that follow it until a blank line
+        // or another block - Markdown's own rule. Its continuation was read as
+        // a new paragraph and printed as a broken line (PFR, Batnasan,
+        // 2026-10-20).
+        List<string>? bullet = null;
+
+        void FlushBullet()
+        {
+            if (bullet is null)
+                return;
+            AppendLine(note, "– " + string.Join(" ", bullet));
+            bullet = null;
+        }
 
         void FlushParagraph()
         {
+            FlushBullet();
             if (paragraph.Count == 0)
                 return;
             AppendBlock(note, string.Join(" ", paragraph));
@@ -237,7 +251,12 @@ public static partial class WorkingDrawingFrontMatterDraft
             if (line.StartsWith("- ", StringComparison.Ordinal) || line.StartsWith("* ", StringComparison.Ordinal))
             {
                 FlushParagraph();
-                AppendLine(note, "– " + Clean(line[2..]));
+                bullet = [Clean(line[2..])];
+                continue;
+            }
+            if (bullet is not null)
+            {
+                bullet.Add(Clean(line));
                 continue;
             }
             paragraph.Add(Clean(line));
