@@ -39,10 +39,12 @@ internal static class StudioAlbumRendererMigration
     /// composition and indicators) wraps and its row grows, instead of the
     /// name being squeezed.
     ///
-    /// 12: the drawing list's columns are read down: the first fills to the
+    /// 12: (published with blank ruled rows to the frame's bottom, withdrawn.)
+    ///
+    /// 13: the drawing list's columns are read down: the first fills to the
     /// frame's bottom, the rest go on into the next, instead of an even split.
     /// </summary>
-    public const int CurrentRevision = 12;
+    public const int CurrentRevision = 13;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -
