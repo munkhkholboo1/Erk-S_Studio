@@ -49,8 +49,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 15: a moved part of the 01 no longer carries the outlines of the
     /// source's reserved frames along; the frames' paper bleeds 0.5 mm.
+    ///
+    /// 16: the 01's front matter is clipped to the drawing frame and kept
+    /// off the corner table, so the sheet's own lines are never covered.
     /// </summary>
-    public const int CurrentRevision = 15;
+    public const int CurrentRevision = 16;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

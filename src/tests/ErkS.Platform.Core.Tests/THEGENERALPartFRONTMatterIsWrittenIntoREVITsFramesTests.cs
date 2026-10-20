@@ -496,6 +496,20 @@ public sealed class THEGENERALPartFRONTMatterIsWrittenIntoREVITsFramesTests : ID
     }
 
     [Fact]
+    public void TheFrontMatterNeverReachesTheSheetsOwnLines()
+    {
+        // Owner, 2026-10-20: «хуудасны зурааснууд яагаад арилаад байна вэ» -
+        // a block's paper, the reserved frames' cover took the drawing frame
+        // and the corner table's top line with them.
+        string writer = File.ReadAllText(Path.Combine(SourceRoot(), "src", "ErkS.Platform.Pdf", "PdfSharpAlbumWriter.FrontMatter.cs"));
+        int clip = writer.IndexOf("gfx.IntersectClip(FrontMatterClip(WorkingDrawingPageLayout.Resolve(buildPage.Format)));", StringComparison.Ordinal);
+        int cover = writer.IndexOf("gfx.DrawRectangle(paperBrush, ReservedFrameCover(frame.Area, 0, 0));", StringComparison.Ordinal);
+        int blocks = writer.IndexOf("DrawFrontMatterBlocks(gfx, FrontMatterBlocks(buildPage, reserved, matter)", StringComparison.Ordinal);
+        Assert.True(clip > 0 && cover > clip && blocks > clip);
+        Assert.Contains("FillMode = XFillMode.Alternate", writer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheWriterDrawsTheFramesAfterThePageIsComposed()
     {
         // The frames are written on the page as composed - after the sheet and

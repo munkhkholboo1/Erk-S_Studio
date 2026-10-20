@@ -66,6 +66,11 @@ public sealed partial class PdfSharpAlbumWriter
         var paperBrush = new XSolidBrush(XColor.FromArgb(254, 254, 254));
 
         using XGraphics gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+        // Nothing of the front matter - paper, moved parts, blocks - reaches
+        // the sheet's own lines: the drawing frame, the sheet title strip and
+        // the corner table stay as the chrome drew them (owner, 2026-10-20:
+        // «хуудасны зурааснууд яагаад арилаад байна вэ»).
+        gfx.IntersectClip(FrontMatterClip(WorkingDrawingPageLayout.Resolve(buildPage.Format)));
         // The frames the source reserved are covered wherever the blocks end up:
         // they are reservations, like the corner table's.
         var reserved = new Dictionary<string, PageRectSpec>(StringComparer.Ordinal);
@@ -191,6 +196,34 @@ public sealed partial class PdfSharpAlbumWriter
     /// place is cleared, then the same vector page is drawn again shifted,
     /// clipped to the part's new place. The source PDF is not touched.
     /// </summary>
+    /// <summary>The sheet's lines are kept clear of the front matter by this much.</summary>
+    internal const double ChromeClearanceMm = 0.4;
+
+    /// <summary>
+    /// Where the front matter may draw: inside the drawing frame below the
+    /// sheet title strip, outside the corner table, each kept
+    /// <see cref="ChromeClearanceMm"/> clear of their lines.
+    /// </summary>
+    internal static XGraphicsPath FrontMatterClip(WorkingDrawingPageRegions regions)
+    {
+        PageRectMm inner = regions.EtalonInnerFrame;
+        double c = ChromeClearanceMm;
+        double left = inner.X + c;
+        double top = WorkingDrawingFrontMatterPlacement.InnerTop(regions) + c;
+        double right = inner.X + inner.Width - c;
+        double bottom = inner.Y + inner.Height - c;
+        var path = new XGraphicsPath { FillMode = XFillMode.Alternate };
+        path.AddRectangle(new XRect(Mm(left), Mm(top), Mm(Math.Max(0, right - left)), Mm(Math.Max(0, bottom - top))));
+        PageRectMm corner = regions.TitleBlockArea;
+        double cl = Math.Max(left, corner.X - c);
+        double ct = Math.Max(top, corner.Y - c);
+        double cr = Math.Min(right, corner.X + corner.Width + c);
+        double cb = Math.Min(bottom, corner.Y + corner.Height + c);
+        if (cr > cl && cb > ct)
+            path.AddRectangle(new XRect(Mm(cl), Mm(ct), Mm(cr - cl), Mm(cb - ct)));
+        return path;
+    }
+
     /// <summary>
     /// A reserved frame's paper, a little wider than the frame so the source's
     /// outline - drawn on the frame's edge - goes under it too.
