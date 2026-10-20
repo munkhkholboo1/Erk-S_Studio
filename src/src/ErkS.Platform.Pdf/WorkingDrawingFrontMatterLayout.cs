@@ -40,16 +40,17 @@ internal static class WorkingDrawingFrontMatterLayout
     public static WorkingDrawingFrontMatterTable DrawingList(
         double widthMm,
         double heightMm,
-        IReadOnlyList<ListRow> rows)
+        IReadOnlyList<ListRow> rows,
+        string title = DrawingListTitle)
     {
-        double title = Math.Min(HeaderMm, heightMm / 4);
+        double titleHeight = Math.Min(HeaderMm, heightMm / 4);
         double header = Math.Min(HeaderMm, heightMm / 4);
         double[] columns = [widthMm * 0.14, widthMm * 0.70, widthMm * 0.16];
         return Table(
             widthMm,
             heightMm,
+            titleHeight,
             title,
-            DrawingListTitle,
             header,
             ["Хуудасны дугаар", "Хуудасны нэр", "Зургийн марк"],
             columns,

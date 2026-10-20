@@ -66,25 +66,26 @@ public sealed partial class PdfSharpAlbumWriter
         var paperBrush = new XSolidBrush(XColor.FromArgb(254, 254, 254));
 
         using XGraphics gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+        // The frames the source reserved are covered wherever the blocks end up:
+        // they are reservations, like the corner table's.
+        var reserved = new Dictionary<string, PageRectSpec>(StringComparer.Ordinal);
         foreach (SheetFrontMatterArea frame in frames)
         {
-            PageRectSpec? area = frame.Area;
-            if (area is null)
+            if (frame.Area is null)
                 continue;
-            var rect = new XRect(Mm(area.X), Mm(area.Y), Mm(area.Width), Mm(area.Height));
+            reserved[frame.Kind] = frame.Area;
+            gfx.DrawRectangle(paperBrush, new XRect(Mm(frame.Area.X), Mm(frame.Area.Y), Mm(frame.Area.Width), Mm(frame.Area.Height)));
+        }
+
+        foreach (FrontMatterBlockLayout block in FrontMatterBlocks(buildPage, reserved, matter))
+        {
+            var rect = new XRect(Mm(block.X), Mm(block.Y), Mm(block.Width), Mm(block.Height));
             gfx.DrawRectangle(paperBrush, rect);
-            switch (frame.Kind)
+            var area = new PageRectSpec { X = block.X, Y = block.Y, Width = block.Width, Height = block.Height };
+            switch (block.Kind)
             {
                 case SheetFrontMatterKinds.DrawingList:
-                    PaintFrontMatterTable(
-                        gfx,
-                        rect,
-                        WorkingDrawingFrontMatterLayout.DrawingList(area.Width, area.Height, rows),
-                        borderPen,
-                        finePen,
-                        warnings,
-                        number,
-                        WorkingDrawingFrontMatterLayout.DrawingListTitle);
+                    DrawDrawingListColumns(gfx, block, rows, borderPen, finePen, warnings, number);
                     break;
                 case SheetFrontMatterKinds.AlbumComposition:
                     if (matter.Composition.Count == 0)
@@ -121,9 +122,69 @@ public sealed partial class PdfSharpAlbumWriter
                         WorkingDrawingFrontMatterLayout.IndicatorsTitle);
                     break;
                 case SheetFrontMatterKinds.ExplanatoryNote:
-                    DrawExplanatoryNote(gfx, rect, matter.ExplanatoryNote, warnings, number);
+                    DrawExplanatoryNote(gfx, rect, matter.ExplanatoryNote, warnings, number, block.Columns, block.ColumnGapMm);
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Where the 01's blocks stand: the owner's arrangement, else the default
+    /// (WorkingDrawingFrontMatterPlacement) - computed from the same corner
+    /// table the sheet chrome draws.
+    /// </summary>
+    internal static IReadOnlyList<FrontMatterBlockLayout> FrontMatterBlocks(
+        AlbumBuildPage buildPage,
+        IReadOnlyDictionary<string, PageRectSpec> reserved,
+        WorkingDrawingFrontMatter matter)
+    {
+        WorkingDrawingPageRegions regions = WorkingDrawingPageLayout.Resolve(buildPage.Format);
+        double innerTop = Math.Max(
+            regions.EtalonInnerFrame.Y,
+            regions.SheetTitleArea.Y + regions.SheetTitleArea.Height);
+        return WorkingDrawingFrontMatterPlacement.Resolve(
+            reserved,
+            regions.TitleBlockArea,
+            innerTop,
+            matter.Layout);
+    }
+
+    /// <summary>
+    /// The drawing list set in the block's columns: the rows are shared out
+    /// evenly, every column carries its own header, the title heads the first.
+    /// </summary>
+    private static void DrawDrawingListColumns(
+        XGraphics gfx,
+        FrontMatterBlockLayout block,
+        IReadOnlyList<WorkingDrawingFrontMatterLayout.ListRow> rows,
+        XPen borderPen,
+        XPen finePen,
+        List<string> warnings,
+        string number)
+    {
+        int columns = Math.Clamp(block.Columns, 1, FrontMatterBlockLayout.MaxColumns);
+        int perColumn = (int)Math.Ceiling(rows.Count / (double)columns);
+        double columnWidth = block.ColumnWidthMm;
+        for (int column = 0; column < columns; column++)
+        {
+            List<WorkingDrawingFrontMatterLayout.ListRow> slice = rows.Skip(column * perColumn).Take(perColumn).ToList();
+            if (slice.Count == 0 && column > 0)
+                break;
+            double x = block.X + column * (columnWidth + block.ColumnGapMm);
+            var rect = new XRect(Mm(x), Mm(block.Y), Mm(columnWidth), Mm(block.Height));
+            PaintFrontMatterTable(
+                gfx,
+                rect,
+                WorkingDrawingFrontMatterLayout.DrawingList(
+                    columnWidth,
+                    block.Height,
+                    slice,
+                    column == 0 ? WorkingDrawingFrontMatterLayout.DrawingListTitle : WorkingDrawingFrontMatterLayout.DrawingListTitle + " (үргэлжлэл)"),
+                borderPen,
+                finePen,
+                warnings,
+                number,
+                WorkingDrawingFrontMatterLayout.DrawingListTitle);
         }
     }
 
@@ -177,7 +238,9 @@ public sealed partial class PdfSharpAlbumWriter
         XRect rect,
         string? note,
         List<string> warnings,
-        string number)
+        string number,
+        int columns = 1,
+        double columnGapMm = 0)
     {
         string text = (note ?? "").Replace("\r\n", "\n").Trim();
         if (text.Length == 0)
@@ -191,34 +254,28 @@ public sealed partial class PdfSharpAlbumWriter
         text = PrintableNote(text);
 
         double pad = Mm(1);
-        double width = rect.Width - pad * 2;
+        int columnCount = Math.Clamp(columns, 1, FrontMatterBlockLayout.MaxColumns);
+        double gap = Mm(Math.Max(0, columnGapMm));
+        double columnWidth = Math.Max(Mm(5), (rect.Width - gap * (columnCount - 1)) / columnCount);
+        double width = columnWidth - pad * 2;
+        double columnHeight = rect.Height - pad * 2;
         foreach (double size in new[] { 2.5, 2.2, 2.0, MinNoteTextMm })
         {
             List<(string Text, bool Bold, double Gap)> lines = NoteLines(gfx, text, width, size);
             double lineHeight = Mm(CoverLineHeightMm(size));
-            double total = lines.Sum(line => lineHeight + line.Gap);
-            bool fits = total <= rect.Height - pad * 2;
+            bool fits = FlowNote(lines, lineHeight, columnHeight, columnCount, null) == lines.Count;
             if (!fits && size > MinNoteTextMm)
                 continue;
 
             XFont regular = CreateCoverFont(size, false, WorkingDrawingFontName);
             XFont bold = CreateCoverFont(size, true, WorkingDrawingFontName);
-            double y = rect.Top + pad;
-            int drawnLines = 0;
-            foreach ((string line, bool isBold, double gap) in lines)
-            {
-                y += gap;
-                if (y + lineHeight > rect.Bottom - pad + 0.01)
-                    break;
+            int drawnLines = FlowNote(lines, lineHeight, columnHeight, columnCount, (line, column, offset) =>
                 gfx.DrawString(
-                    line,
-                    isBold ? bold : regular,
+                    line.Text,
+                    line.Bold ? bold : regular,
                     XBrushes.Black,
-                    new XRect(rect.Left + pad, y, width, lineHeight),
-                    XStringFormats.CenterLeft);
-                y += lineHeight;
-                drawnLines++;
-            }
+                    new XRect(rect.Left + column * (columnWidth + gap) + pad, rect.Top + pad + offset, width, lineHeight),
+                    XStringFormats.CenterLeft));
             if (drawnLines < lines.Count)
             {
                 warnings.Add(
@@ -235,6 +292,39 @@ public sealed partial class PdfSharpAlbumWriter
     /// (PFR, Batnasan, 2026-10-20); a blank to fill is written «……» on a
     /// Mongolian sheet. The build warning still counts the ⚠ in the source.
     /// </summary>
+    /// <summary>
+    /// Pours the lines down the columns in turn; a block's gap at the head of
+    /// a column is dropped. Returns how many lines found a place.
+    /// </summary>
+    private static int FlowNote(
+        List<(string Text, bool Bold, double Gap)> lines,
+        double lineHeight,
+        double columnHeight,
+        int columns,
+        Action<(string Text, bool Bold, double Gap), int, double>? draw)
+    {
+        int column = 0;
+        double y = 0;
+        int placed = 0;
+        foreach (var line in lines)
+        {
+            double gapBefore = y > 0 ? line.Gap : 0;
+            if (y + gapBefore + lineHeight > columnHeight + 0.01)
+            {
+                column++;
+                y = 0;
+                gapBefore = 0;
+                if (column >= columns)
+                    break;
+            }
+            y += gapBefore;
+            draw?.Invoke(line, column, y);
+            y += lineHeight;
+            placed++;
+        }
+        return placed;
+    }
+
     internal static string PrintableNote(string text) =>
         (text ?? "").Replace("⚠", "……", StringComparison.Ordinal);
 

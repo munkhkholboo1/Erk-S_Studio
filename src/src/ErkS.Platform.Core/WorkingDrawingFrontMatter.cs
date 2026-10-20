@@ -27,6 +27,13 @@ public sealed class WorkingDrawingFrontMatter
 
     public List<WorkingDrawingIndicatorRow> Indicators { get; set; } = [];
 
+    /// <summary>
+    /// Where each block stands on the 01 and how it is set in columns, as the
+    /// owner arranged it in the layout editor. A block with no entry takes its
+    /// default (<see cref="WorkingDrawingFrontMatterPlacement"/>).
+    /// </summary>
+    public List<FrontMatterBlockLayout> Layout { get; set; } = [];
+
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(ExplanatoryNote) && Composition.Count == 0 && Indicators.Count == 0;
 
@@ -35,6 +42,7 @@ public sealed class WorkingDrawingFrontMatter
         ExplanatoryNote = ExplanatoryNote,
         Composition = Composition.Select(row => row.Clone()).ToList(),
         Indicators = Indicators.Select(row => row.Clone()).ToList(),
+        Layout = Layout.Select(block => block.Clone()).ToList(),
     };
 
     public void Normalize()
@@ -61,7 +69,190 @@ public sealed class WorkingDrawingFrontMatter
             })
             .Where(row => row.Number.Length > 0 || row.Name.Length > 0 || row.Value.Length > 0)
             .ToList();
+        Layout = (Layout ?? [])
+            .Where(block => block is not null && SheetFrontMatterKinds.IsKnown(block.Kind))
+            .GroupBy(block => block.Kind.Trim(), StringComparer.Ordinal)
+            .Select(group => group.Last().Normalized())
+            .ToList();
     }
+}
+
+/// <summary>
+/// One front-matter block as the owner placed it: its rectangle on the page
+/// (millimetres from the top-left) and its columns.
+/// </summary>
+public sealed class FrontMatterBlockLayout
+{
+    public const int MaxColumns = 6;
+    public const double MinSizeMm = 10;
+
+    public string Kind { get; set; } = "";
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public int Columns { get; set; } = 1;
+    public double ColumnGapMm { get; set; } = 5;
+
+    public FrontMatterBlockLayout Clone() => new()
+    {
+        Kind = Kind,
+        X = X,
+        Y = Y,
+        Width = Width,
+        Height = Height,
+        Columns = Columns,
+        ColumnGapMm = ColumnGapMm,
+    };
+
+    public FrontMatterBlockLayout Normalized() => new()
+    {
+        Kind = (Kind ?? "").Trim(),
+        X = Math.Max(0, X),
+        Y = Math.Max(0, Y),
+        Width = Math.Max(MinSizeMm, Width),
+        Height = Math.Max(MinSizeMm, Height),
+        Columns = Math.Clamp(Columns, 1, MaxColumns),
+        ColumnGapMm = Math.Clamp(ColumnGapMm, 0, 50),
+    };
+
+    /// <summary>The width of one column.</summary>
+    public double ColumnWidthMm =>
+        Math.Max(0, (Width - ColumnGapMm * (Math.Max(1, Columns) - 1)) / Math.Max(1, Columns));
+}
+
+/// <summary>
+/// Where the 01's front-matter blocks stand by default, and where they stand
+/// once the owner moved them.
+/// </summary>
+/// <remarks>
+/// 🔴 OWNER, 2026-10-20: «тайлбар бичгийг булангийн хүснэгтийн дээр
+/// байрлуул. давхцлууд ажиглагдаад байна» - the note in Revit's middle frame
+/// and the two tables beside the elevation overlapped the drawings. By default
+/// the right column above the corner table is the front matter's: the note
+/// directly on the corner table, set in two columns, with the composition and
+/// the indicators above it; the drawing list keeps Revit's frame. Every block
+/// can then be moved, resized and set in columns in the layout editor.
+/// </remarks>
+public static class WorkingDrawingFrontMatterPlacement
+{
+    public const double StackGapMm = 3;
+    public const double TopMarginMm = 5;
+    public const int DefaultNoteColumns = 2;
+
+    /// <param name="frames">The frames the source reserved (kind -> rectangle).</param>
+    /// <param name="corner">The corner table Studio draws.</param>
+    /// <param name="innerTopMm">Where the drawing area begins below the sheet header.</param>
+    public static IReadOnlyList<FrontMatterBlockLayout> Resolve(
+        IReadOnlyDictionary<string, PageRectSpec> frames,
+        PageRectMm corner,
+        double innerTopMm,
+        IReadOnlyList<FrontMatterBlockLayout>? saved)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        ArgumentNullException.ThrowIfNull(corner);
+        var byKind = (saved ?? [])
+            .Where(block => block is not null)
+            .GroupBy(block => block.Kind, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last().Normalized(), StringComparer.Ordinal);
+        var result = new List<FrontMatterBlockLayout>();
+        if (!StackFits(frames, corner, innerTopMm, byKind))
+        {
+            // A sheet with no room above its corner table keeps the source's
+            // frames, unless the owner placed the block.
+            foreach ((string kind, PageRectSpec frame) in frames)
+            {
+                result.Add(byKind.TryGetValue(kind, out FrontMatterBlockLayout? own)
+                    ? own
+                    : new FrontMatterBlockLayout { Kind = kind, X = frame.X, Y = frame.Y, Width = frame.Width, Height = frame.Height });
+            }
+            return result;
+        }
+
+        // The right column above the corner table, top-down: composition,
+        // indicators, then the note down to the corner table.
+        double top = innerTopMm + TopMarginMm;
+        double y = top;
+        foreach (string kind in new[] { SheetFrontMatterKinds.AlbumComposition, SheetFrontMatterKinds.TechnicalIndicators })
+        {
+            if (!frames.TryGetValue(kind, out PageRectSpec? frame))
+                continue;
+            if (byKind.TryGetValue(kind, out FrontMatterBlockLayout? placed))
+            {
+                result.Add(placed);
+                continue;
+            }
+            result.Add(new FrontMatterBlockLayout
+            {
+                Kind = kind,
+                X = corner.X,
+                Y = y,
+                Width = corner.Width,
+                Height = frame.Height,
+            });
+            y += frame.Height + StackGapMm;
+        }
+
+        if (frames.ContainsKey(SheetFrontMatterKinds.ExplanatoryNote))
+        {
+            result.Add(byKind.TryGetValue(SheetFrontMatterKinds.ExplanatoryNote, out FrontMatterBlockLayout? note)
+                ? note
+                : new FrontMatterBlockLayout
+                {
+                    Kind = SheetFrontMatterKinds.ExplanatoryNote,
+                    X = corner.X,
+                    Y = y,
+                    Width = corner.Width,
+                    Height = Math.Max(FrontMatterBlockLayout.MinSizeMm, corner.Y - StackGapMm - y),
+                    Columns = DefaultNoteColumns,
+                });
+        }
+
+        if (frames.TryGetValue(SheetFrontMatterKinds.DrawingList, out PageRectSpec? list))
+        {
+            result.Add(byKind.TryGetValue(SheetFrontMatterKinds.DrawingList, out FrontMatterBlockLayout? placedList)
+                ? placedList
+                : new FrontMatterBlockLayout
+                {
+                    Kind = SheetFrontMatterKinds.DrawingList,
+                    X = list.X,
+                    Y = list.Y,
+                    Width = list.Width,
+                    Height = list.Height,
+                });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Whether the column above the corner table gives the note at least
+    /// <see cref="MinNoteShare"/> of the room the source reserved for it.
+    /// </summary>
+    private static bool StackFits(
+        IReadOnlyDictionary<string, PageRectSpec> frames,
+        PageRectMm corner,
+        double innerTopMm,
+        IReadOnlyDictionary<string, FrontMatterBlockLayout> placed)
+    {
+        if (!frames.TryGetValue(SheetFrontMatterKinds.ExplanatoryNote, out PageRectSpec? note) ||
+            placed.ContainsKey(SheetFrontMatterKinds.ExplanatoryNote))
+        {
+            return true;
+        }
+        double y = innerTopMm + TopMarginMm;
+        foreach (string kind in new[] { SheetFrontMatterKinds.AlbumComposition, SheetFrontMatterKinds.TechnicalIndicators })
+        {
+            if (frames.TryGetValue(kind, out PageRectSpec? frame) && !placed.ContainsKey(kind))
+                y += frame.Height + StackGapMm;
+        }
+        double noteHeight = corner.Y - StackGapMm - y;
+        return noteHeight > 0 &&
+            corner.Width * noteHeight >= MinNoteShare * note.Width * note.Height;
+    }
+
+    /// <summary>The note's room above the corner table, as a share of its reserved frame.</summary>
+    public const double MinNoteShare = 0.6;
 }
 
 /// <summary>One line of «Ажлын зургийн иж бүрдлийн жагсаалт».</summary>
