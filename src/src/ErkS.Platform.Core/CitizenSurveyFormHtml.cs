@@ -152,6 +152,63 @@ public static class CitizenSurveyFormHtml
     /// </summary>
     private static string Script(string surveyId) => $$"""
         <script>
+        // 🔴 WHAT A CITIZEN FILLED IN SURVIVES THE PAGE (owner, 2026-10-22: «санал
+        // асуулганд хамрагдсан иргэдийн мэдээллийг алдагдуулж болохгуй»). Every change is
+        // kept on the phone with the response key; a closed tab, a reload, a dead battery
+        // or a failed send brings the answers back. Only a confirmed send (200) or
+        // «Дараагийн хүн» clears it - the same two moments the key may change.
+        var erksStoreKey = 'erks-survey:' +
+          ((location.pathname.match(/\/s\/([0-9a-f]{12})/) || [])[1] || '{{surveyId}}');
+        function erksStore() {
+          try { return window.localStorage; } catch (e) { return null; }
+        }
+        function erksFields() {
+          return Array.prototype.slice.call(
+            document.querySelectorAll('#f input, #f textarea'));
+        }
+        function erksKeep() {
+          var store = erksStore();
+          if (!store) return;
+          var fields = erksFields();
+          var state = {
+            id: window.erksResponseId || null,
+            shape: fields.length,
+            values: fields.map(function (f) {
+              return f.type === 'radio' || f.type === 'checkbox' ? f.checked : f.value;
+            })
+          };
+          try { store.setItem(erksStoreKey, JSON.stringify(state)); } catch (e) { }
+        }
+        function erksForget() {
+          var store = erksStore();
+          if (store) { try { store.removeItem(erksStoreKey); } catch (e) { } }
+        }
+        function erksNewId() {
+          // 32 lower-case hex - the only shape the server accepts.
+          var bytes = new Uint8Array(16);
+          if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+          else for (var b = 0; b < 16; b++) bytes[b] = Math.floor(Math.random() * 256);
+          return Array.prototype.map.call(bytes, function (x) {
+            return ('0' + x.toString(16)).slice(-2);
+          }).join('');
+        }
+        (function erksRestore() {
+          var store = erksStore();
+          var saved = null;
+          try { saved = store && JSON.parse(store.getItem(erksStoreKey) || 'null'); } catch (e) { }
+          var fields = erksFields();
+          if (!saved || saved.shape !== fields.length || !saved.values) return;
+          fields.forEach(function (f, i) {
+            if (f.type === 'radio' || f.type === 'checkbox') f.checked = !!saved.values[i];
+            else f.value = saved.values[i] == null ? '' : saved.values[i];
+          });
+          if (saved.id) window.erksResponseId = saved.id;
+          document.getElementById('done').textContent =
+            'Өмнө бөглөсөн хариулт тань сэргээгдлээ. Шалгаад илгээнэ үү.';
+        })();
+        document.getElementById('f').addEventListener('input', erksKeep);
+        document.getElementById('f').addEventListener('change', erksKeep);
+
         document.getElementById('save').addEventListener('click', function () {
           var answers = [];
           var unreadable = [];
@@ -195,9 +252,8 @@ public static class CitizenSurveyFormHtml
           // on a weak signal retries, and a new key per attempt would enter that person
           // two or three times with nothing downstream able to tell the copies from real
           // people. It is cleared by «\u0414\u0430\u0440\u0430\u0430\u0433\u0438\u0439\u043d \u0445\u04af\u043d» below - a declaration, never a guess.
-          window.erksResponseId = window.erksResponseId ||
-            (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random())
-              .replace(/-/g, '');
+          window.erksResponseId = window.erksResponseId || erksNewId();
+          erksKeep();
           var doc = {
             SurveyId: '{{surveyId}}',
             Cursor: '',
@@ -212,18 +268,29 @@ public static class CitizenSurveyFormHtml
           var body = JSON.stringify(doc, null, 2);
           if (location.protocol === 'http:' || location.protocol === 'https:') {
             said.textContent = 'Илгээж байна…';
+            var save = document.getElementById('save');
             fetch(location.pathname, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: body
             }).then(function (r) {
-              if (!r.ok) throw new Error(String(r.status));
-              said.textContent = 'Баярлалаа. Таны хариулт хүлээн авагдлаа.';
-              document.getElementById('save').disabled = true;
-              document.getElementById('next').hidden = false;
-            }).catch(function () {
-              said.textContent =
-                'Илгээж чадсангүй. Дахин дарна уу — давхар бүртгэгдэхгүй.';
+              if (r.ok) {
+                // 200 is the only proof: {recorded:true} from the server, or
+                // {queued:true} from the edge while the server is down - both kept.
+                erksForget();
+                said.textContent = 'Баярлалаа. Таны хариулт хүлээн авагдлаа.';
+                save.disabled = true;
+                save.textContent = 'Хариултыг хадгалах';
+                document.getElementById('next').hidden = false;
+                return;
+              }
+              return r.json().catch(function () { return null; }).then(function (j) {
+                throw new Error(j && j.message ? j.message : '');
+              });
+            }).catch(function (e) {
+              save.textContent = 'Дахин илгээх';
+              said.textContent = (e && e.message ? e.message + ' ' : 'Илгээж чадсангүй. ') +
+                'Таны хариулт энэ утсанд хадгалагдсан — «Дахин илгээх» дарна уу, давхар бүртгэгдэхгүй.';
             });
             return;
           }
@@ -248,6 +315,7 @@ public static class CitizenSurveyFormHtml
         // somebody declares the next person, which is the one moment the answer is known.
         document.getElementById('next').addEventListener('click', function () {
           window.erksResponseId = null;
+          erksForget();
           document.getElementById('f').reset();
           document.getElementById('save').disabled = false;
           document.getElementById('next').hidden = true;

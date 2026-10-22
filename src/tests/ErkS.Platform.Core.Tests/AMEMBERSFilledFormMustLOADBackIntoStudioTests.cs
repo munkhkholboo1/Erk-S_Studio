@@ -198,6 +198,36 @@ public sealed class AMEMBERSFilledFormMustLOADBackIntoStudioTests
     }
 
     [Fact]
+    public void WHATACitizenFilledInSURVIVESAClosedPageAndAFailedSend()
+    {
+        // Owner, 2026-10-22: «санал асуулганд хамрагдсан иргэдийн мэдээллийг алдагдуулж
+        // болохгуй». Every change is kept on the phone with the response key and restored
+        // on load; only a confirmed send (200) or «Дараагийн хүн» clears it; a failed
+        // send says what the server or the edge said and offers to send again.
+        string html = CitizenSurveyFormHtml.Build(Owners());
+
+        Assert.Contains("'erks-survey:' +", html, StringComparison.Ordinal);
+        Assert.Contains("addEventListener('input', erksKeep)", html, StringComparison.Ordinal);
+        Assert.Contains("(function erksRestore()", html, StringComparison.Ordinal);
+        int ok = html.IndexOf("if (r.ok) {", StringComparison.Ordinal);
+        int forget = html.IndexOf("erksForget();", ok, StringComparison.Ordinal);
+        int thanks = html.IndexOf("Баярлалаа", ok, StringComparison.Ordinal);
+        Assert.True(ok > 0 && forget > ok && thanks > forget);
+        Assert.Contains("j && j.message ? j.message", html, StringComparison.Ordinal);
+        Assert.Contains("'Дахин илгээх'", html, StringComparison.Ordinal);
+        int next = html.IndexOf("window.erksResponseId = null;", StringComparison.Ordinal);
+        Assert.True(html.IndexOf("erksForget();", next, StringComparison.Ordinal) > next);
+        // The key is 32 lower-case hex, the only shape the server takes - the old
+        // fallback (Date.now() + Math.random()) was refused, and the answer with it.
+        Assert.DoesNotContain("Math.random()).replace", html, StringComparison.Ordinal);
+        Assert.Contains("function erksNewId()", html, StringComparison.Ordinal);
+
+        string? probe = Environment.GetEnvironmentVariable("ERKS_SURVEY_FORM_PROBE");
+        if (!string.IsNullOrWhiteSpace(probe))
+            File.WriteAllText(probe, html);
+    }
+
+    [Fact]
     public void ANEWRespondentIsDECLAREDRatherThanGuessedAt()
     {
         // ONE PHONE, TWO PEOPLE. A key that never clears makes the second person a
