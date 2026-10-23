@@ -68,3 +68,6 @@ Explorer-ийн баруун товчны «Erk-S Sync» цэс (HKCU `Software\
 `\.\pipe\ErkS.Sync.<SID>`. Түлхүүрүүдийг `ErkS.Sync.exe --register` / `--unregister` л бичиж арилгана.
 «Фолдер болгох», «холбох» нь хүний шийдвэр тул Studio (Cloud ERA эрх)-оор явна; tray нь төхөөрөмжийн
 токеноор индекс, LAN солилцоо хийнэ. Төлөв: `%LOCALAPPDATA%\Erk-S Sync\state.json` (`sync-status`).
+Twin-д: `sync-status`-тэй ЯГ ижил JSON-ыг (`SyncStatusReport`, зөвхөн тоо) tray pass бүрд (≤60 с)
+`%LOCALAPPDATA%\Erk-S Platform\Sync\status.json`-д атомаар бичнэ (tmp → replace; гарахдаа `running:false`),
+Studio хаалттай ч уншигдана. `ERKS_SYNC_HOME`-тэй хоёр дахь instance энэ файлыг дарахгүй.
