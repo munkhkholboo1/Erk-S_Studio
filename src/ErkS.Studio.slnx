@@ -7,10 +7,12 @@
     <Project Path="src/ErkS.Studio.App/ErkS.Studio.App.csproj" />
     <Project Path="src/ErkS.Studio.Contracts/ErkS.Studio.Contracts.csproj" />
     <Project Path="src/ErkS.Studio/ErkS.Studio.csproj" />
+    <Project Path="src/ErkS.Sync.Core/ErkS.Sync.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj" />
     <Project Path="tests/ErkS.Studio.App.Tests/ErkS.Studio.App.Tests.csproj" />
+    <Project Path="tests/ErkS.Sync.Core.Tests/ErkS.Sync.Core.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/ErkS.PackageAcceptance/ErkS.PackageAcceptance.csproj" />

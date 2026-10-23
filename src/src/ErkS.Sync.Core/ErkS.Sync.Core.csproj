@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Erk-S Sync (SYN): the ONE implementation of a sync folder's rules - canonical path,
+    exclusions, file kinds, folder marker, index and index comparison. Studio's page,
+    the Explorer verbs, the tray process and the bridge all call this; none of them keeps
+    a copy of a rule (owner, 2026-10-19: one function, many callers).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ErkS.Sync.Core.Tests" />
+  </ItemGroup>
+
+</Project>
