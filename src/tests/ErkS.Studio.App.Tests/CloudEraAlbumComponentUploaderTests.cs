@@ -265,6 +265,103 @@ public sealed class CloudEraAlbumComponentUploaderTests
         Assert.Contains("32", error.Message, StringComparison.Ordinal);
     }
 
+    // 🔴 BN, 2026-10-23: a 3-6 MB component inside one multipart PUT died twice in the
+    // tunnel (400 request_body_incomplete). The file now goes up in pieces first; the merge
+    // carries only its upload id, and a piece the server already holds is not sent again.
+    [Fact]
+    public async Task MergeAsync_SendsTheFileInPiecesAndTheMergeCarriesOnlyItsUploadId()
+    {
+        string path = await WritePdfAsync("a component long enough for three pieces");
+        try
+        {
+            PiecewiseServerHandler handler = new(chunkSize: 16, alreadyReceived: [1]);
+            using HttpClient client = new(handler);
+
+            StudioCloudAlbumRevision revision = await CloudEraAlbumComponentUploader.MergeAsync(
+                client,
+                "https://erk-s.mn",
+                "access-token",
+                "project1",
+                "album1",
+                "revision1",
+                "token1",
+                [new StudioAlbumComponentUpload("sheets", "Sheets", 10, path, SourceKey: "source1", ComponentKind: "source")],
+                CancellationToken.None);
+
+            Assert.Equal("revision2", revision.RevisionId);
+            byte[] bytes = await File.ReadAllBytesAsync(path);
+            Assert.Equal(bytes.Length, handler.Start!.SizeBytes);
+            Assert.Equal(
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant(),
+                handler.Start.Sha256);
+            Assert.Equal("token1", handler.Start.ProjectConcurrencyToken);
+            Assert.Equal(0, handler.Start.ChunkSizeBytes);
+            int total = (bytes.Length + 15) / 16;
+            Assert.Equal(Enumerable.Range(0, total).Where(index => index != 1), handler.Chunks.Keys.Order());
+            foreach ((int index, byte[] chunk) in handler.Chunks)
+                Assert.Equal(bytes.Skip(index * 16).Take(16), chunk);
+            Assert.Equal("upload-1", handler.MergeFields["component0UploadId"]);
+            Assert.Equal("revision1", handler.MergeFields["expectedRevisionId"]);
+            Assert.False(handler.MergeHadFilePart);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private sealed class PiecewiseServerHandler(int chunkSize, int[] alreadyReceived) : HttpMessageHandler
+    {
+        private const string Uploads = "/api/cloud-era/v1/projects/project1/albums/album1/components/uploads";
+        private readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
+
+        public StudioCloudAlbumComponentUploadStartRequest? Start { get; private set; }
+
+        public SortedDictionary<int, byte[]> Chunks { get; } = [];
+
+        public Dictionary<string, string> MergeFields { get; } = [];
+
+        public bool MergeHadFilePart { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Post && path == Uploads)
+            {
+                Start = await request.Content!.ReadFromJsonAsync<StudioCloudAlbumComponentUploadStartRequest>(json, cancellationToken);
+                return Json(new StudioCloudAlbumUploadSession
+                {
+                    UploadId = "upload-1",
+                    ChunkSizeBytes = chunkSize,
+                    TotalChunks = (int)((Start!.SizeBytes + chunkSize - 1) / chunkSize),
+                    ReceivedChunks = alreadyReceived,
+                });
+            }
+            if (request.Method == HttpMethod.Put && path.StartsWith(Uploads + "/upload-1/chunks/", StringComparison.Ordinal))
+            {
+                byte[] chunk = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
+                Assert.Equal(
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(chunk)).ToLowerInvariant(),
+                    Assert.Single(request.Headers.GetValues("X-Chunk-SHA256")));
+                Chunks[int.Parse(path[(path.LastIndexOf('/') + 1)..], System.Globalization.CultureInfo.InvariantCulture)] = chunk;
+                return Json(new StudioCloudAlbumUploadSession { UploadId = "upload-1" });
+            }
+            Assert.Equal(HttpMethod.Put, request.Method);
+            Assert.Equal("/api/cloud-era/v1/projects/project1/albums/album1/components", path);
+            foreach (HttpContent part in Assert.IsType<MultipartFormDataContent>(request.Content))
+            {
+                if (part.Headers.ContentDisposition?.FileName is not null)
+                    MergeHadFilePart = true;
+                else
+                    MergeFields[part.Headers.ContentDisposition?.Name?.Trim('"') ?? ""] = await part.ReadAsStringAsync(cancellationToken);
+            }
+            return Json(new StudioCloudAlbumRevision { RevisionId = "revision2", RevisionNumber = 2, Status = "Draft" });
+        }
+
+        private HttpResponseMessage Json<T>(T value) =>
+            new(HttpStatusCode.OK) { Content = JsonContent.Create(value, options: json) };
+    }
+
     private static async Task<string> WritePdfAsync(string marker)
     {
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".pdf");
@@ -284,6 +381,9 @@ public sealed class CloudEraAlbumComponentUploaderTests
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            // A server from before the piecewise route: the file rides the multipart.
+            if (request.Method == HttpMethod.Post)
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
             Assert.Equal(HttpMethod.Put, request.Method);
             Assert.Equal(
                 "/api/cloud-era/v1/projects/project1/albums/album1/components",
@@ -355,8 +455,9 @@ public sealed class CloudEraAlbumComponentUploaderTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(
-                new HttpResponseMessage(HttpStatusCode.RequestEntityTooLarge)
+            Task.FromResult(request.Method == HttpMethod.Post
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : new HttpResponseMessage(HttpStatusCode.RequestEntityTooLarge)
                 {
                     Content = JsonContent.Create(
                         new StudioCloudApiError

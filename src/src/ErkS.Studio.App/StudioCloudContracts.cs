@@ -1028,6 +1028,17 @@ internal sealed record StudioAlbumComponentUpload(
     string SequenceKey = "",
     IReadOnlyList<StudioCloudAlbumComponentPage>? Pages = null);
 
+/// <summary>SRV album-component-upload step 1: a component PDF announced before its pieces.</summary>
+internal sealed class StudioCloudAlbumComponentUploadStartRequest
+{
+    public string FileName { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string Sha256 { get; set; } = "";
+    public int PageCount { get; set; }
+    public int ChunkSizeBytes { get; set; }
+    public string ProjectConcurrencyToken { get; set; } = "";
+}
+
 internal sealed class StudioCloudAlbumUploadStartRequest
 {
     public string FileName { get; set; } = "";

@@ -41,6 +41,24 @@ internal static class CloudEraAlbumComponentUploader
         if (string.IsNullOrWhiteSpace(revisionId) || string.IsNullOrWhiteSpace(concurrencyToken))
             throw new StudioAccountException("Canonical album revision/version is missing. Refresh and try again.");
 
+        // Each file goes up first in resumable pieces (SRV album-component-upload, 2026-10-23:
+        // BN's 3-6 MB multipart body died twice in the tunnel). An older server without the
+        // route answers 404 and the file travels inside the multipart as before.
+        string componentsPath = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
+            "/albums/" + Uri.EscapeDataString(albumId) + "/components";
+        Dictionary<int, string> uploadIds = [];
+        for (int index = 0; index < uploads.Count; index++)
+        {
+            if (uploads[index].Remove)
+                continue;
+            string? uploadId = await TryUploadInPiecesAsync(
+                httpClient, serverUrl, accessToken, componentsPath + "/uploads", uploads[index], concurrencyToken, cancellationToken)
+                .ConfigureAwait(true);
+            if (uploadId is null)
+                break;
+            uploadIds[index] = uploadId;
+        }
+
         using var content = new MultipartFormDataContent();
         content.Add(new StringContent(revisionId), "expectedRevisionId");
         content.Add(new StringContent(concurrencyToken), "projectConcurrencyToken");
@@ -74,7 +92,11 @@ internal static class CloudEraAlbumComponentUploader
                     .ToList(),
             });
 
-            if (!component.Remove)
+            if (uploadIds.TryGetValue(index, out string? uploadId))
+            {
+                content.Add(new StringContent(uploadId), fieldName + "UploadId");
+            }
+            else if (!component.Remove)
             {
                 var stream = new FileStream(
                     component.PdfPath,
@@ -91,9 +113,7 @@ internal static class CloudEraAlbumComponentUploader
             new StringContent(JsonSerializer.Serialize(descriptors, JsonOptions)),
             "components");
 
-        string path = "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) +
-            "/albums/" + Uri.EscapeDataString(albumId) + "/components";
-        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(serverUrl, path))
+        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(serverUrl, componentsPath))
         {
             Content = content,
         };
@@ -107,6 +127,74 @@ internal static class CloudEraAlbumComponentUploader
             response,
             uploads,
             cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// The component's PDF stored on the server piece by piece; its upload id, or null when
+    /// the server has no such route (an older server) and the file must ride the multipart.
+    /// </summary>
+    private static async Task<string?> TryUploadInPiecesAsync(
+        HttpClient httpClient,
+        string serverUrl,
+        string accessToken,
+        string uploadsPath,
+        StudioAlbumComponentUpload component,
+        string projectConcurrencyToken,
+        CancellationToken cancellationToken)
+    {
+        FileInfo file = new(component.PdfPath);
+        StudioCloudAlbumUploadSession session;
+        try
+        {
+            session = await CloudEraChunkedAlbumUploader.SendJsonAsync<StudioCloudAlbumComponentUploadStartRequest, StudioCloudAlbumUploadSession>(
+                httpClient,
+                HttpMethod.Post,
+                CloudEraChunkedAlbumUploader.BuildUri(serverUrl, uploadsPath),
+                accessToken,
+                new StudioCloudAlbumComponentUploadStartRequest
+                {
+                    FileName = file.Name,
+                    SizeBytes = file.Length,
+                    Sha256 = await CloudEraChunkedAlbumUploader.Sha256Async(file.FullName, cancellationToken).ConfigureAwait(true),
+                    PageCount = Math.Max(1, PageCount(component)),
+                    ChunkSizeBytes = 0,
+                    ProjectConcurrencyToken = projectConcurrencyToken,
+                },
+                cancellationToken).ConfigureAwait(true);
+        }
+        catch (StudioAccountException exception) when (
+            exception.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed &&
+            string.IsNullOrWhiteSpace(exception.ErrorCode))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(session.UploadId) ||
+            session.ChunkSizeBytes is < 1 or > CloudEraChunkedAlbumUploader.MaximumAcceptedChunkBytes ||
+            session.TotalChunks < 1)
+        {
+            throw new StudioAccountException("Cloud ERA server альбумын бүрдлийн upload session-ийн мэдээлэл буруу байна.");
+        }
+        await CloudEraChunkedAlbumUploader.SendMissingChunksAsync(
+            httpClient, serverUrl, accessToken, uploadsPath, session, file.FullName, cancellationToken).ConfigureAwait(true);
+        return session.UploadId;
+    }
+
+    private static int PageCount(StudioAlbumComponentUpload component)
+    {
+        if (component.Pages is { Count: > 0 } pages)
+            return pages.Count;
+        try
+        {
+            using var document = PdfSharp.Pdf.IO.PdfReader.Open(component.PdfPath, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            return document.PageCount;
+        }
+        catch (Exception)
+        {
+            // PdfSharp throws plain Exception on a file it cannot parse. The count only has to
+            // be at least one: the server counts the pages of the reassembled file itself.
+            return 1;
+        }
     }
 
     private static async Task<StudioCloudAlbumRevision> ReadResponseAsync(

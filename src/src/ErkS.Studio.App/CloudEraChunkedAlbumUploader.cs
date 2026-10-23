@@ -79,33 +79,8 @@ internal static class CloudEraChunkedAlbumUploader
             throw new StudioAccountException("Cloud ERA server album upload session-ийн мэдээлэл буруу байна.");
         }
 
-        HashSet<int> received = (session.ReceivedChunks ?? [])
-            .Where(index => index >= 0 && index < session.TotalChunks)
-            .ToHashSet();
-        await using FileStream source = new(pdfPath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, useAsync: true);
-        for (int index = 0; index < session.TotalChunks; index++)
-        {
-            if (received.Contains(index))
-                continue;
-
-            long offset = (long)index * session.ChunkSizeBytes;
-            int length = checked((int)Math.Min(session.ChunkSizeBytes, file.Length - offset));
-            if (length < 1)
-                throw new StudioAccountException("Cloud ERA server album chunk-ийн тоо файлын хэмжээтэй тохирохгүй байна.");
-            byte[] chunk = new byte[length];
-            source.Position = offset;
-            await source.ReadExactlyAsync(chunk.AsMemory(), cancellationToken);
-            string chunkSha256 = Convert.ToHexString(SHA256.HashData(chunk)).ToLowerInvariant();
-            string chunkPath = basePath + "/" + Uri.EscapeDataString(session.UploadId) +
-                "/chunks/" + index.ToString(CultureInfo.InvariantCulture);
-            await SendChunkWithRetryAsync(
-                httpClient,
-                BuildUri(serverUrl, chunkPath),
-                accessToken,
-                chunk,
-                chunkSha256,
-                cancellationToken).ConfigureAwait(true);
-        }
+        await SendMissingChunksAsync(httpClient, serverUrl, accessToken, basePath, session, pdfPath, cancellationToken)
+            .ConfigureAwait(true);
 
         string completePath = basePath + "/" + Uri.EscapeDataString(session.UploadId) + "/complete";
         using HttpRequestMessage completeRequest = AuthorizedRequest(
@@ -124,6 +99,55 @@ internal static class CloudEraChunkedAlbumUploader
                 .Equals(sha256, StringComparison.OrdinalIgnoreCase))
             throw new StudioAccountException("Cloud ERA server хүлээн авсан альбумын SHA-256 локал PDF-тэй тохирохгүй байна.");
         return revision;
+    }
+
+    /// <summary>
+    /// The pieces of <paramref name="pdfPath"/> the session does not hold yet, each with its
+    /// own hash and retried on its own - shared by album revisions and album components.
+    /// </summary>
+    internal static async Task SendMissingChunksAsync(
+        HttpClient httpClient,
+        string serverUrl,
+        string accessToken,
+        string uploadsBasePath,
+        StudioCloudAlbumUploadSession session,
+        string pdfPath,
+        CancellationToken cancellationToken)
+    {
+        long fileLength = new FileInfo(pdfPath).Length;
+        HashSet<int> received = (session.ReceivedChunks ?? [])
+            .Where(index => index >= 0 && index < session.TotalChunks)
+            .ToHashSet();
+        await using FileStream source = new(pdfPath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, useAsync: true);
+        for (int index = 0; index < session.TotalChunks; index++)
+        {
+            if (received.Contains(index))
+                continue;
+
+            long offset = (long)index * session.ChunkSizeBytes;
+            int length = checked((int)Math.Min(session.ChunkSizeBytes, fileLength - offset));
+            if (length < 1)
+                throw new StudioAccountException("Cloud ERA server album chunk-ийн тоо файлын хэмжээтэй тохирохгүй байна.");
+            byte[] chunk = new byte[length];
+            source.Position = offset;
+            await source.ReadExactlyAsync(chunk.AsMemory(), cancellationToken);
+            string chunkSha256 = Convert.ToHexString(SHA256.HashData(chunk)).ToLowerInvariant();
+            string chunkPath = uploadsBasePath + "/" + Uri.EscapeDataString(session.UploadId) +
+                "/chunks/" + index.ToString(CultureInfo.InvariantCulture);
+            await SendChunkWithRetryAsync(
+                httpClient,
+                BuildUri(serverUrl, chunkPath),
+                accessToken,
+                chunk,
+                chunkSha256,
+                cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    internal static async Task<string> Sha256Async(string path, CancellationToken cancellationToken)
+    {
+        await using FileStream source = File.OpenRead(path);
+        return Convert.ToHexString(await SHA256.HashDataAsync(source, cancellationToken)).ToLowerInvariant();
     }
 
     private static async Task SendChunkWithRetryAsync(
@@ -169,7 +193,7 @@ internal static class CloudEraChunkedAlbumUploader
         statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests ||
         (int)statusCode >= 500;
 
-    private static async Task<TResponse> SendJsonAsync<TRequest, TResponse>(
+    internal static async Task<TResponse> SendJsonAsync<TRequest, TResponse>(
         HttpClient httpClient,
         HttpMethod method,
         Uri uri,
@@ -225,7 +249,7 @@ internal static class CloudEraChunkedAlbumUploader
         return value ?? throw new StudioAccountException("Cloud ERA server хоосон хариу өглөө.");
     }
 
-    private static Uri BuildUri(string serverUrl, string path)
+    internal static Uri BuildUri(string serverUrl, string path)
     {
         Uri root = new(serverUrl.TrimEnd('/') + "/", UriKind.Absolute);
         return new Uri(root, path.TrimStart('/'));
