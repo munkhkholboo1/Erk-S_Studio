@@ -100,6 +100,37 @@ public static class ProjectCloudSyncMetadata
         MarkPending(project);
     }
 
+    /// <summary>A recorded package whose album count predates the count itself.</summary>
+    public static bool NeedsAlbumSheetCount(ProjectDesignSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Dictionary<string, string> metadata = source.Metadata ?? new(StringComparer.OrdinalIgnoreCase);
+        return Value(metadata, ManifestIdKey).Length > 0 && Value(metadata, AlbumSheetCountKey).Length == 0;
+    }
+
+    /// <summary>
+    /// Fills the album count of a record written before it existed, from the
+    /// SAME package the record describes. Any other package proves nothing
+    /// about this record and changes nothing.
+    /// </summary>
+    public static bool BackfillAlbumSheetCount(ProjectDesignSource source, SheetPackageManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (!NeedsAlbumSheetCount(source) ||
+            !manifest.PackageId.ToString("N").Equals(
+                Value(source.Metadata, ManifestIdKey),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        source.Metadata[AlbumSheetCountKey] = manifest.Sheets
+            .Count(entry => !SheetDestinations.IsPortfolio(entry.Destination))
+            .ToString(CultureInfo.InvariantCulture);
+        return true;
+    }
+
     public static string CloudSourceKey(ProjectDesignSource source)
     {
         ArgumentNullException.ThrowIfNull(source);

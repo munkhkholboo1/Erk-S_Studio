@@ -746,7 +746,23 @@ public sealed class AppState : IDisposable
                 source =>
                     StudioLocalSourceBindingPolicy
                         .HasVerifiedLegacyUpgradePayload(Project, source));
-        if (persistChanges && report.ChangedCount > 0)
+        // Records written before the album count existed: read it from the very
+        // package each one describes (MAD-2026-ЕТ-05, 2026-10-23).
+        int albumCountsFilled = 0;
+        foreach (ProjectDesignSource source in Project.Sources)
+        {
+            if (!ProjectCloudSyncMetadata.NeedsAlbumSheetCount(source))
+                continue;
+            SheetPackageManifest? recorded = SourceInboxScanner.FindHeader(
+                source.InboxFolder,
+                ProjectCloudSyncMetadata.RecordedSourceManifestId(source));
+            if (recorded is not null &&
+                ProjectCloudSyncMetadata.BackfillAlbumSheetCount(source, recorded))
+            {
+                albumCountsFilled++;
+            }
+        }
+        if (persistChanges && (report.ChangedCount > 0 || albumCountsFilled > 0))
             SaveProject();
         return report;
     }

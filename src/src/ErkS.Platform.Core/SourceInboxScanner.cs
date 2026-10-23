@@ -75,6 +75,37 @@ public static class SourceInboxScanner
             : new PendingSourcePackageSurvey(count, newest);
     }
 
+    /// <summary>
+    /// The header of the delivery with this package id, or null. Headers only:
+    /// it answers what the package SAYS, never whether its payload is good.
+    /// </summary>
+    public static SheetPackageManifest? FindHeader(string? inboxFolder, string? packageId)
+    {
+        string wanted = (packageId ?? "").Trim();
+        if (wanted.Length == 0 || string.IsNullOrWhiteSpace(inboxFolder) || !Directory.Exists(inboxFolder))
+            return null;
+        try
+        {
+            foreach (string path in Directory.EnumerateFiles(
+                inboxFolder,
+                "*" + SheetPackageManifest.ManifestSuffix,
+                SearchOption.AllDirectories))
+            {
+                SheetPackageManifest? manifest = TryReadHeader(path);
+                if (manifest is not null &&
+                    manifest.PackageId.ToString("N").Equals(wanted, StringComparison.OrdinalIgnoreCase))
+                {
+                    return manifest;
+                }
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+        }
+        return null;
+    }
+
     private static SheetPackageManifest? TryReadHeader(string path)
     {
         try

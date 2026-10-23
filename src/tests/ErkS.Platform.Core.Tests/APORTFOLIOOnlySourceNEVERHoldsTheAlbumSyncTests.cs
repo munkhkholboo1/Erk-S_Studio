@@ -62,6 +62,46 @@ public sealed class APORTFOLIOOnlySourceNEVERHoldsTheAlbumSyncTests
         Assert.True(Assert.Single(ProjectCloudSyncMetadata.PendingSourcePackages(project)).ContributesAlbumSheets);
     }
 
+    [Fact]
+    public void AnOLDRecordIsFilledFromTheSAMEPackageItDescribes()
+    {
+        (ProjectWorkspace project, ProjectDesignSource source) = Project();
+        SheetPackageManifest delivered = Manifest(source, SheetDestinations.Portfolio, SheetDestinations.Portfolio);
+        ProjectCloudSyncMetadata.RecordPackage(project, source, delivered, "hash-old");
+        source.Metadata.Remove("cloud.albumSheetCount");
+
+        Assert.True(ProjectCloudSyncMetadata.NeedsAlbumSheetCount(source));
+        Assert.False(ProjectCloudSyncMetadata.BackfillAlbumSheetCount(
+            source,
+            Manifest(source, SheetDestinations.Portfolio)));
+        Assert.True(ProjectCloudSyncMetadata.BackfillAlbumSheetCount(source, delivered));
+
+        Assert.False(ProjectCloudSyncMetadata.NeedsAlbumSheetCount(source));
+        Assert.False(Assert.Single(ProjectCloudSyncMetadata.PendingSourcePackages(project)).ContributesAlbumSheets);
+    }
+
+    [Fact]
+    public void TheInboxFindsTheRecordedDeliveryByItsPackageId()
+    {
+        string inbox = Path.Combine(Path.GetTempPath(), "erks-inbox-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(inbox, "deliveries"));
+        try
+        {
+            (_, ProjectDesignSource source) = Project();
+            SheetPackageManifest delivered = Manifest(source, SheetDestinations.Portfolio);
+            File.WriteAllText(
+                Path.Combine(inbox, "deliveries", "diagrams" + SheetPackageManifest.ManifestSuffix),
+                System.Text.Json.JsonSerializer.Serialize(delivered, SheetPackageJson.Options));
+
+            Assert.Equal(delivered.PackageId, SourceInboxScanner.FindHeader(inbox, delivered.PackageId.ToString("N"))?.PackageId);
+            Assert.Null(SourceInboxScanner.FindHeader(inbox, Guid.NewGuid().ToString("N")));
+        }
+        finally
+        {
+            Directory.Delete(inbox, recursive: true);
+        }
+    }
+
     private static (ProjectWorkspace Project, ProjectDesignSource Source) Project()
     {
         var source = new ProjectDesignSource { Id = "source-1", Name = "Erk-S CAD диаграм" };
