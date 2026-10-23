@@ -44,7 +44,6 @@ internal static class SyncShellRegistration
             menu.SetValue("MUIVerb", "Erk-S Sync", RegistryValueKind.String);
             menu.SetValue("Icon", quoted + ",0", RegistryValueKind.String);
             menu.SetValue("SubCommands", "", RegistryValueKind.String);
-            bool background = root.Contains(@"\Background\", StringComparison.OrdinalIgnoreCase);
             foreach ((string key, string text, string verb) in Commands)
             {
                 using RegistryKey command = menu.CreateSubKey(@"shell\" + key);
@@ -52,7 +51,6 @@ internal static class SyncShellRegistration
                 using RegistryKey line = command.CreateSubKey("command");
                 // %V is the folder clicked on, or the folder whose background was clicked.
                 line.SetValue("", $"{quoted} {verb} \"%V\"", RegistryValueKind.String);
-                _ = background;
             }
         }
     }
