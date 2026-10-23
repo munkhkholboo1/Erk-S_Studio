@@ -300,8 +300,8 @@ internal sealed partial class ShellView
                     path = state.ProjectPath,
                     albumTemplate = state.Album.TemplateId,
                     albumPages = state.Album.Pages.Count,
-                    albumPdf = lastAlbumPath,
-                    albumPdfPages = BridgePdfPageCount(lastAlbumPath),
+                    albumPdf = lastAlbumPath ?? ResolveCurrentProjectAlbumPath(),
+                    albumPdfPages = BridgePdfPageCount(lastAlbumPath ?? ResolveCurrentProjectAlbumPath()),
                     cloud = new
                     {
                         status = state.Project.Cloud.SyncStatus,
