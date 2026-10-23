@@ -301,6 +301,7 @@ internal sealed partial class ShellView
                     albumTemplate = state.Album.TemplateId,
                     albumPages = state.Album.Pages.Count,
                     albumPdf = lastAlbumPath,
+                    albumPdfPages = BridgePdfPageCount(lastAlbumPath),
                     cloud = new
                     {
                         status = state.Project.Cloud.SyncStatus,
@@ -441,5 +442,35 @@ internal sealed partial class ShellView
                 warnings = lastAlbumBuildWarnings,
             },
             statusText.Text);
+    }
+
+    private static (string Key, int Pages) bridgePdfPages = ("", -1);
+
+    /// <summary>
+    /// The album PDF's own page count. <c>albumPages</c> counts album entries, and one entry
+    /// (a two-page drawing list) can print as several pages - BN 2026-10-23: 60 entries, 61
+    /// pages, and the Twin compares pages. Cached by path, size and time: status is polled.
+    /// </summary>
+    private static int BridgePdfPageCount(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return -1;
+        FileInfo file = new(path);
+        string key = $"{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}";
+        if (bridgePdfPages.Key == key)
+            return bridgePdfPages.Pages;
+        int pages;
+        try
+        {
+            using var document = PdfSharp.Pdf.IO.PdfReader.Open(file.FullName, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            pages = document.PageCount;
+        }
+        catch (Exception)
+        {
+            // PdfSharp throws plain Exception on a file it cannot parse; -1 says «unknown».
+            pages = -1;
+        }
+        bridgePdfPages = (key, pages);
+        return pages;
     }
 }
