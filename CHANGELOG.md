@@ -5,6 +5,17 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.67] - 2026-10-23 (test release for the second machine)
+
+- Erk-S Sync (SYN) is installed beside Studio. It runs in the tray from Windows sign-in, with Studio open or closed. In Explorer, right-click a project folder (Windows 11: «Show more options») - «Erk-S Sync фолдер болгох» on the owner's machine, «Erk-S Sync фолдерт холбох» on a colleague's. One sync folder per Studio project, on exactly the same path on every machine; a folder Resilio still manages, a drive root or a folder inside another sync folder is refused with the reason. The uninstaller removes the start-up entry and the menu.
+- Files move between the folder's machines on the local network, over TLS where both ends prove a device key the server lists for that folder. A newer version replaces a file only when it was made from this machine's version; when both machines changed the same version, both are kept - the other one beside it as «Name (Erk-S зөрчил …)» - and nothing is ever silently overwritten. Copies that never shared a version are shown as «зөрүүтэй» for a person to decide. Only the changed 4 MB pieces travel, a file is switched in whole after its hash is checked, a file open in AutoCAD or Revit waits, and Revit central models do not travel (they will go through their host). File names and hashes never reach the server.
+- The project page shows the folder, its machines, what differs, what arrived and any conflict copy; the owner can cancel the project's sync folder («Синк хавтсыг цуцлах»). The tray writes the same counts for the platform twin while Studio is closed.
+- Album components go to the server in resumable 1 MB pieces, so a slow or dropped link no longer loses a whole upload; an older server still gets the single request.
+- Sync no longer stops when a building's sub-cover cannot be drawn on this machine because its sheets are a colleague's; the sub-cover is kept in the Cloud and stays pending. A source with only portfolio pages no longer blocks the album sync.
+- The drawing list flows down its columns and fills its frame; «ЕХ байрлал» moves the 01's blocks on the sheet. A 502 from the server in the background check no longer closes Studio.
+- The citizens' form keeps the answers on the phone and offers «Дахин илгээх» when sending fails.
+- The bridge reports the album PDF's real page count (`albumPdfPages`) and gained the sync actions (`sync-status`, `sync-folders`, `sync-make`, `sync-join`, `sync-unlink`, `sync-unregister`).
+
 ## [0.001.66] - 2026-10-20
 
 - Working drawings are numbered by mark, the way reviewers require: ЕХ-1, ЕХ-2, ЕТ-1…, БА-1…, ТХ-1…. The corner table, the drawing list and the note carry the same number; a source's own sheet number only sets the order. Concept albums are unchanged.
