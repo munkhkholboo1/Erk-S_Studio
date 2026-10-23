@@ -10,6 +10,26 @@ namespace ErkS.Studio;
 internal static class StudioAlbumRendererMigration
 {
     /// <summary>
+    /// The renderer-upgrade codes this device should have redrawn and did not - the ones
+    /// that stop a sync so the Cloud component is not lost. Not a list page a source now
+    /// carries (a replacement), and not a code the sync already keeps in the Cloud and
+    /// pending (a building sub-cover whose sheets live on another member's device).
+    /// </summary>
+    public static IReadOnlyList<string> UnrenderedBlockers(
+        IReadOnlyList<string> missing,
+        IReadOnlyList<string> migrationCodes,
+        IReadOnlyCollection<string> deferredCodes,
+        Func<string, bool> isReplacedBySource)
+    {
+        HashSet<string> deferred = (deferredCodes ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return (missing ?? [])
+            .Where(code => (migrationCodes ?? []).Contains(code, StringComparer.OrdinalIgnoreCase))
+            .Where(code => !isReplacedBySource(code))
+            .Where(code => !deferred.Contains(code))
+            .ToArray();
+    }
+
+    /// <summary>
     /// Raised whenever a renderer change makes the pages already in a canonical
     /// album wrong. A device whose album is behind re-renders the components it
     /// owns and merges them, which is the only way a page composed by an older

@@ -151,10 +151,11 @@ public sealed class THEFRONTMatterTravelsWithEVERYChangeTests
 
         int guards = 0;
         int at = 0;
-        while ((at = components.IndexOf("string[] unrenderedRendererMigrations = missing", at, StringComparison.Ordinal)) >= 0)
+        while ((at = components.IndexOf("StudioAlbumRendererMigration.UnrenderedBlockers(", at, StringComparison.Ordinal)) >= 0)
         {
-            int end = components.IndexOf(".ToArray();", at, StringComparison.Ordinal);
+            int end = components.IndexOf("if (unrenderedRendererMigrations.Count > 0)", at, StringComparison.Ordinal);
             Assert.Contains("StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered)", components[at..end], StringComparison.Ordinal);
+            Assert.Contains("missingResolution.DeferredCodes", components[at..end], StringComparison.Ordinal);
             guards++;
             at = end;
         }

@@ -661,15 +661,16 @@ internal sealed partial class ShellView
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
             }
-            string[] unrenderedRendererMigrations = missing
-                .Where(code => rendererMigrationCodes.Contains(
-                    code,
-                    StringComparer.OrdinalIgnoreCase))
-                // Studio's list page is not drawn once the Revit 01 carries the
-                // list - that is a replacement, not a failure to render.
-                .Where(code => !StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered))
-                .ToArray();
-            if (unrenderedRendererMigrations.Length > 0)
+            // Studio's list page is not drawn once the Revit 01 carries the list (a
+            // replacement), and a deferred building sub-cover is kept in the Cloud and
+            // pending below - neither is a failure that must stop the sync.
+            IReadOnlyList<string> unrenderedRendererMigrations =
+                StudioAlbumRendererMigration.UnrenderedBlockers(
+                    missing,
+                    rendererMigrationCodes,
+                    missingResolution.DeferredCodes,
+                    code => StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered));
+            if (unrenderedRendererMigrations.Count > 0)
             {
                 throw new InvalidDataException(
                     "A locally owned album component requires a renderer upgrade but could not be rendered. " +
@@ -1559,15 +1560,16 @@ internal sealed partial class ShellView
                     "Pending source has sheets but its album component could not be rendered locally: " +
                     string.Join(", ", unrenderedSourcesWithSheets));
             }
-            string[] unrenderedRendererMigrations = missing
-                .Where(code => rendererMigrationCodes.Contains(
-                    code,
-                    StringComparer.OrdinalIgnoreCase))
-                // Studio's list page is not drawn once the Revit 01 carries the
-                // list - that is a replacement, not a failure to render.
-                .Where(code => !StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered))
-                .ToArray();
-            if (unrenderedRendererMigrations.Length > 0)
+            // Studio's list page is not drawn once the Revit 01 carries the list (a
+            // replacement), and a deferred building sub-cover is kept in the Cloud and
+            // pending below - neither is a failure that must stop the sync.
+            IReadOnlyList<string> unrenderedRendererMigrations =
+                StudioAlbumRendererMigration.UnrenderedBlockers(
+                    missing,
+                    rendererMigrationCodes,
+                    missingResolution.DeferredCodes,
+                    code => StudioFrontMatterComponentScope.IsReplacedBySource(code, rendered));
+            if (unrenderedRendererMigrations.Count > 0)
             {
                 throw new InvalidDataException(
                     "A locally owned album component requires a renderer upgrade but could not be rendered. " +

@@ -5,6 +5,38 @@ namespace ErkS.Studio.App.Tests;
 
 public sealed class StudioAlbumRendererMigrationTests
 {
+    // 🔴 STUDIO-20260724-1332, 2026-10-23: the school's and the kindergarten's sheets come
+    // from a collaborator's source, so this device draws no sub-cover for them. The sync
+    // already keeps such a sub-cover in the Cloud and pending - and then the renderer
+    // check, run before it, stopped the WHOLE sync on the same two codes, every time.
+    [Fact]
+    public void UnrenderedBlockers_ADeferredBuildingSubCoverNeverStopsTheSync()
+    {
+        const string school = "generated:building-sub-cover:studio-building:school";
+        const string kindergarten = "generated:building-sub-cover:studio-building:kindergarten";
+        const string cover = "generated:cover:Cover";
+
+        IReadOnlyList<string> blockers = StudioAlbumRendererMigration.UnrenderedBlockers(
+            missing: [school, kindergarten, cover],
+            migrationCodes: [school, kindergarten, cover],
+            deferredCodes: [school, kindergarten],
+            isReplacedBySource: _ => false);
+
+        Assert.Equal([cover], blockers);
+    }
+
+    [Fact]
+    public void UnrenderedBlockers_AReplacedListAndANonMigrationCodeDoNotBlock()
+    {
+        IReadOnlyList<string> blockers = StudioAlbumRendererMigration.UnrenderedBlockers(
+            missing: ["generated:list", "source:x"],
+            migrationCodes: ["generated:list"],
+            deferredCodes: [],
+            isReplacedBySource: code => code == "generated:list");
+
+        Assert.Empty(blockers);
+    }
+
     [Fact]
     public void SelectLocallyRenderableComponents_OnlyReturnsOwnedLocalSources()
     {
