@@ -49,6 +49,24 @@ public static class SyncFolderMarker
         File.Move(temporary, path, overwrite: true);
     }
 
+    /// <summary>
+    /// Takes away this folder's marker when it is the marker of <paramref name="folderId"/> - a
+    /// folder the server no longer knows, or this machine leaving it. Only the hidden marker
+    /// goes; the project's files are never touched.
+    /// </summary>
+    public static bool Remove(string folder, string folderId)
+    {
+        if (TryRead(folder) is not { } identity ||
+            !identity.FolderId.Equals((folderId ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        DirectoryInfo directory = new(DirectoryOf(folder));
+        directory.Attributes &= ~FileAttributes.Hidden;
+        directory.Delete(recursive: true);
+        return true;
+    }
+
     /// <summary>The marker of this exact folder, or null when it has none or it is unreadable.</summary>
     public static SyncFolderIdentity? TryRead(string folder)
     {

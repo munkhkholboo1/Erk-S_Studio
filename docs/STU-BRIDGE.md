@@ -40,6 +40,7 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 | `sync-make` | «Erk-S Sync фолдер болгох» | `path=<хавтас>` `[project=<код>]` — project-гүй бол Studio-д хүн сонгоно |
 | `sync-join` | «Erk-S Sync фолдерт холбох» | `path=<хавтас>` `[folder=<folderId>]` — folder-гүй бол хүн сонгоно |
 | `sync-unlink` | «Холболт салгах» (файлууд хэвээр) | `path=<хавтас>` |
+| `sync-unregister` | «Синк хавтсыг цуцлах»: төслийн синк хавтсын бүртгэлийг бүх багт цуцална (файлууд хэвээр) | `project=<төслийн код>` |
 | `close` | Studio хаах | — |
 
 Хариу нь JSON: `ok`, `reasonCode` (татгалзсан шалтгаан), `message` (Studio-гийн статусын мөр), `result`,

@@ -22,6 +22,12 @@
     <ProjectReference Include="..\ErkS.Studio.Contracts\ErkS.Studio.Contracts.csproj" />
   </ItemGroup>
 
+  <!-- A development build puts ErkS.Sync.exe beside the host, where Studio starts it; the
+       product publishes it single-file on its own (Publish-Studio-Demo.ps1). -->
+  <ItemGroup Condition="'$(StudioProductBuild)' != 'true'">
+    <ProjectReference Include="..\ErkS.Sync\ErkS.Sync.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <Content Include="Assets\logo-erks.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo-erks-*.png" CopyToOutputDirectory="PreserveNewest" />

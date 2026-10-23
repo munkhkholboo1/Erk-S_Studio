@@ -41,8 +41,12 @@ internal sealed partial class ShellView
             SyncTrayProcess.Poke();
             RefreshProjectSyncSection();
         };
+        Button unregister = StudioWidgets.CreateButton("Синк хавтсыг цуцлах…");
+        unregister.Margin = new Thickness(6, 0, 0, 0);
+        unregister.Click += async (_, _) => await UnregisterSyncFolderAsync();
         buttons.Children.Add(make);
         buttons.Children.Add(join);
+        buttons.Children.Add(unregister);
         buttons.Children.Add(refresh);
         DockPanel.SetDock(buttons, Dock.Right);
         heading.Children.Add(buttons);
@@ -149,6 +153,26 @@ internal sealed partial class ShellView
         await ShowSyncDialogAsync("join", picker.FolderName);
     }
 
+    private async Task UnregisterSyncFolderAsync()
+    {
+        if (!state.HasOpenProject)
+            return;
+        if (StudioMessageDialog.Show(
+                Window.GetWindow(Root),
+                $"«{state.Project.Code}» төслийн Erk-S Sync хавтсыг бүх багийнхны хувьд цуцлах уу?" +
+                Environment.NewLine + Environment.NewLine +
+                "Хавтас, доторх файлууд машин бүр дээр хэвээр үлдэнэ; зөвхөн синкийн бүртгэл арилна.",
+                "Синк хавтсыг цуцлах",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+        StudioSyncOutcome outcome = await SyncFolders.UnregisterAsync(state.Project);
+        SetStatus(outcome.Message);
+        RefreshProjectSyncSection();
+    }
+
     /// <summary>The person chooses in a window of its own; the work is StudioSyncFolders'.</summary>
     private async Task ShowSyncDialogAsync(string verb, string folderPath)
     {
@@ -183,8 +207,11 @@ internal sealed partial class ShellView
         RefreshProjectSyncSection();
     }
 
+    private Task<StudioSyncOutcome> MakeSyncFolderAsync(string folderPath, string projectPath) =>
+        WithSyncProjectAsync(projectPath, project => SyncFolders.MakeAsync(folderPath, project));
+
     /// <summary>The project at <paramref name="projectPath"/> - the open one as held, any other read from disk.</summary>
-    private Task<StudioSyncOutcome> MakeSyncFolderAsync(string folderPath, string projectPath)
+    private Task<StudioSyncOutcome> WithSyncProjectAsync(string projectPath, Func<ProjectWorkspace, Task<StudioSyncOutcome>> act)
     {
         ProjectWorkspace project;
         try
@@ -200,7 +227,7 @@ internal sealed partial class ShellView
         {
             return Task.FromResult(StudioSyncOutcome.Refused("sync_project_unreadable", "Төслийг уншиж чадсангүй: " + exception.Message));
         }
-        return SyncFolders.MakeAsync(folderPath, project);
+        return act(project);
     }
 
     // ---- bridge --------------------------------------------------------------------------
@@ -212,6 +239,8 @@ internal sealed partial class ShellView
     /// </summary>
     private async Task<StudioBridgeResponse> BridgeSyncFolderAsync(StudioBridgeRequest request, string verb)
     {
+        if (verb == "unregister")
+            return await BridgeSyncUnregisterAsync(request);
         string? path = request.Arg("path");
         if (string.IsNullOrWhiteSpace(path))
             return StudioBridgeProtocol.Refuse(request.Id, "sync_path_missing", "path=<хавтас> заана уу.");
@@ -242,6 +271,21 @@ internal sealed partial class ShellView
         return outcome is { Ok: true }
             ? StudioBridgeProtocol.Accept(request.Id, outcome.Folder, outcome.Message)
             : StudioBridgeProtocol.Refuse(request.Id, outcome?.Code ?? "sync_failed", outcome?.Message ?? "");
+    }
+
+    /// <summary>sync-unregister project=<code>: «Синк хавтсыг цуцлах» for the whole team; files stay.</summary>
+    private async Task<StudioBridgeResponse> BridgeSyncUnregisterAsync(StudioBridgeRequest request)
+    {
+        string code = request.Arg("project") ?? "";
+        string? projectPath = new LocalProjectCatalog().ListProjects()
+            .FirstOrDefault(item => item.ProjectCode.Equals(code, StringComparison.OrdinalIgnoreCase))?.ProjectPath;
+        StudioSyncOutcome outcome = projectPath is null
+            ? StudioSyncOutcome.Refused("project_not_found", $"«{code}» төсөл энэ төхөөрөмж дээр алга.")
+            : await WithSyncProjectAsync(projectPath, project => SyncFolders.UnregisterAsync(project));
+        RefreshProjectSyncSection();
+        return outcome.Ok
+            ? StudioBridgeProtocol.Accept(request.Id, null, outcome.Message)
+            : StudioBridgeProtocol.Refuse(request.Id, outcome.Code, outcome.Message);
     }
 
     /// <summary>

@@ -137,6 +137,7 @@ internal static class StudioBridgeActionCatalog
         new("sync-make", "«Erk-S Sync фолдер болгох»: хавтсыг төслийн синк хавтас болгоно. project= байхгүй бол Studio-д хүн төслөө сонгоно.", "path=<хавтас> [project=<төслийн код>]", true),
         new("sync-join", "«Erk-S Sync фолдерт холбох»: энэ машины ижил замтай хавтсыг холбоно. folder= байхгүй бол Studio-д хүн сонгоно.", "path=<хавтас> [folder=<folderId>]", true),
         new("sync-unlink", "«Холболт салгах»: энэ машиныг синк хавтаснаас салгана; файлууд хэвээр.", "path=<хавтас>", true),
+        new("sync-unregister", "«Синк хавтсыг цуцлах»: төслийн синк хавтсын бүртгэлийг бүх багт цуцална; файлууд машин бүр дээр хэвээр.", "project=<төслийн код>", true),
         new("close", "Studio-г хэвийнээр хаана.", "", true),
     ];
 

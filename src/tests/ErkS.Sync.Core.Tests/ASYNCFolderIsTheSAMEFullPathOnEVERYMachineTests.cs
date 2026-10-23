@@ -94,6 +94,23 @@ public sealed class ASYNCFolderIsTheSAMEFullPathOnEVERYMachineTests
         Assert.True((File.GetAttributes(SyncFolderMarker.DirectoryOf(folder.Path)) & FileAttributes.Hidden) != 0);
     }
 
+    [Fact]
+    public void AnUnregisteredFolderLosesONLYItsOwnMarkerAndKeepsItsFiles()
+    {
+        using var folder = new TemporaryFolder();
+        folder.File("plan.dwg", "x");
+        SyncFolderMarker.Write(folder.Path, Identity(folder.Path));
+
+        Assert.False(SyncFolderMarker.Remove(folder.Path, "another-folder"));
+        Assert.NotNull(SyncFolderMarker.TryRead(folder.Path));
+
+        Assert.True(SyncFolderMarker.Remove(folder.Path, "f-1"));
+        Assert.Null(SyncFolderMarker.TryRead(folder.Path));
+        Assert.False(Directory.Exists(SyncFolderMarker.DirectoryOf(folder.Path)));
+        Assert.True(File.Exists(Path.Combine(folder.Path, "plan.dwg")));
+        Assert.False(SyncFolderMarker.Remove(folder.Path, "f-1"));
+    }
+
     internal static SyncFolderIdentity Identity(string folder) => new()
     {
         FolderId = "f-1",

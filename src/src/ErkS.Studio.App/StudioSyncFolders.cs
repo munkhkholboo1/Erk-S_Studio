@@ -13,10 +13,10 @@ internal sealed record StudioSyncOutcome(bool Ok, string Code, string Message, S
 }
 
 /// <summary>
-/// The person's half of Erk-S Sync: registering a project folder, joining one, unlinking -
-/// each a decision on a project, so each runs on the signed-in person's Cloud ERA rights
-/// (SRV contract sync-folder). Studio's buttons, the Explorer verbs (through ErkS.Sync.exe)
-/// and the bridge all call these three and nothing else.
+/// The person's half of Erk-S Sync: registering a project folder, joining one, unlinking,
+/// unregistering - each a decision on a project, so each runs on the signed-in person's Cloud
+/// ERA rights (SRV contract sync-folder). Studio's buttons, the Explorer verbs (through
+/// ErkS.Sync.exe) and the bridge all call these and nothing else.
 /// </summary>
 internal sealed class StudioSyncFolders(StudioAccountService account)
 {
@@ -127,7 +127,7 @@ internal sealed class StudioSyncFolders(StudioAccountService account)
             catch (SyncServerException exception) when (exception.Code is "sync_device_not_attached" or "sync_folder_not_found")
             {
             }
-            Directory.Delete(SyncFolderMarker.DirectoryOf(root), recursive: true);
+            SyncFolderMarker.Remove(root, identity.FolderId);
             SyncTrayProcess.Poke();
             return new StudioSyncOutcome(true, "", $"Энэ машин «{identity.ProjectCode}» синк хавтаснаас салгагдлаа. Файлууд хэвээр.", identity);
         }
@@ -138,6 +138,39 @@ internal sealed class StudioSyncFolders(StudioAccountService account)
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or StudioAccountException or IOException or UnauthorizedAccessException)
         {
             return StudioSyncOutcome.Refused("sync_failed", "Салгаж чадсангүй: " + exception.Message);
+        }
+    }
+
+    /// <summary>
+    /// «Синк хавтсыг цуцлах»: the project stops having a sync folder - on the server for the
+    /// whole team (the server decides who may), and this machine's marker goes with it. The
+    /// files stay where they are on every machine.
+    /// </summary>
+    public async Task<StudioSyncOutcome> UnregisterAsync(ProjectWorkspace project, CancellationToken cancellationToken = default)
+    {
+        string projectId = (project.Cloud?.ServerProjectId ?? "").Trim();
+        if (projectId.Length == 0)
+            return StudioSyncOutcome.Refused("sync_project_not_cloud", "Төсөл Cloud-д бүртгэгдээгүй байна.");
+        try
+        {
+            SyncServerFolder? folder = (await MineAsync(cancellationToken))
+                .FirstOrDefault(entry => entry.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+            if (folder is null)
+                return StudioSyncOutcome.Refused("sync_folder_not_found", "Энэ төсөлд синк хавтас бүртгэгдээгүй байна.");
+            (SyncServerClient client, string token) = await account.SyncServerAsync(cancellationToken);
+            await client.UnregisterFolderAsync(token, projectId, cancellationToken);
+            if (Directory.Exists(folder.CanonicalPath))
+                SyncFolderMarker.Remove(folder.CanonicalPath, folder.FolderId);
+            SyncTrayProcess.Poke();
+            return new StudioSyncOutcome(true, "", $"«{folder.ProjectCode}» төслийн синк хавтас цуцлагдлаа ({folder.CanonicalPath}). Файлууд хэвээр.");
+        }
+        catch (SyncServerException exception)
+        {
+            return StudioSyncOutcome.Refused(exception.Code, exception.Message);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or StudioAccountException or IOException or UnauthorizedAccessException)
+        {
+            return StudioSyncOutcome.Refused("sync_failed", "Цуцалж чадсангүй: " + exception.Message);
         }
     }
 
