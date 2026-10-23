@@ -212,6 +212,7 @@ internal sealed partial class ShellView
         stack.Children.Add(projectOverviewBanner);
         stack.Children.Add(projectOverviewFacts);
         stack.Children.Add(BuildProjectTeamSection());
+        stack.Children.Add(BuildProjectSyncSection());
         return stack;
     }
 
@@ -884,6 +885,7 @@ internal sealed partial class ShellView
         RefreshProjectOverviewCompany();
         RefreshProjectOverviewFacts();
         RefreshProjectTeamOverview();
+        RefreshProjectSyncSection();
         // The record reads its values out of the form's own controls, so it is
         // rebuilt here too - this runs when a project is bound to the shell,
         // which is when those controls take their values.

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ErkS.Sync.exe - the Erk-S Sync (SYN) background process: a tray icon that starts when
+    Windows signs in, runs with Studio closed, and does the work the Explorer verbs and Studio
+    ask of it. It is installed beside ErkS.Studio.exe (task 1.1).
+  -->
+
+  <Import Project="..\..\Studio.Version.props" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>ErkS.Sync</AssemblyName>
+    <RootNamespace>ErkS.Sync</RootNamespace>
+    <AssemblyTitle>Erk-S Sync</AssemblyTitle>
+    <Version Condition="'$(StudioReleaseVersion)' == ''">$(StudioDevelopmentAssemblyVersion)</Version>
+    <Version Condition="'$(StudioReleaseVersion)' != ''">$(StudioReleaseVersion)</Version>
+    <ApplicationIcon>..\ErkS.Studio\Assets\logo-erks.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ErkS.Sync.Core\ErkS.Sync.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\ErkS.Studio\Assets\logo-erks.ico" LogicalName="ErkS.Sync.logo.ico" />
+  </ItemGroup>
+
+</Project>

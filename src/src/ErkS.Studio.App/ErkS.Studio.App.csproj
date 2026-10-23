@@ -22,6 +22,7 @@
     <ProjectReference Include="..\ErkS.Platform.Core\ErkS.Platform.Core.csproj" />
     <ProjectReference Include="..\ErkS.Platform.Pdf\ErkS.Platform.Pdf.csproj" />
     <ProjectReference Include="..\ErkS.Studio.Contracts\ErkS.Studio.Contracts.csproj" />
+    <ProjectReference Include="..\ErkS.Sync.Core\ErkS.Sync.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -75,6 +75,17 @@ try {
         throw "Erk-S Studio ажиллаж байна. Программыг хаагаад installer-ийг дахин ажиллуулна уу."
     }
 
+    # Erk-S Sync (SYN) runs from the install folder and holds its files: stop it before copying.
+    Get-Process -Name "ErkS.Sync" -ErrorAction SilentlyContinue | Where-Object {
+        try {
+            $_.Path -and [IO.Path]::GetFullPath($_.Path).StartsWith(
+                $InstallRoot.TrimEnd('\') + '\',
+                [StringComparison]::OrdinalIgnoreCase)
+        } catch {
+            $false
+        }
+    } | Stop-Process -Force -ErrorAction SilentlyContinue
+
     New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
     $LegacyAppDirectory = [IO.Path]::GetFullPath((Join-Path $InstallRoot "app"))
     $ExpectedLegacyAppDirectory = $InstallRoot.TrimEnd('\') + "\app"
@@ -130,7 +141,16 @@ try {
         New-ItemProperty -Path $UninstallKey -Name "UninstallString" -Value ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $UninstallScript + '"') -PropertyType String -Force | Out-Null
     }
 
+    # SYN registers its own sign-in start and Explorer menu (one piece of code for every installer).
+    $InstalledSyncExe = Join-Path $InstallRoot "ErkS.Sync.exe"
+    if ((Test-Path -LiteralPath $InstalledSyncExe -PathType Leaf) -and -not $SkipRegistration) {
+        Start-Process -FilePath $InstalledSyncExe -ArgumentList "--register" -WorkingDirectory $InstallRoot -Wait -WindowStyle Hidden
+    }
+
     if (-not $NoLaunch) {
+        if (Test-Path -LiteralPath $InstalledSyncExe -PathType Leaf) {
+            Start-Process -FilePath $InstalledSyncExe -WorkingDirectory $InstallRoot
+        }
         Start-Process -FilePath $InstalledExe -WorkingDirectory $InstallRoot
     }
 } finally {

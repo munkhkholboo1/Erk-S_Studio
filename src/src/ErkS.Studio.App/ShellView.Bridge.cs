@@ -95,6 +95,14 @@ internal sealed partial class ShellView
                         .ToList());
             case "open-project":
                 return await BridgeOpenProjectAsync(request);
+            case "sync-make":
+            case "sync-join":
+            case "sync-unlink":
+                return await BridgeSyncFolderAsync(request, action["sync-".Length..]);
+            case "sync-status":
+                return BridgeSyncStatus(request);
+            case "sync-folders":
+                return await BridgeSyncFoldersAsync(request);
             case "close":
                 _ = Root.Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(Root)?.Close()));
                 return StudioBridgeProtocol.Accept(request.Id, null, "Studio хаагдаж байна.");

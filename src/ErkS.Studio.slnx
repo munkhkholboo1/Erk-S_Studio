@@ -8,6 +8,7 @@
     <Project Path="src/ErkS.Studio.Contracts/ErkS.Studio.Contracts.csproj" />
     <Project Path="src/ErkS.Studio/ErkS.Studio.csproj" />
     <Project Path="src/ErkS.Sync.Core/ErkS.Sync.Core.csproj" />
+    <Project Path="src/ErkS.Sync/ErkS.Sync.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ErkS.Platform.Core.Tests/ErkS.Platform.Core.Tests.csproj" />

@@ -35,7 +35,7 @@ internal static class StudioDeviceKeyStore
     /// exactly like "the key did not survive a reboot" - the failure this
     /// design would find hardest to tell apart from a real one.
     /// </summary>
-    private const string KeyName = "ErkS.Studio.DeviceIdentity.v1";
+    private const string KeyName = ErkS.Sync.Core.SyncDeviceKey.KeyName;
 
     private static readonly object Gate = new();
 

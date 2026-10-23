@@ -3401,6 +3401,25 @@ internal sealed class StudioAccountService :
     /// only with a live session in hand - which means the ordinary validate has
     /// just happened.
     /// </summary>
+    /// <summary>
+    /// The SYN routes on this person's session (SRV contract sync-folder): a client for the
+    /// server Studio is signed in to and a fresh access token. Only Studio calls the person
+    /// routes; ErkS.Sync.exe has its own device token.
+    /// </summary>
+    internal async Task<(ErkS.Sync.Core.SyncServerClient Client, string Token)> SyncServerAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current
+            ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        var http = new HttpClient
+        {
+            BaseAddress = new Uri(session.ServerUrl.TrimEnd('/') + "/"),
+            Timeout = TimeSpan.FromSeconds(60),
+        };
+        return (new ErkS.Sync.Core.SyncServerClient(http), session.AccessToken);
+    }
+
     public async Task<StudioCloudDeviceKeyRegistration> RegisterDeviceKeyAsync(
         CancellationToken cancellationToken = default)
     {

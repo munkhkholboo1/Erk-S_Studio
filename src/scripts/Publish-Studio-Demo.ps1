@@ -478,6 +478,28 @@ if ($LASTEXITCODE -ne 0) {
 }
 Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
 
+# Erk-S Sync (SYN) is installed beside Studio and starts with Windows (task 1.1).
+$SyncPublishArguments = @(
+    "publish", (Join-Path $SourceRoot "src\ErkS.Sync\ErkS.Sync.csproj"),
+    "-c", "Release",
+    "-r", "win-x64",
+    "--self-contained", "true",
+    "--nologo",
+    "-p:PublishSingleFile=true",
+    "-p:IncludeNativeLibrariesForSelfExtract=true",
+    "-p:DebugType=None",
+    "-p:DebugSymbols=false",
+    "-p:StudioReleaseVersion=$AssemblyVersion",
+    "-p:StudioReleaseLabel=Demo $ReleaseVersion",
+    "--artifacts-path", $BuildArtifactsDirectory,
+    "-o", $PublishDirectory
+)
+& dotnet @SyncPublishArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Erk-S Sync publish амжилтгүй боллоо."
+}
+Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
+
 Copy-Item -LiteralPath (Join-Path $InstallerRoot "Uninstall-ErkS-Studio.ps1") -Destination $PublishDirectory -Force
 Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File -Filter "*.pdb" | Remove-Item -Force
 Get-ChildItem -LiteralPath $PublishDirectory -File -Filter "Microsoft.Web.WebView2.*.xml" | Remove-Item -Force
@@ -577,6 +599,11 @@ if ($VersionInfo.ProductVersion -notlike "*Demo $ReleaseVersion*") {
 }
 
 Invoke-ErkSCodeSign -Path $PublishedExe -SigningContext $SigningContext
+$PublishedSyncExe = Join-Path $PublishDirectory "ErkS.Sync.exe"
+if (-not (Test-Path -LiteralPath $PublishedSyncExe -PathType Leaf)) {
+    throw "Release gate: ErkS.Sync.exe үүссэнгүй."
+}
+Invoke-ErkSCodeSign -Path $PublishedSyncExe -SigningContext $SigningContext
 Invoke-ReleaseArtifactGate `
     -Path $PublishedExe `
     -ReportName "published-exe-trust.json"

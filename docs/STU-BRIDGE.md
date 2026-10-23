@@ -35,6 +35,11 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 | `sync` | Cloud товч + «Sync хийх» | `confirm=true` |
 | `relink-source` | «Эх файлыг солих» | `source=<id/нэр> path=<файл>` |
 | `import-front-matter` | «ЕХ мэдээлэл» › ноорог оруулах + хадгалах | `file=<.md>` |
+| `sync-status` | (унших) Erk-S Sync: tray ажиллаж буй эсэх, серверийн төлөв, хавтас бүрийн файлын тоо, холбогдсон машин, зөрүүтэй файлын тоо — файлын нэргүй | — |
+| `sync-folders` | (унших) Таны багийн төслүүдийн Erk-S Sync хавтас (сервер), энэ дискэд тэмдэглэгдсэн эсэх | — |
+| `sync-make` | «Erk-S Sync фолдер болгох» | `path=<хавтас>` `[project=<код>]` — project-гүй бол Studio-д хүн сонгоно |
+| `sync-join` | «Erk-S Sync фолдерт холбох» | `path=<хавтас>` `[folder=<folderId>]` — folder-гүй бол хүн сонгоно |
+| `sync-unlink` | «Холболт салгах» (файлууд хэвээр) | `path=<хавтас>` |
 | `close` | Studio хаах | — |
 
 Хариу нь JSON: `ok`, `reasonCode` (татгалзсан шалтгаан), `message` (Studio-гийн статусын мөр), `result`,
@@ -55,3 +60,11 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
    нээлттэй; сүлжээгээр хүрэхгүй. Олон Studio ажиллаж байвал `-StudioPid`.
 6. **Studio угсрах.** commit-if-green `ErkS.Studio.exe`-г угсардаггүй — гүүрийн шинэ үйлдлийг ашиглахын өмнө host-ыг
    build хийж Studio-г дахин нээнэ.
+
+## Erk-S Sync (SYN)
+
+`ErkS.Sync.exe` нь Studio-тэй хамт суух ар талын (tray) процесс: Windows нэвтрэхэд эхэлнэ (HKCU Run «ErkS.Sync»),
+Explorer-ийн баруун товчны «Erk-S Sync» цэс (HKCU `Software\Classes\Directory\shell\ErkS.Sync`), pipe
+`\.\pipe\ErkS.Sync.<SID>`. Түлхүүрүүдийг `ErkS.Sync.exe --register` / `--unregister` л бичиж арилгана.
+«Фолдер болгох», «холбох» нь хүний шийдвэр тул Studio (Cloud ERA эрх)-оор явна; tray нь төхөөрөмжийн
+токеноор индекс, LAN солилцоо хийнэ. Төлөв: `%LOCALAPPDATA%\Erk-S Sync\state.json` (`sync-status`).

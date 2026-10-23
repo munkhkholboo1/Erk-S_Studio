@@ -20,7 +20,17 @@ if (-not $InstallRoot.StartsWith($LocalProgramsRoot.TrimEnd('\') + '\', [StringC
     throw "Uninstall target зөвшөөрөгдсөн LocalAppData\Programs хавтсанд биш байна."
 }
 
-Get-Process -Name "ErkS.Studio" -ErrorAction SilentlyContinue | Where-Object {
+# Erk-S Sync (SYN): its own --unregister removes the sign-in start and the Explorer menu.
+$SyncExe = Join-Path $InstallRoot "ErkS.Sync.exe"
+if (Test-Path -LiteralPath $SyncExe -PathType Leaf) {
+    try { & $SyncExe --unregister | Out-Null } catch { }
+}
+# Fallback when the exe is already gone: the same keys, removed by name.
+Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "ErkS.Sync" -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "HKCU:\Software\Classes\Directory\shell\ErkS.Sync" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "HKCU:\Software\Classes\Directory\Background\shell\ErkS.Sync" -Recurse -Force -ErrorAction SilentlyContinue
+
+Get-Process -Name "ErkS.Studio", "ErkS.Sync" -ErrorAction SilentlyContinue | Where-Object {
     try {
         $_.Path -and [IO.Path]::GetFullPath($_.Path).StartsWith(
             $InstallRoot.TrimEnd('\') + '\',

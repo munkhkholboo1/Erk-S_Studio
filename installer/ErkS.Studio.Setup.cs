@@ -393,9 +393,24 @@ namespace ErkS.Studio.Setup
                 if (!options.SkipRegistration)
                     RegisterUninstaller(installedExe, options.InstallRoot);
 
+                // Erk-S Sync (SYN): its own --register writes the sign-in start and the Explorer
+                // menu, so the installer, the uninstaller and the tray share one piece of code.
+                string syncExe = Path.Combine(options.InstallRoot, "ErkS.Sync.exe");
+                if (File.Exists(syncExe) && !options.SkipRegistration)
+                    RunAndWait(syncExe, "--register", options.InstallRoot, TimeSpan.FromSeconds(30));
+
                 Report(report, "Finalizing...");
                 if (!options.NoLaunch)
                 {
+                    if (File.Exists(syncExe))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = syncExe,
+                            WorkingDirectory = options.InstallRoot,
+                            UseShellExecute = true
+                        });
+                    }
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = installedExe,
@@ -523,7 +538,8 @@ namespace ErkS.Studio.Setup
         {
             string prefix = Path.GetFullPath(installRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
             List<Process> result = new List<Process>();
-            foreach (Process process in Process.GetProcessesByName("ErkS.Studio"))
+            // SYN runs from the same folder and holds its files open: it is closed with Studio.
+            foreach (Process process in Process.GetProcessesByName("ErkS.Studio").Concat(Process.GetProcessesByName("ErkS.Sync")))
             {
                 bool isInstalledProcess = false;
                 try
@@ -542,6 +558,29 @@ namespace ErkS.Studio.Setup
                     process.Dispose();
             }
             return result;
+        }
+
+        private static void RunAndWait(string fileName, string arguments, string workingDirectory, TimeSpan timeout)
+        {
+            try
+            {
+                using (Process process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }))
+                {
+                    if (process != null)
+                        process.WaitForExit((int)timeout.TotalMilliseconds);
+                }
+            }
+            catch
+            {
+                // The tray repairs its own keys on its next start; a failed registration is not fatal.
+            }
         }
 
         private static void RemoveLegacyDirectory(string installRoot)

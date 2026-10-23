@@ -132,6 +132,11 @@ internal static class StudioBridgeActionCatalog
         new("sync", "Cloud товч + «Sync хийх»: төлөвлөгөөг баталж Cloud руу синк хийнэ.", "confirm=true", true),
         new("relink-source", "«Эх файлыг солих»: эх үүсвэрийг өөр локал файлтай холбоно.", "source=<id эсвэл нэр> path=<файл>", true),
         new("import-front-matter", "«ЕХ мэдээлэл» › «Ноорог файлаас оруулах» + «Хадгалах».", "file=<.md>", true),
+        new("sync-status", "(унших) Erk-S Sync: tray ажиллаж буй эсэх, серверийн төлөв, хавтас бүрийн файлын тоо, холбогдсон машин, зөрүүтэй файлын ТОО — файлын нэргүй.", "", false),
+        new("sync-folders", "(унших) Таны багийн төслүүдийн Erk-S Sync хавтас (сервер) ба энэ дискэд тэмдэглэгдсэн эсэх.", "", false),
+        new("sync-make", "«Erk-S Sync фолдер болгох»: хавтсыг төслийн синк хавтас болгоно. project= байхгүй бол Studio-д хүн төслөө сонгоно.", "path=<хавтас> [project=<төслийн код>]", true),
+        new("sync-join", "«Erk-S Sync фолдерт холбох»: энэ машины ижил замтай хавтсыг холбоно. folder= байхгүй бол Studio-д хүн сонгоно.", "path=<хавтас> [folder=<folderId>]", true),
+        new("sync-unlink", "«Холболт салгах»: энэ машиныг синк хавтаснаас салгана; файлууд хэвээр.", "path=<хавтас>", true),
         new("close", "Studio-г хэвийнээр хаана.", "", true),
     ];
 
