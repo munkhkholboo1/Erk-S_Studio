@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ReleaseVersion = "",
 
@@ -11,6 +11,11 @@ param(
     # abort. Both happened on 2026-08-25. Missing notes now stop the run with an
     # explanation instead of asking a question.
     [string]$ReleaseNotes = "",
+
+    # The same notes in Mongolian, shaped the same way (first line the title, «- » lines the
+    # items). The site is Mongolian; its update history is shown from this field (SRV
+    # ReleaseNotesMn, 2026-10-24). Required for the same reason as the English notes.
+    [string]$ReleaseNotesMn = "",
 
     [string]$LicenseServerRoot = "D:\ErkS-Server\data-root",
 
@@ -29,6 +34,14 @@ Pass them on the command line, in quotes:
 
 They are shown to every user on the public release page, so they have to be
 written deliberately rather than typed into a prompt.
+'@
+}
+if ([string]::IsNullOrWhiteSpace($ReleaseNotesMn)) {
+    throw @'
+Mongolian release notes are required as well (-ReleaseNotesMn): the site is Mongolian and
+shows its update history from them. Same shape as -ReleaseNotes - the first line a title,
+then «- » lines.
+  .\src\scripts\Publish-Studio-DemoToServer.ps1 -ReleaseNotes "<English>" -ReleaseNotesMn "<Монгол>"
 '@
 }
 
@@ -253,6 +266,8 @@ build folder - and republish under its own number.
 
 Write-Host "Release notes to publish:" -ForegroundColor Cyan
 Write-Host $ReleaseNotes.Trim()
+Write-Host "Монгол тэмдэглэл:" -ForegroundColor Cyan
+Write-Host $ReleaseNotesMn.Trim()
 
 Copy-Item -LiteralPath $setupSource -Destination $downloadPath -Force
 Copy-Item -LiteralPath $setupSource -Destination $updatePath -Force
@@ -273,6 +288,7 @@ $installerMetadata = [ordered]@{
     DownloadUrl = "/downloads/$productCode/$downloadName"
     Sha256 = $downloadHash
     ReleaseNotes = $ReleaseNotes.Trim()
+    ReleaseNotesMn = $ReleaseNotesMn.Trim()
     IsRequired = [bool]$Required
     RevitVersion = ""
     AutoCADVersion = ""
@@ -284,6 +300,7 @@ $updateMetadata = [ordered]@{
     DownloadUrl = "/updates/$productCode/$updateName"
     Sha256 = $updateHash
     ReleaseNotes = $ReleaseNotes.Trim()
+    ReleaseNotesMn = $ReleaseNotesMn.Trim()
     IsRequired = [bool]$Required
     RevitVersion = ""
     AutoCADVersion = ""
@@ -298,6 +315,7 @@ $historyEntry = [ordered]@{
     DownloadUrl = $updateMetadata.DownloadUrl
     Sha256 = $updateHash
     ReleaseNotes = $updateMetadata.ReleaseNotes
+    ReleaseNotesMn = $updateMetadata.ReleaseNotesMn
     IsRequired = $updateMetadata.IsRequired
     RevitVersion = ""
     PublishedAtUtc = [DateTimeOffset]::UtcNow.ToString("o")
