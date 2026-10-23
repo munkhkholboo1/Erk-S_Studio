@@ -649,7 +649,7 @@ internal sealed partial class ShellView
                     IsCurrentBuildingSubCover);
             string[] unrenderedSourcesWithSheets = pendingSources
                 .Where(source =>
-                    source.SheetCount > 0 &&
+                    source.ContributesAlbumSheets &&
                     selected.All(component =>
                         !MatchesPendingSource(component, source, ownerEmail)))
                 .Select(source => source.SourceKey)
@@ -1547,7 +1547,7 @@ internal sealed partial class ShellView
                     IsCurrentBuildingSubCover);
             string[] unrenderedSourcesWithSheets = pendingSources
                 .Where(source =>
-                    source.SheetCount > 0 &&
+                    source.ContributesAlbumSheets &&
                     selected.All(component =>
                         !MatchesPendingSource(component, source, ownerEmail)))
                 .Select(source => source.SourceKey)

@@ -15,7 +15,22 @@ public sealed record ProjectSourceSyncCandidate(
     DateTimeOffset ExportedAtUtc,
     string WorkPackageId,
     int SheetCount,
-    string ContentHash);
+    string ContentHash)
+{
+    /// <summary>
+    /// How many of the package's entries go to the ALBUM; -1 when the record
+    /// predates this count. <see cref="SheetCount"/> also counts Portfolio
+    /// views, which never enter the album.
+    /// </summary>
+    public int AlbumSheetCount { get; init; } = -1;
+
+    /// <summary>
+    /// Whether the album owes this source a component. A record without the
+    /// album count stays conservative and answers from <see cref="SheetCount"/>.
+    /// </summary>
+    public bool ContributesAlbumSheets =>
+        (AlbumSheetCount >= 0 ? AlbumSheetCount : SheetCount) > 0;
+}
 
 /// <summary>
 /// Persists the explicit Studio-to-server sync boundary inside the project.
@@ -45,6 +60,7 @@ public static class ProjectCloudSyncMetadata
     private const string ExportedAtUtcKey = "cloud.exportedAtUtc";
     private const string WorkPackageIdKey = "cloud.workPackageId";
     private const string SheetCountKey = "cloud.sheetCount";
+    private const string AlbumSheetCountKey = "cloud.albumSheetCount";
     private const string ContentHashKey = "cloud.contentHash";
     private const string SyncedManifestIdKey = "cloud.syncedManifestId";
     private const string SyncedContentHashKey = "cloud.syncedContentHash";
@@ -73,6 +89,12 @@ public static class ProjectCloudSyncMetadata
         source.Metadata[ExportedAtUtcKey] = manifest.ExportedAtUtc.ToString("O", CultureInfo.InvariantCulture);
         source.Metadata[WorkPackageIdKey] = manifest.WorkPackageId?.Trim() ?? "";
         source.Metadata[SheetCountKey] = manifest.Sheets.Count.ToString(CultureInfo.InvariantCulture);
+        // 🔴 MAD-2026-ЕТ-05, 2026-10-22: 17 Erk-S CAD Portfolio views were read
+        // as 17 album sheets and Cloud sync stopped waiting for a component that
+        // can never exist. The album check reads THIS count.
+        source.Metadata[AlbumSheetCountKey] = manifest.Sheets
+            .Count(entry => !SheetDestinations.IsPortfolio(entry.Destination))
+            .ToString(CultureInfo.InvariantCulture);
         source.Metadata[ContentHashKey] = manifestSha256.Trim().ToLowerInvariant();
         ProjectDesignSourceClassification.RecordDetectedPurpose(source, manifest);
         MarkPending(project);
@@ -151,6 +173,13 @@ public static class ProjectCloudSyncMetadata
                 DateTimeStyles.RoundtripKind,
                 out DateTimeOffset exportedAtUtc);
             _ = int.TryParse(Value(metadata, SheetCountKey), NumberStyles.Integer, CultureInfo.InvariantCulture, out int sheetCount);
+            int albumSheetCount = int.TryParse(
+                Value(metadata, AlbumSheetCountKey),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out int recordedAlbumSheets) && recordedAlbumSheets >= 0
+                ? recordedAlbumSheets
+                : -1;
             candidates.Add(new ProjectSourceSyncCandidate(
                 source,
                 Value(metadata, SourceKeyKey, source.Id),
@@ -162,7 +191,10 @@ public static class ProjectCloudSyncMetadata
                 exportedAtUtc,
                 Value(metadata, WorkPackageIdKey),
                 Math.Max(0, sheetCount),
-                contentHash));
+                contentHash)
+            {
+                AlbumSheetCount = albumSheetCount,
+            });
         }
         return candidates;
     }
