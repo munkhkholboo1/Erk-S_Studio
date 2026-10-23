@@ -3,23 +3,28 @@ using System.Text.Json;
 namespace ErkS.Sync.Core;
 
 /// <summary>Where this machine keeps SYN's own state. Never inside a project folder.</summary>
-public sealed class SyncHome(string root)
+public sealed class SyncHome(string root, string? statusPath = null)
 {
     /// <summary>
     /// %LOCALAPPDATA%\Erk-S Sync, or ERKS_SYNC_HOME - the second instance a single-machine
-    /// test runs beside the first (task 1.1: two instances, one machine).
+    /// test runs beside the first (task 1.1: two instances, one machine). Only the real
+    /// instance writes the status file the Twin watches; a second one keeps its own.
     /// </summary>
     public static SyncHome Default()
     {
         string? overridden = Environment.GetEnvironmentVariable("ERKS_SYNC_HOME");
-        return new SyncHome(string.IsNullOrWhiteSpace(overridden)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Erk-S Sync")
-            : overridden);
+        string localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return string.IsNullOrWhiteSpace(overridden)
+            ? new SyncHome(Path.Combine(localData, "Erk-S Sync"), Path.Combine(localData, "Erk-S Platform", "Sync", "status.json"))
+            : new SyncHome(overridden);
     }
 
     public string Root { get; } = root;
 
     public string StatePath => Path.Combine(Root, "state.json");
+
+    /// <summary>The <see cref="SyncStatusReport"/> file: %LOCALAPPDATA%\Erk-S Platform\Sync\status.json for the real instance.</summary>
+    public string StatusPath { get; } = statusPath ?? Path.Combine(root, "status.json");
 
     public string FolderRoot(string folderId) => Path.Combine(Root, "folders", Sanitize(folderId));
 

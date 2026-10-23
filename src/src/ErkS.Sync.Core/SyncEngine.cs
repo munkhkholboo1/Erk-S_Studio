@@ -66,6 +66,7 @@ public sealed class SyncEngine : IAsyncDisposable
     private SyncDeviceSession? _session;
     private SyncLanDiscovery? _discovery;
     private SyncLanExchange? _exchange;
+    private int _disposed;
 
     public SyncEngine(SyncHome home, SyncServerClient server, ISyncDevice? device, SyncPathMap? paths = null)
     {
@@ -327,10 +328,27 @@ public sealed class SyncEngine : IAsyncDisposable
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
         }
+        WriteStatus(running: true);
+    }
+
+    /// <summary>Every pass (at least once per <see cref="Period"/>) and once more, «not running», at the end.</summary>
+    private void WriteStatus(bool running)
+    {
+        try
+        {
+            SyncStatusReport.Write(_home.StatusPath, SyncStatusReport.Of(LastState, running));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+            return;
+        if (LastState.UpdatedAtUtc != default)
+            WriteStatus(running: false);
         _discovery?.Dispose();
         if (_exchange is not null)
             await _exchange.DisposeAsync();

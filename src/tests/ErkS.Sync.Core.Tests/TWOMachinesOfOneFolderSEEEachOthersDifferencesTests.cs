@@ -75,6 +75,40 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
         Assert.Equal("mine", File.ReadAllText(Path.Combine(folderA, "changed.pdf")));
         Assert.False(File.Exists(Path.Combine(folderA, "only-b.pdf")));
         Assert.NotNull(SyncStateStore.TryLoad(new SyncHome(homeA.Path)));
+
+        // The Twin's file: the same counts, never a file name.
+        string statusPath = new SyncHome(homeA.Path).StatusPath;
+        SyncStatusReport? status = SyncStatusReport.TryRead(statusPath);
+        Assert.NotNull(status);
+        Assert.True(status!.Running);
+        SyncStatusFolder reported = Assert.Single(status.Folders);
+        Assert.Equal(1, reported.PeerCount);
+        Assert.Equal(1, reported.DifferingFileCount);
+        Assert.True(reported.PresentHere);
+        string raw = File.ReadAllText(statusPath);
+        Assert.DoesNotContain("changed.pdf", raw);
+        Assert.DoesNotContain("only-b", raw);
+        Assert.Contains("\"differingFileCount\": 1", raw);
+
+        await engineA.DisposeAsync();
+        Assert.False(SyncStatusReport.TryRead(statusPath)!.Running);
+    }
+
+    [Fact]
+    public void OnlyTheRealInstanceWritesTheTwinsStatusFile()
+    {
+        string? saved = Environment.GetEnvironmentVariable("ERKS_SYNC_HOME");
+        try
+        {
+            Environment.SetEnvironmentVariable("ERKS_SYNC_HOME", null);
+            Assert.EndsWith(@"\Erk-S Platform\Sync\status.json", SyncHome.Default().StatusPath);
+            Environment.SetEnvironmentVariable("ERKS_SYNC_HOME", @"C:\scratch\second");
+            Assert.Equal(@"C:\scratch\second\status.json", SyncHome.Default().StatusPath);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ERKS_SYNC_HOME", saved);
+        }
     }
 
     [Fact]

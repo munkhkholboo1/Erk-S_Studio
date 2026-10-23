@@ -248,45 +248,9 @@ internal sealed partial class ShellView
     /// sync-status: this machine's SYN - running or not, the server half, and per folder the
     /// counts the Twin shows (files, peers, differing files). No file names (Master, 2026-10-23).
     /// </summary>
-    private StudioBridgeResponse BridgeSyncStatus(StudioBridgeRequest request)
-    {
-        SyncState? sync = SyncTrayProcess.State();
-        return StudioBridgeProtocol.Accept(request.Id, new
-        {
-            running = SyncTrayProcess.IsRunning,
-            processId = sync?.ProcessId ?? 0,
-            updatedAtUtc = sync?.UpdatedAtUtc,
-            deviceKeyId = sync?.DeviceKeyId ?? "",
-            serverStatus = sync?.ServerStatus ?? "not_started",
-            serverMessage = sync?.ServerMessage ?? "",
-            lanPort = sync?.LanPort ?? 0,
-            folders = (sync?.Folders ?? []).Select(folder => new
-            {
-                folder.FolderId,
-                folder.ProjectId,
-                folder.ProjectCode,
-                folder.CanonicalPath,
-                folder.PresentHere,
-                folder.FileCount,
-                folder.TotalBytes,
-                folder.IndexedAtUtc,
-                folder.LastError,
-                peerCount = folder.Peers.Count,
-                differingFileCount = folder.Peers.Sum(peer => peer.DifferentCount),
-                peers = folder.Peers.Select(peer => new
-                {
-                    peer.DeviceKeyId,
-                    peer.ServerLastSeenAtUtc,
-                    peer.ExchangedAtUtc,
-                    peer.SameCount,
-                    peer.DifferentCount,
-                    peer.OnlyHereCount,
-                    peer.OnlyThereCount,
-                    peer.LastError,
-                }),
-            }),
-        });
-    }
+    /// <summary>sync-status: the same record the tray writes to the Twin's status file.</summary>
+    private StudioBridgeResponse BridgeSyncStatus(StudioBridgeRequest request) =>
+        StudioBridgeProtocol.Accept(request.Id, SyncStatusReport.Of(SyncTrayProcess.State(), SyncTrayProcess.IsRunning));
 
     /// <summary>sync-folders: the server's sync folders of this person's projects, and whether each is on this disk.</summary>
     private async Task<StudioBridgeResponse> BridgeSyncFoldersAsync(StudioBridgeRequest request)
