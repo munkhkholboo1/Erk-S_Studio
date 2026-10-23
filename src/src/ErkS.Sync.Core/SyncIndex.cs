@@ -13,7 +13,11 @@ public sealed record SyncIndexEntry(
     DateTime LastWriteUtc,
     SyncFileKind Kind,
     string Sha256,
-    IReadOnlyList<string> ChunkSha256);
+    IReadOnlyList<string> ChunkSha256)
+{
+    /// <summary>The file's place in its version chain (1.2), from this machine's ledger.</summary>
+    public SyncFileVersion? Version { get; init; }
+}
 
 /// <summary>
 /// What one machine holds in one sync folder: paths, sizes and hashes - never content.

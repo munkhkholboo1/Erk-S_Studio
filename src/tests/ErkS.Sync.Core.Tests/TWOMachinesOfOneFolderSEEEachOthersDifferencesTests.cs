@@ -7,11 +7,11 @@ namespace ErkS.Sync.Core.Tests;
 
 /// <summary>
 /// Two instances of SYN, one machine, one canonical path mapped to two physical folders: each
-/// finds the other on the LAN, fetches its index and reports what differs - without moving a
-/// byte of content.
+/// finds the other on the LAN, fetches its index and reports what differs.
 ///
 /// 🔴 Task 1.1, acceptance: «хоёр төхөөрөмж нэг folderId, ижил каноник зам харуулна; ялгаатай
-/// файлын жагсаалт гарна; агуулга дамжаагүй».
+/// файлын жагсаалт гарна». Since 1.2 a file only the other holds comes over; a file both hold
+/// differently, with no version in common, is still only shown (owner's decision 15).
 /// </summary>
 public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
 {
@@ -28,7 +28,7 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
     }
 
     [Fact]
-    public async Task EachSeesTheOthersDifferencesAndNothingIsCopied()
+    public async Task EachSeesTheOthersDifferencesAndADifferentFileIsNeverOverwritten()
     {
         using var rootA = new TemporaryFolder();
         using var rootB = new TemporaryFolder();
@@ -36,7 +36,7 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
         using var homeB = new TemporaryFolder();
         using var a = new FakeDevice();
         using var b = new FakeDevice();
-        var server = new FakeServer([a, b]);
+        var server = new FakeServer(Canonical, [a, b]);
 
         string folderA = Path.Combine(rootA.Path, "Erin");
         string folderB = Path.Combine(rootB.Path, "Erin");
@@ -55,7 +55,7 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
         Task runB = engineB.RunAsync(stop.Token);
 
         SyncPeerState? seenByA = null;
-        for (int attempt = 0; attempt < 40 && seenByA?.ExchangedAtUtc is null; attempt++)
+        for (int attempt = 0; attempt < 60 && !(seenByA?.SameCount == 2 && seenByA.UnrelatedCount == 1); attempt++)
         {
             await Task.Delay(500);
             engineA.Poke();
@@ -69,11 +69,13 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
         Assert.True(folder.PresentHere);
         Assert.Equal(Canonical, folder.CanonicalPath);
         Assert.NotNull(seenByA?.ExchangedAtUtc);
-        Assert.Equal(1, seenByA!.SameCount);
+        Assert.Equal(2, seenByA!.SameCount);
         Assert.Equal(1, seenByA.DifferentCount);
-        Assert.Equal(1, seenByA.OnlyThereCount);
+        Assert.Equal(1, seenByA.UnrelatedCount);
+        Assert.Equal(0, seenByA.OnlyThereCount);
         Assert.Equal("mine", File.ReadAllText(Path.Combine(folderA, "changed.pdf")));
-        Assert.False(File.Exists(Path.Combine(folderA, "only-b.pdf")));
+        Assert.Equal("theirs", File.ReadAllText(Path.Combine(folderB, "changed.pdf")));
+        Assert.Equal("b", File.ReadAllText(Path.Combine(folderA, "only-b.pdf")));
         Assert.NotNull(SyncStateStore.TryLoad(new SyncHome(homeA.Path)));
 
         // The Twin's file: the same counts, never a file name.
@@ -117,7 +119,7 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
         using var root = new TemporaryFolder();
         using var home = new TemporaryFolder();
         using var a = new FakeDevice();
-        var server = new FakeServer([a]);
+        var server = new FakeServer(Canonical, [a]);
         await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a, new SyncPathMap(@"D:\Cloud Work=>" + root.Path));
 
         await engine.PassAsync(CancellationToken.None);
@@ -136,58 +138,4 @@ public sealed class TWOMachinesOfOneFolderSEEEachOthersDifferencesTests
         CreatedAtUtc = DateTimeOffset.UtcNow,
     };
 
-    private sealed class FakeDevice : ISyncDevice, IDisposable
-    {
-        private readonly ECDsa _key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-
-        public FakeDevice()
-        {
-            DeviceKeyId = SyncDeviceKeyIds.Of(_key.ExportSubjectPublicKeyInfo());
-            TlsCertificate = SyncDeviceKey.CreateTlsCertificate(_key);
-        }
-
-        public string DeviceKeyId { get; }
-
-        public X509Certificate2 TlsCertificate { get; }
-
-        public byte[] SignSession(byte[] nonce) => SyncDeviceKey.SignSession(_key, nonce);
-
-        public void Dispose()
-        {
-            TlsCertificate.Dispose();
-            _key.Dispose();
-        }
-    }
-
-    /// <summary>The SRV device routes, answering the way the contract says.</summary>
-    private sealed class FakeServer(IReadOnlyList<FakeDevice> devices) : HttpMessageHandler
-    {
-        public SyncServerClient Client() => new(new HttpClient(this, disposeHandler: false) { BaseAddress = new Uri("https://erk-s.test") });
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            string path = request.RequestUri!.AbsolutePath;
-            HttpResponseMessage response = path switch
-            {
-                "/api/cloud-era/v1/sync/device/challenge" => Json(new { nonce = "AAEC", expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(2) }),
-                "/api/cloud-era/v1/sync/device/session" => Json(new { accessToken = "t", accessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(12), deviceKeyId = "x" }),
-                "/api/cloud-era/v1/sync/device/heartbeat" => new HttpResponseMessage(HttpStatusCode.NoContent),
-                "/api/cloud-era/v1/sync/device/folders" => Json(new
-                {
-                    folders = new[]
-                    {
-                        new
-                        {
-                            folder = new SyncServerFolder("f-1", "p-1", "ERIN-2026", "Эрин", Canonical, "owner@example.mn", "", DateTimeOffset.UtcNow),
-                            devices = devices.Select(device => new SyncServerDevice(device.DeviceKeyId, "", "member@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)).ToArray(),
-                        },
-                    },
-                }),
-                _ => new HttpResponseMessage(HttpStatusCode.NotFound),
-            };
-            return Task.FromResult(response);
-        }
-
-        private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body) };
-    }
 }

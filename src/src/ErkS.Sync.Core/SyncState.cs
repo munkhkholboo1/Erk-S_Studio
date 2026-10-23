@@ -30,6 +30,8 @@ public sealed class SyncHome(string root, string? statusPath = null)
 
     public string IndexPath(string folderId) => Path.Combine(FolderRoot(folderId), "index.json");
 
+    public string LedgerPath(string folderId) => Path.Combine(FolderRoot(folderId), "versions.json");
+
     public string PeerIndexPath(string folderId, string deviceKeyId) =>
         Path.Combine(FolderRoot(folderId), "peers", Sanitize(deviceKeyId) + ".json");
 
@@ -61,6 +63,25 @@ public sealed record SyncPeerState
     public int OnlyHereCount { get; init; }
 
     public int OnlyThereCount { get; init; }
+
+    /// <summary>1.2: files this machine took from the peer in its last transfer (new or newer versions); see <see cref="LastReceivedAtUtc"/>.</summary>
+    public int ReceivedCount { get; init; }
+
+    /// <summary>1.2: in that transfer, the peer's versions kept beside this machine's - both changed the same version.</summary>
+    public int KeptBothCount { get; init; }
+
+    /// <summary>1.2: files to take that were open here or changed while the pieces came - next pass.</summary>
+    public int WaitingCount { get; init; }
+
+    /// <summary>Files where this machine's version is the newer one; the peer takes them.</summary>
+    public int AheadHereCount { get; init; }
+
+    /// <summary>Different copies that never shared a version: shown «зөрүүтэй», a person decides.</summary>
+    public int UnrelatedCount { get; init; }
+
+    public long BytesReceived { get; init; }
+
+    public DateTimeOffset? LastReceivedAtUtc { get; init; }
 }
 
 /// <summary>One sync folder as THIS machine sees it.</summary>
@@ -86,6 +107,9 @@ public sealed record SyncFolderState
     public long TotalBytes { get; init; }
 
     public IReadOnlyList<SyncPeerState> Peers { get; init; } = [];
+
+    /// <summary>Conflict copies kept in this folder here (1.2) - each one a decision waiting for a person.</summary>
+    public int ConflictCount { get; init; }
 
     public string LastError { get; init; } = "";
 }

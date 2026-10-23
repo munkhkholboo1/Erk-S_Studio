@@ -93,7 +93,8 @@ internal sealed partial class ShellView
         }
 
         projectSyncSummary.Text = folder.PresentHere
-            ? $"{folder.CanonicalPath} · {folder.FileCount} файл · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}"
+            ? $"{folder.CanonicalPath} · {folder.FileCount} файл · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
+              (folder.ConflictCount > 0 ? $" · ⚠ шийдвэр хүлээж буй зөрчлийн хуулбар {folder.ConflictCount}" : "")
             : $"{folder.CanonicalPath} · {folder.LastError}";
         if (folder.Peers.Count == 0)
         {
@@ -108,7 +109,11 @@ internal sealed partial class ShellView
             string who = string.IsNullOrWhiteSpace(peer.AccountEmail) ? peer.DeviceKeyId[..Math.Min(8, peer.DeviceKeyId.Length)] : peer.AccountEmail;
             string compared = peer.ExchangedAtUtc is null
                 ? "индекс ирээгүй" + (peer.LastError.Length > 0 ? $" ({peer.LastError})" : "")
-                : $"ижил {peer.SameCount} · зөрүүтэй {peer.DifferentCount} · зөвхөн энд {peer.OnlyHereCount} · зөвхөн тэнд {peer.OnlyThereCount}";
+                : $"ижил {peer.SameCount} · зөрүүтэй {peer.DifferentCount} · зөвхөн энд {peer.OnlyHereCount} · зөвхөн тэнд {peer.OnlyThereCount}" +
+                  (peer.LastReceivedAtUtc is { } received
+                      ? $" · сүүлд ирсэн {peer.ReceivedCount} файл, зөрчлийн хуулбар {peer.KeptBothCount} ({received.ToLocalTime():MM-dd HH:mm})"
+                      : "") +
+                  (peer.WaitingCount > 0 ? $" · нээлттэй тул хүлээгдэж буй {peer.WaitingCount}" : "");
             projectSyncPanel.Children.Add(Line($"{who}: {compared}", bold: true));
 
             SyncIndex? theirs = SyncIndexStore.TryLoad(home.PeerIndexPath(folder.FolderId, peer.DeviceKeyId));

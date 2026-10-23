@@ -64,7 +64,24 @@ public static partial class SyncExclusions
         }
         if (ExcludedExtensions.Contains(Path.GetExtension(name)))
             return true;
+        if (name.Contains(ConflictMarker, StringComparison.Ordinal))
+            return true;
         return RevitNumberedBackup().IsMatch(name);
+    }
+
+    private const string ConflictMarker = " (Erk-S зөрчил ";
+
+    /// <summary>
+    /// Where a peer's version is kept when both machines changed the same file (1.2): beside
+    /// it, named for the writer and the time - «Plan (Erk-S зөрчил 1A2B3C4D 20261023-1430).dwg».
+    /// It is this machine's copy for a person to decide on, so it never travels itself.
+    /// </summary>
+    public static string ConflictCopyPath(string relativePath, string writerDeviceKeyId, DateTimeOffset at)
+    {
+        string directory = Path.GetDirectoryName(relativePath) ?? "";
+        string writer = (writerDeviceKeyId ?? "").Length > 8 ? writerDeviceKeyId![..8] : writerDeviceKeyId ?? "";
+        string name = $"{Path.GetFileNameWithoutExtension(relativePath)}{ConflictMarker}{writer} {at.ToLocalTime():yyyyMMdd-HHmm}){Path.GetExtension(relativePath)}";
+        return directory.Length == 0 ? name : Path.Combine(directory, name);
     }
 
     /// <summary>

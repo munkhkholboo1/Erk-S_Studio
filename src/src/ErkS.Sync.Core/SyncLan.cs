@@ -107,7 +107,7 @@ public sealed class SyncLanDiscovery : IDisposable
 /// 🔴 BOTH ENDS PROVE THEIR KEY. The TLS handshake requires a client certificate; after it,
 /// the public key on each side must be one the SERVER lists as attached to the folder asked
 /// about. A key that is not on the folder's list gets nothing, whatever it announced.
-/// Only the index travels - paths, sizes, hashes. File content is step 1.2.
+/// The index travels, and since 1.2 the pieces of files the asking machine is taking.
 /// </summary>
 public sealed class SyncLanExchange : IAsyncDisposable
 {
@@ -117,20 +117,27 @@ public sealed class SyncLanExchange : IAsyncDisposable
     private readonly SyncLanIdentity _identity;
     private readonly Func<string, IReadOnlySet<string>> _allowedDevices;
     private readonly Func<string, string?> _indexJson;
+    private readonly Func<string, string, string, int, byte[]?> _readChunk;
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _stop = new();
 
     /// <param name="allowedDevices">Device key ids the server lists for a folder id.</param>
     /// <param name="indexJson">This machine's index of a folder, serialized, or null when it holds none.</param>
+    /// <param name="readChunk">
+    /// (folder id, relative path, file hash, piece) → the piece's bytes, or null when this machine
+    /// does not hold that version of that file (1.2). Only files in this machine's own index.
+    /// </param>
     public SyncLanExchange(
         SyncLanIdentity identity,
         Func<string, IReadOnlySet<string>> allowedDevices,
         Func<string, string?> indexJson,
+        Func<string, string, string, int, byte[]?>? readChunk = null,
         int port = 0)
     {
         _identity = identity;
         _allowedDevices = allowedDevices;
         _indexJson = indexJson;
+        _readChunk = readChunk ?? ((_, _, _, _) => null);
         _listener = new TcpListener(IPAddress.Any, port);
         _listener.Start();
         _ = AcceptAsync(_stop.Token);
@@ -141,9 +148,36 @@ public sealed class SyncLanExchange : IAsyncDisposable
     /// <summary>Asks <paramref name="peerDeviceKeyId"/> at <paramref name="endpoint"/> for its index of a folder.</summary>
     public async Task<SyncIndex> FetchIndexAsync(IPEndPoint endpoint, string peerDeviceKeyId, string folderId, CancellationToken cancellationToken)
     {
-        using var client = new TcpClient(endpoint.AddressFamily);
-        await client.ConnectAsync(endpoint, cancellationToken);
-        await using var tls = new SslStream(client.GetStream(), leaveInnerStreamOpen: false);
+        await using SyncLanSession session = await OpenAsync(endpoint, peerDeviceKeyId, folderId, cancellationToken);
+        return await session.FetchIndexAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// One verified connection to a folder's other machine, for the index and then the pieces
+    /// of its files - the handshake and the key check happen once, not per piece.
+    /// </summary>
+    public async Task<SyncLanSession> OpenAsync(IPEndPoint endpoint, string peerDeviceKeyId, string folderId, CancellationToken cancellationToken)
+    {
+        var client = new TcpClient(endpoint.AddressFamily);
+        SslStream? tls = null;
+        try
+        {
+            await client.ConnectAsync(endpoint, cancellationToken);
+            tls = new SslStream(client.GetStream(), leaveInnerStreamOpen: false);
+            await AuthenticateAsync(tls, peerDeviceKeyId, folderId, cancellationToken);
+            return new SyncLanSession(client, tls, folderId);
+        }
+        catch
+        {
+            if (tls is not null)
+                await tls.DisposeAsync();
+            client.Dispose();
+            throw;
+        }
+    }
+
+    private async Task AuthenticateAsync(SslStream tls, string peerDeviceKeyId, string folderId, CancellationToken cancellationToken)
+    {
         await tls.AuthenticateAsClientAsync(
             new SslClientAuthenticationOptions
             {
@@ -160,14 +194,6 @@ public sealed class SyncLanExchange : IAsyncDisposable
         {
             throw new SyncLanException("sync_lan_peer_not_attached", "Хариулсан төхөөрөмж энэ хавтсанд холбогдоогүй байна.");
         }
-
-        await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeRequest(folderId), Json), cancellationToken);
-        ExchangeResponse response = JsonSerializer.Deserialize<ExchangeResponse>(await ReadFrameAsync(tls, cancellationToken), Json)
-            ?? throw new SyncLanException("sync_lan_bad_reply", "Хариу уншигдсангүй.");
-        if (!string.IsNullOrEmpty(response.Error))
-            throw new SyncLanException(response.Error, "Төхөөрөмж индексээ өгсөнгүй: " + response.Error);
-        return SyncIndexStore.Deserialize(response.Index ?? "")
-            ?? throw new SyncLanException("sync_lan_bad_index", "Индекс уншигдсангүй.");
     }
 
     private async Task AcceptAsync(CancellationToken cancellationToken)
@@ -207,17 +233,39 @@ public sealed class SyncLanExchange : IAsyncDisposable
                     },
                     timeout.Token);
                 string remote = KeyIdOf(tls.RemoteCertificate);
-                ExchangeRequest? request = JsonSerializer.Deserialize<ExchangeRequest>(await ReadFrameAsync(tls, timeout.Token), Json);
-                ExchangeResponse response;
-                if (request is null || string.IsNullOrWhiteSpace(request.FolderId))
-                    response = new ExchangeResponse("sync_lan_bad_request", null);
-                else if (remote.Length == 0 || !_allowedDevices(request.FolderId).Contains(remote))
-                    response = new ExchangeResponse("sync_lan_peer_not_attached", null);
-                else if (_indexJson(request.FolderId) is not { } index)
-                    response = new ExchangeResponse("sync_lan_no_index", null);
-                else
-                    response = new ExchangeResponse(null, index);
-                await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(response, Json), timeout.Token);
+                // One connection carries the index and then pieces; each request is checked
+                // against the folder's list again, and the connection lives while it is used.
+                while (true)
+                {
+                    byte[]? frame = await TryReadFrameAsync(tls, timeout.Token);
+                    if (frame is null)
+                        return;
+                    timeout.CancelAfter(TimeSpan.FromMinutes(2));
+                    ExchangeRequest? request = JsonSerializer.Deserialize<ExchangeRequest>(frame, Json);
+                    string? refusal =
+                        request is null || string.IsNullOrWhiteSpace(request.FolderId) ? "sync_lan_bad_request" :
+                        remote.Length == 0 || !_allowedDevices(request.FolderId).Contains(remote) ? "sync_lan_peer_not_attached" :
+                        null;
+                    if (refusal is not null)
+                    {
+                        await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(refusal, null), Json), timeout.Token);
+                        return;
+                    }
+                    if (request!.Kind == "chunk")
+                    {
+                        byte[]? piece = request.Path is { Length: > 0 } path && request.Sha256 is { Length: > 0 } sha && request.Chunk >= 0
+                            ? _readChunk(request.FolderId, path, sha, request.Chunk)
+                            : null;
+                        await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(piece is null ? "sync_lan_no_chunk" : null, null), Json), timeout.Token);
+                        if (piece is not null)
+                            await WriteFrameAsync(tls, piece, timeout.Token);
+                        continue;
+                    }
+                    ExchangeResponse response = _indexJson(request.FolderId) is { } index
+                        ? new ExchangeResponse(null, index)
+                        : new ExchangeResponse("sync_lan_no_index", null);
+                    await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(response, Json), timeout.Token);
+                }
             }
             catch (Exception exception) when (exception is IOException or AuthenticationException or JsonException or OperationCanceledException or SocketException or InvalidDataException)
             {
@@ -236,7 +284,24 @@ public sealed class SyncLanExchange : IAsyncDisposable
         return key is null ? "" : SyncDeviceKeyIds.Of(key.ExportSubjectPublicKeyInfo());
     }
 
-    private static async Task WriteFrameAsync(Stream stream, byte[] payload, CancellationToken cancellationToken)
+    /// <summary>The next frame, or null when the other end closed the connection between frames.</summary>
+    private static async Task<byte[]?> TryReadFrameAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        byte[] length = new byte[4];
+        int read = await stream.ReadAtLeastAsync(length, 4, throwOnEndOfStream: false, cancellationToken);
+        if (read == 0)
+            return null;
+        if (read < 4)
+            throw new InvalidDataException("frame header cut short");
+        int size = BinaryPrimitives.ReadInt32BigEndian(length);
+        if (size is < 0 or > MaxFrame)
+            throw new InvalidDataException("frame too large");
+        byte[] payload = new byte[size];
+        await stream.ReadExactlyAsync(payload, cancellationToken);
+        return payload;
+    }
+
+    internal static async Task WriteFrameAsync(Stream stream, byte[] payload, CancellationToken cancellationToken)
     {
         byte[] length = new byte[4];
         BinaryPrimitives.WriteInt32BigEndian(length, payload.Length);
@@ -245,7 +310,7 @@ public sealed class SyncLanExchange : IAsyncDisposable
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static async Task<byte[]> ReadFrameAsync(Stream stream, CancellationToken cancellationToken)
+    internal static async Task<byte[]> ReadFrameAsync(Stream stream, CancellationToken cancellationToken)
     {
         byte[] length = new byte[4];
         await stream.ReadExactlyAsync(length, cancellationToken);
@@ -264,9 +329,58 @@ public sealed class SyncLanExchange : IAsyncDisposable
         _stop.Dispose();
     }
 
-    private sealed record ExchangeRequest(string FolderId);
+    /// <summary>«index» (or none, as 1.1 sent it) or «chunk» with the file, its hash and the piece.</summary>
+    internal sealed record ExchangeRequest(string FolderId, string? Kind = null, string? Path = null, string? Sha256 = null, int Chunk = -1);
 
-    private sealed record ExchangeResponse(string? Error, string? Index);
+    internal sealed record ExchangeResponse(string? Error, string? Index);
+}
+
+/// <summary>An open, verified connection to one machine of one folder.</summary>
+public sealed class SyncLanSession : IAsyncDisposable
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private readonly TcpClient _client;
+    private readonly SslStream _tls;
+    private readonly string _folderId;
+
+    internal SyncLanSession(TcpClient client, SslStream tls, string folderId)
+    {
+        _client = client;
+        _tls = tls;
+        _folderId = folderId;
+    }
+
+    public async Task<SyncIndex> FetchIndexAsync(CancellationToken cancellationToken)
+    {
+        SyncLanExchange.ExchangeResponse response = await AskAsync(new SyncLanExchange.ExchangeRequest(_folderId, "index"), cancellationToken);
+        if (!string.IsNullOrEmpty(response.Error))
+            throw new SyncLanException(response.Error, "Төхөөрөмж индексээ өгсөнгүй: " + response.Error);
+        return SyncIndexStore.Deserialize(response.Index ?? "")
+            ?? throw new SyncLanException("sync_lan_bad_index", "Индекс уншигдсангүй.");
+    }
+
+    /// <summary>Piece <paramref name="chunk"/> of the version <paramref name="sha256"/> of a file - unchecked; the caller checks its hash.</summary>
+    public async Task<byte[]> FetchChunkAsync(string relativePath, string sha256, int chunk, CancellationToken cancellationToken)
+    {
+        SyncLanExchange.ExchangeResponse response = await AskAsync(
+            new SyncLanExchange.ExchangeRequest(_folderId, "chunk", relativePath, sha256, chunk), cancellationToken);
+        if (!string.IsNullOrEmpty(response.Error))
+            throw new SyncLanException(response.Error, "Төхөөрөмж файлын хэсгийг өгсөнгүй (тэр хувилбар өөрчлөгдсөн байж магадгүй).");
+        return await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken);
+    }
+
+    private async Task<SyncLanExchange.ExchangeResponse> AskAsync(SyncLanExchange.ExchangeRequest request, CancellationToken cancellationToken)
+    {
+        await SyncLanExchange.WriteFrameAsync(_tls, JsonSerializer.SerializeToUtf8Bytes(request, Json), cancellationToken);
+        return JsonSerializer.Deserialize<SyncLanExchange.ExchangeResponse>(await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken), Json)
+            ?? throw new SyncLanException("sync_lan_bad_reply", "Хариу уншигдсангүй.");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _tls.DisposeAsync();
+        _client.Dispose();
+    }
 }
 
 public sealed class SyncLanException(string code, string message) : Exception(message)

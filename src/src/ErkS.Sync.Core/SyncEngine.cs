@@ -46,12 +46,14 @@ public sealed class SyncPathMap
 }
 
 /// <summary>
-/// The background half of SYN 1.1, run by ErkS.Sync.exe with or without Studio:
-/// device session → the folders this device is attached to → index each one present here →
-/// heartbeat → announce on the LAN → fetch every attached peer's index → write the state.
+/// The background half of SYN, run by ErkS.Sync.exe with or without Studio:
+/// device session → the folders this device is attached to → index each one present here and
+/// give every file its version → heartbeat → announce on the LAN → from every attached peer
+/// its index, then (1.2) the files whose newer version it holds → write the state.
 ///
-/// 🔴 IT DECIDES NOTHING ABOUT FILES. It reads, hashes and compares; it never writes into a
-/// project folder (1.1 moves no content) and never resolves a difference.
+/// 🔴 IT NEVER RESOLVES A DIFFERENCE BY OVERWRITING. A peer's file replaces this machine's
+/// only when its version came after this machine's; two edits of one version are both kept;
+/// copies that never shared a version are only shown (<see cref="SyncTransferPlanner"/>).
 /// </summary>
 public sealed class SyncEngine : IAsyncDisposable
 {
@@ -61,6 +63,8 @@ public sealed class SyncEngine : IAsyncDisposable
     private readonly SyncPathMap _paths;
     private readonly SemaphoreSlim _wake = new(0);
     private readonly Dictionary<string, SyncIndex> _indexes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _roots = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SyncPeerState> _lastReceipts = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private IReadOnlyList<SyncServerDeviceFolder> _folders = [];
     private SyncDeviceSession? _session;
@@ -92,7 +96,8 @@ public sealed class SyncEngine : IAsyncDisposable
                 _exchange = new SyncLanExchange(
                     new SyncLanIdentity(_device.DeviceKeyId, _device.TlsCertificate),
                     AllowedDevices,
-                    IndexJson);
+                    IndexJson,
+                    ReadChunk);
                 _discovery = new SyncLanDiscovery(_device.DeviceKeyId);
             }
             catch (Exception exception) when (exception is System.Net.Sockets.SocketException or IOException)
@@ -227,9 +232,15 @@ public sealed class SyncEngine : IAsyncDisposable
             lock (_gate)
                 previous = _indexes.GetValueOrDefault(folder.FolderId) ?? SyncIndexStore.TryLoad(_home.IndexPath(folder.FolderId));
             index = await Task.Run(() => SyncIndexBuilder.Build(physical, folder.FolderId, previous, cancellationToken), cancellationToken);
+            SyncVersionLedger ledger = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId));
+            index = ledger.Stamp(index, _device!.DeviceKeyId);
+            SyncVersionLedgerStore.Save(ledger, _home.LedgerPath(folder.FolderId));
             SyncIndexStore.Save(index, _home.IndexPath(folder.FolderId));
             lock (_gate)
+            {
                 _indexes[folder.FolderId] = index;
+                _roots[folder.FolderId] = physical;
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -241,11 +252,14 @@ public sealed class SyncEngine : IAsyncDisposable
         {
             if (device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase))
                 continue;
-            peers.Add(await PeerPassAsync(folder.FolderId, device, index, cancellationToken));
+            peers.Add(await PeerPassAsync(folder.FolderId, physical, device, index, cancellationToken));
         }
+        if (peers.Any(peer => peer.LastReceivedAtUtc > index.BuiltAtUtc))
+            Poke(); // what arrived is indexed - and counted - on the very next pass
 
         return state with
         {
+            ConflictCount = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId)).Kept.Values.Sum(list => list.Count),
             PresentHere = true,
             IndexedAtUtc = index.BuiltAtUtc,
             FileCount = index.Entries.Count,
@@ -254,7 +268,7 @@ public sealed class SyncEngine : IAsyncDisposable
         };
     }
 
-    private async Task<SyncPeerState> PeerPassAsync(string folderId, SyncServerDevice device, SyncIndex mine, CancellationToken cancellationToken)
+    private async Task<SyncPeerState> PeerPassAsync(string folderId, string physical, SyncServerDevice device, SyncIndex mine, CancellationToken cancellationToken)
     {
         var peer = new SyncPeerState
         {
@@ -271,12 +285,17 @@ public sealed class SyncEngine : IAsyncDisposable
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(TimeSpan.FromSeconds(30));
-                SyncIndex theirs = await _exchange.FetchIndexAsync(heard.Endpoint, device.DeviceKeyId, folderId, timeout.Token);
+                await using SyncLanSession session = await _exchange.OpenAsync(heard.Endpoint, device.DeviceKeyId, folderId, timeout.Token);
+                SyncIndex theirs = await session.FetchIndexAsync(timeout.Token);
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                 peer = peer with { LanAddress = heard.Endpoint.ToString() };
+                timeout.CancelAfter(TransferWindow);
+                peer = await TransferAsync(folderId, physical, mine, theirs, session, peer, timeout.Token);
             }
-            catch (Exception exception) when (exception is SyncLanException or IOException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException or OperationCanceledException)
+            catch (Exception exception) when (exception is SyncLanException or IOException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException or OperationCanceledException or InvalidDataException)
             {
+                if (cancellationToken.IsCancellationRequested)
+                    throw;
                 error = exception is SyncLanException lan ? lan.Message : "LAN-аар холбогдож чадсангүй.";
             }
         }
@@ -291,13 +310,145 @@ public sealed class SyncEngine : IAsyncDisposable
         SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirsKnown);
         return peer with
         {
+            LastError = error.Length > 0 ? error : peer.LastError,
             ExchangedAtUtc = theirsKnown.BuiltAtUtc,
-            LastError = error,
             SameCount = difference.SameCount,
             DifferentCount = difference.Different.Count,
             OnlyHereCount = difference.OnlyHere.Count,
             OnlyThereCount = difference.OnlyThere.Count,
         };
+    }
+
+    /// <summary>How long one peer's files may take in one pass; the rest come on the next.</summary>
+    public TimeSpan TransferWindow { get; init; } = TimeSpan.FromMinutes(20);
+
+    /// <summary>
+    /// 1.2: the files of <paramref name="theirs"/> this machine should take, taken over the
+    /// already verified session - fetched, replaced or kept beside, never overwritten blind.
+    /// </summary>
+    private async Task<SyncPeerState> TransferAsync(
+        string folderId,
+        string physical,
+        SyncIndex mine,
+        SyncIndex theirs,
+        SyncLanSession session,
+        SyncPeerState peer,
+        CancellationToken cancellationToken)
+    {
+        string ledgerPath = _home.LedgerPath(folderId);
+        SyncVersionLedger ledger = SyncVersionLedgerStore.Load(ledgerPath);
+        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger);
+        int received = 0, kept = 0, waiting = 0;
+        long bytes = 0;
+        string lastError = "";
+        foreach (SyncTransferAction action in plan.Actions)
+        {
+            SyncIndexEntry file = action.Theirs;
+            SyncApplyResult result;
+            try
+            {
+                result = await SyncFileAssembler.ApplyAsync(
+                    physical,
+                    action,
+                    mine,
+                    (chunk, token) => session.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token),
+                    DateTimeOffset.UtcNow,
+                    cancellationToken);
+            }
+            catch (SyncLanException exception)
+            {
+                // The peer changed the file since its index: it comes with the next index.
+                waiting++;
+                lastError = exception.Message;
+                continue;
+            }
+            if (result.Outcome == SyncApplyOutcome.Waiting)
+            {
+                waiting++;
+                continue;
+            }
+            bytes += (long)result.ChunksFetched * SyncIndex.ChunkSize;
+            if (action.Kind == SyncTransferKind.KeepBoth)
+            {
+                ledger.Keep(file.RelativePath, file.Sha256);
+                kept++;
+            }
+            else
+            {
+                ledger.Applied(file.RelativePath, file.Version!);
+                received++;
+            }
+            SyncVersionLedgerStore.Save(ledger, ledgerPath);
+        }
+        // What arrived stays reported until something else arrives: the pass right after a
+        // transfer has nothing to take, and a count that flickers back to 0 tells nobody anything.
+        string receiptKey = folderId + "|" + peer.DeviceKeyId;
+        SyncPeerState receipt;
+        lock (_gate)
+        {
+            if (received + kept > 0)
+            {
+                _lastReceipts[receiptKey] = new SyncPeerState
+                {
+                    ReceivedCount = received,
+                    KeptBothCount = kept,
+                    BytesReceived = bytes,
+                    LastReceivedAtUtc = DateTimeOffset.UtcNow,
+                };
+            }
+            receipt = _lastReceipts.GetValueOrDefault(receiptKey) ?? new SyncPeerState();
+        }
+        return peer with
+        {
+            ReceivedCount = receipt.ReceivedCount,
+            KeptBothCount = receipt.KeptBothCount,
+            BytesReceived = receipt.BytesReceived,
+            LastReceivedAtUtc = receipt.LastReceivedAtUtc,
+            WaitingCount = waiting,
+            AheadHereCount = plan.AheadHere,
+            UnrelatedCount = plan.Unrelated,
+            LastError = lastError,
+        };
+    }
+
+    /// <summary>A piece of a file this machine holds, for an attached peer - only the version in this machine's index.</summary>
+    private byte[]? ReadChunk(string folderId, string relativePath, string sha256, int chunk)
+    {
+        SyncIndexEntry? entry;
+        string? root;
+        lock (_gate)
+        {
+            entry = _indexes.GetValueOrDefault(folderId)?.Entries.FirstOrDefault(item =>
+                SyncPath.Comparer.Equals(item.RelativePath, relativePath) &&
+                item.Sha256.Equals(sha256, StringComparison.OrdinalIgnoreCase));
+            root = _roots.GetValueOrDefault(folderId);
+        }
+        if (entry is null || root is null || chunk < 0 || chunk >= entry.ChunkSha256.Count ||
+            !SyncTransferPlanner.IsCarried(entry.Kind))
+        {
+            return null;
+        }
+        string path = Path.GetFullPath(Path.Combine(root, entry.RelativePath));
+        if (!SyncPath.IsSameOrInside(root, path))
+            return null;
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            long offset = (long)chunk * SyncIndex.ChunkSize;
+            int length = (int)Math.Min(SyncIndex.ChunkSize, stream.Length - offset);
+            if (length <= 0)
+                return null;
+            stream.Position = offset;
+            byte[] piece = new byte[length];
+            stream.ReadExactly(piece);
+            // Changed since the index: no piece rather than a wrong one.
+            return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(piece))
+                .Equals(entry.ChunkSha256[chunk], StringComparison.OrdinalIgnoreCase) ? piece : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private IReadOnlySet<string> AllowedDevices(string folderId)

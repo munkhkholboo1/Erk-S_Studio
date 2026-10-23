@@ -72,3 +72,7 @@ Explorer-ийн баруун товчны «Erk-S Sync» цэс (HKCU `Software\
 Twin-д: `sync-status`-тэй ЯГ ижил JSON-ыг (`SyncStatusReport`, зөвхөн тоо) tray pass бүрд (≤60 с)
 `%LOCALAPPDATA%\Erk-S Platform\Sync\status.json`-д атомаар бичнэ (tmp → replace; гарахдаа `running:false`),
 Studio хаалттай ч уншигдана. `ERKS_SYNC_HOME`-тэй хоёр дахь instance энэ файлыг дарахгүй.
+SYN 1.2 (LAN дамжуулалт): хавтас бүрт `conflictCount` (шийдвэр хүлээж буй зөрчлийн хуулбар), peer бүрт
+`receivedCount`/`keptBothCount`/`bytesReceived`/`lastReceivedAtUtc` (сүүлийн хүлээн авалт), `waitingCount` (нээлттэй
+тул хүлээгдэж буй), `unrelatedCount` (түүхгүй зөрүү — хүн шийднэ). Шинэ хувилбар зөвхөн өмнөхөө мэддэг үед солигдоно,
+хоёр талын засвар «Нэр (Erk-S зөрчил <төхөөрөмж> <огноо>).ext» хуулбараар хадгалагдана, Revit central дамжихгүй.
