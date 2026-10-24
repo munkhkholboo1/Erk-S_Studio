@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.72] - 2026-10-24 (test release)
+
+- Erk-S Sync shows how far each folder is in step with the other machine - «✓ бүрэн синк хийгдсэн», or «N% синк хийгдсэн» with the bytes - and, while files arrive, the overall progress, a bar, and the file arriving now with its own percentage. The tray icon says the same. The page follows the tray's state when it is written, not on a clock.
+
 ## [0.001.71] - 2026-10-24 (test release)
 
 - On a machine that holds a bot seat, the owner signed in is the owner everywhere: the other Erk-S products are told the owner, not a locked seat, and the «Суудлын эрхийн баталгаа хараахан ирээгүй» line no longer appears for them.
