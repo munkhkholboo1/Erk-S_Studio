@@ -20,6 +20,8 @@ public sealed class THESyncSectionFOLLOWSChangeNotAClockTests
         Assert.Contains("бүрэн синк хийгдсэн", sync, StringComparison.Ordinal);
         Assert.Contains("peer.TransferBytesPerSecond", sync, StringComparison.Ordinal);
         Assert.Contains("Revit central model", sync, StringComparison.Ordinal);
+        Assert.Contains("cloud sync", sync, StringComparison.Ordinal);
+        Assert.Contains("folder.UploadBytesPerSecond", sync, StringComparison.Ordinal);
     }
 
     private static string AppSourceRoot()

@@ -128,6 +128,9 @@ public sealed record SyncPeerState
     public int NotCarriedCount { get; init; }
 
     public long NotCarriedBytes { get; init; }
+
+    /// <summary>«lan» - directly on this network; «server» - through the server (cloud sync).</summary>
+    public string Route { get; init; } = "";
 }
 
 /// <summary>One sync folder as THIS machine sees it.</summary>
@@ -156,6 +159,19 @@ public sealed record SyncFolderState
 
     /// <summary>Conflict copies kept in this folder here (1.2) - each one a decision waiting for a person.</summary>
     public int ConflictCount { get; init; }
+
+    /// <summary>Cloud sync: this machine's pieces going on the server now, for partners on other networks.</summary>
+    public bool Uploading { get; init; }
+
+    public long UploadPendingBytes { get; init; }
+
+    public long UploadedBytes { get; init; }
+
+    public double UploadBytesPerSecond { get; init; }
+
+    public double? UploadSecondsLeft { get; init; }
+
+    public double LastUploadBytesPerSecond { get; init; }
 
     public string LastError { get; init; } = "";
 }

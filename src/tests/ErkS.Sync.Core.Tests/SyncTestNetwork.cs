@@ -32,17 +32,81 @@ internal sealed class FakeDevice : ISyncDevice, IDisposable
 /// <summary>The SRV device routes, answering the way the contract says: one folder, these devices on it.</summary>
 internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice> devices) : HttpMessageHandler
 {
+    private readonly object _gate = new();
+    private readonly Dictionary<string, string> _indexes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _chunks = new(StringComparer.OrdinalIgnoreCase);
+
     public FakeDevice[] Devices => devices.ToArray();
+
+    /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
+    public bool Relay { get; init; }
+
+    public IReadOnlyCollection<string> ChunksHeld
+    {
+        get
+        {
+            lock (_gate)
+                return _chunks.Keys.ToArray();
+        }
+    }
 
     public SyncServerClient Client() => new(new HttpClient(this, disposeHandler: false) { BaseAddress = new Uri("https://erk-s.test") });
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         string path = request.RequestUri!.AbsolutePath;
+        string token = request.Headers.Authorization?.Parameter ?? "";
+        const string relay = "/api/cloud-era/v1/sync/device/folders/f-1";
+        if (path == "/api/cloud-era/v1/sync/device/session")
+        {
+            using var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            string key = body.RootElement.GetProperty("deviceKeyId").GetString() ?? "";
+            return Json(new { accessToken = "t-" + key, accessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(12), deviceKeyId = key });
+        }
+        if (Relay && path.StartsWith(relay, StringComparison.Ordinal))
+        {
+            string rest = path[relay.Length..];
+            byte[] content = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(cancellationToken);
+            lock (_gate)
+            {
+                if (rest == "/index" && request.Method == HttpMethod.Put)
+                {
+                    _indexes[token] = System.Text.Encoding.UTF8.GetString(content);
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                if (rest.StartsWith("/devices/", StringComparison.Ordinal) && rest.EndsWith("/index", StringComparison.Ordinal))
+                {
+                    string key = Uri.UnescapeDataString(rest["/devices/".Length..^"/index".Length]);
+                    return _indexes.TryGetValue("t-" + key, out string? index)
+                        ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(index) }
+                        : new HttpResponseMessage(HttpStatusCode.NotFound);
+                }
+                if (rest == "/chunks/missing")
+                {
+                    using var body = System.Text.Json.JsonDocument.Parse(content);
+                    string[] missing = body.RootElement.GetProperty("sha256").EnumerateArray()
+                        .Select(item => item.GetString() ?? "").Where(sha => !_chunks.ContainsKey(sha)).ToArray();
+                    return Json(new { missing });
+                }
+                if (rest.StartsWith("/chunks/", StringComparison.Ordinal))
+                {
+                    string sha = Uri.UnescapeDataString(rest["/chunks/".Length..]);
+                    if (request.Method == HttpMethod.Put)
+                    {
+                        if (!Convert.ToHexStringLower(SHA256.HashData(content)).Equals(sha, StringComparison.OrdinalIgnoreCase))
+                            return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                        _chunks[sha] = content;
+                        return new HttpResponseMessage(HttpStatusCode.NoContent);
+                    }
+                    return _chunks.TryGetValue(sha, out byte[]? held)
+                        ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(held) }
+                        : new HttpResponseMessage(HttpStatusCode.NotFound);
+                }
+            }
+        }
         HttpResponseMessage response = path switch
         {
             "/api/cloud-era/v1/sync/device/challenge" => Json(new { nonce = "AAEC", expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(2) }),
-            "/api/cloud-era/v1/sync/device/session" => Json(new { accessToken = "t", accessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(12), deviceKeyId = "x" }),
             "/api/cloud-era/v1/sync/device/heartbeat" => new HttpResponseMessage(HttpStatusCode.NoContent),
             "/api/cloud-era/v1/sync/device/folders" => Json(new
             {
@@ -57,7 +121,7 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
             }),
             _ => new HttpResponseMessage(HttpStatusCode.NotFound),
         };
-        return Task.FromResult(response);
+        return response;
     }
 
     private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body) };

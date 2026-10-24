@@ -113,6 +113,19 @@ internal sealed partial class ShellView
             ? $"{folder.CanonicalPath} · {folder.FileCount} файл, {SyncSize(folder.TotalBytes)}{stepWord} · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
               (folder.ConflictCount > 0 ? $" · ⚠ шийдвэр хүлээж буй зөрчлийн хуулбар {folder.ConflictCount}" : "")
             : $"{folder.CanonicalPath} · {folder.LastError}";
+        if (folder.PresentHere && folder.LastError.Length > 0)
+            projectSyncPanel.Children.Add(Line("⚠ " + folder.LastError));
+        if (folder.Uploading)
+        {
+            double sent = folder.UploadPendingBytes == 0 ? 100 : folder.UploadedBytes * 100.0 / folder.UploadPendingBytes;
+            projectSyncPanel.Children.Add(Line($"Серверт илгээж байна (cloud sync): {sent:0}% · {SyncSize(folder.UploadedBytes)} / {SyncSize(folder.UploadPendingBytes)}" +
+                (folder.UploadBytesPerSecond > 0 ? $" · {SyncSize((long)folder.UploadBytesPerSecond)}/с · үлдсэн ~{SyncDuration(folder.UploadSecondsLeft)}" : "")));
+            projectSyncPanel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = sent, Height = 6, Margin = new Thickness(0, 2, 0, 4) });
+        }
+        else if (folder.UploadPendingBytes > 0)
+        {
+            projectSyncPanel.Children.Add(Line($"Серверт илгээх үлдсэн: {SyncSize(folder.UploadPendingBytes)} — дараагийн шалгалтаар үргэлжилнэ."));
+        }
         if (folder.Peers.Count == 0)
         {
             projectSyncPanel.Children.Add(Line("Өөр холбогдсон машин алга."));
@@ -131,7 +144,13 @@ internal sealed partial class ShellView
                       ? $" · сүүлд ирсэн {peer.ReceivedCount} файл, зөрчлийн хуулбар {peer.KeptBothCount} ({received.ToLocalTime():MM-dd HH:mm})"
                       : "") +
                   (peer.WaitingCount > 0 ? $" · нээлттэй тул хүлээгдэж буй {peer.WaitingCount}" : "");
-            projectSyncPanel.Children.Add(Line($"{who}: {compared}", bold: true));
+            string road = peer.Route switch
+            {
+                "lan" => " (LAN-аар шууд)",
+                "server" => " (сервероор — cloud sync)",
+                _ => "",
+            };
+            projectSyncPanel.Children.Add(Line($"{who}{road}: {compared}", bold: true));
             if (!peer.Transferring && peer.LastTransferBytesPerSecond > 0)
                 projectSyncPanel.Children.Add(Line($"   сүүлийн дамжуулалтын хурд: {SyncSize((long)peer.LastTransferBytesPerSecond)}/с"));
             if (peer.NotCarriedCount > 0)

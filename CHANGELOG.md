@@ -5,6 +5,11 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.74] - 2026-10-24 (test release)
+
+- Erk-S Sync is cloud sync: a partner on another network syncs through the server. Each machine puts its folder's index and the pieces of the files that travel on the server (Revit central model excluded); a partner not heard on the LAN takes them from there - whole file or nothing, decisions and backups as on the LAN. On a shared LAN files still go directly.
+- The «Erk-S Sync» section names the road (LAN directly / through the server) and shows the upload to the server with its percentage, speed and time left; the tray icon too.
+
 ## [0.001.73] - 2026-10-24 (test release)
 
 - Erk-S Sync shows the speed of a transfer (MB/s) and the time left; after it finishes, the speed it ran at. The tray icon shows the speed too.

@@ -261,6 +261,10 @@ public sealed class SyncEngine : IAsyncDisposable
             Peers = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase))?.Peers ?? [],
         });
 
+        string uploadError = "";
+        if (entry.Devices.Any(device => !device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase)))
+            uploadError = await UploadAsync(folder.FolderId, index, cancellationToken);
+
         var peers = new List<SyncPeerState>();
         foreach (SyncServerDevice device in entry.Devices)
         {
@@ -271,8 +275,15 @@ public sealed class SyncEngine : IAsyncDisposable
         if (peers.Any(peer => peer.LastReceivedAtUtc > index.BuiltAtUtc))
             Poke(); // what arrived is indexed - and counted - on the very next pass
 
+        SyncFolderState? shown;
+        lock (_gate)
+            shown = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase));
         return state with
         {
+            LastError = uploadError,
+            UploadedBytes = shown?.UploadedBytes ?? 0,
+            UploadPendingBytes = shown?.UploadPendingBytes ?? 0,
+            LastUploadBytesPerSecond = shown?.LastUploadBytesPerSecond ?? 0,
             ConflictCount = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId)).Kept.Values.Sum(list => list.Count),
             PresentHere = true,
             IndexedAtUtc = index.BuiltAtUtc,
@@ -293,6 +304,7 @@ public sealed class SyncEngine : IAsyncDisposable
         string stored = _home.PeerIndexPath(folderId, device.DeviceKeyId);
         SyncLanPeer? heard = _discovery?.Find(device.DeviceKeyId);
         string error = "";
+        bool viaLan = false;
         if (heard is not null && heard.FolderIds.Contains(folderId, StringComparer.OrdinalIgnoreCase) && _exchange is not null)
         {
             try
@@ -302,9 +314,11 @@ public sealed class SyncEngine : IAsyncDisposable
                 await using SyncLanSession session = await _exchange.OpenAsync(heard.Endpoint, device.DeviceKeyId, folderId, timeout.Token);
                 SyncIndex theirs = await session.FetchIndexAsync(timeout.Token);
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
-                peer = peer with { LanAddress = heard.Endpoint.ToString() };
+                peer = peer with { LanAddress = heard.Endpoint.ToString(), Route = "lan" };
+                viaLan = true;
                 timeout.CancelAfter(TransferWindow);
-                peer = await TransferAsync(folderId, physical, mine, theirs, session, peer, timeout.Token);
+                peer = await TransferAsync(folderId, physical, mine, theirs,
+                    (file, chunk, token) => session.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token);
             }
             catch (Exception exception) when (exception is SyncLanException or IOException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException or OperationCanceledException or InvalidDataException)
             {
@@ -316,6 +330,42 @@ public sealed class SyncEngine : IAsyncDisposable
         else if (heard is null)
         {
             error = "LAN дээр олдсонгүй (унтарсан эсвэл өөр сүлжээнд).";
+        }
+
+        // 🔴 CLOUD SYNC (owner, 2026-10-24: «бид чинь cloud sync хийх гээд байгаа шүү дээ»): a
+        // partner on another network is synced through the server - its index and the pieces it
+        // put there. Same planner, same whole-file-or-nothing; only the road differs.
+        if (!viaLan && _session is { } relay)
+        {
+            try
+            {
+                using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                window.CancelAfter(TransferWindow);
+                string? json = await _server.GetIndexAsync(relay.AccessToken, folderId, device.DeviceKeyId, window.Token);
+                if (json is null)
+                {
+                    error = "Хамтрагч индексээ серверт хараахан тавиагүй (түүний Erk-S Sync шинэчлэгдээгүй эсвэл унтарсан).";
+                }
+                else
+                {
+                    SyncIndex theirs = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
+                    SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
+                    error = "";
+                    peer = peer with { Route = "server" };
+                    peer = await TransferAsync(folderId, physical, mine, theirs,
+                        (file, chunk, token) => RelayChunkAsync(relay.AccessToken, folderId, file, chunk, token), peer, window.Token);
+                }
+            }
+            catch (Exception exception) when (exception is SyncServerException or HttpRequestException or IOException or OperationCanceledException or InvalidDataException or System.Text.Json.JsonException)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    throw;
+                error = exception is SyncServerException refused
+                    ? "Сервероор дамжуулж чадсангүй: " + refused.Message
+                    : exception is OperationCanceledException
+                        ? "Сервероор дамжуулалт энэ удаад хугацаандаа багтсангүй — дараагийн шалгалтаар үргэлжилнэ."
+                        : "Сервероор дамжуулж чадсангүй (сүлжээ).";
+            }
         }
 
         SyncIndex? theirsKnown = SyncIndexStore.TryLoad(stored);
@@ -355,7 +405,7 @@ public sealed class SyncEngine : IAsyncDisposable
         string physical,
         SyncIndex mine,
         SyncIndex theirs,
-        SyncLanSession session,
+        Func<SyncIndexEntry, int, CancellationToken, Task<byte[]>> fetch,
         SyncPeerState peer,
         CancellationToken cancellationToken)
     {
@@ -403,7 +453,7 @@ public sealed class SyncEngine : IAsyncDisposable
                     physical,
                     action,
                     mine,
-                    (chunk, token) => session.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token),
+                    (chunk, token) => fetch(file, chunk, token),
                     DateTimeOffset.UtcNow,
                     cancellationToken,
                     piece =>
@@ -512,6 +562,143 @@ public sealed class SyncEngine : IAsyncDisposable
         {
             return null;
         }
+    }
+
+    /// <summary>A piece from the server by its hash; one it does not hold yet makes the file wait.</summary>
+    private async Task<byte[]> RelayChunkAsync(string token, string folderId, SyncIndexEntry file, int chunk, CancellationToken cancellationToken)
+    {
+        if (chunk < 0 || chunk >= file.ChunkSha256.Count)
+            throw new SyncLanException("sync_chunk_none", "Файлын хэсэг индекст алга.");
+        return await _server.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], cancellationToken)
+            ?? throw new SyncLanException("sync_chunk_none", "Файлын хэсэг серверт хараахан ирээгүй — дараагийн шалгалтаар.");
+    }
+
+    /// <summary>How long one pass may spend putting pieces on the server; the rest go on the next.</summary>
+    public TimeSpan UploadWindow { get; init; } = TimeSpan.FromMinutes(10);
+
+    private readonly Dictionary<string, string> _uploadedIndex = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Cloud sync, the sending half: this machine's index and the pieces of the files that travel
+    /// go on the server, so a partner on any network can take them. A Revit central model never
+    /// goes; a piece that changed since the index is skipped until the next pass.
+    /// </summary>
+    private async Task<string> UploadAsync(string folderId, SyncIndex index, CancellationToken cancellationToken)
+    {
+        if (_session is not { } relay)
+            return "";
+        try
+        {
+            string json = SyncIndexStore.Serialize(index);
+            string shape = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(SyncIndexStore.Serialize(index with { BuiltAtUtc = default }))));
+            bool indexSent;
+            lock (_gate)
+                indexSent = _uploadedIndex.TryGetValue(folderId, out string? sent) && sent == shape;
+            if (!indexSent)
+            {
+                await _server.PutIndexAsync(relay.AccessToken, folderId, json, cancellationToken);
+                lock (_gate)
+                    _uploadedIndex[folderId] = shape;
+            }
+
+            var pieces = new Dictionary<string, (SyncIndexEntry Entry, int Chunk)>(StringComparer.OrdinalIgnoreCase);
+            foreach (SyncIndexEntry entry in index.Entries)
+            {
+                if (!SyncTransferPlanner.IsCarried(entry.Kind) || SyncExclusions.IsExcludedFile(Path.GetFileName(entry.RelativePath)))
+                    continue;
+                for (int chunk = 0; chunk < entry.ChunkSha256.Count; chunk++)
+                    pieces.TryAdd(entry.ChunkSha256[chunk], (entry, chunk));
+            }
+            var missing = new List<string>();
+            foreach (string[] batch in pieces.Keys.Chunk(1000))
+                missing.AddRange(await _server.MissingChunksAsync(relay.AccessToken, folderId, batch, cancellationToken));
+
+            long pending = missing.Sum(sha => pieces.TryGetValue(sha, out var at) ? PieceLength(at.Entry, at.Chunk) : 0);
+            long done = 0;
+            var rate = new SyncTransferRate();
+            DateTimeOffset started = DateTimeOffset.UtcNow;
+            rate.Add(0, started);
+            DateTime lastReport = DateTime.MinValue;
+            void Report(bool force = false)
+            {
+                if (!force && (DateTime.UtcNow - lastReport).TotalMilliseconds < 1000)
+                    return;
+                lastReport = DateTime.UtcNow;
+                rate.Add(done, DateTimeOffset.UtcNow);
+                ReportFolder(folderId, folder => folder with
+                {
+                    Uploading = done < pending,
+                    UploadPendingBytes = pending,
+                    UploadedBytes = done,
+                    UploadBytesPerSecond = rate.BytesPerSecond,
+                    UploadSecondsLeft = rate.SecondsLeft(pending, done),
+                });
+            }
+            if (pending > 0)
+                Report(force: true);
+            using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            window.CancelAfter(UploadWindow);
+            try
+            {
+                foreach (string sha in missing)
+                {
+                    if (!pieces.TryGetValue(sha, out var at))
+                        continue;
+                    byte[]? piece = ReadChunk(folderId, at.Entry.RelativePath, at.Entry.Sha256, at.Chunk);
+                    if (piece is null)
+                        continue;
+                    await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, window.Token);
+                    done += piece.Length;
+                    Report();
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // The window closed: the rest go on the next pass.
+            }
+            double seconds = (DateTimeOffset.UtcNow - started).TotalSeconds;
+            ReportFolder(folderId, folder => folder with
+            {
+                Uploading = false,
+                UploadPendingBytes = Math.Max(0, pending - done),
+                UploadedBytes = done,
+                UploadBytesPerSecond = 0,
+                UploadSecondsLeft = null,
+                LastUploadBytesPerSecond = done > 0 && seconds > 0 ? done / seconds : folder.LastUploadBytesPerSecond,
+            });
+            return "";
+        }
+        catch (SyncServerException exception) when (exception.Code is "sync_relay_storage_full" or "sync_quota_exceeded")
+        {
+            return "Серверийн синкийн сан дүүрсэн — зай гартал хүлээнэ.";
+        }
+        catch (SyncServerException exception) when (exception.Code == "sync_rate_limited")
+        {
+            return "Сервер түр хязгаарлалаа — дараагийн шалгалтаар үргэлжилнэ.";
+        }
+        catch (SyncServerException exception) when (exception.Status == HttpStatusCode.NotFound && exception.Code.StartsWith("http_", StringComparison.Ordinal))
+        {
+            return "Сервер cloud sync-ийг хараахан дэмжихгүй байна (одоохондоо зөвхөн LAN).";
+        }
+        catch (Exception exception) when (exception is SyncServerException or HttpRequestException or IOException or TaskCanceledException)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                throw;
+            return "Серверт илгээж чадсангүй: " + exception.Message;
+        }
+    }
+
+    private static long PieceLength(SyncIndexEntry entry, int chunk) =>
+        Math.Min(SyncIndex.ChunkSize, entry.Size - (long)chunk * SyncIndex.ChunkSize);
+
+    private void ReportFolder(string folderId, Func<SyncFolderState, SyncFolderState> change)
+    {
+        SyncFolderState? folder;
+        lock (_gate)
+            folder = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase));
+        if (folder is not null)
+            UpsertFolder(change(folder));
     }
 
     /// <summary>Puts <paramref name="folder"/> into the state now and writes it - the pass is still running.</summary>

@@ -41,8 +41,10 @@ public sealed class SyncServerException(HttpStatusCode status, string code, stri
 /// <summary>
 /// The SRV routes of SYN 1.1 (Erk-S-Server docs/contracts/sync-folder.example.json).
 ///
-/// 🔴 NOTHING ABOUT A FILE GOES OUT. Every request here carries a path of the FOLDER, a key id
-/// and a project id - never a file name, a hash or an index (task 1.1, hard boundary).
+/// 1.1 sent nothing about a file. Since 2026-10-24 (owner: «бид чинь cloud sync хийх гээд байгаа
+/// шүү дээ») the relay routes carry a device's index and the pieces of the files that travel, so a
+/// partner on another network syncs through the server (_shared/syn-cloud-relay-contract-2026-10-24.md);
+/// only device tokens of attached devices reach them, and a Revit central model never goes.
 ///
 /// Two credentials, never mixed: a person's Cloud ERA token for registering and joining
 /// (a person's decision on a project), and the device token for what ErkS.Sync.exe does alone.
@@ -115,6 +117,66 @@ public sealed class SyncServerClient(HttpClient http)
     public Task DeviceHeartbeatAsync(string deviceToken, CancellationToken cancellationToken = default) =>
         SendAsync<object>(HttpMethod.Post, "/api/cloud-era/v1/sync/device/heartbeat", deviceToken, null, cancellationToken);
 
+    // ---- relay (device token): a partner anywhere -----------------------------------------
+
+    private static string Relay(string folderId) => $"/api/cloud-era/v1/sync/device/folders/{Escape(folderId)}";
+
+    public async Task PutIndexAsync(string deviceToken, string folderId, string indexJson, CancellationToken cancellationToken = default)
+    {
+        using var content = new StringContent(indexJson, System.Text.Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await RawAsync(HttpMethod.Put, Relay(folderId) + "/index", deviceToken, content, cancellationToken);
+    }
+
+    /// <summary>A peer's latest index on the server, or null when it has put none.</summary>
+    public async Task<string?> GetIndexAsync(string deviceToken, string folderId, string deviceKeyId, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage? response = await RawOrNoneAsync(HttpMethod.Get, Relay(folderId) + $"/devices/{Escape(deviceKeyId)}/index", deviceToken, cancellationToken);
+        return response is null ? null : await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> MissingChunksAsync(string deviceToken, string folderId, IReadOnlyList<string> sha256, CancellationToken cancellationToken = default)
+    {
+        MissingResponse? response = await SendAsync<MissingResponse>(HttpMethod.Post, Relay(folderId) + "/chunks/missing", deviceToken, new { sha256 }, cancellationToken);
+        return response?.Missing ?? [];
+    }
+
+    public async Task PutChunkAsync(string deviceToken, string folderId, string sha256, byte[] piece, CancellationToken cancellationToken = default)
+    {
+        using var content = new ByteArrayContent(piece);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        using HttpResponseMessage response = await RawAsync(HttpMethod.Put, Relay(folderId) + $"/chunks/{Escape(sha256)}", deviceToken, content, cancellationToken);
+    }
+
+    /// <summary>A piece by its hash, or null when the server does not hold it (yet).</summary>
+    public async Task<byte[]?> GetChunkAsync(string deviceToken, string folderId, string sha256, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage? response = await RawOrNoneAsync(HttpMethod.Get, Relay(folderId) + $"/chunks/{Escape(sha256)}", deviceToken, cancellationToken);
+        return response is null ? null : await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    }
+
+    private async Task<HttpResponseMessage?> RawOrNoneAsync(HttpMethod method, string path, string token, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await RawAsync(method, path, token, null, cancellationToken);
+        }
+        catch (SyncServerException exception) when (exception.Status == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    private async Task<HttpResponseMessage> RawAsync(HttpMethod method, string path, string token, HttpContent? content, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(method, path) { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        HttpResponseMessage response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+        if (response.IsSuccessStatusCode)
+            return response;
+        using (response)
+            throw await RefusalAsync(response, cancellationToken);
+    }
+
     // ---- plumbing ------------------------------------------------------------------------
 
     private async Task<T?> SendAsync<T>(HttpMethod method, string path, string? token, object? body, CancellationToken cancellationToken)
@@ -126,6 +188,14 @@ public sealed class SyncServerClient(HttpClient http)
             request.Content = JsonContent.Create(body, options: Json);
         using HttpResponseMessage response = await http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
+            throw await RefusalAsync(response, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NoContent || typeof(T) == typeof(object))
+            return default;
+        return await response.Content.ReadFromJsonAsync<T>(Json, cancellationToken);
+    }
+
+    private static async Task<SyncServerException> RefusalAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
         {
             string code = response.Headers.TryGetValues("X-ErkS-Reason-Code", out IEnumerable<string>? values)
                 ? values.FirstOrDefault() ?? ""
@@ -140,14 +210,11 @@ public sealed class SyncServerClient(HttpClient http)
             catch (Exception exception) when (exception is JsonException or NotSupportedException)
             {
             }
-            throw new SyncServerException(
+            return new SyncServerException(
                 response.StatusCode,
                 string.IsNullOrWhiteSpace(code) ? $"http_{(int)response.StatusCode}" : code,
                 string.IsNullOrWhiteSpace(message) ? $"Сервер татгалзлаа ({(int)response.StatusCode})." : message);
         }
-        if (response.StatusCode == HttpStatusCode.NoContent || typeof(T) == typeof(object))
-            return default;
-        return await response.Content.ReadFromJsonAsync<T>(Json, cancellationToken);
     }
 
     private static string Escape(string value) => Uri.EscapeDataString(value ?? "");
@@ -163,6 +230,8 @@ public sealed class SyncServerClient(HttpClient http)
     }
 
     private sealed record ErrorResponse(string? Code, string? Message);
+
+    private sealed record MissingResponse(List<string>? Missing);
 
     private sealed record ChallengeResponse(string? Nonce);
 
