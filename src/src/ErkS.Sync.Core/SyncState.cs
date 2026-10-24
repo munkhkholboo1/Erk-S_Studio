@@ -114,6 +114,20 @@ public sealed record SyncPeerState
     public long CurrentFileBytes { get; init; }
 
     public long CurrentFileDoneBytes { get; init; }
+
+    /// <summary>The speed of the transfer running now, bytes a second; 0 before the first second.</summary>
+    public double TransferBytesPerSecond { get; init; }
+
+    /// <summary>Seconds left at that speed, or null while there is no speed yet.</summary>
+    public double? TransferSecondsLeft { get; init; }
+
+    /// <summary>The average speed of the last finished transfer from this peer.</summary>
+    public double LastTransferBytesPerSecond { get; init; }
+
+    /// <summary>Files that never travel by rule (a Revit central model and its data) - not counted as missing.</summary>
+    public int NotCarriedCount { get; init; }
+
+    public long NotCarriedBytes { get; init; }
 }
 
 /// <summary>One sync folder as THIS machine sees it.</summary>

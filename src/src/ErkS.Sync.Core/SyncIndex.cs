@@ -260,6 +260,24 @@ public static class SyncIndexComparison
     /// non-empty folder keeps what matches and shows the rest as «зөрүүтэй» for a person to
     /// decide - nothing is silently overwritten. So this only lists; it chooses nothing.
     /// </summary>
+    /// <summary>
+    /// <see cref="Compare"/> over the files that travel only; a Revit central model never travels,
+    /// so it is reported apart, not as missing (owner, 2026-10-24: 36.9% with every file there).
+    /// </summary>
+    public static SyncCarriedDifference CompareCarried(SyncIndex here, SyncIndex there)
+    {
+        ArgumentNullException.ThrowIfNull(here);
+        ArgumentNullException.ThrowIfNull(there);
+        var stays = here.Entries.Concat(there.Entries)
+            .Where(entry => !SyncTransferPlanner.IsCarried(entry.Kind))
+            .GroupBy(entry => entry.RelativePath, SyncPath.Comparer)
+            .ToList();
+        SyncIndexDifference difference = Compare(
+            here with { Entries = here.Entries.Where(entry => SyncTransferPlanner.IsCarried(entry.Kind)).ToList() },
+            there with { Entries = there.Entries.Where(entry => SyncTransferPlanner.IsCarried(entry.Kind)).ToList() });
+        return new SyncCarriedDifference(difference, stays.Count, stays.Sum(group => group.Max(entry => entry.Size)));
+    }
+
     public static SyncIndexDifference Compare(SyncIndex here, SyncIndex there)
     {
         ArgumentNullException.ThrowIfNull(here);
@@ -296,3 +314,9 @@ public static class SyncIndexComparison
         return new SyncIndexDifference(same, different, onlyHere, onlyThere, sameBytes, differentBytes);
     }
 }
+
+/// <summary>
+/// How far two machines are in step over the files that may travel, and what stays put by rule
+/// (a Revit central model and its data: one authority, never copied).
+/// </summary>
+public sealed record SyncCarriedDifference(SyncIndexDifference Difference, int NotCarriedCount, long NotCarriedBytes);

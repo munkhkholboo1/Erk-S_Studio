@@ -21,7 +21,9 @@ public sealed record SyncStatusPeer(
     double SyncedPercent = 0,
     bool Transferring = false,
     long TransferTotalBytes = 0,
-    long TransferDoneBytes = 0);
+    long TransferDoneBytes = 0,
+    double BytesPerSecond = 0,
+    int NotCarriedCount = 0);
 
 public sealed record SyncStatusFolder(
     string FolderId,
@@ -99,7 +101,9 @@ public sealed record SyncStatusReport(
                 peer.SyncedPercent,
                 peer.Transferring,
                 peer.TransferTotalBytes,
-                peer.TransferDoneBytes)).ToList(),
+                peer.TransferDoneBytes,
+                peer.Transferring ? peer.TransferBytesPerSecond : peer.LastTransferBytesPerSecond,
+                peer.NotCarriedCount)).ToList(),
             folder.ConflictCount,
             folder.Peers.Count == 0 ? 100 : folder.Peers.Min(peer => peer.SyncedPercent))).ToList());
 

@@ -132,6 +132,10 @@ internal sealed partial class ShellView
                       : "") +
                   (peer.WaitingCount > 0 ? $" · нээлттэй тул хүлээгдэж буй {peer.WaitingCount}" : "");
             projectSyncPanel.Children.Add(Line($"{who}: {compared}", bold: true));
+            if (!peer.Transferring && peer.LastTransferBytesPerSecond > 0)
+                projectSyncPanel.Children.Add(Line($"   сүүлийн дамжуулалтын хурд: {SyncSize((long)peer.LastTransferBytesPerSecond)}/с"));
+            if (peer.NotCarriedCount > 0)
+                projectSyncPanel.Children.Add(Line($"   Revit central model: {peer.NotCarriedCount} файл, {SyncSize(peer.NotCarriedBytes)} — синкээр хуулагдахгүй (ганц эзэнтэй), хувьд тооцохгүй"));
             projectSyncPanel.Children.Add(Line(peer.ExchangedAtUtc is null
                 ? "   синкийн хувь: тодорхойгүй (индекс ирээгүй)"
                 : peer.SyncedPercent >= 100
@@ -142,6 +146,9 @@ internal sealed partial class ShellView
                 double all = peer.TransferTotalBytes == 0 ? 100 : peer.TransferDoneBytes * 100.0 / peer.TransferTotalBytes;
                 double one = peer.CurrentFileBytes == 0 ? 100 : peer.CurrentFileDoneBytes * 100.0 / peer.CurrentFileBytes;
                 projectSyncPanel.Children.Add(Line($"   хүлээн авч байна: {all:0}% · {SyncSize(peer.TransferDoneBytes)} / {SyncSize(peer.TransferTotalBytes)} · {peer.TransferFilesDone}/{peer.TransferFiles} файл"));
+                projectSyncPanel.Children.Add(Line(peer.TransferBytesPerSecond > 0
+                    ? $"   хурд: {SyncSize((long)peer.TransferBytesPerSecond)}/с · үлдсэн ~{SyncDuration(peer.TransferSecondsLeft)}"
+                    : "   хурд: хэмжиж байна..."));
                 projectSyncPanel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = all, Height = 6, Margin = new Thickness(12, 2, 0, 4) });
                 projectSyncPanel.Children.Add(Line($"   одоо: {peer.CurrentFile} — {one:0}% ({SyncSize(peer.CurrentFileDoneBytes)} / {SyncSize(peer.CurrentFileBytes)})"));
             }
@@ -282,6 +289,14 @@ internal sealed partial class ShellView
         >= 1L << 20 => $"{bytes / (double)(1L << 20):0.#} МБ",
         >= 1L << 10 => $"{bytes / (double)(1L << 10):0} КБ",
         _ => $"{bytes} Б",
+    };
+
+    private static string SyncDuration(double? seconds) => seconds switch
+    {
+        null => "тодорхойгүй",
+        >= 3600 => $"{seconds.Value / 3600:0.#} цаг",
+        >= 60 => $"{seconds.Value / 60:0} мин",
+        _ => $"{seconds.Value:0} с",
     };
 
     private async Task MakeSyncFolderFromPickerAsync()

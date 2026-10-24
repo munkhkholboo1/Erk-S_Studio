@@ -47,7 +47,8 @@ internal sealed class SyncTray : ApplicationContext
         SyncPeerState[] peers = state.Folders.SelectMany(folder => folder.Peers).ToArray();
         SyncPeerState? moving = peers.FirstOrDefault(peer => peer.Transferring);
         string text = moving is not null
-            ? $"Erk-S Sync — хүлээн авч байна {(moving.TransferTotalBytes == 0 ? 100 : moving.TransferDoneBytes * 100.0 / moving.TransferTotalBytes):0}%"
+            ? $"Erk-S Sync — хүлээн авч байна {(moving.TransferTotalBytes == 0 ? 100 : moving.TransferDoneBytes * 100.0 / moving.TransferTotalBytes):0}%" +
+              (moving.TransferBytesPerSecond > 0 ? $" · {moving.TransferBytesPerSecond / (1 << 20):0.0} МБ/с" : "")
             : peers.Length == 0
                 ? "Erk-S Sync"
                 : peers.All(peer => peer.SyncedPercent >= 100)

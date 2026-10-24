@@ -269,3 +269,35 @@ public static class SyncFileAssembler
         }
     }
 }
+
+/// <summary>
+/// The speed of a transfer as it runs (owner, 2026-10-24: «синк ямар хурдаар хийгдэж байгаа нь
+/// харагддаг болгоорой»): bytes over at least a second, smoothed so one slow piece does not swing it.
+/// </summary>
+public sealed class SyncTransferRate
+{
+    private long _sampleBytes = -1;
+    private DateTimeOffset _sampleAt;
+
+    public double BytesPerSecond { get; private set; }
+
+    /// <summary><paramref name="totalDone"/>: every byte of this transfer so far, at <paramref name="at"/>.</summary>
+    public void Add(long totalDone, DateTimeOffset at)
+    {
+        if (_sampleBytes < 0)
+        {
+            (_sampleBytes, _sampleAt) = (totalDone, at);
+            return;
+        }
+        double seconds = (at - _sampleAt).TotalSeconds;
+        if (seconds < 1)
+            return;
+        double now = Math.Max(0, totalDone - _sampleBytes) / seconds;
+        BytesPerSecond = BytesPerSecond == 0 ? now : BytesPerSecond * 0.5 + now * 0.5;
+        (_sampleBytes, _sampleAt) = (totalDone, at);
+    }
+
+    /// <summary>Seconds until <paramref name="total"/> at this speed, or null while there is no speed yet.</summary>
+    public double? SecondsLeft(long total, long done) =>
+        BytesPerSecond <= 0 ? null : Math.Max(0, total - done) / BytesPerSecond;
+}

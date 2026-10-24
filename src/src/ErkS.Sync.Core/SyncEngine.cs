@@ -322,13 +322,18 @@ public sealed class SyncEngine : IAsyncDisposable
         if (theirsKnown is null)
             return peer with { LastError = error };
         SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirsKnown);
+        SyncCarriedDifference carried = SyncIndexComparison.CompareCarried(mine, theirsKnown);
         return peer with
         {
             Transferring = false,
             CurrentFile = "",
-            SyncedPercent = difference.SyncedPercent,
-            SyncedBytes = difference.SameBytes,
-            UnionBytes = difference.UnionBytes,
+            TransferBytesPerSecond = 0,
+            TransferSecondsLeft = null,
+            SyncedPercent = carried.Difference.SyncedPercent,
+            SyncedBytes = carried.Difference.SameBytes,
+            UnionBytes = carried.Difference.UnionBytes,
+            NotCarriedCount = carried.NotCarriedCount,
+            NotCarriedBytes = carried.NotCarriedBytes,
             LastError = error.Length > 0 ? error : peer.LastError,
             ExchangedAtUtc = theirsKnown.BuiltAtUtc,
             SameCount = difference.SameCount,
@@ -363,11 +368,15 @@ public sealed class SyncEngine : IAsyncDisposable
         long totalBytes = plan.Actions.Sum(action => action.Theirs.Size), doneBytes = 0;
         int filesDone = 0;
         DateTime lastReport = DateTime.MinValue;
+        var rate = new SyncTransferRate();
+        DateTimeOffset started = DateTimeOffset.UtcNow;
+        rate.Add(0, started);
         void Report(string current, long size, long done, bool force = false)
         {
             if (!force && (DateTime.UtcNow - lastReport).TotalMilliseconds < 1000)
                 return;
             lastReport = DateTime.UtcNow;
+            rate.Add(doneBytes, DateTimeOffset.UtcNow);
             ReportPeer(folderId, peer with
             {
                 Transferring = true,
@@ -378,6 +387,8 @@ public sealed class SyncEngine : IAsyncDisposable
                 CurrentFile = current,
                 CurrentFileBytes = size,
                 CurrentFileDoneBytes = done,
+                TransferBytesPerSecond = rate.BytesPerSecond,
+                TransferSecondsLeft = rate.SecondsLeft(totalBytes, doneBytes),
             });
         }
         foreach (SyncTransferAction action in plan.Actions)
@@ -437,8 +448,10 @@ public sealed class SyncEngine : IAsyncDisposable
         {
             if (received + kept > 0)
             {
+                double seconds = (DateTimeOffset.UtcNow - started).TotalSeconds;
                 _lastReceipts[receiptKey] = new SyncPeerState
                 {
+                    LastTransferBytesPerSecond = seconds > 0 ? bytes / seconds : 0,
                     ReceivedCount = received,
                     KeptBothCount = kept,
                     BytesReceived = bytes,
@@ -453,6 +466,7 @@ public sealed class SyncEngine : IAsyncDisposable
             KeptBothCount = receipt.KeptBothCount,
             BytesReceived = receipt.BytesReceived,
             LastReceivedAtUtc = receipt.LastReceivedAtUtc,
+            LastTransferBytesPerSecond = receipt.LastTransferBytesPerSecond,
             WaitingCount = waiting,
             AheadHereCount = plan.AheadHere,
             UnrelatedCount = plan.Unrelated,
