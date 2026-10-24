@@ -46,6 +46,12 @@ public sealed class APARTNERONAnotherNetworkSYNCSThroughTheServerTests
         Assert.False(Directory.Exists(Path.Combine(folderB, "NP_backup")));
         SyncPeerState seen = engineB.LastState.Folders.Single().Peers.Single();
         Assert.Equal("server", seen.Route);
+
+        // Erk-S Central: A serves its central; B, which has none, reaches it as a member.
+        SyncCentralState served = engineA.LastState.Folders.Single().Centrals.Single();
+        Assert.Equal(("host", "NP.rvt"), (served.Role, served.RelativePath));
+        SyncCentralState reached = engineB.LastState.Folders.Single().Centrals.Single();
+        Assert.Equal(("member", served.CentralId), (reached.Role, reached.CentralId));
         Assert.Equal(2, seen.ReceivedCount);
 
         // An edit on A goes the same way.

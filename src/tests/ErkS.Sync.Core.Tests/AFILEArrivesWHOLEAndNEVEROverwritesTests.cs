@@ -271,7 +271,9 @@ public sealed class AFILEArrivesWHOLEAndNEVEROverwritesTests
         File.WriteAllText(Path.Combine(folderB, "plan.dwg"), "edited on B");
         await RunUntilAsync(server, homeA, homeB, rootA, rootB, () =>
             Directory.GetFiles(folderA, "plan (Erk-S зөрчил *").Length == 1 &&
-            Directory.GetFiles(folderB, "plan (Erk-S зөрчил *").Length == 1);
+            Directory.GetFiles(folderB, "plan (Erk-S зөрчил *").Length == 1 &&
+            // and the count of it written - stopping between the copy and the count was a race
+            SyncStatusReport.TryRead(new SyncHome(homeA.Path).StatusPath)?.Folders.SingleOrDefault()?.ConflictCount == 1);
         Assert.Equal("edited on A", File.ReadAllText(Path.Combine(folderA, "plan.dwg")));
         Assert.Equal("edited on B", File.ReadAllText(Path.Combine(folderB, "plan.dwg")));
         Assert.Equal("edited on B", File.ReadAllText(Directory.GetFiles(folderA, "plan (Erk-S зөрчил *").Single()));

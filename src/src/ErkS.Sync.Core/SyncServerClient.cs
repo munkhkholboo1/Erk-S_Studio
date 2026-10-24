@@ -53,6 +53,9 @@ public sealed class SyncServerClient(HttpClient http)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    /// <summary>The server this client talks to - the relay's WebSocket goes to the same place.</summary>
+    public Uri? BaseAddress => http.BaseAddress;
+
     // ---- person (Cloud ERA token) -------------------------------------------------------
 
     public Task<SyncServerFolder> RegisterFolderAsync(string personToken, string projectId, string canonicalPath, string deviceKeyId, CancellationToken cancellationToken = default) =>

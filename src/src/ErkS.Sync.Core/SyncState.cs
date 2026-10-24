@@ -160,6 +160,9 @@ public sealed record SyncFolderState
     /// <summary>Conflict copies kept in this folder here (1.2) - each one a decision waiting for a person.</summary>
     public int ConflictCount { get; init; }
 
+    /// <summary>Erk-S Central: the Revit centrals of this folder this machine serves or reaches.</summary>
+    public IReadOnlyList<SyncCentralState> Centrals { get; init; } = [];
+
     /// <summary>Cloud sync: this machine's pieces going on the server now, for partners on other networks.</summary>
     public bool Uploading { get; init; }
 

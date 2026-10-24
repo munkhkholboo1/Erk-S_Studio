@@ -78,7 +78,14 @@ public sealed class SyncEngine : IAsyncDisposable
         _server = server;
         _device = device;
         _paths = paths ?? new SyncPathMap();
+        _centrals = new SyncCentralService(home, _ => Task.FromResult(
+            _session is { } session && server.BaseAddress is { } address ? ((Uri, string)?)(address, session.AccessToken) : null));
     }
+
+    private readonly SyncCentralService _centrals;
+
+    /// <summary>Erk-S Central off - tests of plain file sync, which have no relay to serve a central on.</summary>
+    public bool ServeCentrals { get; init; } = true;
 
     public TimeSpan Period { get; init; } = TimeSpan.FromSeconds(60);
 
@@ -251,14 +258,21 @@ public sealed class SyncEngine : IAsyncDisposable
             return state with { PresentHere = true, LastError = "Индекс үүсгэж чадсангүй: " + exception.Message };
         }
 
-        // Shown before the peers are asked, so a long first transfer has a folder to report into.
+        // Shown before the peers are asked, so a long first transfer has a folder to report into -
+        // with what the last pass knew, so a pass stopped midway does not report less than before.
+        SyncFolderState? before = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase));
         UpsertFolder(state with
         {
             PresentHere = true,
             IndexedAtUtc = index.BuiltAtUtc,
             FileCount = index.Entries.Count,
             TotalBytes = index.Entries.Sum(entry => entry.Size),
-            Peers = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase))?.Peers ?? [],
+            Peers = before?.Peers ?? [],
+            ConflictCount = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId)).Kept.Values.Sum(list => list.Count),
+            Centrals = before?.Centrals ?? [],
+            UploadedBytes = before?.UploadedBytes ?? 0,
+            UploadPendingBytes = before?.UploadPendingBytes ?? 0,
+            LastUploadBytesPerSecond = before?.LastUploadBytesPerSecond ?? 0,
         });
 
         string uploadError = "";
@@ -275,12 +289,21 @@ public sealed class SyncEngine : IAsyncDisposable
         if (peers.Any(peer => peer.LastReceivedAtUtc > index.BuiltAtUtc))
             Poke(); // what arrived is indexed - and counted - on the very next pass
 
+        IReadOnlyList<SyncCentralState> centrals = ServeCentrals
+            ? _centrals.Refresh(
+                folder.FolderId,
+                physical,
+                index,
+                entry.Devices.Select(device => SyncIndexStore.TryLoad(_home.PeerIndexPath(folder.FolderId, device.DeviceKeyId))).OfType<SyncIndex>())
+            : [];
+
         SyncFolderState? shown;
         lock (_gate)
             shown = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase));
         return state with
         {
             LastError = uploadError,
+            Centrals = centrals,
             UploadedBytes = shown?.UploadedBytes ?? 0,
             UploadPendingBytes = shown?.UploadPendingBytes ?? 0,
             LastUploadBytesPerSecond = shown?.LastUploadBytesPerSecond ?? 0,
@@ -779,6 +802,7 @@ public sealed class SyncEngine : IAsyncDisposable
         _discovery?.Dispose();
         if (_exchange is not null)
             await _exchange.DisposeAsync();
+        await _centrals.DisposeAsync();
         _wake.Dispose();
     }
 }
