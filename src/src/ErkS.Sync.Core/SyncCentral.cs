@@ -88,6 +88,9 @@ public sealed record SyncCentralEntry(string Name, bool IsDirectory, long Size, 
 /// </summary>
 public sealed record SyncCentralResponse
 {
+    /// <summary>The call this answers (relay).</summary>
+    public long Seq { get; init; }
+
     public string Error { get; init; } = "";
 
     public int HResult { get; init; }
@@ -116,6 +119,9 @@ public static class SyncCentralErrors
     public const string BadHandle = "bad_handle";
     public const string BadRequest = "bad_request";
     public const string IoError = "io_error";
+
+    /// <summary>No road to the host, or no answer in time - the mount answers «network path not found».</summary>
+    public const string HostUnreachable = "host_unreachable";
 }
 
 /// <summary>Which names in a folder belong to a central: the model, its _backup and what Revit keeps beside it.</summary>
@@ -179,12 +185,12 @@ public sealed class SyncCentralHost : IDisposable
     /// Ends every session not heard from for <paramref name="lease"/> - a member whose road broke
     /// mid-synchronize releases its handles and locks instead of holding the central forever.
     /// </summary>
-    public int Sweep(DateTimeOffset now, TimeSpan lease)
+    public int Sweep(DateTimeOffset now, TimeSpan lease, Func<long, bool>? connected = null)
     {
         int ended = 0;
         foreach ((long id, Session session) in _sessions.ToArray())
         {
-            if (now - session.LastSeenUtc > lease)
+            if (now - session.LastSeenUtc > lease && connected?.Invoke(id) != true)
             {
                 EndSession(id);
                 ended++;
