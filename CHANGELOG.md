@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.68] - 2026-10-24 (test release: desktop and laptop)
+
+- Erk-S Sync accepts a project folder inside a Resilio share once that folder is in the share's IgnoreList (`/<folder>` in `.sync\IgnoreList`) - the way to move one project at a time off a share that holds the whole «D:\Cloud Work». A folder Resilio still keeps is refused, and the message says how to free it.
+
 ## [0.001.67] - 2026-10-23 (test release for the second machine)
 
 - Erk-S Sync (SYN) is installed beside Studio. It runs in the tray from Windows sign-in, with Studio open or closed. In Explorer, right-click a project folder (Windows 11: «Show more options») - «Erk-S Sync фолдер болгох» on the owner's machine, «Erk-S Sync фолдерт холбох» on a colleague's. One sync folder per Studio project, on exactly the same path on every machine; a folder Resilio still manages, a drive root or a folder inside another sync folder is refused with the reason. The uninstaller removes the start-up entry and the menu.
