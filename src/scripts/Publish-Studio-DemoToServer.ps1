@@ -19,7 +19,12 @@ param(
 
     [string]$LicenseServerRoot = "D:\ErkS-Server\data-root",
 
-    [switch]$Required
+    [switch]$Required,
+
+    # A test release: the download page offers it, but latest-update.json - what every
+    # installed Studio checks to update itself - is left as it was (Master, 2026-10-23: a
+    # test build reaches all users only when the owner approves that separately).
+    [switch]$InstallerOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -307,7 +312,11 @@ $updateMetadata = [ordered]@{
 }
 
 Write-JsonFile -Path (Join-Path $productDataRoot "latest-installer.json") -Value $installerMetadata
-Write-JsonFile -Path (Join-Path $productDataRoot "latest-update.json") -Value $updateMetadata
+if ($InstallerOnly) {
+    Write-Host "InstallerOnly: latest-update.json was left as it was - installed Studios are not offered this build." -ForegroundColor Yellow
+} else {
+    Write-JsonFile -Path (Join-Path $productDataRoot "latest-update.json") -Value $updateMetadata
+}
 
 $historyPath = Join-Path $productDataRoot "update-history.json"
 $historyEntry = [ordered]@{
