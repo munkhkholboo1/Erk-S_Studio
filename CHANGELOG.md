@@ -5,6 +5,11 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.69] - 2026-10-24 (test release: desktop and laptop)
+
+- Two non-empty copies of a project can be joined. Files that are the same are left alone; a same-named file that differs is listed until a person answers - «Тэндхийг авах» (the other machine's version comes here, this one is kept in `.erks-synceplaced`) or «Минийхийг үлдээх» (this version goes to the other machine, which keeps its own aside) - for every file at once or one by one. The bridge does the same (`sync-decide`).
+- Erk-S Sync reads Resilio's own list of shares: a folder under a leftover `.sync` from a share removed long ago is no longer refused; a folder Resilio really keeps still is, unless that share's IgnoreList leaves it out.
+
 ## [0.001.68] - 2026-10-24 (test release: desktop and laptop)
 
 - Erk-S Sync accepts a project folder inside a Resilio share once that folder is in the share's IgnoreList (`/<folder>` in `.sync\IgnoreList`) - the way to move one project at a time off a share that holds the whole «D:\Cloud Work». A folder Resilio still keeps is refused, and the message says how to free it.
