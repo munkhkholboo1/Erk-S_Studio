@@ -63,6 +63,17 @@ internal sealed class SyncStatusForm : Form
                     ? "индекс ирээгүй"
                     : $"ижил {peer.SameCount} · зөрүүтэй {peer.DifferentCount} · зөвхөн энд {peer.OnlyHereCount} · зөвхөн тэнд {peer.OnlyThereCount}";
                 lines.Add($"   • {who}: {compared}" + (peer.LastError.Length > 0 ? $" ({peer.LastError})" : ""));
+                if (peer.ExchangedAtUtc is not null)
+                {
+                    lines.Add(peer.SyncedPercent >= 100
+                        ? $"     ✓ бүрэн синк хийгдсэн · {peer.UnionBytes / (1024.0 * 1024.0):0.#} МБ"
+                        : $"     синк хийгдсэн {peer.SyncedPercent:0.#}% · {peer.SyncedBytes / (1024.0 * 1024.0):0.#} / {peer.UnionBytes / (1024.0 * 1024.0):0.#} МБ");
+                }
+                if (peer.Transferring)
+                {
+                    lines.Add($"     хүлээн авч байна: {peer.TransferDoneBytes / (1024.0 * 1024.0):0.#} / {peer.TransferTotalBytes / (1024.0 * 1024.0):0.#} МБ · {peer.TransferFilesDone}/{peer.TransferFiles} файл");
+                    lines.Add($"     одоо: {peer.CurrentFile} ({peer.CurrentFileDoneBytes / (1024.0 * 1024.0):0.#} / {peer.CurrentFileBytes / (1024.0 * 1024.0):0.#} МБ)");
+                }
             }
         }
         lines.Add("");

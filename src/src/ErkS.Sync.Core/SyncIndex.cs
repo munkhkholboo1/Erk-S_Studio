@@ -240,9 +240,17 @@ public sealed record SyncIndexDifference(
     int SameCount,
     IReadOnlyList<SyncIndexEntry> Different,
     IReadOnlyList<SyncIndexEntry> OnlyHere,
-    IReadOnlyList<SyncIndexEntry> OnlyThere)
+    IReadOnlyList<SyncIndexEntry> OnlyThere,
+    long SameBytes = 0,
+    long DifferentBytes = 0)
 {
     public bool IsIdentical => Different.Count == 0 && OnlyHere.Count == 0 && OnlyThere.Count == 0;
+
+    /// <summary>Every byte either machine holds, counting a file both hold once (the larger side when they differ).</summary>
+    public long UnionBytes => SameBytes + DifferentBytes + OnlyHere.Sum(entry => entry.Size) + OnlyThere.Sum(entry => entry.Size);
+
+    /// <summary>How much of it is the same on both machines, 0-100; an empty folder is in step.</summary>
+    public double SyncedPercent => UnionBytes == 0 ? 100 : Math.Round(SameBytes * 100.0 / UnionBytes, 1);
 }
 
 public static class SyncIndexComparison
@@ -260,6 +268,7 @@ public static class SyncIndexComparison
             .GroupBy(entry => entry.RelativePath, SyncPath.Comparer)
             .ToDictionary(group => group.Key, group => group.First(), SyncPath.Comparer);
         int same = 0;
+        long sameBytes = 0, differentBytes = 0;
         var different = new List<SyncIndexEntry>();
         var onlyHere = new List<SyncIndexEntry>();
         var seen = new HashSet<string>(SyncPath.Comparer);
@@ -270,14 +279,20 @@ public static class SyncIndexComparison
             if (!theirs.TryGetValue(mine.RelativePath, out SyncIndexEntry? other))
                 onlyHere.Add(mine);
             else if (string.Equals(mine.Sha256, other.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
                 same++;
+                sameBytes += mine.Size;
+            }
             else
+            {
                 different.Add(mine);
+                differentBytes += Math.Max(mine.Size, other.Size);
+            }
         }
         List<SyncIndexEntry> onlyThere = theirs.Values
             .Where(entry => !seen.Contains(entry.RelativePath))
             .OrderBy(entry => entry.RelativePath, SyncPath.Comparer)
             .ToList();
-        return new SyncIndexDifference(same, different, onlyHere, onlyThere);
+        return new SyncIndexDifference(same, different, onlyHere, onlyThere, sameBytes, differentBytes);
     }
 }

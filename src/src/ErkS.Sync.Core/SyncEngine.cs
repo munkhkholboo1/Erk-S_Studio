@@ -84,6 +84,9 @@ public sealed class SyncEngine : IAsyncDisposable
 
     public SyncState LastState { get; private set; } = new();
 
+    /// <summary>Raised after every state write - the tray follows it instead of asking on a clock.</summary>
+    public event Action<SyncState>? StateWritten;
+
     /// <summary>Run a pass now (a folder was registered, a verb asked for status).</summary>
     public void Poke() => _wake.Release();
 
@@ -248,6 +251,16 @@ public sealed class SyncEngine : IAsyncDisposable
             return state with { PresentHere = true, LastError = "Индекс үүсгэж чадсангүй: " + exception.Message };
         }
 
+        // Shown before the peers are asked, so a long first transfer has a folder to report into.
+        UpsertFolder(state with
+        {
+            PresentHere = true,
+            IndexedAtUtc = index.BuiltAtUtc,
+            FileCount = index.Entries.Count,
+            TotalBytes = index.Entries.Sum(entry => entry.Size),
+            Peers = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase))?.Peers ?? [],
+        });
+
         var peers = new List<SyncPeerState>();
         foreach (SyncServerDevice device in entry.Devices)
         {
@@ -311,6 +324,11 @@ public sealed class SyncEngine : IAsyncDisposable
         SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirsKnown);
         return peer with
         {
+            Transferring = false,
+            CurrentFile = "",
+            SyncedPercent = difference.SyncedPercent,
+            SyncedBytes = difference.SameBytes,
+            UnionBytes = difference.UnionBytes,
             LastError = error.Length > 0 ? error : peer.LastError,
             ExchangedAtUtc = theirsKnown.BuiltAtUtc,
             SameCount = difference.SameCount,
@@ -342,10 +360,32 @@ public sealed class SyncEngine : IAsyncDisposable
         int received = 0, kept = 0, waiting = 0;
         long bytes = 0;
         string lastError = "";
+        long totalBytes = plan.Actions.Sum(action => action.Theirs.Size), doneBytes = 0;
+        int filesDone = 0;
+        DateTime lastReport = DateTime.MinValue;
+        void Report(string current, long size, long done, bool force = false)
+        {
+            if (!force && (DateTime.UtcNow - lastReport).TotalMilliseconds < 1000)
+                return;
+            lastReport = DateTime.UtcNow;
+            ReportPeer(folderId, peer with
+            {
+                Transferring = true,
+                TransferFiles = plan.Actions.Count,
+                TransferFilesDone = filesDone,
+                TransferTotalBytes = totalBytes,
+                TransferDoneBytes = doneBytes,
+                CurrentFile = current,
+                CurrentFileBytes = size,
+                CurrentFileDoneBytes = done,
+            });
+        }
         foreach (SyncTransferAction action in plan.Actions)
         {
             SyncIndexEntry file = action.Theirs;
             SyncApplyResult result;
+            long fileDone = 0;
+            Report(file.RelativePath, file.Size, 0, force: true);
             try
             {
                 result = await SyncFileAssembler.ApplyAsync(
@@ -354,7 +394,13 @@ public sealed class SyncEngine : IAsyncDisposable
                     mine,
                     (chunk, token) => session.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token),
                     DateTimeOffset.UtcNow,
-                    cancellationToken);
+                    cancellationToken,
+                    piece =>
+                    {
+                        fileDone += piece;
+                        doneBytes += piece;
+                        Report(file.RelativePath, file.Size, fileDone);
+                    });
             }
             catch (SyncLanException exception)
             {
@@ -366,8 +412,10 @@ public sealed class SyncEngine : IAsyncDisposable
             if (result.Outcome == SyncApplyOutcome.Waiting)
             {
                 waiting++;
+                doneBytes += file.Size - fileDone;
                 continue;
             }
+            filesDone++;
             bytes += (long)result.ChunksFetched * SyncIndex.ChunkSize;
             if (action.Kind == SyncTransferKind.KeepBoth)
             {
@@ -452,6 +500,31 @@ public sealed class SyncEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>Puts <paramref name="folder"/> into the state now and writes it - the pass is still running.</summary>
+    private void UpsertFolder(SyncFolderState folder)
+    {
+        lock (_gate)
+        {
+            var folders = LastState.Folders.Where(item => !item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase)).ToList();
+            folders.Add(folder);
+            LastState = LastState with { Folders = folders };
+        }
+        Write(LastState);
+    }
+
+    /// <summary>A peer's transfer, reported while it runs (at most once a second), so a person sees how far it is.</summary>
+    private void ReportPeer(string folderId, SyncPeerState peer)
+    {
+        SyncFolderState? folder;
+        lock (_gate)
+            folder = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase));
+        if (folder is null)
+            return;
+        var peers = folder.Peers.Where(item => !item.DeviceKeyId.Equals(peer.DeviceKeyId, StringComparison.OrdinalIgnoreCase)).ToList();
+        peers.Add(peer);
+        UpsertFolder(folder with { Peers = peers });
+    }
+
     private IReadOnlySet<string> AllowedDevices(string folderId)
     {
         lock (_gate)
@@ -481,6 +554,7 @@ public sealed class SyncEngine : IAsyncDisposable
         {
         }
         WriteStatus(running: true);
+        StateWritten?.Invoke(LastState);
     }
 
     /// <summary>Every pass (at least once per <see cref="Period"/>) and once more, «not running», at the end.</summary>

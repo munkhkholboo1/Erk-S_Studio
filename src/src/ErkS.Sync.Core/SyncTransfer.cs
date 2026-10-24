@@ -139,7 +139,8 @@ public static class SyncFileAssembler
         SyncIndex mine,
         Func<int, CancellationToken, Task<byte[]>> fetchChunk,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<long>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(action);
         SyncIndexEntry theirs = action.Theirs;
@@ -184,6 +185,7 @@ public static class SyncFileAssembler
                     }
                     whole.AppendData(piece);
                     await output.WriteAsync(piece, cancellationToken);
+                    progress?.Invoke(piece.Length);
                 }
                 if (!Convert.ToHexStringLower(whole.GetHashAndReset()).Equals(theirs.Sha256, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException($"{theirs.RelativePath} did not match its hash after assembly.");

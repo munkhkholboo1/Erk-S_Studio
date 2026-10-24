@@ -22,6 +22,15 @@ internal sealed partial class ShellView
 
     private StudioSyncFolders? syncFolders;
 
+    /// <summary>
+    /// Follows the tray's state by CHANGE, not by clock: Windows says when «state.json» is
+    /// written and only then is it read (owner, 2026-10-24: «өөрчлөлтийг мэдэрч уншдаг болгохгуй
+    /// бол дэмий ачаалал үүсгэнэ»). A burst of writes is read once.
+    /// </summary>
+    private FileSystemWatcher? projectSyncWatcher;
+
+    private int projectSyncRefreshQueued;
+
     private StudioSyncFolders SyncFolders => syncFolders ??= new StudioSyncFolders(account);
 
     private UIElement BuildProjectSyncSection()
@@ -62,6 +71,7 @@ internal sealed partial class ShellView
         heading.Children.Add(words);
         section.Children.Add(heading);
         section.Children.Add(projectSyncPanel);
+        WatchSyncState(section);
         return section;
     }
 
@@ -92,8 +102,15 @@ internal sealed partial class ShellView
             return;
         }
 
+        bool transferring = folder.Peers.Any(peer => peer.Transferring);
+        double inStep = folder.Peers.Count == 0 ? 100 : folder.Peers.Min(peer => peer.SyncedPercent);
+        string stepWord = folder.Peers.Count == 0
+            ? ""
+            : transferring
+                ? " · синк хийж байна"
+                : inStep >= 100 ? " · ✓ бүрэн синк хийгдсэн" : $" · {inStep:0.#}% синк хийгдсэн";
         projectSyncSummary.Text = folder.PresentHere
-            ? $"{folder.CanonicalPath} · {folder.FileCount} файл · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
+            ? $"{folder.CanonicalPath} · {folder.FileCount} файл, {SyncSize(folder.TotalBytes)}{stepWord} · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
               (folder.ConflictCount > 0 ? $" · ⚠ шийдвэр хүлээж буй зөрчлийн хуулбар {folder.ConflictCount}" : "")
             : $"{folder.CanonicalPath} · {folder.LastError}";
         if (folder.Peers.Count == 0)
@@ -115,6 +132,19 @@ internal sealed partial class ShellView
                       : "") +
                   (peer.WaitingCount > 0 ? $" · нээлттэй тул хүлээгдэж буй {peer.WaitingCount}" : "");
             projectSyncPanel.Children.Add(Line($"{who}: {compared}", bold: true));
+            projectSyncPanel.Children.Add(Line(peer.ExchangedAtUtc is null
+                ? "   синкийн хувь: тодорхойгүй (индекс ирээгүй)"
+                : peer.SyncedPercent >= 100
+                    ? $"   ✓ бүрэн синк хийгдсэн · {SyncSize(peer.UnionBytes)}"
+                    : $"   синк хийгдсэн {peer.SyncedPercent:0.#}% · {SyncSize(peer.SyncedBytes)} / {SyncSize(peer.UnionBytes)}"));
+            if (peer.Transferring)
+            {
+                double all = peer.TransferTotalBytes == 0 ? 100 : peer.TransferDoneBytes * 100.0 / peer.TransferTotalBytes;
+                double one = peer.CurrentFileBytes == 0 ? 100 : peer.CurrentFileDoneBytes * 100.0 / peer.CurrentFileBytes;
+                projectSyncPanel.Children.Add(Line($"   хүлээн авч байна: {all:0}% · {SyncSize(peer.TransferDoneBytes)} / {SyncSize(peer.TransferTotalBytes)} · {peer.TransferFilesDone}/{peer.TransferFiles} файл"));
+                projectSyncPanel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = all, Height = 6, Margin = new Thickness(12, 2, 0, 4) });
+                projectSyncPanel.Children.Add(Line($"   одоо: {peer.CurrentFile} — {one:0}% ({SyncSize(peer.CurrentFileDoneBytes)} / {SyncSize(peer.CurrentFileBytes)})"));
+            }
 
             SyncIndex? theirs = SyncIndexStore.TryLoad(home.PeerIndexPath(folder.FolderId, peer.DeviceKeyId));
             if (mine is null || theirs is null)
@@ -208,6 +238,51 @@ internal sealed partial class ShellView
             : $"{decisions.Count} файлд энэ машины хувилбар үлдэнэ - нөгөө машин түүнийг авна.");
         RefreshProjectSyncSection();
     }
+
+    private void WatchSyncState(FrameworkElement section)
+    {
+        if (projectSyncWatcher is not null)
+            return;
+        SyncHome home = SyncHome.Default();
+        try
+        {
+            Directory.CreateDirectory(home.Root);
+            projectSyncWatcher = new FileSystemWatcher(home.Root, Path.GetFileName(home.StatePath))
+            {
+                // The tray writes «state.json.writing» and moves it into place.
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                EnableRaisingEvents = true,
+            };
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return;
+        }
+        void Changed(object? sender, FileSystemEventArgs args)
+        {
+            // Several events per write; one read after they settle, and only for a page on screen.
+            if (Interlocked.Exchange(ref projectSyncRefreshQueued, 1) == 1)
+                return;
+            _ = Root.Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(300);
+                Interlocked.Exchange(ref projectSyncRefreshQueued, 0);
+                if (section.IsVisible && state.HasOpenProject)
+                    RefreshProjectSyncSection();
+            });
+        }
+        projectSyncWatcher.Changed += Changed;
+        projectSyncWatcher.Created += Changed;
+        projectSyncWatcher.Renamed += (sender, args) => Changed(sender, args);
+    }
+
+    private static string SyncSize(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.##} ГБ",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0.#} МБ",
+        >= 1L << 10 => $"{bytes / (double)(1L << 10):0} КБ",
+        _ => $"{bytes} Б",
+    };
 
     private async Task MakeSyncFolderFromPickerAsync()
     {

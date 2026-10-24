@@ -105,6 +105,23 @@ public sealed class AFILEArrivesWHOLEAndNEVEROverwritesTests
         Assert.True(SyncExclusions.IsExcludedFile(Path.GetFileName(SyncExclusions.ConflictCopyPath(@"a\plan.dwg", Peer, DateTimeOffset.UtcNow))));
     }
 
+    [Fact]
+    public void HowFarInStepIsCountedInBytes()
+    {
+        SyncIndex mine = Index(Sized("a.dwg", "1", 300), Sized("b.rvt", "x", 100), Sized("only-here.pdf", "h", 50));
+        SyncIndex theirs = Index(Sized("a.dwg", "1", 300), Sized("b.rvt", "y", 150), Sized("only-there.pdf", "t", 50));
+
+        SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirs);
+
+        Assert.Equal(300, difference.SameBytes);
+        Assert.Equal(300 + 150 + 50 + 50, difference.UnionBytes);
+        Assert.Equal(54.5, difference.SyncedPercent);
+        Assert.Equal(100, SyncIndexComparison.Compare(Index(), Index()).SyncedPercent);
+    }
+
+    private static SyncIndexEntry Sized(string path, string sha, long size) =>
+        new(path, size, DateTime.UtcNow, SyncFileKinds.Of(path), sha, [sha]);
+
     // ---- the ledger ----------------------------------------------------------------------
 
     [Fact]
@@ -241,6 +258,13 @@ public sealed class AFILEArrivesWHOLEAndNEVEROverwritesTests
             File.ReadAllBytes(Path.Combine(folderB, "model.rvt")).SequenceEqual(model),
             engineB => bSawA = engineB.LastState.Folders.SingleOrDefault()?.Peers.FirstOrDefault() ?? bSawA);
         Assert.Equal(SyncIndex.ChunkSize, bSawA!.BytesReceived);
+
+        // 2b. «хэдэн хувьтай синк хийгдсэн»: once both hold the same, the peer reads 100%.
+        SyncPeerState? inStep = null;
+        await RunUntilAsync(server, homeA, homeB, rootA, rootB, () => inStep?.SyncedPercent == 100,
+            engineB => inStep = engineB.LastState.Folders.SingleOrDefault()?.Peers.FirstOrDefault() ?? inStep);
+        Assert.Equal(inStep!.UnionBytes, inStep.SyncedBytes);
+        Assert.False(inStep.Transferring);
 
         // 3. Both edit the same version offline: neither is overwritten, each keeps the other's beside.
         File.WriteAllText(Path.Combine(folderA, "plan.dwg"), "edited on A");

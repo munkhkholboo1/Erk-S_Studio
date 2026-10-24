@@ -85,6 +85,35 @@ public sealed record SyncPeerState
     public long BytesReceived { get; init; }
 
     public DateTimeOffset? LastReceivedAtUtc { get; init; }
+
+    /// <summary>
+    /// How far this machine and the peer are in step: bytes identical on both over every byte
+    /// either holds (owner, 2026-10-24: «хэр хэмжээний файл хэдэн хувьтай синк хийгдсэнийг нь
+    /// мэдэх хэрэгтэй»). 100 = fully in step.
+    /// </summary>
+    public double SyncedPercent { get; init; }
+
+    public long SyncedBytes { get; init; }
+
+    public long UnionBytes { get; init; }
+
+    /// <summary>A transfer from this peer is running right now.</summary>
+    public bool Transferring { get; init; }
+
+    public int TransferFiles { get; init; }
+
+    public int TransferFilesDone { get; init; }
+
+    public long TransferTotalBytes { get; init; }
+
+    public long TransferDoneBytes { get; init; }
+
+    /// <summary>The file arriving now - this machine's own state, never sent to the server or the Twin.</summary>
+    public string CurrentFile { get; init; } = "";
+
+    public long CurrentFileBytes { get; init; }
+
+    public long CurrentFileDoneBytes { get; init; }
 }
 
 /// <summary>One sync folder as THIS machine sees it.</summary>

@@ -17,7 +17,11 @@ public sealed record SyncStatusPeer(
     int WaitingCount = 0,
     int UnrelatedCount = 0,
     long BytesReceived = 0,
-    DateTimeOffset? LastReceivedAtUtc = null);
+    DateTimeOffset? LastReceivedAtUtc = null,
+    double SyncedPercent = 0,
+    bool Transferring = false,
+    long TransferTotalBytes = 0,
+    long TransferDoneBytes = 0);
 
 public sealed record SyncStatusFolder(
     string FolderId,
@@ -32,7 +36,8 @@ public sealed record SyncStatusFolder(
     int PeerCount,
     int DifferingFileCount,
     IReadOnlyList<SyncStatusPeer> Peers,
-    int ConflictCount = 0);
+    int ConflictCount = 0,
+    double SyncedPercent = 100);
 
 /// <summary>
 /// SYN's account of itself for whoever watches from outside: the bridge's «sync-status» answer
@@ -90,8 +95,13 @@ public sealed record SyncStatusReport(
                 peer.WaitingCount,
                 peer.UnrelatedCount,
                 peer.BytesReceived,
-                peer.LastReceivedAtUtc)).ToList(),
-            folder.ConflictCount)).ToList());
+                peer.LastReceivedAtUtc,
+                peer.SyncedPercent,
+                peer.Transferring,
+                peer.TransferTotalBytes,
+                peer.TransferDoneBytes)).ToList(),
+            folder.ConflictCount,
+            folder.Peers.Count == 0 ? 100 : folder.Peers.Min(peer => peer.SyncedPercent))).ToList());
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>
     public static void Write(string path, SyncStatusReport report)

@@ -41,6 +41,21 @@ internal sealed class SyncTray : ApplicationContext
             _ = HandleAsync(firstRequest, _stop.Token);
     }
 
+    /// <summary>The tray icon's tooltip says how far in step the folders are - changed only when the state is written.</summary>
+    private void ShowProgress(SyncState state)
+    {
+        SyncPeerState[] peers = state.Folders.SelectMany(folder => folder.Peers).ToArray();
+        SyncPeerState? moving = peers.FirstOrDefault(peer => peer.Transferring);
+        string text = moving is not null
+            ? $"Erk-S Sync — хүлээн авч байна {(moving.TransferTotalBytes == 0 ? 100 : moving.TransferDoneBytes * 100.0 / moving.TransferTotalBytes):0}%"
+            : peers.Length == 0
+                ? "Erk-S Sync"
+                : peers.All(peer => peer.SyncedPercent >= 100)
+                    ? "Erk-S Sync — бүрэн синк хийгдсэн"
+                    : $"Erk-S Sync — {peers.Min(peer => peer.SyncedPercent):0.#}% синк хийгдсэн";
+        _icon.Text = text.Length > 63 ? text[..63] : text;
+    }
+
     private async Task RunEngineAsync(CancellationToken cancellationToken)
     {
         var http = new HttpClient { BaseAddress = Program.ServerUrl(), Timeout = TimeSpan.FromSeconds(60) };
@@ -52,6 +67,7 @@ internal sealed class SyncTray : ApplicationContext
             await using (var engine = new SyncEngine(_home, new SyncServerClient(http), _device))
             {
                 _engine = engine;
+                engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);
                 if (_device is not null)
                 {
                     await engine.RunAsync(cancellationToken);
