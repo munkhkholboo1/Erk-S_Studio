@@ -84,6 +84,10 @@ public sealed class SyncEngine : IAsyncDisposable
 
     private readonly SyncCentralService _centrals;
 
+    /// <summary>The server and this device's token, for a member's road to a central's host; null while signed out of the server.</summary>
+    public (Uri Server, string Token)? CentralRoad =>
+        _session is { } session && _server.BaseAddress is { } address ? (address, session.AccessToken) : null;
+
     /// <summary>Erk-S Central off - tests of plain file sync, which have no relay to serve a central on.</summary>
     public bool ServeCentrals { get; init; } = true;
 

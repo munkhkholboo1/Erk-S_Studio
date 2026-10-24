@@ -30,4 +30,8 @@
     <EmbeddedResource Include="..\ErkS.Studio\Assets\logo-erks.ico" LogicalName="ErkS.Sync.logo.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="DokanNet" Version="2.3.0.3" />
+  </ItemGroup>
+
 </Project>

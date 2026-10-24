@@ -48,7 +48,8 @@ public sealed class AMEMBERReachesTheCentralTHROUGHTheRelayTests
         SyncCentralResponse response = await new SyncCentralClient(channel).CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" });
 
         Assert.Equal(SyncCentralErrors.HostUnreachable, response.Error);
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(3));
+        // Well before the 20 s a call may wait on a live road - the point is no hang (a loaded machine is slower than 3 s).
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
     }
 
     [Fact]

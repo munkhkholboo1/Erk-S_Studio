@@ -16,6 +16,7 @@ internal sealed class SyncTray : ApplicationContext
     private readonly SynchronizationContext _ui;
     private SyncEngine? _engine;
     private CngSyncDevice? _device;
+    private SyncCentralMounts? _mounts;
 
     public SyncTray(SyncPipeRequest? firstRequest)
     {
@@ -71,6 +72,8 @@ internal sealed class SyncTray : ApplicationContext
             {
                 _engine = engine;
                 engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);
+                _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
+                engine.StateWritten += state => ThreadPool.QueueUserWorkItem(_ => _mounts?.Follow(state));
                 if (_device is not null)
                 {
                     await engine.RunAsync(cancellationToken);
@@ -138,6 +141,12 @@ internal sealed class SyncTray : ApplicationContext
                 else if (message.Length > 0)
                     Post(() => _icon.ShowBalloonTip(8000, "Erk-S Sync", message, ToolTipIcon.Warning));
                 return new SyncPipeResponse(ok, message);
+            case "central-begin":
+            case "central-end":
+                // PFR around Revit's synchronize: the host commits only a synchronize that finished.
+                return _mounts is null
+                    ? new SyncPipeResponse(true, "host")
+                    : await _mounts.TransactionAsync(request.Path, request.Verb == "central-begin", cancellationToken);
             default:
                 return new SyncPipeResponse(false, "Мэдэгдэхгүй үйлдэл: " + request.Verb);
         }
@@ -168,6 +177,7 @@ internal sealed class SyncTray : ApplicationContext
     protected override void ExitThreadCore()
     {
         _stop.Cancel();
+        _mounts?.Dispose(); // the mounts and their links go with the tray; the central stays on its host
         _icon.Visible = false;
         base.ExitThreadCore();
     }

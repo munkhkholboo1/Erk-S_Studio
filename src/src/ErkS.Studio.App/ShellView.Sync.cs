@@ -133,6 +133,7 @@ internal sealed partial class ShellView
 
         SyncHome home = SyncHome.Default();
         SyncIndex? mine = SyncIndexStore.TryLoad(home.IndexPath(folder.FolderId));
+        AddCentralLines(folder);
         foreach (SyncPeerState peer in folder.Peers)
         {
             string who = string.IsNullOrWhiteSpace(peer.AccountEmail) ? peer.DeviceKeyId[..Math.Min(8, peer.DeviceKeyId.Length)] : peer.AccountEmail;
@@ -153,7 +154,7 @@ internal sealed partial class ShellView
             if (!peer.Transferring && peer.LastTransferBytesPerSecond > 0)
                 projectSyncPanel.Children.Add(Line($"   сүүлийн дамжуулалтын хурд: {SyncSize((long)peer.LastTransferBytesPerSecond)}/с"));
             if (peer.NotCarriedCount > 0)
-                projectSyncPanel.Children.Add(Line($"   Revit central model: {peer.NotCarriedCount} файл, {SyncSize(peer.NotCarriedBytes)} — синкээр хуулагдахгүй (ганц эзэнтэй), хувьд тооцохгүй"));
+                projectSyncPanel.Children.Add(Line($"   Revit central model: {peer.NotCarriedCount} файл, {SyncSize(peer.NotCarriedBytes)} — хуулбар болж синк хийгдэхгүй, Erk-S Central-аар нэг central дээр ажиллана; хувьд тооцохгүй"));
             projectSyncPanel.Children.Add(Line(peer.ExchangedAtUtc is null
                 ? "   синкийн хувь: тодорхойгүй (индекс ирээгүй)"
                 : peer.SyncedPercent >= 100
@@ -308,6 +309,48 @@ internal sealed partial class ShellView
         >= 1L << 10 => $"{bytes / (double)(1L << 10):0} КБ",
         _ => $"{bytes} Б",
     };
+
+    /// <summary>
+    /// Erk-S Central: the Revit centrals of this folder - served from this machine (host) or
+    /// reached from it (member) - with what the tray could not do (Dokany missing and the like).
+    /// </summary>
+    private void AddCentralLines(SyncFolderState folder)
+    {
+        Dictionary<string, string> problems = [];
+        try
+        {
+            string path = Path.Combine(SyncHome.Default().Root, "central", "problems.json");
+            if (File.Exists(path))
+                problems = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? [];
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+        }
+        foreach (SyncCentralState central in folder.Centrals)
+        {
+            string name = Path.GetFileName(central.RelativePath);
+            string line = central.Role == "host"
+                ? $"Revit central «{name}» — энэ машин эзэн (host)" +
+                  (central.Online ? $" · сервероор нээлттэй · холбогдсон гишүүн {central.MembersConnected}" : " · сервероор хараахан нээгдээгүй") +
+                  (central.LastSnapshotUtc is { } snapshot ? $" · сүүлийн хамгаалалтын хуулбар {snapshot.ToLocalTime():HH:mm}" : "") +
+                  (central.RolledBack > 0 ? $" · тасарч буцаасан бичилт {central.RolledBack}" : "")
+                : $"Revit central «{name}» — өөр машин дээр; энэ машинаас ижил замаар нээж ажиллана";
+            projectSyncPanel.Children.Add(Line(line, bold: true));
+            if (central.LastError.Length > 0)
+                projectSyncPanel.Children.Add(Line("   ⚠ " + central.LastError));
+            if (problems.TryGetValue(central.CentralId, out string? problem))
+                projectSyncPanel.Children.Add(Line("   ⚠ " + problem));
+        }
+
+        static TextBlock Line(string text, bool bold = false) => new()
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 0, 2),
+            FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
+            Foreground = bold ? StudioTheme.TextBrush : StudioTheme.MutedTextBrush,
+        };
+    }
 
     private static string SyncDuration(double? seconds) => seconds switch
     {

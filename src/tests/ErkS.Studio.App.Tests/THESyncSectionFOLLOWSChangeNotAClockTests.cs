@@ -21,6 +21,8 @@ public sealed class THESyncSectionFOLLOWSChangeNotAClockTests
         Assert.Contains("peer.TransferBytesPerSecond", sync, StringComparison.Ordinal);
         Assert.Contains("Revit central model", sync, StringComparison.Ordinal);
         Assert.Contains("cloud sync", sync, StringComparison.Ordinal);
+        Assert.Contains("AddCentralLines(folder)", sync, StringComparison.Ordinal);
+        Assert.Contains("энэ машин эзэн (host)", sync, StringComparison.Ordinal);
         Assert.Contains("folder.UploadBytesPerSecond", sync, StringComparison.Ordinal);
     }
 
