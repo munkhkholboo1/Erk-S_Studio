@@ -122,6 +122,14 @@ internal sealed partial class ShellView : IDisposable
         Visibility = Visibility.Collapsed,
     };
     private bool accountInitialized;
+
+    /// <summary>
+    /// Completed once the start-up session restore has finished and who is acting is known.
+    /// Anything that asks «owner or bot?» on behalf of a request that can arrive at start-up
+    /// (an Explorer verb starting Studio) waits for it - 2026-10-24 the sync dialog asked before
+    /// the owner's session was back and told the owner they were the bot.
+    /// </summary>
+    private readonly TaskCompletionSource actingIdentityKnown = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool accountAvatarLoading;
     private string loadedProfileImageKey = "";
     private string requestedProfileImageKey = "";
@@ -1588,6 +1596,7 @@ internal sealed partial class ShellView : IDisposable
         // earlier this reads an empty session and leaves the lock exactly where it was.
         ReleaseBotLockIfOwnerIsActing();
         InstallBotLockIfBotIsActing();
+        actingIdentityKnown.TrySetResult();
 
         // ⚠ AND THE NAVIGATION, ON THE SILENT PATH TOO. RebuildNavigation was added to
         // the INTERACTIVE sign-in when the owner lost their menu - «компани цэс алга
@@ -2420,6 +2429,16 @@ internal sealed partial class ShellView : IDisposable
     /// The identity is published either way; what is missing is the proof, and
     /// the plugins say exactly that by name.
     /// </summary>
+    /// <summary>
+    /// The seat the products' identity is published for: the machine's seat only while the BOT
+    /// is the one acting. 🔴 2026-10-24: with the owner signed in on their own seated machine the
+    /// record named the locked seat, so every plugin saw a locked seat instead of the owner and
+    /// Studio said «Суудлын эрхийн баталгаа хараахан ирээгүй» - «Би үндсэн эрхээрээ нэвтэрсэн бол
+    /// тэр … ботын суудал яах гээд саад болоод байгаа юм бэ».
+    /// </summary>
+    private (string? BotId, string? OrganizationId) SsoSeat(StudioBotDeviceState? seat) =>
+        seat is not null && ActingAsBot ? (seat.BotId, seat.OrganizationId) : (null, null);
+
     private async Task EnsureSsoHandoffTokenAsync()
     {
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
@@ -2436,9 +2455,10 @@ internal sealed partial class ShellView : IDisposable
 
         try
         {
+            (string? ssoBotId, string? ssoOrganizationId) = SsoSeat(seat);
             bool carried = await account.EnsureSsoHandoffTokenAsync(
-                seat?.BotId,
-                seat?.OrganizationId,
+                ssoBotId,
+                ssoOrganizationId,
                 unlockedSeatIdentity is not null);
             if (!carried)
             {
@@ -2447,7 +2467,7 @@ internal sealed partial class ShellView : IDisposable
                 // from the fix - they usually already are.
                 SetStatus(
                     "Нэвтэрлээ. " +
-                    StudioSsoRefusalCatalogue.MessageMn(seat is null
+                    StudioSsoRefusalCatalogue.MessageMn(ssoBotId is null
                         ? "sso_handoff_token_missing"
                         : "sso_seat_token_absent"));
             }
@@ -2573,9 +2593,10 @@ internal sealed partial class ShellView : IDisposable
         // the one place that sees BOTH halves of it, the signed-in person
         // and the machine's seat, and the record is the pair. Publishing
         // from either side alone would keep overwriting the other.
+        (string? ssoBotId, string? ssoOrganizationId) = SsoSeat(seatedAs);
         bool ssoPublished = account.PublishSsoIdentity(
-            seatedAs?.BotId,
-            seatedAs?.OrganizationId,
+            ssoBotId,
+            ssoOrganizationId,
             unlockedSeatIdentity is not null);
         if (!ssoPublished && ssoIdentityPublished)
         {

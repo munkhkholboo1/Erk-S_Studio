@@ -39,6 +39,23 @@ public sealed class THEPinIsAskedONLYWhenTheBotWasChosenTests
         Assert.Contains("StudioBotActor.LocksAtStartup(", Body(source, "private void InstallBotLockIfSeated("), StringComparison.Ordinal);
     }
 
+    // 🔴 «Би үндсэн эрхээрээ нэвтэрсэн бол тэр … ботын суудал яах гээд саад болоод байгаа юм бэ»
+    // (2026-10-24): the products' identity named the locked seat while the owner was signed in,
+    // and the sync dialog, opened by an Explorer verb that started Studio, asked «owner or bot?»
+    // before the owner's session was back.
+    [Fact]
+    public void TheProductsAreToldTheSeatONLYWhileTheBotActs_AndTheSyncDialogWaitsForTheSession()
+    {
+        string shell = File.ReadAllText(Path.Combine(AppSourceRoot(), "ShellView.cs"));
+        string sync = File.ReadAllText(Path.Combine(AppSourceRoot(), "ShellView.Sync.cs"));
+
+        Assert.Contains("seat is not null && ActingAsBot ? (seat.BotId, seat.OrganizationId) : (null, null)", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("account.PublishSsoIdentity(\r\n            seatedAs?.BotId", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("account.PublishSsoIdentity(\n            seatedAs?.BotId", shell, StringComparison.Ordinal);
+        Assert.Contains("actingIdentityKnown.TrySetResult()", shell, StringComparison.Ordinal);
+        Assert.Contains("await Task.WhenAny(actingIdentityKnown.Task", Body(sync, "private async Task ShowSyncDialogAsync("), StringComparison.Ordinal);
+    }
+
     private static string Body(string source, string signature)
     {
         int start = source.IndexOf(signature, StringComparison.Ordinal);

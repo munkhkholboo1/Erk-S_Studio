@@ -248,6 +248,8 @@ internal sealed partial class ShellView
     /// <summary>The person chooses in a window of its own; the work is StudioSyncFolders'.</summary>
     private async Task ShowSyncDialogAsync(string verb, string folderPath)
     {
+        // An Explorer verb can start Studio: ask «owner or bot?» only once the session is back.
+        await Task.WhenAny(actingIdentityKnown.Task, Task.Delay(TimeSpan.FromSeconds(60)));
         Window.GetWindow(Root)?.Activate();
         SyncFolderDialog dialog;
         if (verb == "make")
