@@ -66,6 +66,18 @@ public sealed class GENERATEDPagesFOLLOWTheAlbumsFormatTests
         Assert.Equal(chosen, WorkingDrawingAlbumFormatFactory.GeneratedPagesKey(album));
     }
 
+    [Theory]
+    [InlineData(420, 297, true)]   // an A3 ЕТ in an A2 album: named
+    [InlineData(500, 350, true)]   // off the module grid: named
+    [InlineData(582, 420, false)]  // the album's own
+    [InlineData(867, 420, false)]  // a larger sheet that folds: normal
+    [InlineData(582, 828, false)]
+    public void TheReviewNamesSmallerOrOffGridSheetsOnly(double width, double height, bool named)
+    {
+        var album = new AlbumDefinition { GeneratedPageFormat = WorkingDrawingAlbumFormatFactory.Create(1, 2) };
+        Assert.Equal(named, AlbumReviewChecklist.IsOffFormat(album, width, height));
+    }
+
     [Fact]
     public void AnA3AlbumKeepsItsA3Pages() =>
         Assert.False(DrawingListPagination.UsesWorkingDrawingFormat(

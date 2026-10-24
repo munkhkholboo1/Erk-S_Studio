@@ -47,15 +47,29 @@ public static partial class AlbumReviewChecklist
     /// A received sheet off the album's format (owner, 2026-10-24: «альбумныхаа форматыг дагах
     /// ёстой») - named, not refused: the source decides its sheet size and has to be redrawn there.
     /// </summary>
+    /// <summary>
+    /// A larger joined-A3 sheet folds to the album's size and is normal (BN: 867 × 420 and
+    /// 582 × 828 beside A2). Off format: a sheet SMALLER than the album's format (an A3 ЕТ in an
+    /// A2 album - the CGA case), or one off the module grid that the splitter cannot take.
+    /// </summary>
+    public static bool IsOffFormat(AlbumDefinition album, double width, double height)
+    {
+        if (width <= 0 || height <= 0)
+            return false;
+        PageFormatDefinition expected = WorkingDrawingAlbumFormatFactory.Resolve(album);
+        bool onGrid = WorkingDrawingAlbumFormatFactory.FromSheetSize(width, height) is not null;
+        bool smaller = Math.Min(width, height) < Math.Min(expected.WidthMm, expected.HeightMm) - 2 ||
+                       Math.Max(width, height) < Math.Max(expected.WidthMm, expected.HeightMm) - 2;
+        return !onGrid || smaller;
+    }
+
     private static void ReviewFormats(AlbumDefinition album, IReadOnlyList<AlbumBuildPage> pages, List<string> findings)
     {
         PageFormatDefinition expected = WorkingDrawingAlbumFormatFactory.Resolve(album);
         foreach (AlbumBuildPage page in pages)
         {
             double width = page.Sheet.Entry.WidthMm, height = page.Sheet.Entry.HeightMm;
-            if (width <= 0 || height <= 0)
-                continue;
-            if (Math.Abs(width - expected.WidthMm) <= 2 && Math.Abs(height - expected.HeightMm) <= 2)
+            if (!IsOffFormat(album, width, height))
                 continue;
             findings.Add(
                 $"{Prefix}: формат альбумтай зөрүүтэй: {page.Number} {width:0}×{height:0} ≠ {expected.WidthMm:0}×{expected.HeightMm:0} — эх файлд нь альбумын форматаар дахин гаргана уу.");

@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.79] - 2026-10-25 (test release)
+
+- Album review: only a sheet smaller than the album's format (an A3 sheet in an A2 album) or off the A3 module grid is named; larger sheets that fold to the album's size are normal (BN listed 28 needless warnings).
+
 ## [0.001.78] - 2026-10-25 (test release)
 
 - Album: when the album's format moves (chosen, or read from its sheets), the cover, the drawing list and the notes are drawn again and go with the next Sync - the shared album no longer keeps an A3 cover beside A2 sheets.
