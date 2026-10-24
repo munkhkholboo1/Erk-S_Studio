@@ -19,7 +19,9 @@ public static class SyncFolderEligibility
     public const string PathMismatchCode = "sync_folder_path_mismatch";
 
     /// <summary>Refusal for registering <paramref name="folder"/> as a new sync folder, or null.</summary>
-    public static SyncFolderRefusal? CheckMake(string folder) => CheckCommon(folder, alreadyRegisteredRefuses: true);
+    /// <param name="resilioConfig">Resilio's «sync.dat»; null for this user's own (<see cref="ResilioDetector.DefaultConfigPath"/>).</param>
+    public static SyncFolderRefusal? CheckMake(string folder, string? resilioConfig = null) =>
+        CheckCommon(folder, alreadyRegisteredRefuses: true, resilioConfig);
 
     /// <summary>
     /// Refusal for joining <paramref name="folder"/> to a sync folder registered at
@@ -30,7 +32,7 @@ public static class SyncFolderEligibility
     /// another place would break every xref and link it holds; refusing loudly beats a folder
     /// that «works» and opens drawings with missing references.
     /// </remarks>
-    public static SyncFolderRefusal? CheckJoin(string folder, string canonicalPath)
+    public static SyncFolderRefusal? CheckJoin(string folder, string canonicalPath, string? resilioConfig = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalPath);
         if (!SyncPath.Same(folder, canonicalPath))
@@ -39,10 +41,10 @@ public static class SyncFolderEligibility
                 PathMismatchCode,
                 $"Энэ хавтас «{SyncPath.Canonical(canonicalPath)}» замд байх ёстой. Замыг өөрчлөөд дахин оролдоно уу.");
         }
-        return CheckCommon(folder, alreadyRegisteredRefuses: false);
+        return CheckCommon(folder, alreadyRegisteredRefuses: false, resilioConfig);
     }
 
-    private static SyncFolderRefusal? CheckCommon(string folder, bool alreadyRegisteredRefuses)
+    private static SyncFolderRefusal? CheckCommon(string folder, bool alreadyRegisteredRefuses, string? resilioConfig)
     {
         string canonical = SyncPath.Canonical(folder);
         if (!Directory.Exists(canonical))
@@ -67,7 +69,7 @@ public static class SyncFolderEligibility
         if (nested is not null)
             return new SyncFolderRefusal(ContainsSyncFolderCode, $"Энэ хавтас дотор «{nested}» синк хавтас байна.");
 
-        string? resilio = ResilioDetector.FindMarker(canonical);
+        string? resilio = ResilioDetector.FindMarker(canonical, resilioConfig);
         if (resilio is not null)
         {
             return new SyncFolderRefusal(
@@ -82,26 +84,99 @@ public static class SyncFolderEligibility
 /// Whether Resilio Sync is keeping this folder. Two syncers in one folder fight each other
 /// (plan §4.6), so registration stops while Resilio holds it.
 /// </summary>
+/// <remarks>
+/// 🔴 RESILIO'S OWN LIST DECIDES, NOT A LEFTOVER MARKER (2026-10-24). The owner's
+/// «D:\Cloud Work\.sync» is from a share removed in 2024 - no «ID», not in Resilio's list - and
+/// every project under it was refused. Resilio names its shares in «sync.dat»; a «.sync» folder
+/// alone counts only where that list cannot be read, and then only with its share «ID».
+/// </remarks>
 public static class ResilioDetector
 {
+    /// <summary>This Windows user's Resilio Sync configuration.</summary>
+    public static string DefaultConfigPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Resilio Sync", "sync.dat");
+
     /// <summary>
-    /// The first Resilio trace found, or null: a «.sync» folder here or above - unless that
-    /// share's IgnoreList leaves this folder out - or a «*.!sync» file below.
+    /// The folders Resilio keeps, read from its «sync.dat» (bencode: each share a «path»), or
+    /// null when there is no such file or it cannot be read. Resilio's own folders are left out.
     /// </summary>
-    public static string? FindMarker(string folder)
+    public static IReadOnlyList<string>? ReadShares(string? configPath = null)
+    {
+        string path = configPath ?? DefaultConfigPath;
+        byte[] data;
+        try
+        {
+            if (!File.Exists(path))
+                return null;
+            data = File.ReadAllBytes(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+        string own = SyncPath.Canonical(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        var shares = new List<string>();
+        byte[] key = "4:path"u8.ToArray();
+        for (int at = IndexOf(data, key, 0); at >= 0; at = IndexOf(data, key, at + key.Length))
+        {
+            int digits = at + key.Length, colon = digits;
+            while (colon < data.Length && data[colon] is >= (byte)'0' and <= (byte)'9')
+                colon++;
+            if (colon == digits || colon >= data.Length || data[colon] != (byte)':' ||
+                !int.TryParse(System.Text.Encoding.ASCII.GetString(data, digits, colon - digits), out int length) ||
+                length <= 0 || colon + 1 + length > data.Length)
+            {
+                continue;
+            }
+            string value = System.Text.Encoding.UTF8.GetString(data, colon + 1, length);
+            if (value.StartsWith(@"\\?\", StringComparison.Ordinal))
+                value = value[4..];
+            if (value.Length < 3 || !Path.IsPathFullyQualified(value))
+                continue;
+            string share = SyncPath.Canonical(value);
+            if (!SyncPath.IsSameOrInside(own, share))
+                shares.Add(share);
+        }
+        return shares;
+    }
+
+    /// <summary>
+    /// The first Resilio trace found, or null: a share Resilio lists that holds this folder
+    /// (unless the share's IgnoreList leaves it out) or lies inside it, or a «*.!sync» file below.
+    /// Without Resilio's list, a «.sync» folder with its share «ID» here or above stands in for it.
+    /// </summary>
+    public static string? FindMarker(string folder, string? configPath = null)
     {
         string canonical = SyncPath.Canonical(folder);
-        DirectoryInfo? current = new(canonical);
-        while (current is not null)
+        if (ReadShares(configPath) is { } shares)
         {
-            string marker = Path.Combine(current.FullName, ".sync");
-            if (Directory.Exists(marker))
+            foreach (string share in shares)
             {
-                if (IsIgnoredByShare(marker, SyncPath.Relative(current.FullName, canonical)))
-                    break;
-                return marker;
+                if (SyncPath.IsSameOrInside(share, canonical))
+                {
+                    if (!IsIgnoredByShare(Path.Combine(share, ".sync"), SyncPath.Relative(share, canonical)))
+                        return share;
+                }
+                else if (SyncPath.IsSameOrInside(canonical, share))
+                {
+                    return share;
+                }
             }
-            current = current.Parent;
+        }
+        else
+        {
+            DirectoryInfo? current = new(canonical);
+            while (current is not null)
+            {
+                string marker = Path.Combine(current.FullName, ".sync");
+                if (File.Exists(Path.Combine(marker, "ID")))
+                {
+                    if (IsIgnoredByShare(marker, SyncPath.Relative(current.FullName, canonical)))
+                        break;
+                    return marker;
+                }
+                current = current.Parent;
+            }
         }
 
         try
@@ -167,6 +242,12 @@ public static class ResilioDetector
             }
         }
         return false;
+    }
+
+    private static int IndexOf(byte[] data, byte[] pattern, int start)
+    {
+        int found = data.AsSpan(start).IndexOf(pattern);
+        return found < 0 ? -1 : start + found;
     }
 
     private static bool Matches(string pattern, string name) =>
