@@ -17,7 +17,7 @@ internal sealed class SyncFolderDialog : Window
     private readonly Button _ok;
     private readonly Func<object, Task<StudioSyncOutcome>> _act;
 
-    private SyncFolderDialog(string title, string folderPath, string prompt, string okText, IReadOnlyList<(string Label, object Value)> choices, int selected, Func<object, Task<StudioSyncOutcome>> act)
+    private SyncFolderDialog(string title, string folderPath, string prompt, string okText, IReadOnlyList<(string Label, object Value)> choices, int selected, Func<object, Task<StudioSyncOutcome>> act, string? emptyReason = null)
     {
         StudioTheme.Apply(this);
         Title = title;
@@ -55,7 +55,11 @@ internal sealed class SyncFolderDialog : Window
         stack.Children.Add(buttons);
         Content = stack;
         if (choices.Count == 0)
-            _message.Text = "Сонгох зүйл алга.";
+        {
+            _message.Text = emptyReason ?? "Сонгох зүйл алга.";
+            _message.Foreground = StudioTheme.DangerBrush;
+            _message.MaxWidth = 560;
+        }
     }
 
     public StudioSyncOutcome? Outcome { get; private set; }
@@ -81,7 +85,7 @@ internal sealed class SyncFolderDialog : Window
     }
 
     /// <summary>«Erk-S Sync фолдер болгох»: pick the project; the open one first.</summary>
-    public static SyncFolderDialog ForMake(string folderPath, IReadOnlyList<ProjectCatalogItem> projects, string? openProjectPath, Func<ProjectCatalogItem, Task<StudioSyncOutcome>> make)
+    public static SyncFolderDialog ForMake(string folderPath, IReadOnlyList<ProjectCatalogItem> projects, string? openProjectPath, Func<ProjectCatalogItem, Task<StudioSyncOutcome>> make, string? emptyReason = null)
     {
         List<(string, object)> choices = projects
             .Select(project => ($"{project.ProjectCode} — {project.DisplayName}", (object)project))
@@ -96,7 +100,8 @@ internal sealed class SyncFolderDialog : Window
             "Синк хавтас болгох",
             choices,
             Math.Max(0, selected),
-            value => make((ProjectCatalogItem)value));
+            value => make((ProjectCatalogItem)value),
+            emptyReason);
     }
 
     /// <summary>«Erk-S Sync фолдерт холбох»: pick the registered sync folder; the one at this path first.</summary>

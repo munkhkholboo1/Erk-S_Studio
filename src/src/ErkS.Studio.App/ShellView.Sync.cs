@@ -256,7 +256,13 @@ internal sealed partial class ShellView
                 .Where(item => MaySeeProject(item.ProjectId))
                 .OrderBy(item => item.ProjectCode, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            dialog = SyncFolderDialog.ForMake(folderPath, projects, state.ProjectPath, project => MakeSyncFolderAsync(folderPath, project.ProjectPath));
+            // A seated machine acting as its bot sees only the bot's assigned projects - none
+            // until the seat's rights have arrived. Say so instead of an empty list (2026-10-24).
+            string? emptyReason = projects.Count > 0 ? null
+                : ActingAsBot
+                    ? "Энэ Studio одоо ботын суудлаар ажиллаж байна, ботод томилогдсон төсөл алга (эсвэл суудлын эрх хараахан ирээгүй). Зүүн доод бүртгэлийн цэснээс өөрийн нэрээр ажиллахаа сонгоод дахин оролдоно уу."
+                    : "Энэ төхөөрөмж дээр Studio төсөл алга. Эхлээд төслөө нээх эсвэл Cloud-оос татна уу.";
+            dialog = SyncFolderDialog.ForMake(folderPath, projects, state.ProjectPath, project => MakeSyncFolderAsync(folderPath, project.ProjectPath), emptyReason);
         }
         else
         {
