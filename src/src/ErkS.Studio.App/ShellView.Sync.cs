@@ -336,6 +336,26 @@ internal sealed partial class ShellView
                   (central.RolledBack > 0 ? $" · тасарч буцаасан бичилт {central.RolledBack}" : "")
                 : $"Revit central «{name}» — өөр машин дээр; энэ машинаас ижил замаар нээж ажиллана";
             projectSyncPanel.Children.Add(Line(line, bold: true));
+            if (central.Role == "host")
+            {
+                bool on = SyncCentralSwitch.Enabled(SyncHome.Default()).Contains(central.CentralId);
+                var toggle = new Button
+                {
+                    Content = on ? "Хамтын ажиллагааг унтраах" : "Хамтын ажиллагааг асаах",
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(12, 2, 0, 4),
+                    Padding = new Thickness(10, 3, 10, 3),
+                    ToolTip = "Асаавал багийн гишүүд энэ central дээр өөрсдийн машинаас ижил замаар ажиллана. Эхний туршилтыг central-ын хуулбар дээр хийнэ.",
+                };
+                string id = central.CentralId;
+                toggle.Click += (_, _) =>
+                {
+                    SyncCentralSwitch.Set(SyncHome.Default(), id, !on);
+                    SyncTrayProcess.Poke();
+                    RefreshProjectSyncSection();
+                };
+                projectSyncPanel.Children.Add(toggle);
+            }
             if (central.LastError.Length > 0)
                 projectSyncPanel.Children.Add(Line("   ⚠ " + central.LastError));
             if (problems.TryGetValue(central.CentralId, out string? problem))
@@ -508,6 +528,29 @@ internal sealed partial class ShellView
     /// sync-decide folder=<id> choice=theirs|mine [peer=<device key>] [path=<file>]: the person's
     /// answer for differing files - all of them, or one - exactly as the section's buttons give it.
     /// </summary>
+    /// <summary>Bridge «sync-central»: the same switch as the Studio button, by the central's full path.</summary>
+    private StudioBridgeResponse BridgeSyncCentral(StudioBridgeRequest request)
+    {
+        string path = request.Arg("path") ?? "";
+        bool on = !string.Equals(request.Arg("on"), "false", StringComparison.OrdinalIgnoreCase);
+        var map = new SyncPathMap();
+        foreach (SyncFolderState folder in SyncTrayProcess.State()?.Folders ?? [])
+        {
+            string root = Path.GetFullPath(map.Physical(folder.CanonicalPath));
+            string full = Path.GetFullPath(path.Length == 0 ? "." : path);
+            if (!SyncPath.IsSameOrInside(root, full))
+                continue;
+            SyncCentralState? central = folder.Centrals.FirstOrDefault(item =>
+                item.Role == "host" && SyncPath.Comparer.Equals(item.RelativePath, Path.GetRelativePath(root, full)));
+            if (central is null)
+                return StudioBridgeProtocol.Refuse(request.Id, "sync_central_not_here", "Энэ машин дээр тэр замд Revit central алга.");
+            SyncCentralSwitch.Set(SyncHome.Default(), central.CentralId, on);
+            SyncTrayProcess.Poke();
+            return StudioBridgeProtocol.Accept(request.Id, new { centralId = central.CentralId, on }, on ? "Хамтын ажиллагаа асав." : "Хамтын ажиллагаа унтрав.");
+        }
+        return StudioBridgeProtocol.Refuse(request.Id, "sync_central_not_here", "Тэр зам аль ч синк хавтсанд алга.");
+    }
+
     private StudioBridgeResponse BridgeSyncDecide(StudioBridgeRequest request)
     {
         string folderId = request.Arg("folder") ?? "";

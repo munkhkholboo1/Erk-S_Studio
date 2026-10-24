@@ -106,6 +106,8 @@ internal sealed partial class ShellView
                 return BridgeSyncStatus(request);
             case "sync-folders":
                 return await BridgeSyncFoldersAsync(request);
+            case "sync-central":
+                return BridgeSyncCentral(request);
             case "close":
                 _ = Root.Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(Root)?.Close()));
                 return StudioBridgeProtocol.Accept(request.Id, null, "Studio хаагдаж байна.");

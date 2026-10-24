@@ -28,6 +28,42 @@ public sealed record SyncCentralState
     public string LastError { get; init; } = "";
 }
 
+/// <summary>
+/// Which centrals this machine serves. Off unless a person turned it on for that central
+/// (Master's safeguard 1, 2026-10-24: the first tests run on a COPY; the owner's real central is
+/// served only with the owner's separate consent). central/enabled.json under the Sync home.
+/// </summary>
+public static class SyncCentralSwitch
+{
+    public static string PathOf(SyncHome home) => System.IO.Path.Combine(home.Root, "central", "enabled.json");
+
+    public static IReadOnlySet<string> Enabled(SyncHome home)
+    {
+        try
+        {
+            string path = PathOf(home);
+            return File.Exists(path)
+                ? (System.Text.Json.JsonSerializer.Deserialize<List<string>>(File.ReadAllText(path)) ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public static void Set(SyncHome home, string centralId, bool on)
+    {
+        HashSet<string> enabled = Enabled(home).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (on)
+            enabled.Add(centralId);
+        else
+            enabled.Remove(centralId);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PathOf(home))!);
+        File.WriteAllText(PathOf(home), System.Text.Json.JsonSerializer.Serialize(enabled.Order(StringComparer.Ordinal).ToList()));
+    }
+}
+
 public static class SyncCentralIds
 {
     /// <summary>The id the server sees: a hash of the central's relative path, never its name (SRV 719cdea).</summary>
@@ -58,12 +94,20 @@ public sealed class SyncCentralService(SyncHome home, Func<CancellationToken, Ta
             .Select(entry => entry.RelativePath)
             .ToHashSet(SyncPath.Comparer);
         var states = new List<SyncCentralState>();
+        IReadOnlySet<string> enabled = SyncCentralSwitch.Enabled(home);
         lock (_gate)
         {
             foreach (string relative in here)
             {
                 string id = SyncCentralIds.Of(relative);
                 string key = folderId + "|" + id;
+                if (!enabled.Contains(id))
+                {
+                    if (_hosts.Remove(key, out HostRun? stopped))
+                        stopped.Stop.Cancel();
+                    states.Add(new SyncCentralState { CentralId = id, RelativePath = relative, Role = "host", LastError = "Хамтын ажиллагаа асаагүй — эзэн зөвшөөрвөл асна." });
+                    continue;
+                }
                 if (!_hosts.TryGetValue(key, out HostRun? run))
                 {
                     string full = Path.GetFullPath(Path.Combine(physical, relative));
@@ -77,7 +121,7 @@ public sealed class SyncCentralService(SyncHome home, Func<CancellationToken, Ta
                 }
                 states.Add(run.State());
             }
-            foreach ((string key, HostRun run) in _hosts.Where(pair => pair.Value.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase) && !here.Contains(pair.Value.RelativePath)).ToArray())
+            foreach ((string key, HostRun run) in _hosts.Where(pair => pair.Value.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase) && (!here.Contains(pair.Value.RelativePath) || !enabled.Contains(pair.Value.CentralId))).ToArray())
             {
                 run.Stop.Cancel();
                 _hosts.Remove(key);

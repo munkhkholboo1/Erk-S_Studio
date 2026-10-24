@@ -5,6 +5,12 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.76] - 2026-10-24 (test release)
+
+- Erk-S Central: team work on one Revit central through Erk-S Sync. The central stays on its host; a member's machine shows it at the same path through a Dokany mount (free, open source; installed once with the person's consent), and every file operation Revit makes runs on the host's real files - Create New Local, Synchronize, Reload Latest, borrowing and editing requests stay Revit's own. A synchronize cut by a broken road is undone whole on the host; a resent call is never run twice; with no host, Revit is answered at once and keeps working in the local. A snapshot is taken before a member's first write (last ten kept).
+- Off by default: a central is shared only after «Хамтын ажиллагааг асаах» in the «Erk-S Sync» section (bridge «sync-central»). The first tests run on a copy of a central.
+- Studio lists each central with its role (host / member), the members connected, the last snapshot and what could not be done (Dokany missing and the like).
+
 ## [0.001.75] - 2026-10-24 (test release)
 
 - Erk-S Sync: a partner who has not joined yet (no index) is shown as waiting, not as 0%. The tray and Studio read «✓ бүрэн синк хийгдсэн · 1 хамтрагч холбогдохыг хүлээж байна» instead of «0% синк хийгдсэн».

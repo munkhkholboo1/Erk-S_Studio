@@ -74,8 +74,10 @@ public sealed class APERSONDecidesADifferentFileTests
         }
 
         // 1. They meet: nothing is overwritten, the two different files are shown.
+        // Both sides - each needs the other's index for its own decision below (a race when only B was awaited).
         await RunUntilAsync(server, homeA, homeB, rootA, rootB, engines =>
-            engines.B.LastState.Folders.SingleOrDefault()?.Peers.SingleOrDefault()?.UnrelatedCount == 2);
+            engines.B.LastState.Folders.SingleOrDefault()?.Peers.SingleOrDefault()?.UnrelatedCount == 2 &&
+            engines.A.LastState.Folders.SingleOrDefault()?.Peers.SingleOrDefault()?.UnrelatedCount == 2);
         Assert.Equal("plan from B", File.ReadAllText(Path.Combine(folderB, "plan.dwg")));
 
         // 2. On B the person answers: plan.dwg - take A's; on A: facade.dwg - keep A's.

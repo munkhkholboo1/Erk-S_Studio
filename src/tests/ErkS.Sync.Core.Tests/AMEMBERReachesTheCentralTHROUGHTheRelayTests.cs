@@ -68,6 +68,9 @@ public sealed class AMEMBERReachesTheCentralTHROUGHTheRelayTests
 
         await channel.DisposeAsync(); // the member's road is gone
         await relay.WaitForCloseAsync();
+        // The host learns of the close asynchronously; until then the member counts as connected.
+        for (int wait = 0; wait < 100 && relayHost.Connected > 0; wait++)
+            await Task.Delay(50);
         Assert.Equal(0, relayHost.Sweep(DateTimeOffset.UtcNow));
         Assert.Equal(1, relayHost.Sweep(DateTimeOffset.UtcNow.AddMinutes(3)));
 
