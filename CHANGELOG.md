@@ -5,6 +5,12 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.71] - 2026-10-24 (test release)
+
+- On a machine that holds a bot seat, the owner signed in is the owner everywhere: the other Erk-S products are told the owner, not a locked seat, and the «Суудлын эрхийн баталгаа хараахан ирээгүй» line no longer appears for them.
+- An Explorer «Erk-S Sync» verb that starts Studio waits for the session before asking who is acting, so the owner is not taken for the bot.
+- A source whose native file was moved (a folder renamed or reorganised) is found again on opening the project and relinked; several same-named candidates are named for a person to choose.
+
 ## [0.001.70] - 2026-10-24 (test release)
 
 - A machine holding a bot seat no longer asks for the bot's PIN when the owner is the one signed in. The PIN is asked only when the bot was the last choice; if, after start-up, nobody is signed in, the lock still comes up.
