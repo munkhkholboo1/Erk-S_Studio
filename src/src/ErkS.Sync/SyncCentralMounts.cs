@@ -16,6 +16,7 @@ internal sealed class SyncCentralMounts(SyncHome home, Func<(Uri Server, string 
     private readonly Dictionary<string, Mounted> _mounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private Dokan? _dokan;
+    private readonly Dictionary<string, DateTime> _probedUtc = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _dokanTriedUtc = DateTime.MinValue;
 
     /// <summary>Why a central is not mounted, per central id - shown in Studio («Dokany суугаагүй» and the like).</summary>
@@ -79,12 +80,30 @@ internal sealed class SyncCentralMounts(SyncHome home, Func<(Uri Server, string 
             return;
         }
 
-        Directory.CreateDirectory(mountPoint);
         var channel = new SyncCentralRelayChannel(async token =>
         {
             (Uri Server, string Token) current = road() ?? throw new IOException("no road");
             return await SyncCentralWebSocketLink.ConnectAsync(current.Server, current.Token, folder.FolderId, central.CentralId, "member", token);
         });
+
+        // Nothing is mounted - no link, no Windows question - until the host shares the central
+        // and is online; asked again once a minute.
+        if (_probedUtc.TryGetValue(key, out DateTime probed) && DateTime.UtcNow - probed < TimeSpan.FromMinutes(1))
+        {
+            channel.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            return;
+        }
+        _probedUtc[key] = DateTime.UtcNow;
+        SyncCentralResponse reach = new SyncCentralClient(channel).CallAsync(new SyncCentralRequest { Op = SyncCentralOp.List, Path = "" }).GetAwaiter().GetResult();
+        if (reach.Error == SyncCentralErrors.HostUnreachable)
+        {
+            _problems[central.CentralId] = channel.LastRefusal == "sync_central_host_offline" || channel.LastRefusal.Length == 0
+                ? "Central-ын эзэн машин унтарсан эсвэл хамтын ажиллагааг асаагаагүй байна."
+                : "Сервер татгалзлаа: " + channel.LastRefusal;
+            channel.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            return;
+        }
+        Directory.CreateDirectory(mountPoint);
         DokanInstance instance;
         try
         {
@@ -123,7 +142,24 @@ internal sealed class SyncCentralMounts(SyncHome home, Func<(Uri Server, string 
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return "Central-ын файлын холбоос үүсгэхэд Windows-ийн «Developer Mode» эсвэл админ эрх хэрэгтэй.";
+            // No Developer Mode is asked for (a system security setting - Master, 2026-10-25):
+            // the one link is made once with the person's own consent (Windows asks, UAC).
+            try
+            {
+                using Process? elevated = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink \"{file}\" \"{fileTarget}\"")
+                {
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                });
+                elevated?.WaitForExit(60_000);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // The person said no: nothing is changed.
+            }
+            if (!File.Exists(file))
+                return "Central-ын файлын холбоосыг үүсгэх зөвшөөрөл өгөөгүй — Windows-ийн асуултад «Тийм» гэвэл central энэ замаар нээгдэнэ.";
         }
         if (!Directory.Exists(folder))
         {

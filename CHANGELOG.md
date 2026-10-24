@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.80] - 2026-10-25 (test release)
+
+- Erk-S Central asks for no Windows Developer Mode: the central's file link is made once with the person's own consent (Windows asks). Nothing is mounted or linked until the central's host shares it and is online.
+
 ## [0.001.79] - 2026-10-25 (test release)
 
 - Album review: only a sheet smaller than the album's format (an A3 sheet in an A2 album) or off the A3 module grid is named; larger sheets that fold to the album's size are normal (BN listed 28 needless warnings).
