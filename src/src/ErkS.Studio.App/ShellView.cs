@@ -2899,6 +2899,7 @@ internal sealed partial class ShellView : IDisposable
             await RefreshCurrentProjectCloudAccessAsync();
             if (!IsOperationContextCurrent(openContext))
                 return;
+            await RelinkMovedSourcesAsync();
             await UpdateProjectOpenProgressAsync(100, "Төсөл нээгдлээ.");
         }
         catch (Exception exception)

@@ -118,6 +118,7 @@ internal sealed partial class ShellView
         {
             case "check-sources":
             {
+                await RelinkMovedSourcesAsync();
                 SourceRefreshOutcome outcome = await CheckForSourceUpdatesAsync();
                 return outcome.Succeeded
                     ? StudioBridgeProtocol.Accept(request.Id, new { outcome.CheckedCount, outcome.ChangedCount }, statusText.Text)
