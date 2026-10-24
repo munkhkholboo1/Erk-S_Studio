@@ -14,7 +14,8 @@ public enum SyncTransferKind
     KeepBoth,
 }
 
-public sealed record SyncTransferAction(SyncTransferKind Kind, SyncIndexEntry Theirs, SyncIndexEntry? Mine);
+/// <param name="KeepPrevious">A person chose «Тэндхийг авах»: this machine's version is kept in «.erks-sync\replaced».</param>
+public sealed record SyncTransferAction(SyncTransferKind Kind, SyncIndexEntry Theirs, SyncIndexEntry? Mine, bool KeepPrevious = false);
 
 /// <summary>What one peer's index means for this machine, by count where nothing moves.</summary>
 public sealed record SyncTransferPlan(
@@ -41,7 +42,7 @@ public static class SyncTransferPlanner
     public static bool IsCarried(SyncFileKind kind) =>
         kind is not (SyncFileKind.RevitCentral or SyncFileKind.RevitCentralData);
 
-    public static SyncTransferPlan Plan(SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger)
+    public static SyncTransferPlan Plan(SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger, IReadOnlyList<SyncDecision>? decisions = null)
     {
         ArgumentNullException.ThrowIfNull(mine);
         ArgumentNullException.ThrowIfNull(theirs);
@@ -76,9 +77,22 @@ public static class SyncTransferPlanner
                 continue;
             }
             SyncFileVersion mineVersion = local.Version ?? new SyncFileVersion { Sha256 = local.Sha256 };
-            if (version.Knows(local.Sha256))
+            bool takeTheirs = (decisions ?? []).Any(decision =>
+                decision.Choice == SyncChoice.Theirs &&
+                SyncPath.Comparer.Equals(decision.RelativePath, entry.RelativePath) &&
+                decision.TheirSha256.Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase) &&
+                decision.MySha256.Equals(local.Sha256, StringComparison.OrdinalIgnoreCase));
+            if (takeTheirs)
             {
-                actions.Add(new SyncTransferAction(SyncTransferKind.Replace, entry, local));
+                // The person's answer: theirs here, this one kept aside - never thrown away.
+                actions.Add(new SyncTransferAction(SyncTransferKind.Replace, entry, local, KeepPrevious: true));
+            }
+            else if (version.Knows(local.Sha256))
+            {
+                // Came after this version - unless a person overrode this one by decision on the
+                // other machine: then it is kept aside here too.
+                bool overridden = version.Overrode.Contains(local.Sha256, StringComparer.OrdinalIgnoreCase);
+                actions.Add(new SyncTransferAction(SyncTransferKind.Replace, entry, local, KeepPrevious: overridden));
             }
             else if (mineVersion.Knows(entry.Sha256))
             {
@@ -179,6 +193,12 @@ public static class SyncFileAssembler
             if (Hold(action, target) is { } late)
                 return new SyncApplyResult(SyncApplyOutcome.Waiting, theirs.RelativePath, fetched, reused, late);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            if (action.KeepPrevious && File.Exists(target))
+            {
+                string kept = Path.Combine(root, SyncExclusions.MarkerDirectoryName, "replaced", now.ToLocalTime().ToString("yyyyMMdd-HHmmss"), relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(kept)!);
+                File.Copy(target, kept, overwrite: true);
+            }
             File.Move(temporary, target, overwrite: action.Kind == SyncTransferKind.Replace);
             return new SyncApplyResult(SyncApplyOutcome.Applied, theirs.RelativePath, fetched, reused);
         }

@@ -32,6 +32,9 @@ public sealed class SyncHome(string root, string? statusPath = null)
 
     public string LedgerPath(string folderId) => Path.Combine(FolderRoot(folderId), "versions.json");
 
+    /// <summary>A person's answers for files both machines hold differently (Studio writes, the tray reads).</summary>
+    public string DecisionsPath(string folderId) => Path.Combine(FolderRoot(folderId), "decisions.json");
+
     public string PeerIndexPath(string folderId, string deviceKeyId) =>
         Path.Combine(FolderRoot(folderId), "peers", Sanitize(deviceKeyId) + ".json");
 

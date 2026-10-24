@@ -119,10 +119,47 @@ internal sealed partial class ShellView
             SyncIndex? theirs = SyncIndexStore.TryLoad(home.PeerIndexPath(folder.FolderId, peer.DeviceKeyId));
             if (mine is null || theirs is null)
                 continue;
-            // 🔴 Shown, never resolved: the owner decides what a differing file should be.
+            // 🔴 Shown, never resolved by SYN: a person decides what a differing file should be
+            // (decision 15) - for all of them at once or one by one; the replaced one is kept.
             SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirs);
+            IReadOnlyList<SyncDecision> answered = SyncDecisionStore.Load(home.DecisionsPath(folder.FolderId));
+            if (difference.Different.Count > 0)
+            {
+                var all = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+                Button takeAll = StudioWidgets.CreateButton($"Бүгдийг тэндээс авах ({difference.Different.Count})");
+                takeAll.Click += (_, _) => DecideSync(folder.FolderId, mine, theirs, SyncChoice.Theirs, null);
+                Button keepAll = StudioWidgets.CreateButton("Бүгдэд минийхийг үлдээх");
+                keepAll.Margin = new Thickness(6, 0, 0, 0);
+                keepAll.Click += (_, _) => DecideSync(folder.FolderId, mine, theirs, SyncChoice.Mine, null);
+                all.Children.Add(takeAll);
+                all.Children.Add(keepAll);
+                projectSyncPanel.Children.Add(all);
+            }
             foreach (SyncIndexEntry entry in difference.Different.Take(50))
-                projectSyncPanel.Children.Add(Line($"   зөрүүтэй · {entry.RelativePath}"));
+            {
+                string theirSha = theirs.Entries.FirstOrDefault(item => SyncPath.Comparer.Equals(item.RelativePath, entry.RelativePath))?.Sha256 ?? "";
+                SyncDecision? decided = answered.LastOrDefault(item =>
+                    SyncPath.Comparer.Equals(item.RelativePath, entry.RelativePath) &&
+                    item.MySha256.Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase) &&
+                    item.TheirSha256.Equals(theirSha, StringComparison.OrdinalIgnoreCase));
+                var row = new DockPanel { Margin = new Thickness(0, 1, 0, 1) };
+                if (decided is null)
+                {
+                    var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+                    Button take = StudioWidgets.CreateButton("Тэндхийг авах");
+                    take.Click += (_, _) => DecideSync(folder.FolderId, mine, theirs, SyncChoice.Theirs, [entry.RelativePath]);
+                    Button keep = StudioWidgets.CreateButton("Минийхийг үлдээх");
+                    keep.Margin = new Thickness(4, 0, 0, 0);
+                    keep.Click += (_, _) => DecideSync(folder.FolderId, mine, theirs, SyncChoice.Mine, [entry.RelativePath]);
+                    buttons.Children.Add(take);
+                    buttons.Children.Add(keep);
+                    DockPanel.SetDock(buttons, Dock.Right);
+                    row.Children.Add(buttons);
+                }
+                string state = decided is null ? "" : decided.Choice == SyncChoice.Theirs ? " — тэндхийг авна" : " — минийх үлдэнэ";
+                row.Children.Add(Line($"   зөрүүтэй · {entry.RelativePath}{state}"));
+                projectSyncPanel.Children.Add(row);
+            }
             foreach (SyncIndexEntry entry in difference.OnlyHere.Take(20))
                 projectSyncPanel.Children.Add(Line($"   зөвхөн энд · {entry.RelativePath}"));
             foreach (SyncIndexEntry entry in difference.OnlyThere.Take(20))
@@ -140,6 +177,36 @@ internal sealed partial class ShellView
             FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
             Foreground = bold ? StudioTheme.TextBrush : StudioTheme.MutedTextBrush,
         };
+    }
+
+    /// <summary>
+    /// A person's answer for differing files, handed to the tray - which takes the other
+    /// machine's version (keeping this one in «.erks-sync\replaced») or makes this one the
+    /// version the other machine takes.
+    /// </summary>
+    private void DecideSync(string folderId, SyncIndex mine, SyncIndex theirs, SyncChoice choice, IReadOnlyCollection<string>? paths)
+    {
+        IReadOnlyList<SyncDecision> decisions = SyncDecisionStore.ForDifferences(mine, theirs, choice, paths);
+        if (decisions.Count == 0)
+            return;
+        if (paths is null &&
+            StudioMessageDialog.Show(
+                Window.GetWindow(Root),
+                choice == SyncChoice.Theirs
+                    ? $"{decisions.Count} зөрүүтэй файлыг нөгөө машины хувилбараар солих уу?{Environment.NewLine}{Environment.NewLine}Энэ машины хувилбар бүр «.erks-sync\\replaced» хавтсанд хадгалагдана."
+                    : $"{decisions.Count} зөрүүтэй файлд энэ машины хувилбарыг үлдээх үү?{Environment.NewLine}{Environment.NewLine}Нөгөө машин эдгээрийг авч, өөрийн хувилбарыг «.erks-sync\\replaced»-д хадгална.",
+                "Erk-S Sync — зөрүүтэй файл",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question) != MessageBoxResult.OK)
+        {
+            return;
+        }
+        SyncDecisionStore.Add(SyncHome.Default().DecisionsPath(folderId), decisions);
+        SyncTrayProcess.Poke();
+        SetStatus(choice == SyncChoice.Theirs
+            ? $"{decisions.Count} файлыг нөгөө машинаас авна - Erk-S Sync дараагийн шалгалтаар хийнэ."
+            : $"{decisions.Count} файлд энэ машины хувилбар үлдэнэ - нөгөө машин түүнийг авна.");
+        RefreshProjectSyncSection();
     }
 
     private async Task MakeSyncFolderFromPickerAsync()
@@ -276,6 +343,42 @@ internal sealed partial class ShellView
         return outcome is { Ok: true }
             ? StudioBridgeProtocol.Accept(request.Id, outcome.Folder, outcome.Message)
             : StudioBridgeProtocol.Refuse(request.Id, outcome?.Code ?? "sync_failed", outcome?.Message ?? "");
+    }
+
+    /// <summary>
+    /// sync-decide folder=<id> choice=theirs|mine [peer=<device key>] [path=<file>]: the person's
+    /// answer for differing files - all of them, or one - exactly as the section's buttons give it.
+    /// </summary>
+    private StudioBridgeResponse BridgeSyncDecide(StudioBridgeRequest request)
+    {
+        string folderId = request.Arg("folder") ?? "";
+        SyncChoice? choice = (request.Arg("choice") ?? "").Trim().ToLowerInvariant() switch
+        {
+            "theirs" => SyncChoice.Theirs,
+            "mine" => SyncChoice.Mine,
+            _ => null,
+        };
+        if (folderId.Length == 0 || choice is null)
+            return StudioBridgeProtocol.Refuse(request.Id, "sync_decide_arguments", "folder=<id> choice=theirs|mine заана уу.");
+        SyncHome home = SyncHome.Default();
+        SyncIndex? mine = SyncIndexStore.TryLoad(home.IndexPath(folderId));
+        SyncFolderState? folder = SyncTrayProcess.State()?.Folders.FirstOrDefault(item => item.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase));
+        if (mine is null || folder is null)
+            return StudioBridgeProtocol.Refuse(request.Id, "sync_folder_not_here", "Энэ машинд тэр синк хавтасны индекс алга.");
+        string? peerKey = request.Arg("peer");
+        string? path = request.Arg("path");
+        var decisions = new List<SyncDecision>();
+        foreach (SyncPeerState peer in folder.Peers.Where(peer => string.IsNullOrWhiteSpace(peerKey) || peer.DeviceKeyId.Equals(peerKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (SyncIndexStore.TryLoad(home.PeerIndexPath(folderId, peer.DeviceKeyId)) is { } theirs)
+                decisions.AddRange(SyncDecisionStore.ForDifferences(mine, theirs, choice.Value, string.IsNullOrWhiteSpace(path) ? null : [path]));
+        }
+        if (decisions.Count == 0)
+            return StudioBridgeProtocol.Refuse(request.Id, "sync_nothing_to_decide", "Шийдэх зөрүүтэй файл алга.");
+        SyncDecisionStore.Add(home.DecisionsPath(folderId), decisions);
+        SyncTrayProcess.Poke();
+        RefreshProjectSyncSection();
+        return StudioBridgeProtocol.Accept(request.Id, new { decided = decisions.Count }, $"{decisions.Count} файлын шийдвэр Erk-S Sync-д өгөгдлөө.");
     }
 
     /// <summary>sync-unregister project=<code>: «Синк хавтсыг цуцлах» for the whole team; files stay.</summary>

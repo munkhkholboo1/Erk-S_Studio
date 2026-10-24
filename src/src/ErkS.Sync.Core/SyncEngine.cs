@@ -233,6 +233,7 @@ public sealed class SyncEngine : IAsyncDisposable
                 previous = _indexes.GetValueOrDefault(folder.FolderId) ?? SyncIndexStore.TryLoad(_home.IndexPath(folder.FolderId));
             index = await Task.Run(() => SyncIndexBuilder.Build(physical, folder.FolderId, previous, cancellationToken), cancellationToken);
             SyncVersionLedger ledger = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId));
+            ledger.Adopt(SyncDecisionStore.Load(_home.DecisionsPath(folder.FolderId)));
             index = ledger.Stamp(index, _device!.DeviceKeyId);
             SyncVersionLedgerStore.Save(ledger, _home.LedgerPath(folder.FolderId));
             SyncIndexStore.Save(index, _home.IndexPath(folder.FolderId));
@@ -337,7 +338,7 @@ public sealed class SyncEngine : IAsyncDisposable
     {
         string ledgerPath = _home.LedgerPath(folderId);
         SyncVersionLedger ledger = SyncVersionLedgerStore.Load(ledgerPath);
-        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger);
+        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)));
         int received = 0, kept = 0, waiting = 0;
         long bytes = 0;
         string lastError = "";

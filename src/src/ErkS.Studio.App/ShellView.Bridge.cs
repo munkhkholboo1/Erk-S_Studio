@@ -100,6 +100,8 @@ internal sealed partial class ShellView
             case "sync-unlink":
             case "sync-unregister":
                 return await BridgeSyncFolderAsync(request, action["sync-".Length..]);
+            case "sync-decide":
+                return BridgeSyncDecide(request);
             case "sync-status":
                 return BridgeSyncStatus(request);
             case "sync-folders":

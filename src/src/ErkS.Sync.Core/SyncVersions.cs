@@ -21,6 +21,12 @@ public sealed record SyncFileVersion
 
     public IReadOnlyList<string> History { get; init; } = [];
 
+    /// <summary>
+    /// Versions a person chose to override with this one («Минийхийг үлдээх») rather than edit
+    /// from - a machine still holding one keeps it aside when this version arrives.
+    /// </summary>
+    public IReadOnlyList<string> Overrode { get; init; } = [];
+
     /// <summary>This version's hash or one it replaced.</summary>
     public bool Knows(string sha256) =>
         Sha256.Equals(sha256, StringComparison.OrdinalIgnoreCase) ||
@@ -33,6 +39,7 @@ public sealed record SyncFileVersion
         Writer = writer,
         Seq = Seq + 1,
         History = new[] { Sha256 }.Concat(History).Take(HistoryLimit).ToList(),
+        Overrode = Overrode,
     };
 }
 
@@ -100,9 +107,38 @@ public sealed record SyncVersionLedger
             shas.Add(sha256);
     }
 
+    /// <summary>
+    /// «Минийхийг үлдээх»: this machine's version, while it is still the one decided about,
+    /// counts as coming after the other's - so the other machine takes it on its next pass.
+    /// </summary>
+    public void Adopt(IEnumerable<SyncDecision> decisions)
+    {
+        foreach (SyncDecision decision in decisions.Where(item => item.Choice == SyncChoice.Mine))
+        {
+            if (!Files.TryGetValue(decision.RelativePath, out SyncLedgerEntry? known) || known.Deleted ||
+                !known.Version.Sha256.Equals(decision.MySha256, StringComparison.OrdinalIgnoreCase) ||
+                known.Version.Knows(decision.TheirSha256))
+            {
+                continue;
+            }
+            Files[decision.RelativePath] = known with
+            {
+                Version = known.Version with
+                {
+                    History = known.Version.History.Prepend(decision.TheirSha256).Take(SyncFileVersion.HistoryLimit).ToList(),
+                    Overrode = known.Version.Overrode.Prepend(decision.TheirSha256).Take(SyncFileVersion.HistoryLimit).ToList(),
+                },
+            };
+            Kept.Remove(decision.RelativePath);
+        }
+    }
+
     /// <summary>A peer's version now lies on this disk at <paramref name="relativePath"/>.</summary>
-    public void Applied(string relativePath, SyncFileVersion version) =>
+    public void Applied(string relativePath, SyncFileVersion version)
+    {
         Files[relativePath] = new SyncLedgerEntry(version);
+        Kept.Remove(relativePath);
+    }
 
     /// <summary>Whether this machine deleted <paramref name="relativePath"/> after holding <paramref name="theirs"/> or a later version of it.</summary>
     public bool DeletedHere(string relativePath, SyncFileVersion theirs) =>

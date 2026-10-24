@@ -62,8 +62,16 @@ public static class SyncFolderMarker
             return false;
         }
         DirectoryInfo directory = new(DirectoryOf(folder));
-        directory.Attributes &= ~FileAttributes.Hidden;
-        directory.Delete(recursive: true);
+        File.Delete(Path.Combine(directory.FullName, FileName));
+        string scratch = Path.Combine(directory.FullName, "tmp");
+        if (Directory.Exists(scratch))
+            Directory.Delete(scratch, recursive: true);
+        // Versions a person chose to replace stay in «replaced» - the folder goes only when empty.
+        if (!directory.EnumerateFileSystemInfos().Any())
+        {
+            directory.Attributes &= ~FileAttributes.Hidden;
+            directory.Delete();
+        }
         return true;
     }
 
