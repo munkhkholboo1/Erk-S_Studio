@@ -344,6 +344,8 @@ internal sealed partial class ShellView
         StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
         if (seat is null || botLockHost is null)
             return;
+        if (!StudioBotActor.LocksAtStartup(StudioBotChoiceStore.Read()))
+            return;
 
         // Called from more than one place now - start-up, seating, and the
         // switch back - so it has to be safe to ask twice. Two overlays would
@@ -398,6 +400,27 @@ internal sealed partial class ShellView
             return;
 
         RemoveBotLock();
+        RememberBotChoice(false);
+    }
+
+    /// <summary>
+    /// The other half of <see cref="StudioBotActor.LocksAtStartup"/>: a seat whose bot was not
+    /// the last choice opens without the PIN, and if after the restore nobody is signed in -
+    /// the bot is the one acting - the lock goes up now.
+    /// </summary>
+    private void InstallBotLockIfBotIsActing()
+    {
+        if (botLockScreen is not null || !ActingAsBot)
+            return;
+        RememberBotChoice(true);
+        InstallBotLockIfSeated();
+    }
+
+    /// <summary>Keeps who was acting, so the next start knows whether to ask for the PIN.</summary>
+    private static void RememberBotChoice(bool bot)
+    {
+        if (StudioBotChoiceStore.Read() != bot)
+            StudioBotChoiceStore.Write(bot);
     }
 
     private void RemoveBotLock()
@@ -770,6 +793,8 @@ internal sealed partial class ShellView
 
     private async Task ResumeAsOwnerNowAsync()
     {
+        RememberBotChoice(false);
+
         // 🔴 THE SEAT'S CREDENTIAL GOES WITH THE SEAT'S READS. Going the other
         // way ends the owner's session with account.SignOut(); this direction
         // has to end the SEAT's, and did not - the machine kept a live bot token
@@ -914,6 +939,7 @@ internal sealed partial class ShellView
     private async Task EnterBotStateNowAsync(StudioBotDeviceState seat)
     {
         ArgumentNullException.ThrowIfNull(seat);
+        RememberBotChoice(true);
 
         // The owner stops being signed in HERE, in the running program.
         account.SignOut();

@@ -73,6 +73,13 @@ internal static class StudioBotActor
     }
 
     /// <summary>
+    /// Whether Studio opens behind the PIN: only when the bot was the last choice. Otherwise the
+    /// session is restored first and the lock goes up only if, then, the bot turns out to be
+    /// the one acting (no owner signed in) - see ShellView.InstallBotLockIfBotIsActing.
+    /// </summary>
+    public static bool LocksAtStartup(bool? botChosen) => botChosen == true;
+
+    /// <summary>
     /// One spelling for one address. The same trim-and-lower the rest of the app
     /// uses on account emails; comparing them raw would make case a boundary.
     /// </summary>

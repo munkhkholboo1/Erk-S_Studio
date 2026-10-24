@@ -30,6 +30,7 @@ internal sealed class StudioBotDeviceState
     public DateTimeOffset EnteredAtUtc { get; set; }
     public string EnteredByEmail { get; set; } = "";
 
+
     /// <summary>
     /// Wrong PIN attempts since the last success. Counted here because the
     /// server never sees a PIN attempt - it is told only that this device
@@ -69,6 +70,51 @@ internal sealed class StudioBotDeviceState
         catch (FormatException)
         {
             return null;
+        }
+    }
+}
+
+/// <summary>
+/// Whether the bot was the one acting when the machine was last left - entering bot state
+/// writes true, the owner coming back writes false - and only then does Studio open behind the
+/// PIN (owner, 2026-10-24: «бот сонгоогүй байхад яагаад … бот пасс байнга нэхэж нээгдээд
+/// байдаг юм»). A file of its own beside the seat: the seat record is written on one path only,
+/// the one that seats the machine, and a choice must not become a second writer of it.
+/// </summary>
+internal static class StudioBotChoiceStore
+{
+    private static string ChoicePath =>
+        Path.Combine(Path.GetDirectoryName(StudioBotDeviceStateStore.StatePath)!, "bot-choice.json");
+
+    /// <summary>The last choice, or null when none was kept (a seat from before it was).</summary>
+    public static bool? Read()
+    {
+        try
+        {
+            if (!File.Exists(ChoicePath))
+                return null;
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(ChoicePath));
+            return document.RootElement.TryGetProperty("botChosen", out JsonElement value) &&
+                   value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? value.GetBoolean()
+                : null;
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    public static void Write(bool botChosen)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ChoicePath)!);
+            File.WriteAllText(ChoicePath, botChosen ? "{\"botChosen\":true}" : "{\"botChosen\":false}");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Not kept: the next start asks as it did before - never less safe.
         }
     }
 }

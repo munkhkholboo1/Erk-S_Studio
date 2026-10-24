@@ -1587,6 +1587,7 @@ internal sealed partial class ShellView : IDisposable
         // and the owner asked for the PIN only when switching INTO bot state. Asked any
         // earlier this reads an empty session and leaves the lock exactly where it was.
         ReleaseBotLockIfOwnerIsActing();
+        InstallBotLockIfBotIsActing();
 
         // ⚠ AND THE NAVIGATION, ON THE SILENT PATH TOO. RebuildNavigation was added to
         // the INTERACTIVE sign-in when the owner lost their menu - «компани цэс алга
