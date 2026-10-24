@@ -61,6 +61,53 @@ public sealed class ONECentralEVERYMemberWORKSOnItTests
         Assert.True((await b.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Open, Path = "NP.rvt", Access = FileAccess.Read, Share = FileShare.ReadWrite })).Ok);
     }
 
+    [Fact]
+    public async Task TheCentralIsCopiedBeforeAMemberFirstWritesAndTenAreKept()
+    {
+        using var folder = new TemporaryFolder();
+        using var snapshots = new TemporaryFolder();
+        File.WriteAllText(Path.Combine(folder.Path, "NP.rvt"), "before");
+        Directory.CreateDirectory(Path.Combine(folder.Path, "NP_backup"));
+        File.WriteAllText(Path.Combine(folder.Path, "NP_backup", "1.rws"), "data");
+        using var host = new SyncCentralHost(folder.Path, "NP.rvt", snapshots.Path, keepSnapshots: 2);
+        var member = new SyncCentralClient(new SyncCentralLocalChannel(host, 1));
+
+        // Reading takes no snapshot.
+        Assert.True((await member.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" })).Ok);
+        Assert.Empty(Directory.GetDirectories(snapshots.Path));
+
+        SyncCentralResponse open = await member.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Open, Path = "NP.rvt", Access = FileAccess.ReadWrite, Share = FileShare.Read });
+        await member.WriteAsync(open.Handle, 0, "AFTER!"u8.ToArray());
+
+        string taken = Directory.GetDirectories(snapshots.Path).Single();
+        Assert.Equal("before", File.ReadAllText(Path.Combine(taken, "NP.rvt")));
+        Assert.Equal("data", File.ReadAllText(Path.Combine(taken, "NP_backup", "1.rws")));
+        Assert.NotNull(host.LastSnapshotUtc);
+
+        // Later sessions, minutes apart: only the last two are kept.
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        for (int session = 2; session <= 4; session++)
+            host.Handle(session, new SyncCentralRequest { Op = SyncCentralOp.SetInfo, Path = "NP.rvt" }, ReadOnlyMemory<byte>.Empty, now.AddMinutes(session * 2), out _);
+        Assert.Equal(2, Directory.GetDirectories(snapshots.Path).Length);
+    }
+
+    [Fact]
+    public async Task ASilentMemberIsReleasedAfterItsLease()
+    {
+        using var folder = new TemporaryFolder();
+        File.WriteAllBytes(Path.Combine(folder.Path, "NP.rvt"), new byte[8]);
+        using var host = new SyncCentralHost(folder.Path, "NP.rvt");
+        DateTimeOffset start = DateTimeOffset.UtcNow;
+        Assert.True(host.Handle(1, new SyncCentralRequest { Op = SyncCentralOp.Open, Path = "NP.rvt", Access = FileAccess.ReadWrite, Share = FileShare.None }, ReadOnlyMemory<byte>.Empty, start, out _).Ok);
+        Assert.Equal((1, 1), (host.Counts.Sessions, host.Counts.Handles));
+
+        Assert.Equal(0, host.Sweep(start.AddSeconds(30), TimeSpan.FromMinutes(2)));
+        Assert.Equal(1, host.Sweep(start.AddMinutes(3), TimeSpan.FromMinutes(2)));
+
+        var other = new SyncCentralClient(new SyncCentralLocalChannel(host, 2));
+        Assert.True((await other.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Open, Path = "NP.rvt", Access = FileAccess.ReadWrite, Share = FileShare.None })).Ok);
+    }
+
     [Theory]
     [InlineData("NP.rvt", true)]
     [InlineData(@"NP_backup\EditableElements.0001.dat", true)]

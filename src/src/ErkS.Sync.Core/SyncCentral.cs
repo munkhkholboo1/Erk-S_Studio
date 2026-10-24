@@ -31,12 +31,24 @@ public static class SyncCentralOp
     public const string Lock = "lock";
     public const string Unlock = "unlock";
     public const string SetInfo = "set-info";
+
+    /// <summary>PFR, before Revit's synchronize: hold the commit until <see cref="TxEnd"/>.</summary>
+    public const string TxBegin = "tx-begin";
+
+    /// <summary>PFR, after a completed synchronize: commit once the writes are closed.</summary>
+    public const string TxEnd = "tx-end";
 }
 
 /// <summary>One file operation, as a member's file system asks it. Paths are relative to the central's folder.</summary>
 public sealed record SyncCentralRequest
 {
     public string Op { get; init; } = "";
+
+    /// <summary>
+    /// The member's call number. A call resent after a broken road (same number) is answered
+    /// from the host's memory, never run twice.
+    /// </summary>
+    public long Seq { get; init; }
 
     public string Path { get; init; } = "";
 
@@ -139,18 +151,94 @@ public sealed class SyncCentralHost : IDisposable
     private readonly string _centralFileName;
     private readonly ConcurrentDictionary<long, Session> _sessions = new();
 
-    public SyncCentralHost(string folder, string centralFileName)
+    private readonly string? _snapshots;
+    private readonly string? _undo;
+    private readonly int _keepSnapshots;
+    private readonly object _snapshotGate = new();
+
+    /// <param name="snapshots">
+    /// Where the central and its _backup are copied before a member starts writing (Master's
+    /// safeguard 2); null = none. The last <paramref name="keepSnapshots"/> are kept.
+    /// </param>
+    public SyncCentralHost(string folder, string centralFileName, string? snapshots = null, int keepSnapshots = 10)
     {
         _folder = System.IO.Path.GetFullPath(folder);
         _centralFileName = centralFileName;
+        _snapshots = snapshots;
+        _undo = snapshots is null ? null : System.IO.Path.Combine(System.IO.Path.GetDirectoryName(snapshots.TrimEnd('\\', '/')) ?? snapshots, "undo");
+        _keepSnapshots = Math.Max(1, keepSnapshots);
     }
 
-    public SyncCentralResponse Handle(long session, SyncCentralRequest request, ReadOnlyMemory<byte> data, out byte[]? reply)
+    /// <summary>Members connected now, handles they hold - counts for Twin, no names.</summary>
+    public (int Sessions, int Handles, DateTimeOffset? LastSnapshotUtc) Counts =>
+        (_sessions.Count, _sessions.Values.Sum(session => session.Count), LastSnapshotUtc);
+
+    public DateTimeOffset? LastSnapshotUtc { get; private set; }
+
+    /// <summary>
+    /// Ends every session not heard from for <paramref name="lease"/> - a member whose road broke
+    /// mid-synchronize releases its handles and locks instead of holding the central forever.
+    /// </summary>
+    public int Sweep(DateTimeOffset now, TimeSpan lease)
+    {
+        int ended = 0;
+        foreach ((long id, Session session) in _sessions.ToArray())
+        {
+            if (now - session.LastSeenUtc > lease)
+            {
+                EndSession(id);
+                ended++;
+            }
+        }
+        return ended;
+    }
+
+    public SyncCentralResponse Handle(long session, SyncCentralRequest request, ReadOnlyMemory<byte> data, out byte[]? reply) =>
+        Handle(session, request, data, DateTimeOffset.UtcNow, out reply);
+
+    public SyncCentralResponse Handle(long session, SyncCentralRequest request, ReadOnlyMemory<byte> data, DateTimeOffset now, out byte[]? reply)
+    {
+        Session state = _sessions.GetOrAdd(session, _ => new Session());
+        state.LastSeenUtc = now;
+        lock (state)
+        {
+            if (request.Seq > 0 && state.Answered(request.Seq) is { } done)
+            {
+                reply = done.Reply;
+                return done.Response;
+            }
+            SyncCentralResponse response = Run(state, request, data, now, out reply);
+            if (request.Seq > 0)
+                state.Remember(request.Seq, response, reply);
+            return response;
+        }
+    }
+
+    private SyncCentralResponse Run(Session state, SyncCentralRequest request, ReadOnlyMemory<byte> data, DateTimeOffset now, out byte[]? reply)
     {
         reply = null;
-        Session state = _sessions.GetOrAdd(session, _ => new Session());
+        if (Mutates(request))
+        {
+            if (!state.Writing)
+            {
+                state.Writing = true;
+                Snapshot(now);
+            }
+            state.Undo ??= new UndoLog(_undo ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "erks-central-undo"));
+        }
         try
         {
+            switch (request.Op)
+            {
+                case SyncCentralOp.TxBegin:
+                    state.Explicit = true;
+                    return new SyncCentralResponse();
+                case SyncCentralOp.TxEnd:
+                    state.Explicit = false;
+                    CommitIfDone(state);
+                    return new SyncCentralResponse();
+            }
+
             switch (request.Op)
             {
                 case SyncCentralOp.Read:
@@ -182,9 +270,11 @@ public sealed class SyncCentralHost : IDisposable
                     state.Stream(request.Handle).Unlock(request.Offset, request.Length);
                     return new SyncCentralResponse();
                 case SyncCentralOp.Close:
-                    return state.Close(request.Handle)
-                        ? new SyncCentralResponse()
-                        : Refuse(SyncCentralErrors.BadHandle);
+                    if (!state.Close(request.Handle))
+                        return Refuse(SyncCentralErrors.BadHandle);
+                    // The burst is whole once its last write handle closes - committed before the answer.
+                    CommitIfDone(state);
+                    return new SyncCentralResponse();
             }
 
             string path = Resolve(request.Path);
@@ -207,29 +297,38 @@ public sealed class SyncCentralHost : IDisposable
                 }
                 case SyncCentralOp.Open:
                 {
+                    bool writes = (request.Access & FileAccess.Write) != 0;
+                    bool existed = File.Exists(path);
+                    // Kept before the open can change it; a file someone else holds exclusively
+                    // cannot be copied - and cannot be opened either, so NTFS answers below.
+                    if (writes && existed && request.Mode != FileMode.CreateNew)
+                        state.Undo!.TryKeep(path);
                     var options = request.DeleteOnClose ? FileOptions.DeleteOnClose : FileOptions.None;
                     var stream = new FileStream(path, request.Mode, request.Access, request.Share | FileShare.Delete, 4096, options);
-                    long handle = state.Add(stream);
+                    if (!existed && state.Undo is { } undo)
+                        undo.Created(path);
+                    long handle = state.Add(stream, writes);
                     return new SyncCentralResponse { Handle = handle, Entry = EntryOf(new FileInfo(path)) };
                 }
                 case SyncCentralOp.Delete:
                     if (!File.Exists(path))
                         return Refuse(SyncCentralErrors.NotFound);
-                    File.Delete(path);
+                    state.Undo!.Delete(path);
+                    CommitIfDone(state);
                     return new SyncCentralResponse();
                 case SyncCentralOp.Move:
                 {
                     string target = Resolve(request.NewPath);
-                    if (Directory.Exists(path))
-                        Directory.Move(path, target);
-                    else
-                        File.Move(path, target, request.Overwrite);
+                    state.Undo!.Move(path, target, request.Overwrite);
+                    CommitIfDone(state);
                     return new SyncCentralResponse();
                 }
                 case SyncCentralOp.CreateDirectory:
                     if (Directory.Exists(path) || File.Exists(path))
                         return Refuse(SyncCentralErrors.Exists);
                     Directory.CreateDirectory(path);
+                    state.Undo!.CreatedDirectory(path);
+                    CommitIfDone(state);
                     return new SyncCentralResponse();
                 case SyncCentralOp.DeleteDirectory:
                     if (!Directory.Exists(path))
@@ -237,12 +336,16 @@ public sealed class SyncCentralHost : IDisposable
                     if (Directory.EnumerateFileSystemEntries(path).Any())
                         return Refuse(SyncCentralErrors.DirectoryNotEmpty);
                     Directory.Delete(path);
+                    state.Undo!.DeletedDirectory(path);
+                    CommitIfDone(state);
                     return new SyncCentralResponse();
                 case SyncCentralOp.SetInfo:
                 {
                     FileSystemInfo info = Directory.Exists(path) ? new DirectoryInfo(path) : new FileInfo(path);
                     if (!info.Exists)
                         return Refuse(SyncCentralErrors.NotFound);
+                    if (info is FileInfo)
+                        state.Undo!.Keep(path);
                     if (request.Attributes is { } attributes)
                         info.Attributes = attributes;
                     if (request.CreationUtc is { } created)
@@ -295,14 +398,86 @@ public sealed class SyncCentralHost : IDisposable
     /// <summary>A member gone (disconnected): every handle it held closes, every lock it held goes.</summary>
     public void EndSession(long session)
     {
-        if (_sessions.TryRemove(session, out Session? state))
+        if (!_sessions.TryRemove(session, out Session? state))
+            return;
+        lock (state)
+        {
             state.Dispose();
+            // 🔴 A burst that never finished - the road broke mid-synchronize - is undone: the
+            // central goes back exactly as it was, and Revit, whose calls failed, keeps the work
+            // in the local and synchronizes again later.
+            state.Undo?.RollBack();
+            state.Undo = null;
+        }
+    }
+
+    /// <summary>Bursts rolled back since the host started - a count for Twin.</summary>
+    public int RolledBack => UndoLog.RolledBackCount;
+
+    /// <summary>Commits the session's burst when nothing of it is still open and PFR is not holding it.</summary>
+    private static void CommitIfDone(Session state)
+    {
+        if (state.Undo is { } undo && !state.Explicit && state.WriteHandles == 0)
+        {
+            undo.Commit();
+            state.Undo = null;
+        }
     }
 
     public void Dispose()
     {
         foreach (long session in _sessions.Keys.ToArray())
             EndSession(session);
+    }
+
+    private static bool Mutates(SyncCentralRequest request) =>
+        request.Op is SyncCentralOp.Write or SyncCentralOp.SetLength or SyncCentralOp.Delete or SyncCentralOp.Move
+            or SyncCentralOp.CreateDirectory or SyncCentralOp.DeleteDirectory or SyncCentralOp.SetInfo ||
+        (request.Op == SyncCentralOp.Open && (request.Access & FileAccess.Write) != 0);
+
+    /// <summary>
+    /// A copy of the central and its _backup before a member's first write - the way back if a
+    /// synchronize breaks the central. Read with sharing, so an open central is copied as it is.
+    /// </summary>
+    private void Snapshot(DateTimeOffset now)
+    {
+        if (_snapshots is null)
+            return;
+        lock (_snapshotGate)
+        {
+            if (LastSnapshotUtc is { } last && now - last < TimeSpan.FromMinutes(1))
+                return;
+            string stem = System.IO.Path.GetFileNameWithoutExtension(_centralFileName);
+            string target = System.IO.Path.Combine(_snapshots, now.UtcDateTime.ToString("yyyyMMdd-HHmmss-fff"));
+            Directory.CreateDirectory(target);
+            try
+            {
+                CopyShared(System.IO.Path.Combine(_folder, _centralFileName), System.IO.Path.Combine(target, _centralFileName));
+                string backup = System.IO.Path.Combine(_folder, stem + "_backup");
+                if (Directory.Exists(backup))
+                {
+                    foreach (string file in Directory.EnumerateFiles(backup, "*", SearchOption.AllDirectories))
+                        CopyShared(file, System.IO.Path.Combine(target, stem + "_backup", System.IO.Path.GetRelativePath(backup, file)));
+                }
+                LastSnapshotUtc = now;
+            }
+            catch (IOException)
+            {
+                // A file locked exclusively: the snapshot is partial; the member's write still goes on.
+            }
+            foreach (string old in Directory.EnumerateDirectories(_snapshots).OrderByDescending(path => path, StringComparer.Ordinal).Skip(_keepSnapshots))
+                Directory.Delete(old, recursive: true);
+        }
+    }
+
+    private static void CopyShared(string source, string target)
+    {
+        if (!File.Exists(source))
+            return;
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
+        using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
+        input.CopyTo(output);
     }
 
     private string Resolve(string relative)
@@ -331,12 +506,43 @@ public sealed class SyncCentralHost : IDisposable
     private sealed class Session : IDisposable
     {
         private readonly ConcurrentDictionary<long, FileStream> _streams = new();
+        private readonly ConcurrentDictionary<long, bool> _writers = new();
+        private readonly Dictionary<long, (SyncCentralResponse Response, byte[]? Reply)> _answers = new();
+        private readonly Queue<long> _answerOrder = new();
         private long _next;
 
-        public long Add(FileStream stream)
+        public DateTimeOffset LastSeenUtc { get; set; }
+
+        public bool Writing { get; set; }
+
+        /// <summary>PFR holds the commit between its begin and end of a synchronize.</summary>
+        public bool Explicit { get; set; }
+
+        public UndoLog? Undo { get; set; }
+
+        public int Count => _streams.Count;
+
+        public int WriteHandles => _writers.Count;
+
+        public (SyncCentralResponse Response, byte[]? Reply)? Answered(long seq) =>
+            _answers.TryGetValue(seq, out var done) ? done : null;
+
+        /// <summary>The last 256 answers - enough for every call in flight when a road breaks.</summary>
+        public void Remember(long seq, SyncCentralResponse response, byte[]? reply)
+        {
+            if (!_answers.TryAdd(seq, (response, reply)))
+                return;
+            _answerOrder.Enqueue(seq);
+            while (_answerOrder.Count > 256)
+                _answers.Remove(_answerOrder.Dequeue());
+        }
+
+        public long Add(FileStream stream, bool writes = false)
         {
             long handle = Interlocked.Increment(ref _next);
             _streams[handle] = stream;
+            if (writes)
+                _writers[handle] = true;
             return handle;
         }
 
@@ -347,6 +553,7 @@ public sealed class SyncCentralHost : IDisposable
         {
             if (!_streams.TryRemove(handle, out FileStream? stream))
                 return false;
+            _writers.TryRemove(handle, out _);
             stream.Dispose();
             return true;
         }
@@ -355,6 +562,154 @@ public sealed class SyncCentralHost : IDisposable
         {
             foreach (long handle in _streams.Keys.ToArray())
                 Close(handle);
+        }
+    }
+}
+
+/// <summary>
+/// What one member's burst of writes changed, kept so it can be undone whole: the first
+/// version of every file it touched, the files and folders it made, the moves it did. A
+/// finished burst drops the log; a broken one replays it backwards.
+/// </summary>
+public sealed class UndoLog
+{
+    private static int s_rolledBack;
+    private readonly string _root;
+    private readonly List<Action> _undo = [];
+    private readonly HashSet<string> _kept = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _created = new(StringComparer.OrdinalIgnoreCase);
+    private int _next;
+
+    public UndoLog(string under)
+    {
+        _root = System.IO.Path.Combine(under, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_root);
+    }
+
+    public static int RolledBackCount => s_rolledBack;
+
+    /// <summary><see cref="Keep"/>, or false when another holder's share mode forbids reading it.</summary>
+    public bool TryKeep(string path)
+    {
+        try
+        {
+            Keep(path);
+            return true;
+        }
+        catch (IOException)
+        {
+            _kept.Remove(path);
+            return false;
+        }
+    }
+
+    /// <summary>Before the first change to an existing file: its whole first version is kept.</summary>
+    public void Keep(string path)
+    {
+        if (_created.Contains(path) || !_kept.Add(path) || !File.Exists(path))
+            return;
+        string copy = Next();
+        using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        using (var output = new FileStream(copy, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            input.CopyTo(output);
+        var info = new FileInfo(path);
+        (FileAttributes attributes, DateTime written, DateTime created) = (info.Attributes, info.LastWriteTimeUtc, info.CreationTimeUtc);
+        _undo.Add(() =>
+        {
+            File.Copy(copy, path, overwrite: true);
+            File.SetAttributes(path, attributes);
+            File.SetCreationTimeUtc(path, created);
+            File.SetLastWriteTimeUtc(path, written);
+        });
+    }
+
+    public void Created(string path)
+    {
+        if (!_created.Add(path))
+            return;
+        _undo.Add(() =>
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        });
+    }
+
+    public void CreatedDirectory(string path) => _undo.Add(() =>
+    {
+        if (Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any())
+            Directory.Delete(path);
+    });
+
+    public void DeletedDirectory(string path) => _undo.Add(() => Directory.CreateDirectory(path));
+
+    /// <summary>A file this burst made is simply gone; one that was there is moved aside, not deleted.</summary>
+    public void Delete(string path)
+    {
+        if (_created.Contains(path))
+        {
+            File.Delete(path);
+            return;
+        }
+        Keep(path);
+        File.Delete(path);
+    }
+
+    public void Move(string from, string to, bool overwrite)
+    {
+        if (Directory.Exists(from))
+        {
+            Directory.Move(from, to);
+            _undo.Add(() => Directory.Move(to, from));
+            return;
+        }
+        if (File.Exists(to))
+        {
+            if (!overwrite)
+                throw new IOException("exists", unchecked((int)0x800700B7));
+            Keep(to);
+        }
+        Keep(from);
+        File.Move(from, to, overwrite);
+        if (!_kept.Contains(to))
+            Created(to);
+    }
+
+    /// <summary>The burst finished: nothing to undo.</summary>
+    public void Commit()
+    {
+        _undo.Clear();
+        TryDelete();
+    }
+
+    /// <summary>The burst broke: every change undone, newest first.</summary>
+    public void RollBack()
+    {
+        for (int index = _undo.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                _undo[index]();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Keep going: the snapshot taken before the burst is the last resort.
+            }
+        }
+        _undo.Clear();
+        Interlocked.Increment(ref s_rolledBack);
+        TryDelete();
+    }
+
+    private string Next() => System.IO.Path.Combine(_root, (++_next).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    private void TryDelete()
+    {
+        try
+        {
+            Directory.Delete(_root, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
         }
     }
 }
