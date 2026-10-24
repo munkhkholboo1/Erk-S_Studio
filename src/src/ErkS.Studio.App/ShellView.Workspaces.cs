@@ -3259,7 +3259,7 @@ internal sealed partial class ShellView
         includeTocCheck.IsEnabled = canEditProjectContent;
         autoRebuildCheck.IsEnabled = canEditProjectContent;
         PageFormatDefinition generatedFormat =
-            WorkingDrawingAlbumFormatFactory.Resolve(state.Album);
+            AlbumBuilder.InferPageFormat(state.Album, state.Library);
         albumGeneratedFormatColumnsBox.SelectedItem =
             albumGeneratedFormatColumnsBox.Items
                 .Cast<ModuleCountChoice>()
@@ -3274,9 +3274,9 @@ internal sealed partial class ShellView
                     generatedFormat.ModuleRows));
         albumGeneratedFormatColumnsBox.IsEnabled = canEditProjectContent;
         albumGeneratedFormatRowsBox.IsEnabled = canEditProjectContent;
-        albumGeneratedFormatPanel.Visibility = state.Album.GeneratedPageFormat is null
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        // Always offered (owner, 2026-10-24: «студио нийтлэг хуудасны формат сонгож тэр нь нүүр
+        // хуудасны форматыг тохируулдаг байх ёстой»); unchosen, it shows the album's own format.
+        albumGeneratedFormatPanel.Visibility = Visibility.Visible;
         RefreshAlbumGeneratedFormatSummary(generatedFormat);
         var hasComposition = state.Album.Composition.Count > 0;
         int visualizationImageCount = CurrentProjectVisualizationImages().Count;
@@ -4745,9 +4745,14 @@ internal sealed partial class ShellView
 
     private void RefreshAlbumGeneratedFormatSummary(PageFormatDefinition format)
     {
+        string source = state.Album.GeneratedPageFormat is not null
+            ? "сонгосон"
+            : state.Album.InferredPageFormat is not null
+                ? "альбумын хуудаснаас"
+                : "анхдагч";
         albumGeneratedFormatSummaryText.Text =
             $"{format.Code} · A3 {format.ModuleColumns}×{format.ModuleRows} · " +
-            $"{format.WidthMm:0}×{format.HeightMm:0} мм · хөндлөн";
+            $"{format.WidthMm:0}×{format.HeightMm:0} мм · хөндлөн · {source}";
     }
 
     private void RemoveSelectedAlbumPage()

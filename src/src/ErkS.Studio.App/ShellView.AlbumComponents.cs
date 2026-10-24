@@ -43,6 +43,7 @@ internal sealed partial class ShellView
             // came out A4 with a concept corner table, and those are the pages
             // that were uploaded and became the shared album.
             GeneratedPageFormat = album.GeneratedPageFormat,
+            InferredPageFormat = album.InferredPageFormat,
             IncludeCover = album.IncludeCover,
             IncludeTableOfContents = album.IncludeTableOfContents,
             Composition = album.Composition.ToList(),

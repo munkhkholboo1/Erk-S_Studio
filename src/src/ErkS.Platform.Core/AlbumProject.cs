@@ -396,6 +396,15 @@ public sealed class AlbumDefinition
     public PageFormatDefinition? GeneratedPageFormat { get; set; }
 
     /// <summary>
+    /// The album's own format read from its sheets - the commonest sheet size - used for the pages
+    /// Studio generates while <see cref="GeneratedPageFormat"/> is unchosen (owner, 2026-10-24:
+    /// «альбумныхаа форматыг дагах ёстой. нүүр хуудас мөн адил A2 дээр хийгдэх ёстой»). Worked out
+    /// on every build, never stored.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public PageFormatDefinition? InferredPageFormat { get; set; }
+
+    /// <summary>
     /// Optional project-owned composition template. Empty keeps the legacy
     /// cover/contents/source-pages behavior unchanged.
     /// </summary>

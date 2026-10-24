@@ -39,7 +39,27 @@ public static partial class AlbumReviewChecklist
         ReviewGeneralPlanSet(pages, findings);
         ReviewExplanatoryNote(request.Project, album.FrontMatter ?? new WorkingDrawingFrontMatter(), findings);
         ReviewConsultation(request.Project, pages, findings);
+        ReviewFormats(album, pages, findings);
         return findings;
+    }
+
+    /// <summary>
+    /// A received sheet off the album's format (owner, 2026-10-24: «альбумныхаа форматыг дагах
+    /// ёстой») - named, not refused: the source decides its sheet size and has to be redrawn there.
+    /// </summary>
+    private static void ReviewFormats(AlbumDefinition album, IReadOnlyList<AlbumBuildPage> pages, List<string> findings)
+    {
+        PageFormatDefinition expected = WorkingDrawingAlbumFormatFactory.Resolve(album);
+        foreach (AlbumBuildPage page in pages)
+        {
+            double width = page.Sheet.Entry.WidthMm, height = page.Sheet.Entry.HeightMm;
+            if (width <= 0 || height <= 0)
+                continue;
+            if (Math.Abs(width - expected.WidthMm) <= 2 && Math.Abs(height - expected.HeightMm) <= 2)
+                continue;
+            findings.Add(
+                $"{Prefix}: формат альбумтай зөрүүтэй: {page.Number} {width:0}×{height:0} ≠ {expected.WidthMm:0}×{expected.HeightMm:0} — эх файлд нь альбумын форматаар дахин гаргана уу.");
+        }
     }
 
     private static void ReviewGeneralPlanSet(IReadOnlyList<AlbumBuildPage> pages, List<string> findings)

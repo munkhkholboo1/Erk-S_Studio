@@ -98,11 +98,45 @@ public static class WorkingDrawingAlbumFormatFactory
     public static PageFormatDefinition Resolve(AlbumDefinition album)
     {
         ArgumentNullException.ThrowIfNull(album);
-        return PageFormatCatalog.IsUsable(album.GeneratedPageFormat) &&
-               album.GeneratedPageFormat!.Kind == PageFormatKind.WorkingDrawing
-            ? album.GeneratedPageFormat
+        if (PageFormatCatalog.IsUsable(album.GeneratedPageFormat) &&
+            album.GeneratedPageFormat!.Kind == PageFormatKind.WorkingDrawing)
+        {
+            return album.GeneratedPageFormat;
+        }
+        return PageFormatCatalog.IsUsable(album.InferredPageFormat) &&
+               album.InferredPageFormat!.Kind == PageFormatKind.WorkingDrawing
+            ? album.InferredPageFormat
             : Create(1, 1);
     }
+
+    /// <summary>The joined-A3 format a sheet of this size is, or null when it is off the module grid (±2 mm).</summary>
+    public static PageFormatDefinition? FromSheetSize(double widthMm, double heightMm)
+    {
+        if (widthMm <= 0 || heightMm <= 0)
+            return null;
+        string orientation = widthMm >= heightMm ? "LANDSCAPE" : "PORTRAIT";
+        for (int columns = MinimumModuleCount; columns <= MaximumModuleCount; columns++)
+        {
+            for (int rows = MinimumModuleCount; rows <= MaximumModuleCount; rows++)
+            {
+                double natural1 = JoinedLength(A3WidthMm, columns), natural2 = JoinedLength(A3HeightMm, rows);
+                (double width, double height) = Orient(natural1, natural2, orientation);
+                if (Math.Abs(width - widthMm) <= 2 && Math.Abs(height - heightMm) <= 2)
+                    return Create(columns, rows, orientation);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The commonest on-grid format among <paramref name="sizes"/>, or null when none is on the grid.</summary>
+    public static PageFormatDefinition? Dominant(IEnumerable<(double WidthMm, double HeightMm)> sizes) =>
+        (sizes ?? [])
+            .Select(size => FromSheetSize(size.WidthMm, size.HeightMm))
+            .OfType<PageFormatDefinition>()
+            .GroupBy(format => format.GeometryHash, StringComparer.Ordinal)
+            .OrderByDescending(group => group.Count())
+            .Select(group => group.First())
+            .FirstOrDefault();
 
     private static double JoinedLength(double moduleLength, int count) =>
         moduleLength * count - JoinOverlapMm * (count - 1);

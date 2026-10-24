@@ -223,8 +223,27 @@ public sealed class AlbumBuilder
         }
     }
 
+    /// <summary>
+    /// Reads the album's own format off its sheets (the commonest size) into
+    /// <see cref="AlbumDefinition.InferredPageFormat"/> - the format the selector shows and the
+    /// generated pages take while none is chosen.
+    /// </summary>
+    public static PageFormatDefinition InferPageFormat(AlbumDefinition album, SheetLibrary library)
+    {
+        ArgumentNullException.ThrowIfNull(album);
+        ArgumentNullException.ThrowIfNull(library);
+        album.InferredPageFormat = WorkingDrawingAlbumFormatFactory.Dominant(
+            album.Pages
+                .Select(page => library.Find(page.SheetKey)?.Entry)
+                .OfType<ErkS.Platform.Contracts.SheetPackageEntry>()
+                .Select(entry => (entry.WidthMm, entry.HeightMm)));
+        return WorkingDrawingAlbumFormatFactory.Resolve(album);
+    }
+
     public static AlbumBuildRequest CreateRequest(AlbumProject project, SheetLibrary library)
     {
+        // Before any page is laid out: the pages Studio generates take the album's format.
+        InferPageFormat(project.Album, library);
         AlbumBuildRequest request = project.Album.Pages.Count > 0
             ? CreateConfiguredRequest(project, library)
             : CreateLegacyRequest(project, library);
