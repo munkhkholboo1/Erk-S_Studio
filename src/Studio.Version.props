@@ -4,9 +4,9 @@
       Update these four values together when a Demo release is published.
       DevelopmentVersion is always the next Studio version after PublishedVersion.
     -->
-    <StudioPublishedVersion>0.001.69</StudioPublishedVersion>
-    <StudioPublishedAssemblyVersion>0.0.1.69</StudioPublishedAssemblyVersion>
-    <StudioDevelopmentVersion>0.001.70-dev</StudioDevelopmentVersion>
-    <StudioDevelopmentAssemblyVersion>0.0.1.70</StudioDevelopmentAssemblyVersion>
+    <StudioPublishedVersion>0.001.70</StudioPublishedVersion>
+    <StudioPublishedAssemblyVersion>0.0.1.70</StudioPublishedAssemblyVersion>
+    <StudioDevelopmentVersion>0.001.71-dev</StudioDevelopmentVersion>
+    <StudioDevelopmentAssemblyVersion>0.0.1.71</StudioDevelopmentAssemblyVersion>
   </PropertyGroup>
 </Project>

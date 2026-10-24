@@ -5,9 +5,15 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.70] - 2026-10-24 (test release)
+
+- A machine holding a bot seat no longer asks for the bot's PIN when the owner is the one signed in. The PIN is asked only when the bot was the last choice; if, after start-up, nobody is signed in, the lock still comes up.
+- «Erk-S Sync фолдер болгох» says why its project list is empty - the machine is acting as its bot seat, or holds no project yet - instead of «Сонгох зүйл алга».
+
 ## [0.001.69] - 2026-10-24 (test release: desktop and laptop)
 
-- Two non-empty copies of a project can be joined. Files that are the same are left alone; a same-named file that differs is listed until a person answers - «Тэндхийг авах» (the other machine's version comes here, this one is kept in `.erks-synceplaced`) or «Минийхийг үлдээх» (this version goes to the other machine, which keeps its own aside) - for every file at once or one by one. The bridge does the same (`sync-decide`).
+- Two non-empty copies of a project can be joined. Files that are the same are left alone; a same-named file that differs is listed until a person answers - «Тэндхийг авах» (the other machine's version comes here, this one is kept in `.erks-sync
+eplaced`) or «Минийхийг үлдээх» (this version goes to the other machine, which keeps its own aside) - for every file at once or one by one. The bridge does the same (`sync-decide`).
 - Erk-S Sync reads Resilio's own list of shares: a folder under a leftover `.sync` from a share removed long ago is no longer refused; a folder Resilio really keeps still is, unless that share's IgnoreList leaves it out.
 
 ## [0.001.68] - 2026-10-24 (test release: desktop and laptop)
