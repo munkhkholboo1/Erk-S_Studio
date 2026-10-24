@@ -91,6 +91,35 @@ public sealed class AMACHINESOwnDebrisNEVERTravelsTests
         Assert.Equal(SyncFolderEligibility.ResilioActiveCode, SyncFolderEligibility.CheckMake(project)?.Code);
     }
 
+    // 🔴 The owner's Resilio share is the whole «D:\Cloud Work» (2026-10-24). Moving a project to
+    // SYN one at a time (plan §4.6 «төсөл төслөөр шилжинэ») means Resilio stops keeping THAT
+    // folder - which, inside one big share, is its IgnoreList. A folder Resilio ignores is free.
+    [Theory]
+    [InlineData("/Erin-test")]
+    [InlineData("Erin-test")]
+    [InlineData("/Erin-*")]
+    [InlineData("\\Erin-test\\")]
+    public void AFolderTheShareIGNORESIsNoLongerResilios(string ignoreLine)
+    {
+        using var share = new TemporaryFolder();
+        share.File(@".sync\IgnoreList", "# OS generated files #\r\nThumbs.db\r\n" + ignoreLine + "\r\n");
+        string project = share.Folder("Erin-test");
+        string inside = share.Folder(@"Erin-test\DWG");
+
+        Assert.Null(SyncFolderEligibility.CheckMake(project));
+        Assert.Null(ResilioDetector.FindMarker(inside));
+    }
+
+    [Fact]
+    public void AnIgnoreLineForANOTHERFolderLeavesThisOneResilios()
+    {
+        using var share = new TemporaryFolder();
+        share.File(@".sync\IgnoreList", "/Erin-test\r\n*.tmp\r\n");
+        string project = share.Folder("Grand mark");
+
+        Assert.Equal(SyncFolderEligibility.ResilioActiveCode, SyncFolderEligibility.CheckMake(project)?.Code);
+    }
+
     private static SyncFileKind Kind(SyncIndex index, string path) =>
         index.Entries.Single(entry => entry.RelativePath.Equals(path, StringComparison.OrdinalIgnoreCase)).Kind;
 }
