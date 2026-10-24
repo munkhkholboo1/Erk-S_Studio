@@ -2356,7 +2356,11 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         switch (plan.Component.GeneratedPageKind)
         {
             case AlbumGeneratedPageKind.Cover:
-                if (UsesGeneratedWorkingDrawingFormat(request.Project.Album))
+                // A concept album's approval cover (ЗӨВШИЛЦСӨН/БАТЛАВ tables) has only its A3
+                // layout: it changes size only when a person chooses the format.
+                if (UsesGeneratedWorkingDrawingFormat(request.Project.Album) &&
+                    (PageFormatCatalog.IsUsable(request.Project.Album.GeneratedPageFormat) ||
+                     !AlbumCoverStyle.UsesApprovalCover(request.Project.Album.TemplateId)))
                 {
                     DrawAlbumFormatCoverPage(document, request, plan);
                 }
@@ -2425,8 +2429,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     }
 
     private static bool UsesGeneratedWorkingDrawingFormat(AlbumDefinition album) =>
-        PageFormatCatalog.IsUsable(album.GeneratedPageFormat) &&
-        album.GeneratedPageFormat!.Kind == PageFormatKind.WorkingDrawing;
+        DrawingListPagination.UsesWorkingDrawingFormat(album);
 
     private static void DrawBuildingSubCoverPage(
         PdfDocument document,

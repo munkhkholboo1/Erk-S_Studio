@@ -4715,6 +4715,39 @@ internal sealed partial class ShellView
         state.Album.IncludeTableOfContents = includeTocCheck.IsChecked == true;
     }
 
+    /// <summary>
+    /// Bridge «album-format»: the same selector a person uses - both boxes set, then the one
+    /// apply (a box changed alone would save a half-chosen format and build twice).
+    /// </summary>
+    private StudioBridgeResponse BridgeAlbumFormat(StudioBridgeRequest request)
+    {
+        string? columnsText = request.Arg("columns");
+        string? rowsText = request.Arg("rows");
+        if (columnsText is not null || rowsText is not null)
+        {
+            if (!int.TryParse(columnsText, out int columns) || !int.TryParse(rowsText, out int rows))
+                return StudioBridgeProtocol.Refuse(request.Id, "album_format_arguments", "columns=1-4 rows=1-4 хоёуланг нь заана уу.");
+            ModuleCountChoice? column = albumGeneratedFormatColumnsBox.Items.Cast<ModuleCountChoice>().FirstOrDefault(choice => choice.Value == columns);
+            ModuleCountChoice? row = albumGeneratedFormatRowsBox.Items.Cast<ModuleCountChoice>().FirstOrDefault(choice => choice.Value == rows);
+            if (column is null || row is null)
+                return StudioBridgeProtocol.Refuse(request.Id, "album_format_arguments", "columns, rows нь 1-4.");
+            bindingAlbumPage = true;
+            albumGeneratedFormatColumnsBox.SelectedItem = column;
+            albumGeneratedFormatRowsBox.SelectedItem = row;
+            bindingAlbumPage = false;
+            ApplyAlbumGeneratedPageFormat();
+        }
+        PageFormatDefinition format = AlbumBuilder.InferPageFormat(state.Album, state.Library);
+        return StudioBridgeProtocol.Accept(request.Id, new
+        {
+            code = format.Code,
+            widthMm = format.WidthMm,
+            heightMm = format.HeightMm,
+            chosen = state.Album.GeneratedPageFormat is not null,
+            album = lastAlbumPath,
+        }, statusText.Text);
+    }
+
     private void ApplyAlbumGeneratedPageFormat()
     {
         if (bindingAlbumPage || !CanEditProjectContent() ||

@@ -41,6 +41,20 @@ public sealed class GENERATEDPagesFOLLOWTheAlbumsFormatTests
     }
 
     [Fact]
+    public void AnA2AlbumDrawsItsGeneratedPagesOnA2EvenUnchosen()
+    {
+        // BN, 2026-10-24: every sheet 582 × 420, nothing chosen - the cover came out 420 × 297.
+        var album = new AlbumDefinition { InferredPageFormat = WorkingDrawingAlbumFormatFactory.Create(1, 2) };
+
+        Assert.True(DrawingListPagination.UsesWorkingDrawingFormat(album));
+    }
+
+    [Fact]
+    public void AnA3AlbumKeepsItsA3Pages() =>
+        Assert.False(DrawingListPagination.UsesWorkingDrawingFormat(
+            new AlbumDefinition { InferredPageFormat = WorkingDrawingAlbumFormatFactory.Create(1, 1) }));
+
+    [Fact]
     public void AFormatAPersonChoseStillWins()
     {
         var album = new AlbumDefinition

@@ -28,6 +28,7 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 | `open-project` | Төслийн карт дарах | `path=<хавтас/.erksproject>` эсвэл `code=<код>` |
 | `check-sources` | «Эх үүсвэр шалгах» | — |
 | `rebuild-album` | Альбум шинэчлэх | — |
+| `album-format` | «Нийтлэг хуудасны формат» сонгогч | `columns=1-4 rows=1-4`; аргументгүй бол одоогийн формат (сонгосон эсэх) |
 | `rearm-component` | Cloud-д алга болсон, локал угсралт зурдаг хэсгийг дахин илгээхээр тэмдэглэх | `code=<canonical код>` |
 | `sheet-numbers` | (унших) хуудас бүрийн эх дугаар ба альбумд хэвлэгдэх дугаар («БА-8») — эшлэлийн гэрээ `_shared/sheet-reference-contract-2026-10-20.md` | — |
 | `components` | (унших) синкийн хэсгүүд: локал угсралт, Cloud, хүлээгдэж буй код | — |

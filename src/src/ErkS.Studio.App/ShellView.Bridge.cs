@@ -131,6 +131,8 @@ internal sealed partial class ShellView
                     ? StudioBridgeProtocol.Accept(request.Id, new { album = lastAlbumPath, warnings = lastAlbumBuildWarnings }, statusText.Text)
                     : StudioBridgeProtocol.Refuse(request.Id, "rebuild_failed", statusText.Text);
             }
+            case "album-format":
+                return BridgeAlbumFormat(request);
             case "components":
                 return BridgeComponents(request);
             case "sheet-numbers":

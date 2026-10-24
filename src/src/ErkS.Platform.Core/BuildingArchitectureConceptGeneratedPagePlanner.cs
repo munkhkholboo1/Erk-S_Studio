@@ -48,7 +48,9 @@ public static class BuildingArchitectureConceptGeneratedPagePlanner
     public static int DocumentPagesPerAlbumPage(AlbumProject project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        PageFormatDefinition? format = project.Album.GeneratedPageFormat;
+        PageFormatDefinition? format = DrawingListPagination.UsesWorkingDrawingFormat(project.Album)
+            ? WorkingDrawingAlbumFormatFactory.Resolve(project.Album)
+            : project.Album.GeneratedPageFormat;
         return format is not null && PageFormatCatalog.IsUsable(format)
             ? DocumentFaceDistribution.Capacity(format.WidthMm, format.HeightMm)
             : DocumentFaceDistribution.Capacity(

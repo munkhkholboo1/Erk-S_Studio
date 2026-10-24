@@ -39,10 +39,18 @@ public static class DrawingListPagination
     /// the only family whose drawing list paginates. Asked here so the planner
     /// and the writer cannot answer it differently.
     /// </summary>
+    /// <remarks>
+    /// Also when nothing was chosen but the album's own sheets are on a larger joined-A3 format
+    /// (owner, 2026-10-24: «нүүр хуудас мөн адил A2 дээр хийгдэх ёстой») - the BN cover stayed
+    /// A3 because only a chosen format counted here. Sheets on plain A3 keep the A3 pages.
+    /// </remarks>
     public static bool UsesWorkingDrawingFormat(AlbumDefinition? album) =>
         album is not null &&
-        PageFormatCatalog.IsUsable(album.GeneratedPageFormat) &&
-        album.GeneratedPageFormat!.Kind == PageFormatKind.WorkingDrawing;
+        ((PageFormatCatalog.IsUsable(album.GeneratedPageFormat) &&
+          album.GeneratedPageFormat!.Kind == PageFormatKind.WorkingDrawing) ||
+         (PageFormatCatalog.IsUsable(album.InferredPageFormat) &&
+          album.InferredPageFormat!.Kind == PageFormatKind.WorkingDrawing &&
+          (album.InferredPageFormat.ModuleColumns > 1 || album.InferredPageFormat.ModuleRows > 1)));
 
     /// <summary>Where the header row starts, in millimetres from the page top.</summary>
     public static double HeaderTopMm(WorkingDrawingPageRegions regions)
