@@ -84,6 +84,14 @@ public sealed class SyncEngine : IAsyncDisposable
 
     private readonly SyncCentralService _centrals;
 
+    private readonly Dictionary<string, IReadOnlySet<string>> _held = new(StringComparer.OrdinalIgnoreCase);
+
+    private IReadOnlySet<string> HeldOf(string folderId)
+    {
+        lock (_gate)
+            return _held.TryGetValue(folderId, out IReadOnlySet<string>? held) ? held : new HashSet<string>();
+    }
+
     /// <summary>The server and this device's token, for a member's road to a central's host; null while signed out of the server.</summary>
     public (Uri Server, string Token)? CentralRoad =>
         _session is { } session && _server.BaseAddress is { } address ? (address, session.AccessToken) : null;
@@ -251,10 +259,12 @@ public sealed class SyncEngine : IAsyncDisposable
             index = ledger.Stamp(index, _device!.DeviceKeyId);
             SyncVersionLedgerStore.Save(ledger, _home.LedgerPath(folder.FolderId));
             SyncIndexStore.Save(index, _home.IndexPath(folder.FolderId));
+            IReadOnlySet<string> held = SyncCollab.HeldPaths(physical);
             lock (_gate)
             {
                 _indexes[folder.FolderId] = index;
                 _roots[folder.FolderId] = physical;
+                _held[folder.FolderId] = held;
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -308,6 +318,16 @@ public sealed class SyncEngine : IAsyncDisposable
         {
             LastError = uploadError,
             Centrals = centrals,
+            Collabs = SyncCollab.Files(physical).Select(file =>
+            {
+                SyncCollabStatus status = SyncCollab.Status(physical, _home, file.FileId);
+                long last = status.Writers.FirstOrDefault(writer => writer.Writer.Equals(status.OwnWriter, StringComparison.OrdinalIgnoreCase))?.LastInLog ?? 0;
+                IEnumerable<SyncIndex> partners = entry.Devices
+                    .Where(device => !device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase))
+                    .Select(device => SyncIndexStore.TryLoad(_home.PeerIndexPath(folder.FolderId, device.DeviceKeyId)))
+                    .OfType<SyncIndex>();
+                return status with { PendingOut = SyncCollab.PendingOut(file.FileId, status.OwnWriter, last, partners) };
+            }).ToList(),
             UploadedBytes = shown?.UploadedBytes ?? 0,
             UploadPendingBytes = shown?.UploadPendingBytes ?? 0,
             LastUploadBytesPerSecond = shown?.LastUploadBytesPerSecond ?? 0,
@@ -399,7 +419,7 @@ public sealed class SyncEngine : IAsyncDisposable
         if (theirsKnown is null)
             return peer with { LastError = error };
         SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirsKnown);
-        SyncCarriedDifference carried = SyncIndexComparison.CompareCarried(mine, theirsKnown);
+        SyncCarriedDifference carried = SyncIndexComparison.CompareCarried(mine, theirsKnown, HeldOf(folderId));
         return peer with
         {
             Transferring = false,
@@ -438,6 +458,10 @@ public sealed class SyncEngine : IAsyncDisposable
     {
         string ledgerPath = _home.LedgerPath(folderId);
         SyncVersionLedger ledger = SyncVersionLedgerStore.Load(ledgerPath);
+        // A DWG shared block by block (CGA К1) never travels as bytes - its changesets do.
+        IReadOnlySet<string> held = HeldOf(folderId);
+        if (held.Count > 0)
+            theirs = theirs with { Entries = theirs.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
         SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)));
         int received = 0, kept = 0, waiting = 0;
         long bytes = 0;
@@ -564,7 +588,7 @@ public sealed class SyncEngine : IAsyncDisposable
             root = _roots.GetValueOrDefault(folderId);
         }
         if (entry is null || root is null || chunk < 0 || chunk >= entry.ChunkSha256.Count ||
-            !SyncTransferPlanner.IsCarried(entry.Kind))
+            !SyncTransferPlanner.IsCarried(entry.Kind) || HeldOf(folderId).Contains(entry.RelativePath))
         {
             return null;
         }
@@ -632,7 +656,7 @@ public sealed class SyncEngine : IAsyncDisposable
             var pieces = new Dictionary<string, (SyncIndexEntry Entry, int Chunk)>(StringComparer.OrdinalIgnoreCase);
             foreach (SyncIndexEntry entry in index.Entries)
             {
-                if (!SyncTransferPlanner.IsCarried(entry.Kind) || SyncExclusions.IsExcludedFile(Path.GetFileName(entry.RelativePath)))
+                if (!SyncTransferPlanner.IsCarried(entry.Kind) || SyncExclusions.IsExcludedFile(Path.GetFileName(entry.RelativePath)) || HeldOf(folderId).Contains(entry.RelativePath))
                     continue;
                 for (int chunk = 0; chunk < entry.ChunkSha256.Count; chunk++)
                     pieces.TryAdd(entry.ChunkSha256[chunk], (entry, chunk));

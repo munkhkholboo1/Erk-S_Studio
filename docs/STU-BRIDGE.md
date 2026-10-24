@@ -28,6 +28,7 @@ cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 | `open-project` | Төслийн карт дарах | `path=<хавтас/.erksproject>` эсвэл `code=<код>` |
 | `check-sources` | «Эх үүсвэр шалгах» | — |
 | `rebuild-album` | Альбум шинэчлэх | — |
+| `collab-status` | (унших) CGA хамтын файл: бичигч бүрийн лог, хүлээгдэж буй, дутуу дугаар | — |
 | `sync-central` | «Хамтын ажиллагааг асаах/унтраах» (Erk-S Central) | `path=<central .rvt> on=true\|false` |
 | `album-format` | «Нийтлэг хуудасны формат» сонгогч | `columns=1-4 rows=1-4`; аргументгүй бол одоогийн формат (сонгосон эсэх) |
 | `rearm-component` | Cloud-д алга болсон, локал угсралт зурдаг хэсгийг дахин илгээхээр тэмдэглэх | `code=<canonical код>` |

@@ -108,6 +108,11 @@ internal sealed partial class ShellView
                 return await BridgeSyncFoldersAsync(request);
             case "sync-central":
                 return BridgeSyncCentral(request);
+            case "collab-status":
+                return StudioBridgeProtocol.Accept(request.Id, (SyncTrayProcess.State()?.Folders ?? [])
+                    .Select(folder => new { folder = folder.FolderId, project = folder.ProjectCode, collabs = folder.Collabs })
+                    .Where(item => item.collabs.Count > 0)
+                    .ToList());
             case "close":
                 _ = Root.Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(Root)?.Close()));
                 return StudioBridgeProtocol.Accept(request.Id, null, "Studio хаагдаж байна.");

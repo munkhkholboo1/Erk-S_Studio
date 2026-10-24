@@ -405,6 +405,14 @@ public sealed class AlbumDefinition
     public PageFormatDefinition? InferredPageFormat { get; set; }
 
     /// <summary>
+    /// The format Studio's own pages were last drawn on (its geometry hash). When the album's
+    /// format moves - chosen or read from its sheets - every generated page is drawn again and
+    /// goes with the next Sync (BN, 2026-10-24: the shared album kept its A3 cover because only
+    /// changed components are re-sent, and nothing marked the cover changed).
+    /// </summary>
+    public string GeneratedFormatHash { get; set; } = "";
+
+    /// <summary>
     /// Optional project-owned composition template. Empty keeps the legacy
     /// cover/contents/source-pages behavior unchanged.
     /// </summary>

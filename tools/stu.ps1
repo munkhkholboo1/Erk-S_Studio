@@ -73,7 +73,11 @@ if ($Command -ne 'run') { $Action = $Command }
 if ([string]::IsNullOrWhiteSpace($Action)) { Fail 'bad_request' 'run needs an action name (see: stu.ps1 actions).' }
 
 $arguments = [ordered]@{}
-foreach ($pair in $Arg) {
+# Under "powershell -File" a list written as 'a=1','b=2' arrives as ONE string "a=1,b=2"
+# (only -Command parses it as an array) - split it again where a new key=value starts.
+$pairs = @($Arg | ForEach-Object { [regex]::Split($_, ',(?=\s*[A-Za-z][\w-]*=)') } | Where-Object { $_ -ne '' })
+foreach ($pair in $pairs) {
+    $pair = $pair.Trim()
     $index = $pair.IndexOf('=')
     if ($index -lt 1) { Fail 'bad_request' "Argument '$pair' is not key=value." }
     $arguments[$pair.Substring(0, $index).Trim()] = $pair.Substring($index + 1)

@@ -44,6 +44,7 @@ internal sealed partial class ShellView
             // that were uploaded and became the shared album.
             GeneratedPageFormat = album.GeneratedPageFormat,
             InferredPageFormat = album.InferredPageFormat,
+            GeneratedFormatHash = album.GeneratedFormatHash,
             IncludeCover = album.IncludeCover,
             IncludeTableOfContents = album.IncludeTableOfContents,
             Composition = album.Composition.ToList(),

@@ -9,9 +9,11 @@ using System.Runtime.Versioning;
 namespace ErkS.Sync.Core;
 
 /// <summary>One line each way on the SYN pipe: a verb and a folder path.</summary>
-public sealed record SyncPipeRequest(string Verb, string Path);
+/// <param name="Args">Named arguments of the collab verbs (fileId, writer, manifest …); absent for the older verbs.</param>
+public sealed record SyncPipeRequest(string Verb, string Path, Dictionary<string, string>? Args = null);
 
-public sealed record SyncPipeResponse(bool Ok, string Message);
+/// <param name="Data">A JSON answer for the verbs that return one (collab-pull, collab-status …).</param>
+public sealed record SyncPipeResponse(bool Ok, string Message, string? Data = null);
 
 /// <summary>
 /// The running SYN's pipe. Named for the Windows user, opened to that user only - the Explorer

@@ -1472,6 +1472,34 @@ public sealed class AppState : IDisposable
         SaveProject();
     }
 
+    /// <summary>
+    /// When the format Studio draws its own pages on has moved (chosen, or read from the
+    /// album's sheets), every generated component - cover, list, notes, document pages - is
+    /// marked to be drawn and sent again. True when it moved.
+    /// </summary>
+    public bool MarkGeneratedPagesIfFormatChanged()
+    {
+        if (!HasOpenProject)
+            return false;
+        AlbumBuilder.InferPageFormat(Album, Library);
+        string key = WorkingDrawingAlbumFormatFactory.GeneratedPagesKey(Album);
+        if (string.Equals(key, Album.GeneratedFormatHash, StringComparison.Ordinal))
+            return false;
+        Album.GeneratedFormatHash = key;
+        AlbumProject project = CreateAlbumBuildProject(reconcileLinkedProjectAssets: false);
+        AlbumBuilder.InferPageFormat(project.Album, Library);
+        var codes = BuildingArchitectureConceptGeneratedPagePlanner.Create(project)
+            .Select(plan => StudioAlbumPreviewPageMap.GeneratedComponentCode(plan.Component, plan.DocumentKind))
+            .Append("generated:cover")
+            .Append("generated:table-of-contents")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        ProjectCloudSyncMetadata.MarkAlbumComponentsPending(Project, codes);
+        InvalidateBuiltAlbum();
+        SaveProject();
+        return true;
+    }
+
     public void MarkAlbumComponentChanged(string componentCode)
     {
         if (!HasOpenProject || string.IsNullOrWhiteSpace(componentCode))

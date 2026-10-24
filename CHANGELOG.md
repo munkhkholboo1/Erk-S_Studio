@@ -5,6 +5,12 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.78] - 2026-10-25 (test release)
+
+- Album: when the album's format moves (chosen, or read from its sheets), the cover, the drawing list and the notes are drawn again and go with the next Sync - the shared album no longer keeps an A3 cover beside A2 sheets.
+- Erk-S Sync carries CGA's shared-file changesets (one DWG worked on block by block): each writer's numbered log travels on LAN or through the server, in order, none lost, none twice, never past a missing number; the shared DWG's own bytes do not travel (only the owner's checkpoint). Pipe verbs collab-register/publish/pull/status/checkpoint; bridge collab-status; counts in status.json for Twin.
+- Bridge: arguments written as 'a=1','b=2' arrive right through powershell -File too.
+
 ## [0.001.77] - 2026-10-24 (test release)
 
 - Erk-S Central follows the server's refusals sent as WebSocket closes (4000 + status: host offline, not enabled, host taken, token): a member is answered «host unreachable» at once and waits a moment before asking again; the host names the reason in Studio.

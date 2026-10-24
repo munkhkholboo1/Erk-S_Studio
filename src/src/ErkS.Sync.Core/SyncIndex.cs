@@ -264,10 +264,16 @@ public static class SyncIndexComparison
     /// <see cref="Compare"/> over the files that travel only; a Revit central model never travels,
     /// so it is reported apart, not as missing (owner, 2026-10-24: 36.9% with every file there).
     /// </summary>
-    public static SyncCarriedDifference CompareCarried(SyncIndex here, SyncIndex there)
+    public static SyncCarriedDifference CompareCarried(SyncIndex here, SyncIndex there, IReadOnlySet<string>? held = null)
     {
         ArgumentNullException.ThrowIfNull(here);
         ArgumentNullException.ThrowIfNull(there);
+        if (held is { Count: > 0 })
+        {
+            // A shared DWG (CGA К1) is in step through its changesets, not its bytes.
+            here = here with { Entries = here.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
+            there = there with { Entries = there.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
+        }
         var stays = here.Entries.Concat(there.Entries)
             .Where(entry => !SyncTransferPlanner.IsCarried(entry.Kind))
             .GroupBy(entry => entry.RelativePath, SyncPath.Comparer)

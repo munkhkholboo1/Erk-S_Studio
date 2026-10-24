@@ -140,6 +140,7 @@ internal static class StudioBridgeActionCatalog
         new("sync-unlink", "«Холболт салгах»: энэ машиныг синк хавтаснаас салгана; файлууд хэвээр.", "path=<хавтас>", true),
         new("sync-decide", "Зөрүүтэй файлын шийдвэр: theirs = нөгөө машины хувилбарыг авах (энэ машиных .erks-sync\\replaced-д хадгалагдана), mine = энэ машиных үлдэж нөгөө машин авна.", "folder=<id> choice=theirs|mine [peer=<түлхүүр>] [path=<файл>]", true),
         new("sync-unregister", "«Синк хавтсыг цуцлах»: төслийн синк хавтсын бүртгэлийг бүх багт цуцална; файлууд машин бүр дээр хэвээр.", "project=<төслийн код>", true),
+        new("collab-status", "(унших) CGA хамтын файл (К1): хавтас бүрийн хамтын DWG, бичигч бүрийн логийн сүүлийн дугаар, хэрэглэсэн, хүлээгдэж буй, дутуу дугаар — файлын нэргүй.", "", false),
         new("sync-central", "Erk-S Central: энэ машин дээрх Revit central-ын хамтын ажиллагааг асаах/унтраах (Studio-гийн товчтой ижил). Эхний туршилтыг хуулбар дээр.", "path=<central .rvt бүтэн зам> on=true|false", true),
         new("close", "Studio-г хэвийнээр хаана.", "", true),
     ];

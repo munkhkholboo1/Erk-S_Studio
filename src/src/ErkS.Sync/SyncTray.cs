@@ -141,6 +141,12 @@ internal sealed class SyncTray : ApplicationContext
                 else if (message.Length > 0)
                     Post(() => _icon.ShowBalloonTip(8000, "Erk-S Sync", message, ToolTipIcon.Warning));
                 return new SyncPipeResponse(ok, message);
+            case "collab-register":
+            case "collab-publish":
+            case "collab-pull":
+            case "collab-status":
+            case "collab-checkpoint":
+                return Collab(request);
             case "central-begin":
             case "central-end":
                 // PFR around Revit's synchronize: the host commits only a synchronize that finished.
@@ -172,6 +178,83 @@ internal sealed class SyncTray : ApplicationContext
     {
         using Stream? stream = typeof(SyncTray).Assembly.GetManifestResourceStream("ErkS.Sync.logo.ico");
         return stream is null ? SystemIcons.Application : new Icon(stream);
+    }
+
+    /// <summary>
+    /// CGA's shared file (К1, _shared/cga-collab-one-file-design-2026-10-24.md §4.5): CGA hands its
+    /// changesets here and takes the others' from here; SYN carries them, never opens them.
+    /// </summary>
+    private SyncPipeResponse Collab(SyncPipeRequest request)
+    {
+        Dictionary<string, string> args = request.Args ?? [];
+        string Arg(string name) => args.TryGetValue(name, out string? value) ? value : "";
+        string? root = FolderRootOf(request.Path);
+        if (root is null)
+            return new SyncPipeResponse(false, "DWG нь энэ машины Erk-S Sync хавтсанд алга.");
+        string fileId = Arg("fileId");
+        string writer = Arg("writer").Length > 0 ? Arg("writer") : _device?.DeviceKeyId ?? "";
+        try
+        {
+            switch (request.Verb)
+            {
+                case "collab-register":
+                {
+                    SyncCollabFile file = SyncCollab.Register(root, request.Path, fileId, Arg("ownerSeat"), Arg("cgaVersion"), DateTimeOffset.UtcNow);
+                    _engine?.Poke();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(file));
+                }
+                case "collab-publish":
+                {
+                    long seq = SyncCollab.Publish(root, fileId, writer, Arg("manifest"), Arg("entities"), _home,
+                        int.TryParse(Arg("blocks"), out int blocks) ? blocks : null,
+                        int.TryParse(Arg("myBlocks"), out int mine) ? mine : null);
+                    _engine?.Poke();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { writer, seq }));
+                }
+                case "collab-pull":
+                {
+                    Dictionary<string, long>? ack = Arg("ack").Length > 0
+                        ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("ack"))
+                        : null;
+                    IReadOnlyList<SyncCollabChangeset> pending = SyncCollab.Pull(root, _home, fileId, writer, ack);
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(pending));
+                }
+                case "collab-status":
+                {
+                    var statuses = SyncCollab.Files(root)
+                        .Where(file => fileId.Length == 0 || file.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase))
+                        .Select(file => SyncCollab.Status(root, _home, file.FileId))
+                        .ToList();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(statuses));
+                }
+                default: // collab-checkpoint
+                {
+                    Dictionary<string, long> through = Arg("through").Length > 0
+                        ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("through")) ?? []
+                        : [];
+                    int checkpoint = SyncCollab.Checkpoint(root, fileId, request.Path, through);
+                    _engine?.Poke();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { checkpoint }));
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return new SyncPipeResponse(false, exception.Message);
+        }
+    }
+
+    /// <summary>The sync folder (on this machine's disk) that holds <paramref name="path"/>.</summary>
+    private string? FolderRootOf(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+        string full = Path.GetFullPath(path);
+        var map = new SyncPathMap();
+        SyncState state = _engine?.LastState ?? SyncStateStore.TryLoad(_home) ?? new SyncState();
+        return state.Folders
+            .Select(folder => Path.GetFullPath(map.Physical(folder.CanonicalPath)))
+            .FirstOrDefault(root => SyncPath.IsSameOrInside(root, full));
     }
 
     protected override void ExitThreadCore()

@@ -4098,7 +4098,9 @@ internal sealed partial class ShellView : IDisposable
                 SetStatus("Таны project role альбум боловсруулах эрхгүй байна.");
             return false;
         }
-        if (!AlbumMustBeDrawn(origin))
+        // A moved format redraws Studio's own pages even when no source moved.
+        bool formatMoved = state.MarkGeneratedPagesIfFormatChanged();
+        if (!formatMoved && !AlbumMustBeDrawn(origin))
         {
             // Nothing the album is drawn from has moved since the file on disk was
             // made, so there is nothing to draw. This is the whole of the owner's

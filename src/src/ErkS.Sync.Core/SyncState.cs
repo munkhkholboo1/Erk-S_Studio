@@ -163,6 +163,9 @@ public sealed record SyncFolderState
     /// <summary>Erk-S Central: the Revit centrals of this folder this machine serves or reaches.</summary>
     public IReadOnlyList<SyncCentralState> Centrals { get; init; } = [];
 
+    /// <summary>CGA shared files (К1): per file, per writer - numbers only, for Studio and Twin.</summary>
+    public IReadOnlyList<SyncCollabStatus> Collabs { get; init; } = [];
+
     /// <summary>Cloud sync: this machine's pieces going on the server now, for partners on other networks.</summary>
     public bool Uploading { get; init; }
 

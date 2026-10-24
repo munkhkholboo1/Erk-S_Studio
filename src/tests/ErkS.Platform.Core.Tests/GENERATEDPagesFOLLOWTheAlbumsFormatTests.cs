@@ -50,6 +50,23 @@ public sealed class GENERATEDPagesFOLLOWTheAlbumsFormatTests
     }
 
     [Fact]
+    public void AMovedFormatChangesTheKeySoStudiosPagesAreDrawnAgain()
+    {
+        // BN, 2026-10-24: format chosen A2, the shared album kept its A3 cover - nothing marked
+        // Studio's own pages changed. The key is what Studio compares to redraw them.
+        var album = new AlbumDefinition();
+        string before = WorkingDrawingAlbumFormatFactory.GeneratedPagesKey(album);
+        album.GeneratedPageFormat = WorkingDrawingAlbumFormatFactory.Create(1, 2);
+        string chosen = WorkingDrawingAlbumFormatFactory.GeneratedPagesKey(album);
+        album.GeneratedPageFormat = null;
+        album.InferredPageFormat = WorkingDrawingAlbumFormatFactory.Create(1, 2);
+
+        Assert.Equal("a3", before);
+        Assert.NotEqual(before, chosen);
+        Assert.Equal(chosen, WorkingDrawingAlbumFormatFactory.GeneratedPagesKey(album));
+    }
+
+    [Fact]
     public void AnA3AlbumKeepsItsA3Pages() =>
         Assert.False(DrawingListPagination.UsesWorkingDrawingFormat(
             new AlbumDefinition { InferredPageFormat = WorkingDrawingAlbumFormatFactory.Create(1, 1) }));

@@ -109,6 +109,13 @@ public static class WorkingDrawingAlbumFormatFactory
             : Create(1, 1);
     }
 
+    /// <summary>
+    /// The format Studio's own pages are drawn on now, as a key: the album's format when it is a
+    /// working-drawing format that drives them, «a3» otherwise.
+    /// </summary>
+    public static string GeneratedPagesKey(AlbumDefinition album) =>
+        DrawingListPagination.UsesWorkingDrawingFormat(album) ? Resolve(album).GeometryHash : "a3";
+
     /// <summary>The joined-A3 format a sheet of this size is, or null when it is off the module grid (±2 mm).</summary>
     public static PageFormatDefinition? FromSheetSize(double widthMm, double heightMm)
     {

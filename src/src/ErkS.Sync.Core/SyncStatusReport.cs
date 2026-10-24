@@ -39,7 +39,27 @@ public sealed record SyncStatusFolder(
     int DifferingFileCount,
     IReadOnlyList<SyncStatusPeer> Peers,
     int ConflictCount = 0,
-    double SyncedPercent = 100);
+    double SyncedPercent = 100)
+{
+    /// <summary>CGA shared files (К1) for Twin - counts only, no file names.</summary>
+    public IReadOnlyList<SyncStatusCollab> Collab { get; init; } = [];
+}
+
+/// <summary>
+/// One shared DWG in numbers (Master, 2026-10-25): writers on it, blocks, waiting to be applied
+/// here (pendingIn), this machine's not yet with every partner (pendingOut), a missing number.
+/// </summary>
+public sealed record SyncStatusCollab(
+    string FileId,
+    int Members,
+    int Blocks,
+    int MyBlocks,
+    int PendingInCount,
+    int PendingOutCount,
+    bool Gap,
+    int Checkpoint,
+    DateTimeOffset? LastAppliedAtUtc,
+    string LastError);
 
 /// <summary>
 /// SYN's account of itself for whoever watches from outside: the bridge's «sync-status» answer
@@ -105,7 +125,20 @@ public sealed record SyncStatusReport(
                 peer.Transferring ? peer.TransferBytesPerSecond : peer.LastTransferBytesPerSecond,
                 peer.NotCarriedCount)).ToList(),
             folder.ConflictCount,
-            SyncInStep.Of(folder.Peers).Percent ?? 100)).ToList());
+            SyncInStep.Of(folder.Peers).Percent ?? 100)
+        {
+            Collab = folder.Collabs.Select(collab => new SyncStatusCollab(
+                collab.FileId,
+                collab.Writers.Count,
+                collab.Blocks,
+                collab.MyBlocks,
+                collab.Writers.Where(writer => !writer.Writer.Equals(collab.OwnWriter, StringComparison.OrdinalIgnoreCase)).Sum(writer => writer.Waiting),
+                collab.PendingOut,
+                collab.Writers.Any(writer => writer.Gap),
+                collab.Checkpoint,
+                collab.LastAppliedAtUtc,
+                collab.LastError)).ToList(),
+        }).ToList());
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>
     public static void Write(string path, SyncStatusReport report)
