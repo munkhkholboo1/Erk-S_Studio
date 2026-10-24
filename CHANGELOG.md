@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.77] - 2026-10-24 (test release)
+
+- Erk-S Central follows the server's refusals sent as WebSocket closes (4000 + status: host offline, not enabled, host taken, token): a member is answered «host unreachable» at once and waits a moment before asking again; the host names the reason in Studio.
+
 ## [0.001.76] - 2026-10-24 (test release)
 
 - Erk-S Central: team work on one Revit central through Erk-S Sync. The central stays on its host; a member's machine shows it at the same path through a Dokany mount (free, open source; installed once with the person's consent), and every file operation Revit makes runs on the host's real files - Create New Local, Synchronize, Reload Latest, borrowing and editing requests stay Revit's own. A synchronize cut by a broken road is undone whole on the host; a resent call is never run twice; with no host, Revit is answered at once and keeps working in the local. A snapshot is taken before a member's first write (last ten kept).

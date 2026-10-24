@@ -168,6 +168,18 @@ public sealed class SyncCentralService(SyncHome home, Func<CancellationToken, Ta
                         await heartbeat.ContinueWith(_ => { }, TaskScheduler.Default);
                         run.Online = false;
                     }
+                    // SRV be7ad1a: a refusal is a close 4000 + status with the reason code.
+                    if (link.Closed is { Code: >= 4000 } refused)
+                    {
+                        run.Error = refused.Reason switch
+                        {
+                            "sync_central_not_enabled" => "Central-ын хамтын ажиллагааг сервер энэ хавтсанд зөвшөөрөөгүй (эзний багийн хавтас биш).",
+                            "sync_central_host_taken" => "Энэ central-ыг өөр машин host болгож нээсэн байна — central нэг л host-той.",
+                            "sync_device_not_attached" => "Энэ машин синк хавтсанд холбогдоогүй байна.",
+                            "invalid_token" => "Төхөөрөмжийн нэвтрэлт хүчингүй — дахин нэвтэрнэ.",
+                            _ => "Сервер татгалзлаа: " + refused.Reason,
+                        };
+                    }
                 }
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested)

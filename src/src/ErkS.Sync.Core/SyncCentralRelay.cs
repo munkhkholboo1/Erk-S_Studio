@@ -42,12 +42,21 @@ public interface ISyncCentralRelayLink : IAsyncDisposable
 
     /// <summary>The next message, or null when the link closed.</summary>
     Task<SyncCentralRelayMessage?> ReceiveAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Why the server closed the link: 4000 + HTTP status and the reason code (SRV be7ad1a -
+    /// a refusal arrives as a close, since the tunnel turns any non-101 answer into 502).
+    /// </summary>
+    (int Code, string Reason)? Closed => null;
 }
 
 /// <summary>SRV 719cdea: a WebSocket to /central/{centralId}/connect.</summary>
 public sealed class SyncCentralWebSocketLink(WebSocket socket) : ISyncCentralRelayLink
 {
     private readonly SemaphoreSlim _send = new(1, 1);
+
+    public (int Code, string Reason)? Closed =>
+        socket.CloseStatus is { } status ? ((int)status, socket.CloseStatusDescription ?? "") : null;
 
     public static async Task<SyncCentralWebSocketLink> ConnectAsync(Uri server, string deviceToken, string folderId, string centralId, string role, CancellationToken cancellationToken)
     {
@@ -200,6 +209,7 @@ public sealed class SyncCentralRelayChannel : ISyncCentralChannel, IAsyncDisposa
     private readonly CancellationTokenSource _stop = new();
     private readonly SemaphoreSlim _linkGate = new(1, 1);
     private ISyncCentralRelayLink? _link;
+    private DateTime _refusedUntilUtc;
     private TaskCompletionSource _lost = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _seq;
 
@@ -260,6 +270,8 @@ public sealed class SyncCentralRelayChannel : ISyncCentralChannel, IAsyncDisposa
     {
         if (_link is { } current)
             return current;
+        if (DateTime.UtcNow < _refusedUntilUtc)
+            return null; // the server just said the host is not there: answer Revit at once
         await _linkGate.WaitAsync(cancellationToken);
         try
         {
@@ -304,8 +316,23 @@ public sealed class SyncCentralRelayChannel : ISyncCentralChannel, IAsyncDisposa
         catch (Exception exception) when (exception is WebSocketException or IOException or OperationCanceledException or ObjectDisposedException or InvalidDataException or JsonException)
         {
         }
+        // A refusal (4000 + status: host offline, not enabled, token) or the host leaving (1001):
+        // every waiting call is answered «host unreachable» now, and no reconnect for a moment.
+        if (link.Closed is { } closed && (closed.Code >= 4000 || closed.Code == (int)WebSocketCloseStatus.EndpointUnavailable))
+        {
+            LastRefusal = closed.Reason;
+            _refusedUntilUtc = DateTime.UtcNow + RefusalPause;
+            foreach (Pending pending in _pending.Values)
+                pending.Answer.TrySetResult(Unreachable());
+        }
         await DropAsync(link);
     }
+
+    /// <summary>How long a refused member waits before asking the server again.</summary>
+    public TimeSpan RefusalPause { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The server's last refusal reason (sync_central_host_offline and the like).</summary>
+    public string LastRefusal { get; private set; } = "";
 
     private async Task DropAsync(ISyncCentralRelayLink link)
     {

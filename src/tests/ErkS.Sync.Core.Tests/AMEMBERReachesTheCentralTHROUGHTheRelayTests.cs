@@ -53,6 +53,39 @@ public sealed class AMEMBERReachesTheCentralTHROUGHTheRelayTests
     }
 
     [Fact]
+    public async Task AHostOfflineRefusalIsAnsweredAtOnceNotAfterTheTimeout()
+    {
+        int connects = 0;
+        await using var channel = new SyncCentralRelayChannel(_ =>
+        {
+            Interlocked.Increment(ref connects);
+            return Task.FromResult<ISyncCentralRelayLink>(new RefusedLink(4404, "sync_central_host_offline"));
+        });
+        DateTime started = DateTime.UtcNow;
+
+        SyncCentralResponse response = await new SyncCentralClient(channel).CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" });
+        SyncCentralResponse again = await new SyncCentralClient(channel).CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" });
+
+        Assert.Equal(SyncCentralErrors.HostUnreachable, response.Error);
+        Assert.Equal(SyncCentralErrors.HostUnreachable, again.Error);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
+        Assert.Equal(1, connects); // the second call waits out the pause instead of hammering the server
+        Assert.Equal("sync_central_host_offline", channel.LastRefusal);
+    }
+
+    /// <summary>SRV be7ad1a: the server accepts the WebSocket and closes it at once with 4000 + status.</summary>
+    private sealed class RefusedLink(int code, string reason) : ISyncCentralRelayLink
+    {
+        public (int Code, string Reason)? Closed => (code, reason);
+
+        public Task SendAsync(SyncCentralRelayMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<SyncCentralRelayMessage?> ReceiveAsync(CancellationToken cancellationToken) => Task.FromResult<SyncCentralRelayMessage?>(null);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
     public async Task AMemberGoneLongerThanTheLeaseHasItsBurstUndone()
     {
         using var folder = new TemporaryFolder();
