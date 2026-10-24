@@ -55,9 +55,7 @@ internal sealed class SyncTray : ApplicationContext
               (moving.TransferBytesPerSecond > 0 ? $" · {moving.TransferBytesPerSecond / (1 << 20):0.0} МБ/с" : "")
             : peers.Length == 0
                 ? "Erk-S Sync"
-                : peers.All(peer => peer.SyncedPercent >= 100)
-                    ? "Erk-S Sync — бүрэн синк хийгдсэн"
-                    : $"Erk-S Sync — {peers.Min(peer => peer.SyncedPercent):0.#}% синк хийгдсэн";
+                : "Erk-S Sync — " + SyncInStep.Words(peers);
         _icon.Text = text.Length > 63 ? text[..63] : text;
     }
 

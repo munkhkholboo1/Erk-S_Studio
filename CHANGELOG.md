@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.75] - 2026-10-24 (test release)
+
+- Erk-S Sync: a partner who has not joined yet (no index) is shown as waiting, not as 0%. The tray and Studio read «✓ бүрэн синк хийгдсэн · 1 хамтрагч холбогдохыг хүлээж байна» instead of «0% синк хийгдсэн».
+
 ## [0.001.74] - 2026-10-24 (test release)
 
 - Erk-S Sync is cloud sync: a partner on another network syncs through the server. Each machine puts its folder's index and the pieces of the files that travel on the server (Revit central model excluded); a partner not heard on the LAN takes them from there - whole file or nothing, decisions and backups as on the LAN. On a shared LAN files still go directly.

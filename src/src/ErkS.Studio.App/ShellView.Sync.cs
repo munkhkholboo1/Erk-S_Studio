@@ -103,12 +103,11 @@ internal sealed partial class ShellView
         }
 
         bool transferring = folder.Peers.Any(peer => peer.Transferring);
-        double inStep = folder.Peers.Count == 0 ? 100 : folder.Peers.Min(peer => peer.SyncedPercent);
         string stepWord = folder.Peers.Count == 0
             ? ""
             : transferring
                 ? " · синк хийж байна"
-                : inStep >= 100 ? " · ✓ бүрэн синк хийгдсэн" : $" · {inStep:0.#}% синк хийгдсэн";
+                : " · " + SyncInStep.Words(folder.Peers);
         projectSyncSummary.Text = folder.PresentHere
             ? $"{folder.CanonicalPath} · {folder.FileCount} файл, {SyncSize(folder.TotalBytes)}{stepWord} · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
               (folder.ConflictCount > 0 ? $" · ⚠ шийдвэр хүлээж буй зөрчлийн хуулбар {folder.ConflictCount}" : "")

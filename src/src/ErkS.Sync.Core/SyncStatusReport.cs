@@ -105,7 +105,7 @@ public sealed record SyncStatusReport(
                 peer.Transferring ? peer.TransferBytesPerSecond : peer.LastTransferBytesPerSecond,
                 peer.NotCarriedCount)).ToList(),
             folder.ConflictCount,
-            folder.Peers.Count == 0 ? 100 : folder.Peers.Min(peer => peer.SyncedPercent))).ToList());
+            SyncInStep.Of(folder.Peers).Percent ?? 100)).ToList());
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>
     public static void Write(string path, SyncStatusReport report)
@@ -126,5 +126,30 @@ public sealed record SyncStatusReport(
         {
             return null;
         }
+    }
+}
+
+/// <summary>
+/// How far a folder is in step over its partners. A partner whose index has not arrived yet is
+/// waiting, not 0% (owner, 2026-10-24: the laptop read «0% синк хийгдсэн» while it was fully in
+/// step with the one partner it could see; the other had not joined yet).
+/// </summary>
+public static class SyncInStep
+{
+    /// <summary>The lowest percentage over partners whose index is known (null when none is), and how many are still waiting.</summary>
+    public static (double? Percent, int Waiting) Of(IEnumerable<SyncPeerState> peers)
+    {
+        SyncPeerState[] all = (peers ?? []).ToArray();
+        SyncPeerState[] known = all.Where(peer => peer.ExchangedAtUtc is not null).ToArray();
+        return (known.Length == 0 ? null : known.Min(peer => peer.SyncedPercent), all.Length - known.Length);
+    }
+
+    /// <summary>One line for a person: «✓ бүрэн синк хийгдсэн», «N% синк хийгдсэн», and the partners still waiting.</summary>
+    public static string Words(IEnumerable<SyncPeerState> peers)
+    {
+        (double? percent, int waiting) = Of(peers);
+        string step = percent is null ? "" : percent >= 100 ? "✓ бүрэн синк хийгдсэн" : $"{percent:0.#}% синк хийгдсэн";
+        string wait = waiting == 0 ? "" : $"{waiting} хамтрагч холбогдохыг хүлээж байна";
+        return step.Length > 0 && wait.Length > 0 ? step + " · " + wait : step + wait;
     }
 }
