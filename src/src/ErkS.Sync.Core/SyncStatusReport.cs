@@ -59,7 +59,9 @@ public sealed record SyncStatusCollab(
     bool Gap,
     int Checkpoint,
     DateTimeOffset? LastAppliedAtUtc,
-    string LastError);
+    string LastError,
+    bool VersionMismatch = false,
+    IReadOnlyList<SyncCollabVersion>? Versions = null);
 
 /// <summary>
 /// SYN's account of itself for whoever watches from outside: the bridge's «sync-status» answer
@@ -137,7 +139,9 @@ public sealed record SyncStatusReport(
                 collab.Writers.Any(writer => writer.Gap),
                 collab.Checkpoint,
                 collab.LastAppliedAtUtc,
-                collab.LastError)).ToList(),
+                collab.LastError,
+                collab.VersionMismatch,
+                collab.Versions)).ToList(),
         }).ToList());
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>

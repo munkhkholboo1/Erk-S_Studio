@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.81] - 2026-10-25 (test release)
+
+- CGA shared file: every machine's CGA build is known to all (collab-register), and writers on different builds are flagged (versionMismatch) in status and in the bridge's collab-status.
+
 ## [0.001.80] - 2026-10-25 (test release)
 
 - Erk-S Central asks for no Windows Developer Mode: the central's file link is made once with the person's own consent (Windows asks). Nothing is mounted or linked until the central's host shares it and is online.

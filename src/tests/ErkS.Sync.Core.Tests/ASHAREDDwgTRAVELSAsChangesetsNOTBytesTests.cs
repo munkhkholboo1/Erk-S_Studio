@@ -88,6 +88,22 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
     }
 
     [Fact]
+    public void WritersOnDifferentCgaBuildsAreFlagged()
+    {
+        using var folder = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        string root = folder.Folder("Erin");
+        SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-1", "owner", "0.034+rg7", DateTimeOffset.UtcNow, writer: "owner");
+        Assert.False(SyncCollab.Status(root, new SyncHome(home.Path), "file-1").VersionMismatch);
+
+        SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-1", "owner", "0.033+rg6", DateTimeOffset.UtcNow, writer: "member");
+        SyncCollabStatus status = SyncCollab.Status(root, new SyncHome(home.Path), "file-1");
+
+        Assert.True(status.VersionMismatch);
+        Assert.Equal([("member", "0.033+rg6"), ("owner", "0.034+rg7")], status.Versions.Select(version => (version.Writer, version.CgaVersion)));
+    }
+
+    [Fact]
     public void OneDwgIsOneSharedFile()
     {
         using var folder = new TemporaryFolder();

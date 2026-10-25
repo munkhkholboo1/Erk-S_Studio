@@ -199,7 +199,7 @@ internal sealed class SyncTray : ApplicationContext
             {
                 case "collab-register":
                 {
-                    SyncCollabFile file = SyncCollab.Register(root, request.Path, fileId, Arg("ownerSeat"), Arg("cgaVersion"), DateTimeOffset.UtcNow);
+                    SyncCollabFile file = SyncCollab.Register(root, request.Path, fileId, Arg("ownerSeat"), Arg("cgaVersion"), DateTimeOffset.UtcNow, writer);
                     _engine?.Poke();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(file));
                 }

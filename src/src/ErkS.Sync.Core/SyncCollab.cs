@@ -42,7 +42,15 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
     public DateTimeOffset? LastAppliedAtUtc { get; init; }
 
     public string LastError { get; init; } = "";
+
+    /// <summary>The CGA each writer registered with (CGA: «0.0xx+rg&lt;RoadGenerationOutputVersion&gt;»).</summary>
+    public IReadOnlyList<SyncCollabVersion> Versions { get; init; } = [];
+
+    /// <summary>Writers on different CGA builds - Generate would not give the same result (design §3).</summary>
+    public bool VersionMismatch => Versions.Select(version => version.CgaVersion).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1;
 }
+
+public sealed record SyncCollabVersion(string Writer, string CgaVersion);
 
 /// <summary>This machine's notes on a shared file: its own writer, the block counts CGA gave, when it last applied.</summary>
 public sealed record SyncCollabLocal
@@ -105,9 +113,22 @@ public static class SyncCollab
     /// collab-register: the DWG at <paramref name="dwgFullPath"/> is shared from now on. Idempotent;
     /// a different file id for the same DWG is refused (one DWG, one shared file).
     /// </summary>
-    public static SyncCollabFile Register(string folderRoot, string dwgFullPath, string fileId, string ownerSeat, string cgaVersion, DateTimeOffset now)
+    public static SyncCollabFile Register(string folderRoot, string dwgFullPath, string fileId, string ownerSeat, string cgaVersion, DateTimeOffset now, string writer = "")
     {
         string relative = Relative(folderRoot, dwgFullPath);
+        if (writer.Length > 0 && fileId.Length > 0)
+        {
+            // Each machine says which CGA it runs; the files travel like any other, one writer each.
+            string versions = Path.Combine(FileRoot(folderRoot, fileId), "versions");
+            Directory.CreateDirectory(versions);
+            string path = Path.Combine(versions, Safe(writer) + ".json");
+            byte[] content = JsonSerializer.SerializeToUtf8Bytes(new SyncCollabVersion(writer, cgaVersion), Json);
+            if (!File.Exists(path) || !File.ReadAllBytes(path).AsSpan().SequenceEqual(content))
+            {
+                File.WriteAllBytes(path + ".tmp", content);
+                File.Move(path + ".tmp", path, overwrite: true);
+            }
+        }
         SyncCollabFile? existing = Files(folderRoot).FirstOrDefault(file => SyncPath.Comparer.Equals(file.RelativePath, relative));
         if (existing is not null)
         {
@@ -213,8 +234,25 @@ public static class SyncCollab
             ? Directory.EnumerateFiles(checkpoints, "*.dwg").Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) ? n : 0).DefaultIfEmpty(0).Max()
             : 0;
         SyncCollabLocal local = Local(home, fileId);
+        var versions = new List<SyncCollabVersion>();
+        string versionRoot = Path.Combine(FileRoot(folderRoot, fileId), "versions");
+        if (Directory.Exists(versionRoot))
+        {
+            foreach (string path in Directory.EnumerateFiles(versionRoot, "*.json").Order(StringComparer.Ordinal))
+            {
+                try
+                {
+                    if (JsonSerializer.Deserialize<SyncCollabVersion>(File.ReadAllText(path), Json) is { Writer.Length: > 0 } version)
+                        versions.Add(version);
+                }
+                catch (Exception exception) when (exception is IOException or JsonException)
+                {
+                }
+            }
+        }
         return new SyncCollabStatus(fileId, checkpoint, writers)
         {
+            Versions = versions,
             OwnWriter = local.Writer,
             Blocks = local.Blocks,
             MyBlocks = local.MyBlocks,
