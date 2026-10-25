@@ -251,10 +251,12 @@ internal sealed class SyncTray : ApplicationContext
                         : null;
                     IReadOnlyList<SyncCollabChangeset> pending = SyncCollab.Pull(root, _home, fileId, writer, ack);
                     bool needsCheckpoint = SyncCollab.NeedsCheckpoint(root, _home, fileId);
+                    // CGA v0.043 reads {items, needsCheckpoint} when a base is needed, the plain
+                    // list otherwise (as every CGA before it did).
                     return new SyncPipeResponse(
                         true,
                         needsCheckpoint ? "Хамтын суурь шинэчлэгдэх хүртэл файлаа хаана уу." : "",
-                        SyncProtocol.Serialize(pending),
+                        needsCheckpoint ? SyncProtocol.Serialize(new { items = pending, needsCheckpoint = true }) : SyncProtocol.Serialize(pending),
                         needsCheckpoint ? true : null);
                 }
                 case "collab-status":

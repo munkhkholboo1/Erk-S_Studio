@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.96] - 2026-10-26 (test release)
+
+- CGA shared file: when a drawing needs the owner's checkpoint as its base, Erk-S Sync says so in the form the new CGA reads.
+
 ## [0.001.95] - 2026-10-26 (test release)
 
 - CGA shared file: a DWG closed without saving gets back everything it lost, its own changes too - the drawing itself says what it holds; when that is already only in the owner's checkpoint, the file is asked to be closed and the checkpoint is laid as its base.
