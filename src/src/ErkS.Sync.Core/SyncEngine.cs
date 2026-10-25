@@ -332,7 +332,18 @@ public sealed class SyncEngine : IAsyncDisposable
         Dictionary<string, SyncIndexEntry> knownHere = (previous?.Entries ?? [])
             .GroupBy(entry => entry.RelativePath, SyncPath.Comparer)
             .ToDictionary(group => group.Key, group => group.First(), SyncPath.Comparer);
-        IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home, path => knownHere.GetValueOrDefault(path), _device!.DeviceKeyId);
+        // Every hash a partner has held for a path (its current one and its version chain): a DWG
+        // here with one of them was synced, not edited here.
+        SyncIndex[] partnerIndexes = entry.Devices
+            .Where(device => !device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase))
+            .Select(device => SyncIndexStore.TryLoad(_home.PeerIndexPath(folder.FolderId, device.DeviceKeyId)))
+            .OfType<SyncIndex>()
+            .ToArray();
+        IReadOnlySet<string> PartnerHashes(string path) => partnerIndexes
+            .SelectMany(partner => partner.Entries.Where(item => SyncPath.Comparer.Equals(item.RelativePath, path)))
+            .SelectMany(item => (item.Version?.History ?? []).Prepend(item.Sha256))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home, path => knownHere.GetValueOrDefault(path), _device!.DeviceKeyId, PartnerHashes);
         SyncIndex index;
         try
         {

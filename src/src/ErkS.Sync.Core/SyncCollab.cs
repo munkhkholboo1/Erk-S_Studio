@@ -496,14 +496,15 @@ public static class SyncCollab
 
     /// <param name="known">This machine's last index entry for a relative path (its version chain).</param>
     /// <param name="deviceKeyId">This machine - a DWG version that first appeared here was edited here.</param>
-    public static IReadOnlySet<string> Maintain(string folderRoot, SyncHome home, Func<string, SyncIndexEntry?> known, string deviceKeyId)
+    public static IReadOnlySet<string> Maintain(string folderRoot, SyncHome home, Func<string, SyncIndexEntry?> known, string deviceKeyId, Func<string, IReadOnlySet<string>>? partnerHashes = null)
     {
+        partnerHashes ??= _ => new HashSet<string>();
         var retired = new HashSet<string>(SyncPath.Comparer);
         foreach (SyncCollabFile file in Files(folderRoot))
         {
             try
             {
-                MaintainOne(folderRoot, home, file, retired, known, deviceKeyId);
+                MaintainOne(folderRoot, home, file, retired, known, deviceKeyId, partnerHashes);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
             {
@@ -513,7 +514,7 @@ public static class SyncCollab
         return retired;
     }
 
-    private static void MaintainOne(string folderRoot, SyncHome home, SyncCollabFile file, HashSet<string> retired, Func<string, SyncIndexEntry?> known, string deviceKeyId)
+    private static void MaintainOne(string folderRoot, SyncHome home, SyncCollabFile file, HashSet<string> retired, Func<string, SyncIndexEntry?> known, string deviceKeyId, Func<string, IReadOnlySet<string>> partnerHashes)
     {
         string fileRoot = FileRoot(folderRoot, file.FileId);
         string relativeRoot = Path.Combine(DirectoryName, Safe(file.FileId));
@@ -547,6 +548,7 @@ public static class SyncCollab
                 SyncIndexEntry? entry = known(file.RelativePath);
                 string sha = Sha256Of(dwg);
                 bool untouched = (local.PlacedSha256.Length > 0 && sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase)) ||
+                                 partnerHashes(file.RelativePath).Contains(sha) ||
                                  (entry?.Version is { } version && entry.Sha256.Equals(sha, StringComparison.OrdinalIgnoreCase) &&
                                   version.Writer.Length > 0 && !version.Writer.Equals(deviceKeyId, StringComparison.OrdinalIgnoreCase));
                 if (sha.Equals(Sha256Of(checkpoint.DwgPath), StringComparison.OrdinalIgnoreCase))
@@ -554,7 +556,7 @@ public static class SyncCollab
                 else if (!untouched)
                     SaveLocal(home, file.FileId, local with { EditedAtCheckpoint = checkpoint.Number, LastError = "DWG энэ машинд засагдсан — шинэ checkpoint-оор солихгүй (хуулбар тань хэвээр)." });
                 else if (OpenElsewhere(dwg))
-                    SaveLocal(home, file.FileId, local with { LastError = "DWG нээлттэй байна — хаагдсаны дараа шинэ checkpoint-оор шинэчлэгдэнэ." });
+                    SaveLocal(home, file.FileId, local with { LastError = $"Хамтын суурь бэлэн — {Path.GetFileName(dwg)}-г AutoCAD-д хаахад шинэ суурь тавигдана." });
                 else
                 {
                     string kept = Path.Combine(home.Root, "collab", Safe(file.FileId), "replaced", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.dwg");

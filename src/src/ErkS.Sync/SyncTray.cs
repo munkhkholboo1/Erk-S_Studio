@@ -43,8 +43,23 @@ internal sealed class SyncTray : ApplicationContext
     }
 
     /// <summary>The tray icon's tooltip says how far in step the folders are - changed only when the state is written.</summary>
+    private readonly HashSet<string> _baseNoticeShown = new(StringComparer.Ordinal);
+
     private void ShowProgress(SyncState state)
     {
+        // A shared DWG waiting for AutoCAD to close it before its new base goes in: said once.
+        foreach (SyncCollabStatus collab in state.Folders.SelectMany(folder => folder.Collabs))
+        {
+            if (collab.LastError.StartsWith("Хамтын суурь бэлэн", StringComparison.Ordinal))
+            {
+                if (_baseNoticeShown.Add(collab.FileId))
+                    _icon.ShowBalloonTip(10000, "Erk-S Sync", collab.LastError, ToolTipIcon.Info);
+            }
+            else
+            {
+                _baseNoticeShown.Remove(collab.FileId);
+            }
+        }
         SyncPeerState[] peers = state.Folders.SelectMany(folder => folder.Peers).ToArray();
         SyncPeerState? moving = peers.FirstOrDefault(peer => peer.Transferring);
         SyncFolderState? sending = state.Folders.FirstOrDefault(folder => folder.Uploading);

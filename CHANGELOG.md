@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.92] - 2026-10-26 (test release)
+
+- CGA shared file: a DWG a partner also held counts as a synced copy and moves on to the newest checkpoint by itself; while AutoCAD holds it the tray says «Хамтын суурь бэлэн — … хаана уу» once.
+
 ## [0.001.91] - 2026-10-26 (test release)
 
 - CGA shared file: a computer whose shared DWG was not edited on it (its pre-share copy, or the checkpoint Sync placed) moves on to the owner's newest checkpoint, once AutoCAD has closed it; one edited there is never written over. The old copy is kept.

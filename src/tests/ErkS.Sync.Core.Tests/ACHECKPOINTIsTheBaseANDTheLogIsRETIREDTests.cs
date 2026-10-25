@@ -63,6 +63,14 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
         Assert.Equal("checkpoint 2", File.ReadAllText(dwg));
         Assert.Single(Directory.EnumerateFiles(Path.Combine(home.Path, "collab", "file-1", "replaced")));
 
+        // A copy a partner also held (its version chain) is a synced copy, whoever stamped it here.
+        File.WriteAllText(dwg, "partner had this");
+        string partnerSha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(dwg)));
+        File.WriteAllText(checkpointSource, "checkpoint 2b");
+        SyncCollab.Checkpoint(root, "file-1", checkpointSource, new Dictionary<string, long> { ["owner"] = 7 });
+        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => null, "THIS", _ => new HashSet<string> { partnerSha });
+        Assert.Equal("checkpoint 2b", File.ReadAllText(dwg));
+
         // The copy SYN placed, untouched, moves on to the next one too.
         File.WriteAllText(checkpointSource, "checkpoint 3");
         SyncCollab.Checkpoint(root, "file-1", checkpointSource, new Dictionary<string, long> { ["owner"] = 8 });
