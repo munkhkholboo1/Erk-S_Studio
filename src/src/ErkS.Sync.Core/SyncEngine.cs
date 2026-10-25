@@ -324,6 +324,9 @@ public sealed class SyncEngine : IAsyncDisposable
             };
         }
 
+        // Shared CGA files first (К5): a base for a machine without the DWG, old checkpoints and
+        // changesets every machine has applied retired - before the index sees the folder.
+        IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home);
         SyncIndex index;
         try
         {
@@ -336,7 +339,7 @@ public sealed class SyncEngine : IAsyncDisposable
             index = ledger.Stamp(index, _device!.DeviceKeyId);
             SyncVersionLedgerStore.Save(ledger, _home.LedgerPath(folder.FolderId));
             SyncIndexStore.Save(index, _home.IndexPath(folder.FolderId));
-            IReadOnlySet<string> held = SyncCollab.HeldPaths(physical);
+            IReadOnlySet<string> held = SyncCollab.HeldPaths(physical).Concat(retired).ToHashSet(SyncPath.Comparer);
             lock (_gate)
             {
                 _indexes[folder.FolderId] = index;

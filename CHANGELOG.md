@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.89] - 2026-10-26 (test release)
+
+- CGA shared file: a computer without the shared DWG gets the owner's newest checkpoint as its base (one already there is never written over); the newest 3 checkpoints are kept and changesets every computer has applied are retired.
+
 ## [0.001.88] - 2026-10-26 (test release)
 
 - CGA shared file: the owner signed in as themselves no longer flips to the bot seat when Studio starts, shows the PIN screen or refreshes its sign-in; the bot is used only once bot mode is really in force.

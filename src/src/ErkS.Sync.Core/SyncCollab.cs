@@ -277,6 +277,10 @@ public static class SyncCollab
                 applied[writer] = Math.Max(applied.GetValueOrDefault(writer), seq);
             SaveApplied(home, fileId, applied);
             SaveLocal(home, fileId, Local(home, fileId) with { LastAppliedAtUtc = DateTimeOffset.UtcNow, LastError = "" });
+            // What this machine has applied travels too (one writer each), so every machine can tell
+            // when a changeset is in every partner's DWG and may be retired (К5).
+            if (ownWriter.Length > 0)
+                WriteIfChanged(Path.Combine(FileRoot(folderRoot, fileId), "acks", Safe(ownWriter) + ".json"), JsonSerializer.SerializeToUtf8Bytes(applied, Json));
         }
         var pending = new List<SyncCollabChangeset>();
         string logs = Path.Combine(FileRoot(folderRoot, fileId), "log");
@@ -422,6 +426,161 @@ public static class SyncCollab
             input.CopyTo(output);
         File.Move(temporary, Path.Combine(checkpoints, name + ".dwg"));
         return next;
+    }
+
+    /// <summary>How many checkpoints each shared file keeps; older ones are retired.</summary>
+    public const int CheckpointsKept = 3;
+
+    private sealed record CheckpointNote(int Checkpoint, Dictionary<string, long> Through);
+
+    /// <summary>The newest checkpoint whose DWG and note have both arrived, or null.</summary>
+    private static (int Number, string DwgPath, Dictionary<string, long> Through)? LatestCheckpoint(string folderRoot, string fileId)
+    {
+        string checkpoints = Path.Combine(FileRoot(folderRoot, fileId), "checkpoints");
+        if (!Directory.Exists(checkpoints))
+            return null;
+        foreach (int n in Directory.EnumerateFiles(checkpoints, "*.json")
+                     .Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int number) ? number : 0)
+                     .Where(number => number > 0)
+                     .OrderDescending())
+        {
+            string dwg = Path.Combine(checkpoints, n.ToString("D6") + ".dwg");
+            if (!File.Exists(dwg))
+                continue;
+            try
+            {
+                CheckpointNote? note = JsonSerializer.Deserialize<CheckpointNote>(File.ReadAllText(Path.Combine(checkpoints, n.ToString("D6") + ".json")), Json);
+                var through = new Dictionary<string, long>(note?.Through ?? [], StringComparer.OrdinalIgnoreCase);
+                return (n, dwg, through);
+            }
+            catch (Exception exception) when (exception is IOException or JsonException)
+            {
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// К5, once a pass for every shared file in the folder:
+    /// <list type="number">
+    /// <item>A machine without the DWG gets the newest checkpoint as its base, placed atomically;
+    /// a DWG already there is NEVER written over - each machine keeps its own copy. The base
+    /// already holds the changesets through the checkpoint, so they count as applied here.</item>
+    /// <item>Checkpoints older than the newest <see cref="CheckpointsKept"/> are retired.</item>
+    /// <item>A writer's changesets are retired up to the newest checkpoint's «through», and only as
+    /// far as every machine that registered on the file has acked them.</item>
+    /// </list>
+    /// Returns the retired paths (relative to the folder) - held, so they are neither fetched back
+    /// from a partner that has not retired them yet nor sent out again.
+    /// </summary>
+    public static IReadOnlySet<string> Maintain(string folderRoot, SyncHome home)
+    {
+        var retired = new HashSet<string>(SyncPath.Comparer);
+        foreach (SyncCollabFile file in Files(folderRoot))
+        {
+            try
+            {
+                MaintainOne(folderRoot, home, file, retired);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                SaveLocal(home, file.FileId, Local(home, file.FileId) with { LastError = exception.Message });
+            }
+        }
+        return retired;
+    }
+
+    private static void MaintainOne(string folderRoot, SyncHome home, SyncCollabFile file, HashSet<string> retired)
+    {
+        string fileRoot = FileRoot(folderRoot, file.FileId);
+        string relativeRoot = Path.Combine(DirectoryName, Safe(file.FileId));
+        var latest = LatestCheckpoint(folderRoot, file.FileId);
+        if (latest is { } checkpoint)
+        {
+            string dwg = Path.Combine(folderRoot, file.RelativePath);
+            if (!File.Exists(dwg))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(dwg)!);
+                string temporary = Path.Combine(Path.GetDirectoryName(dwg)!, $".{Guid.NewGuid():N}.tmp");
+                File.Copy(checkpoint.DwgPath, temporary);
+                try
+                {
+                    File.Move(temporary, dwg, overwrite: false);
+                    Dictionary<string, long> applied = Applied(home, file.FileId);
+                    foreach ((string writer, long seq) in checkpoint.Through)
+                        applied[Safe(writer)] = Math.Max(applied.GetValueOrDefault(Safe(writer)), seq);
+                    SaveApplied(home, file.FileId, applied);
+                }
+                catch (IOException) when (File.Exists(dwg))
+                {
+                    // Someone put the DWG there in the meantime - theirs stands.
+                    File.Delete(temporary);
+                }
+            }
+
+            for (int old = 1; old <= checkpoint.Number - CheckpointsKept; old++)
+            {
+                foreach (string extension in new[] { ".dwg", ".json" })
+                {
+                    string relative = Path.Combine(relativeRoot, "checkpoints", old.ToString("D6") + extension);
+                    retired.Add(relative);
+                    string full = Path.Combine(folderRoot, relative);
+                    if (File.Exists(full))
+                        File.Delete(full);
+                }
+            }
+
+            // Every machine that registered on the file must have applied a changeset before it goes.
+            string versions = Path.Combine(fileRoot, "versions");
+            List<string> machines = Directory.Exists(versions)
+                ? Directory.EnumerateFiles(versions, "*.json").Select(path => Path.GetFileNameWithoutExtension(path)).ToList()
+                : [];
+            var acks = new Dictionary<string, Dictionary<string, long>>(StringComparer.OrdinalIgnoreCase);
+            string ackRoot = Path.Combine(fileRoot, "acks");
+            foreach (string machine in machines)
+            {
+                string path = Path.Combine(ackRoot, machine + ".json");
+                try
+                {
+                    acks[machine] = File.Exists(path)
+                        ? new Dictionary<string, long>(JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(path), Json) ?? [], StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                }
+                catch (JsonException)
+                {
+                    acks[machine] = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            foreach ((string writer, long through) in checkpoint.Through)
+            {
+                string safe = Safe(writer);
+                long upTo = through;
+                foreach (string machine in machines)
+                {
+                    if (machine.Equals(safe, StringComparison.OrdinalIgnoreCase))
+                        continue; // a machine has its own changesets already
+                    upTo = Math.Min(upTo, acks[machine].GetValueOrDefault(safe));
+                }
+                for (long seq = 1; seq <= upTo; seq++)
+                {
+                    string relative = Path.Combine(relativeRoot, "log", safe, seq.ToString("D8") + Extension);
+                    retired.Add(relative);
+                    string full = Path.Combine(folderRoot, relative);
+                    if (File.Exists(full))
+                        File.Delete(full);
+                }
+            }
+        }
+    }
+
+    private static void WriteIfChanged(string path, byte[] content)
+    {
+        if (File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(content))
+            return;
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        string temporary = path + ".tmp";
+        File.WriteAllBytes(temporary, content);
+        File.Move(temporary, path, overwrite: true);
     }
 
     private static IEnumerable<long> Numbers(string log) =>
