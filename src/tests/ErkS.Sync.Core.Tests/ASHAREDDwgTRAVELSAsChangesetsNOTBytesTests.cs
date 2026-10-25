@@ -104,6 +104,29 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
     }
 
     [Fact]
+    public async Task TheWriterIsTheSeatAndItsIdCarriesNoName()
+    {
+        using var root = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        string folder = root.Folder("Erin");
+        SyncFolderMarker.Write(folder, Identity());
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a, new SyncPathMap(@"D:\Cloud Work=>" + root.Path)) { ServeCentrals = false };
+        await engine.PassAsync(CancellationToken.None);
+
+        SyncCollabWhoAmI who = engine.WhoAmI(folder)!;
+
+        Assert.Equal(SyncSeats.Of("", "member@example.mn"), who.Seat);
+        Assert.DoesNotContain("@", who.Seat);
+        Assert.DoesNotContain("member", who.Seat);
+        Assert.Equal("p-1", who.ProjectId);
+        Assert.Equal(who.Seat, who.Team.Single().Seat);
+        Assert.StartsWith("bot-", SyncSeats.Of("b42", "x@example.mn"));
+        Assert.Equal(SyncSeats.Of("", "Member@Example.mn "), who.Seat); // the same person on any machine
+    }
+
+    [Fact]
     public void OneDwgIsOneSharedFile()
     {
         using var folder = new TemporaryFolder();

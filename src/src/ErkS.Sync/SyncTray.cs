@@ -146,6 +146,7 @@ internal sealed class SyncTray : ApplicationContext
             case "collab-pull":
             case "collab-status":
             case "collab-checkpoint":
+            case "collab-whoami":
                 return Collab(request);
             case "central-begin":
             case "central-end":
@@ -192,7 +193,17 @@ internal sealed class SyncTray : ApplicationContext
         if (root is null)
             return new SyncPipeResponse(false, "DWG нь энэ машины Erk-S Sync хавтсанд алга.");
         string fileId = Arg("fileId");
-        string writer = Arg("writer").Length > 0 ? Arg("writer") : _device?.DeviceKeyId ?? "";
+        // The writer is the Studio seat (P2P stage 1) - this device's, unless CGA names one.
+        SyncCollabWhoAmI? who = _engine?.WhoAmI(root);
+        string writer = Arg("writer").Length > 0 ? Arg("writer") : who?.Seat ?? "";
+        if (request.Verb == "collab-whoami")
+        {
+            return who is null
+                ? new SyncPipeResponse(false, "Энэ машин синк хавтсанд холбогдоогүй эсвэл серверээс хараахан мэдээлэл аваагүй.")
+                : new SyncPipeResponse(true, "", SyncProtocol.Serialize(who));
+        }
+        if (writer.Length == 0)
+            return new SyncPipeResponse(false, "Энэ машины суудал тодорхойгүй — Studio-д нэвтэрсний дараа дахин оролдоно уу.");
         try
         {
             switch (request.Verb)

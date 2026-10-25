@@ -84,6 +84,35 @@ public sealed class SyncEngine : IAsyncDisposable
 
     private readonly SyncCentralService _centrals;
 
+    /// <summary>
+    /// collab-whoami for the folder holding <paramref name="physicalRoot"/>: this device's seat and
+    /// the people and seats attached to the folder (the project's team). Names stay on the pipe.
+    /// </summary>
+    public SyncCollabWhoAmI? WhoAmI(string physicalRoot)
+    {
+        if (_device is null)
+            return null;
+        SyncServerDeviceFolder? entry;
+        lock (_gate)
+            entry = _folders.FirstOrDefault(item =>
+                string.Equals(Path.GetFullPath(_paths.Physical(item.Folder.CanonicalPath)), Path.GetFullPath(physicalRoot), StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+            return null;
+        SyncCollabMember Member(SyncServerDevice device) => new(
+            SyncSeats.Of(device.BotId, device.AccountEmail),
+            device.BotId.Length > 0 ? "Бот " + device.BotId : device.AccountEmail,
+            device.BotId.Length == 0 && device.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase) ? "owner" : "member");
+        List<SyncCollabMember> team = entry.Devices.Select(Member)
+            .GroupBy(member => member.Seat, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+        SyncServerDevice? me = entry.Devices.FirstOrDefault(device => device.DeviceKeyId.Equals(_device.DeviceKeyId, StringComparison.OrdinalIgnoreCase));
+        if (me is null)
+            return null;
+        SyncCollabMember self = Member(me);
+        return new SyncCollabWhoAmI(self.Seat, self.DisplayName, entry.Folder.ProjectId, team);
+    }
+
     private readonly Dictionary<string, IReadOnlySet<string>> _held = new(StringComparer.OrdinalIgnoreCase);
 
     private IReadOnlySet<string> HeldOf(string folderId)

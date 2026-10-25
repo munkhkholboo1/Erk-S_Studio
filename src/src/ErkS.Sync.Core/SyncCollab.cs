@@ -52,6 +52,25 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
 
 public sealed record SyncCollabVersion(string Writer, string CgaVersion);
 
+/// <summary>
+/// A writer is a Studio SEAT, not a machine (P2P stage 1: «бичигч нь суудал, гарын үсэг нь
+/// машин») - a person on a new laptop keeps the seat and its log. The id is opaque: it names the
+/// writer's folder in the log, which the server sees, so no name or e-mail is in it.
+/// </summary>
+public static class SyncSeats
+{
+    public static string Of(string botId, string accountEmail) =>
+        !string.IsNullOrWhiteSpace(botId)
+            ? "bot-" + new string(botId.Trim().Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray())
+            : "acct-" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes((accountEmail ?? "").Trim().ToLowerInvariant())))[..16];
+}
+
+/// <summary>collab-whoami: this machine's seat and the folder's team - local to the pipe only.</summary>
+public sealed record SyncCollabMember(string Seat, string DisplayName, string Role);
+
+public sealed record SyncCollabWhoAmI(string Seat, string DisplayName, string ProjectId, IReadOnlyList<SyncCollabMember> Team);
+
 /// <summary>This machine's notes on a shared file: its own writer, the block counts CGA gave, when it last applied.</summary>
 public sealed record SyncCollabLocal
 {
