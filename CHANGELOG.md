@@ -5,6 +5,11 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.93] - 2026-10-26 (test release)
+
+- CGA shared file: every computer tells its partners which seat it is working as, so the owner's desktop shows as the owner on the other computers too, not as its bot.
+- Studio left open looks for a new version again when its window comes forward (at most every half hour).
+
 ## [0.001.92] - 2026-10-26 (test release)
 
 - CGA shared file: a DWG a partner also held counts as a synced copy and moves on to the newest checkpoint by itself; while AutoCAD holds it the tray says «Хамтын суурь бэлэн — … хаана уу» once.

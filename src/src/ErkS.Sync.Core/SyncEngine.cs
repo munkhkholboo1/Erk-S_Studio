@@ -98,7 +98,18 @@ public sealed class SyncEngine : IAsyncDisposable
                 string.Equals(Path.GetFullPath(_paths.Physical(item.Folder.CanonicalPath)), Path.GetFullPath(physicalRoot), StringComparison.OrdinalIgnoreCase));
         if (entry is null)
             return null;
-        SyncCollabMember Member(SyncServerDevice device) => new(
+        // A partner machine that says what it is acting as is taken at its word (seat id and role
+        // only); one that says nothing is its server record.
+        SyncCollabMember Member(SyncServerDevice device)
+        {
+            SyncCollabMachine? told = device.DeviceKeyId.Equals(_device.DeviceKeyId, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : SyncCollabMachine.Read(physicalRoot, device.DeviceKeyId);
+            return told is { Seat.Length: > 0 }
+                ? new SyncCollabMember(told.Seat, told.Seat.StartsWith("bot-", StringComparison.Ordinal) ? "Бот " + device.BotId : device.AccountEmail, told.Role is "owner" ? "owner" : "member")
+                : ServerMember(device);
+        }
+        SyncCollabMember ServerMember(SyncServerDevice device) => new(
             SyncSeats.Of(device.SeatId, device.BotId),
             device.BotId.Length > 0 ? "Бот " + device.BotId : device.AccountEmail,
             // The folder's owner: its owner bot seat when it was made from one (the owner's desktop
@@ -118,7 +129,7 @@ public sealed class SyncEngine : IAsyncDisposable
         SyncServerDevice? me = entry.Devices.FirstOrDefault(device => device.DeviceKeyId.Equals(_device.DeviceKeyId, StringComparison.OrdinalIgnoreCase));
         if (me is null)
             return null;
-        SyncCollabMember self = Member(me);
+        SyncCollabMember self = ServerMember(me);
         // The seat Studio is acting as, not the one the machine is attached with: a bot seat only
         // while bot mode is chosen; the owner signed in as themselves writes as their own seat.
         // A file that cannot be read now (being replaced, damaged) keeps the last identity read;
@@ -343,6 +354,17 @@ public sealed class SyncEngine : IAsyncDisposable
             .SelectMany(partner => partner.Entries.Where(item => SyncPath.Comparer.Equals(item.RelativePath, path)))
             .SelectMany(item => (item.Version?.History ?? []).Prepend(item.Sha256))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Tell the partners which seat this machine acts as - only in folders that share CGA files.
+        if (Directory.Exists(Path.Combine(physical, SyncCollab.DirectoryName)) && WhoAmI(physical) is { Seat.Length: > 0 } acting)
+        {
+            try
+            {
+                SyncCollabMachine.Write(physical, _device!.DeviceKeyId, new SyncCollabMachine(acting.Seat, acting.Team.FirstOrDefault(member => member.Seat == acting.Seat)?.Role ?? "member"));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
         IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home, path => knownHere.GetValueOrDefault(path), _device!.DeviceKeyId, PartnerHashes);
         SyncIndex index;
         try

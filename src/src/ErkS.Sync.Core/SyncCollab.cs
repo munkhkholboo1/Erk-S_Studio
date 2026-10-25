@@ -134,6 +134,44 @@ public sealed record SyncActiveIdentity
     }
 }
 
+/// <summary>
+/// What seat a machine is acting as, told to its partners through the folder
+/// (<c>.erks-collab\machines\d&lt;8 hex&gt;.json</c>): the seat id and role only, never a name or an
+/// e-mail. The server lists the owner's desktop as its bot; while the owner works there as
+/// themselves, the other machines' team shows the owner's own seat (К4, 2026-10-26).
+/// </summary>
+public sealed record SyncCollabMachine(string Seat, string Role)
+{
+    public static string PathOf(string folderRoot, string deviceKeyId) =>
+        Path.Combine(folderRoot, SyncCollab.DirectoryName, "machines", "d" + deviceKeyId[..Math.Min(8, deviceKeyId.Length)].ToLowerInvariant() + ".json");
+
+    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+
+    public static SyncCollabMachine? Read(string folderRoot, string deviceKeyId)
+    {
+        try
+        {
+            string path = PathOf(folderRoot, deviceKeyId);
+            return File.Exists(path) ? JsonSerializer.Deserialize<SyncCollabMachine>(File.ReadAllText(path), Options) : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Written only when it changed - it travels to every partner.</summary>
+    public static void Write(string folderRoot, string deviceKeyId, SyncCollabMachine machine)
+    {
+        if (Read(folderRoot, deviceKeyId) == machine)
+            return;
+        string path = PathOf(folderRoot, deviceKeyId);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(machine, Options));
+        File.Move(path + ".tmp", path, overwrite: true);
+    }
+}
+
 /// <summary>collab-whoami: this machine's seat and the folder's team - local to the pipe only.</summary>
 public sealed record SyncCollabMember(string Seat, string DisplayName, string Role)
 {

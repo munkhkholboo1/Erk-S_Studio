@@ -166,6 +166,33 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
     }
 
     [Fact]
+    public async Task APartnerMachineIsShownAsTheSeatItSaysItActsAs()
+    {
+        using var root = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var desktop = new FakeDevice();
+        using var laptop = new FakeDevice();
+        var server = new FakeServer(Canonical, [desktop, laptop])
+        {
+            Describe = device => device == desktop
+                ? new SyncServerDevice(device.DeviceKeyId, "", "owner@example.mn", "bot_7683", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "aaaa")
+                : new SyncServerDevice(device.DeviceKeyId, "", "other@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "bbbb"),
+        };
+        string folder = root.Folder("Erin");
+        SyncFolderMarker.Write(folder, Identity());
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), laptop, new SyncPathMap(@"D:\Cloud Work=>" + root.Path)) { ServeCentrals = false };
+        await engine.PassAsync(CancellationToken.None);
+
+        // The desktop says it acts as the owner's own seat (it arrives through the folder).
+        SyncCollabMachine.Write(folder, desktop.DeviceKeyId, new SyncCollabMachine("seat-aaaa", "owner"));
+        SyncCollabWhoAmI who = engine.WhoAmI(folder)!;
+
+        Assert.Contains(who.Team, member => member is { Seat: "seat-aaaa", Role: "owner" });
+        Assert.DoesNotContain(who.Team, member => member.Seat.StartsWith("bot-", StringComparison.Ordinal));
+        Assert.Equal("seat-bbbb", who.Seat);
+    }
+
+    [Fact]
     public async Task WithNoIdentityEverWrittenTheBotIsNotAssumed()
     {
         using var root = new TemporaryFolder();
