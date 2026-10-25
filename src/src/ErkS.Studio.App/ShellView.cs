@@ -2576,8 +2576,12 @@ internal sealed partial class ShellView : IDisposable
         StudioAccountSession? session = account.Current;
         // Erk-S Sync writes CGA shared-file changes as whoever Studio is acting as (the bot
         // only in bot mode); signed out, the last one stands.
+        // The bot is written only once bot mode is really in force - a bot session issued, or
+        // another owner signed in on this seat. Studio starting up, the PIN screen and a token
+        // refresh all pass through «nobody signed in» for a moment: nothing is written then, and
+        // the last identity stands (К4, 2026-10-26: the owner's drawing locked as the bot).
         bool actingAsBot = ActingAsBot;
-        if (session is not null || actingAsBot)
+        if (actingAsBot ? session is not null || account.HasBotSession : session is not null)
         {
             StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
             ErkS.Sync.Core.SyncActiveIdentity.Write(ErkS.Sync.Core.SyncHome.Default(), new ErkS.Sync.Core.SyncActiveIdentity

@@ -157,6 +157,30 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
         Assert.Equal(("seat-aaaa", "owner"), (who.Seat, who.Team.First().Role));
         Assert.Equal(SyncSeats.WriterOf("seat-aaaa", desktop.DeviceKeyId), who.Writer);
         Assert.Contains(who.Writer, who.Team.First().Writers);
+
+        // A damaged or half-replaced file never drops the owner to the bot: the last one read stands.
+        File.WriteAllText(Path.Combine(home.Path, "active-identity.json"), "{ not json");
+        Assert.Equal("seat-aaaa", engine.WhoAmI(folder)!.Seat);
+        File.Delete(Path.Combine(home.Path, "active-identity.json"));
+        Assert.Equal("seat-aaaa", engine.WhoAmI(folder)!.Seat);
+    }
+
+    [Fact]
+    public async Task WithNoIdentityEverWrittenTheBotIsNotAssumed()
+    {
+        using var root = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var desktop = new FakeDevice();
+        var server = new FakeServer(Canonical, [desktop])
+        {
+            Describe = device => new SyncServerDevice(device.DeviceKeyId, "", "owner@example.mn", "bot_7683", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "aaaa"),
+        };
+        string folder = root.Folder("Erin");
+        SyncFolderMarker.Write(folder, Identity());
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), desktop, new SyncPathMap(@"D:\Cloud Work=>" + root.Path)) { ServeCentrals = false };
+        await engine.PassAsync(CancellationToken.None);
+
+        Assert.Equal("seat-aaaa", engine.WhoAmI(folder)!.Seat);
     }
 
     [Fact]

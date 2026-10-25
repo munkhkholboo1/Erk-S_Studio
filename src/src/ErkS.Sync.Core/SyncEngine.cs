@@ -121,7 +121,16 @@ public sealed class SyncEngine : IAsyncDisposable
         SyncCollabMember self = Member(me);
         // The seat Studio is acting as, not the one the machine is attached with: a bot seat only
         // while bot mode is chosen; the owner signed in as themselves writes as their own seat.
-        SyncActiveIdentity? acting = SyncActiveIdentity.Read(_home);
+        // A file that cannot be read now (being replaced, damaged) keeps the last identity read;
+        // none ever read means the machine's own account - the bot only when chosen (CLAUDE.md §2).
+        SyncActiveIdentity? read = SyncActiveIdentity.Read(_home);
+        lock (_gate)
+        {
+            if (read is not null)
+                _lastActing = read;
+            read = _lastActing;
+        }
+        SyncActiveIdentity acting = read ?? new SyncActiveIdentity { AccountEmail = me.AccountEmail };
         if (acting is { ActingAsBot: false, AccountEmail.Length: > 0 } && me.BotId.Length > 0)
         {
             SyncServerDevice? theirs = entry.Devices.FirstOrDefault(device =>
@@ -151,6 +160,8 @@ public sealed class SyncEngine : IAsyncDisposable
     }
 
     private readonly Dictionary<string, IReadOnlySet<string>> _held = new(StringComparer.OrdinalIgnoreCase);
+
+    private SyncActiveIdentity? _lastActing;
 
     private IReadOnlySet<string> HeldOf(string folderId)
     {

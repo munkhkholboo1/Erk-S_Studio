@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.88] - 2026-10-26 (test release)
+
+- CGA shared file: the owner signed in as themselves no longer flips to the bot seat when Studio starts, shows the PIN screen or refreshes its sign-in; the bot is used only once bot mode is really in force.
+
 ## [0.001.87] - 2026-10-26 (test release)
 
 - Erk-S Sync says who is behind and why: «budbayasgalan офлайн (10/25 22:49-өөс) — 1 файл (1.1 МБ) хүлээгдэж байна» in the tray and the Studio sync line; the percent counts online partners only, so an offline partner no longer holds it at 99%.
