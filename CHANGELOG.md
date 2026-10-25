@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.86] - 2026-10-26 (test release)
+
+- CGA shared file: changes are written as whoever Studio is acting as - the owner signed in as themselves writes as their own seat, the bot only in bot mode (a machine with a bot seat used to write as the bot).
+
 ## [0.001.85] - 2026-10-26 (test release)
 
 - CGA shared file: the folder owner's bot seat is shown as the owner in collab-whoami; one failing request never stops Erk-S Sync answering the next.

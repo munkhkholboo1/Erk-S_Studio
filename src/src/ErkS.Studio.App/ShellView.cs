@@ -2574,6 +2574,19 @@ internal sealed partial class ShellView : IDisposable
     private void UpdateAccountUi()
     {
         StudioAccountSession? session = account.Current;
+        // Erk-S Sync writes CGA shared-file changes as whoever Studio is acting as (the bot
+        // only in bot mode); signed out, the last one stands.
+        bool actingAsBot = ActingAsBot;
+        if (session is not null || actingAsBot)
+        {
+            StudioBotDeviceState? seat = StudioBotDeviceStateStore.Read();
+            ErkS.Sync.Core.SyncActiveIdentity.Write(ErkS.Sync.Core.SyncHome.Default(), new ErkS.Sync.Core.SyncActiveIdentity
+            {
+                ActingAsBot = actingAsBot,
+                BotId = actingAsBot ? seat?.BotId ?? "" : "",
+                AccountEmail = session?.Email ?? "",
+            });
+        }
         ResetAccountBoundNotificationState();
         ResetAccountBoundCompanyCatalog();
         state.ConfigureSourceRuntimeContext(

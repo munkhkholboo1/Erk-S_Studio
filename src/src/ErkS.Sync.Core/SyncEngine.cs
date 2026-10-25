@@ -119,6 +119,31 @@ public sealed class SyncEngine : IAsyncDisposable
         if (me is null)
             return null;
         SyncCollabMember self = Member(me);
+        // The seat Studio is acting as, not the one the machine is attached with: a bot seat only
+        // while bot mode is chosen; the owner signed in as themselves writes as their own seat.
+        SyncActiveIdentity? acting = SyncActiveIdentity.Read(_home);
+        if (acting is { ActingAsBot: false, AccountEmail.Length: > 0 } && me.BotId.Length > 0)
+        {
+            SyncServerDevice? theirs = entry.Devices.FirstOrDefault(device =>
+                device.BotId.Length == 0 && device.SeatId.Length > 0 && device.AccountEmail.Equals(acting.AccountEmail, StringComparison.OrdinalIgnoreCase));
+            string seatId = theirs?.SeatId
+                ?? (me.AccountEmail.Equals(acting.AccountEmail, StringComparison.OrdinalIgnoreCase) ? me.SeatId : "");
+            string seat = SyncSeats.Of(seatId, "");
+            self = new SyncCollabMember(
+                seat,
+                acting.AccountEmail,
+                acting.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase) ? "owner" : "member");
+            string writer = SyncSeats.WriterOf(seat, me.DeviceKeyId);
+            if (seat.Length > 0)
+            {
+                int at = team.FindIndex(member => member.Seat.Equals(seat, StringComparison.OrdinalIgnoreCase));
+                if (at >= 0)
+                    team[at] = team[at] with { Role = self.Role, Writers = [.. team[at].Writers, writer] };
+                else
+                    team.Insert(0, self with { Writers = [writer] });
+            }
+            return new SyncCollabWhoAmI(self.Seat, self.DisplayName, entry.Folder.ProjectId, team) { Writer = writer };
+        }
         return new SyncCollabWhoAmI(self.Seat, self.DisplayName, entry.Folder.ProjectId, team)
         {
             Writer = SyncSeats.WriterOf(self.Seat, me.DeviceKeyId),

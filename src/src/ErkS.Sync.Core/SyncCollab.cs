@@ -86,6 +86,54 @@ public static class SyncSeats
     }
 }
 
+/// <summary>
+/// Who Studio is acting as on this machine (CLAUDE.md §2: the bot only when bot mode is chosen).
+/// Studio writes it whenever its account changes; with Studio closed the last one stands. Local
+/// only - it never travels.
+/// </summary>
+public sealed record SyncActiveIdentity
+{
+    public bool ActingAsBot { get; init; }
+
+    public string BotId { get; init; } = "";
+
+    public string AccountEmail { get; init; } = "";
+
+    private static string PathOf(SyncHome home) => Path.Combine(home.Root, "active-identity.json");
+
+    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+
+    public static SyncActiveIdentity? Read(SyncHome home)
+    {
+        try
+        {
+            string path = PathOf(home);
+            return File.Exists(path) ? JsonSerializer.Deserialize<SyncActiveIdentity>(File.ReadAllText(path), Options) : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Written only when it changed.</summary>
+    public static void Write(SyncHome home, SyncActiveIdentity identity)
+    {
+        try
+        {
+            if (Read(home) == identity)
+                return;
+            Directory.CreateDirectory(home.Root);
+            string path = PathOf(home);
+            File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(identity, Options));
+            File.Move(path + ".tmp", path, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+}
+
 /// <summary>collab-whoami: this machine's seat and the folder's team - local to the pipe only.</summary>
 public sealed record SyncCollabMember(string Seat, string DisplayName, string Role)
 {

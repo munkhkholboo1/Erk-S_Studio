@@ -130,6 +130,36 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
     }
 
     [Fact]
+    public async Task TheOwnerSignedInAsThemselvesWritesAsTheirOwnSeatNotTheMachinesBot()
+    {
+        using var root = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var desktop = new FakeDevice();
+        using var laptop = new FakeDevice();
+        var server = new FakeServer(Canonical, [desktop, laptop])
+        {
+            Describe = device => device == desktop
+                ? new SyncServerDevice(device.DeviceKeyId, "", "owner@example.mn", "bot_7683", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "aaaa")
+                : new SyncServerDevice(device.DeviceKeyId, "", "owner@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "aaaa"),
+        };
+        string folder = root.Folder("Erin");
+        SyncFolderMarker.Write(folder, Identity());
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), desktop, new SyncPathMap(@"D:\Cloud Work=>" + root.Path)) { ServeCentrals = false };
+        await engine.PassAsync(CancellationToken.None);
+
+        // Studio in bot mode: the bot.
+        SyncActiveIdentity.Write(new SyncHome(home.Path), new SyncActiveIdentity { ActingAsBot = true, BotId = "bot_7683" });
+        Assert.Equal("bot-bot_7683", engine.WhoAmI(folder)!.Seat);
+
+        // The owner signed in as themselves: their own seat, owner of the folder, this machine's log.
+        SyncActiveIdentity.Write(new SyncHome(home.Path), new SyncActiveIdentity { AccountEmail = "owner@example.mn" });
+        SyncCollabWhoAmI who = engine.WhoAmI(folder)!;
+        Assert.Equal(("seat-aaaa", "owner"), (who.Seat, who.Team.First().Role));
+        Assert.Equal(SyncSeats.WriterOf("seat-aaaa", desktop.DeviceKeyId), who.Writer);
+        Assert.Contains(who.Writer, who.Team.First().Writers);
+    }
+
+    [Fact]
     public void OneSeatOnTwoMachinesNeverGivesANumberTwice()
     {
         using var folder = new TemporaryFolder();

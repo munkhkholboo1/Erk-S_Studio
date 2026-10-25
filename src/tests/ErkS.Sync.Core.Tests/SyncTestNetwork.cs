@@ -41,6 +41,9 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
+    /// <summary>How the server lists each device; by default a member account with seat id 8f3a1c.</summary>
+    public Func<FakeDevice, SyncServerDevice>? Describe { get; init; }
+
     public IReadOnlyCollection<string> ChunksHeld
     {
         get
@@ -115,7 +118,7 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                     new
                     {
                         folder = new SyncServerFolder("f-1", "p-1", "ERIN-2026", "Эрин", canonicalPath, "owner@example.mn", "", DateTimeOffset.UtcNow),
-                        devices = devices.Select(device => new SyncServerDevice(device.DeviceKeyId, "", "member@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "8f3a1c")).ToArray(),
+                        devices = devices.Select(device => Describe?.Invoke(device) ?? new SyncServerDevice(device.DeviceKeyId, "", "member@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "8f3a1c")).ToArray(),
                     },
                 },
             }),
