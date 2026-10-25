@@ -136,6 +136,36 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
         Assert.Equal((2L, 2L), (after.Writers.Single().LastInLog, after.Writers.Single().Applied));
     }
 
+    [Fact]
+    public void ADwgClosedWithoutSavingGetsBackWhatItLostOwnChangesetsToo()
+    {
+        using var folder = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var scratch = new TemporaryFolder();
+        string root = folder.Folder("Erin");
+        string dwg = Path.Combine(root, "plan.dwg");
+        File.WriteAllText(dwg, "v");
+        SyncCollab.Register(root, dwg, "file-1", "seat-owner", "v1", DateTimeOffset.UtcNow);
+        for (int seq = 1; seq <= 3; seq++)
+        {
+            SyncCollab.Publish(root, "file-1", "me", Write(scratch, $"m{seq}.json", "m"), Write(scratch, $"e{seq}.dwg", "e"));
+            SyncCollab.Publish(root, "file-1", "other", Write(scratch, $"o{seq}.json", "o"), Write(scratch, $"f{seq}.dwg", "f"));
+        }
+        SyncHome here = new(home.Path);
+        Assert.Empty(SyncCollab.Pull(root, here, "file-1", "me", new Dictionary<string, long> { ["other"] = 3 }));
+
+        // Closed without saving: the DWG holds other 1 and own 1. The ack sets the cursor lower,
+        // and both writers' lost changesets - its own included - come back.
+        IReadOnlyList<SyncCollabChangeset> again = SyncCollab.Pull(root, here, "file-1", "me", new Dictionary<string, long> { ["other"] = 1, ["me"] = 1 });
+        Assert.Equal([("me", 2L), ("me", 3L), ("other", 2L), ("other", 3L)], again.Select(item => (item.Writer, item.Seq)));
+        Assert.False(SyncCollab.NeedsCheckpoint(root, here, "file-1"));
+
+        // Once 2 of «other» is retired behind a checkpoint, only the base can bring the DWG back.
+        SyncCollab.Checkpoint(root, "file-1", dwg, new Dictionary<string, long> { ["other"] = 2 });
+        File.Delete(Path.Combine(SyncCollab.FileRoot(root, "file-1"), "log", "other", "00000002.cgacs"));
+        Assert.True(SyncCollab.NeedsCheckpoint(root, here, "file-1"));
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);

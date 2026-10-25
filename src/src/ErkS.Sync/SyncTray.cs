@@ -250,7 +250,12 @@ internal sealed class SyncTray : ApplicationContext
                         ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("ack"))
                         : null;
                     IReadOnlyList<SyncCollabChangeset> pending = SyncCollab.Pull(root, _home, fileId, writer, ack);
-                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(pending));
+                    bool needsCheckpoint = SyncCollab.NeedsCheckpoint(root, _home, fileId);
+                    return new SyncPipeResponse(
+                        true,
+                        needsCheckpoint ? "Хамтын суурь шинэчлэгдэх хүртэл файлаа хаана уу." : "",
+                        SyncProtocol.Serialize(pending),
+                        needsCheckpoint ? true : null);
                 }
                 case "collab-status":
                 {

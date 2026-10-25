@@ -205,6 +205,9 @@ public sealed record SyncCollabLocal
 
     /// <summary>The newest checkpoint already weighed against a DWG edited here (not weighed again).</summary>
     public int EditedAtCheckpoint { get; init; }
+
+    /// <summary>CGA's DWG is behind retired changesets: the next checkpoint goes in even over a copy edited here (kept aside).</summary>
+    public bool NeedsBase { get; init; }
 }
 
 /// <summary>
@@ -319,10 +322,16 @@ public static class SyncCollab
     public static IReadOnlyList<SyncCollabChangeset> Pull(string folderRoot, SyncHome home, string fileId, string ownWriter, IReadOnlyDictionary<string, long>? ack = null)
     {
         Dictionary<string, long> applied = Applied(home, fileId);
+        // The DWG is the truth (К5, 2026-10-26): the ack is what the DWG holds now, so it SETS the
+        // cursor - a DWG closed without saving comes back lower, and what it lost is given again.
+        bool ownAcked = false;
         if (ack is not null)
         {
             foreach ((string writer, long seq) in ack)
-                applied[writer] = Math.Max(applied.GetValueOrDefault(writer), seq);
+            {
+                applied[Safe(writer)] = Math.Max(0, seq);
+                ownAcked |= ownWriter.Length > 0 && Safe(writer).Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase);
+            }
             SaveApplied(home, fileId, applied);
             SaveLocal(home, fileId, Local(home, fileId) with { LastAppliedAtUtc = DateTimeOffset.UtcNow, LastError = "" });
             // What this machine has applied travels too (one writer each), so every machine can tell
@@ -337,7 +346,8 @@ public static class SyncCollab
         foreach (string log in Directory.EnumerateDirectories(logs).Order(StringComparer.Ordinal))
         {
             string writer = Path.GetFileName(log);
-            if (writer.Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase))
+            // This machine's own changesets come back only when the DWG says how far it holds them.
+            if (writer.Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase) && !ownAcked)
                 continue;
             HashSet<long> present = Numbers(log).ToHashSet();
             for (long seq = applied.GetValueOrDefault(writer) + 1; present.Contains(seq); seq++)
@@ -354,6 +364,34 @@ public static class SyncCollab
             }
         }
         return pending;
+    }
+
+    /// <summary>
+    /// The DWG is behind what the log still holds: for some writer the next changeset it needs is
+    /// already retired (at or below the newest checkpoint's «through»). Only the checkpoint can
+    /// bring it back - CGA asks the person to close the file and the fast-forward lays the base.
+    /// </summary>
+    public static bool NeedsCheckpoint(string folderRoot, SyncHome home, string fileId)
+    {
+        var latest = LatestCheckpoint(folderRoot, fileId);
+        if (latest is not { } checkpoint)
+            return false;
+        Dictionary<string, long> applied = Applied(home, fileId);
+        string logs = Path.Combine(FileRoot(folderRoot, fileId), "log");
+        foreach ((string writer, long through) in checkpoint.Through)
+        {
+            string safe = Safe(writer);
+            long next = applied.GetValueOrDefault(safe) + 1;
+            if (next > through)
+                continue;
+            string log = Path.Combine(logs, safe);
+            if (!File.Exists(Path.Combine(log, next.ToString("D8") + Extension)))
+            {
+                SaveLocal(home, fileId, Local(home, fileId) with { NeedsBase = true });
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>collab-status: per writer - the last number in the log here, what was applied, what waits, and whether a number is missing.</summary>
@@ -608,7 +646,7 @@ public static class SyncCollab
                     File.Delete(temporary);
                 }
             }
-            else if (checkpoint.Number > Math.Max(local.PlacedCheckpoint, local.EditedAtCheckpoint))
+            else if (local.NeedsBase || checkpoint.Number > Math.Max(local.PlacedCheckpoint, local.EditedAtCheckpoint))
             {
                 // Fast-forward, as 1.2 does for any file: a DWG not edited on this machine - the
                 // copy SYN placed, or a version that first appeared on another machine (the
@@ -616,7 +654,8 @@ public static class SyncCollab
                 // edited here is never written over; it is told.
                 SyncIndexEntry? entry = known(file.RelativePath);
                 string sha = Sha256Of(dwg);
-                bool untouched = (local.PlacedSha256.Length > 0 && sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase)) ||
+                bool untouched = local.NeedsBase ||
+                                 (local.PlacedSha256.Length > 0 && sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase)) ||
                                  partnerHashes(file.RelativePath).Contains(sha) ||
                                  (entry?.Version is { } version && entry.Sha256.Equals(sha, StringComparison.OrdinalIgnoreCase) &&
                                   version.Writer.Length > 0 && !version.Writer.Equals(deviceKeyId, StringComparison.OrdinalIgnoreCase));
@@ -700,7 +739,7 @@ public static class SyncCollab
         foreach ((string writer, long seq) in through)
             applied[Safe(writer)] = Math.Max(applied.GetValueOrDefault(Safe(writer)), seq);
         SaveApplied(home, fileId, applied);
-        SaveLocal(home, fileId, Local(home, fileId) with { PlacedCheckpoint = number, PlacedSha256 = sha, LastError = "" });
+        SaveLocal(home, fileId, Local(home, fileId) with { PlacedCheckpoint = number, PlacedSha256 = sha, NeedsBase = false, LastError = "" });
     }
 
     private static string Sha256Of(string path)

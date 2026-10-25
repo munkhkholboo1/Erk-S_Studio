@@ -13,7 +13,12 @@ namespace ErkS.Sync.Core;
 public sealed record SyncPipeRequest(string Verb, string Path, Dictionary<string, string>? Args = null);
 
 /// <param name="Data">A JSON answer for the verbs that return one (collab-pull, collab-status …).</param>
-public sealed record SyncPipeResponse(bool Ok, string Message, string? Data = null);
+/// <param name="NeedsCheckpoint">collab-pull only: the DWG needs the newest checkpoint as its base (К5).</param>
+public sealed record SyncPipeResponse(
+    bool Ok,
+    string Message,
+    string? Data = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] bool? NeedsCheckpoint = null);
 
 /// <summary>
 /// The running SYN's pipe. Named for the Windows user, opened to that user only - the Explorer
