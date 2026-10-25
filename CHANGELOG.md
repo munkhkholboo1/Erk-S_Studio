@@ -5,6 +5,11 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.84] - 2026-10-26 (test release)
+
+- Erk-S Sync no longer stops on a computer without Dokany when a shared Revit central is online (it closed itself).
+- CGA shared file: one person on two computers keeps one seat with one numbered log per computer - no number given twice, each computer receives the other's work; collab-whoami gives the writer and the whole team.
+
 ## [0.001.83] - 2026-10-25 (test release)
 
 - CGA shared file: a person's writer id is the server's opaque seat id, never made from the e-mail (0.001.82 used a hash of it, which can be guessed back). Until the server gives a seat id, nothing is published.

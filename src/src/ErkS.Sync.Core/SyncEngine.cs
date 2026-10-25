@@ -102,16 +102,22 @@ public sealed class SyncEngine : IAsyncDisposable
             SyncSeats.Of(device.SeatId, device.BotId),
             device.BotId.Length > 0 ? "Бот " + device.BotId : device.AccountEmail,
             device.BotId.Length == 0 && device.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase) ? "owner" : "member");
-        List<SyncCollabMember> team = entry.Devices.Select(Member)
-            .Where(member => member.Seat.Length > 0)
-            .GroupBy(member => member.Seat, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+        // Every attached device's seat, the owner first; one entry per seat, its machines' writers in it.
+        List<SyncCollabMember> team = entry.Devices
+            .Select(device => (Member: Member(device), Writer: SyncSeats.WriterOf(Member(device).Seat, device.DeviceKeyId)))
+            .Where(item => item.Member.Seat.Length > 0)
+            .GroupBy(item => item.Member.Seat, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First().Member with { Writers = group.Select(item => item.Writer).Distinct().ToList() })
+            .OrderBy(member => member.Role == "owner" ? 0 : 1)
             .ToList();
         SyncServerDevice? me = entry.Devices.FirstOrDefault(device => device.DeviceKeyId.Equals(_device.DeviceKeyId, StringComparison.OrdinalIgnoreCase));
         if (me is null)
             return null;
         SyncCollabMember self = Member(me);
-        return new SyncCollabWhoAmI(self.Seat, self.DisplayName, entry.Folder.ProjectId, team);
+        return new SyncCollabWhoAmI(self.Seat, self.DisplayName, entry.Folder.ProjectId, team)
+        {
+            Writer = SyncSeats.WriterOf(self.Seat, me.DeviceKeyId),
+        };
     }
 
     private readonly Dictionary<string, IReadOnlySet<string>> _held = new(StringComparer.OrdinalIgnoreCase);

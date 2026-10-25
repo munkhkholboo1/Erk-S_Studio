@@ -195,11 +195,13 @@ internal sealed class SyncTray : ApplicationContext
         string fileId = Arg("fileId");
         // The writer is the Studio seat (P2P stage 1) - this device's, unless CGA names one.
         SyncCollabWhoAmI? who = _engine?.WhoAmI(root);
-        string writer = Arg("writer").Length > 0 ? Arg("writer") : who?.Seat ?? "";
+        string writer = Arg("writer").Length > 0 ? Arg("writer") : who?.Writer ?? "";
         if (request.Verb == "collab-whoami")
         {
-            return who is null
-                ? new SyncPipeResponse(false, "Энэ машин синк хавтсанд холбогдоогүй эсвэл серверээс хараахан мэдээлэл аваагүй.")
+            if (who is null)
+                return new SyncPipeResponse(false, "Энэ машин синк хавтсанд холбогдоогүй эсвэл серверээс хараахан мэдээлэл аваагүй.");
+            return who.Seat.Length == 0
+                ? new SyncPipeResponse(false, "Сервер энэ дансны суудлын дугаарыг (seatId) хараахан өгөөгүй — сервер шинэчлэгдсэний дараа дахин оролдоно уу.")
                 : new SyncPipeResponse(true, "", SyncProtocol.Serialize(who));
         }
         if (writer.Length == 0)

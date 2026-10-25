@@ -68,12 +68,36 @@ public static class SyncSeats
             return "bot-" + Clean(botId);
         return string.IsNullOrWhiteSpace(seatId) ? "" : "seat-" + Clean(seatId);
     }
+
+    /// <summary>
+    /// The log's writer: the seat on one machine. One person signed in on two machines (the
+    /// owner's desktop and laptop, К4) is one seat but two numbered logs - each machine numbers
+    /// only its own, so no number is ever given twice, and each machine receives the other's
+    /// work. Block ownership stays with the seat (<see cref="SeatOf"/>).
+    /// </summary>
+    public static string WriterOf(string seat, string deviceKeyId) =>
+        seat.Length == 0 || deviceKeyId.Length < 8 ? "" : seat + "_d" + deviceKeyId[..8].ToLowerInvariant();
+
+    /// <summary>The seat a writer belongs to: «seat-ab12_d0a55efd7» -> «seat-ab12».</summary>
+    public static string SeatOf(string writer)
+    {
+        int at = writer.LastIndexOf("_d", StringComparison.Ordinal);
+        return at > 0 && writer.Length - at == 10 ? writer[..at] : writer;
+    }
 }
 
 /// <summary>collab-whoami: this machine's seat and the folder's team - local to the pipe only.</summary>
-public sealed record SyncCollabMember(string Seat, string DisplayName, string Role);
+public sealed record SyncCollabMember(string Seat, string DisplayName, string Role)
+{
+    /// <summary>This seat's writers - one per machine it is attached on.</summary>
+    public IReadOnlyList<string> Writers { get; init; } = [];
+}
 
-public sealed record SyncCollabWhoAmI(string Seat, string DisplayName, string ProjectId, IReadOnlyList<SyncCollabMember> Team);
+public sealed record SyncCollabWhoAmI(string Seat, string DisplayName, string ProjectId, IReadOnlyList<SyncCollabMember> Team)
+{
+    /// <summary>This machine's writer for collab-publish / collab-pull (seat + machine).</summary>
+    public string Writer { get; init; } = "";
+}
 
 /// <summary>This machine's notes on a shared file: its own writer, the block counts CGA gave, when it last applied.</summary>
 public sealed record SyncCollabLocal

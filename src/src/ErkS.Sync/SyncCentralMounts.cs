@@ -56,13 +56,23 @@ internal sealed class SyncCentralMounts(SyncHome home, Func<(Uri Server, string 
             if (DateTime.UtcNow - _dokanTriedUtc < TimeSpan.FromMinutes(5))
                 return;
             _dokanTriedUtc = DateTime.UtcNow;
+            // Dokany's own dll first: a Dokan made without it dies in its finalizer (DokanShutdown ->
+            // DllNotFoundException on the GC thread) and takes the whole tray down - the owner's
+            // desktop, 2026-10-26 03:31, before Dokany was installed.
+            Dokan? made = null;
             try
             {
-                _dokan = new Dokan(new NullLogger());
-                _ = _dokan.DriverVersion;
+                if (!System.Runtime.InteropServices.NativeLibrary.TryLoad("dokan2", out IntPtr handle))
+                    throw new DllNotFoundException("dokan2");
+                System.Runtime.InteropServices.NativeLibrary.Free(handle);
+                made = new Dokan(new NullLogger());
+                _ = made.DriverVersion;
+                _dokan = made;
             }
             catch (Exception exception) when (exception is DllNotFoundException or BadImageFormatException or DokanException or EntryPointNotFoundException)
             {
+                if (made is not null)
+                    GC.SuppressFinalize(made);
                 _dokan = null;
                 _problems[central.CentralId] = "Dokany суугаагүй байна — central-ыг энэ машинаас нээхэд нэг удаа суулгана (Studio санал болгоно).";
                 return;

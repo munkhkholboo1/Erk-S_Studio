@@ -121,8 +121,33 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
         Assert.Equal("seat-8f3a1c", who.Seat);
         Assert.Equal("p-1", who.ProjectId);
         Assert.Equal(who.Seat, who.Team.Single().Seat);
+        // One seat, this machine: its own log, never numbered by the person's other machine.
+        Assert.Equal("seat-8f3a1c_d" + a.DeviceKeyId[..8].ToLowerInvariant(), who.Writer);
+        Assert.Equal([who.Writer], who.Team.Single().Writers);
+        Assert.Equal("seat-8f3a1c", SyncSeats.SeatOf(who.Writer));
         Assert.Equal("bot-b42", SyncSeats.Of("", "b42"));
         Assert.Equal("", SyncSeats.Of("", "")); // no seat id from the server: no writer
+    }
+
+    [Fact]
+    public void OneSeatOnTwoMachinesNeverGivesANumberTwice()
+    {
+        using var folder = new TemporaryFolder();
+        using var homeDesktop = new TemporaryFolder();
+        using var homeLaptop = new TemporaryFolder();
+        using var scratch = new TemporaryFolder();
+        string root = folder.Folder("Erin");
+        string desktop = SyncSeats.WriterOf("seat-owner", "0A55EFD7A778DCA6");
+        string laptop = SyncSeats.WriterOf("seat-owner", "B11EB7BD361E348D");
+        SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-1", "seat-owner", "v1", DateTimeOffset.UtcNow);
+
+        Assert.Equal(1, SyncCollab.Publish(root, "file-1", desktop, Write(scratch, "m1.json", "d1"), Write(scratch, "e1.dwg", "d1")));
+        Assert.Equal(1, SyncCollab.Publish(root, "file-1", laptop, Write(scratch, "m2.json", "l1"), Write(scratch, "e2.dwg", "l1")));
+
+        // Each machine receives the other's work - same person, other machine.
+        Assert.Equal([(laptop, 1L)], SyncCollab.Pull(root, new SyncHome(homeDesktop.Path), "file-1", desktop).Select(item => (item.Writer, item.Seq)));
+        Assert.Equal([(desktop, 1L)], SyncCollab.Pull(root, new SyncHome(homeLaptop.Path), "file-1", laptop).Select(item => (item.Writer, item.Seq)));
+        Assert.Equal("seat-owner", SyncSeats.SeatOf(laptop));
     }
 
     [Fact]
