@@ -110,6 +110,32 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
         Assert.Contains(Path.Combine(".erks-collab", "file-1", "log", "owner", "00000001.cgacs"), retired);
     }
 
+    [Fact]
+    public void OwnChangesetsAreNotWaitingAndPendingOutFollowsThePartnersAcks()
+    {
+        using var folder = new TemporaryFolder();
+        using var homeDesktop = new TemporaryFolder();
+        using var homeLaptop = new TemporaryFolder();
+        using var scratch = new TemporaryFolder();
+        string root = folder.Folder("Erin");
+        string dwg = Path.Combine(root, "plan.dwg");
+        File.WriteAllText(dwg, "v");
+        const string desktop = "seat-1957_d11188802", laptop = "seat-b4b9_db11eb7bd";
+        SyncCollab.Register(root, dwg, "file-1", "seat-1957", "v1", DateTimeOffset.UtcNow, writer: desktop);
+        SyncCollab.Register(root, dwg, "file-1", "seat-1957", "v1", DateTimeOffset.UtcNow, writer: laptop);
+        SyncCollab.Publish(root, "file-1", desktop, Write(scratch, "m1.json", "m"), Write(scratch, "e1.dwg", "e"));
+        SyncCollab.Publish(root, "file-1", desktop, Write(scratch, "m2.json", "m"), Write(scratch, "e2.dwg", "e"));
+
+        SyncCollabStatus before = SyncCollab.Status(root, new SyncHome(homeDesktop.Path), "file-1", desktop);
+        Assert.Equal((0, 2), (before.Waiting, before.PendingOut));
+
+        // The laptop applies both and says so; the desktop sees nothing left to send.
+        SyncCollab.Pull(root, new SyncHome(homeLaptop.Path), "file-1", laptop, new Dictionary<string, long> { [desktop] = 2 });
+        SyncCollabStatus after = SyncCollab.Status(root, new SyncHome(homeDesktop.Path), "file-1", desktop);
+        Assert.Equal((0, 0), (after.Waiting, after.PendingOut));
+        Assert.Equal((2L, 2L), (after.Writers.Single().LastInLog, after.Writers.Single().Applied));
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);

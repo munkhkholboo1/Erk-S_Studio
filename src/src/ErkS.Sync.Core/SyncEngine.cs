@@ -434,16 +434,9 @@ public sealed class SyncEngine : IAsyncDisposable
         {
             LastError = uploadError,
             Centrals = centrals,
-            Collabs = SyncCollab.Files(physical).Select(file =>
-            {
-                SyncCollabStatus status = SyncCollab.Status(physical, _home, file.FileId);
-                long last = status.Writers.FirstOrDefault(writer => writer.Writer.Equals(status.OwnWriter, StringComparison.OrdinalIgnoreCase))?.LastInLog ?? 0;
-                IEnumerable<SyncIndex> partners = entry.Devices
-                    .Where(device => !device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase))
-                    .Select(device => SyncIndexStore.TryLoad(_home.PeerIndexPath(folder.FolderId, device.DeviceKeyId)))
-                    .OfType<SyncIndex>();
-                return status with { PendingOut = SyncCollab.PendingOut(file.FileId, status.OwnWriter, last, partners) };
-            }).ToList(),
+            Collabs = SyncCollab.Files(physical)
+                .Select(file => SyncCollab.Status(physical, _home, file.FileId, WhoAmI(physical)?.Writer ?? ""))
+                .ToList(),
             UploadedBytes = shown?.UploadedBytes ?? 0,
             UploadPendingBytes = shown?.UploadPendingBytes ?? 0,
             LastUploadBytesPerSecond = shown?.LastUploadBytesPerSecond ?? 0,

@@ -357,9 +357,13 @@ public static class SyncCollab
     }
 
     /// <summary>collab-status: per writer - the last number in the log here, what was applied, what waits, and whether a number is missing.</summary>
-    public static SyncCollabStatus Status(string folderRoot, SyncHome home, string fileId)
+    /// <param name="ownWriter">This machine's writer (whoami), used until it has published: the
+    /// writer it published as comes first. Its own changesets are neither waiting nor applied here.</param>
+    public static SyncCollabStatus Status(string folderRoot, SyncHome home, string fileId, string ownWriter = "")
     {
         Dictionary<string, long> applied = Applied(home, fileId);
+        SyncCollabLocal local = Local(home, fileId);
+        string own = Safe(local.Writer.Length > 0 ? local.Writer : ownWriter);
         var writers = new List<SyncCollabWriter>();
         string logs = Path.Combine(FileRoot(folderRoot, fileId), "log");
         if (Directory.Exists(logs))
@@ -369,6 +373,11 @@ public static class SyncCollab
                 string writer = Path.GetFileName(log);
                 HashSet<long> present = Numbers(log).ToHashSet();
                 long last = present.DefaultIfEmpty(0).Max();
+                if (own.Length > 0 && writer.Equals(own, StringComparison.OrdinalIgnoreCase))
+                {
+                    writers.Add(new SyncCollabWriter(writer, last, last, 0, false));
+                    continue;
+                }
                 long done = applied.GetValueOrDefault(writer);
                 int waiting = 0;
                 for (long seq = done + 1; present.Contains(seq); seq++)
@@ -380,7 +389,6 @@ public static class SyncCollab
         int checkpoint = Directory.Exists(checkpoints)
             ? Directory.EnumerateFiles(checkpoints, "*.dwg").Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) ? n : 0).DefaultIfEmpty(0).Max()
             : 0;
-        SyncCollabLocal local = Local(home, fileId);
         var versions = new List<SyncCollabVersion>();
         string versionRoot = Path.Combine(FileRoot(folderRoot, fileId), "versions");
         if (Directory.Exists(versionRoot))
@@ -397,10 +405,33 @@ public static class SyncCollab
                 }
             }
         }
+        // Not yet in every partner's DWG: this machine's last changeset less the lowest ack of it
+        // among the other machines registered on the file (acks/<writer>.json travel). К4 2026-10-26.
+        long ownLast = writers.FirstOrDefault(writer => writer.Writer.Equals(own, StringComparison.OrdinalIgnoreCase))?.LastInLog ?? 0;
+        long acked = long.MaxValue;
+        foreach (SyncCollabVersion machine in versions)
+        {
+            string name = Safe(machine.Writer);
+            if (name.Equals(own, StringComparison.OrdinalIgnoreCase))
+                continue;
+            long seen = 0;
+            string ackPath = Path.Combine(FileRoot(folderRoot, fileId), "acks", name + ".json");
+            try
+            {
+                if (File.Exists(ackPath) && JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(ackPath), Json) is { } ack)
+                    seen = ack.FirstOrDefault(pair => Safe(pair.Key).Equals(own, StringComparison.OrdinalIgnoreCase)).Value;
+            }
+            catch (Exception exception) when (exception is IOException or JsonException)
+            {
+            }
+            acked = Math.Min(acked, seen);
+        }
+        int pendingOut = own.Length == 0 || acked == long.MaxValue ? 0 : (int)Math.Max(0, ownLast - acked);
         return new SyncCollabStatus(fileId, checkpoint, writers)
         {
             Versions = versions,
-            OwnWriter = local.Writer,
+            PendingOut = pendingOut,
+            OwnWriter = own,
             Blocks = local.Blocks,
             MyBlocks = local.MyBlocks,
             LastAppliedAtUtc = local.LastAppliedAtUtc,

@@ -262,7 +262,7 @@ internal sealed class SyncTray : ApplicationContext
                         .Where(file => fileId.Length > 0
                             ? file.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase)
                             : relativeAsked is null || !SyncCollab.Files(root).Any(any => SyncPath.Comparer.Equals(any.RelativePath, relativeAsked)) || SyncPath.Comparer.Equals(file.RelativePath, relativeAsked))
-                        .Select(file => SyncCollab.Status(root, _home, file.FileId))
+                        .Select(file => SyncCollab.Status(root, _home, file.FileId, writer))
                         .ToList();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(statuses));
                 }

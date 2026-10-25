@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.94] - 2026-10-26 (test release)
+
+- CGA shared file status: a computer's own changes no longer count as waiting there, and «not yet with partners» follows what the partners have applied - Twin no longer sees a problem after a finished exchange.
+
 ## [0.001.93] - 2026-10-26 (test release)
 
 - CGA shared file: every computer tells its partners which seat it is working as, so the owner's desktop shows as the owner on the other computers too, not as its bot.
