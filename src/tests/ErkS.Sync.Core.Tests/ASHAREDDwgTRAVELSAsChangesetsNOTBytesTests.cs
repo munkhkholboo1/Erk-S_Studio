@@ -117,13 +117,12 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
 
         SyncCollabWhoAmI who = engine.WhoAmI(folder)!;
 
-        Assert.Equal(SyncSeats.Of("", "member@example.mn"), who.Seat);
-        Assert.DoesNotContain("@", who.Seat);
-        Assert.DoesNotContain("member", who.Seat);
+        // The server's opaque seat id - nothing made from the e-mail (a hash could be guessed back).
+        Assert.Equal("seat-8f3a1c", who.Seat);
         Assert.Equal("p-1", who.ProjectId);
         Assert.Equal(who.Seat, who.Team.Single().Seat);
-        Assert.StartsWith("bot-", SyncSeats.Of("b42", "x@example.mn"));
-        Assert.Equal(SyncSeats.Of("", "Member@Example.mn "), who.Seat); // the same person on any machine
+        Assert.Equal("bot-b42", SyncSeats.Of("", "b42"));
+        Assert.Equal("", SyncSeats.Of("", "")); // no seat id from the server: no writer
     }
 
     [Fact]

@@ -99,10 +99,11 @@ public sealed class SyncEngine : IAsyncDisposable
         if (entry is null)
             return null;
         SyncCollabMember Member(SyncServerDevice device) => new(
-            SyncSeats.Of(device.BotId, device.AccountEmail),
+            SyncSeats.Of(device.SeatId, device.BotId),
             device.BotId.Length > 0 ? "Бот " + device.BotId : device.AccountEmail,
             device.BotId.Length == 0 && device.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase) ? "owner" : "member");
         List<SyncCollabMember> team = entry.Devices.Select(Member)
+            .Where(member => member.Seat.Length > 0)
             .GroupBy(member => member.Seat, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();

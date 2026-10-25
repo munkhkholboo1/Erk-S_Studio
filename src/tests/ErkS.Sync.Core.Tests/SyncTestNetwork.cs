@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -115,7 +115,7 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                     new
                     {
                         folder = new SyncServerFolder("f-1", "p-1", "ERIN-2026", "Эрин", canonicalPath, "owner@example.mn", "", DateTimeOffset.UtcNow),
-                        devices = devices.Select(device => new SyncServerDevice(device.DeviceKeyId, "", "member@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)).ToArray(),
+                        devices = devices.Select(device => new SyncServerDevice(device.DeviceKeyId, "", "member@example.mn", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "8f3a1c")).ToArray(),
                     },
                 },
             }),

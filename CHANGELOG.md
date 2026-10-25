@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.83] - 2026-10-25 (test release)
+
+- CGA shared file: a person's writer id is the server's opaque seat id, never made from the e-mail (0.001.82 used a hash of it, which can be guessed back). Until the server gives a seat id, nothing is published.
+
 ## [0.001.82] - 2026-10-25 (test release)
 
 - CGA shared file: the writer is the Studio seat, not the machine (an opaque id, no name or e-mail); pipe verb collab-whoami gives this machine's seat and the folder's team to CGA.

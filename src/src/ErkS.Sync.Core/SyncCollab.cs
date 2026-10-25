@@ -54,16 +54,20 @@ public sealed record SyncCollabVersion(string Writer, string CgaVersion);
 
 /// <summary>
 /// A writer is a Studio SEAT, not a machine (P2P stage 1: «бичигч нь суудал, гарын үсэг нь
-/// машин») - a person on a new laptop keeps the seat and its log. The id is opaque: it names the
-/// writer's folder in the log, which the server sees, so no name or e-mail is in it.
+/// машин») - a person on a new laptop keeps the seat and its log. The id names the writer's
+/// folder in the log, which the server sees, so it is the server's own opaque seat id - never
+/// anything made from a name or an e-mail (a hash of an e-mail can be guessed back; CLAUDE.md §2).
+/// No seat id from the server = no writer ("").
 /// </summary>
 public static class SyncSeats
 {
-    public static string Of(string botId, string accountEmail) =>
-        !string.IsNullOrWhiteSpace(botId)
-            ? "bot-" + new string(botId.Trim().Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray())
-            : "acct-" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes((accountEmail ?? "").Trim().ToLowerInvariant())))[..16];
+    public static string Of(string seatId, string botId)
+    {
+        static string Clean(string value) => new(value.Trim().Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
+        if (!string.IsNullOrWhiteSpace(botId))
+            return "bot-" + Clean(botId);
+        return string.IsNullOrWhiteSpace(seatId) ? "" : "seat-" + Clean(seatId);
+    }
 }
 
 /// <summary>collab-whoami: this machine's seat and the folder's team - local to the pipe only.</summary>

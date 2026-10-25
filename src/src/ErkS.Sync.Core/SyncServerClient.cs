@@ -17,13 +17,18 @@ public sealed record SyncServerFolder(
     DateTimeOffset CreatedAtUtc);
 
 /// <summary>One machine attached to a sync folder.</summary>
+/// <param name="SeatId">
+/// The seat's opaque id from SRV - random, kept per account, never derived from the e-mail
+/// (CLAUDE.md §2); the CGA shared file's writer. Empty from a server that does not give it yet.
+/// </param>
 public sealed record SyncServerDevice(
     string DeviceKeyId,
     string PublicKeySpki,
     string AccountEmail,
     string BotId,
     DateTimeOffset AttachedAtUtc,
-    DateTimeOffset LastSeenAtUtc);
+    DateTimeOffset LastSeenAtUtc,
+    string SeatId = "");
 
 public sealed record SyncServerDeviceFolder(SyncServerFolder Folder, IReadOnlyList<SyncServerDevice> Devices);
 
