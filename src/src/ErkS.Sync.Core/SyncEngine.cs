@@ -101,7 +101,12 @@ public sealed class SyncEngine : IAsyncDisposable
         SyncCollabMember Member(SyncServerDevice device) => new(
             SyncSeats.Of(device.SeatId, device.BotId),
             device.BotId.Length > 0 ? "Бот " + device.BotId : device.AccountEmail,
-            device.BotId.Length == 0 && device.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase) ? "owner" : "member");
+            // The folder's owner: its owner bot seat when it was made from one (the owner's desktop
+            // runs as a bot seat), else the owner's own account.
+            (entry.Folder.OwnerBotId.Length > 0
+                ? device.BotId.Equals(entry.Folder.OwnerBotId, StringComparison.OrdinalIgnoreCase)
+                : device.BotId.Length == 0 && device.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase))
+                ? "owner" : "member");
         // Every attached device's seat, the owner first; one entry per seat, its machines' writers in it.
         List<SyncCollabMember> team = entry.Devices
             .Select(device => (Member: Member(device), Writer: SyncSeats.WriterOf(Member(device).Seat, device.DeviceKeyId)))

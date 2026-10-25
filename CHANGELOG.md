@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.85] - 2026-10-26 (test release)
+
+- CGA shared file: the folder owner's bot seat is shown as the owner in collab-whoami; one failing request never stops Erk-S Sync answering the next.
+
 ## [0.001.84] - 2026-10-26 (test release)
 
 - Erk-S Sync no longer stops on a computer without Dokany when a shared Revit central is online (it closed itself).

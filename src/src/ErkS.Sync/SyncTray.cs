@@ -112,8 +112,10 @@ internal sealed class SyncTray : ApplicationContext
             {
                 return;
             }
-            catch (Exception exception) when (exception is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
+            catch (Exception)
             {
+                // Any one request that fails must not end the pipe: the next caller (Studio, CGA,
+                // Explorer) is served by a fresh instance.
             }
         }
     }
