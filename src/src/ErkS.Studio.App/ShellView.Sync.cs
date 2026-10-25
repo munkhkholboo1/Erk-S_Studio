@@ -107,7 +107,8 @@ internal sealed partial class ShellView
             ? ""
             : transferring
                 ? " · синк хийж байна"
-                : " · " + SyncInStep.Words(folder.Peers);
+                : " · " + SyncInStep.Words(folder.Peers) +
+                  string.Concat(SyncInStep.Behind(folder.Peers).Select(line => " · " + line));
         projectSyncSummary.Text = folder.PresentHere
             ? $"{folder.CanonicalPath} · {folder.FileCount} файл, {SyncSize(folder.TotalBytes)}{stepWord} · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
               (folder.ConflictCount > 0 ? $" · ⚠ шийдвэр хүлээж буй зөрчлийн хуулбар {folder.ConflictCount}" : "")

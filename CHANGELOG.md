@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.87] - 2026-10-26 (test release)
+
+- Erk-S Sync says who is behind and why: «budbayasgalan офлайн (10/25 22:49-өөс) — 1 файл (1.1 МБ) хүлээгдэж байна» in the tray and the Studio sync line; the percent counts online partners only, so an offline partner no longer holds it at 99%.
+
 ## [0.001.86] - 2026-10-26 (test release)
 
 - CGA shared file: changes are written as whoever Studio is acting as - the owner signed in as themselves writes as their own seat, the bot only in bot mode (a machine with a bot seat used to write as the bot).

@@ -173,18 +173,67 @@ public sealed record SyncStatusReport(
 /// </summary>
 public static class SyncInStep
 {
-    /// <summary>The lowest percentage over partners whose index is known (null when none is), and how many are still waiting.</summary>
-    public static (double? Percent, int Waiting) Of(IEnumerable<SyncPeerState> peers)
+    /// <summary>A partner neither the server nor this machine has heard from for this long is offline (a pass is a minute; a long transfer can hold one for some minutes).</summary>
+    public static readonly TimeSpan OfflineAfter = TimeSpan.FromMinutes(15);
+
+    public static bool IsOnline(SyncPeerState peer, DateTimeOffset now) =>
+        (peer.ServerLastSeenAtUtc is { } seen && now - seen <= OfflineAfter) ||
+        (peer.ExchangedAtUtc is { } exchanged && now - exchanged <= OfflineAfter);
+
+    /// <summary>
+    /// The lowest percentage over ONLINE partners whose index is known - an offline partner cannot
+    /// catch up, so it does not hold the number down (owner, 2026-10-26: «99.2% … яагаад нэмэгдэхгүй
+    /// байна»); it is named in <see cref="Behind"/>. With every partner offline, over all known.
+    /// </summary>
+    public static (double? Percent, int Waiting) Of(IEnumerable<SyncPeerState> peers, DateTimeOffset? now = null)
     {
         SyncPeerState[] all = (peers ?? []).ToArray();
         SyncPeerState[] known = all.Where(peer => peer.ExchangedAtUtc is not null).ToArray();
-        return (known.Length == 0 ? null : known.Min(peer => peer.SyncedPercent), all.Length - known.Length);
+        DateTimeOffset at = now ?? DateTimeOffset.UtcNow;
+        SyncPeerState[] online = known.Where(peer => IsOnline(peer, at)).ToArray();
+        SyncPeerState[] counted = online.Length > 0 ? online : known;
+        return (counted.Length == 0 ? null : counted.Min(peer => peer.SyncedPercent), all.Length - known.Length);
     }
 
-    /// <summary>One line for a person: «✓ бүрэн синк хийгдсэн», «N% синк хийгдсэн», and the partners still waiting.</summary>
-    public static string Words(IEnumerable<SyncPeerState> peers)
+    /// <summary>
+    /// Who is behind and why, one line each: «budbayasgalan офлайн (10/25 22:49-өөс) — 1 файл
+    /// (1.1 МБ) хүлээгдэж байна». Names are this machine's own UI only.
+    /// </summary>
+    public static IReadOnlyList<string> Behind(IEnumerable<SyncPeerState> peers, DateTimeOffset? now = null)
     {
-        (double? percent, int waiting) = Of(peers);
+        DateTimeOffset at = now ?? DateTimeOffset.UtcNow;
+        var lines = new List<string>();
+        foreach (SyncPeerState peer in peers ?? [])
+        {
+            if (peer.ExchangedAtUtc is null || peer.SyncedPercent >= 100)
+                continue;
+            int files = peer.OnlyHereCount + peer.OnlyThereCount + peer.DifferentCount;
+            long bytes = Math.Max(0, peer.UnionBytes - peer.SyncedBytes);
+            string state = IsOnline(peer, at)
+                ? "онлайн"
+                : peer.ServerLastSeenAtUtc is { } seen ? $"офлайн ({seen.ToLocalTime():MM/dd HH:mm}-өөс)" : "офлайн";
+            string what = files > 0 ? $"{files} файл ({Size(bytes)}) хүлээгдэж байна" : $"{Size(bytes)} хүлээгдэж байна";
+            lines.Add($"{NameOf(peer)} {state} — {what}");
+        }
+        return lines;
+    }
+
+    private static string NameOf(SyncPeerState peer)
+    {
+        string email = peer.AccountEmail ?? "";
+        int at = email.IndexOf('@');
+        return at > 0 ? email[..at] : peer.DeviceKeyId.Length >= 8 ? "төхөөрөмж " + peer.DeviceKeyId[..8] : "хамтрагч";
+    }
+
+    private static string Size(long bytes) =>
+        bytes >= 1 << 30 ? $"{bytes / (double)(1 << 30):0.0} ГБ"
+        : bytes >= 1 << 20 ? $"{bytes / (double)(1 << 20):0.0} МБ"
+        : bytes >= 1 << 10 ? $"{bytes / 1024.0:0} КБ" : $"{bytes} Б";
+
+    /// <summary>One line for a person: «✓ бүрэн синк хийгдсэн», «N% синк хийгдсэн», and the partners still waiting.</summary>
+    public static string Words(IEnumerable<SyncPeerState> peers, DateTimeOffset? now = null)
+    {
+        (double? percent, int waiting) = Of(peers, now);
         string step = percent is null ? "" : percent >= 100 ? "✓ бүрэн синк хийгдсэн" : $"{percent:0.#}% синк хийгдсэн";
         string wait = waiting == 0 ? "" : $"{waiting} хамтрагч холбогдохыг хүлээж байна";
         return step.Length > 0 && wait.Length > 0 ? step + " · " + wait : step + wait;

@@ -57,7 +57,10 @@ internal sealed class SyncTray : ApplicationContext
             : peers.Length == 0
                 ? "Erk-S Sync"
                 : "Erk-S Sync — " + SyncInStep.Words(peers);
-        _icon.Text = text.Length > 63 ? text[..63] : text;
+        IReadOnlyList<string> behind = moving is null && sending is null ? SyncInStep.Behind(peers) : [];
+        if (behind.Count > 0)
+            text += "\n" + string.Join("\n", behind);
+        _icon.Text = text.Length > 127 ? text[..126] + "…" : text;
     }
 
     private async Task RunEngineAsync(CancellationToken cancellationToken)
