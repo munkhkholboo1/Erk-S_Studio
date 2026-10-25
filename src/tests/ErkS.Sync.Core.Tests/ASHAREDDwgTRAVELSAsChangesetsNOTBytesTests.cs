@@ -211,7 +211,12 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
         string root = folder.Folder("Erin");
         SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-1", "owner", "v1", DateTimeOffset.UtcNow);
         Assert.Equal("file-1", SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-1", "owner", "v1", DateTimeOffset.UtcNow).FileId);
-        Assert.Throws<InvalidOperationException>(() => SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-2", "owner", "v1", DateTimeOffset.UtcNow));
+        // A member on another machine offering its own id learns the shared file's id; nothing new is made.
+        SyncCollabFile joined = SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-2", "member", "v1", DateTimeOffset.UtcNow, writer: "member_d11112222");
+        Assert.Equal("file-1", joined.FileId);
+        Assert.Single(SyncCollab.Files(root));
+        Assert.True(File.Exists(Path.Combine(SyncCollab.FileRoot(root, "file-1"), "versions", "member_d11112222.json")));
+        Assert.False(Directory.Exists(SyncCollab.FileRoot(root, "file-2")));
         Assert.Contains("plan.dwg", SyncCollab.HeldPaths(root));
     }
 

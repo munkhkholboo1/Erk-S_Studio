@@ -239,8 +239,14 @@ internal sealed class SyncTray : ApplicationContext
                 }
                 case "collab-status":
                 {
+                    // No file id: the shared file of the DWG asked about, if it is one; else all.
+                    string? relativeAsked = File.Exists(request.Path) || request.Path.EndsWith(".dwg", StringComparison.OrdinalIgnoreCase)
+                        ? Path.GetRelativePath(root, request.Path)
+                        : null;
                     var statuses = SyncCollab.Files(root)
-                        .Where(file => fileId.Length == 0 || file.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase))
+                        .Where(file => fileId.Length > 0
+                            ? file.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase)
+                            : relativeAsked is null || !SyncCollab.Files(root).Any(any => SyncPath.Comparer.Equals(any.RelativePath, relativeAsked)) || SyncPath.Comparer.Equals(file.RelativePath, relativeAsked))
                         .Select(file => SyncCollab.Status(root, _home, file.FileId))
                         .ToList();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(statuses));

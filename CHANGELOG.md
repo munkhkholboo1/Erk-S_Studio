@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.90] - 2026-10-26 (test release)
+
+- CGA shared file: a second computer opening a DWG that is already shared joins it (it learns the file's id) instead of being refused - the laptop showed «Энэ зураг хамтын горимд биш».
+
 ## [0.001.89] - 2026-10-26 (test release)
 
 - CGA shared file: a computer without the shared DWG gets the owner's newest checkpoint as its base (one already there is never written over); the newest 3 checkpoints are kept and changesets every computer has applied are retired.

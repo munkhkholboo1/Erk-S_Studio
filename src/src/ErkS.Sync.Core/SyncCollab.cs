@@ -205,13 +205,20 @@ public static class SyncCollab
         Files(folderRoot).Select(file => file.RelativePath).ToHashSet(SyncPath.Comparer);
 
     /// <summary>
-    /// collab-register: the DWG at <paramref name="dwgFullPath"/> is shared from now on. Idempotent;
-    /// a different file id for the same DWG is refused (one DWG, one shared file).
+    /// collab-register: the DWG at <paramref name="dwgFullPath"/> is shared from now on. One DWG is
+    /// one shared file: a DWG already shared answers with ITS registration whatever id the caller
+    /// brought - a member joining on another machine learns the file id here (the owner's laptop,
+    /// К4 2026-10-26, offered fresh ids and was refused). A new share without an id gets one.
     /// </summary>
     public static SyncCollabFile Register(string folderRoot, string dwgFullPath, string fileId, string ownerSeat, string cgaVersion, DateTimeOffset now, string writer = "")
     {
         string relative = Relative(folderRoot, dwgFullPath);
-        if (writer.Length > 0 && fileId.Length > 0)
+        SyncCollabFile? shared = Files(folderRoot).FirstOrDefault(file => SyncPath.Comparer.Equals(file.RelativePath, relative));
+        if (shared is not null)
+            fileId = shared.FileId;
+        else if (fileId.Length == 0)
+            fileId = Guid.NewGuid().ToString("N");
+        if (writer.Length > 0)
         {
             // Each machine says which CGA it runs; the files travel like any other, one writer each.
             string versions = Path.Combine(FileRoot(folderRoot, fileId), "versions");
@@ -224,13 +231,8 @@ public static class SyncCollab
                 File.Move(path + ".tmp", path, overwrite: true);
             }
         }
-        SyncCollabFile? existing = Files(folderRoot).FirstOrDefault(file => SyncPath.Comparer.Equals(file.RelativePath, relative));
-        if (existing is not null)
-        {
-            if (!existing.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Энэ DWG өөр хамтын файлын дугаартай бүртгэгдсэн байна.");
-            return existing;
-        }
+        if (shared is not null)
+            return shared;
         var file = new SyncCollabFile { FileId = fileId, RelativePath = relative, OwnerSeat = ownerSeat, CgaVersion = cgaVersion, RegisteredAtUtc = now };
         string root = FileRoot(folderRoot, fileId);
         Directory.CreateDirectory(root);
