@@ -35,6 +35,43 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
     }
 
     [Fact]
+    public void ACopyNotEditedHereFastForwardsAndOneEditedHereStays()
+    {
+        using var folder = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        string root = folder.Folder("Erin");
+        string dwg = Path.Combine(root, "plan.dwg");
+        File.WriteAllText(dwg, "pre-share v0");
+        SyncCollab.Register(root, dwg, "file-1", "seat-owner", "v1", DateTimeOffset.UtcNow);
+        string checkpointSource = Path.Combine(home.Path, "owner.dwg");
+        File.WriteAllText(checkpointSource, "checkpoint 1");
+        SyncCollab.Checkpoint(root, "file-1", checkpointSource, new Dictionary<string, long> { ["owner"] = 4 });
+        string sha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(dwg)));
+        SyncIndexEntry Entry(string writer) => new("plan.dwg", 12, DateTime.UtcNow, SyncFileKind.Dwg, sha, [])
+        {
+            Version = new SyncFileVersion { Sha256 = sha, Writer = writer, Seq = 1 },
+        };
+
+        // Edited on this machine: never written over.
+        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => Entry("THIS"), "THIS");
+        Assert.Equal("pre-share v0", File.ReadAllText(dwg));
+
+        // A newer checkpoint, and the copy here is one that arrived from the owner: fast-forward.
+        File.WriteAllText(checkpointSource, "checkpoint 2");
+        SyncCollab.Checkpoint(root, "file-1", checkpointSource, new Dictionary<string, long> { ["owner"] = 6 });
+        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => Entry("OWNER"), "THIS");
+        Assert.Equal("checkpoint 2", File.ReadAllText(dwg));
+        Assert.Single(Directory.EnumerateFiles(Path.Combine(home.Path, "collab", "file-1", "replaced")));
+
+        // The copy SYN placed, untouched, moves on to the next one too.
+        File.WriteAllText(checkpointSource, "checkpoint 3");
+        SyncCollab.Checkpoint(root, "file-1", checkpointSource, new Dictionary<string, long> { ["owner"] = 8 });
+        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => null, "THIS");
+        Assert.Equal("checkpoint 3", File.ReadAllText(dwg));
+        Assert.Empty(SyncCollab.Pull(root, new SyncHome(home.Path), "file-1", "member"));
+    }
+
+    [Fact]
     public void OldCheckpointsGoAndChangesetsGoOnlyWhenEveryMachineHasThem()
     {
         using var folder = new TemporaryFolder();
@@ -50,6 +87,7 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
         for (int n = 1; n <= 5; n++)
             SyncCollab.Checkpoint(root, "file-1", dwg, new Dictionary<string, long> { ["owner"] = 3 });
         string fileRoot = SyncCollab.FileRoot(root, "file-1");
+        File.WriteAllText(dwg, "the member's own, edited here"); // keeps it; the base is not placed
 
         // The member has not applied anything yet: no changeset may go.
         IReadOnlySet<string> retired = SyncCollab.Maintain(root, new SyncHome(homeMember.Path));

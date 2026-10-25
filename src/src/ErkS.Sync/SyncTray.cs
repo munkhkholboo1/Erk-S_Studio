@@ -256,7 +256,7 @@ internal sealed class SyncTray : ApplicationContext
                     Dictionary<string, long> through = Arg("through").Length > 0
                         ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("through")) ?? []
                         : [];
-                    int checkpoint = SyncCollab.Checkpoint(root, fileId, request.Path, through);
+                    int checkpoint = SyncCollab.Checkpoint(root, fileId, request.Path, through, _home);
                     _engine?.Poke();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { checkpoint }));
                 }

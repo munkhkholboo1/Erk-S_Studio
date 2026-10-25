@@ -326,13 +326,16 @@ public sealed class SyncEngine : IAsyncDisposable
 
         // Shared CGA files first (К5): a base for a machine without the DWG, old checkpoints and
         // changesets every machine has applied retired - before the index sees the folder.
-        IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home);
+        SyncIndex? previous;
+        lock (_gate)
+            previous = _indexes.GetValueOrDefault(folder.FolderId) ?? SyncIndexStore.TryLoad(_home.IndexPath(folder.FolderId));
+        Dictionary<string, SyncIndexEntry> knownHere = (previous?.Entries ?? [])
+            .GroupBy(entry => entry.RelativePath, SyncPath.Comparer)
+            .ToDictionary(group => group.Key, group => group.First(), SyncPath.Comparer);
+        IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home, path => knownHere.GetValueOrDefault(path), _device!.DeviceKeyId);
         SyncIndex index;
         try
         {
-            SyncIndex? previous;
-            lock (_gate)
-                previous = _indexes.GetValueOrDefault(folder.FolderId) ?? SyncIndexStore.TryLoad(_home.IndexPath(folder.FolderId));
             index = await Task.Run(() => SyncIndexBuilder.Build(physical, folder.FolderId, previous, cancellationToken), cancellationToken);
             SyncVersionLedger ledger = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId));
             ledger.Adopt(SyncDecisionStore.Load(_home.DecisionsPath(folder.FolderId)));

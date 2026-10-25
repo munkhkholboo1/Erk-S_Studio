@@ -159,6 +159,14 @@ public sealed record SyncCollabLocal
     public DateTimeOffset? LastAppliedAtUtc { get; init; }
 
     public string LastError { get; init; } = "";
+
+    /// <summary>The checkpoint SYN last put in place of this machine's DWG, and that DWG's hash.</summary>
+    public int PlacedCheckpoint { get; init; }
+
+    public string PlacedSha256 { get; init; } = "";
+
+    /// <summary>The newest checkpoint already weighed against a DWG edited here (not weighed again).</summary>
+    public int EditedAtCheckpoint { get; init; }
 }
 
 /// <summary>
@@ -413,7 +421,16 @@ public static class SyncCollab
     /// bytes travel while shared - with the numbers it already holds, so a late joiner starts from
     /// it and pulls only what came after.
     /// </summary>
-    public static int Checkpoint(string folderRoot, string fileId, string dwgFullPath, IReadOnlyDictionary<string, long> through)
+    public static int Checkpoint(string folderRoot, string fileId, string dwgFullPath, IReadOnlyDictionary<string, long> through, SyncHome? home = null)
+    {
+        int made = MakeCheckpoint(folderRoot, fileId, dwgFullPath, through);
+        // The machine that made it already holds it - it is never fast-forwarded onto itself.
+        if (home is not null)
+            SaveLocal(home, fileId, Local(home, fileId) with { PlacedCheckpoint = made, PlacedSha256 = Sha256Of(dwgFullPath) });
+        return made;
+    }
+
+    private static int MakeCheckpoint(string folderRoot, string fileId, string dwgFullPath, IReadOnlyDictionary<string, long> through)
     {
         string checkpoints = Path.Combine(FileRoot(folderRoot, fileId), "checkpoints");
         Directory.CreateDirectory(checkpoints);
@@ -475,14 +492,18 @@ public static class SyncCollab
     /// Returns the retired paths (relative to the folder) - held, so they are neither fetched back
     /// from a partner that has not retired them yet nor sent out again.
     /// </summary>
-    public static IReadOnlySet<string> Maintain(string folderRoot, SyncHome home)
+    public static IReadOnlySet<string> Maintain(string folderRoot, SyncHome home) => Maintain(folderRoot, home, _ => null, "");
+
+    /// <param name="known">This machine's last index entry for a relative path (its version chain).</param>
+    /// <param name="deviceKeyId">This machine - a DWG version that first appeared here was edited here.</param>
+    public static IReadOnlySet<string> Maintain(string folderRoot, SyncHome home, Func<string, SyncIndexEntry?> known, string deviceKeyId)
     {
         var retired = new HashSet<string>(SyncPath.Comparer);
         foreach (SyncCollabFile file in Files(folderRoot))
         {
             try
             {
-                MaintainOne(folderRoot, home, file, retired);
+                MaintainOne(folderRoot, home, file, retired, known, deviceKeyId);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
             {
@@ -492,7 +513,7 @@ public static class SyncCollab
         return retired;
     }
 
-    private static void MaintainOne(string folderRoot, SyncHome home, SyncCollabFile file, HashSet<string> retired)
+    private static void MaintainOne(string folderRoot, SyncHome home, SyncCollabFile file, HashSet<string> retired, Func<string, SyncIndexEntry?> known, string deviceKeyId)
     {
         string fileRoot = FileRoot(folderRoot, file.FileId);
         string relativeRoot = Path.Combine(DirectoryName, Safe(file.FileId));
@@ -500,6 +521,7 @@ public static class SyncCollab
         if (latest is { } checkpoint)
         {
             string dwg = Path.Combine(folderRoot, file.RelativePath);
+            SyncCollabLocal local = Local(home, file.FileId);
             if (!File.Exists(dwg))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(dwg)!);
@@ -508,15 +530,40 @@ public static class SyncCollab
                 try
                 {
                     File.Move(temporary, dwg, overwrite: false);
-                    Dictionary<string, long> applied = Applied(home, file.FileId);
-                    foreach ((string writer, long seq) in checkpoint.Through)
-                        applied[Safe(writer)] = Math.Max(applied.GetValueOrDefault(Safe(writer)), seq);
-                    SaveApplied(home, file.FileId, applied);
+                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, Sha256Of(dwg));
                 }
                 catch (IOException) when (File.Exists(dwg))
                 {
                     // Someone put the DWG there in the meantime - theirs stands.
                     File.Delete(temporary);
+                }
+            }
+            else if (checkpoint.Number > Math.Max(local.PlacedCheckpoint, local.EditedAtCheckpoint))
+            {
+                // Fast-forward, as 1.2 does for any file: a DWG not edited on this machine - the
+                // copy SYN placed, or a version that first appeared on another machine (the
+                // laptop's pre-share copy, К4 2026-10-26) - becomes the newest checkpoint. One
+                // edited here is never written over; it is told.
+                SyncIndexEntry? entry = known(file.RelativePath);
+                string sha = Sha256Of(dwg);
+                bool untouched = (local.PlacedSha256.Length > 0 && sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase)) ||
+                                 (entry?.Version is { } version && entry.Sha256.Equals(sha, StringComparison.OrdinalIgnoreCase) &&
+                                  version.Writer.Length > 0 && !version.Writer.Equals(deviceKeyId, StringComparison.OrdinalIgnoreCase));
+                if (sha.Equals(Sha256Of(checkpoint.DwgPath), StringComparison.OrdinalIgnoreCase))
+                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, sha);
+                else if (!untouched)
+                    SaveLocal(home, file.FileId, local with { EditedAtCheckpoint = checkpoint.Number, LastError = "DWG энэ машинд засагдсан — шинэ checkpoint-оор солихгүй (хуулбар тань хэвээр)." });
+                else if (OpenElsewhere(dwg))
+                    SaveLocal(home, file.FileId, local with { LastError = "DWG нээлттэй байна — хаагдсаны дараа шинэ checkpoint-оор шинэчлэгдэнэ." });
+                else
+                {
+                    string kept = Path.Combine(home.Root, "collab", Safe(file.FileId), "replaced", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.dwg");
+                    Directory.CreateDirectory(Path.GetDirectoryName(kept)!);
+                    File.Copy(dwg, kept);
+                    string temporary = Path.Combine(Path.GetDirectoryName(dwg)!, $".{Guid.NewGuid():N}.tmp");
+                    File.Copy(checkpoint.DwgPath, temporary);
+                    File.Move(temporary, dwg, overwrite: true);
+                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, Sha256Of(dwg));
                 }
             }
 
@@ -572,6 +619,40 @@ public static class SyncCollab
                         File.Delete(full);
                 }
             }
+        }
+    }
+
+    /// <summary>The base is in place: what it holds counts as applied, and SYN remembers what it placed.</summary>
+    private static void Placed(SyncHome home, string fileId, int number, IReadOnlyDictionary<string, long> through, string sha)
+    {
+        Dictionary<string, long> applied = Applied(home, fileId);
+        foreach ((string writer, long seq) in through)
+            applied[Safe(writer)] = Math.Max(applied.GetValueOrDefault(Safe(writer)), seq);
+        SaveApplied(home, fileId, applied);
+        SaveLocal(home, fileId, Local(home, fileId) with { PlacedCheckpoint = number, PlacedSha256 = sha, LastError = "" });
+    }
+
+    private static string Sha256Of(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(stream));
+    }
+
+    /// <summary>AutoCAD holds an open DWG; replacing it then would pull it from under the person.</summary>
+    private static bool OpenElsewhere(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
         }
     }
 
