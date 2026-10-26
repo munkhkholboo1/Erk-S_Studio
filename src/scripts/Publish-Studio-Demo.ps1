@@ -516,17 +516,58 @@ $UpdaterPublishArguments = @(
     "--artifacts-path", $BuildArtifactsDirectory,
     "-o", (Join-Path $PublishDirectory "updater")
 )
+function Get-ErkSFileVersion {
+    param([string]$Path)
+    try {
+        return [Reflection.AssemblyName]::GetAssemblyName($Path).Version
+    }
+    catch {
+        $Info = [Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+        return New-Object Version($Info.FileMajorPart, $Info.FileMinorPart, $Info.FileBuildPart, $Info.FilePrivatePart)
+    }
+}
+
 foreach ($SyncFile in Get-ChildItem -LiteralPath $SyncPublishDirectory -Recurse -File) {
     $Relative = $SyncFile.FullName.Substring($SyncPublishDirectory.TrimEnd([char]92).Length + 1)
     $Target = Join-Path $PublishDirectory $Relative
     $IsSyncOwn = $SyncFile.Name -like "ErkS.Sync.*"
     if ((Test-Path -LiteralPath $Target -PathType Leaf) -and -not $IsSyncOwn) {
-        continue
+        # Both carry it: the higher version stays - a program runs on a newer assembly, never on an
+        # older one (Studio's NuGet System.Drawing.Common 6.0 against Sync's WinForms 9.0, v0.001.101).
+        if ((Get-ErkSFileVersion $SyncFile.FullName) -le (Get-ErkSFileVersion $Target)) {
+            continue
+        }
+        Write-Host "Sync's newer $Relative replaces Studio's"
     }
     New-Item -ItemType Directory -Path (Split-Path -Parent $Target) -Force | Out-Null
     Copy-Item -LiteralPath $SyncFile.FullName -Destination $Target -Force
 }
 Remove-Item -LiteralPath $SyncPublishDirectory -Recurse -Force
+
+# Release gate: every assembly a program's deps.json names is on disk at that version or newer.
+# Two programs share one folder now, and the 0.001.101 Sync died on an older System.Drawing.Common
+# that the installer smoke test (Studio only) never loaded.
+foreach ($DepsFile in @("ErkS.Studio.deps.json", "ErkS.Sync.deps.json")) {
+    $Deps = Get-Content -Raw -LiteralPath (Join-Path $PublishDirectory $DepsFile) | ConvertFrom-Json
+    foreach ($Target in $Deps.targets.PSObject.Properties) {
+        foreach ($Library in $Target.Value.PSObject.Properties) {
+            $Runtime = $Library.Value.runtime
+            if ($null -eq $Runtime) { continue }
+            foreach ($Entry in $Runtime.PSObject.Properties) {
+                if ([string]::IsNullOrWhiteSpace([string]$Entry.Value.assemblyVersion)) { continue }
+                $File = Join-Path $PublishDirectory (Split-Path -Leaf $Entry.Name)
+                if (-not (Test-Path -LiteralPath $File -PathType Leaf)) {
+                    throw "Release gate: $DepsFile names $($Entry.Name), which is not in the install."
+                }
+                $Wanted = [Version]$Entry.Value.assemblyVersion
+                $Have = Get-ErkSFileVersion $File
+                if ($Have -lt $Wanted) {
+                    throw "Release gate: $DepsFile wants $(Split-Path -Leaf $Entry.Name) $Wanted, the install has $Have."
+                }
+            }
+        }
+    }
+}
 
 & dotnet @UpdaterPublishArguments
 if ($LASTEXITCODE -ne 0) {
