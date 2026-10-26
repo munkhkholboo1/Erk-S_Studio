@@ -22,6 +22,9 @@ public sealed partial class SyncEngine
     /// <summary>The fallback period while the server's events socket is connected.</summary>
     public static readonly TimeSpan PushedPeriod = TimeSpan.FromMinutes(10);
 
+    /// <summary>How often the events socket pings the server to prove it is still alive.</summary>
+    public static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
+
     private readonly Dictionary<string, FileSystemWatcher> _watchers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> _collabSeen = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<(long Target, TaskCompletionSource Done)> _passWaiters = [];
@@ -189,6 +192,11 @@ public sealed partial class SyncEngine
             {
                 using var socket = new ClientWebSocket();
                 socket.Options.SetRequestHeader("Authorization", "Bearer " + session.AccessToken);
+                // A connection that died without closing (Wi-Fi, sleep, a router dropping it) must be noticed:
+                // our own ping, and no pong within 30 s ends it - then it reconnects and «hello» brings what was
+                // missed (Erk-S Sync, 2026-10-27: the laptop said «connected» and never heard 125).
+                socket.Options.KeepAliveInterval = KeepAlive;
+                socket.Options.KeepAliveTimeout = TimeSpan.FromSeconds(30);
                 var uri = new UriBuilder(address)
                 {
                     Scheme = address.Scheme == Uri.UriSchemeHttps ? "wss" : "ws",
