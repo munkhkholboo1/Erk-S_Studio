@@ -401,7 +401,7 @@ try {
     if (-not (Test-Path -LiteralPath $serverExe -PathType Leaf)) {
         throw "the server program was not found: $serverExe"
     }
-    $studioLive = "Assets/**;Templates/**;**/*.png;**/*.ico;**/*.svg;**/*.ttf;**/*.otf"
+    $studioLive = "Assets/**;Templates/**;tools/**;**/*.png;**/*.ico;**/*.svg;**/*.ttf;**/*.otf"
     $previousData = $env:ERKS_LICENSE_SERVER_DATA
     $env:ERKS_LICENSE_SERVER_DATA = $serverRoot
     try {

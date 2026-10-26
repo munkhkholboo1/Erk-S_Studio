@@ -12,6 +12,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "E:/Erk-S Platform/Erk-S Stu
 
 cmd-ээс: `"E:\Erk-S Platform\Erk-S Studio\tools\stu.cmd" status`
 
+Studio суусан бүх машин дээр (репогүй ч) ижил зам: `%LOCALAPPDATA%\Programs\Erk-S Studio\tools\stu.ps1` (`stu.cmd`) —
+суулгагч, шинэчлэлийн багцад хамт ирнэ (v0.001.121-ээс).
+
 | Команд | Юу хийх |
 |---|---|
 | `list` | Ажиллаж буй Studio-ууд (pid, pipe) |

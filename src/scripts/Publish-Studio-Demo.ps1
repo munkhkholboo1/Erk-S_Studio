@@ -570,6 +570,12 @@ $UpdatesVersion = ($UpdatesProject.Project.PropertyGroup | ForEach-Object { $_.V
 $UpdatesPackage = Join-Path "E:\Erk-S Platform\_shared\erks-updates" $UpdatesVersion
 New-Item -ItemType Directory -Path (Join-Path $PublishDirectory "updater") -Force | Out-Null
 Copy-Item -Path (Join-Path $UpdatesPackage "updater\*") -Destination (Join-Path $PublishDirectory "updater") -Force
+# The bridge client ships with Studio (Erk-S Sync, 2026-10-27): on every machine agents drive Studio by
+# the same path, <install>\tools\stu.ps1 (stu.cmd), not only where the repository is checked out.
+New-Item -ItemType Directory -Path (Join-Path $PublishDirectory "tools") -Force | Out-Null
+foreach ($bridgeTool in @("stu.ps1", "stu.cmd")) {
+    Copy-Item -LiteralPath (Join-Path (Split-Path $SourceRoot -Parent) "tools\$bridgeTool") -Destination (Join-Path $PublishDirectory "tools") -Force
+}
 Copy-Item -LiteralPath (Join-Path $UpdatesPackage "net8.0\ErkS.Updates.dll") -Destination (Join-Path $PublishDirectory "ErkS.Updates.dll") -Force
 Get-ChildItem -LiteralPath $PublishDirectory -File -Filter "ErkS.Updates.xml" | Remove-Item -Force
 
