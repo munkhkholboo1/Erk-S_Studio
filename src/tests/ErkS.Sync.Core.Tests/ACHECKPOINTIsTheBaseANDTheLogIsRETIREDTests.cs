@@ -66,6 +66,12 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
         Assert.Equal("saved straight into the central", File.ReadAllText(central));
         Assert.Contains("шууд засагдсан", SyncCollab.Status(root, new SyncHome(home.Path), "file-1").LastError);
         Assert.Equal(2, Directory.EnumerateFiles(Path.Combine(home.Path, "collab", "file-1", "replaced")).Count());
+        Assert.True(SyncCollab.Status(root, new SyncHome(home.Path), "file-1").CentralEdited);
+
+        // collab-central-reset (after CGA made a local from it and published): the newest checkpoint goes in.
+        Assert.Equal(2, SyncCollab.ResetCentral(root, new SyncHome(home.Path), "file-1"));
+        Assert.Equal("local after Generate 2", File.ReadAllText(central));
+        Assert.False(SyncCollab.Status(root, new SyncHome(home.Path), "file-1").CentralEdited);
 
         // A new local with no applied record is told to start from the newest checkpoint.
         Assert.True(SyncCollab.NeedsCheckpoint(root, new SyncHome(home.Path), "file-1"));

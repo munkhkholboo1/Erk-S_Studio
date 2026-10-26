@@ -61,7 +61,8 @@ public sealed record SyncStatusCollab(
     DateTimeOffset? LastAppliedAtUtc,
     string LastError,
     bool VersionMismatch = false,
-    IReadOnlyList<SyncCollabVersion>? Versions = null);
+    IReadOnlyList<SyncCollabVersion>? Versions = null,
+    bool CentralEdited = false);
 
 /// <summary>
 /// SYN's account of itself for whoever watches from outside: the bridge's «sync-status» answer
@@ -141,7 +142,8 @@ public sealed record SyncStatusReport(
                 collab.LastAppliedAtUtc,
                 collab.LastError,
                 collab.VersionMismatch,
-                collab.Versions)).ToList(),
+                collab.Versions,
+                collab.CentralEdited)).ToList(),
         }).ToList());
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>

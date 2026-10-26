@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.100] - 2026-10-26 (test release)
+
+- CGA shared file: a central saved directly shows as such in the status, and CGA can put the newest checkpoint back in its place once that central's work is safe in a local (no files moved by hand).
+
 ## [0.001.99] - 2026-10-26 (test release)
 
 - A computer with a bot seat no longer gets in the way of whoever is signed in: anybody signed in works as themselves - no lock, no PIN, and the other Erk-S products are never told «bot locked» (only the seat's owner may manage the seat). Studio also says nothing about the seat until the saved sign-in has been tried.

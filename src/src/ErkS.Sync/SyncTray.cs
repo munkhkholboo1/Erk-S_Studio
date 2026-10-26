@@ -167,6 +167,7 @@ internal sealed class SyncTray : ApplicationContext
             case "collab-status":
             case "collab-checkpoint":
             case "collab-whoami":
+            case "collab-central-reset":
                 return Collab(request);
             case "central-begin":
             case "central-end":
@@ -282,6 +283,12 @@ internal sealed class SyncTray : ApplicationContext
                         .Select(file => SyncCollab.Status(root, _home, file.FileId, writer))
                         .ToList();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(statuses));
+                }
+                case "collab-central-reset":
+                {
+                    int checkpoint = SyncCollab.ResetCentral(root, _home, fileId);
+                    _engine?.Poke();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { checkpoint }));
                 }
                 default: // collab-checkpoint
                 {

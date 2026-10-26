@@ -45,6 +45,9 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
 
     public string LastError { get; init; } = "";
 
+    /// <summary>The central DWG was saved directly (requirement 7) - for status and Twin.</summary>
+    public bool CentralEdited { get; init; }
+
     /// <summary>The CGA each writer registered with (CGA: «0.0xx+rg&lt;RoadGenerationOutputVersion&gt;»).</summary>
     public IReadOnlyList<SyncCollabVersion> Versions { get; init; } = [];
 
@@ -210,6 +213,9 @@ public sealed record SyncCollabLocal
 
     /// <summary>CGA's DWG is behind retired changesets: the next checkpoint goes in even over a copy edited here (kept aside).</summary>
     public bool NeedsBase { get; init; }
+
+    /// <summary>The central was saved directly - kept, never written over, until collab-central-reset.</summary>
+    public bool CentralEdited { get; init; }
 }
 
 /// <summary>
@@ -482,6 +488,7 @@ public static class SyncCollab
             MyBlocks = local.MyBlocks,
             LastAppliedAtUtc = local.LastAppliedAtUtc,
             LastError = local.LastError,
+            CentralEdited = local.CentralEdited,
         };
     }
 
@@ -724,6 +731,7 @@ public static class SyncCollab
                     SaveLocal(home, file.FileId, local with
                     {
                         EditedAtCheckpoint = checkpoint.Number,
+                        CentralEdited = true,
                         LastError = $"Төв файл шууд засагдсан — дарж бичихгүй, нөөц: {keptAside}",
                     });
                 }
@@ -755,6 +763,32 @@ public static class SyncCollab
         }
     }
 
+    /// <summary>
+    /// collab-central-reset: the central (saved directly) is kept aside and replaced by the newest
+    /// checkpoint. CGA calls it only after it made a local from the edited central and published
+    /// what that local held, so nothing is lost. Refused while AutoCAD holds the central open.
+    /// </summary>
+    public static int ResetCentral(string folderRoot, SyncHome home, string fileId)
+    {
+        SyncCollabFile file = Files(folderRoot).FirstOrDefault(item => item.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("Хамтын файл олдсонгүй: " + fileId);
+        var latest = LatestCheckpoint(folderRoot, fileId) ?? throw new InvalidOperationException("Checkpoint алга — төв файлыг сэргээх суурь байхгүй.");
+        string central = Path.Combine(folderRoot, file.RelativePath);
+        if (File.Exists(central))
+        {
+            if (OpenElsewhere(central))
+                throw new IOException("Төв файл нээлттэй байна — хаагаад дахин оролдоно уу.");
+            string kept = Path.Combine(home.Root, "collab", Safe(fileId), "replaced", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.dwg");
+            Directory.CreateDirectory(Path.GetDirectoryName(kept)!);
+            File.Copy(central, kept);
+        }
+        string temporary = Path.Combine(Path.GetDirectoryName(central)!, $".{Guid.NewGuid():N}.tmp");
+        File.Copy(latest.DwgPath, temporary);
+        File.Move(temporary, central, overwrite: true);
+        Placed(home, fileId, latest.Number, latest.Through, Sha256Of(central));
+        return latest.Number;
+    }
+
     /// <summary>The base is in place: what it holds counts as applied, and SYN remembers what it placed.</summary>
     private static void Placed(SyncHome home, string fileId, int number, IReadOnlyDictionary<string, long> through, string sha)
     {
@@ -762,7 +796,7 @@ public static class SyncCollab
         foreach ((string writer, long seq) in through)
             applied[Safe(writer)] = Math.Max(applied.GetValueOrDefault(Safe(writer)), seq);
         SaveApplied(home, fileId, applied);
-        SaveLocal(home, fileId, Local(home, fileId) with { PlacedCheckpoint = number, PlacedSha256 = sha, NeedsBase = false, LastError = "" });
+        SaveLocal(home, fileId, Local(home, fileId) with { PlacedCheckpoint = number, PlacedSha256 = sha, NeedsBase = false, CentralEdited = false, LastError = "" });
     }
 
     private static string Sha256Of(string path)
