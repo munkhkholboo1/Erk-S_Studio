@@ -138,6 +138,15 @@ public sealed record SyncPeerState
     /// <summary>The average speed of the last finished transfer from this peer.</summary>
     public double LastTransferBytesPerSecond { get; init; }
 
+    /// <summary>The last transfer's time waiting for pieces, hashing, writing (seconds), and the connections it used.</summary>
+    public double LastTransferWaitSeconds { get; init; }
+
+    public double LastTransferHashSeconds { get; init; }
+
+    public double LastTransferDiskSeconds { get; init; }
+
+    public int LastTransferStreams { get; init; }
+
     /// <summary>Files that never travel by rule (a Revit central model and its data) - not counted as missing.</summary>
     public int NotCarriedCount { get; init; }
 

@@ -740,6 +740,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         else if (lanEndpoint is not null && _exchange is not null)
         {
             SyncLanSession? session = null;
+            var extraSessions = new List<SyncLanSession>();
             bool handedOff = false;
             try
             {
@@ -757,8 +758,25 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 }
                 viaLan = true;
                 timeout.CancelAfter(TransferWindow);
+                // More connections for the pieces when there is something to take: one TCP stream over
+                // Wi-Fi used a quarter of it (Erk-S Sync, 2026-10-27). Pieces go round them in turn.
+                if (PlanFor(folderId, physical, mine, theirs, SyncVersionLedgerStore.Load(_home.LedgerPath(folderId))).Actions.Count > 0)
+                {
+                    for (int extra = 1; extra < LanStreams; extra++)
+                    {
+                        try
+                        {
+                            extraSessions.Add(await _exchange.OpenAsync(lanEndpoint, device.DeviceKeyId, folderId, timeout.Token));
+                        }
+                        catch (Exception exception) when (exception is SyncLanException or IOException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
+                        {
+                            break; // the one connection still carries everything
+                        }
+                    }
+                }
+                SyncLanSession[] lanes = [session, .. extraSessions];
                 peer = await TransferAsync(folderId, physical, mine, theirs,
-                    (file, chunk, token) => session.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token);
+                    (file, chunk, token) => lanes[chunk % lanes.Length].FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token, lanes.Length);
                 // A partner that has not reached us lately (its firewall, or ours) gets this connection
                 // back to ask on - served in the background, so neither pass waits for the other.
                 if (!_exchange.ReachedUsLately(device.DeviceKeyId))
@@ -787,6 +805,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
             {
                 if (!handedOff && session is not null)
                     await session.DisposeAsync();
+                foreach (SyncLanSession extra in extraSessions)
+                    await extra.DisposeAsync();
             }
         }
         else if (heard is null)
@@ -901,8 +921,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
         SyncIndex theirs,
         Func<SyncIndexEntry, int, CancellationToken, Task<byte[]>> fetch,
         SyncPeerState peer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int streams = 1)
     {
+        var timings = new SyncApplyTimings();
         string ledgerPath = _home.LedgerPath(folderId);
         SyncVersionLedger ledger = SyncVersionLedgerStore.Load(ledgerPath);
         SyncTransferPlan plan = PlanFor(folderId, physical, mine, theirs, ledger);
@@ -955,7 +977,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         fileDone += piece;
                         doneBytes += piece;
                         Report(file.RelativePath, file.Size, fileDone);
-                    });
+                    },
+                    timings);
             }
             catch (SyncLanException exception)
             {
@@ -998,6 +1021,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 _lastReceipts[receiptKey] = new SyncPeerState
                 {
                     LastTransferBytesPerSecond = seconds > 0 ? bytes / seconds : 0,
+                    LastTransferWaitSeconds = timings.WaitSeconds,
+                    LastTransferHashSeconds = timings.HashSeconds,
+                    LastTransferDiskSeconds = timings.DiskSeconds,
+                    LastTransferStreams = streams,
                     ReceivedCount = received,
                     KeptBothCount = kept,
                     BytesReceived = bytes,
@@ -1013,6 +1040,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
             BytesReceived = receipt.BytesReceived,
             LastReceivedAtUtc = receipt.LastReceivedAtUtc,
             LastTransferBytesPerSecond = receipt.LastTransferBytesPerSecond,
+            LastTransferWaitSeconds = receipt.LastTransferWaitSeconds,
+            LastTransferHashSeconds = receipt.LastTransferHashSeconds,
+            LastTransferDiskSeconds = receipt.LastTransferDiskSeconds,
+            LastTransferStreams = receipt.LastTransferStreams,
             WaitingCount = waiting,
             AheadHereCount = plan.AheadHere,
             UnrelatedCount = plan.Unrelated,
@@ -1079,6 +1110,9 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// go on the server, so a partner on any network can take them. A Revit central model never
     /// goes; a piece that changed since the index is skipped until the next pass.
     /// </summary>
+    /// <summary>Connections opened to a LAN partner for the pieces of a transfer (the index uses the first).</summary>
+    public int LanStreams { get; init; } = 3;
+
     /// <summary>Pieces sent to the server at once.</summary>
     public int UploadLanes { get; init; } = 4;
 

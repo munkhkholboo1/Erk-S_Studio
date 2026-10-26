@@ -23,7 +23,17 @@ public sealed record SyncStatusPeer(
     long TransferTotalBytes = 0,
     long TransferDoneBytes = 0,
     double BytesPerSecond = 0,
-    int NotCarriedCount = 0);
+    int NotCarriedCount = 0)
+{
+    /// <summary>The last transfer from this peer: seconds waiting for pieces, hashing, writing, and its connections (Twin).</summary>
+    public double LastWaitSeconds { get; init; }
+
+    public double LastHashSeconds { get; init; }
+
+    public double LastDiskSeconds { get; init; }
+
+    public int LastStreams { get; init; }
+}
 
 public sealed record SyncStatusFolder(
     string FolderId,
@@ -138,7 +148,13 @@ public sealed record SyncStatusReport(
                 peer.TransferTotalBytes,
                 peer.TransferDoneBytes,
                 peer.Transferring ? peer.TransferBytesPerSecond : peer.LastTransferBytesPerSecond,
-                peer.NotCarriedCount)).ToList(),
+                peer.NotCarriedCount)
+            {
+                LastWaitSeconds = peer.LastTransferWaitSeconds,
+                LastHashSeconds = peer.LastTransferHashSeconds,
+                LastDiskSeconds = peer.LastTransferDiskSeconds,
+                LastStreams = peer.LastTransferStreams,
+            }).ToList(),
             folder.ConflictCount,
             SyncInStep.Of(folder.Peers).Percent ?? 100)
         {

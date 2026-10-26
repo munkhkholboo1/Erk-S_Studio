@@ -156,6 +156,43 @@ public sealed class ONLYAMachineTheServerLISTSGetsTheIndexTests
         Assert.Equal(100_009, (await after).Length); // a refused piece leaves the connection in step
     }
 
+    /// <summary>Erk-S Sync, 2026-10-27: one TCP stream used a quarter of the Wi-Fi - pieces go round several connections, the file still arrives whole.</summary>
+    [Fact]
+    public async Task PiecesOverSEVERALConnectionsMakeOneWHOLEFile()
+    {
+        using Device server = new();
+        using Device client = new();
+        using var here = new TemporaryFolder();
+        var attached = new HashSet<string> { server.KeyId, client.KeyId };
+        byte[] content = new byte[SyncIndex.ChunkSize * 3 + 1234];
+        new Random(7).NextBytes(content);
+        byte[] PieceOf(int chunk) => content.AsSpan(chunk * SyncIndex.ChunkSize, Math.Min(SyncIndex.ChunkSize, content.Length - chunk * SyncIndex.ChunkSize)).ToArray();
+        var pieces = Enumerable.Range(0, 4).Select(chunk => Convert.ToHexStringLower(SHA256.HashData(PieceOf(chunk)))).ToList();
+        var theirs = new SyncIndexEntry("model.rvt", content.Length, DateTime.UtcNow, SyncFileKinds.Of("model.rvt"), Convert.ToHexStringLower(SHA256.HashData(content)), pieces);
+        await using var serving = new SyncLanExchange(server.Identity, _ => attached, _ => "{}", (_, _, _, chunk) => PieceOf(chunk));
+        await using var asking = new SyncLanExchange(client.Identity, _ => attached, _ => null);
+        var endpoint = new IPEndPoint(IPAddress.Loopback, serving.Port);
+        var lanes = new List<SyncLanSession>();
+        for (int lane = 0; lane < 3; lane++)
+            lanes.Add(await asking.OpenAsync(endpoint, server.KeyId, "f-1", Timeout()));
+        var timings = new SyncApplyTimings();
+
+        SyncApplyResult result = await SyncFileAssembler.ApplyAsync(
+            here.Path,
+            new SyncTransferAction(SyncTransferKind.Fetch, theirs, null),
+            new SyncIndex { FolderId = "f-1", Entries = [] },
+            (chunk, token) => lanes[chunk % lanes.Count].FetchChunkAsync("model.rvt", theirs.Sha256, chunk, token),
+            DateTimeOffset.UtcNow,
+            Timeout(),
+            timings: timings);
+        foreach (SyncLanSession lane in lanes)
+            await lane.DisposeAsync();
+
+        Assert.Equal(SyncApplyOutcome.Applied, result.Outcome);
+        Assert.Equal(content, await File.ReadAllBytesAsync(Path.Combine(here.Path, "model.rvt")));
+        Assert.True(timings.HashTicks > 0 && timings.DiskTicks > 0);
+    }
+
     [Fact]
     public void OnlyPRIVATEAddressesAreToldOrTRIED()
     {

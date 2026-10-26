@@ -153,10 +153,27 @@ public sealed record SyncApplyResult(SyncApplyOutcome Outcome, string RelativePa
 /// already holds anywhere in the folder is read from disk instead of the network: a gigabyte
 /// model with one changed part moves one part.
 /// </summary>
+/// <summary>
+/// Where an arrival's time went (Erk-S Sync, 2026-10-27: the LAN used a quarter of the Wi-Fi - is it the
+/// network, the disk or the hashing?): waiting for pieces, hashing them, writing them. Stopwatch ticks.
+/// </summary>
+public sealed class SyncApplyTimings
+{
+    public long WaitTicks;
+    public long HashTicks;
+    public long DiskTicks;
+
+    public double WaitSeconds => WaitTicks / (double)System.Diagnostics.Stopwatch.Frequency;
+
+    public double HashSeconds => HashTicks / (double)System.Diagnostics.Stopwatch.Frequency;
+
+    public double DiskSeconds => DiskTicks / (double)System.Diagnostics.Stopwatch.Frequency;
+}
+
 public static class SyncFileAssembler
 {
-    /// <summary>Pieces asked for ahead of the one being written.</summary>
-    public const int FetchAhead = 4;
+    /// <summary>Pieces asked for ahead of the one being written (several LAN connections share them).</summary>
+    public const int FetchAhead = 6;
 
     public static async Task<SyncApplyResult> ApplyAsync(
         string root,
@@ -165,9 +182,11 @@ public static class SyncFileAssembler
         Func<int, CancellationToken, Task<byte[]>> fetchChunk,
         DateTimeOffset now,
         CancellationToken cancellationToken,
-        Action<long>? progress = null)
+        Action<long>? progress = null,
+        SyncApplyTimings? timings = null)
     {
         ArgumentNullException.ThrowIfNull(action);
+        timings ??= new SyncApplyTimings();
         SyncIndexEntry theirs = action.Theirs;
         string relative = action.Kind == SyncTransferKind.KeepBoth
             ? SyncExclusions.ConflictCopyPath(theirs.RelativePath, theirs.Version?.Writer ?? "", now)
@@ -218,15 +237,24 @@ public static class SyncFileAssembler
                     }
                     else
                     {
+                        long waited = System.Diagnostics.Stopwatch.GetTimestamp();
                         piece = ahead.Remove(index, out Task<byte[]>? coming)
                             ? await coming
                             : await fetchChunk(index, cancellationToken);
-                        if (!Convert.ToHexStringLower(SHA256.HashData(piece)).Equals(expected, StringComparison.OrdinalIgnoreCase))
+                        timings.WaitTicks += System.Diagnostics.Stopwatch.GetTimestamp() - waited;
+                        long hashed = System.Diagnostics.Stopwatch.GetTimestamp();
+                        bool matches = Convert.ToHexStringLower(SHA256.HashData(piece)).Equals(expected, StringComparison.OrdinalIgnoreCase);
+                        timings.HashTicks += System.Diagnostics.Stopwatch.GetTimestamp() - hashed;
+                        if (!matches)
                             throw new InvalidDataException($"Piece {index} of {theirs.RelativePath} did not match its hash.");
                         fetched++;
                     }
+                    long summed = System.Diagnostics.Stopwatch.GetTimestamp();
                     whole.AppendData(piece);
+                    timings.HashTicks += System.Diagnostics.Stopwatch.GetTimestamp() - summed;
+                    long written = System.Diagnostics.Stopwatch.GetTimestamp();
                     await output.WriteAsync(piece, cancellationToken);
+                    timings.DiskTicks += System.Diagnostics.Stopwatch.GetTimestamp() - written;
                     progress?.Invoke(piece.Length);
                 }
                 if (!Convert.ToHexStringLower(whole.GetHashAndReset()).Equals(theirs.Sha256, StringComparison.OrdinalIgnoreCase))
