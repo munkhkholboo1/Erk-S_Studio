@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.97] - 2026-10-26 (test release)
+
+- CGA shared file works like a Revit Central model: changes are never thrown away, so a saved drawing of any age catches up with its next Generate; a drawing on a computer is never written over (only a new local starts from the newest checkpoint); anyone may checkpoint, never backwards; no owner and member.
+
 ## [0.001.96] - 2026-10-26 (test release)
 
 - CGA shared file: when a drawing needs the owner's checkpoint as its base, Erk-S Sync says so in the form the new CGA reads.

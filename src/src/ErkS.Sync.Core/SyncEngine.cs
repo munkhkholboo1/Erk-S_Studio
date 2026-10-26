@@ -106,18 +106,15 @@ public sealed class SyncEngine : IAsyncDisposable
                 ? null
                 : SyncCollabMachine.Read(physicalRoot, device.DeviceKeyId);
             return told is { Seat.Length: > 0 }
-                ? new SyncCollabMember(told.Seat, told.Seat.StartsWith("bot-", StringComparison.Ordinal) ? "Бот " + device.BotId : device.AccountEmail, told.Role is "owner" ? "owner" : "member")
+                ? new SyncCollabMember(told.Seat, told.Seat.StartsWith("bot-", StringComparison.Ordinal) ? "Бот " + device.BotId : device.AccountEmail, "member")
                 : ServerMember(device);
         }
         SyncCollabMember ServerMember(SyncServerDevice device) => new(
             SyncSeats.Of(device.SeatId, device.BotId),
             device.BotId.Length > 0 ? "Бот " + device.BotId : device.AccountEmail,
-            // The folder's owner: its owner bot seat when it was made from one (the owner's desktop
-            // runs as a bot seat), else the owner's own account.
-            (entry.Folder.OwnerBotId.Length > 0
-                ? device.BotId.Equals(entry.Folder.OwnerBotId, StringComparison.OrdinalIgnoreCase)
-                : device.BotId.Length == 0 && device.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase))
-                ? "owner" : "member");
+            // No owner and member on a shared file (owner, 2026-10-26: «эзэн гишүүн гэдэг ойлголтыг
+            // байхгүй болго») - every seat writes as an equal; the field stays for older CGA.
+            "member");
         // Every attached device's seat, the owner first; one entry per seat, its machines' writers in it.
         List<SyncCollabMember> team = entry.Devices
             .Select(device => (Member: Member(device), Writer: SyncSeats.WriterOf(Member(device).Seat, device.DeviceKeyId)))
@@ -152,7 +149,7 @@ public sealed class SyncEngine : IAsyncDisposable
             self = new SyncCollabMember(
                 seat,
                 acting.AccountEmail,
-                acting.AccountEmail.Equals(entry.Folder.OwnerAccountEmail, StringComparison.OrdinalIgnoreCase) ? "owner" : "member");
+                "member");
             string writer = SyncSeats.WriterOf(seat, me.DeviceKeyId);
             if (seat.Length > 0)
             {

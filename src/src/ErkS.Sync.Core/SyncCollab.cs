@@ -11,6 +11,8 @@ public sealed record SyncCollabFile
     /// <summary>The DWG, relative to the sync folder - its bytes never travel while it is shared.</summary>
     public string RelativePath { get; init; } = "";
 
+    /// <summary>Read from registrations made before 0.001.97; never written - a shared file has no owner.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public string OwnerSeat { get; init; } = "";
 
     public string CgaVersion { get; init; } = "";
@@ -282,7 +284,7 @@ public static class SyncCollab
         }
         if (shared is not null)
             return shared;
-        var file = new SyncCollabFile { FileId = fileId, RelativePath = relative, OwnerSeat = ownerSeat, CgaVersion = cgaVersion, RegisteredAtUtc = now };
+        var file = new SyncCollabFile { FileId = fileId, RelativePath = relative, CgaVersion = cgaVersion, RegisteredAtUtc = now };
         string root = FileRoot(folderRoot, fileId);
         Directory.CreateDirectory(root);
         WriteOnce(Path.Combine(root, "collab.json"), JsonSerializer.SerializeToUtf8Bytes(file, Json));
@@ -367,16 +369,21 @@ public static class SyncCollab
     }
 
     /// <summary>
-    /// The DWG is behind what the log still holds: for some writer the next changeset it needs is
-    /// already retired (at or below the newest checkpoint's «through»). Only the checkpoint can
-    /// bring it back - CGA asks the person to close the file and the fast-forward lays the base.
+    /// The DWG needs the newest checkpoint to start from (Revit Central model, 2026-10-26): a new
+    /// local whose DWG holds no applied record (no ack), or - only for logs retired before 0.001.97 -
+    /// a changeset it needs that is gone. SYN never writes over the DWG: CGA makes the new local
+    /// from <see cref="LatestCheckpointFile"/> («Create New Local»).
     /// </summary>
-    public static bool NeedsCheckpoint(string folderRoot, SyncHome home, string fileId)
+    public static bool NeedsCheckpoint(string folderRoot, SyncHome home, string fileId, IReadOnlyDictionary<string, long>? ack = null)
     {
         var latest = LatestCheckpoint(folderRoot, fileId);
         if (latest is not { } checkpoint)
             return false;
+        if (ack is null || ack.Count == 0)
+            return true;
         Dictionary<string, long> applied = Applied(home, fileId);
+        foreach ((string writer, long seq) in ack)
+            applied[Safe(writer)] = seq; // what the DWG says it holds
         string logs = Path.Combine(FileRoot(folderRoot, fileId), "log");
         foreach ((string writer, long through) in checkpoint.Through)
         {
@@ -386,13 +393,14 @@ public static class SyncCollab
                 continue;
             string log = Path.Combine(logs, safe);
             if (!File.Exists(Path.Combine(log, next.ToString("D8") + Extension)))
-            {
-                SaveLocal(home, fileId, Local(home, fileId) with { NeedsBase = true });
                 return true;
-            }
         }
         return false;
     }
+
+    /// <summary>The newest complete checkpoint - its DWG path, number and what it holds - for CGA's «Create New Local».</summary>
+    public static (int Number, string DwgPath, IReadOnlyDictionary<string, long> Through)? LatestCheckpointFile(string folderRoot, string fileId) =>
+        LatestCheckpoint(folderRoot, fileId) is { } latest ? (latest.Number, latest.DwgPath, latest.Through) : null;
 
     /// <summary>collab-status: per writer - the last number in the log here, what was applied, what waits, and whether a number is missing.</summary>
     /// <param name="ownWriter">This machine's writer (whoami), used until it has published: the
@@ -530,6 +538,11 @@ public static class SyncCollab
     /// </summary>
     public static int Checkpoint(string folderRoot, string fileId, string dwgFullPath, IReadOnlyDictionary<string, long> through, SyncHome? home = null)
     {
+        // Anyone may checkpoint, but never backwards: a DWG that holds less of some writer than the
+        // newest checkpoint does is not a newer base - that checkpoint stands.
+        if (LatestCheckpoint(folderRoot, fileId) is { } newest &&
+            newest.Through.Any(pair => pair.Value > through.FirstOrDefault(given => Safe(given.Key).Equals(Safe(pair.Key), StringComparison.OrdinalIgnoreCase)).Value))
+            return newest.Number;
         int made = MakeCheckpoint(folderRoot, fileId, dwgFullPath, through);
         // The machine that made it already holds it - it is never fast-forwarded onto itself.
         if (home is not null)
@@ -590,11 +603,11 @@ public static class SyncCollab
     /// К5, once a pass for every shared file in the folder:
     /// <list type="number">
     /// <item>A machine without the DWG gets the newest checkpoint as its base, placed atomically;
-    /// a DWG already there is NEVER written over - each machine keeps its own copy. The base
-    /// already holds the changesets through the checkpoint, so they count as applied here.</item>
+    /// a DWG already there is NEVER written over - each machine keeps its own local, as in a Revit
+    /// Central model. The base holds the changesets through the checkpoint: applied here.</item>
     /// <item>Checkpoints older than the newest <see cref="CheckpointsKept"/> are retired.</item>
-    /// <item>A writer's changesets are retired up to the newest checkpoint's «through», and only as
-    /// far as every machine that registered on the file has acked them.</item>
+    /// <item>Changesets are never retired (owner, 2026-10-26: a saved local of any age catches up
+    /// with its next Generate); they are small.</item>
     /// </list>
     /// Returns the retired paths (relative to the folder) - held, so they are neither fetched back
     /// from a partner that has not retired them yet nor sent out again.
@@ -646,83 +659,11 @@ public static class SyncCollab
                     File.Delete(temporary);
                 }
             }
-            else if (local.NeedsBase || checkpoint.Number > Math.Max(local.PlacedCheckpoint, local.EditedAtCheckpoint))
-            {
-                // Fast-forward, as 1.2 does for any file: a DWG not edited on this machine - the
-                // copy SYN placed, or a version that first appeared on another machine (the
-                // laptop's pre-share copy, К4 2026-10-26) - becomes the newest checkpoint. One
-                // edited here is never written over; it is told.
-                SyncIndexEntry? entry = known(file.RelativePath);
-                string sha = Sha256Of(dwg);
-                bool untouched = local.NeedsBase ||
-                                 (local.PlacedSha256.Length > 0 && sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase)) ||
-                                 partnerHashes(file.RelativePath).Contains(sha) ||
-                                 (entry?.Version is { } version && entry.Sha256.Equals(sha, StringComparison.OrdinalIgnoreCase) &&
-                                  version.Writer.Length > 0 && !version.Writer.Equals(deviceKeyId, StringComparison.OrdinalIgnoreCase));
-                if (sha.Equals(Sha256Of(checkpoint.DwgPath), StringComparison.OrdinalIgnoreCase))
-                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, sha);
-                else if (!untouched)
-                    SaveLocal(home, file.FileId, local with { EditedAtCheckpoint = checkpoint.Number, LastError = "DWG энэ машинд засагдсан — шинэ checkpoint-оор солихгүй (хуулбар тань хэвээр)." });
-                else if (OpenElsewhere(dwg))
-                    SaveLocal(home, file.FileId, local with { LastError = $"Хамтын суурь бэлэн — {Path.GetFileName(dwg)}-г AutoCAD-д хаахад шинэ суурь тавигдана." });
-                else
-                {
-                    string kept = Path.Combine(home.Root, "collab", Safe(file.FileId), "replaced", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.dwg");
-                    Directory.CreateDirectory(Path.GetDirectoryName(kept)!);
-                    File.Copy(dwg, kept);
-                    string temporary = Path.Combine(Path.GetDirectoryName(dwg)!, $".{Guid.NewGuid():N}.tmp");
-                    File.Copy(checkpoint.DwgPath, temporary);
-                    File.Move(temporary, dwg, overwrite: true);
-                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, Sha256Of(dwg));
-                }
-            }
-
             for (int old = 1; old <= checkpoint.Number - CheckpointsKept; old++)
             {
                 foreach (string extension in new[] { ".dwg", ".json" })
                 {
                     string relative = Path.Combine(relativeRoot, "checkpoints", old.ToString("D6") + extension);
-                    retired.Add(relative);
-                    string full = Path.Combine(folderRoot, relative);
-                    if (File.Exists(full))
-                        File.Delete(full);
-                }
-            }
-
-            // Every machine that registered on the file must have applied a changeset before it goes.
-            string versions = Path.Combine(fileRoot, "versions");
-            List<string> machines = Directory.Exists(versions)
-                ? Directory.EnumerateFiles(versions, "*.json").Select(path => Path.GetFileNameWithoutExtension(path)).ToList()
-                : [];
-            var acks = new Dictionary<string, Dictionary<string, long>>(StringComparer.OrdinalIgnoreCase);
-            string ackRoot = Path.Combine(fileRoot, "acks");
-            foreach (string machine in machines)
-            {
-                string path = Path.Combine(ackRoot, machine + ".json");
-                try
-                {
-                    acks[machine] = File.Exists(path)
-                        ? new Dictionary<string, long>(JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(path), Json) ?? [], StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-                }
-                catch (JsonException)
-                {
-                    acks[machine] = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-                }
-            }
-            foreach ((string writer, long through) in checkpoint.Through)
-            {
-                string safe = Safe(writer);
-                long upTo = through;
-                foreach (string machine in machines)
-                {
-                    if (machine.Equals(safe, StringComparison.OrdinalIgnoreCase))
-                        continue; // a machine has its own changesets already
-                    upTo = Math.Min(upTo, acks[machine].GetValueOrDefault(safe));
-                }
-                for (long seq = 1; seq <= upTo; seq++)
-                {
-                    string relative = Path.Combine(relativeRoot, "log", safe, seq.ToString("D8") + Extension);
                     retired.Add(relative);
                     string full = Path.Combine(folderRoot, relative);
                     if (File.Exists(full))

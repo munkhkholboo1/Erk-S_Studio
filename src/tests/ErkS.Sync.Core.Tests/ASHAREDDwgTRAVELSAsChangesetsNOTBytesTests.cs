@@ -154,9 +154,9 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
         // The owner signed in as themselves: their own seat, owner of the folder, this machine's log.
         SyncActiveIdentity.Write(new SyncHome(home.Path), new SyncActiveIdentity { AccountEmail = "owner@example.mn" });
         SyncCollabWhoAmI who = engine.WhoAmI(folder)!;
-        Assert.Equal(("seat-aaaa", "owner"), (who.Seat, who.Team.First().Role));
+        Assert.Equal(("seat-aaaa", "member"), (who.Seat, who.Team.Single(member => member.Seat == "seat-aaaa").Role)); // no owner on a shared file
         Assert.Equal(SyncSeats.WriterOf("seat-aaaa", desktop.DeviceKeyId), who.Writer);
-        Assert.Contains(who.Writer, who.Team.First().Writers);
+        Assert.Contains(who.Writer, who.Team.Single(member => member.Seat == "seat-aaaa").Writers);
 
         // A damaged or half-replaced file never drops the owner to the bot: the last one read stands.
         File.WriteAllText(Path.Combine(home.Path, "active-identity.json"), "{ not json");
@@ -187,7 +187,7 @@ public sealed class ASHAREDDwgTRAVELSAsChangesetsNOTBytesTests
         SyncCollabMachine.Write(folder, desktop.DeviceKeyId, new SyncCollabMachine("seat-aaaa", "owner"));
         SyncCollabWhoAmI who = engine.WhoAmI(folder)!;
 
-        Assert.Contains(who.Team, member => member is { Seat: "seat-aaaa", Role: "owner" });
+        Assert.Contains(who.Team, member => member is { Seat: "seat-aaaa", Role: "member" });
         Assert.DoesNotContain(who.Team, member => member.Seat.StartsWith("bot-", StringComparison.Ordinal));
         Assert.Equal("seat-bbbb", who.Seat);
     }

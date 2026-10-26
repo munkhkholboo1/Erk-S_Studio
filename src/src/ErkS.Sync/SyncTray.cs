@@ -250,13 +250,23 @@ internal sealed class SyncTray : ApplicationContext
                         ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("ack"))
                         : null;
                     IReadOnlyList<SyncCollabChangeset> pending = SyncCollab.Pull(root, _home, fileId, writer, ack);
-                    bool needsCheckpoint = SyncCollab.NeedsCheckpoint(root, _home, fileId);
+                    bool needsCheckpoint = SyncCollab.NeedsCheckpoint(root, _home, fileId, ack);
+                    var newLocal = needsCheckpoint ? SyncCollab.LatestCheckpointFile(root, fileId) : null;
                     // CGA v0.043 reads {items, needsCheckpoint} when a base is needed, the plain
                     // list otherwise (as every CGA before it did).
                     return new SyncPipeResponse(
                         true,
-                        needsCheckpoint ? "Хамтын суурь шинэчлэгдэх хүртэл файлаа хаана уу." : "",
-                        needsCheckpoint ? SyncProtocol.Serialize(new { items = pending, needsCheckpoint = true }) : SyncProtocol.Serialize(pending),
+                        needsCheckpoint ? "Шинэ local: хамтын файлын хамгийн сүүлийн checkpoint-оос эхэлнэ (Create New Local)." : "",
+                        needsCheckpoint
+                            ? SyncProtocol.Serialize(new
+                            {
+                                items = pending,
+                                needsCheckpoint = true,
+                                checkpoint = newLocal?.Number ?? 0,
+                                checkpointPath = newLocal?.DwgPath ?? "",
+                                through = newLocal?.Through ?? new Dictionary<string, long>(),
+                            })
+                            : SyncProtocol.Serialize(pending),
                         needsCheckpoint ? true : null);
                 }
                 case "collab-status":
