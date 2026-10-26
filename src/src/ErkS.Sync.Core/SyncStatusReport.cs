@@ -201,7 +201,7 @@ public static class SyncInStep
         SyncPeerState[] all = (peers ?? []).ToArray();
         SyncPeerState[] known = all.Where(peer => peer.ExchangedAtUtc is not null).ToArray();
         DateTimeOffset at = now ?? DateTimeOffset.UtcNow;
-        SyncPeerState[] online = known.Where(peer => IsOnline(peer, at)).ToArray();
+        SyncPeerState[] online = known.Where(peer => IsOnline(peer, at) && !peer.Lagging).ToArray();
         return (known.Length == 0 ? null : online.Length == 0 ? 100 : online.Min(peer => peer.InPercent), all.Length - known.Length);
     }
 

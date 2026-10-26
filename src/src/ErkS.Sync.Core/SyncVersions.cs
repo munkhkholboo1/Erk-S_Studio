@@ -96,6 +96,22 @@ public sealed record SyncVersionLedger
         return index with { Entries = stamped };
     }
 
+    /// <summary>Drops kept conflict copies no person needs to decide: whole paths <paramref name="path"/> matches, and redacted contents.</summary>
+    public void ForgetKept(Func<string, bool> path, IReadOnlySet<string> redacted)
+    {
+        foreach (string key in Kept.Keys.ToList())
+        {
+            if (path(key))
+            {
+                Kept.Remove(key);
+                continue;
+            }
+            Kept[key].RemoveAll(redacted.Contains);
+            if (Kept[key].Count == 0)
+                Kept.Remove(key);
+        }
+    }
+
     public bool HasKept(string relativePath, string sha256) =>
         Kept.TryGetValue(relativePath, out List<string>? shas) && shas.Contains(sha256, StringComparer.OrdinalIgnoreCase);
 

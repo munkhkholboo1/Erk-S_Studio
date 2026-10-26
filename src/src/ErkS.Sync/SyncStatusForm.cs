@@ -162,7 +162,8 @@ internal sealed class SyncStatusForm : Form
             lines.Add("Гишүүд:");
             foreach (SyncPeerState peer in folder.Peers)
             {
-                string state = peer.ExchangedAtUtc is null ? "холбогдохыг хүлээж байна"
+                string state = peer.Lagging ? "хоцорсон — шинэчлэгдэж, онлайн болох хүртэл түүнээс файл авахгүй"
+                    : peer.ExchangedAtUtc is null ? "холбогдохыг хүлээж байна"
                     : SyncInStep.IsOnline(peer, now) ? "онлайн"
                     : peer.ServerLastSeenAtUtc is { } seen ? $"офлайн ({seen.ToLocalTime():MM/dd HH:mm}-өөс)" : "офлайн";
                 lines.Add($"  {Name(peer)} — {state}");

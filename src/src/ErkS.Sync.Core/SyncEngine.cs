@@ -519,6 +519,10 @@ public sealed class SyncEngine : IAsyncDisposable
             index = await Task.Run(() => SyncIndexBuilder.Build(physical, folder.FolderId, previous, cancellationToken), cancellationToken);
             SyncVersionLedger ledger = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId));
             ledger.Adopt(SyncDecisionStore.Load(_home.DecisionsPath(folder.FolderId)));
+            // A CGA changeset's kept copy is the shared file's own business (its status says «дугаар
+            // давхардсан» while one is left), and a redacted content is no decision for anyone: neither
+            // waits for a person here (Erk-S Sync, 2026-10-26 - «Зөрүүтэй файл 3» from a lagging partner).
+            ledger.ForgetKept(path => SyncCollab.IsChangesetPath(path), redactedOld);
             index = ledger.Stamp(index, _device!.DeviceKeyId);
             if (redactedOld.Count > 0)
             {
@@ -623,6 +627,7 @@ public sealed class SyncEngine : IAsyncDisposable
             DeviceKeyId = device.DeviceKeyId,
             AccountEmail = device.AccountEmail,
             ServerLastSeenAtUtc = device.LastSeenAtUtc,
+            Lagging = SyncLagging.IsLagging(device, DateTimeOffset.UtcNow, _session?.MinSyncClientVersion ?? ""),
         };
         string stored = _home.PeerIndexPath(folderId, device.DeviceKeyId);
         SyncLanPeer? heard = _discovery?.Find(device.DeviceKeyId);
@@ -674,7 +679,7 @@ public sealed class SyncEngine : IAsyncDisposable
                     SyncIndex theirs = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
                     error = "";
                     peer = peer with { Route = "server" };
-                    if (SyncLagging.IsLagging(device, DateTimeOffset.UtcNow, relay.MinSyncClientVersion))
+                    if (peer.Lagging)
                     {
                         // Long offline or not updated: its index is no source here (the stored copy is
                         // not refreshed from it either, so nothing is planned against it).

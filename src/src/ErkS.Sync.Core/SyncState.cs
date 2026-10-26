@@ -96,6 +96,9 @@ public sealed record SyncPeerState
     /// <summary>Files this machine still needs from this partner, and their bytes - what «синк хийгдсэн %» counts.</summary>
     public int NeededFiles { get; init; }
 
+    /// <summary>Long offline or older than the server's minimum: no source of files, not counted (owner, 2026-10-26).</summary>
+    public bool Lagging { get; init; }
+
     public long NeededBytes { get; init; }
 
     /// <summary>This machine's folder in bytes, for the share still to come.</summary>

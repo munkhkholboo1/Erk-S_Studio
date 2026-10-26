@@ -42,6 +42,19 @@ public sealed class THESummaryCOMESFirstTests
         Assert.DoesNotContain("member", line);
     }
 
+    [Fact]
+    public void AKeptChangesetCopyOrARedactedContentIsNoDecisionForAPerson()
+    {
+        var ledger = new SyncVersionLedger();
+        ledger.Keep(Path.Combine(".erks-collab", "file-1", "log", "w", "00000001.cgacs"), "dd9a");
+        ledger.Keep("plan.dwg", "theirs");
+        ledger.Keep("note.pdf", "redacted-old");
+
+        ledger.ForgetKept(SyncCollab.IsChangesetPath, new HashSet<string> { "redacted-old" });
+
+        Assert.Equal(["plan.dwg"], ledger.Kept.Keys);
+    }
+
     private static SyncPeerState Online() => new() { DeviceKeyId = "A", ExchangedAtUtc = Now, ServerLastSeenAtUtc = Now };
 
     private static SyncFolderState Folder(string code) => new() { FolderId = code, ProjectCode = code, PresentHere = true, Peers = [Online()] };
