@@ -63,7 +63,11 @@ public static class LiveOverlay
     /// writable (<see cref="UpdateApplier.ApplyLive"/>), else in the overlay. The caller raises its
     /// ReloadRequested with <see cref="LiveApplyResult.Applied"/>.
     /// </summary>
+    /// <param name="installDirectory">Where the product is installed.</param>
+    /// <param name="stagingDirectory">Where the plan's files were downloaded.</param>
+    /// <param name="plan">The update.</param>
     /// <param name="signedManifestJson">The server's envelope exactly as received (<see cref="DeltaDownloader.LastSignedManifestJson"/>).</param>
+    /// <param name="baseDirectory">The overlay's base (tests); %LOCALAPPDATA%\Erk-S by default.</param>
     public static LiveApplyResult ApplyLive(string installDirectory, string stagingDirectory, UpdatePlan plan, string signedManifestJson, string? baseDirectory = null) =>
         CanWrite(installDirectory)
             ? UpdateApplier.ApplyLive(installDirectory, stagingDirectory, plan)
@@ -108,6 +112,11 @@ public static class LiveOverlay
     /// The file a host loads for <paramref name="relativePath"/>: the overlay copy while it is the
     /// signed manifest's live content for a version newer than the installed one, else the installed file.
     /// </summary>
+    /// <param name="installDirectory">Where the product is installed.</param>
+    /// <param name="productCode">The product.</param>
+    /// <param name="relativePath">The file, as the manifest names it.</param>
+    /// <param name="baseDirectory">The overlay's base (tests); %LOCALAPPDATA%\Erk-S by default.</param>
+    /// <param name="pinnedThumbprint">The signer the overlay's manifest must carry.</param>
     /// <param name="channel">The host's channel (Revit/AutoCAD year) - the one its updates were published under.</param>
     public static string Resolve(string installDirectory, string productCode, string relativePath, string? baseDirectory = null, string pinnedThumbprint = ManifestSignature.ErkSThumbprint, string? channel = null)
     {

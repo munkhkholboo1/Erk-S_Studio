@@ -503,9 +503,19 @@ Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
 # Delta updates (owner, 2026-10-26: «зөвхөн өөрчлөгдсөн хэсгүүдийг нь update хийдэг болгуулаарай»;
 # _shared/delta-update-contract-2026-10-26.md): the install is a folder of files, not one packed exe,
 # so a release moves only what changed. Sync is published to its own folder and merged in after
-# Studio: a library both carry keeps Studio's copy (Studio's graph includes Sync's, so it is the
-# newer), only Sync's own files and what Studio lacks come from Sync's folder. The applier (net48,
-# present on every Windows) sits in «updater» and runs from a temporary copy after Studio closes.
+# Studio: Sync's own files and what Studio lacks come from Sync's folder; a library both carry keeps
+# the newer version (0.001.101 kept an older System.Drawing.Common and Sync died at start).
+function Get-ErkSFileVersion {
+    param([string]$Path)
+    try {
+        return [Reflection.AssemblyName]::GetAssemblyName($Path).Version
+    }
+    catch {
+        $Info = [Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+        return New-Object Version($Info.FileMajorPart, $Info.FileMinorPart, $Info.FileBuildPart, $Info.FilePrivatePart)
+    }
+}
+
 foreach ($SyncFile in Get-ChildItem -LiteralPath $SyncPublishDirectory -Recurse -File) {
     $Relative = $SyncFile.FullName.Substring($SyncPublishDirectory.TrimEnd([char]92).Length + 1)
     $Target = Join-Path $PublishDirectory $Relative
