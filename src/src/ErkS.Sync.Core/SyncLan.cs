@@ -15,7 +15,9 @@ namespace ErkS.Sync.Core;
 public sealed record SyncLanIdentity(string DeviceKeyId, X509Certificate2 Certificate);
 
 /// <summary>A machine heard on the LAN. Says where it listens; proves nothing until TLS.</summary>
-public sealed record SyncLanAnnouncement(int V, string DeviceKeyId, int Port, IReadOnlyList<string> FolderIds);
+/// <param name="Stamps">Per folder, a short stamp of this machine's index - a partner on the LAN that
+/// sees it change takes the change at once instead of waiting for its next pass. Absent from an older SYN.</param>
+public sealed record SyncLanAnnouncement(int V, string DeviceKeyId, int Port, IReadOnlyList<string> FolderIds, IReadOnlyDictionary<string, string>? Stamps = null);
 
 public sealed record SyncLanPeer(string DeviceKeyId, IPEndPoint Endpoint, IReadOnlyList<string> FolderIds, DateTimeOffset HeardAtUtc);
 
@@ -38,6 +40,10 @@ public sealed class SyncLanDiscovery : IDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly ConcurrentDictionary<string, SyncLanPeer> _peers = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _selfDeviceKeyId;
+    private readonly ConcurrentDictionary<string, string> _stamps = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A partner here announced a changed index of a folder (deviceKeyId, folderId).</summary>
+    public event Action<string, string>? IndexChanged;
 
     public SyncLanDiscovery(string selfDeviceKeyId)
     {
@@ -80,6 +86,14 @@ public sealed class SyncLanDiscovery : IDisposable
                     new IPEndPoint(received.RemoteEndPoint.Address, heard.Port),
                     heard.FolderIds ?? [],
                     DateTimeOffset.UtcNow);
+                foreach ((string folderId, string stamp) in heard.Stamps ?? new Dictionary<string, string>())
+                {
+                    string key = heard.DeviceKeyId + "|" + folderId;
+                    if (_stamps.TryGetValue(key, out string? before) && before == stamp)
+                        continue;
+                    _stamps[key] = stamp;
+                    IndexChanged?.Invoke(heard.DeviceKeyId, folderId);
+                }
             }
             catch (OperationCanceledException)
             {

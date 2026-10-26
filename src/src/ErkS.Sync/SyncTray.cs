@@ -78,6 +78,7 @@ internal sealed class SyncTray : ApplicationContext
             {
                 _engine = engine;
                 engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);
+                engine.CollabArrived += Broadcast;
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
                 engine.StateWritten += state => ThreadPool.QueueUserWorkItem(_ => _mounts?.Follow(state));
                 if (_device is not null)
@@ -102,17 +103,29 @@ internal sealed class SyncTray : ApplicationContext
     {
         while (!cancellationToken.IsCancellationRequested)
         {
+            System.IO.Pipes.NamedPipeServerStream? pipe = null;
+            bool heldOpen = false;
             try
             {
-                await using var pipe = SyncProtocol.CreateServer();
+                pipe = SyncProtocol.CreateServer();
                 await pipe.WaitForConnectionAsync(cancellationToken);
-                using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-                await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+                var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
+                var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
                 SyncPipeRequest? request = SyncProtocol.Deserialize<SyncPipeRequest>(await reader.ReadLineAsync(cancellationToken));
+                if (request?.Verb == "collab-subscribe")
+                {
+                    // CGA keeps this one connection: a line per changeset that arrives (plan §4).
+                    await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
+                    heldOpen = true;
+                    _ = HoldSubscriberAsync(pipe, reader, writer, cancellationToken);
+                    continue;
+                }
                 SyncPipeResponse response = request is null
                     ? new SyncPipeResponse(false, "Хүсэлт уншигдсангүй.")
                     : await HandleAsync(request, cancellationToken);
                 await writer.WriteLineAsync(SyncProtocol.Serialize(response));
+                writer.Dispose();
+                reader.Dispose();
             }
             catch (OperationCanceledException)
             {
@@ -122,6 +135,55 @@ internal sealed class SyncTray : ApplicationContext
             {
                 // Any one request that fails must not end the pipe: the next caller (Studio, CGA,
                 // Explorer) is served by a fresh instance.
+            }
+            finally
+            {
+                if (!heldOpen && pipe is not null)
+                    await pipe.DisposeAsync();
+            }
+        }
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, StreamWriter> _subscribers = new();
+
+    /// <summary>A collab-subscribe connection lives until CGA closes it; the line it is sent is all it needs.</summary>
+    private async Task HoldSubscriberAsync(System.IO.Pipes.NamedPipeServerStream pipe, StreamReader reader, StreamWriter writer, CancellationToken cancellationToken)
+    {
+        Guid id = Guid.NewGuid();
+        _subscribers[id] = writer;
+        try
+        {
+            while (await reader.ReadLineAsync(cancellationToken) is not null)
+            {
+                // Nothing is asked on this connection; it only tells when it closes.
+            }
+        }
+        catch (Exception exception) when (exception is IOException or OperationCanceledException or ObjectDisposedException)
+        {
+        }
+        finally
+        {
+            _subscribers.TryRemove(id, out _);
+            writer.Dispose();
+            reader.Dispose();
+            await pipe.DisposeAsync();
+        }
+    }
+
+    /// <summary>Each other member's changeset that arrived, to every CGA listening: it only says so - Generate takes it in.</summary>
+    private void Broadcast(SyncCollabArrival arrival)
+    {
+        string line = SyncProtocol.Serialize(new { @event = "collab-arrived", fileId = arrival.FileId, writer = arrival.Writer, seq = arrival.Seq, path = arrival.Path });
+        foreach ((Guid id, StreamWriter writer) in _subscribers)
+        {
+            try
+            {
+                lock (writer)
+                    writer.WriteLine(line);
+            }
+            catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+            {
+                _subscribers.TryRemove(id, out _);
             }
         }
     }
@@ -157,6 +219,9 @@ internal sealed class SyncTray : ApplicationContext
             case "collab-whoami":
             case "collab-central-reset":
             case "collab-checkpoint-prune":
+                // A Generate takes the newest work: what the server or the LAN has is fetched first, at most 2 s.
+                if (request.Verb == "collab-pull" && _engine is { } engine)
+                    await engine.RefreshAsync(TimeSpan.FromSeconds(2), cancellationToken);
                 return Collab(request);
             case "redact":
                 return await RedactAsync(request, cancellationToken);

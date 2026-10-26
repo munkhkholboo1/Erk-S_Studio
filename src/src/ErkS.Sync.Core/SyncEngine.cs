@@ -55,13 +55,13 @@ public sealed class SyncPathMap
 /// only when its version came after this machine's; two edits of one version are both kept;
 /// copies that never shared a version are only shown (<see cref="SyncTransferPlanner"/>).
 /// </summary>
-public sealed class SyncEngine : IAsyncDisposable
+public sealed partial class SyncEngine : IAsyncDisposable
 {
     private readonly SyncHome _home;
     private readonly SyncServerClient _server;
     private readonly ISyncDevice? _device;
     private readonly SyncPathMap _paths;
-    private readonly SemaphoreSlim _wake = new(0);
+    private readonly SemaphoreSlim _wake = new(0, 1); // pokes while a pass runs make ONE more pass
     private readonly Dictionary<string, SyncIndex> _indexes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _roots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SyncPeerState> _lastReceipts = new(StringComparer.OrdinalIgnoreCase);
@@ -335,7 +335,17 @@ public sealed class SyncEngine : IAsyncDisposable
     public event Action<SyncState>? StateWritten;
 
     /// <summary>Run a pass now (a folder was registered, a verb asked for status).</summary>
-    public void Poke() => _wake.Release();
+    public void Poke()
+    {
+        try
+        {
+            _wake.Release();
+        }
+        catch (Exception exception) when (exception is SemaphoreFullException or ObjectDisposedException)
+        {
+            // A pass is already due (or the engine is gone).
+        }
+    }
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -349,6 +359,7 @@ public sealed class SyncEngine : IAsyncDisposable
                     IndexJson,
                     ReadChunk);
                 _discovery = new SyncLanDiscovery(_device.DeviceKeyId);
+                _discovery.IndexChanged += (_, _) => Debounced();
             }
             catch (Exception exception) when (exception is System.Net.Sockets.SocketException or IOException)
             {
@@ -356,6 +367,8 @@ public sealed class SyncEngine : IAsyncDisposable
             }
         }
 
+        if (_device is not null)
+            _ = EventsLoopAsync(cancellationToken);
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -368,7 +381,7 @@ public sealed class SyncEngine : IAsyncDisposable
             }
             try
             {
-                await _wake.WaitAsync(Period, cancellationToken);
+                await _wake.WaitAsync(_eventsConnected ? PushedPeriod : Period, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -378,6 +391,19 @@ public sealed class SyncEngine : IAsyncDisposable
     }
 
     public async Task PassAsync(CancellationToken cancellationToken)
+    {
+        PassStarted();
+        try
+        {
+            await PassCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            PassFinished();
+        }
+    }
+
+    private async Task PassCoreAsync(CancellationToken cancellationToken)
     {
         if (_device is null)
         {
@@ -424,9 +450,13 @@ public sealed class SyncEngine : IAsyncDisposable
         {
             try
             {
+                Dictionary<string, string> stamps;
+                lock (_gate)
+                    stamps = _indexes.ToDictionary(pair => pair.Key, pair => Stamp(pair.Value), StringComparer.OrdinalIgnoreCase);
                 await _discovery.AnnounceAsync(
                     new SyncLanAnnouncement(1, _device.DeviceKeyId, _exchange.Port,
-                        states.Where(state => state.PresentHere).Select(state => state.FolderId).ToList()),
+                        states.Where(state => state.PresentHere).Select(state => state.FolderId).ToList(),
+                        stamps),
                     cancellationToken);
             }
             catch (Exception exception) when (exception is System.Net.Sockets.SocketException or ObjectDisposedException)
@@ -551,6 +581,10 @@ public sealed class SyncEngine : IAsyncDisposable
             {
                 _indexes[folder.FolderId] = index;
                 _roots[folder.FolderId] = physical;
+            }
+            Watch(physical);
+            lock (_gate)
+            {
                 _held[folder.FolderId] = held;
             }
         }
@@ -1173,6 +1207,7 @@ public sealed class SyncEngine : IAsyncDisposable
             return;
         if (LastState.UpdatedAtUtc != default)
             WriteStatus(running: false);
+        DisposePush();
         _discovery?.Dispose();
         if (_exchange is not null)
             await _exchange.DisposeAsync();
