@@ -44,9 +44,28 @@ internal static class StudioDeltaUpdate
 
     /// <summary>
     /// The applier's sentence when the last update could not be put in place (another Studio window
-    /// held its files …) - returned once, then forgotten; null when nothing failed.
+    /// held its files …) - returned once, then forgotten; null when nothing failed. Then the update
+    /// folders of versions already installed go (Master, 2026-10-27: a folder per release since July).
     /// </summary>
     public static string? TakeFailedApply()
+    {
+        try
+        {
+            return FailedSentence();
+        }
+        finally
+        {
+            try
+            {
+                UpdateStaging.Tidy(UpdatesRoot, InstalledVersion ?? StudioReleaseInfo.ShortVersion);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private static string? FailedSentence()
     {
         try
         {
@@ -115,9 +134,10 @@ internal static class StudioDeltaUpdate
         LiveApplyResult live = LiveOverlay.ApplyLive(InstallRoot, staging, plan, downloader.LastSignedManifestJson ?? "");
         if (live.Applied.Count > 0)
             ReloadRequested?.Invoke(live.Applied);
-        return plan.NeedsRestart || live.Deferred.Count > 0
-            ? new StudioDeltaResult(StudioDeltaOutcome.ReadyToRestart, staging, live.Applied, live.Deferred)
-            : new StudioDeltaResult(StudioDeltaOutcome.AppliedLive, staging, live.Applied, live.Deferred);
+        if (plan.NeedsRestart || live.Deferred.Count > 0)
+            return new StudioDeltaResult(StudioDeltaOutcome.ReadyToRestart, staging, live.Applied, live.Deferred);
+        UpdateStaging.Finished(staging); // all in place: the staged files are not kept
+        return new StudioDeltaResult(StudioDeltaOutcome.AppliedLive, staging, live.Applied, live.Deferred);
     }
 
     /// <summary>

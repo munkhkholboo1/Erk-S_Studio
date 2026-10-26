@@ -60,6 +60,7 @@ internal static class Program
                         UpdateApplier.Apply(install, staging, plan);
                     File.WriteAllText(Path.Combine(staging, "applied.txt"), target.Version);
                     Log("applied");
+                    UpdateStaging.Finished(staging); // the staged files are not kept; this log stays
                     UninstallEntries.Show(install, target.Version, Log);
                 }
                 finally
