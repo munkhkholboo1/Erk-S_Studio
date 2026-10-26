@@ -182,13 +182,17 @@ public sealed partial class SyncEngine
                     wait = TimeSpan.FromSeconds(5);
                     Poke(); // whatever happened while it was down
                     byte[] buffer = new byte[16 * 1024];
+                    var message = new MemoryStream();
                     while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                     {
                         WebSocketReceiveResult received = await socket.ReceiveAsync(buffer, cancellationToken);
                         if (received.MessageType == WebSocketMessageType.Close)
                             break;
-                        if (received.EndOfMessage)
-                            Poke();
+                        message.Write(buffer, 0, received.Count);
+                        if (!received.EndOfMessage)
+                            continue;
+                        Heard(message.ToArray());
+                        message.SetLength(0);
                     }
                 }
                 catch (Exception exception) when (exception is WebSocketException or IOException or OperationCanceledException or InvalidOperationException or HttpRequestException)
@@ -210,6 +214,31 @@ public sealed partial class SyncEngine
                 return;
             }
             wait = TimeSpan.FromTicks(Math.Min(wait.Ticks * 2, PushedPeriod.Ticks));
+        }
+    }
+
+    /// <summary>
+    /// One server event (SRV 195fefa): «index» - a partner put a new index: a pass; «redactions» - the
+    /// server's list grew: read it again, then a pass; «hello» - connected (a pass already runs).
+    /// Only ids and hashes travel in them.
+    /// </summary>
+    private void Heard(byte[] json)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            string type = document.RootElement.TryGetProperty("type", out var kind) ? kind.GetString() ?? "" : "";
+            if (type == "redactions" && document.RootElement.TryGetProperty("folderId", out var folder) && folder.GetString() is { Length: > 0 } folderId)
+            {
+                lock (_gate)
+                    _serverRedactions.Remove(folderId);
+            }
+            if (type is "index" or "redactions")
+                Poke();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            Poke(); // something happened - look
         }
     }
 
