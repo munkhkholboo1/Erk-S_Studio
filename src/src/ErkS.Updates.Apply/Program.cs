@@ -12,6 +12,9 @@ namespace ErkS.Updates.Apply;
 /// Waits for the program to close by itself (it is never closed here - the person decides about
 /// their work), puts the staged update in place with rollback, then starts the programs again.
 /// A failed apply leaves the old version whole and still starts it.
+/// <para><c>ErkS.Updates.Apply --uninstall-entry DIR VERSION</c> only names VERSION in the Windows «Apps»
+/// entry of the install at DIR (UninstallEntries.Show) - for a product's own elevated installer step
+/// (CGA/PFR whose entry is in HKLM, Master 2026-10-27). Always exits 0; what it did is printed.</para>
 /// </summary>
 internal static class Program
 {
@@ -19,6 +22,11 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        if (args.Length == 3 && args[0].Equals("--uninstall-entry", StringComparison.OrdinalIgnoreCase))
+        {
+            UninstallEntries.Show(args[1], args[2], Console.WriteLine);
+            return 0;
+        }
         Dictionary<string, List<string>> options = Parse(args);
         string install = One(options, "install");
         string staging = One(options, "staging");
