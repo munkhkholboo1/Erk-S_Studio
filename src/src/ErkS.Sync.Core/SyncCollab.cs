@@ -954,7 +954,8 @@ public static class SyncCollab
         string central = Path.GetFullPath(centralFullPath), source = Path.GetFullPath(sourceFullPath);
         if (!string.Equals(Path.GetDirectoryName(central), Path.GetDirectoryName(source), StringComparison.OrdinalIgnoreCase))
             return false;
-        string pattern = "^" + System.Text.RegularExpressions.Regex.Escape(Path.GetFileNameWithoutExtension(central)) + @"_d[0-9a-f]{8}_LOCAL\.dwg$";
+        // «<central>_<member>_LOCAL.dwg» (CGA v0.049, 2026-10-26) or «<central>_d<8 hex>_LOCAL.dwg» before.
+        string pattern = "^" + System.Text.RegularExpressions.Regex.Escape(Path.GetFileNameWithoutExtension(central)) + @"_[^\\/]+_LOCAL\.dwg$";
         return System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(source), pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
@@ -966,15 +967,25 @@ public static class SyncCollab
     public static int CheckpointFromLocal(string folderRoot, string fileId, string centralFullPath, string sourceFullPath, IReadOnlyDictionary<string, long> through)
     {
         if (!IsLocalOf(centralFullPath, sourceFullPath))
-            throw new InvalidOperationException("source нь энэ central-ын хажуудах «<central>_d<8hex>_LOCAL.dwg» биш байна.");
+            throw new InvalidOperationException("source нь энэ central-ын хажуудах «<central>_<гишүүн>_LOCAL.dwg» биш байна.");
+        if (!File.Exists(sourceFullPath))
+            throw new IOException("Local хуулбар олдсонгүй — CGA шинэ local үүсгэнэ үү.");
         var before = new FileInfo(sourceFullPath);
         (long length, DateTime written) = (before.Length, before.LastWriteTimeUtc);
         string staging = Path.Combine(Path.GetTempPath(), $"erks-collab-{Guid.NewGuid():N}.dwg");
         try
         {
-            using (var input = new FileStream(sourceFullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-            using (var output = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                input.CopyTo(output);
+            // A file error names the local's path, and the path names the member: said without it.
+            try
+            {
+                using (var input = new FileStream(sourceFullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var output = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    input.CopyTo(output);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new IOException("Local хуулбарыг уншиж чадсангүй (хадгалагдаж эсвэл түгжигдсэн байж магадгүй) — дахин оролдоно уу.");
+            }
             var after = new FileInfo(sourceFullPath);
             if (after.Length != length || after.LastWriteTimeUtc != written || new FileInfo(staging).Length != length)
                 throw new IOException("Local файл хадгалагдаж байна — дахин оролдоно уу.");

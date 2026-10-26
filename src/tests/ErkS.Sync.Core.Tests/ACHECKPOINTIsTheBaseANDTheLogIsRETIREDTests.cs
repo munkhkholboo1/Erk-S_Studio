@@ -52,6 +52,16 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
         string local = Path.Combine(root, "plan_d0a55efd7_LOCAL.dwg");
         File.WriteAllText(local, "local after Generate 1");
         Assert.True(SyncExclusions.IsExcludedFile(Path.GetFileName(local))); // a local never travels
+        // Named after the member since CGA v0.049 (owner, 2026-10-26): never indexed - the name stays here,
+        // nor AutoCAD's files of it; and it is a local of THIS central only.
+        foreach (string name in new[] { "plan_bat_LOCAL.dwg", "plan_bat_LOCAL.dwl", "plan_bat_LOCAL.dwl2", "plan_bat_LOCAL.bak", "plan_bat_LOCAL.sv$" })
+            Assert.True(SyncExclusions.IsExcludedFile(name), name);
+        Assert.False(SyncExclusions.IsExcludedFile("plan.dwg"));
+        Assert.True(SyncCollab.IsLocalOf(central, Path.Combine(root, "plan_bat_LOCAL.dwg")));
+        Assert.False(SyncCollab.IsLocalOf(central, Path.Combine(root, "other_bat_LOCAL.dwg")));
+        Assert.False(SyncCollab.IsLocalOf(central, Path.Combine(root, "plan_LOCAL.dwg")));
+        var gone = Assert.Throws<IOException>(() => SyncCollab.CheckpointFromLocal(root, "file-1", central, Path.Combine(root, "plan_bat_LOCAL.dwg"), new Dictionary<string, long> { ["a"] = 1 }));
+        Assert.DoesNotContain("bat", gone.Message); // the member's name is not in what is said
         Assert.Equal(1, SyncCollab.CheckpointFromLocal(root, "file-1", central, local, new Dictionary<string, long> { ["a"] = 1 }));
 
         // The central, a synced copy nobody edited, follows the checkpoint; the old one is kept aside.

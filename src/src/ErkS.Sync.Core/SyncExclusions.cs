@@ -47,7 +47,10 @@ public static partial class SyncExclusions
     /// CGA's local copy of a shared (central) DWG beside it - «Plan_d0a55efd7_LOCAL.dwg» (owner,
     /// 2026-10-26: a local, as in Revit, never travels; its .bak/.dwl/.sv$ go by extension).
     /// </summary>
-    [GeneratedRegex(@"_d[0-9a-f]{8}_LOCAL\.dwg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // Since 2026-10-26 named after the member («Plan_bat_LOCAL.dwg», the owner's choice): every
+    // «_LOCAL.<ext>» - the DWG and AutoCAD's .dwl/.dwl2/.bak/.sv$ of it - is never indexed, so the
+    // member's name never goes online (CLAUDE.md §2).
+    [GeneratedRegex(@"_LOCAL\.[^.\\/]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CgaLocalCopy();
 
     /// <summary>Revit's numbered backups: «Model.0001.rvt», «Family.0003.rfa».</summary>
