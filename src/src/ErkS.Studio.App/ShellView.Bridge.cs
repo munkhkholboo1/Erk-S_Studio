@@ -113,6 +113,10 @@ internal sealed partial class ShellView
                     .Select(folder => new { folder = folder.FolderId, project = folder.ProjectCode, collabs = folder.Collabs })
                     .Where(item => item.collabs.Count > 0)
                     .ToList());
+            case "team-invitations":
+                return await BridgeTeamInvitationsAsync(request);
+            case "team-accept":
+                return await BridgeTeamAcceptAsync(request);
             case "close":
                 _ = Root.Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(Root)?.Close()));
                 return StudioBridgeProtocol.Accept(request.Id, null, "Studio хаагдаж байна.");
@@ -123,6 +127,10 @@ internal sealed partial class ShellView
 
         switch (action)
         {
+            case "team-list":
+                return await BridgeTeamListAsync(request);
+            case "team-invite":
+                return await BridgeTeamInviteAsync(request);
             case "check-sources":
             {
                 await RelinkMovedSourcesAsync();

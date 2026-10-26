@@ -845,18 +845,25 @@ internal sealed partial class ShellView
             {
                 return;
             }
-            StudioProjectMembershipInvitation invitation = await account.InviteProjectMemberAsync(
-                state.Project.Cloud.ServerProjectId,
-                dialog.Draft.Email,
-                dialog.Draft.Roles);
-            await RefreshProjectTeamAsync();
-            SetStatus(
-                $"{invitation.TargetEmail} бүртгэлд урилга илгээлээ. Accept хийх хүртэл төсөлд нэвтрэхгүй.");
+            await SendTeamInvitationAsync(dialog.Draft.Email, dialog.Draft.Roles);
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
             SetStatus("Багийн урилга илгээж чадсангүй: " + exception.Message);
         }
+    }
+
+    /// <summary>The «Гишүүн урих» send itself - the button (after its dialog) and the bridge's «team-invite» both call it.</summary>
+    private async Task<StudioProjectMembershipInvitation> SendTeamInvitationAsync(string email, IReadOnlyList<string> roles)
+    {
+        StudioProjectMembershipInvitation invitation = await account.InviteProjectMemberAsync(
+            state.Project.Cloud.ServerProjectId,
+            email,
+            roles);
+        await RefreshProjectTeamAsync();
+        SetStatus(
+            $"{invitation.TargetEmail} бүртгэлд урилга илгээлээ. Accept хийх хүртэл төсөлд нэвтрэхгүй.");
+        return invitation;
     }
 
     private async Task EditSelectedTeamMemberRolesAsync()
