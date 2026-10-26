@@ -34,6 +34,9 @@ public sealed class DeltaDownloader
         _productCode = productCode;
     }
 
+    /// <summary>The envelope <see cref="GetManifestAsync"/> last verified, exactly as received - what <see cref="LiveOverlay"/> keeps beside an overlay.</summary>
+    public string? LastSignedManifestJson { get; private set; }
+
     /// <summary>The manifest signer pin; tests may name their own certificate.</summary>
     public string PinnedManifestThumbprint { get; set; } = ManifestSignature.ErkSThumbprint;
 
@@ -53,6 +56,7 @@ public sealed class DeltaDownloader
             throw new HttpRequestException($"Шинэчлэлийн манифестыг авч чадсангүй: {(int)response.StatusCode}");
         string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         UpdateManifest manifest = SignedManifest.FromJson(json).Verify(PinnedManifestThumbprint);
+        LastSignedManifestJson = json;
         if (!manifest.ProductCode.Equals(_productCode, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Манифест өөр бүтээгдэхүүнийх байна: " + manifest.ProductCode);
         return manifest;

@@ -58,6 +58,8 @@ public static class UpdateApplier
             Undo(done);
             throw;
         }
+        // Everything is in place now: a user's live overlay of an older version would only shadow it.
+        LiveOverlay.Clear(plan.Target.ProductCode);
     }
 
     /// <summary>

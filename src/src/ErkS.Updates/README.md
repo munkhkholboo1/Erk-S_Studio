@@ -44,3 +44,17 @@ if (plan.NeedsRestart || live.Deferred.Count > 0)
 `ErkS.LicenseServer.exe --publish-files --dir <суулгалтын бүтэц> --version v0.001.NN --product-code <CODE> [--live "<glob>;<glob>"]`
 (`ERKS_LICENSE_SERVER_DATA` = серверийн data root). `--live` таарахгүй файл бүр `restart`. Studio-гийн жишээ:
 `scripts/Publish-Studio-DemoToServer.ps1` (delta алдаа гарвал анхааруулаад бүтэн суулгагч хэвээр).
+
+## Хэрэглэгчийн live давхарга (overlay) — админаар суусан программд
+Program Files / ProgramData-д суусан bundle-ийн live файлыг энгийн хэрэглэгч сольж чадахгүй тул:
+```csharp
+// GetManifestAsync-ийн дараа downloader.LastSignedManifestJson нь серверийн envelope яг ирсэн хэвээрээ.
+LiveApplyResult live = LiveOverlay.ApplyLive(installDir, staging, plan, downloader.LastSignedManifestJson!);
+// бичих эрхтэй бол суулгалтад шууд, үгүй бол %LOCALAPPDATA%\Erk-S\<product>\overlay\<version>\ руу (манифесттой нь)
+
+// Хост live файл ачаалах БҮРТ:
+string path = LiveOverlay.Resolve(installDir, "<PRODUCT CODE>", "Templates/sheet.json");
+```
+- `Resolve` overlay-ийн хуулбарыг зөвхөн: манифестын гарын үсэг pin-тэй (52B2508A…) таарч, файлын SHA-256 таарч, ErkS.* exe/dll бол
+  Authenticode pin таарч, суулгасан хувилбар overlay-ийнхаас хуучин үед өгнө — үгүй бол суулгасан файл.
+- Бүтэн/elevated хэрэглэлт (`UpdateApplier.Apply`) дуусахад `LiveOverlay.Clear(product)` автоматаар; шинэ overlay хуучин хувилбарын хавтсыг устгана.

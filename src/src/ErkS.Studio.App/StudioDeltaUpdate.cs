@@ -84,7 +84,7 @@ internal static class StudioDeltaUpdate
         await downloader.DownloadAsync(plan, staging, bytes, cancellationToken).ConfigureAwait(true);
         File.WriteAllText(Path.Combine(staging, "target.json"), target.ToJson());
 
-        LiveApplyResult live = UpdateApplier.ApplyLive(InstallRoot, staging, plan);
+        LiveApplyResult live = LiveOverlay.ApplyLive(InstallRoot, staging, plan, downloader.LastSignedManifestJson ?? "");
         if (live.Applied.Count > 0)
             ReloadRequested?.Invoke(live.Applied);
         return plan.NeedsRestart || live.Deferred.Count > 0
