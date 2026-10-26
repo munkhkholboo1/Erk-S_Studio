@@ -125,8 +125,14 @@ internal static class StudioDeltaUpdate
     /// puts the staged files in place (rollback on failure) and starts Sync and Studio again.
     /// Erk-S Sync runs from the same folder, so it is asked to quit first.
     /// </summary>
-    public static void LaunchApplier(string staging)
+    /// <summary>Whether this Studio already started an applier (the dialog, or the close) - never two.</summary>
+    public static bool ApplierLaunched { get; private set; }
+
+    /// <param name="relaunchStudio">False when the person closed Studio themselves: the update goes in, Studio stays closed.</param>
+    public static void LaunchApplier(string staging, bool relaunchStudio = true)
     {
+        if (ApplierLaunched)
+            return;
         string source = Path.Combine(InstallRoot, UpdaterFolder);
         string copy = Path.Combine(Path.GetTempPath(), "ErkS-Updates-Apply-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(copy);
@@ -173,8 +179,12 @@ internal static class StudioDeltaUpdate
             start.ArgumentList.Add("--launch");
             start.ArgumentList.Add("ErkS.Sync.exe");
         }
-        start.ArgumentList.Add("--launch");
-        start.ArgumentList.Add("ErkS.Studio.exe");
+        if (relaunchStudio)
+        {
+            start.ArgumentList.Add("--launch");
+            start.ArgumentList.Add("ErkS.Studio.exe");
+        }
         _ = Process.Start(start) ?? throw new InvalidOperationException("Шинэчлэгч эхэлсэнгүй.");
+        ApplierLaunched = true;
     }
 }

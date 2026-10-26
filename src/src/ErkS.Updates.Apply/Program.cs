@@ -32,13 +32,32 @@ internal static class Program
                     WaitFor(int.Parse(pid));
                 WaitForFolder(install, Many(options, "close"));
                 WaitForOthers(install);
-                UpdateManifest target = UpdateManifest.FromJson(File.ReadAllText(Path.Combine(staging, "target.json")));
-                UpdateManifest installed = InstallManifest.LoadOrScan(install, target.ProductCode, "?");
-                UpdatePlan plan = UpdatePlanner.Plan(installed, target);
-                Log($"apply {target.ProductCode} {installed.Version} -> {target.Version}: {plan.Changed.Count} changed, {plan.Removed.Count} removed");
-                UpdateApplier.Apply(install, staging, plan);
-                File.WriteAllText(Path.Combine(staging, "applied.txt"), target.Version);
-                Log("applied");
+                // One applier at a time per install: a second one (the program's own at close, an agent's)
+                // waits, then finds nothing left to do.
+                using var only = new Mutex(false, @"Local\ErkS.Updates.Apply." + FolderKey(install));
+                try
+                {
+                    only.WaitOne();
+                }
+                catch (AbandonedMutexException)
+                {
+                }
+                try
+                {
+                    UpdateManifest target = UpdateManifest.FromJson(File.ReadAllText(Path.Combine(staging, "target.json")));
+                    UpdateManifest installed = InstallManifest.LoadOrScan(install, target.ProductCode, "?");
+                    UpdatePlan plan = UpdatePlanner.Plan(installed, target);
+                    Log($"apply {target.ProductCode} {installed.Version} -> {target.Version}: {plan.Changed.Count} changed, {plan.Removed.Count} removed");
+                    if (plan.Changed.Count > 0 || plan.Removed.Count > 0 || installed.Version != target.Version)
+                        UpdateApplier.Apply(install, staging, plan);
+                    File.WriteAllText(Path.Combine(staging, "applied.txt"), target.Version);
+                    Log("applied");
+                    UninstallEntries.Show(install, target.Version, Log);
+                }
+                finally
+                {
+                    only.ReleaseMutex();
+                }
             }
             catch (Exception exception)
             {
@@ -163,6 +182,13 @@ internal static class Program
             }
             Thread.Sleep(300);
         }
+    }
+
+    private static string FolderKey(string install)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        byte[] hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(install).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant()));
+        return BitConverter.ToString(hash, 0, 8).Replace("-", "");
     }
 
     private static bool From(Process process, string prefix)

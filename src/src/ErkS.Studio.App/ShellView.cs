@@ -43,6 +43,8 @@ internal sealed partial class ShellView : IDisposable
     private readonly StudioAccountService account = new();
     private readonly StudioUpdateService productUpdates = new();
     private readonly CancellationTokenSource releaseListening = new();
+    private string preparingUpdateVersion = "";
+    private string? preparedUpdateStaging;
     private readonly StudioOperationDiagnosticLog operationDiagnosticLog = new();
     private readonly Dictionary<string, StudioOperationDiagnosticIdentity> operationDiagnosticIdentities =
         new(StringComparer.Ordinal);
@@ -564,6 +566,7 @@ internal sealed partial class ShellView : IDisposable
         state.Dispose();
         account.Dispose();
         releaseListening.Cancel();
+        ApplyPreparedUpdateOnClose();
         productUpdates.Dispose();
         productCatalog.Dispose();
         siteImages.Dispose();
@@ -1702,6 +1705,8 @@ internal sealed partial class ShellView : IDisposable
                 SetStatus($"Erk-S Studio {result.Version} шинэ хувилбар бэлэн байна.");
                 if (interactive)
                     ShowProductUpdateDialog(result);
+                else
+                    _ = PrepareProductUpdateAsync(result);
                 return;
             }
 
@@ -1736,6 +1741,57 @@ internal sealed partial class ShellView : IDisposable
             productUpdateCheckInProgress = false;
             productUpdateButton.IsEnabled = true;
             RefreshProductUpdateIndicator();
+        }
+    }
+
+    /// <summary>
+    /// A new version is fetched in the background as soon as it is known (owner, 2026-10-26: files that are
+    /// not loaded are replaced without closing; closing is asked only for loaded ones; Master, 2026-10-27:
+    /// the laptop knew 127 and waited). Only changed files come: «live» ones go in now; the rest wait for
+    /// Studio's own close - nothing is closed for the person, nothing is saved for them.
+    /// </summary>
+    private async Task PrepareProductUpdateAsync(StudioUpdateLatestResponse update)
+    {
+        if (string.IsNullOrWhiteSpace(update.Version) || preparingUpdateVersion == update.Version)
+            return;
+        preparingUpdateVersion = update.Version;
+        try
+        {
+            StudioDeltaResult delta = await productUpdates.TryDeltaAsync(update);
+            switch (delta.Outcome)
+            {
+                case StudioDeltaOutcome.AppliedLive:
+                    availableProductUpdate = null;
+                    SetProductUpdateButtonLabel("Шинэчлэлт");
+                    productUpdateButton.ToolTip = "Erk-S Studio шинэчлэлт шалгах";
+                    SetStatus($"Erk-S Studio {update.Version} шинэчлэлт Studio-г хаалгүйгээр орлоо.");
+                    RefreshProductUpdateIndicator();
+                    break;
+                case StudioDeltaOutcome.ReadyToRestart:
+                    preparedUpdateStaging = delta.Staging;
+                    productUpdateButton.ToolTip = $"Erk-S Studio {update.Version} татагдсан — Studio-г хаахад сууна (одоо суулгах бол дарна уу)";
+                    SetStatus($"Erk-S Studio {update.Version} татагдлаа — Studio-г хаахад сууна.");
+                    break;
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            preparingUpdateVersion = ""; // the next notice tries again; the button still offers it
+        }
+    }
+
+    /// <summary>Studio closes by the person's own hand: a fetched update goes in behind it, Studio is not started again.</summary>
+    private void ApplyPreparedUpdateOnClose()
+    {
+        if (preparedUpdateStaging is not { } staging || StudioDeltaUpdate.ApplierLaunched)
+            return;
+        try
+        {
+            StudioDeltaUpdate.LaunchApplier(staging, relaunchStudio: false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // The button offers it again at the next start.
         }
     }
 
