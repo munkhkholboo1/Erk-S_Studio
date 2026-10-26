@@ -35,27 +35,42 @@ public sealed class ACHECKPOINTIsTheBaseANDTheLogIsRETIREDTests
     }
 
     [Fact]
-    public void ALocalIsNeverWrittenOverOnlyAMissingOneGetsTheBase()
+    public void TheCentralFollowsCheckpointsTakenFromALocalAndIsNeverOverwrittenWhenSavedDirectly()
     {
         using var folder = new TemporaryFolder();
         using var home = new TemporaryFolder();
         string root = folder.Folder("Erin");
-        string dwg = Path.Combine(root, "plan.dwg");
-        File.WriteAllText(dwg, "pre-share v0");
-        SyncCollab.Register(root, dwg, "file-1", "", "v1", DateTimeOffset.UtcNow);
-        string source = Path.Combine(home.Path, "any.dwg");
-        File.WriteAllText(source, "checkpoint 1");
-        SyncCollab.Checkpoint(root, "file-1", source, new Dictionary<string, long> { ["a"] = 4 });
+        string central = Path.Combine(root, "plan.dwg");
+        File.WriteAllText(central, "pre-share v0");
+        string sha0 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(central)));
+        SyncCollab.Register(root, central, "file-1", "", "v1", DateTimeOffset.UtcNow);
 
-        // Revit Central model (2026-10-26): a local of any age stays as it is - its next Generate catches up.
-        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => null, "THIS", _ => new HashSet<string> { "anything" });
-        Assert.Equal("pre-share v0", File.ReadAllText(dwg));
-        Assert.False(Directory.Exists(Path.Combine(home.Path, "collab", "file-1", "replaced")));
+        // Requirement 7: a checkpoint comes only from a local beside the central.
+        string stray = Path.Combine(home.Path, "plan_d0a55efd7_LOCAL.dwg");
+        File.WriteAllText(stray, "elsewhere");
+        Assert.Throws<InvalidOperationException>(() => SyncCollab.CheckpointFromLocal(root, "file-1", central, stray, new Dictionary<string, long> { ["a"] = 1 }));
+        string local = Path.Combine(root, "plan_d0a55efd7_LOCAL.dwg");
+        File.WriteAllText(local, "local after Generate 1");
+        Assert.True(SyncExclusions.IsExcludedFile(Path.GetFileName(local))); // a local never travels
+        Assert.Equal(1, SyncCollab.CheckpointFromLocal(root, "file-1", central, local, new Dictionary<string, long> { ["a"] = 1 }));
 
-        // A new local with no applied record is told to start from the newest checkpoint, which CGA copies.
+        // The central, a synced copy nobody edited, follows the checkpoint; the old one is kept aside.
+        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => null, "THIS", _ => new HashSet<string> { sha0 });
+        Assert.Equal("local after Generate 1", File.ReadAllText(central));
+
+        // Someone saved the central itself: it is never written over, it is told and kept.
+        File.WriteAllText(central, "saved straight into the central");
+        File.WriteAllText(local, "local after Generate 2");
+        SyncCollab.CheckpointFromLocal(root, "file-1", central, local, new Dictionary<string, long> { ["a"] = 2 });
+        SyncCollab.Maintain(root, new SyncHome(home.Path), _ => null, "THIS");
+        Assert.Equal("saved straight into the central", File.ReadAllText(central));
+        Assert.Contains("шууд засагдсан", SyncCollab.Status(root, new SyncHome(home.Path), "file-1").LastError);
+        Assert.Equal(2, Directory.EnumerateFiles(Path.Combine(home.Path, "collab", "file-1", "replaced")).Count());
+
+        // A new local with no applied record is told to start from the newest checkpoint.
         Assert.True(SyncCollab.NeedsCheckpoint(root, new SyncHome(home.Path), "file-1"));
-        Assert.Equal(("checkpoint 1", 4L), (File.ReadAllText(SyncCollab.LatestCheckpointFile(root, "file-1")!.Value.DwgPath), SyncCollab.LatestCheckpointFile(root, "file-1")!.Value.Through["a"]));
-        Assert.False(SyncCollab.NeedsCheckpoint(root, new SyncHome(home.Path), "file-1", new Dictionary<string, long> { ["a"] = 4 }));
+        Assert.False(SyncCollab.NeedsCheckpoint(root, new SyncHome(home.Path), "file-1", new Dictionary<string, long> { ["a"] = 2 }));
+        Assert.False(SyncExclusions.IsExcludedFile("plan.dwg"));
     }
 
     [Fact]

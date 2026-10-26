@@ -536,6 +536,47 @@ public static class SyncCollab
     /// bytes travel while shared - with the numbers it already holds, so a late joiner starts from
     /// it and pulls only what came after.
     /// </summary>
+    /// <summary>
+    /// The only local copy a checkpoint may be taken from (requirement 7, 2026-10-26): beside the
+    /// central, named «&lt;central&gt;_d&lt;8 hex&gt;_LOCAL.dwg». Anything else is refused.
+    /// </summary>
+    public static bool IsLocalOf(string centralFullPath, string sourceFullPath)
+    {
+        string central = Path.GetFullPath(centralFullPath), source = Path.GetFullPath(sourceFullPath);
+        if (!string.Equals(Path.GetDirectoryName(central), Path.GetDirectoryName(source), StringComparison.OrdinalIgnoreCase))
+            return false;
+        string pattern = "^" + System.Text.RegularExpressions.Regex.Escape(Path.GetFileNameWithoutExtension(central)) + @"_d[0-9a-f]{8}_LOCAL\.dwg$";
+        return System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(source), pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// collab-checkpoint from a local copy: the local is read share-read and taken only if it did
+    /// not change while it was copied (AutoCAD still writing it is refused, to be tried again).
+    /// The central DWG in the folder then follows from the checkpoint on SYN's next pass.
+    /// </summary>
+    public static int CheckpointFromLocal(string folderRoot, string fileId, string centralFullPath, string sourceFullPath, IReadOnlyDictionary<string, long> through)
+    {
+        if (!IsLocalOf(centralFullPath, sourceFullPath))
+            throw new InvalidOperationException("source нь энэ central-ын хажуудах «<central>_d<8hex>_LOCAL.dwg» биш байна.");
+        var before = new FileInfo(sourceFullPath);
+        (long length, DateTime written) = (before.Length, before.LastWriteTimeUtc);
+        string staging = Path.Combine(Path.GetTempPath(), $"erks-collab-{Guid.NewGuid():N}.dwg");
+        try
+        {
+            using (var input = new FileStream(sourceFullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var output = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                input.CopyTo(output);
+            var after = new FileInfo(sourceFullPath);
+            if (after.Length != length || after.LastWriteTimeUtc != written || new FileInfo(staging).Length != length)
+                throw new IOException("Local файл хадгалагдаж байна — дахин оролдоно уу.");
+            return Checkpoint(folderRoot, fileId, staging, through);
+        }
+        finally
+        {
+            File.Delete(staging);
+        }
+    }
+
     public static int Checkpoint(string folderRoot, string fileId, string dwgFullPath, IReadOnlyDictionary<string, long> through, SyncHome? home = null)
     {
         // Anyone may checkpoint, but never backwards: a DWG that holds less of some writer than the
@@ -657,6 +698,47 @@ public static class SyncCollab
                 {
                     // Someone put the DWG there in the meantime - theirs stands.
                     File.Delete(temporary);
+                }
+            }
+            else if (checkpoint.Number > Math.Max(local.PlacedCheckpoint, local.EditedAtCheckpoint))
+            {
+                // Requirement 7: nobody edits the central - people work in their locals, and the
+                // central follows the newest checkpoint. A central saved directly is never written
+                // over: it is kept aside and said (status, Twin).
+                string sha = Sha256Of(dwg);
+                string checkpoints = Path.Combine(fileRoot, "checkpoints");
+                bool fromCheckpoint = sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase) ||
+                                      Directory.EnumerateFiles(checkpoints, "*.dwg").Any(path => Sha256Of(path).Equals(sha, StringComparison.OrdinalIgnoreCase)) ||
+                                      partnerHashes(file.RelativePath).Contains(sha) ||
+                                      (known(file.RelativePath) is { Version: { } version } entry && entry.Sha256.Equals(sha, StringComparison.OrdinalIgnoreCase) &&
+                                       version.Writer.Length > 0 && !version.Writer.Equals(deviceKeyId, StringComparison.OrdinalIgnoreCase));
+                string keptAside = Path.Combine(home.Root, "collab", Safe(file.FileId), "replaced", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.dwg");
+                if (sha.Equals(Sha256Of(checkpoint.DwgPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, sha);
+                }
+                else if (!fromCheckpoint)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(keptAside)!);
+                    File.Copy(dwg, keptAside);
+                    SaveLocal(home, file.FileId, local with
+                    {
+                        EditedAtCheckpoint = checkpoint.Number,
+                        LastError = $"Төв файл шууд засагдсан — дарж бичихгүй, нөөц: {keptAside}",
+                    });
+                }
+                else if (OpenElsewhere(dwg))
+                {
+                    SaveLocal(home, file.FileId, local with { LastError = $"Төв файл {Path.GetFileName(dwg)} нээлттэй — хаагдмагц шинэ checkpoint-оор шинэчлэгдэнэ." });
+                }
+                else
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(keptAside)!);
+                    File.Copy(dwg, keptAside);
+                    string temporary = Path.Combine(Path.GetDirectoryName(dwg)!, $".{Guid.NewGuid():N}.tmp");
+                    File.Copy(checkpoint.DwgPath, temporary);
+                    File.Move(temporary, dwg, overwrite: true);
+                    Placed(home, file.FileId, checkpoint.Number, checkpoint.Through, Sha256Of(dwg));
                 }
             }
             for (int old = 1; old <= checkpoint.Number - CheckpointsKept; old++)

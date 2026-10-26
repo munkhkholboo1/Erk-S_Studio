@@ -43,6 +43,13 @@ public static partial class SyncExclusions
         ".crdownload", ".part",
     };
 
+    /// <summary>
+    /// CGA's local copy of a shared (central) DWG beside it - «Plan_d0a55efd7_LOCAL.dwg» (owner,
+    /// 2026-10-26: a local, as in Revit, never travels; its .bak/.dwl/.sv$ go by extension).
+    /// </summary>
+    [GeneratedRegex(@"_d[0-9a-f]{8}_LOCAL\.dwg$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CgaLocalCopy();
+
     /// <summary>Revit's numbered backups: «Model.0001.rvt», «Family.0003.rfa».</summary>
     [GeneratedRegex(@"\.\d{4}\.(rvt|rfa|rte)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex RevitNumberedBackup();
@@ -66,7 +73,7 @@ public static partial class SyncExclusions
             return true;
         if (name.Contains(ConflictMarker, StringComparison.Ordinal))
             return true;
-        return RevitNumberedBackup().IsMatch(name);
+        return RevitNumberedBackup().IsMatch(name) || CgaLocalCopy().IsMatch(name);
     }
 
     private const string ConflictMarker = " (Erk-S зөрчил ";
