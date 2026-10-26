@@ -68,6 +68,53 @@ public sealed class SyncEngine : IAsyncDisposable
     private readonly object _gate = new();
     private IReadOnlyList<SyncServerDeviceFolder> _folders = [];
     private SyncDeviceSession? _session;
+
+    private readonly Dictionary<string, (IReadOnlySet<string> Old, IReadOnlySet<string> New)> _redacted = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, (string Token, IReadOnlyList<SyncRedaction> List)> _serverRedactions = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The server's redactions for a folder - fetched once per session and again only when a redact
+    /// is recorded here (no clock). An older server without the route answers nothing.
+    /// </summary>
+    private async Task<IReadOnlyList<SyncRedaction>> ServerRedactionsAsync(string folderId, CancellationToken cancellationToken)
+    {
+        if (_session is not { } relay)
+            return [];
+        lock (_gate)
+        {
+            if (_serverRedactions.TryGetValue(folderId, out var known) && known.Token == relay.AccessToken)
+                return known.List;
+        }
+        IReadOnlyList<SyncRedaction> list;
+        try
+        {
+            list = await _server.RedactionsAsync(relay.AccessToken, folderId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            list = [];
+        }
+        lock (_gate)
+            _serverRedactions[folderId] = (relay.AccessToken, list);
+        return list;
+    }
+
+    /// <summary>A redaction recorded here goes to the server too (best effort - the ledger file travels anyway).</summary>
+    public async Task SendRedactionAsync(string folderId, SyncRedaction redaction, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+            _serverRedactions.Remove(folderId);
+        if (_session is not { } relay)
+            return;
+        try
+        {
+            await _server.PostRedactionAsync(relay.AccessToken, folderId, redaction, cancellationToken);
+        }
+        catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException)
+        {
+        }
+    }
     private SyncLanDiscovery? _discovery;
     private SyncLanExchange? _exchange;
     private int _disposed;
@@ -362,6 +409,13 @@ public sealed class SyncEngine : IAsyncDisposable
             {
             }
         }
+        // Redactions first (owner, 2026-10-26): a content redacted anywhere leaves this machine
+        // before it is indexed or uploaded - the server's list too, for a machine back from offline.
+        IReadOnlyList<SyncRedaction> redactions = SyncRedactions.Load(physical, await ServerRedactionsAsync(folder.FolderId, cancellationToken));
+        SyncRedactions.Apply(physical, _home, redactions);
+        IReadOnlySet<string> redactedOld = SyncRedactions.OldHashes(redactions);
+        lock (_gate)
+            _redacted[folder.FolderId] = (redactedOld, SyncRedactions.NewHashes(redactions));
         IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home, path => knownHere.GetValueOrDefault(path), _device!.DeviceKeyId, PartnerHashes);
         SyncIndex index;
         try
@@ -370,6 +424,19 @@ public sealed class SyncEngine : IAsyncDisposable
             SyncVersionLedger ledger = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId));
             ledger.Adopt(SyncDecisionStore.Load(_home.DecisionsPath(folder.FolderId)));
             index = ledger.Stamp(index, _device!.DeviceKeyId);
+            if (redactedOld.Count > 0)
+            {
+                // Held open and not removed yet: still never indexed, never uploaded.
+                index = index with
+                {
+                    Entries = index.Entries
+                        .Where(item => !redactedOld.Contains(item.Sha256))
+                        .Select(item => item.Version is { } chain && chain.History.Any(redactedOld.Contains)
+                            ? item with { Version = chain with { History = chain.History.Where(sha => !redactedOld.Contains(sha)).ToList() } }
+                            : item)
+                        .ToList(),
+                };
+            }
             SyncVersionLedgerStore.Save(ledger, _home.LedgerPath(folder.FolderId));
             SyncIndexStore.Save(index, _home.IndexPath(folder.FolderId));
             IReadOnlySet<string> held = SyncCollab.HeldPaths(physical).Concat(retired).ToHashSet(SyncPath.Comparer);
@@ -568,7 +635,12 @@ public sealed class SyncEngine : IAsyncDisposable
         IReadOnlySet<string> held = HeldOf(folderId);
         if (held.Count > 0)
             theirs = theirs with { Entries = theirs.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
-        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)), SyncCollab.Restored(physical));
+        (IReadOnlySet<string> Old, IReadOnlySet<string> New) redacted;
+        lock (_gate)
+            redacted = _redacted.GetValueOrDefault(folderId, (new HashSet<string>(), new HashSet<string>()));
+        var authoritative = new HashSet<string>(SyncCollab.Restored(physical), StringComparer.OrdinalIgnoreCase);
+        authoritative.UnionWith(redacted.New);
+        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)), authoritative, redacted.Old);
         int received = 0, kept = 0, waiting = 0;
         long bytes = 0;
         string lastError = "";

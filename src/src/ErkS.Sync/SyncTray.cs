@@ -168,7 +168,10 @@ internal sealed class SyncTray : ApplicationContext
             case "collab-checkpoint":
             case "collab-whoami":
             case "collab-central-reset":
+            case "collab-checkpoint-prune":
                 return Collab(request);
+            case "redact":
+                return await RedactAsync(request, cancellationToken);
             case "quit":
                 // An update (ErkS.Updates) replaces this folder's files: the tray closes the way
                 // «Гарах» does, and the updater starts it again when the files are in place.
@@ -295,6 +298,14 @@ internal sealed class SyncTray : ApplicationContext
                     _engine?.Poke();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { checkpoint }));
                 }
+                case "collab-checkpoint-prune":
+                {
+                    int keep = int.TryParse(Arg("keep"), out int kept) ? kept : 1;
+                    bool purgeReplaced = Arg("purgeReplaced").Equals("true", StringComparison.OrdinalIgnoreCase);
+                    int floor = SyncCollab.PruneCheckpoints(root, _home, fileId, keep, purgeReplaced, SyncDeviceKey.TryDeviceKeyId() ?? "");
+                    _engine?.Poke();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { keptFrom = floor }));
+                }
                 default: // collab-checkpoint
                 {
                     Dictionary<string, long> through = Arg("through").Length > 0
@@ -310,6 +321,42 @@ internal sealed class SyncTray : ApplicationContext
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return new SyncPipeResponse(false, exception.Message);
+        }
+    }
+
+    /// <summary>
+    /// redact {path, old, new?}: the agent that scrubbed a file names the old content's hash and the
+    /// clean one's (_shared/syn-redaction-design-2026-10-26.md). Signed with this device's key,
+    /// recorded in the folder's ledger and on the server, and taken out here at once.
+    /// </summary>
+    private async Task<SyncPipeResponse> RedactAsync(SyncPipeRequest request, CancellationToken cancellationToken)
+    {
+        Dictionary<string, string> args = request.Args ?? [];
+        string Arg(string name) => args.TryGetValue(name, out string? value) ? value : "";
+        string? root = FolderRootOf(request.Path);
+        if (root is null)
+            return new SyncPipeResponse(false, "Файл энэ машины Erk-S Sync хавтсанд алга.");
+        using System.Security.Cryptography.ECDsa? key = SyncDeviceKey.TryOpen();
+        if (key is null)
+            return new SyncPipeResponse(false, "Энэ машины төхөөрөмжийн түлхүүр алга — Studio-д нэвтэрсний дараа дахин оролдоно уу.");
+        try
+        {
+            string deviceKeyId = SyncDeviceKeyIds.Of(key.ExportSubjectPublicKeyInfo());
+            SyncRedaction entry = SyncRedactions.Add(root, Path.GetRelativePath(root, request.Path), Arg("old"), Arg("new"), deviceKeyId,
+                (bytes, hash) => key.SignData(bytes, hash), DateTimeOffset.UtcNow);
+            int removed = SyncRedactions.Apply(root, _home, SyncRedactions.Load(root));
+            var map = new SyncPathMap();
+            SyncState state = _engine?.LastState ?? SyncStateStore.TryLoad(_home) ?? new SyncState();
+            string folderId = state.Folders
+                .FirstOrDefault(folder => SyncPath.Same(Path.GetFullPath(map.Physical(folder.CanonicalPath)), root))?.FolderId ?? "";
+            if (_engine is not null && folderId.Length > 0)
+                await _engine.SendRedactionAsync(folderId, entry, cancellationToken);
+            _engine?.Poke();
+            return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { recorded = true, removed }));
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
             return new SyncPipeResponse(false, exception.Message);
         }

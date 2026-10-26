@@ -162,15 +162,36 @@ public sealed class SyncServerClient(HttpClient http)
         return response is null ? null : await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The folder's redactions on the server (SRV, _shared/syn-redaction-design-2026-10-26.md) - what a
+    /// machine back from offline must take out before it uploads anything. None from an older server.
+    /// </summary>
+    public async Task<IReadOnlyList<SyncRedaction>> RedactionsAsync(string deviceToken, string folderId, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage? response = await RawOrNoneAsync(HttpMethod.Get, Relay(folderId) + "/redactions", deviceToken, cancellationToken);
+        if (response is null)
+            return [];
+        string json = await response.Content.ReadAsStringAsync(cancellationToken);
+        return System.Text.Json.JsonSerializer.Deserialize<List<SyncRedaction>>(json, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [];
+    }
+
+    /// <summary>Records a signed redaction on the server, which then refuses the old content (410) and drops it from indexes.</summary>
+    public async Task PostRedactionAsync(string deviceToken, string folderId, SyncRedaction redaction, CancellationToken cancellationToken = default)
+    {
+        string json = System.Text.Json.JsonSerializer.Serialize(redaction, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await RawAsync(HttpMethod.Post, Relay(folderId) + "/redactions", deviceToken, content, cancellationToken);
+    }
+
     private async Task<HttpResponseMessage?> RawOrNoneAsync(HttpMethod method, string path, string token, CancellationToken cancellationToken)
     {
         try
         {
             return await RawAsync(method, path, token, null, cancellationToken);
         }
-        catch (SyncServerException exception) when (exception.Status == HttpStatusCode.NotFound)
+        catch (SyncServerException exception) when (exception.Status is HttpStatusCode.NotFound or HttpStatusCode.Gone)
         {
-            return null;
+            return null; // 410: a redacted content the server will never give
         }
     }
 

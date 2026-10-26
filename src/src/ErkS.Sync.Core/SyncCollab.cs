@@ -216,6 +216,9 @@ public sealed record SyncCollabLocal
 
     /// <summary>The central was saved directly - kept, never written over, until collab-central-reset.</summary>
     public bool CentralEdited { get; init; }
+
+    /// <summary>The prune floor whose «purge kept-aside centrals» was done here.</summary>
+    public int PurgedFloor { get; init; }
 }
 
 /// <summary>
@@ -313,6 +316,13 @@ public static class SyncCollab
             SyncCollabLocal local = Local(home, fileId);
             SaveLocal(home, fileId, local with { Writer = writer, Blocks = blocks ?? local.Blocks, MyBlocks = myBlocks ?? local.MyBlocks });
         }
+        // Never again (owner, 2026-10-26): a manifest naming a person does not leave this machine.
+        if (SyncRedactions.CarriesEmail(File.ReadAllText(manifestPath)))
+        {
+            if (home is not null)
+                SaveLocal(home, fileId, Local(home, fileId) with { LastError = PrivacyRefusal });
+            throw new InvalidOperationException(PrivacyRefusal);
+        }
         string log = Path.Combine(FileRoot(folderRoot, fileId), "log", Safe(writer));
         Directory.CreateDirectory(log);
         long seq = HighestNumber(folderRoot, fileId, writer, home) + 1;
@@ -321,6 +331,120 @@ public static class SyncCollab
         File.Move(temporary, Path.Combine(log, seq.ToString("D8") + Extension));
         WriteHigh(folderRoot, fileId, writer, seq);
         return seq;
+    }
+
+    public const string PrivacyRefusal = "Хувийн мэдээлэл (имэйл) илэрсэн — багцыг илгээсэнгүй.";
+
+    /// <summary>
+    /// collab-checkpoint-prune: every checkpoint but the newest <paramref name="keep"/> goes, on
+    /// every machine - a note (prune\&lt;device&gt;.json, one writer each) travels and each machine's
+    /// pass removes them and holds them, so a partner that still has them never sends them back.
+    /// Allowed only while the newest checkpoint holds everything the pruned ones held.
+    /// <paramref name="purgeReplaced"/>: each machine also empties the central copies it kept aside.
+    /// Returns the oldest number kept.
+    /// </summary>
+    public static int PruneCheckpoints(string folderRoot, SyncHome home, string fileId, int keep, bool purgeReplaced, string deviceKeyId)
+    {
+        if (keep < 1)
+            throw new InvalidOperationException("Хамгийн багадаа нэг checkpoint үлдэнэ.");
+        if (LatestCheckpoint(folderRoot, fileId) is not { } newest)
+            throw new InvalidOperationException("Checkpoint алга.");
+        string checkpoints = Path.Combine(FileRoot(folderRoot, fileId), "checkpoints");
+        int[] numbers = Directory.EnumerateFiles(checkpoints, "*.json")
+            .Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) ? n : 0)
+            .Where(n => n > 0 && n <= newest.Number)
+            .OrderDescending()
+            .ToArray();
+        int floor = numbers.Length >= keep ? numbers[keep - 1] : numbers.LastOrDefault(newest.Number);
+        foreach (int old in numbers.Where(n => n < floor))
+        {
+            foreach ((string writer, long through) in ReadThrough(Path.Combine(checkpoints, old.ToString("D6") + ".json")))
+            {
+                if (newest.Through.GetValueOrDefault(writer) < through)
+                    throw new InvalidOperationException($"Хамгийн сүүлийн checkpoint {newest.Number} нь {old}-ийн агуулгыг бүрэн агуулаагүй ({writer}) — устгахгүй.");
+            }
+        }
+        string path = Path.Combine(FileRoot(folderRoot, fileId), "prune", Safe(deviceKeyId.Length > 0 ? deviceKeyId : "local") + ".json");
+        PruneNote previous = ReadPrune(path);
+        WriteIfChanged(path, JsonSerializer.SerializeToUtf8Bytes(new PruneNote(Math.Max(previous.Floor, floor), previous.PurgeReplaced || purgeReplaced), Json));
+        ApplyPrune(folderRoot, home, fileId, new HashSet<string>(SyncPath.Comparer));
+        return floor;
+    }
+
+    private sealed record PruneNote(int Floor, bool PurgeReplaced);
+
+    private static PruneNote ReadPrune(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? JsonSerializer.Deserialize<PruneNote>(File.ReadAllText(path), Json) ?? new PruneNote(0, false) : new PruneNote(0, false);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            return new PruneNote(0, false);
+        }
+    }
+
+    private static Dictionary<string, long> ReadThrough(string notePath)
+    {
+        try
+        {
+            return new Dictionary<string, long>(JsonSerializer.Deserialize<CheckpointNote>(File.ReadAllText(notePath), Json)?.Through ?? [], StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            return new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>Every machine's prune note applied here: older checkpoints removed and held; kept-aside centrals emptied once.</summary>
+    private static void ApplyPrune(string folderRoot, SyncHome home, string fileId, HashSet<string> retired)
+    {
+        string notes = Path.Combine(FileRoot(folderRoot, fileId), "prune");
+        if (!Directory.Exists(notes))
+            return;
+        PruneNote[] all = Directory.EnumerateFiles(notes, "*.json").Select(ReadPrune).ToArray();
+        int floor = all.Select(note => note.Floor).DefaultIfEmpty(0).Max();
+        if (floor <= 1)
+            return;
+        string relativeRoot = Path.Combine(DirectoryName, Safe(fileId));
+        for (int old = 1; old < floor; old++)
+        {
+            foreach (string extension in new[] { ".dwg", ".json" })
+            {
+                string relative = Path.Combine(relativeRoot, "checkpoints", old.ToString("D6") + extension);
+                retired.Add(relative);
+                string full = Path.Combine(folderRoot, relative);
+                try
+                {
+                    if (File.Exists(full))
+                        File.Delete(full);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+        SyncCollabLocal local = Local(home, fileId);
+        if (all.Any(note => note.PurgeReplaced) && local.PurgedFloor < floor)
+        {
+            string replaced = Path.Combine(home.Root, "collab", Safe(fileId), "replaced");
+            if (Directory.Exists(replaced))
+            {
+                foreach (string file in Directory.EnumerateFiles(replaced, "*", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        return; // open: tried again next pass
+                    }
+                }
+            }
+            SaveLocal(home, fileId, local with { PurgedFloor = floor });
+        }
     }
 
     /// <summary>The highest number this writer is known to have used, from every place a number leaves a trace.</summary>
@@ -436,6 +560,8 @@ public static class SyncCollab
             restored = [];
         }
         bool changed = false;
+        var authoritative = new HashSet<string>(restored.Values, StringComparer.OrdinalIgnoreCase);
+        authoritative.UnionWith(SyncRedactions.NewHashes(SyncRedactions.Load(folderRoot)));
         foreach (string directory in Directory.EnumerateDirectories(unpacked).OrderBy(path => Path.GetFileName(path), StringComparer.Ordinal))
         {
             if (!long.TryParse(Path.GetFileName(directory), out long seq) || seq <= 0)
@@ -448,6 +574,9 @@ public static class SyncCollab
             string path = Path.Combine(log, seq.ToString("D8") + Extension);
             if (File.Exists(path))
             {
+                // What the writer already put back, or a redaction's clean content, stands.
+                if (authoritative.Contains(Sha256Of(path)))
+                    continue;
                 var info = new FileInfo(path);
                 if (Verified.TryGetValue(path, out var seen) && seen == (info.Length, info.LastWriteTimeUtc))
                     continue;
@@ -960,6 +1089,7 @@ public static class SyncCollab
         string fileRoot = FileRoot(folderRoot, file.FileId);
         string relativeRoot = Path.Combine(DirectoryName, Safe(file.FileId));
         RepairOwnLog(folderRoot, home, file.FileId);
+        ApplyPrune(folderRoot, home, file.FileId, retired);
         var latest = LatestCheckpoint(folderRoot, file.FileId);
         if (latest is { } checkpoint)
         {

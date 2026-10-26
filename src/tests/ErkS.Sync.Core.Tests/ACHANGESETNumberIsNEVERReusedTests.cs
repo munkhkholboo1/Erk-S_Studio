@@ -58,7 +58,8 @@ public sealed class ACHANGESETNumberIsNEVERReusedTests
         // The writer's own repair names the content that belongs at the number: that one comes.
         plan = SyncTransferPlanner.Plan(Index(Entry(path, "new", reused)), Index(Entry(path, "old2", reused.Next("old2", "desktop"))), new SyncVersionLedger(), restored: new HashSet<string> { "old2" });
         SyncTransferAction restore = Assert.Single(plan.Actions);
-        Assert.Equal((SyncTransferKind.Replace, true), (restore.Kind, restore.KeepPrevious));
+        // Not kept aside: the replaced content lives on under its new number, and a copy may carry personal data.
+        Assert.Equal((SyncTransferKind.Replace, false), (restore.Kind, restore.KeepPrevious));
 
         // Deleted here by an older SYN: a changeset still comes back.
         var ledger = new SyncVersionLedger();

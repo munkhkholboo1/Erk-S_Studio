@@ -42,8 +42,10 @@ public static class SyncTransferPlanner
     public static bool IsCarried(SyncFileKind kind) =>
         kind is not (SyncFileKind.RevitCentral or SyncFileKind.RevitCentralData);
 
-    /// <param name="restored">Changeset contents a writer put back at a reused number (<see cref="SyncCollab.Restored"/>).</param>
-    public static SyncTransferPlan Plan(SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger, IReadOnlyList<SyncDecision>? decisions = null, IReadOnlySet<string>? restored = null)
+    /// <param name="restored">Authoritative contents: what a writer put back at a reused number
+    /// (<see cref="SyncCollab.Restored"/>) and the clean contents of redactions.</param>
+    /// <param name="redacted">Contents redacted for privacy (<see cref="SyncRedactions"/>): never fetched, never kept.</param>
+    public static SyncTransferPlan Plan(SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger, IReadOnlyList<SyncDecision>? decisions = null, IReadOnlySet<string>? restored = null, IReadOnlySet<string>? redacted = null)
     {
         ArgumentNullException.ThrowIfNull(mine);
         ArgumentNullException.ThrowIfNull(theirs);
@@ -57,6 +59,11 @@ public static class SyncTransferPlanner
         {
             if (entry.Version is not { } version || version.Sha256.Length == 0)
                 continue;
+            if (redacted?.Contains(entry.Sha256) == true)
+            {
+                notCarried++; // a partner still offering a redacted content: it never comes
+                continue;
+            }
             if (!IsCarried(entry.Kind) || SyncExclusions.IsExcludedFile(Path.GetFileName(entry.RelativePath)))
             {
                 notCarried++;
@@ -78,9 +85,11 @@ public static class SyncTransferPlanner
                 continue;
             if (changeset)
             {
+                // The content the writer put back (or a redaction's clean one) is authoritative:
+                // it replaces, and a stale copy offered against it is dropped, not kept beside.
                 if (restored?.Contains(entry.Sha256) == true)
-                    actions.Add(new SyncTransferAction(SyncTransferKind.Replace, entry, local, KeepPrevious: true));
-                else if (!ledger.HasKept(entry.RelativePath, entry.Sha256))
+                    actions.Add(new SyncTransferAction(SyncTransferKind.Replace, entry, local));
+                else if (restored?.Contains(local.Sha256) != true && !ledger.HasKept(entry.RelativePath, entry.Sha256))
                     actions.Add(new SyncTransferAction(SyncTransferKind.KeepBoth, entry, local));
                 continue;
             }
