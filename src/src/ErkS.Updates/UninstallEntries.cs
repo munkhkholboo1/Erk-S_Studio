@@ -2,21 +2,27 @@ using System;
 using System.IO;
 using Microsoft.Win32;
 
-namespace ErkS.Updates.Apply;
+namespace ErkS.Updates;
 
 /// <summary>
 /// After an update is in place, the product's entry in Windows «Apps» names the new version (Master,
 /// 2026-10-27: Windows still said V0.001.106 with 126 installed). Every product goes through this one
-/// applier, so this is the one place. The entry is found by its install folder; the per-user one is
-/// always writable, a machine-wide one only when this applier runs with the right - otherwise it is
-/// logged and left (an update is never refused over it).
+/// applier, so this is the one place - and a product that updates live (PFR at Revit start) calls the
+/// same function (one function, owner 2026-10-19). The entry is found by its install folder; the per-user
+/// one is always writable, a machine-wide one only with the right - otherwise it is logged and left (an
+/// update is never refused over it). Windows only.
 /// </summary>
-internal static class UninstallEntries
+#if NET5_0_OR_GREATER
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+#endif
+public static class UninstallEntries
 {
     private const string UninstallPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall";
 
-    public static void Show(string install, string version, Action<string> log)
+    /// <summary>Names <paramref name="version"/> in the Windows «Apps» entry of the install at <paramref name="install"/>.</summary>
+    public static void Show(string install, string version, Action<string>? log = null)
     {
+        log ??= _ => { };
         string root = Path.GetFullPath(install).TrimEnd(Path.DirectorySeparatorChar);
         Visit(RegistryHive.CurrentUser, RegistryView.Default, root, version, log);
         Visit(RegistryHive.LocalMachine, RegistryView.Registry64, root, version, log);
