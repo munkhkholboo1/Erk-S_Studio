@@ -31,6 +31,7 @@ internal static class Program
                 foreach (string pid in Many(options, "wait"))
                     WaitFor(int.Parse(pid));
                 WaitForFolder(install, Many(options, "close"));
+                WaitForOthers(install);
                 UpdateManifest target = UpdateManifest.FromJson(File.ReadAllText(Path.Combine(staging, "target.json")));
                 UpdateManifest installed = InstallManifest.LoadOrScan(install, target.ProductCode, "?");
                 UpdatePlan plan = UpdatePlanner.Plan(installed, target);
@@ -42,6 +43,10 @@ internal static class Program
             catch (Exception exception)
             {
                 Log("failed, old version kept: " + exception);
+                // Studio reads this once at its next start and tells the person (Erk-S Sync, 2026-10-27).
+                TryWrite(Path.Combine(staging, "failed.txt"), exception is OtherWindowsException
+                    ? "Шинэчлэлт дутуу — Studio-гийн өөр цонх нээлттэй байсан. Studio-гийн бүх цонхыг хаагаад дахин оролдоно уу."
+                    : "Шинэчлэлт дутуу — хуучин хувилбар хэвээр. Studio-гийн бүх цонхыг хаагаад дахин оролдоно уу.");
                 exit = 1;
             }
             foreach (string launch in Many(options, "launch"))
@@ -73,6 +78,55 @@ internal static class Program
         catch (ArgumentException)
         {
             // already gone
+        }
+    }
+
+    /// <summary>
+    /// Any other program still running from the install folder - another window of the same program
+    /// (Erk-S Sync, 2026-10-27: three Studio windows on the laptop held ErkS.CloudEra.Client.dll; only
+    /// one was waited for). It holds a person's work, so it is never ended: half a minute to close,
+    /// then the update is left for later and the old version stays whole.
+    /// </summary>
+    private static void WaitForOthers(string install)
+    {
+        string prefix = Path.GetFullPath(install).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        int self = Process.GetCurrentProcess().Id;
+        DateTime giveUpAfter = DateTime.UtcNow.AddSeconds(30);
+        bool logged = false;
+        while (true)
+        {
+            List<string> running = new List<string>();
+            foreach (Process process in Process.GetProcesses())
+            {
+                using (process)
+                {
+                    if (process.Id != self && From(process, prefix))
+                        running.Add(process.ProcessName + " " + process.Id);
+                }
+            }
+            if (running.Count == 0)
+                return;
+            if (!logged)
+            {
+                Log("waiting for other windows: " + string.Join(", ", running));
+                logged = true;
+            }
+            if (DateTime.UtcNow > giveUpAfter)
+                throw new OtherWindowsException(string.Join(", ", running));
+            Thread.Sleep(500);
+        }
+    }
+
+    private sealed class OtherWindowsException(string running) : Exception("still running from the install folder: " + running);
+
+    private static void TryWrite(string path, string text)
+    {
+        try
+        {
+            File.WriteAllText(path, text);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
         }
     }
 

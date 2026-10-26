@@ -155,6 +155,9 @@ public sealed record SyncApplyResult(SyncApplyOutcome Outcome, string RelativePa
 /// </summary>
 public static class SyncFileAssembler
 {
+    /// <summary>Pieces asked for ahead of the one being written.</summary>
+    public const int FetchAhead = 4;
+
     public static async Task<SyncApplyResult> ApplyAsync(
         string root,
         SyncTransferAction action,
@@ -181,6 +184,20 @@ public static class SyncFileAssembler
         string temporary = Path.Combine(scratch, Guid.NewGuid().ToString("N") + ".part");
         int fetched = 0, reused = 0;
         Dictionary<string, (string Path, long Offset)> local = LocalPieces(root, mine);
+        // The pieces not held here are asked for a few ahead (Erk-S Sync, 2026-10-27: one by one, the
+        // LAN ran at a tenth of the Wi-Fi): while one is checked and written, the next are on the way.
+        var ahead = new Dictionary<int, Task<byte[]>>();
+        int asked = 0;
+        void AskAhead(int from)
+        {
+            asked = Math.Max(asked, from);
+            while (asked < theirs.ChunkSha256.Count && asked < from + FetchAhead)
+            {
+                if (!local.ContainsKey(theirs.ChunkSha256[asked]))
+                    ahead[asked] = fetchChunk(asked, cancellationToken);
+                asked++;
+            }
+        }
         try
         {
             using (var whole = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
@@ -189,6 +206,7 @@ public static class SyncFileAssembler
                 for (int index = 0; index < theirs.ChunkSha256.Count; index++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    AskAhead(index);
                     string expected = theirs.ChunkSha256[index];
                     long length = Math.Min(SyncIndex.ChunkSize, theirs.Size - (long)index * SyncIndex.ChunkSize);
                     byte[]? piece = local.TryGetValue(expected, out var source)
@@ -200,7 +218,9 @@ public static class SyncFileAssembler
                     }
                     else
                     {
-                        piece = await fetchChunk(index, cancellationToken);
+                        piece = ahead.Remove(index, out Task<byte[]>? coming)
+                            ? await coming
+                            : await fetchChunk(index, cancellationToken);
                         if (!Convert.ToHexStringLower(SHA256.HashData(piece)).Equals(expected, StringComparison.OrdinalIgnoreCase))
                             throw new InvalidDataException($"Piece {index} of {theirs.RelativePath} did not match its hash.");
                         fetched++;
@@ -228,6 +248,18 @@ public static class SyncFileAssembler
         }
         finally
         {
+            // Pieces asked for and not taken (the file failed half-way) are let finish: their answers
+            // are read off the connection in order, and nothing is left unobserved.
+            foreach (Task<byte[]> left in ahead.Values)
+            {
+                try
+                {
+                    await left;
+                }
+                catch (Exception)
+                {
+                }
+            }
             try
             {
                 if (File.Exists(temporary))

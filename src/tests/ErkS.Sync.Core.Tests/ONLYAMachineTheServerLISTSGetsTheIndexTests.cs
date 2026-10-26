@@ -103,6 +103,76 @@ public sealed class ONLYAMachineTheServerLISTSGetsTheIndexTests
         Assert.Equal(["laptop.dwg"], received.Entries.Select(entry => entry.RelativePath));
     }
 
+    /// <summary>
+    /// Erk-S Sync, 2026-10-27: the desktop never heard the laptop's multicast, though the laptop reached
+    /// the desktop over TCP. The connection itself says where the laptop listens; the desktop finds it from then on.
+    /// </summary>
+    [Fact]
+    public async Task AMachineThatREACHEDUsIsFOUNDWithoutItsMulticast()
+    {
+        using Device desktop = new();
+        using Device laptop = new();
+        var attached = new HashSet<string> { desktop.KeyId, laptop.KeyId };
+        await using var atDesktop = new SyncLanExchange(desktop.Identity, _ => attached, _ => "{\"folderId\":\"f-1\",\"entries\":[]}");
+        await using var atLaptop = new SyncLanExchange(laptop.Identity, _ => attached, _ => null);
+        var reached = new TaskCompletionSource<(string Id, IPEndPoint At, string Folder)>();
+        atDesktop.PeerReached += (id, at, folder) => reached.TrySetResult((id, at, folder));
+
+        await atLaptop.FetchIndexAsync(new IPEndPoint(IPAddress.Loopback, atDesktop.Port), desktop.KeyId, "f-1", Timeout());
+        (string id, IPEndPoint at, string folderId) = await reached.Task.WaitAsync(Timeout());
+
+        Assert.Equal(laptop.KeyId, id);
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, atLaptop.Port), at);
+        Assert.Equal("f-1", folderId);
+        using var discovery = new SyncLanDiscovery(desktop.KeyId);
+        discovery.Learn(id, at, folderId);
+        Assert.Equal(at, discovery.Find(laptop.KeyId)?.Endpoint);
+        Assert.Contains("f-1", discovery.Find(laptop.KeyId)!.FolderIds);
+    }
+
+    /// <summary>Erk-S Sync, 2026-10-27: pieces one by one ran the LAN at a tenth of the Wi-Fi - now several are asked at once on one connection.</summary>
+    [Fact]
+    public async Task PiecesAskedTOGETHERComeBackEachToItsCALLER()
+    {
+        using Device server = new();
+        using Device client = new();
+        var attached = new HashSet<string> { server.KeyId, client.KeyId };
+        await using var serving = new SyncLanExchange(server.Identity, _ => attached, _ => "{}",
+            (_, path, _, chunk) => path == "gone.dwg" ? null : Enumerable.Repeat((byte)chunk, 100_000 + chunk).ToArray());
+        await using var asking = new SyncLanExchange(client.Identity, _ => attached, _ => null);
+        await using SyncLanSession session = await asking.OpenAsync(new IPEndPoint(IPAddress.Loopback, serving.Port), server.KeyId, "f-1", Timeout());
+
+        Task<byte[]>[] pieces = Enumerable.Range(0, 8).Select(chunk => session.FetchChunkAsync("plan.dwg", "aa", chunk, Timeout())).ToArray();
+        Task<byte[]> missing = session.FetchChunkAsync("gone.dwg", "aa", 0, Timeout());
+        Task<byte[]> after = session.FetchChunkAsync("plan.dwg", "aa", 9, Timeout());
+
+        for (int chunk = 0; chunk < 8; chunk++)
+        {
+            byte[] piece = await pieces[chunk];
+            Assert.Equal(100_000 + chunk, piece.Length);
+            Assert.All(piece, value => Assert.Equal((byte)chunk, value));
+        }
+        Assert.Equal("sync_lan_no_chunk", (await Assert.ThrowsAsync<SyncLanException>(() => missing)).Code);
+        Assert.Equal(100_009, (await after).Length); // a refused piece leaves the connection in step
+    }
+
+    [Fact]
+    public void OnlyPRIVATEAddressesAreToldOrTRIED()
+    {
+        Assert.True(SyncLanAddresses.IsPrivate(IPAddress.Parse("192.168.1.20")));
+        Assert.True(SyncLanAddresses.IsPrivate(IPAddress.Parse("10.0.0.5")));
+        Assert.True(SyncLanAddresses.IsPrivate(IPAddress.Parse("172.20.3.4")));
+        Assert.False(SyncLanAddresses.IsPrivate(IPAddress.Parse("172.32.0.1")));
+        Assert.False(SyncLanAddresses.IsPrivate(IPAddress.Parse("8.8.8.8")));
+        Assert.False(SyncLanAddresses.IsPrivate(IPAddress.Parse("169.254.1.1")));
+        Assert.False(SyncLanAddresses.IsPrivate(IPAddress.Loopback));
+
+        IReadOnlyList<IPEndPoint> parsed = SyncLanAddresses.Parse(["192.168.1.20:50128", "8.8.8.8:50128", "nonsense", "10.0.0.5:0"]);
+
+        Assert.Equal([new IPEndPoint(IPAddress.Parse("192.168.1.20"), 50128)], parsed);
+        Assert.All(SyncLanAddresses.Own(50128), text => Assert.True(SyncLanAddresses.IsPrivate(IPEndPoint.Parse(text).Address)));
+    }
+
     [Fact]
     public void TheSessionSignatureCoversTheDomainTheNonceAndTheKey()
     {

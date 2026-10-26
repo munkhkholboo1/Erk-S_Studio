@@ -1675,6 +1675,12 @@ internal sealed partial class ShellView : IDisposable
             return;
         }
 
+        if (!interactive && StudioDeltaUpdate.TakeFailedApply() is { } failedUpdate)
+        {
+            SetStatus(failedUpdate);
+            StudioMessageDialog.Show(Window.GetWindow(Root), failedUpdate, "Erk-S Studio шинэчлэлт", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         productUpdateCheckInProgress = true;
         productUpdateButton.IsEnabled = false;
         SetProductUpdateButtonLabel("Шалгаж байна");

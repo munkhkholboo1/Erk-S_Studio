@@ -41,6 +41,12 @@ public partial class App : Application
             return;
         }
 
+        if (!StudioSingleInstance.TryClaim())
+        {
+            Shutdown(0);
+            return;
+        }
+
         var window = new StudioHostWindow();
         MainWindow = window;
         window.Show();

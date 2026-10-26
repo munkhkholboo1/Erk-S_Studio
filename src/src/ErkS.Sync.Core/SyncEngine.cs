@@ -361,6 +361,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     IndexJson,
                     ReadChunk);
                 _exchange.ReverseOffered += Poke;
+                // A partner that reached us is found here from now on, though its multicast never arrives.
+                _exchange.PeerReached += (deviceKeyId, endpoint, folderId) => _discovery?.Learn(deviceKeyId, endpoint, folderId);
                 _discovery = new SyncLanDiscovery(_device.DeviceKeyId);
                 _discovery.IndexChanged += (_, _) => Debounced();
             }
@@ -422,6 +424,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         string serverMessage = "";
         try
         {
+            _server.LanEndpoints = SyncLanAddresses.Own(_exchange?.Port ?? 0);
             await EnsureSessionAsync(cancellationToken);
             IReadOnlyList<SyncServerDeviceFolder> folders = await _server.DeviceFoldersAsync(_session!.AccessToken, cancellationToken);
             lock (_gate)
@@ -456,11 +459,19 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 Dictionary<string, string> stamps;
                 lock (_gate)
                     stamps = _indexes.ToDictionary(pair => pair.Key, pair => Stamp(pair.Value), StringComparer.OrdinalIgnoreCase);
+                // Also told one by one to every partner the server says is on a private network.
+                List<System.Net.IPAddress> partners = known
+                    .SelectMany(entry => entry.Devices)
+                    .Where(device => !device.DeviceKeyId.Equals(_device.DeviceKeyId, StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(device => SyncLanAddresses.Parse(device.LanEndpoints))
+                    .Select(endpoint => endpoint.Address)
+                    .ToList();
                 await _discovery.AnnounceAsync(
                     new SyncLanAnnouncement(1, _device.DeviceKeyId, _exchange.Port,
                         states.Where(state => state.PresentHere).Select(state => state.FolderId).ToList(),
                         stamps),
-                    cancellationToken);
+                    cancellationToken,
+                    partners);
             }
             catch (Exception exception) when (exception is System.Net.Sockets.SocketException or ObjectDisposedException)
             {
@@ -475,6 +486,32 @@ public sealed partial class SyncEngine : IAsyncDisposable
             LanPort = _exchange?.Port ?? 0,
             Folders = states,
         });
+    }
+
+    private readonly Dictionary<string, DateTimeOffset> _lanHintMissed = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Where the server says a partner's LAN exchange listens, when it was not heard here (its multicast
+    /// does not reach this machine). An address that did not answer is not tried again for 10 minutes -
+    /// the partner is likely on another network, and the server road takes it.
+    /// </summary>
+    private IPEndPoint? LanHint(SyncServerDevice device)
+    {
+        lock (_gate)
+        {
+            if (_lanHintMissed.TryGetValue(device.DeviceKeyId, out DateTimeOffset missed) && DateTimeOffset.UtcNow - missed < TimeSpan.FromMinutes(10))
+                return null;
+        }
+        IReadOnlyList<IPEndPoint> endpoints = SyncLanAddresses.Parse(device.LanEndpoints);
+        if (endpoints.Count == 0)
+            return null;
+        // One that shares a /24 with this machine first - the same network, most likely.
+        HashSet<string> mine = SyncLanAddresses.Own(1)
+            .Select(text => IPEndPoint.TryParse(text, out IPEndPoint? own) ? Subnet(own.Address) : "")
+            .ToHashSet();
+        return endpoints.FirstOrDefault(endpoint => mine.Contains(Subnet(endpoint.Address))) ?? endpoints[0];
+
+        static string Subnet(IPAddress address) => string.Join('.', address.GetAddressBytes().Take(3));
     }
 
     private async Task EnsureSessionAsync(CancellationToken cancellationToken)
@@ -668,6 +705,9 @@ public sealed partial class SyncEngine : IAsyncDisposable
         };
         string stored = _home.PeerIndexPath(folderId, device.DeviceKeyId);
         SyncLanPeer? heard = _discovery?.Find(device.DeviceKeyId);
+        bool heardHere = heard is not null && heard.FolderIds.Contains(folderId, StringComparer.OrdinalIgnoreCase);
+        IPEndPoint? lanEndpoint = heardHere ? heard!.Endpoint : LanHint(device);
+        bool hinted = lanEndpoint is not null && !heardHere;
         string error = "";
         bool viaLan = false;
         // The partner opened a connection to us and offered it back (our firewall-free side reaches it,
@@ -697,18 +737,24 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 _exchange.Release(device.DeviceKeyId, folderId);
             }
         }
-        else if (heard is not null && heard.FolderIds.Contains(folderId, StringComparer.OrdinalIgnoreCase) && _exchange is not null)
+        else if (lanEndpoint is not null && _exchange is not null)
         {
             SyncLanSession? session = null;
             bool handedOff = false;
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeout.CancelAfter(TimeSpan.FromSeconds(30));
-                session = await _exchange.OpenAsync(heard.Endpoint, device.DeviceKeyId, folderId, timeout.Token);
+                // An address only the server named may be on another network: a short try, then the server road.
+                timeout.CancelAfter(hinted ? TimeSpan.FromSeconds(4) : TimeSpan.FromSeconds(30));
+                session = await _exchange.OpenAsync(lanEndpoint, device.DeviceKeyId, folderId, timeout.Token);
                 SyncIndex theirs = await session.FetchIndexAsync(timeout.Token);
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
-                peer = peer with { LanAddress = heard.Endpoint.ToString(), Route = "lan" };
+                peer = peer with { LanAddress = lanEndpoint.ToString(), Route = "lan" };
+                if (hinted)
+                {
+                    lock (_gate)
+                        _lanHintMissed.Remove(device.DeviceKeyId);
+                }
                 viaLan = true;
                 timeout.CancelAfter(TransferWindow);
                 peer = await TransferAsync(folderId, physical, mine, theirs,
@@ -730,6 +776,11 @@ public sealed partial class SyncEngine : IAsyncDisposable
             {
                 if (cancellationToken.IsCancellationRequested)
                     throw;
+                if (hinted && !viaLan)
+                {
+                    lock (_gate)
+                        _lanHintMissed[device.DeviceKeyId] = DateTimeOffset.UtcNow;
+                }
                 error = exception is SyncLanException lan ? lan.Message : "LAN-аар холбогдож чадсангүй.";
             }
             finally

@@ -30,7 +30,8 @@ public sealed record SyncServerDevice(
     DateTimeOffset LastSeenAtUtc,
     string SeatId = "",
     string ClientVersion = "",
-    int SyncProtocol = 0);
+    int SyncProtocol = 0,
+    IReadOnlyList<string>? LanEndpoints = null);
 
 public sealed record SyncServerDeviceFolder(SyncServerFolder Folder, IReadOnlyList<SyncServerDevice> Devices);
 
@@ -118,12 +119,18 @@ public sealed class SyncServerClient(HttpClient http)
     /// </summary>
     public string ClientVersion { get; init; } = "";
 
+    /// <summary>
+    /// «ip:port» where this machine's LAN exchange listens, private IPv4 only - sent with the session and
+    /// each heartbeat, so a partner whose multicast never reaches us tries TCP at it directly.
+    /// </summary>
+    public IReadOnlyList<string> LanEndpoints { get; set; } = [];
+
     public Task<SyncDeviceSession> DeviceSessionAsync(string deviceKeyId, byte[] nonce, byte[] signature, CancellationToken cancellationToken = default) =>
         SendAsync<SyncDeviceSession>(
             HttpMethod.Post,
             "/api/cloud-era/v1/sync/device/session",
             null,
-            new { deviceKeyId, nonce = Base64UrlEncode(nonce), signature = Convert.ToBase64String(signature), clientVersion = ClientVersion, syncProtocol = SyncLagging.Protocol },
+            new { deviceKeyId, nonce = Base64UrlEncode(nonce), signature = Convert.ToBase64String(signature), clientVersion = ClientVersion, syncProtocol = SyncLagging.Protocol, lanEndpoints = LanEndpoints },
             cancellationToken)!;
 
     public async Task<IReadOnlyList<SyncServerDeviceFolder>> DeviceFoldersAsync(string deviceToken, CancellationToken cancellationToken = default)
@@ -133,7 +140,7 @@ public sealed class SyncServerClient(HttpClient http)
     }
 
     public Task DeviceHeartbeatAsync(string deviceToken, CancellationToken cancellationToken = default) =>
-        SendAsync<object>(HttpMethod.Post, "/api/cloud-era/v1/sync/device/heartbeat", deviceToken, null, cancellationToken);
+        SendAsync<object>(HttpMethod.Post, "/api/cloud-era/v1/sync/device/heartbeat", deviceToken, new { lanEndpoints = LanEndpoints }, cancellationToken);
 
     // ---- relay (device token): a partner anywhere -----------------------------------------
 

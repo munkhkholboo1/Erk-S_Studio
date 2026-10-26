@@ -61,10 +61,47 @@ public sealed class SyncLanDiscovery : IDisposable
     public SyncLanPeer? Find(string deviceKeyId) =>
         _peers.TryGetValue(deviceKeyId, out SyncLanPeer? peer) ? peer : null;
 
-    public async Task AnnounceAsync(SyncLanAnnouncement announcement, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Sends the announcement to the multicast group and, one by one, to every machine already known
+    /// here (heard, learned from its connection, or named by the server) - a network that drops
+    /// multicast between two machines still carries it (Erk-S Sync, 2026-10-27: the desktop never heard
+    /// the laptop's multicast, the laptop heard the desktop's).
+    /// </summary>
+    public async Task AnnounceAsync(SyncLanAnnouncement announcement, CancellationToken cancellationToken = default, IEnumerable<IPAddress>? alsoTo = null)
     {
         byte[] payload = JsonSerializer.SerializeToUtf8Bytes(announcement, Json);
         await _udp.SendAsync(payload, new IPEndPoint(Group, Port), cancellationToken);
+        IEnumerable<IPAddress> targets = _peers.Values.Select(peer => peer.Endpoint.Address).Concat(alsoTo ?? []);
+        foreach (IPAddress target in targets.Where(SyncLanAddresses.IsPrivate).Distinct())
+        {
+            try
+            {
+                await _udp.SendAsync(payload, new IPEndPoint(target, Port), cancellationToken);
+            }
+            catch (SocketException)
+            {
+                // That one is gone; the others still hear.
+            }
+        }
+    }
+
+    /// <summary>
+    /// A machine that opened a verified connection here, at the address it came from and the port it
+    /// listens on: it is found from now on as if heard - its multicast may never reach this machine.
+    /// </summary>
+    public void Learn(string deviceKeyId, IPEndPoint endpoint, string folderId)
+    {
+        if (deviceKeyId.Equals(_selfDeviceKeyId, StringComparison.OrdinalIgnoreCase) || endpoint.Port is <= 0 or > 65535)
+            return;
+        _peers.AddOrUpdate(
+            deviceKeyId,
+            _ => new SyncLanPeer(deviceKeyId, endpoint, [folderId], DateTimeOffset.UtcNow),
+            (_, known) => known with
+            {
+                Endpoint = endpoint,
+                FolderIds = known.FolderIds.Contains(folderId, StringComparer.OrdinalIgnoreCase) ? known.FolderIds : [.. known.FolderIds, folderId],
+                HeardAtUtc = DateTimeOffset.UtcNow,
+            });
     }
 
     private async Task ListenAsync(CancellationToken cancellationToken)
@@ -145,6 +182,9 @@ public sealed class SyncLanExchange : IAsyncDisposable
     /// <summary>A partner here opened a connection and offered it back (its firewall lets it reach us, ours not it): run a pass.</summary>
     public event Action? ReverseOffered;
 
+    /// <summary>A verified partner reached us and said where it listens (device key id, its address and port, the folder).</summary>
+    public event Action<string, IPEndPoint, string>? PeerReached;
+
     /// <param name="allowedDevices">Device key ids the server lists for a folder id.</param>
     /// <param name="indexJson">This machine's index of a folder, serialized, or null when it holds none.</param>
     /// <param name="readChunk">
@@ -183,13 +223,14 @@ public sealed class SyncLanExchange : IAsyncDisposable
     public async Task<SyncLanSession> OpenAsync(IPEndPoint endpoint, string peerDeviceKeyId, string folderId, CancellationToken cancellationToken)
     {
         var client = new TcpClient(endpoint.AddressFamily);
+        Tune(client);
         SslStream? tls = null;
         try
         {
             await client.ConnectAsync(endpoint, cancellationToken);
             tls = new SslStream(client.GetStream(), leaveInnerStreamOpen: false);
             await AuthenticateAsync(tls, peerDeviceKeyId, folderId, cancellationToken);
-            return new SyncLanSession(client, tls, folderId);
+            return new SyncLanSession(client, tls, folderId, listenPort: Port);
         }
         catch
         {
@@ -237,8 +278,17 @@ public sealed class SyncLanExchange : IAsyncDisposable
         }
     }
 
+    /// <summary>Large socket buffers and no Nagle: a 4 MiB piece flows without waiting on small windows (Erk-S Sync, 2026-10-27: LAN at 1/10 of the Wi-Fi).</summary>
+    internal static void Tune(TcpClient client)
+    {
+        client.NoDelay = true;
+        client.ReceiveBufferSize = 1024 * 1024;
+        client.SendBufferSize = 1024 * 1024;
+    }
+
     private async Task ServeAsync(TcpClient client, CancellationToken cancellationToken)
     {
+        Tune(client);
         using (client)
         {
             try
@@ -259,7 +309,10 @@ public sealed class SyncLanExchange : IAsyncDisposable
                 string remote = KeyIdOf(tls.RemoteCertificate);
                 if (remote.Length > 0)
                     _inbound[remote] = DateTimeOffset.UtcNow;
-                string? reverseFolder = await ServeRequestsAsync(tls, remote, timeout, acceptReverse: true);
+                IPAddress? from = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
+                if (from is { IsIPv4MappedToIPv6: true })
+                    from = from.MapToIPv4();
+                string? reverseFolder = await ServeRequestsAsync(tls, remote, timeout, acceptReverse: true, from);
                 if (reverseFolder is null)
                     return;
                 // The partner offered this connection back: this machine asks on it now (its own pass
@@ -285,7 +338,7 @@ public sealed class SyncLanExchange : IAsyncDisposable
     /// Answers requests on a verified connection until it closes. Returns the folder of a «reverse»
     /// offer when <paramref name="acceptReverse"/> (this side then asks), else null.
     /// </summary>
-    private async Task<string?> ServeRequestsAsync(SslStream tls, string remote, CancellationTokenSource timeout, bool acceptReverse)
+    private async Task<string?> ServeRequestsAsync(SslStream tls, string remote, CancellationTokenSource timeout, bool acceptReverse, IPAddress? from = null)
     {
         // One connection carries the index and then pieces; each request is checked
         // against the folder's list again, and the connection lives while it is used.
@@ -305,6 +358,8 @@ public sealed class SyncLanExchange : IAsyncDisposable
                 await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(refusal, null), Json), timeout.Token);
                 return null;
             }
+            if (from is not null && request!.ListenPort is > 0 and <= 65535)
+                PeerReached?.Invoke(remote, new IPEndPoint(from, request.ListenPort.Value), request.FolderId);
             if (request!.Kind == "reverse" && acceptReverse)
             {
                 await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(null, null, Reverse: true), Json), timeout.Token);
@@ -419,7 +474,8 @@ public sealed class SyncLanExchange : IAsyncDisposable
     }
 
     /// <summary>«index» (or none, as 1.1 sent it) or «chunk» with the file, its hash and the piece.</summary>
-    internal sealed record ExchangeRequest(string FolderId, string? Kind = null, string? Path = null, string? Sha256 = null, int Chunk = -1);
+    /// <param name="ListenPort">Where the asking machine listens (sent with «index»): the serving side can reach it back.</param>
+    internal sealed record ExchangeRequest(string FolderId, string? Kind = null, string? Path = null, string? Sha256 = null, int Chunk = -1, int? ListenPort = null);
 
     /// <param name="Reverse">The offer of a «reverse» was taken: the asking side serves from now on.</param>
     internal sealed record ExchangeResponse(string? Error, string? Index, bool? Reverse = null);
@@ -433,13 +489,15 @@ public sealed class SyncLanSession : IAsyncDisposable
     private readonly SslStream _tls;
     private readonly string _folderId;
     private readonly bool _ownsTls;
+    private readonly int _listenPort;
 
-    internal SyncLanSession(TcpClient? client, SslStream tls, string folderId, bool ownsTls = true)
+    internal SyncLanSession(TcpClient? client, SslStream tls, string folderId, bool ownsTls = true, int listenPort = 0)
     {
         _client = client;
         _tls = tls;
         _folderId = folderId;
         _ownsTls = ownsTls;
+        _listenPort = listenPort;
     }
 
     internal SslStream Tls => _tls;
@@ -448,28 +506,75 @@ public sealed class SyncLanSession : IAsyncDisposable
 
     public async Task<SyncIndex> FetchIndexAsync(CancellationToken cancellationToken)
     {
-        SyncLanExchange.ExchangeResponse response = await AskAsync(new SyncLanExchange.ExchangeRequest(_folderId, "index"), cancellationToken);
+        SyncLanExchange.ExchangeResponse response = await AskAsync(
+            new SyncLanExchange.ExchangeRequest(_folderId, "index", ListenPort: _listenPort > 0 ? _listenPort : null), cancellationToken);
         if (!string.IsNullOrEmpty(response.Error))
             throw new SyncLanException(response.Error, "Төхөөрөмж индексээ өгсөнгүй: " + response.Error);
         return SyncIndexStore.Deserialize(response.Index ?? "")
             ?? throw new SyncLanException("sync_lan_bad_index", "Индекс уншигдсангүй.");
     }
 
-    /// <summary>Piece <paramref name="chunk"/> of the version <paramref name="sha256"/> of a file - unchecked; the caller checks its hash.</summary>
-    public async Task<byte[]> FetchChunkAsync(string relativePath, string sha256, int chunk, CancellationToken cancellationToken)
-    {
-        SyncLanExchange.ExchangeResponse response = await AskAsync(
-            new SyncLanExchange.ExchangeRequest(_folderId, "chunk", relativePath, sha256, chunk), cancellationToken);
-        if (!string.IsNullOrEmpty(response.Error))
-            throw new SyncLanException(response.Error, "Төхөөрөмж файлын хэсгийг өгсөнгүй (тэр хувилбар өөрчлөгдсөн байж магадгүй).");
-        return await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken);
-    }
+    /// <summary>
+    /// Piece <paramref name="chunk"/> of the version <paramref name="sha256"/> of a file - unchecked; the caller checks its hash.
+    /// Calls may overlap: the requests go out at once and the answers are read back in the same order
+    /// (pipelining - the serving side answers one after another on the one connection), so the next
+    /// pieces are already on the way while one is written to disk.
+    /// </summary>
+    public async Task<byte[]> FetchChunkAsync(string relativePath, string sha256, int chunk, CancellationToken cancellationToken) =>
+        (await AskCoreAsync(new SyncLanExchange.ExchangeRequest(_folderId, "chunk", relativePath, sha256, chunk), cancellationToken, withPiece: true)).Piece!;
 
-    internal async Task<SyncLanExchange.ExchangeResponse> AskAsync(SyncLanExchange.ExchangeRequest request, CancellationToken cancellationToken)
+    private readonly SemaphoreSlim _send = new(1, 1);
+    private Task _readTail = Task.CompletedTask;
+    private volatile bool _broken;
+
+    internal async Task<SyncLanExchange.ExchangeResponse> AskAsync(SyncLanExchange.ExchangeRequest request, CancellationToken cancellationToken) =>
+        (await AskCoreAsync(request, cancellationToken, withPiece: false)).Response;
+
+    private async Task<(SyncLanExchange.ExchangeResponse Response, byte[]? Piece)> AskCoreAsync(SyncLanExchange.ExchangeRequest request, CancellationToken cancellationToken, bool withPiece)
     {
-        await SyncLanExchange.WriteFrameAsync(_tls, JsonSerializer.SerializeToUtf8Bytes(request, Json), cancellationToken);
-        return JsonSerializer.Deserialize<SyncLanExchange.ExchangeResponse>(await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken), Json)
-            ?? throw new SyncLanException("sync_lan_bad_reply", "Хариу уншигдсангүй.");
+        var mine = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task before;
+        await _send.WaitAsync(cancellationToken);
+        try
+        {
+            if (_broken)
+                throw new IOException("The LAN connection broke.");
+            await SyncLanExchange.WriteFrameAsync(_tls, JsonSerializer.SerializeToUtf8Bytes(request, Json), cancellationToken);
+            before = _readTail;
+            _readTail = mine.Task;
+        }
+        catch
+        {
+            _broken = true;
+            throw;
+        }
+        finally
+        {
+            _send.Release();
+        }
+        try
+        {
+            await before;
+            if (_broken)
+                throw new IOException("The LAN connection broke.");
+            SyncLanExchange.ExchangeResponse response = JsonSerializer.Deserialize<SyncLanExchange.ExchangeResponse>(
+                    await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken), Json)
+                ?? throw new SyncLanException("sync_lan_bad_reply", "Хариу уншигдсангүй.");
+            if (!withPiece)
+                return (response, null);
+            if (!string.IsNullOrEmpty(response.Error))
+                throw new SyncLanException(response.Error, "Төхөөрөмж файлын хэсгийг өгсөнгүй (тэр хувилбар өөрчлөгдсөн байж магадгүй).");
+            return (response, await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken));
+        }
+        catch (Exception exception) when (exception is not SyncLanException)
+        {
+            _broken = true; // a read cut short leaves the stream between frames: nothing after it can be read
+            throw;
+        }
+        finally
+        {
+            mine.TrySetResult();
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -484,6 +589,57 @@ public sealed class SyncLanSession : IAsyncDisposable
 public sealed class SyncLanException(string code, string message) : Exception(message)
 {
     public string Code { get; } = code;
+}
+
+/// <summary>This machine's private LAN addresses, and the check that an address is one.</summary>
+public static class SyncLanAddresses
+{
+    /// <summary>10/8, 172.16/12, 192.168/16 - the only addresses SYN tells the server or announces to (never public, never link-local).</summary>
+    public static bool IsPrivate(IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6)
+            address = address.MapToIPv4();
+        if (address.AddressFamily != AddressFamily.InterNetwork)
+            return false;
+        byte[] b = address.GetAddressBytes();
+        return b[0] == 10 || (b[0] == 172 && b[1] is >= 16 and <= 31) || (b[0] == 192 && b[1] == 168);
+    }
+
+    /// <summary>«ip:port» for each private IPv4 of an interface that is up (not loopback, not a tunnel).</summary>
+    public static IReadOnlyList<string> Own(int port)
+    {
+        if (port <= 0)
+            return [];
+        var found = new List<string>();
+        try
+        {
+            foreach (System.Net.NetworkInformation.NetworkInterface nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up ||
+                    nic.NetworkInterfaceType is System.Net.NetworkInformation.NetworkInterfaceType.Loopback or System.Net.NetworkInformation.NetworkInterfaceType.Tunnel)
+                {
+                    continue;
+                }
+                foreach (var unicast in nic.GetIPProperties().UnicastAddresses)
+                {
+                    if (IsPrivate(unicast.Address))
+                        found.Add(unicast.Address + ":" + port);
+                }
+            }
+        }
+        catch (System.Net.NetworkInformation.NetworkInformationException)
+        {
+        }
+        return found.Distinct().ToList();
+    }
+
+    /// <summary>The private endpoints a partner told the server it listens on.</summary>
+    public static IReadOnlyList<IPEndPoint> Parse(IEnumerable<string>? endpoints) =>
+        (endpoints ?? [])
+            .Select(text => IPEndPoint.TryParse(text, out IPEndPoint? endpoint) ? endpoint : null)
+            .Where(endpoint => endpoint is not null && endpoint.Port is > 0 and <= 65535 && IsPrivate(endpoint.Address))
+            .Select(endpoint => endpoint!)
+            .ToList();
 }
 
 /// <summary>The one derivation of a device key id from a public key, shared by every caller.</summary>

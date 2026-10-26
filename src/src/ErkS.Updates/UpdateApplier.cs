@@ -111,8 +111,19 @@ public static class UpdateApplier
     {
         string kept = Path.Combine(rollback, InstallManifest.Relative(root, target).Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(kept)!);
-        File.Move(target, kept);
-        return kept;
+        // A scanner or an indexer may hold a file for a moment: a few tries before the whole update rolls back.
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(target, kept);
+                return kept;
+            }
+            catch (Exception exception) when (attempt < 5 && exception is IOException or UnauthorizedAccessException)
+            {
+                System.Threading.Thread.Sleep(400 * attempt);
+            }
+        }
     }
 
     private static void Undo(List<(string Target, string? Kept, bool Placed)> done)

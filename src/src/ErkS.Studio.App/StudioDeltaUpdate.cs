@@ -39,6 +39,36 @@ internal static class StudioDeltaUpdate
 
     public static string InstallRoot => AppContext.BaseDirectory;
 
+    private static string UpdatesRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Erk-S Studio", "Updates");
+
+    /// <summary>
+    /// The applier's sentence when the last update could not be put in place (another Studio window
+    /// held its files …) - returned once, then forgotten; null when nothing failed.
+    /// </summary>
+    public static string? TakeFailedApply()
+    {
+        try
+        {
+            if (!Directory.Exists(UpdatesRoot))
+                return null;
+            foreach (string folder in Directory.EnumerateDirectories(UpdatesRoot, "delta-*"))
+            {
+                string failed = Path.Combine(folder, "failed.txt");
+                if (!File.Exists(failed))
+                    continue;
+                string sentence = File.ReadAllText(failed).Trim();
+                File.Delete(failed);
+                if (sentence.Length > 0)
+                    return sentence;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+        return null;
+    }
+
     /// <summary>The installed version when an installer laid the manifest (a live-only update moves it without a new exe).</summary>
     public static string? InstalledVersion => InstallManifest.TryReadVersion(InstallRoot);
 
@@ -75,9 +105,7 @@ internal static class StudioDeltaUpdate
             return StudioDeltaResult.None;
 
         string staging = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Erk-S Studio",
-            "Updates",
+            UpdatesRoot,
             "delta-" + string.Concat(target.Version.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character)));
         Directory.CreateDirectory(staging);
         var bytes = new Progress<UpdateProgress>(value => progress?.Report(new StudioUpdateProgress(value.Percent, "Өөрчлөгдсөн хэсгийг татаж байна: " + value.Text)));
@@ -104,6 +132,22 @@ internal static class StudioDeltaUpdate
         Directory.CreateDirectory(copy);
         foreach (string file in Directory.EnumerateFiles(source))
             File.Copy(file, Path.Combine(copy, Path.GetFileName(file)), overwrite: true);
+        // The update's own applier when it carries a newer one (checked against the signed manifest
+        // like every staged file): a fix in the applier works on the very update that brings it.
+        try
+        {
+            UpdateManifest target = UpdateManifest.FromJson(File.ReadAllText(Path.Combine(staging, "target.json")));
+            foreach (UpdateFile file in target.Files.Where(file => file.Path.StartsWith(UpdaterFolder + "/", StringComparison.OrdinalIgnoreCase) && !file.Path[(UpdaterFolder.Length + 1)..].Contains('/')))
+            {
+                string staged = DeltaDownloader.StagedPath(staging, file.Sha256);
+                if (File.Exists(staged) && Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(staged))).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
+                    File.Copy(staged, Path.Combine(copy, file.Path[(UpdaterFolder.Length + 1)..]), overwrite: true);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            // The installed applier still does the work.
+        }
 
         string syncExe = Path.Combine(InstallRoot, "ErkS.Sync.exe");
         bool syncWasRunning = SyncProtocol.TrySend(new SyncPipeRequest("quit", "")) is not null;
