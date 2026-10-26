@@ -15,7 +15,9 @@ public sealed class ALAGGINGMemberSHAPESNoOneElsesFolderTests
     public void LongOfflineOrAnOlderSyncProtocolIsLagging()
     {
         Assert.True(SyncLagging.IsLagging(Device(Now.AddHours(-30), protocol: 1), Now, 1));
-        Assert.True(SyncLagging.IsLagging(Device(Now, "0.001.105", protocol: 0), Now, 1)); // said no protocol
+        // Not known yet (the server learns it at the member's next session): an online member is not cut off.
+        Assert.False(SyncLagging.IsLagging(Device(Now, "0.001.113", protocol: 0), Now, 1));
+        Assert.True(SyncLagging.IsLagging(Device(Now.AddHours(-30), protocol: 0), Now, 1));
         // An older Studio speaking the same sync protocol is not lagging (owner, 2026-10-26: «вершний
         // зөрүү хэт их биш бол синк асуудалгүй явдаг болгоорой»).
         Assert.False(SyncLagging.IsLagging(Device(Now.AddHours(-2), "0.001.113", 1), Now, 1));

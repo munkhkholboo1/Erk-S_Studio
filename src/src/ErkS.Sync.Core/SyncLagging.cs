@@ -21,10 +21,15 @@ public static class SyncLagging
     /// <summary>Not seen by the server for this long: its copies are of another day.</summary>
     public static readonly TimeSpan LongOffline = TimeSpan.FromHours(24);
 
-    /// <summary>Long offline, or speaking an older sync protocol than the server's minimum - not an older Studio.</summary>
+    /// <summary>
+    /// Long offline, or KNOWN to speak an older sync protocol than the server's minimum - not an older
+    /// Studio. A protocol not known yet (the server learns it when the member opens its next session)
+    /// is no reason: an online member is never cut off on a missing fact (Erk-S Sync, 2026-10-26 - the
+    /// laptop marked the online desktop «хоцорсон» and its changeset №12 never came).
+    /// </summary>
     public static bool IsLagging(SyncServerDevice device, DateTimeOffset now, int minimumProtocol = 0) =>
         now - device.LastSeenAtUtc > LongOffline ||
-        (minimumProtocol > 0 && device.SyncProtocol < minimumProtocol);
+        (minimumProtocol > 0 && device.SyncProtocol > 0 && device.SyncProtocol < minimumProtocol);
 
     /// <summary>This SYN's release from the install beside it (.erks-install.json, «v0.001.108» → «0.001.108»); empty in a dev build.</summary>
     public static string InstalledRelease(string directory)
