@@ -19,8 +19,9 @@ internal static class StudioMessageDialog
             return StudioBridgeQuietMode.Shared.Answer(title, message, buttons);
 
         var dialog = new MessageWindow(message, title, buttons, image);
-        if (owner is not null && owner.IsVisible)
-            dialog.Owner = owner;
+        if (StudioDialogFront.Owner(owner) is { } shown)
+            dialog.Owner = shown;
+        StudioDialogFront.Keep(dialog);
         _ = dialog.ShowDialog();
         return dialog.Result;
     }

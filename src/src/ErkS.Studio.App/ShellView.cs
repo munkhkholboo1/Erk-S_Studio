@@ -1813,8 +1813,9 @@ internal sealed partial class ShellView : IDisposable
     {
         var dialog = new StudioUpdateDialog(productUpdates, update)
         {
-            Owner = Window.GetWindow(Root),
+            Owner = StudioDialogFront.Owner(Window.GetWindow(Root)),
         };
+        StudioDialogFront.Keep(dialog);
         dialog.ShowDialog();
     }
 
