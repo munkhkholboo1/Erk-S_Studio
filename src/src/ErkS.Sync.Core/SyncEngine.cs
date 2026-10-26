@@ -568,7 +568,7 @@ public sealed class SyncEngine : IAsyncDisposable
         IReadOnlySet<string> held = HeldOf(folderId);
         if (held.Count > 0)
             theirs = theirs with { Entries = theirs.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
-        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)));
+        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)), SyncCollab.Restored(physical));
         int received = 0, kept = 0, waiting = 0;
         long bytes = 0;
         string lastError = "";

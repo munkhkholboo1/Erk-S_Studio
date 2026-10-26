@@ -147,7 +147,6 @@ internal sealed partial class ShellView : IDisposable
     // Studio left open for days never saw a new release (the owner's laptop stayed on 0.001.89
     // while 90-92 went out, 2026-10-26): asked again when the window comes forward, at most
     // every half hour - an event, not a timer.
-    private DateTime productUpdateCheckedUtc = DateTime.MinValue;
 
     // Foundation: initiation basis
     private readonly TextBox projectNameBox = new();
@@ -1578,12 +1577,9 @@ internal sealed partial class ShellView : IDisposable
         accountInitialized = true;
         notificationRefreshTimer.Start();
         await dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
+        // Once at start, never on a clock (owner, 2026-10-26: «цаг тутам бишээ … шинэ хувилбар
+        // нийтлэхэд л мэдэгддэг байх хэрэгтэй»).
         _ = CheckForProductUpdateAsync(interactive: false);
-        System.Windows.Application.Current.Activated += (_, _) =>
-        {
-            if (DateTime.UtcNow - productUpdateCheckedUtc >= TimeSpan.FromMinutes(30))
-                _ = CheckForProductUpdateAsync(interactive: false);
-        };
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();
@@ -1680,7 +1676,6 @@ internal sealed partial class ShellView : IDisposable
         }
 
         productUpdateCheckInProgress = true;
-        productUpdateCheckedUtc = DateTime.UtcNow;
         productUpdateButton.IsEnabled = false;
         SetProductUpdateButtonLabel("Шалгаж байна");
         RefreshProductUpdateIndicator();

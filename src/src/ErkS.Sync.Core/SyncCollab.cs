@@ -298,9 +298,13 @@ public static class SyncCollab
     }
 
     /// <summary>
-    /// collab-publish: the writer's next changeset, numbered here (one more than the highest this
-    /// writer has in the log) and written once. The manifest and the entities are packed as they
-    /// are - SYN does not read them.
+    /// collab-publish: the writer's next changeset, numbered here and written once. The manifest
+    /// and the entities are packed as they are - SYN does not read them.
+    ///
+    /// 🔴 A NUMBER IS NEVER GIVEN TWICE (Erk-S Sync, 2026-10-26): the log alone forgets numbers an
+    /// older SYN retired, and a reused number overwrote the laptop's 1 while its ack skipped it.
+    /// The next number is one past the highest this writer has anywhere - log, high-water mark,
+    /// partners' acks, this machine's applied cursor, what was unpacked here.
     /// </summary>
     public static long Publish(string folderRoot, string fileId, string writer, string manifestPath, string entitiesPath, SyncHome? home = null, int? blocks = null, int? myBlocks = null)
     {
@@ -311,15 +315,247 @@ public static class SyncCollab
         }
         string log = Path.Combine(FileRoot(folderRoot, fileId), "log", Safe(writer));
         Directory.CreateDirectory(log);
-        long seq = Numbers(log).DefaultIfEmpty(0).Max() + 1;
+        long seq = HighestNumber(folderRoot, fileId, writer, home) + 1;
         string temporary = Path.Combine(log, $".{Guid.NewGuid():N}.tmp");
-        using (var zip = ZipFile.Open(temporary, ZipArchiveMode.Create))
-        {
-            zip.CreateEntryFromFile(manifestPath, "manifest.json", CompressionLevel.Optimal);
-            zip.CreateEntryFromFile(entitiesPath, "entities.dwg", CompressionLevel.Optimal);
-        }
+        Pack(temporary, manifestPath, entitiesPath);
         File.Move(temporary, Path.Combine(log, seq.ToString("D8") + Extension));
+        WriteHigh(folderRoot, fileId, writer, seq);
         return seq;
+    }
+
+    /// <summary>The highest number this writer is known to have used, from every place a number leaves a trace.</summary>
+    public static long HighestNumber(string folderRoot, string fileId, string writer, SyncHome? home = null)
+    {
+        string fileRoot = FileRoot(folderRoot, fileId);
+        string name = Safe(writer);
+        string log = Path.Combine(fileRoot, "log", name);
+        long high = Directory.Exists(log) ? Numbers(log).DefaultIfEmpty(0).Max() : 0;
+        high = Math.Max(high, ReadNumbers(Path.Combine(fileRoot, "high", name + ".json")).GetValueOrDefault("high"));
+        string acks = Path.Combine(fileRoot, "acks");
+        if (Directory.Exists(acks))
+        {
+            foreach (string path in Directory.EnumerateFiles(acks, "*.json"))
+            {
+                foreach ((string key, long seq) in ReadNumbers(path))
+                {
+                    if (Safe(key).Equals(name, StringComparison.OrdinalIgnoreCase))
+                        high = Math.Max(high, seq);
+                }
+            }
+        }
+        if (home is not null)
+        {
+            high = Math.Max(high, Applied(home, fileId).GetValueOrDefault(name));
+            string unpacked = Path.Combine(home.Root, "collab", Safe(fileId), "in", name);
+            if (Directory.Exists(unpacked))
+            {
+                foreach (string directory in Directory.EnumerateDirectories(unpacked))
+                {
+                    if (long.TryParse(Path.GetFileName(directory), out long seq))
+                        high = Math.Max(high, seq);
+                }
+            }
+        }
+        return high;
+    }
+
+    /// <summary>This machine publishes as <paramref name="writer"/> (what collab-publish records).</summary>
+    public static void SaveWriter(SyncHome home, string fileId, string writer) =>
+        SaveLocal(home, fileId, Local(home, fileId) with { Writer = writer });
+
+    /// <summary>
+    /// Whether a relative path is a changeset file - «.erks-collab\&lt;fileId&gt;\log\&lt;writer&gt;\&lt;n&gt;.cgacs».
+    /// Such a file is written once by its writer: the transfer never replaces one with other bytes
+    /// (unless its writer's repair names them) and always fetches one missing here.
+    /// </summary>
+    public static bool IsChangesetPath(string relativePath)
+    {
+        string[] parts = relativePath.Replace('/', '\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 5 &&
+            parts[0].Equals(DirectoryName, StringComparison.OrdinalIgnoreCase) &&
+            parts[2].Equals("log", StringComparison.OrdinalIgnoreCase) &&
+            parts[4].EndsWith(Extension, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The contents a writer's machine put back at a reused number (restored\&lt;writer&gt;.json,
+    /// written by that machine only): the transfer lets exactly these replace a changeset file.
+    /// </summary>
+    public static IReadOnlySet<string> Restored(string folderRoot)
+    {
+        var shas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string root = Path.Combine(folderRoot, DirectoryName);
+        if (!Directory.Exists(root))
+            return shas;
+        foreach (string directory in Directory.EnumerateDirectories(root))
+        {
+            string restored = Path.Combine(directory, "restored");
+            if (!Directory.Exists(restored))
+                continue;
+            foreach (string path in Directory.EnumerateFiles(restored, "*.json"))
+            {
+                try
+                {
+                    if (JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path), Json) is { } map)
+                        shas.UnionWith(map.Values.Where(value => value.Length > 0));
+                }
+                catch (Exception exception) when (exception is IOException or JsonException)
+                {
+                }
+            }
+        }
+        return shas;
+    }
+
+    /// <summary>
+    /// On the writer's own machine: every changeset CGA took back here (in\&lt;writer&gt;\&lt;n&gt;) is
+    /// what number n was. A log file at n with other content is a reused number - it moves to the
+    /// next free number and n gets its own content back; a number retired from the log comes back.
+    /// Each put-back is named in restored\&lt;writer&gt;.json so partners accept it.
+    /// </summary>
+    private static void RepairOwnLog(string folderRoot, SyncHome home, string fileId)
+    {
+        string own = Safe(Local(home, fileId).Writer);
+        if (own.Length == 0)
+            return;
+        string unpacked = Path.Combine(home.Root, "collab", Safe(fileId), "in", own);
+        if (!Directory.Exists(unpacked))
+            return;
+        string fileRoot = FileRoot(folderRoot, fileId);
+        string log = Path.Combine(fileRoot, "log", own);
+        string restoredPath = Path.Combine(fileRoot, "restored", own + ".json");
+        Dictionary<string, string> restored;
+        try
+        {
+            restored = File.Exists(restoredPath)
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(restoredPath), Json) ?? []
+                : [];
+        }
+        catch (JsonException)
+        {
+            restored = [];
+        }
+        bool changed = false;
+        foreach (string directory in Directory.EnumerateDirectories(unpacked).OrderBy(path => Path.GetFileName(path), StringComparer.Ordinal))
+        {
+            if (!long.TryParse(Path.GetFileName(directory), out long seq) || seq <= 0)
+                continue;
+            string manifest = Path.Combine(directory, "manifest.json");
+            string entities = Path.Combine(directory, "entities.dwg");
+            if (!File.Exists(manifest) || !File.Exists(entities))
+                continue;
+            Directory.CreateDirectory(log);
+            string path = Path.Combine(log, seq.ToString("D8") + Extension);
+            if (File.Exists(path))
+            {
+                var info = new FileInfo(path);
+                if (Verified.TryGetValue(path, out var seen) && seen == (info.Length, info.LastWriteTimeUtc))
+                    continue;
+                if (Holds(path, manifest, entities))
+                {
+                    Verified[path] = (info.Length, info.LastWriteTimeUtc);
+                    continue;
+                }
+                long next = HighestNumber(folderRoot, fileId, own, home) + 1;
+                File.Move(path, Path.Combine(log, next.ToString("D8") + Extension));
+                WriteHigh(folderRoot, fileId, own, next);
+            }
+            string temporary = Path.Combine(log, $".{Guid.NewGuid():N}.tmp");
+            Pack(temporary, manifest, entities);
+            File.Move(temporary, path);
+            restored[seq.ToString(System.Globalization.CultureInfo.InvariantCulture)] = Sha256Of(path);
+            changed = true;
+        }
+        if (changed)
+            WriteIfChanged(restoredPath, JsonSerializer.SerializeToUtf8Bytes(restored, Json));
+    }
+
+    /// <summary>
+    /// A changeset that came twice under one name (a number reused before 0.001.103) is kept beside
+    /// it as a conflict copy, never over it. A copy with the same bytes as the file is dropped.
+    /// </summary>
+    private static int ConflictCopies(string fileRoot)
+    {
+        string logs = Path.Combine(fileRoot, "log");
+        if (!Directory.Exists(logs))
+            return 0;
+        int left = 0;
+        foreach (string copy in Directory.EnumerateFiles(logs, "*" + Extension, SearchOption.AllDirectories))
+        {
+            string stem = Path.GetFileNameWithoutExtension(copy);
+            if (long.TryParse(stem, out _))
+                continue;
+            int cut = stem.IndexOf(' ');
+            string original = Path.Combine(Path.GetDirectoryName(copy)!, (cut > 0 ? stem[..cut] : stem) + Extension);
+            try
+            {
+                if (File.Exists(original) && Sha256Of(original) == Sha256Of(copy))
+                {
+                    File.Delete(copy);
+                    continue;
+                }
+            }
+            catch (IOException)
+            {
+            }
+            left++;
+        }
+        return left;
+    }
+
+    // A changeset found to hold what CGA took back is not unpacked again on every pass.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Length, DateTime Written)> Verified = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void Pack(string path, string manifestPath, string entitiesPath)
+    {
+        using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
+        zip.CreateEntryFromFile(manifestPath, "manifest.json", CompressionLevel.Optimal);
+        zip.CreateEntryFromFile(entitiesPath, "entities.dwg", CompressionLevel.Optimal);
+    }
+
+    private static bool Holds(string changeset, string manifestPath, string entitiesPath)
+    {
+        try
+        {
+            using ZipArchive zip = ZipFile.OpenRead(changeset);
+            return SameEntry(zip, "manifest.json", manifestPath) && SameEntry(zip, "entities.dwg", entitiesPath);
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static bool SameEntry(ZipArchive zip, string name, string path)
+    {
+        if (zip.GetEntry(name) is not { } entry)
+            return false;
+        using Stream stream = entry.Open();
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray().AsSpan().SequenceEqual(File.ReadAllBytes(path));
+    }
+
+    private static void WriteHigh(string folderRoot, string fileId, string writer, long seq)
+    {
+        string path = Path.Combine(FileRoot(folderRoot, fileId), "high", Safe(writer) + ".json");
+        if (ReadNumbers(path).GetValueOrDefault("high") >= seq)
+            return;
+        WriteIfChanged(path, JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, long> { ["high"] = seq }, Json));
+    }
+
+    private static Dictionary<string, long> ReadNumbers(string path)
+    {
+        try
+        {
+            return File.Exists(path)
+                ? new Dictionary<string, long>(JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(path), Json) ?? [], StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            return new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>
@@ -487,7 +723,9 @@ public static class SyncCollab
             Blocks = local.Blocks,
             MyBlocks = local.MyBlocks,
             LastAppliedAtUtc = local.LastAppliedAtUtc,
-            LastError = local.LastError,
+            LastError = ConflictCopies(FileRoot(folderRoot, fileId)) is > 0 and int copies
+                ? $"Багцын дугаар давхардсан ({copies}) — дарж бичээгүй, хоёуланг нь хадгалсан."
+                : local.LastError,
             CentralEdited = local.CentralEdited,
         };
     }
@@ -686,6 +924,7 @@ public static class SyncCollab
     {
         string fileRoot = FileRoot(folderRoot, file.FileId);
         string relativeRoot = Path.Combine(DirectoryName, Safe(file.FileId));
+        RepairOwnLog(folderRoot, home, file.FileId);
         var latest = LatestCheckpoint(folderRoot, file.FileId);
         if (latest is { } checkpoint)
         {

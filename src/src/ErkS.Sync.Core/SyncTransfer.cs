@@ -42,7 +42,8 @@ public static class SyncTransferPlanner
     public static bool IsCarried(SyncFileKind kind) =>
         kind is not (SyncFileKind.RevitCentral or SyncFileKind.RevitCentralData);
 
-    public static SyncTransferPlan Plan(SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger, IReadOnlyList<SyncDecision>? decisions = null)
+    /// <param name="restored">Changeset contents a writer put back at a reused number (<see cref="SyncCollab.Restored"/>).</param>
+    public static SyncTransferPlan Plan(SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger, IReadOnlyList<SyncDecision>? decisions = null, IReadOnlySet<string>? restored = null)
     {
         ArgumentNullException.ThrowIfNull(mine);
         ArgumentNullException.ThrowIfNull(theirs);
@@ -61,9 +62,13 @@ public static class SyncTransferPlanner
                 notCarried++;
                 continue;
             }
+            // A CGA changeset is written once by its writer: one missing here always comes (an older
+            // SYN retired logs), and one here is never replaced by other bytes - both are kept, and
+            // only the writer's own repair may put the right content back (Erk-S Sync, 2026-10-26).
+            bool changeset = SyncCollab.IsChangesetPath(entry.RelativePath);
             if (!here.TryGetValue(entry.RelativePath, out SyncIndexEntry? local))
             {
-                if (ledger.DeletedHere(entry.RelativePath, version))
+                if (!changeset && ledger.DeletedHere(entry.RelativePath, version))
                     deleted++;
                 else
                     actions.Add(new SyncTransferAction(SyncTransferKind.Fetch, entry, null));
@@ -71,6 +76,14 @@ public static class SyncTransferPlanner
             }
             if (local.Sha256.Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase))
                 continue;
+            if (changeset)
+            {
+                if (restored?.Contains(entry.Sha256) == true)
+                    actions.Add(new SyncTransferAction(SyncTransferKind.Replace, entry, local, KeepPrevious: true));
+                else if (!ledger.HasKept(entry.RelativePath, entry.Sha256))
+                    actions.Add(new SyncTransferAction(SyncTransferKind.KeepBoth, entry, local));
+                continue;
+            }
             if (!IsCarried(local.Kind))
             {
                 notCarried++;
