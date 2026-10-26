@@ -137,7 +137,8 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
     {
         Uri server = ResolveUpdateServer();
         string product = Uri.EscapeDataString(StudioReleaseInfo.ProductCode);
-        string version = Uri.EscapeDataString(StudioReleaseInfo.ApiVersion);
+        // A live-only delta moves the installed version without a new exe: the install manifest knows it.
+        string version = Uri.EscapeDataString(StudioDeltaUpdate.InstalledVersion ?? StudioReleaseInfo.ApiVersion);
         Uri endpoint = new(server, $"api/updates/latest?productCode={product}&currentVersion={version}");
         using HttpResponseMessage response = await httpClient.GetAsync(endpoint, cancellationToken).ConfigureAwait(true);
         RecordThenThrow(response, "Шинэ хувилбарын мэдээллийг авч чадсангүй");
@@ -238,6 +239,25 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
             TryDelete(partial);
             throw;
         }
+    }
+
+    /// <summary>
+    /// The delta path first (only changed files); <see cref="StudioDeltaOutcome.NotAvailable"/>
+    /// sends the caller to the full installer as before.
+    /// </summary>
+    public Task<StudioDeltaResult> TryDeltaAsync(
+        StudioUpdateLatestResponse update,
+        IProgress<StudioUpdateProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        if (!update.IsUpdateAvailable)
+            return Task.FromResult(StudioDeltaResult.None);
+        Uri server = string.IsNullOrWhiteSpace(update.ServerUrl)
+            ? ResolveUpdateServer()
+            : new Uri(update.ServerUrl.Trim().TrimEnd('/') + "/", UriKind.Absolute);
+        UpdatePackageSecurityPolicy.ValidateTransport(server, StudioReleaseInfo.IsDevelopmentBuild);
+        return StudioDeltaUpdate.TryAsync(httpClient, server, update, progress, cancellationToken);
     }
 
     public async Task VerifyAndLaunchInstallerAsync(

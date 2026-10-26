@@ -16,7 +16,7 @@ namespace ErkS.Sync;
 /// </summary>
 internal static class Program
 {
-    public static readonly string[] Verbs = ["make", "join", "status", "unlink", "rescan"];
+    public static readonly string[] Verbs = ["make", "join", "status", "unlink", "rescan", "quit"];
 
     [STAThread]
     private static int Main(string[] args)

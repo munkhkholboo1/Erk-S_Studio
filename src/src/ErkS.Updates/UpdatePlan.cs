@@ -24,6 +24,12 @@ public sealed class UpdatePlan
     public bool UseFullInstaller { get; set; }
 
     public bool IsEmpty => Changed.Count == 0 && Removed.Count == 0;
+
+    /// <summary>
+    /// Whether the program must close: a changed file is not «live», or a file goes away (a
+    /// removal is applied with the rest, at restart). Only live changes: none (contract 5a).
+    /// </summary>
+    public bool NeedsRestart => Changed.Any(file => !file.IsLive) || Removed.Count > 0;
 }
 
 public static class UpdatePlanner
@@ -31,7 +37,10 @@ public static class UpdatePlanner
     /// <summary>Contract: a delta over 60% of the full installer is not a delta.</summary>
     public const double FullInstallerThreshold = 0.6;
 
+    /// <param name="installed">What is installed now (<see cref="InstallManifest"/>).</param>
+    /// <param name="target">The verified manifest of the version to reach.</param>
     /// <param name="fullInstallerBytes">Size of the full installer; 0 when unknown (the delta is then always used).</param>
+    /// <param name="threshold">Share of the full installer above which the delta is not used.</param>
     public static UpdatePlan Plan(UpdateManifest installed, UpdateManifest target, long fullInstallerBytes = 0, double threshold = FullInstallerThreshold)
     {
         var have = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

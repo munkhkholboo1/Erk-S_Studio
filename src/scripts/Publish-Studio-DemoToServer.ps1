@@ -24,7 +24,11 @@ param(
     # A test release: the download page offers it, but latest-update.json - what every
     # installed Studio checks to update itself - is left as it was (Master, 2026-10-23: a
     # test build reaches all users only when the owner approves that separately).
-    [switch]$InstallerOnly
+    [switch]$InstallerOnly,
+
+    # The server program whose --publish-files writes the delta manifest (SRV). Empty: the one
+    # beside the data root (<root>\..pp\ErkS.LicenseServer\ErkS.LicenseServer.exe).
+    [string]$LicenseServerExe = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -380,6 +384,39 @@ try {
 }
 
 Write-JsonFile -Path $historyPath -Value $history
+
+# Delta update (owner, 2026-10-26: «зөвхөн өөрчлөгдсөн хэсгүүдийг нь update хийдэг болгуулаарай»;
+# _shared/delta-update-contract-2026-10-26.md): the installed layout goes up as a signed manifest
+# and files by hash, so an installed Studio fetches only what changed. «live» files are replaced
+# while Studio runs (contract 5a); everything else needs Studio closed. The full installer above is
+# already out: a delta that fails here leaves every client on the installer path, so it warns.
+try {
+    $layout = Join-Path $buildRoot "publish"
+    if (-not (Test-Path -LiteralPath (Join-Path $layout ".erks-install.json") -PathType Leaf)) {
+        throw "the build has no install manifest (a single-file build): $layout"
+    }
+    $serverExe = if ([string]::IsNullOrWhiteSpace($LicenseServerExe)) {
+        Join-Path (Split-Path -Parent $serverRoot) "app\ErkS.LicenseServer\ErkS.LicenseServer.exe"
+    } else { $LicenseServerExe }
+    if (-not (Test-Path -LiteralPath $serverExe -PathType Leaf)) {
+        throw "the server program was not found: $serverExe"
+    }
+    $studioLive = "Assets/**;Templates/**;**/*.png;**/*.ico;**/*.svg;**/*.ttf;**/*.otf"
+    $previousData = $env:ERKS_LICENSE_SERVER_DATA
+    $env:ERKS_LICENSE_SERVER_DATA = $serverRoot
+    try {
+        & $serverExe --publish-files --dir $layout --version $versions.Artifact --product-code "ErkS.Studio" --live $studioLive
+        if ($LASTEXITCODE -ne 0) {
+            throw "--publish-files exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        $env:ERKS_LICENSE_SERVER_DATA = $previousData
+    }
+    Write-Host "  Delta manifest: published for $($versions.Artifact)"
+} catch {
+    Write-Warning "Delta manifest was not published (clients use the full installer): $($_.Exception.Message)"
+}
 
 # Record the release in the version ledger.
 #

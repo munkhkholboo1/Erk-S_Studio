@@ -127,6 +127,26 @@ internal sealed class StudioUpdateDialog : Window
 
         try
         {
+            StudioDeltaResult delta = await updateService.TryDeltaAsync(update, progress, cancellation.Token);
+            if (delta.Outcome == StudioDeltaOutcome.AppliedLive)
+            {
+                // Contract 5a: nothing to close, nothing to ask.
+                progressBar.Value = 100;
+                statusText.Text = "Шинэчлэлт Studio-г хаалгүйгээр орлоо.";
+                allowClose = true;
+                DialogResult = true;
+                return;
+            }
+            if (delta.Outcome == StudioDeltaOutcome.ReadyToRestart)
+            {
+                statusText.Text = "Studio-г хааж шинэчлэлтийг хэрэглэж байна...";
+                StudioDeltaUpdate.LaunchApplier(delta.Staging);
+                allowClose = true;
+                DialogResult = true;
+                ExitStudioForUpdate();
+                return;
+            }
+
             string installerPath = await updateService.DownloadAsync(update, progress, cancellation.Token);
             statusText.Text = "Studio-г хааж шинэчлэлтийг суулгаж байна...";
             await updateService.VerifyAndLaunchInstallerAsync(installerPath, update, cancellation.Token);

@@ -456,14 +456,35 @@ if ($LASTEXITCODE -ne 0) {
     throw "AutoCAD/Revit external acceptance gate failed. Exit code: $LASTEXITCODE"
 }
 
+# Erk-S Sync (SYN) is installed beside Studio and starts with Windows (task 1.1).
+$SyncPublishDirectory = Join-Path $OutputDirectory "publish-sync"
+$SyncPublishArguments = @(
+    "publish", (Join-Path $SourceRoot "src\ErkS.Sync\ErkS.Sync.csproj"),
+    "-c", "Release",
+    "-r", "win-x64",
+    "--self-contained", "true",
+    "--nologo",
+    "-p:PublishSingleFile=false",
+    "-p:DebugType=None",
+    "-p:DebugSymbols=false",
+    "-p:StudioReleaseVersion=$AssemblyVersion",
+    "-p:StudioReleaseLabel=Demo $ReleaseVersion",
+    "--artifacts-path", $BuildArtifactsDirectory,
+    "-o", $SyncPublishDirectory
+)
+& dotnet @SyncPublishArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Erk-S Sync publish амжилтгүй боллоо."
+}
+Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
+
 $PublishArguments = @(
     "publish", $ProjectPath,
     "-c", "Release",
     "-r", "win-x64",
     "--self-contained", "true",
     "--nologo",
-    "-p:PublishSingleFile=true",
-    "-p:IncludeNativeLibrariesForSelfExtract=true",
+    "-p:PublishSingleFile=false",
     "-p:DebugType=None",
     "-p:DebugSymbols=false",
     "-p:StudioProductBuild=true",
@@ -478,27 +499,41 @@ if ($LASTEXITCODE -ne 0) {
 }
 Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
 
-# Erk-S Sync (SYN) is installed beside Studio and starts with Windows (task 1.1).
-$SyncPublishArguments = @(
-    "publish", (Join-Path $SourceRoot "src\ErkS.Sync\ErkS.Sync.csproj"),
+
+# Delta updates (owner, 2026-10-26: «зөвхөн өөрчлөгдсөн хэсгүүдийг нь update хийдэг болгуулаарай»;
+# _shared/delta-update-contract-2026-10-26.md): the install is a folder of files, not one packed exe,
+# so a release moves only what changed. Sync is published to its own folder and merged in after
+# Studio: a library both carry keeps Studio's copy (Studio's graph includes Sync's, so it is the
+# newer), only Sync's own files and what Studio lacks come from Sync's folder. The applier (net48,
+# present on every Windows) sits in «updater» and runs from a temporary copy after Studio closes.
+$UpdaterPublishArguments = @(
+    "publish", (Join-Path $SourceRoot "src\ErkS.Updates.Apply\ErkS.Updates.Apply.csproj"),
     "-c", "Release",
-    "-r", "win-x64",
-    "--self-contained", "true",
     "--nologo",
-    "-p:PublishSingleFile=true",
-    "-p:IncludeNativeLibrariesForSelfExtract=true",
     "-p:DebugType=None",
     "-p:DebugSymbols=false",
-    "-p:StudioReleaseVersion=$AssemblyVersion",
-    "-p:StudioReleaseLabel=Demo $ReleaseVersion",
+    "-p:GenerateDocumentationFile=false",
     "--artifacts-path", $BuildArtifactsDirectory,
-    "-o", $PublishDirectory
+    "-o", (Join-Path $PublishDirectory "updater")
 )
-& dotnet @SyncPublishArguments
+foreach ($SyncFile in Get-ChildItem -LiteralPath $SyncPublishDirectory -Recurse -File) {
+    $Relative = $SyncFile.FullName.Substring($SyncPublishDirectory.TrimEnd([char]92).Length + 1)
+    $Target = Join-Path $PublishDirectory $Relative
+    $IsSyncOwn = $SyncFile.Name -like "ErkS.Sync.*"
+    if ((Test-Path -LiteralPath $Target -PathType Leaf) -and -not $IsSyncOwn) {
+        continue
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Target) -Force | Out-Null
+    Copy-Item -LiteralPath $SyncFile.FullName -Destination $Target -Force
+}
+Remove-Item -LiteralPath $SyncPublishDirectory -Recurse -Force
+
+& dotnet @UpdaterPublishArguments
 if ($LASTEXITCODE -ne 0) {
-    throw "Erk-S Sync publish амжилтгүй боллоо."
+    throw "Erk-S updater publish амжилтгүй боллоо."
 }
 Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
+Get-ChildItem -LiteralPath (Join-Path $PublishDirectory "updater") -File -Filter "*.xml" | Remove-Item -Force
 
 Copy-Item -LiteralPath (Join-Path $InstallerRoot "Uninstall-ErkS-Studio.ps1") -Destination $PublishDirectory -Force
 Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File -Filter "*.pdb" | Remove-Item -Force
@@ -604,9 +639,36 @@ if (-not (Test-Path -LiteralPath $PublishedSyncExe -PathType Leaf)) {
     throw "Release gate: ErkS.Sync.exe үүссэнгүй."
 }
 Invoke-ErkSCodeSign -Path $PublishedSyncExe -SigningContext $SigningContext
+$PublishedUpdaterExe = Join-Path $PublishDirectory "updater\ErkS.Updates.Apply.exe"
+if (-not (Test-Path -LiteralPath $PublishedUpdaterExe -PathType Leaf)) {
+    throw "Release gate: updater\ErkS.Updates.Apply.exe үүссэнгүй."
+}
+Invoke-ErkSCodeSign -Path $PublishedUpdaterExe -SigningContext $SigningContext
 Invoke-ReleaseArtifactGate `
     -Path $PublishedExe `
     -ReportName "published-exe-trust.json"
+
+# What is installed (ErkS.Updates InstallManifest): the installer lays it beside the program, so the
+# first update already knows which files it has. Written after signing - the hashes are final.
+$InstallFiles = foreach ($File in Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File | Sort-Object FullName) {
+    $Relative = $File.FullName.Substring($PublishDirectory.TrimEnd([char]92).Length + 1).Replace([char]92, [char]47)
+    if ($Relative -eq ".erks-install.json") { continue }
+    [ordered]@{
+        path = $Relative
+        sha256 = (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        size = $File.Length
+        apply = "restart"
+    }
+}
+$InstallManifestJson = [ordered]@{
+    productCode = "ErkS.Studio"
+    version = $ReleaseVersion
+    channel = ""
+    files = @($InstallFiles)
+    removed = @()
+    filesUrl = ""
+} | ConvertTo-Json -Depth 5
+[IO.File]::WriteAllText((Join-Path $PublishDirectory ".erks-install.json"), $InstallManifestJson, (New-Object Text.UTF8Encoding($false)))
 
 Compress-Archive -Path (Join-Path $PublishDirectory "*") -DestinationPath $PortableZip -CompressionLevel Optimal
 Copy-Item -LiteralPath $PortableZip -Destination $PayloadZip -Force

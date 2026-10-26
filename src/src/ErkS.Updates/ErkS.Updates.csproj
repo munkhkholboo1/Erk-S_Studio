@@ -20,11 +20,6 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="System.Text.Json" Version="9.0.1" />
     <Reference Include="System.Net.Http" />
-    <Reference Include="System.Security" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net48'">
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>

@@ -34,12 +34,38 @@ public sealed class DeltaDownloader
         _productCode = productCode;
     }
 
+    /// <summary>The manifest signer pin; tests may name their own certificate.</summary>
+    public string PinnedManifestThumbprint { get; set; } = ManifestSignature.ErkSThumbprint;
+
+    /// <summary>
+    /// The verified manifest of a version (or the channel's latest when <paramref name="version"/>
+    /// is empty); null when the server has none (404) - the product then uses its full installer.
+    /// </summary>
+    public async Task<UpdateManifest?> GetManifestAsync(string? version = null, string? channel = null, CancellationToken cancellationToken = default)
+    {
+        string query = "api/updates/manifest?productCode=" + Uri.EscapeDataString(_productCode) +
+            (string.IsNullOrWhiteSpace(version) ? "" : "&version=" + Uri.EscapeDataString(version!.Trim())) +
+            (string.IsNullOrWhiteSpace(channel) ? "" : "&channel=" + Uri.EscapeDataString(channel!.Trim()));
+        using HttpResponseMessage response = await _http.GetAsync(new Uri(_server, query), cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"Шинэчлэлийн манифестыг авч чадсангүй: {(int)response.StatusCode}");
+        string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        UpdateManifest manifest = SignedManifest.FromJson(json).Verify(PinnedManifestThumbprint);
+        if (!manifest.ProductCode.Equals(_productCode, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Манифест өөр бүтээгдэхүүнийх байна: " + manifest.ProductCode);
+        return manifest;
+    }
+
     /// <summary>Where a file of that hash is kept in the staging folder.</summary>
     public static string StagedPath(string stagingDirectory, string sha256) => Path.Combine(stagingDirectory, "files", sha256);
 
     public async Task DownloadAsync(UpdatePlan plan, string stagingDirectory, IProgress<UpdateProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(Path.Combine(stagingDirectory, "files"));
+        if (string.IsNullOrWhiteSpace(FilesUrl) && !string.IsNullOrWhiteSpace(plan.Target.FilesUrl))
+            FilesUrl = plan.Target.FilesUrl;
         var report = new UpdateProgress { TotalBytes = plan.DownloadBytes, FilesTotal = plan.Changed.Count };
         var clock = Stopwatch.StartNew();
         long fetchedThisRun = 0;
@@ -68,6 +94,17 @@ public sealed class DeltaDownloader
         }
     }
 
+    /// <summary>The manifest's own files URL when it names one, else «/updates/&lt;product&gt;/files».</summary>
+    public string? FilesUrl { get; set; }
+
+    private Uri FileUri(string sha256)
+    {
+        string folder = string.IsNullOrWhiteSpace(FilesUrl)
+            ? "updates/" + Uri.EscapeDataString(_productCode) + "/files"
+            : FilesUrl!.Trim().Trim('/');
+        return new Uri(_server, folder + "/" + sha256);
+    }
+
     private async Task FetchAsync(UpdateFile file, string staged, Action<long> received, CancellationToken cancellationToken)
     {
         string part = staged + ".part";
@@ -81,7 +118,7 @@ public sealed class DeltaDownloader
             }
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_server, $"updates/{Uri.EscapeDataString(_productCode)}/files/{file.Sha256}"));
+                var request = new HttpRequestMessage(HttpMethod.Get, FileUri(file.Sha256));
                 if (have > 0)
                     request.Headers.Range = new RangeHeaderValue(have, null);
                 using HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
@@ -125,6 +162,10 @@ public sealed class DeltaDownloader
             return;
         string extension = Path.GetExtension(manifestPath);
         if (!extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+            return;
+        // Only Erk-S's own binaries are pinned; a library someone else signed rests on the signed
+        // manifest's hash like any unsigned file.
+        if (!Path.GetFileName(manifestPath).StartsWith("ErkS.", StringComparison.OrdinalIgnoreCase))
             return;
         X509Certificate? signer;
         try

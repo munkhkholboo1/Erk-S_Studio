@@ -21,6 +21,21 @@ public sealed class UpdateFile
 
     [JsonPropertyName("size")]
     public long Size { get; set; }
+
+    /// <summary>
+    /// «live» - replaced while the program runs (settings, templates, icons, fonts, a reloadable
+    /// App); «restart» (the default) - a loaded exe/dll, a host plugin: needs the program closed.
+    /// The product's publish script sets it (contract 5a).
+    /// </summary>
+    [JsonPropertyName("apply")]
+    public string Apply { get; set; } = ApplyRestart;
+
+    public const string ApplyLive = "live";
+
+    public const string ApplyRestart = "restart";
+
+    [JsonIgnore]
+    public bool IsLive => ApplyLive.Equals(Apply, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -45,6 +60,13 @@ public sealed class UpdateManifest
     [JsonPropertyName("removed")]
     public List<string> Removed { get; set; } = new();
 
+    /// <summary>
+    /// Where the server keeps this product's files by hash (SRV: «/updates/&lt;folder&gt;/files»);
+    /// empty in an install manifest. The downloader falls back to the product code.
+    /// </summary>
+    [JsonPropertyName("filesUrl")]
+    public string FilesUrl { get; set; } = "";
+
     public long TotalBytes => Files.Sum(file => file.Size);
 
     internal static readonly JsonSerializerOptions Json = new()
@@ -57,34 +79,6 @@ public sealed class UpdateManifest
 
     public static UpdateManifest FromJson(string json) =>
         JsonSerializer.Deserialize<UpdateManifest>(json, Json) ?? throw new InvalidDataException("Шинэчлэлийн манифест хоосон байна.");
-}
-
-/// <summary>
-/// The server's answer: the manifest's exact JSON text and a signature over its UTF-8 bytes.
-/// The text travels as a string, so the bytes that were signed are the bytes that are checked -
-/// no re-serialising, no canonical form to agree on.
-/// </summary>
-public sealed class SignedManifest
-{
-    [JsonPropertyName("manifestJson")]
-    public string ManifestJson { get; set; } = "";
-
-    /// <summary>Base64 of a detached CMS (PKCS#7) signature by the Erk-S certificate.</summary>
-    [JsonPropertyName("signature")]
-    public string Signature { get; set; } = "";
-
-    public string ToJson() => JsonSerializer.Serialize(this, UpdateManifest.Json);
-
-    public static SignedManifest FromJson(string json) =>
-        JsonSerializer.Deserialize<SignedManifest>(json, UpdateManifest.Json) ?? throw new InvalidDataException("Гарын үсэгтэй манифест хоосон байна.");
-
-    /// <summary>The manifest, only once its signature is good and made by the pinned certificate.</summary>
-    public UpdateManifest Verify(string pinnedThumbprint)
-    {
-        if (!ManifestSignature.Verify(ManifestJson, Signature, pinnedThumbprint))
-            throw new InvalidDataException("Шинэчлэлийн манифестын гарын үсэг таарахгүй байна — татахгүй.");
-        return UpdateManifest.FromJson(ManifestJson);
-    }
 }
 
 /// <summary>
@@ -116,6 +110,20 @@ public static class InstallManifest
         UpdateManifest scanned = Scan(installDirectory, productCode, version, include);
         Save(installDirectory, scanned);
         return scanned;
+    }
+
+    /// <summary>The version the install manifest names, or null when there is none (a build not installed by an installer).</summary>
+    public static string? TryReadVersion(string installDirectory)
+    {
+        try
+        {
+            string path = System.IO.Path.Combine(installDirectory, FileName);
+            return File.Exists(path) ? UpdateManifest.FromJson(File.ReadAllText(path, Encoding.UTF8)).Version : null;
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Hashes every file in the folder (not the manifest itself, not skipped folders).</summary>

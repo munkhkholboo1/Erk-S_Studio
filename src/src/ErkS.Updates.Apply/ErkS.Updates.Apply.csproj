@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Puts a staged delta update in place after the program has closed (contract
+    _shared/delta-update-contract-2026-10-26.md §4). net48 on purpose: every Windows has it, so the
+    tool runs whatever runtime the program it updates carries, and it is run from a temporary copy so
+    its own files can be replaced too.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ErkS.Updates.Apply</AssemblyName>
+    <RootNamespace>ErkS.Updates.Apply</RootNamespace>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ErkS.Updates\ErkS.Updates.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -60,6 +60,51 @@ public static class UpdateApplier
         }
     }
 
+    /// <summary>
+    /// Puts the plan's «live» files in place now, while the program runs (contract 5a): each is
+    /// replaced atomically, a file the program holds locked is left for the next start, and the
+    /// install manifest records exactly what was put in place. The caller raises its own
+    /// ReloadRequested with <see cref="LiveApplyResult.Applied"/> - nothing is closed, nothing asked.
+    /// </summary>
+    public static LiveApplyResult ApplyLive(string installDirectory, string stagingDirectory, UpdatePlan plan)
+    {
+        string root = Path.GetFullPath(installDirectory);
+        var result = new LiveApplyResult();
+        UpdateManifest installed = InstallManifest.LoadOrScan(root, plan.Target.ProductCode, plan.Target.Version);
+        foreach (UpdateFile file in plan.Changed)
+        {
+            if (!file.IsLive)
+                continue;
+            string staged = DeltaDownloader.StagedPath(stagingDirectory, file.Sha256);
+            if (!File.Exists(staged) || Hashes.Sha256OfFile(staged) != file.Sha256)
+                throw new InvalidDataException("Шинэчлэлийн файл бүрэн биш: " + file.Path);
+            string target = InstallManifest.Local(root, file.Path);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            string temporary = target + ".erks-new";
+            try
+            {
+                File.Copy(staged, temporary, overwrite: true);
+                if (File.Exists(target))
+                    File.Replace(temporary, target, null);
+                else
+                    File.Move(temporary, target);
+                result.Applied.Add(file.Path);
+                installed.Files.RemoveAll(item => item.Path.Equals(file.Path, StringComparison.OrdinalIgnoreCase));
+                installed.Files.Add(file);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                if (File.Exists(temporary))
+                    File.Delete(temporary);
+                result.Deferred.Add(file.Path); // held open: the next start takes it
+            }
+        }
+        if (!plan.NeedsRestart && result.Deferred.Count == 0)
+            installed.Version = plan.Target.Version;
+        InstallManifest.Save(root, installed);
+        return result;
+    }
+
     private static string Keep(string root, string rollback, string target)
     {
         string kept = Path.Combine(rollback, InstallManifest.Relative(root, target).Replace('/', Path.DirectorySeparatorChar));
@@ -86,4 +131,12 @@ public static class UpdateApplier
             }
         }
     }
+}
+
+/// <summary>What a live apply did: files now in place (to reload) and files left for the next start.</summary>
+public sealed class LiveApplyResult
+{
+    public List<string> Applied { get; } = new();
+
+    public List<string> Deferred { get; } = new();
 }

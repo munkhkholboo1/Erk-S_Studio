@@ -169,6 +169,11 @@ internal sealed class SyncTray : ApplicationContext
             case "collab-whoami":
             case "collab-central-reset":
                 return Collab(request);
+            case "quit":
+                // An update (ErkS.Updates) replaces this folder's files: the tray closes the way
+                // «Гарах» does, and the updater starts it again when the files are in place.
+                Post(ExitThread);
+                return new SyncPipeResponse(true, "Хаагдаж байна.");
             case "central-begin":
             case "central-end":
                 // PFR around Revit's synchronize: the host commits only a synchronize that finished.

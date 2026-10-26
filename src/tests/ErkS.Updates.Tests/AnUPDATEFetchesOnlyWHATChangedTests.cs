@@ -62,14 +62,14 @@ public sealed class AnUPDATEFetchesOnlyWHATChangedTests : IDisposable
         var request = new CertificateRequest("CN=Erk-S Test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
         var manifest = new UpdateManifest { ProductCode = "ErkS.Studio", Version = "2", Files = [new UpdateFile { Path = "a.dll", Sha256 = new string('a', 64), Size = 1 }] };
-        var signed = new SignedManifest { ManifestJson = manifest.ToJson() };
-        signed.Signature = ManifestSignature.Sign(signed.ManifestJson, certificate);
+        SignedManifest signed = SignedManifest.Create(manifest, certificate);
 
         SignedManifest travelled = SignedManifest.FromJson(signed.ToJson());
         Assert.Equal("2", travelled.Verify(certificate.Thumbprint).Version);
-        // Another certificate, or one changed byte, is refused.
+        // Another pinned certificate, or one changed byte of the body, is refused.
         Assert.Throws<InvalidDataException>(() => travelled.Verify(ManifestSignature.ErkSThumbprint));
-        travelled.ManifestJson = travelled.ManifestJson.Replace("\"2\"", "\"3\"");
+        string json = Encoding.UTF8.GetString(Convert.FromBase64String(travelled.Body)).Replace("\"2\"", "\"3\"");
+        travelled.Body = Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
         Assert.Throws<InvalidDataException>(() => travelled.Verify(certificate.Thumbprint));
     }
 
@@ -126,6 +126,65 @@ public sealed class AnUPDATEFetchesOnlyWHATChangedTests : IDisposable
         File.WriteAllText(DeltaDownloader.StagedPath(staging, plan.Changed[0].Sha256), "damaged");
         Assert.Throws<InvalidDataException>(() => UpdateApplier.Apply(install, staging, plan));
         Assert.Equal("app 2", File.ReadAllText(Path.Combine(install, "ErkS.Studio.dll")));
+    }
+
+    /// <summary>
+    /// Contract 5a, owner: «зарим жижиг шинэчлэлтүүд тухайн программыг заавал хаах албагүй байж
+    /// болно». Only «live» files changed: they go in now, nothing closes; a held one waits for the
+    /// next start; any «restart» file still means closing.
+    /// </summary>
+    [Fact]
+    public async Task LiveFilesGoInWhileTheProgramRunsAndAHeldOneWaits()
+    {
+        string install = Dir("install"), v2 = Dir("v2");
+        Put(install, "ErkS.Studio.dll", "app 1");
+        Put(install, "Templates/sheet.json", "template 1");
+        Put(install, "Icons/logo.svg", "icon 1");
+        UpdateManifest installed = InstallManifest.LoadOrScan(install, "ErkS.Studio", "1");
+        Put(v2, "ErkS.Studio.dll", "app 1");
+        Put(v2, "Templates/sheet.json", "template 2");
+        Put(v2, "Icons/logo.svg", "icon 2");
+        UpdateManifest target = InstallManifest.Scan(v2, "ErkS.Studio", "2");
+        foreach (UpdateFile file in target.Files.Where(file => !file.Path.EndsWith(".dll", StringComparison.Ordinal)))
+            file.Apply = UpdateFile.ApplyLive;
+        UpdatePlan plan = UpdatePlanner.Plan(installed, target);
+        Assert.False(plan.NeedsRestart);
+        string staging = Dir("staging");
+        byte[][] bodies = plan.Changed.Select(file => File.ReadAllBytes(Path.Combine(v2, file.Path.Replace('/', Path.DirectorySeparatorChar)))).ToArray();
+        await new DeltaDownloader(new HttpClient(new FakeBySha(bodies)), new Uri("https://erk-s.test"), "ErkS.Studio") { PinnedSignerThumbprint = null }
+            .DownloadAsync(plan, staging);
+
+        LiveApplyResult first;
+        using (new FileStream(Path.Combine(install, "Icons", "logo.svg"), FileMode.Open, FileAccess.Read, FileShare.None))
+            first = UpdateApplier.ApplyLive(install, staging, plan);
+
+        Assert.Equal(["Templates/sheet.json"], first.Applied);
+        Assert.Equal(["Icons/logo.svg"], first.Deferred);
+        Assert.Equal("template 2", File.ReadAllText(Path.Combine(install, "Templates", "sheet.json")));
+        Assert.Equal("1", InstallManifest.LoadOrScan(install, "ErkS.Studio", "?").Version); // not done yet
+        // Next start: the held file goes in, and the version is complete.
+        UpdatePlan again = UpdatePlanner.Plan(InstallManifest.LoadOrScan(install, "ErkS.Studio", "?"), target);
+        Assert.Equal(["Icons/logo.svg"], again.Changed.Select(file => file.Path));
+        LiveApplyResult second = UpdateApplier.ApplyLive(install, staging, again);
+        Assert.Equal(["Icons/logo.svg"], second.Applied);
+        Assert.Equal("icon 2", File.ReadAllText(Path.Combine(install, "Icons", "logo.svg")));
+        Assert.Equal("2", InstallManifest.LoadOrScan(install, "ErkS.Studio", "?").Version);
+
+        // A «restart» file in the plan means closing.
+        target.Files.First(file => file.Path == "Templates/sheet.json").Apply = UpdateFile.ApplyRestart;
+        target.Files.First(file => file.Path == "ErkS.Studio.dll").Sha256 = new string('b', 64);
+        Assert.True(UpdatePlanner.Plan(installed, target).NeedsRestart);
+    }
+
+    /// <summary>Serves whichever body has the requested hash.</summary>
+    private sealed class FakeBySha(byte[][] bodies) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string sha = request.RequestUri!.Segments.Last();
+            byte[] body = bodies.First(item => Convert.ToHexStringLower(SHA256.HashData(item)) == sha);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) });
+        }
     }
 
     /// <summary>The file route: whole file or Range; can drop the first transfer part-way.</summary>
