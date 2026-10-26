@@ -13,5 +13,7 @@ public sealed class ANEWStudioIsKNOWNWhenPublishedTests
         Assert.Null(StudioReleaseListener.StudioVersionIn("{\"event\":\"release\",\"productCode\":\"ErkS.CityGen\",\"version\":\"v0.060\"}"));
         Assert.Null(StudioReleaseListener.StudioVersionIn("{\"event\":\"collab-arrived\",\"fileId\":\"x\"}"));
         Assert.Null(StudioReleaseListener.StudioVersionIn("not json"));
+        Assert.Equal("v0.001.123", StudioReleaseListener.StudioVersionIn("{\"event\":\"release\",\"productCode\":\"ErkS.Studio\",\"channel\":\"\",\"version\":\"v0.001.123\"}"));
+        Assert.Null(StudioReleaseListener.StudioVersionIn("{\"event\":\"release\",\"productCode\":\"ErkS.Studio\",\"channel\":\"beta\",\"version\":\"v0.002\"}"));
     }
 }

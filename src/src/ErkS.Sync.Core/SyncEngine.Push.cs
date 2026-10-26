@@ -7,6 +7,9 @@ namespace ErkS.Sync.Core;
 /// <summary>A changeset of another member that arrived here (collab-subscribe, _shared/syn-push-latency-plan-2026-10-26.md).</summary>
 public sealed record SyncCollabArrival(string FileId, string Writer, long Seq, string Path);
 
+/// <summary>A product's published version on one update channel ("" for the main one; CGA has «2026», «2027» …).</summary>
+public sealed record SyncRelease(string ProductCode, string Channel, string Version);
+
 /// <summary>
 /// Changes are felt, not polled for (owner, 2026-10-24: «өөрчлөлтийг мэдэрч уншдаг болгохгуй бол
 /// дэмий ачаалал үүсгэнэ»; 2026-10-26: «байж болох хамгийн хурдан»): a file written in a sync folder
@@ -29,21 +32,21 @@ public sealed partial class SyncEngine
     /// <summary>Raised for each changeset of another member that arrived since the last pass.</summary>
     public event Action<SyncCollabArrival>? CollabArrived;
 
-    private readonly Dictionary<string, string> _releases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SyncRelease> _releases = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// A product's new version was published (product code, version) - told by the server the moment it
     /// is published, never polled for (owner, 2026-10-26: «шинэ хувилбар нийтлэхэд л мэдэгддэг байх хэрэгтэй»).
     /// </summary>
-    public event Action<string, string>? ReleasePublished;
+    public event Action<SyncRelease>? ReleasePublished;
 
-    /// <summary>The newest version the server announced per product since this SYN started.</summary>
-    public IReadOnlyDictionary<string, string> Releases
+    /// <summary>The newest version the server announced per product and channel since this SYN started.</summary>
+    public IReadOnlyList<SyncRelease> Releases
     {
         get
         {
             lock (_gate)
-                return new Dictionary<string, string>(_releases, StringComparer.OrdinalIgnoreCase);
+                return [.. _releases.Values];
         }
     }
 
@@ -258,9 +261,13 @@ public sealed partial class SyncEngine
                 document.RootElement.TryGetProperty("productCode", out var product) && product.GetString() is { Length: > 0 } productCode &&
                 document.RootElement.TryGetProperty("version", out var version) && version.GetString() is { Length: > 0 } released)
             {
+                string channel = document.RootElement.TryGetProperty("channel", out var lane) && lane.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? lane.GetString() ?? ""
+                    : "";
+                var release = new SyncRelease(productCode, channel, released);
                 lock (_gate)
-                    _releases[productCode] = released;
-                ReleasePublished?.Invoke(productCode, released);
+                    _releases[productCode + "|" + channel] = release;
+                ReleasePublished?.Invoke(release);
             }
         }
         catch (System.Text.Json.JsonException)

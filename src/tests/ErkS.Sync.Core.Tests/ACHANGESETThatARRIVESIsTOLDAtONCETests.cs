@@ -74,14 +74,19 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         using var a = new FakeDevice();
         var server = new FakeServer(Canonical, [a]);
         await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
-        var told = new List<(string Product, string Version)>();
-        engine.ReleasePublished += (product, version) => told.Add((product, version));
+        var told = new List<SyncRelease>();
+        engine.ReleasePublished += told.Add;
 
         engine.Heard("{\"type\":\"release\",\"productCode\":\"ErkS.Studio\",\"version\":\"v0.001.122\"}"u8.ToArray());
         engine.Heard("{\"type\":\"release\",\"productCode\":\"ErkS.Studio\"}"u8.ToArray()); // no version: nothing
+        // SRV b6de18f: one product, several channels - each kept on its own, none overwrites another.
+        engine.Heard("{\"type\":\"release\",\"productCode\":\"ErkS.CityGen.AutoCAD\",\"version\":\"v0.056\",\"channel\":\"2026\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"release\",\"productCode\":\"ErkS.CityGen.AutoCAD\",\"version\":\"v0.057\",\"channel\":\"2027\"}"u8.ToArray());
 
-        Assert.Equal([("ErkS.Studio", "v0.001.122")], told);
-        Assert.Equal("v0.001.122", engine.Releases["ErkS.Studio"]);
+        Assert.Equal(new SyncRelease("ErkS.Studio", "", "v0.001.122"), told[0]);
+        Assert.Equal(3, told.Count);
+        Assert.Equal(3, engine.Releases.Count);
+        Assert.Contains(new SyncRelease("ErkS.CityGen.AutoCAD", "2026", "v0.056"), engine.Releases);
     }
 
     private static string Write(TemporaryFolder scratch, string name, string text)

@@ -126,8 +126,8 @@ internal sealed class SyncTray : ApplicationContext
                     // Studio (and any program here) keeps this connection: a line per published version,
                     // first the ones already known (owner, 2026-10-26: told when published, not polled).
                     await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
-                    foreach ((string product, string version) in _engine?.Releases ?? new Dictionary<string, string>())
-                        await writer.WriteLineAsync(ReleaseLine(product, version));
+                    foreach (SyncRelease release in _engine?.Releases ?? [])
+                        await writer.WriteLineAsync(ReleaseLine(release));
                     heldOpen = true;
                     _ = HoldSubscriberAsync(pipe, reader, writer, _releaseSubscribers, cancellationToken);
                     continue;
@@ -192,11 +192,11 @@ internal sealed class SyncTray : ApplicationContext
     private void Broadcast(SyncCollabArrival arrival) =>
         Send(_subscribers, SyncProtocol.Serialize(new { @event = "collab-arrived", fileId = arrival.FileId, writer = arrival.Writer, seq = arrival.Seq, path = arrival.Path }));
 
-    private static string ReleaseLine(string product, string version) =>
-        SyncProtocol.Serialize(new { @event = "release", productCode = product, version });
+    private static string ReleaseLine(SyncRelease release) =>
+        SyncProtocol.Serialize(new { @event = "release", productCode = release.ProductCode, channel = release.Channel, version = release.Version });
 
     /// <summary>A published version, to every program here that listens (Studio shows «Шинэчлэлт бэлэн»).</summary>
-    private void AnnounceRelease(string product, string version) => Send(_releaseSubscribers, ReleaseLine(product, version));
+    private void AnnounceRelease(SyncRelease release) => Send(_releaseSubscribers, ReleaseLine(release));
 
     private static void Send(System.Collections.Concurrent.ConcurrentDictionary<Guid, StreamWriter> subscribers, string line)
     {

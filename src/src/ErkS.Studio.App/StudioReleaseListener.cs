@@ -72,6 +72,8 @@ internal static class StudioReleaseListener
             return root.TryGetProperty("event", out JsonElement kind) && kind.GetString() == "release" &&
                 root.TryGetProperty("productCode", out JsonElement product) &&
                 string.Equals(product.GetString(), StudioReleaseInfo.ProductCode, StringComparison.OrdinalIgnoreCase) &&
+                // Studio's own channel is the main one ("" or absent); another channel is another build.
+                (!root.TryGetProperty("channel", out JsonElement channel) || string.IsNullOrEmpty(channel.GetString())) &&
                 root.TryGetProperty("version", out JsonElement version) && version.GetString() is { Length: > 0 } text
                 ? text
                 : null;
