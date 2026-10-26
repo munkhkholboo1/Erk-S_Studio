@@ -126,6 +126,8 @@ internal sealed class SyncStatusForm : Form
         var attention = new List<string>();
         if (folder.PresentHere && folder.LastError.Length > 0)
             attention.Add(folder.LastError);
+        if (folder.RedactionsUnsent > 0)
+            attention.Add($"Цэвэрлэлтийн бүртгэл серверт очоогүй: {folder.RedactionsUnsent}" + (folder.RedactionError.Length > 0 ? $" — {folder.RedactionError}" : ""));
         if (folder.ConflictCount > 0)
             attention.Add($"Зөрүүтэй файл {folder.ConflictCount} — Studio-гийн «Erk-S Sync» хэсэгт «Тэндхийг авах» / «Минийхийг үлдээх».");
         foreach (SyncCollabStatus collab in folder.Collabs)

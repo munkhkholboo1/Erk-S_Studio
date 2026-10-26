@@ -339,10 +339,11 @@ internal sealed class SyncTray : ApplicationContext
             SyncState state = _engine?.LastState ?? SyncStateStore.TryLoad(_home) ?? new SyncState();
             string folderId = state.Folders
                 .FirstOrDefault(folder => SyncPath.Same(Path.GetFullPath(map.Physical(folder.CanonicalPath)), root))?.FolderId ?? "";
-            if (_engine is not null && folderId.Length > 0)
-                await _engine.SendRedactionAsync(folderId, entry, cancellationToken);
+            string sent = _engine is not null && folderId.Length > 0
+                ? await _engine.SendRedactionAsync(folderId, entry, cancellationToken)
+                : "Сервертэй холбогдоогүй — дараагийн шалгалтаар илгээнэ.";
             _engine?.Poke();
-            return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { recorded = true, removed }));
+            return new SyncPipeResponse(true, sent, SyncProtocol.Serialize(new { recorded = true, removed, server = sent.Length == 0 }));
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {

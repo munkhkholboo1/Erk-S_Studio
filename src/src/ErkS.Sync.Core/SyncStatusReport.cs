@@ -43,6 +43,11 @@ public sealed record SyncStatusFolder(
 {
     /// <summary>CGA shared files (К1) for Twin - counts only, no file names.</summary>
     public IReadOnlyList<SyncStatusCollab> Collab { get; init; } = [];
+
+    /// <summary>Redactions recorded here the server does not hold yet, and why (Twin).</summary>
+    public int RedactionsUnsent { get; init; }
+
+    public string RedactionError { get; init; } = "";
 }
 
 /// <summary>
@@ -130,6 +135,8 @@ public sealed record SyncStatusReport(
             folder.ConflictCount,
             SyncInStep.Of(folder.Peers).Percent ?? 100)
         {
+            RedactionsUnsent = folder.RedactionsUnsent,
+            RedactionError = folder.RedactionError,
             Collab = folder.Collabs.Select(collab => new SyncStatusCollab(
                 collab.FileId,
                 collab.Writers.Count,

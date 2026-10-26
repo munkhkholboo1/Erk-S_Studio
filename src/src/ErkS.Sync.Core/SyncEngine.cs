@@ -73,59 +73,118 @@ public sealed class SyncEngine : IAsyncDisposable
 
     private readonly Dictionary<string, (string Token, IReadOnlyList<SyncRedaction> List)> _serverRedactions = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<string, (int Unsent, string Error)> _redactionSend = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
-    /// The server's redactions for a folder - fetched once per session and again only when a redact
-    /// is recorded here (no clock). An older server without the route answers nothing.
+    /// The server's redactions for a folder, and this machine's own ones it does not hold yet sent -
+    /// every pass, each on its own (one refused never stops the next), until the server has them all
+    /// (Erk-S Sync, 2026-10-26: two recorded before the route existed never went). Only a successful
+    /// read is kept for the session; a failure is never cached. What is still unsent, and why, goes to
+    /// the folder's status (Twin).
     /// </summary>
     private async Task<IReadOnlyList<SyncRedaction>> ServerRedactionsAsync(string folderId, string physical, CancellationToken cancellationToken)
     {
+        SyncRedaction[] own = SyncRedactions.Load(physical)
+            .Where(entry => entry.By.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
         if (_session is not { } relay)
-            return [];
+        {
+            lock (_gate)
+            {
+                IReadOnlyList<SyncRedaction> cached = _serverRedactions.GetValueOrDefault(folderId).List ?? [];
+                _redactionSend[folderId] = (Unsent(own, cached).Length, own.Length > 0 && Unsent(own, cached).Length > 0 ? "Сервертэй холбогдоогүй — дараа илгээнэ." : "");
+                return cached;
+            }
+        }
+        IReadOnlyList<SyncRedaction>? list = null;
         lock (_gate)
         {
             if (_serverRedactions.TryGetValue(folderId, out var known) && known.Token == relay.AccessToken)
-                return known.List;
+                list = known.List;
         }
-        IReadOnlyList<SyncRedaction> list;
-        try
+        string error = "";
+        if (list is null)
         {
-            list = await _server.RedactionsAsync(relay.AccessToken, folderId, cancellationToken);
-            // What this machine recorded while the server could not take it (an older server, offline)
-            // goes now - the server then cleans every index and drops the old pieces.
+            try
             {
-                foreach (SyncRedaction mine in SyncRedactions.Load(physical).Where(entry =>
-                             entry.By.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase) &&
-                             !list.Any(known => known.Old.Equals(entry.Old, StringComparison.OrdinalIgnoreCase) && known.Path.Equals(entry.Path, StringComparison.OrdinalIgnoreCase))))
-                {
-                    await _server.PostRedactionAsync(relay.AccessToken, folderId, mine, cancellationToken);
-                    list = [.. list, mine];
-                }
+                list = await _server.RedactionsAsync(relay.AccessToken, folderId, cancellationToken);
+                lock (_gate)
+                    _serverRedactions[folderId] = (relay.AccessToken, list);
+            }
+            catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+            {
+                error = "Цэвэрлэлтийн жагсаалтыг серверээс авч чадсангүй: " + Describe(exception);
+                list = [];
             }
         }
-        catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        foreach (SyncRedaction mine in Unsent(own, list))
         {
-            list = [];
+            try
+            {
+                await _server.PostRedactionAsync(relay.AccessToken, folderId, mine, cancellationToken);
+                list = [.. list, mine];
+                lock (_gate)
+                    _serverRedactions[folderId] = (relay.AccessToken, list);
+            }
+            catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException)
+            {
+                error = "Цэвэрлэлтийн бүртгэл серверт хүрсэнгүй: " + Describe(exception);
+            }
         }
+        int unsent = Unsent(own, list).Length;
         lock (_gate)
-            _serverRedactions[folderId] = (relay.AccessToken, list);
+            _redactionSend[folderId] = (unsent, unsent > 0 ? error : "");
         return list;
     }
 
-    /// <summary>A redaction recorded here goes to the server too (best effort - the ledger file travels anyway).</summary>
-    public async Task SendRedactionAsync(string folderId, SyncRedaction redaction, CancellationToken cancellationToken)
+    private static SyncRedaction[] Unsent(IEnumerable<SyncRedaction> own, IReadOnlyList<SyncRedaction> server) =>
+        own.Where(entry => !server.Any(known =>
+                known.Old.Equals(entry.Old, StringComparison.OrdinalIgnoreCase) &&
+                known.Path.Replace('/', '\\').Trim('\\').Equals(entry.Path.Replace('/', '\\').Trim('\\'), StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+    private static string Describe(Exception exception) => exception switch
+    {
+        SyncServerException refused => $"{(int)refused.Status} {refused.Code}".Trim(),
+        TaskCanceledException => "хугацаа хэтэрсэн",
+        _ => "сүлжээ",
+    };
+
+    /// <summary>The folder's state with what is still unsent of its redactions, and why.</summary>
+    private SyncFolderState WithRedactions(SyncFolderState folder)
     {
         lock (_gate)
-            _serverRedactions.Remove(folderId);
+        {
+            return _redactionSend.TryGetValue(folder.FolderId, out var send)
+                ? folder with { RedactionsUnsent = send.Unsent, RedactionError = send.Error }
+                : folder;
+        }
+    }
+
+    /// <summary>
+    /// A redaction recorded here goes to the server at once; when it cannot, the reason comes back
+    /// (for the `redact` answer) and the next pass tries again.
+    /// </summary>
+    public async Task<string> SendRedactionAsync(string folderId, SyncRedaction redaction, CancellationToken cancellationToken)
+    {
         if (_session is not { } relay)
-            return;
+            return "Сервертэй холбогдоогүй — дараагийн шалгалтаар илгээнэ.";
         try
         {
             await _server.PostRedactionAsync(relay.AccessToken, folderId, redaction, cancellationToken);
+            lock (_gate)
+            {
+                if (_serverRedactions.TryGetValue(folderId, out var known) && known.Token == relay.AccessToken)
+                    _serverRedactions[folderId] = (known.Token, [.. known.List, redaction]);
+            }
+            return "";
         }
         catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException)
         {
+            return "Цэвэрлэлтийн бүртгэл серверт хүрсэнгүй: " + Describe(exception) + " — дараагийн шалгалтаар дахин илгээнэ.";
         }
     }
+
     private SyncLanDiscovery? _discovery;
     private SyncLanExchange? _exchange;
     private int _disposed;
@@ -333,7 +392,7 @@ public sealed class SyncEngine : IAsyncDisposable
 
         var states = new List<SyncFolderState>();
         foreach (SyncServerDeviceFolder entry in known)
-            states.Add(await FolderPassAsync(entry, cancellationToken));
+            states.Add(WithRedactions(await FolderPassAsync(entry, cancellationToken)));
 
         if (_discovery is not null && _exchange is not null)
         {
@@ -974,6 +1033,7 @@ public sealed class SyncEngine : IAsyncDisposable
     /// <summary>Puts <paramref name="folder"/> into the state now and writes it - the pass is still running.</summary>
     private void UpsertFolder(SyncFolderState folder)
     {
+        folder = WithRedactions(folder);
         lock (_gate)
         {
             var folders = LastState.Folders.Where(item => !item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase)).ToList();

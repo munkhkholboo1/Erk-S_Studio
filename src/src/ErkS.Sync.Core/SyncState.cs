@@ -177,6 +177,11 @@ public sealed record SyncFolderState
     /// <summary>CGA shared files (К1): per file, per writer - numbers only, for Studio and Twin.</summary>
     public IReadOnlyList<SyncCollabStatus> Collabs { get; init; } = [];
 
+    /// <summary>This machine's redactions the server does not hold yet, and the last reason (status code).</summary>
+    public int RedactionsUnsent { get; init; }
+
+    public string RedactionError { get; init; } = "";
+
     /// <summary>Cloud sync: this machine's pieces going on the server now, for partners on other networks.</summary>
     public bool Uploading { get; init; }
 

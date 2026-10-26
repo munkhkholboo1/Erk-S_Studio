@@ -77,7 +77,8 @@ public static class SyncSummary
             double? left = moving?.TransferSecondsLeft ?? (folder.Uploading ? folder.UploadSecondsLeft : null);
             int attention = folder.ConflictCount
                 + (folder.LastError.Length > 0 ? 1 : 0)
-                + folder.Collabs.Count(collab => collab.LastError.Length > 0 || collab.CentralEdited || collab.Writers.Any(writer => writer.Gap));
+                + folder.Collabs.Count(collab => collab.LastError.Length > 0 || collab.CentralEdited || collab.Writers.Any(writer => writer.Gap))
+                + (folder.RedactionsUnsent > 0 ? 1 : 0);
             SyncProjectStatus status = !server ? SyncProjectStatus.NoServer
                 : moving is not null || folder.Uploading || percent < 100 ? SyncProjectStatus.Syncing
                 : attention > 0 ? SyncProjectStatus.Attention

@@ -38,6 +38,11 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
 
     public FakeDevice[] Devices => devices.ToArray();
 
+    /// <summary>The redactions route (SRV e0eae2d); off, the server is one deployed before it (404).</summary>
+    public bool RedactionsRoute { get; set; }
+
+    public List<string> Redactions { get; } = [];
+
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
@@ -83,6 +88,17 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                     return _indexes.TryGetValue("t-" + key, out string? index)
                         ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(index) }
                         : new HttpResponseMessage(HttpStatusCode.NotFound);
+                }
+                if (rest == "/redactions" && RedactionsRoute)
+                {
+                    if (request.Method == HttpMethod.Post)
+                    {
+                        Redactions.Add(System.Text.Encoding.UTF8.GetString(content));
+                        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
+                    }
+                    return Redactions.Count == 0
+                        ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                        : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[" + string.Join(",", Redactions) + "]") };
                 }
                 if (rest == "/chunks/missing")
                 {
