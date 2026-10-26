@@ -1414,5 +1414,17 @@
         "signingCertificateSha256":  "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A",
         "signingTrust":  "private-pinned-demo",
         "recovered":  false
+    },
+    {
+        "version":  "V0.001.123",
+        "setupFile":  "ErkS_Studio_Demo_V0.001.123_Setup.exe",
+        "sha256":  "595631E2F6BE52AFDFBC9E49C2A948A72FF7F98954C9390321FFFC266883F85D",
+        "sizeBytes":  98766952,
+        "generatedAtUtc":  "2026-10-26T16:59:00.6908857+00:00",
+        "publisher":  "Erk-S LLC",
+        "signingCertificateThumbprint":  "52B2508A0CC5DABBE706B949DE21AD038031AD1C",
+        "signingCertificateSha256":  "A8A0A7C1435FC0E63A39CB3D101D9A532E1736D83FCBB65246DCA5B485636D8A",
+        "signingTrust":  "private-pinned-demo",
+        "recovered":  false
     }
 ]
