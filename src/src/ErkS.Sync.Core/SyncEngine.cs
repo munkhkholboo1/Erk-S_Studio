@@ -179,6 +179,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// <summary>The folder's state with what is still unsent of its redactions, and why.</summary>
     private SyncFolderState WithRedactions(SyncFolderState folder)
     {
+        (double? p50, double? p95) = Latency(folder.FolderId);
+        folder = folder with { ChangesetLatencyP50Seconds = p50, ChangesetLatencyP95Seconds = p95, EventsConnected = _eventsConnected };
         lock (_gate)
         {
             return _redactionSend.TryGetValue(folder.FolderId, out var send)
@@ -881,6 +883,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
             {
                 ledger.Applied(file.RelativePath, file.Version!);
                 received++;
+                if (SyncCollab.IsChangesetPath(file.RelativePath))
+                    NoteLatency(folderId, DateTime.UtcNow - file.LastWriteUtc);
             }
             SyncVersionLedgerStore.Save(ledger, ledgerPath);
         }
@@ -977,6 +981,40 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// go on the server, so a partner on any network can take them. A Revit central model never
     /// goes; a piece that changed since the index is skipped until the next pass.
     /// </summary>
+    /// <summary>Pieces sent to the server at once.</summary>
+    public int UploadLanes { get; init; } = 4;
+
+    private readonly Dictionary<string, List<double>> _latencies = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// How long a changeset took from its writer's disk to this one (its file time there → arrival here;
+    /// the machines' clocks are NTP-close). The last 50 per folder give p50/p95 for the status (Twin).
+    /// </summary>
+    private void NoteLatency(string folderId, TimeSpan latency)
+    {
+        if (latency < TimeSpan.Zero || latency > TimeSpan.FromDays(1))
+            return; // an old changeset fetched late, or a clock far off: not a measure of speed
+        lock (_gate)
+        {
+            if (!_latencies.TryGetValue(folderId, out List<double>? list))
+                _latencies[folderId] = list = [];
+            list.Add(latency.TotalSeconds);
+            if (list.Count > 50)
+                list.RemoveAt(0);
+        }
+    }
+
+    private (double? P50, double? P95) Latency(string folderId)
+    {
+        lock (_gate)
+        {
+            if (!_latencies.TryGetValue(folderId, out List<double>? list) || list.Count == 0)
+                return (null, null);
+            double[] sorted = [.. list.Order()];
+            return (sorted[(sorted.Length - 1) / 2], sorted[(int)Math.Ceiling(0.95 * sorted.Length) - 1]);
+        }
+    }
+
     private async Task<string> UploadAsync(string folderId, SyncIndex index, CancellationToken cancellationToken)
     {
         if (_session is not { } relay)
@@ -1059,6 +1097,12 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 Report(force: true);
             using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             window.CancelAfter(UploadWindow);
+            // The rate counts the pieces' own time - not the index and the questions before them
+            // (Erk-S Sync, 2026-10-26: «6.1 KB/s» for small files) - and pieces go four at a time,
+            // so a folder of small files is not one round trip each.
+            DateTimeOffset piecesStarted = DateTimeOffset.UtcNow;
+            using var lanes = new SemaphoreSlim(UploadLanes);
+            var sending = new List<Task>();
             try
             {
                 foreach (string sha in missing)
@@ -1068,16 +1112,33 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     byte[]? piece = ReadChunk(folderId, at.Entry.RelativePath, at.Entry.Sha256, at.Chunk);
                     if (piece is null)
                         continue;
-                    await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, window.Token);
-                    done += piece.Length;
-                    Report();
+                    await lanes.WaitAsync(window.Token);
+                    sending.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, window.Token);
+                            lock (_gate)
+                                done += piece.Length;
+                            lock (rate)
+                                Report();
+                        }
+                        finally
+                        {
+                            lanes.Release();
+                        }
+                    }, window.Token));
+                    sending.RemoveAll(task => task.IsCompletedSuccessfully);
+                    if (sending.FirstOrDefault(task => task.IsFaulted) is { } failed)
+                        await failed; // a refusal (426, 409 …) surfaces as before
                 }
+                await Task.WhenAll(sending);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 // The window closed: the rest go on the next pass.
             }
-            double seconds = (DateTimeOffset.UtcNow - started).TotalSeconds;
+            double seconds = (DateTimeOffset.UtcNow - piecesStarted).TotalSeconds;
             ReportFolder(folderId, folder => folder with
             {
                 Uploading = false,

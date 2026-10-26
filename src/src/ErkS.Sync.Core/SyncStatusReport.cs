@@ -47,6 +47,13 @@ public sealed record SyncStatusFolder(
     /// <summary>Redactions recorded here the server does not hold yet, and why (Twin).</summary>
     public int RedactionsUnsent { get; init; }
 
+    /// <summary>Changeset delivery to this machine, seconds (p50/p95 of the last 50) - Twin.</summary>
+    public double? ChangesetLatencyP50Seconds { get; init; }
+
+    public double? ChangesetLatencyP95Seconds { get; init; }
+
+    public bool EventsConnected { get; init; }
+
     public string RedactionError { get; init; } = "";
 }
 
@@ -136,6 +143,9 @@ public sealed record SyncStatusReport(
             SyncInStep.Of(folder.Peers).Percent ?? 100)
         {
             RedactionsUnsent = folder.RedactionsUnsent,
+            ChangesetLatencyP50Seconds = folder.ChangesetLatencyP50Seconds,
+            ChangesetLatencyP95Seconds = folder.ChangesetLatencyP95Seconds,
+            EventsConnected = folder.EventsConnected,
             RedactionError = folder.RedactionError,
             Collab = folder.Collabs.Select(collab => new SyncStatusCollab(
                 collab.FileId,

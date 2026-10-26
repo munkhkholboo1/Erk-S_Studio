@@ -183,6 +183,14 @@ public sealed record SyncFolderState
     /// <summary>This machine's redactions the server does not hold yet, and the last reason (status code).</summary>
     public int RedactionsUnsent { get; init; }
 
+    /// <summary>A partner's changeset from its disk to this one, seconds: median and 95th percentile of the last 50.</summary>
+    public double? ChangesetLatencyP50Seconds { get; init; }
+
+    public double? ChangesetLatencyP95Seconds { get; init; }
+
+    /// <summary>The server's events socket reaches this machine (changes are pushed, not waited for).</summary>
+    public bool EventsConnected { get; init; }
+
     public string RedactionError { get; init; } = "";
 
     /// <summary>Cloud sync: this machine's pieces going on the server now, for partners on other networks.</summary>
