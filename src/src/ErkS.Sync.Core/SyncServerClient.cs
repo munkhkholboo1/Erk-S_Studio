@@ -29,12 +29,13 @@ public sealed record SyncServerDevice(
     DateTimeOffset AttachedAtUtc,
     DateTimeOffset LastSeenAtUtc,
     string SeatId = "",
-    string ClientVersion = "");
+    string ClientVersion = "",
+    int SyncProtocol = 0);
 
 public sealed record SyncServerDeviceFolder(SyncServerFolder Folder, IReadOnlyList<SyncServerDevice> Devices);
 
-/// <param name="MinSyncClientVersion">The lowest SYN the server lets write (SRV, 2026-10-26); empty from an older server.</param>
-public sealed record SyncDeviceSession(string AccessToken, DateTimeOffset AccessTokenExpiresAtUtc, string DeviceKeyId, string MinSyncClientVersion = "");
+/// <param name="MinSyncProtocol">The lowest sync protocol the server lets write (<see cref="SyncLagging.Protocol"/>); 0 from an older server.</param>
+public sealed record SyncDeviceSession(string AccessToken, DateTimeOffset AccessTokenExpiresAtUtc, string DeviceKeyId, string MinSyncClientVersion = "", int MinSyncProtocol = 0);
 
 /// <summary>A refusal the server named: its code, its sentence, the HTTP status.</summary>
 public sealed class SyncServerException(HttpStatusCode status, string code, string message)
@@ -122,7 +123,7 @@ public sealed class SyncServerClient(HttpClient http)
             HttpMethod.Post,
             "/api/cloud-era/v1/sync/device/session",
             null,
-            new { deviceKeyId, nonce = Base64UrlEncode(nonce), signature = Convert.ToBase64String(signature), clientVersion = ClientVersion },
+            new { deviceKeyId, nonce = Base64UrlEncode(nonce), signature = Convert.ToBase64String(signature), clientVersion = ClientVersion, syncProtocol = SyncLagging.Protocol },
             cancellationToken)!;
 
     public async Task<IReadOnlyList<SyncServerDeviceFolder>> DeviceFoldersAsync(string deviceToken, CancellationToken cancellationToken = default)

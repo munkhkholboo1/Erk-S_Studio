@@ -152,15 +152,15 @@ public sealed class SyncEngine : IAsyncDisposable
     /// </summary>
     private string Outdated()
     {
-        string mine = _server.ClientVersion;
-        string minimum = _session?.MinSyncClientVersion ?? "";
-        if (mine.Length > 0 && (minimum.Length == 0 || SyncLagging.Compare(mine, minimum) >= 0))
+        int minimum = _session?.MinSyncProtocol ?? 0;
+        if (SyncLagging.Protocol >= minimum)
         {
+            // The server's record predates this session: a new one tells it this protocol.
             _session = null;
             Poke();
             return "Серверийн сесс шинэчлэгдэж байна — дараагийн шалгалтаар илгээнэ.";
         }
-        return "Erk-S Sync хуучирсан — Studio-г шинэчилнэ үү (шинэчлэгдэх хүртэл бусдад илгээхгүй).";
+        return "Erk-S Sync-ийн шинэчлэл шаардлагатай (синкийн дүрэм өөрчлөгдсөн) — Studio-г шинэчилнэ үү.";
     }
 
     private static SyncRedaction[] Unsent(IEnumerable<SyncRedaction> own, IReadOnlyList<SyncRedaction> server) =>
@@ -627,7 +627,7 @@ public sealed class SyncEngine : IAsyncDisposable
             DeviceKeyId = device.DeviceKeyId,
             AccountEmail = device.AccountEmail,
             ServerLastSeenAtUtc = device.LastSeenAtUtc,
-            Lagging = SyncLagging.IsLagging(device, DateTimeOffset.UtcNow, _session?.MinSyncClientVersion ?? ""),
+            Lagging = SyncLagging.IsLagging(device, DateTimeOffset.UtcNow, _session?.MinSyncProtocol ?? 0),
         };
         string stored = _home.PeerIndexPath(folderId, device.DeviceKeyId);
         SyncLanPeer? heard = _discovery?.Find(device.DeviceKeyId);

@@ -8,18 +8,20 @@ public sealed class ALAGGINGMemberSHAPESNoOneElsesFolderTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 26, 22, 0, 0, TimeSpan.Zero);
 
-    private static SyncServerDevice Device(DateTimeOffset seen, string version = "") =>
-        new("D", "", "member@example.mn", "", Now.AddDays(-30), seen, "", version);
+    private static SyncServerDevice Device(DateTimeOffset seen, string version = "", int protocol = 0) =>
+        new("D", "", "member@example.mn", "", Now.AddDays(-30), seen, "", version, protocol);
 
     [Fact]
-    public void LongOfflineOrOutdatedIsLagging()
+    public void LongOfflineOrAnOlderSyncProtocolIsLagging()
     {
-        Assert.False(SyncLagging.IsLagging(Device(Now.AddHours(-2), "0.001.108"), Now, "0.001.108"));
-        Assert.True(SyncLagging.IsLagging(Device(Now.AddHours(-30)), Now));
-        Assert.True(SyncLagging.IsLagging(Device(Now, "0.001.104"), Now, "0.001.108"));
-        // A server without the minimum, or a member that never said its version: only time counts.
+        Assert.True(SyncLagging.IsLagging(Device(Now.AddHours(-30), protocol: 1), Now, 1));
+        Assert.True(SyncLagging.IsLagging(Device(Now, "0.001.105", protocol: 0), Now, 1)); // said no protocol
+        // An older Studio speaking the same sync protocol is not lagging (owner, 2026-10-26: «вершний
+        // зөрүү хэт их биш бол синк асуудалгүй явдаг болгоорой»).
+        Assert.False(SyncLagging.IsLagging(Device(Now.AddHours(-2), "0.001.113", 1), Now, 1));
+        Assert.False(SyncLagging.IsLagging(Device(Now, "0.001.090", 1), Now, 1));
+        // A server without a minimum: only time counts.
         Assert.False(SyncLagging.IsLagging(Device(Now, "0.001.104"), Now));
-        Assert.False(SyncLagging.IsLagging(Device(Now), Now, "0.001.108"));
     }
 
     [Fact]
