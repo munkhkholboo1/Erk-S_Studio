@@ -971,8 +971,34 @@ public sealed class SyncEngine : IAsyncDisposable
                     pieces.TryAdd(entry.ChunkSha256[chunk], (entry, chunk));
             }
             var missing = new List<string>();
-            foreach (string[] batch in pieces.Keys.Chunk(1000))
-                missing.AddRange(await _server.MissingChunksAsync(relay.AccessToken, folderId, batch, cancellationToken));
+            int unnamed = 0;
+            async Task AskAsync()
+            {
+                missing.Clear();
+                unnamed = 0;
+                foreach (string[] batch in pieces.Keys.Chunk(1000))
+                {
+                    (IReadOnlyList<string> lacking, IReadOnlyList<string> notNamed) = await _server.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, cancellationToken);
+                    missing.AddRange(lacking);
+                    unnamed += notNamed.Count;
+                }
+            }
+            await AskAsync();
+            if (unnamed > 0)
+            {
+                // No stored index names our pieces (SRV 8cddd94 - a restored server, a lost index): send it
+                // once more and ask again; a second «unnamed» is an error, not a loop.
+                await _server.PutIndexAsync(relay.AccessToken, folderId, json, cancellationToken);
+                lock (_gate)
+                    _uploadedIndex[folderId] = shape;
+                await AskAsync();
+                if (unnamed > 0)
+                {
+                    lock (_gate)
+                        _uploadedIndex.Remove(folderId);
+                    return $"Сервер манай индексийг таньсангүй ({unnamed} хэсэг «unnamed») — дараагийн шалгалтаар дахин илгээнэ.";
+                }
+            }
 
             long pending = missing.Sum(sha => pieces.TryGetValue(sha, out var at) ? PieceLength(at.Entry, at.Chunk) : 0);
             long done = 0;
@@ -1032,6 +1058,12 @@ public sealed class SyncEngine : IAsyncDisposable
         catch (SyncServerException exception) when (exception.Code == OutdatedCode)
         {
             return Outdated();
+        }
+        catch (SyncServerException exception) when (exception.Code == "sync_chunk_unnamed")
+        {
+            lock (_gate)
+                _uploadedIndex.Remove(folderId);
+            return "Сервер индексийг дахин хүсэв — дараагийн шалгалтаар илгээнэ.";
         }
         catch (SyncServerException exception) when (exception.Code is "sync_relay_storage_full" or "sync_quota_exceeded")
         {

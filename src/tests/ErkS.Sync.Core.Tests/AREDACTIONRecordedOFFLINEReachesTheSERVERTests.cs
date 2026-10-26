@@ -61,4 +61,28 @@ public sealed class AREDACTIONRecordedOFFLINEReachesTheSERVERTests
         Assert.True(server.Sessions > sessions, "a new session was not opened after 426");
         Assert.NotNull(await server.Client().GetIndexAsync("t-" + b.DeviceKeyId, "f-1", a.DeviceKeyId));
     }
+
+    [Fact]
+    public async Task PiecesTheServerCallsUnnamedSendTheIndexOnceMore()
+    {
+        using var rootA = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        using var b = new FakeDevice();
+        var server = new FakeServer(Canonical, [a, b]) { Relay = true };
+        string folder = rootA.Folder("Erin");
+        SyncFolderMarker.Write(folder, new SyncFolderIdentity { FolderId = "f-1", ProjectCode = "ERIN-2026", CanonicalPath = Canonical });
+        File.WriteAllText(Path.Combine(folder, "plan.pdf"), "plan");
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a, new SyncPathMap(@"D:\Cloud Work=>" + rootA.Path));
+        await engine.PassAsync(CancellationToken.None);
+        int puts = server.IndexPuts;
+
+        // A restored server: our pieces come back «unnamed» once - the index goes again in the same pass.
+        File.WriteAllText(Path.Combine(folder, "plan2.pdf"), "plan 2");
+        server.UnnamedAnswers = 1;
+        await engine.PassAsync(CancellationToken.None);
+
+        Assert.True(server.IndexPuts >= puts + 2, $"index puts {server.IndexPuts} after {puts}");
+        Assert.Contains(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("plan 2"u8.ToArray())), server.ChunksHeld);
+    }
 }

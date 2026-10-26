@@ -48,6 +48,11 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
 
     public int Sessions { get; private set; }
 
+    /// <summary>The next missing-pieces answers call every piece «unnamed» (the server lost the index).</summary>
+    public int UnnamedAnswers { get; set; }
+
+    public int IndexPuts { get; private set; }
+
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
@@ -90,6 +95,7 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                 }
                 if (rest == "/index" && request.Method == HttpMethod.Put)
                 {
+                    IndexPuts++;
                     _indexes[token] = System.Text.Encoding.UTF8.GetString(content);
                     return new HttpResponseMessage(HttpStatusCode.NoContent);
                 }
@@ -110,6 +116,13 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                     return Redactions.Count == 0
                         ? new HttpResponseMessage(HttpStatusCode.NotFound)
                         : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[" + string.Join(",", Redactions) + "]") };
+                }
+                if (rest == "/chunks/missing" && UnnamedAnswers > 0)
+                {
+                    UnnamedAnswers--;
+                    using var asked = System.Text.Json.JsonDocument.Parse(content);
+                    string[] unnamed = asked.RootElement.GetProperty("sha256").EnumerateArray().Select(item => item.GetString() ?? "").ToArray();
+                    return Json(new { missing = Array.Empty<string>(), unnamed });
                 }
                 if (rest == "/chunks/missing")
                 {

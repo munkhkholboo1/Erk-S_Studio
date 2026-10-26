@@ -152,10 +152,18 @@ public sealed class SyncServerClient(HttpClient http)
         return response is null ? null : await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<string>> MissingChunksAsync(string deviceToken, string folderId, IReadOnlyList<string> sha256, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> MissingChunksAsync(string deviceToken, string folderId, IReadOnlyList<string> sha256, CancellationToken cancellationToken = default) =>
+        (await MissingAndUnnamedAsync(deviceToken, folderId, sha256, cancellationToken)).Missing;
+
+    /// <summary>
+    /// What the server lacks, and what it will not take because no stored index names it (SRV 8cddd94:
+    /// the index first, the pieces after). Unnamed pieces of this machine's own index mean the server
+    /// no longer holds that index - the caller sends it again.
+    /// </summary>
+    public async Task<(IReadOnlyList<string> Missing, IReadOnlyList<string> Unnamed)> MissingAndUnnamedAsync(string deviceToken, string folderId, IReadOnlyList<string> sha256, CancellationToken cancellationToken = default)
     {
         MissingResponse? response = await SendAsync<MissingResponse>(HttpMethod.Post, Relay(folderId) + "/chunks/missing", deviceToken, new { sha256 }, cancellationToken);
-        return response?.Missing ?? [];
+        return (response?.Missing ?? [], response?.Unnamed ?? []);
     }
 
     public async Task PutChunkAsync(string deviceToken, string folderId, string sha256, byte[] piece, CancellationToken cancellationToken = default)
@@ -270,7 +278,7 @@ public sealed class SyncServerClient(HttpClient http)
 
     private sealed record ErrorResponse(string? Code, string? Message);
 
-    private sealed record MissingResponse(List<string>? Missing);
+    private sealed record MissingResponse(List<string>? Missing, List<string>? Unnamed);
 
     private sealed record ChallengeResponse(string? Nonce);
 
