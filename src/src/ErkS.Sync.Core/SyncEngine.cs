@@ -126,6 +126,11 @@ public sealed class SyncEngine : IAsyncDisposable
                 lock (_gate)
                     _serverRedactions[folderId] = (relay.AccessToken, list);
             }
+            catch (SyncServerException exception) when (exception.Code == OutdatedCode)
+            {
+                error = Outdated();
+                break;
+            }
             catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException)
             {
                 error = "Цэвэрлэлтийн бүртгэл серверт хүрсэнгүй: " + Describe(exception);
@@ -135,6 +140,27 @@ public sealed class SyncEngine : IAsyncDisposable
         lock (_gate)
             _redactionSend[folderId] = (unsent, unsent > 0 ? error : "");
         return list;
+    }
+
+    private const string OutdatedCode = "sync_client_outdated";
+
+    /// <summary>
+    /// 426 sync_client_outdated (SRV fd2b60d): the server writes a device's version when a session
+    /// opens. A SYN at or above the minimum whose session predates it drops the session - the next pass
+    /// opens one with its version and writes. One below the minimum must be updated first (owner,
+    /// 2026-10-26: a member not updated does not shape the others' folders).
+    /// </summary>
+    private string Outdated()
+    {
+        string mine = _server.ClientVersion;
+        string minimum = _session?.MinSyncClientVersion ?? "";
+        if (mine.Length > 0 && (minimum.Length == 0 || SyncLagging.Compare(mine, minimum) >= 0))
+        {
+            _session = null;
+            Poke();
+            return "Серверийн сесс шинэчлэгдэж байна — дараагийн шалгалтаар илгээнэ.";
+        }
+        return "Erk-S Sync хуучирсан — Studio-г шинэчилнэ үү (шинэчлэгдэх хүртэл бусдад илгээхгүй).";
     }
 
     private static SyncRedaction[] Unsent(IEnumerable<SyncRedaction> own, IReadOnlyList<SyncRedaction> server) =>
@@ -997,6 +1023,10 @@ public sealed class SyncEngine : IAsyncDisposable
                 LastUploadBytesPerSecond = done > 0 && seconds > 0 ? done / seconds : folder.LastUploadBytesPerSecond,
             });
             return "";
+        }
+        catch (SyncServerException exception) when (exception.Code == OutdatedCode)
+        {
+            return Outdated();
         }
         catch (SyncServerException exception) when (exception.Code is "sync_relay_storage_full" or "sync_quota_exceeded")
         {

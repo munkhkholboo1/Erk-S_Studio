@@ -43,6 +43,11 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
 
     public List<string> Redactions { get; } = [];
 
+    /// <summary>Writes refused once with 426 sync_client_outdated (a session opened before the server knew versions).</summary>
+    public int OutdatedWrites { get; set; }
+
+    public int Sessions { get; private set; }
+
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
@@ -69,6 +74,7 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
         {
             using var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
             string key = body.RootElement.GetProperty("deviceKeyId").GetString() ?? "";
+            Sessions++;
             return Json(new { accessToken = "t-" + key, accessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(12), deviceKeyId = key });
         }
         if (Relay && path.StartsWith(relay, StringComparison.Ordinal))
@@ -77,6 +83,11 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
             byte[] content = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(cancellationToken);
             lock (_gate)
             {
+                if (rest == "/index" && request.Method == HttpMethod.Put && OutdatedWrites > 0)
+                {
+                    OutdatedWrites--;
+                    return new HttpResponseMessage((HttpStatusCode)426) { Content = JsonContent.Create(new { code = "sync_client_outdated", message = "Erk-S Sync хуучирсан — Studio-г шинэчилнэ үү." }) };
+                }
                 if (rest == "/index" && request.Method == HttpMethod.Put)
                 {
                     _indexes[token] = System.Text.Encoding.UTF8.GetString(content);

@@ -39,4 +39,26 @@ public sealed class AREDACTIONRecordedOFFLINEReachesTheSERVERTests
         await engine.PassAsync(CancellationToken.None);
         Assert.Single(server.Redactions); // held by the server now: not sent again
     }
+
+    [Fact]
+    public async Task ACurrentClientRefusedAsOutdatedOpensANewSessionAndWrites()
+    {
+        using var rootA = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        using var b = new FakeDevice();
+        var server = new FakeServer(Canonical, [a, b]) { Relay = true, OutdatedWrites = 1 };
+        string folder = rootA.Folder("Erin");
+        SyncFolderMarker.Write(folder, new SyncFolderIdentity { FolderId = "f-1", ProjectCode = "ERIN-2026", CanonicalPath = Canonical });
+        File.WriteAllText(Path.Combine(folder, "plan.pdf"), "plan");
+        var client = new SyncServerClient(new HttpClient(server, disposeHandler: false) { BaseAddress = new Uri("https://erk-s.test") }) { ClientVersion = "0.001.110" };
+        await using var engine = new SyncEngine(new SyncHome(home.Path), client, a, new SyncPathMap(@"D:\Cloud Work=>" + rootA.Path));
+
+        await engine.PassAsync(CancellationToken.None);
+        int sessions = server.Sessions;
+        await engine.PassAsync(CancellationToken.None);
+
+        Assert.True(server.Sessions > sessions, "a new session was not opened after 426");
+        Assert.NotNull(await server.Client().GetIndexAsync("t-" + b.DeviceKeyId, "f-1", a.DeviceKeyId));
+    }
 }
