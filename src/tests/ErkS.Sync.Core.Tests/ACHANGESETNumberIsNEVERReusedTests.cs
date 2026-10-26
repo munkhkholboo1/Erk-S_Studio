@@ -97,6 +97,28 @@ public sealed class ACHANGESETNumberIsNEVERReusedTests
         Assert.Equal(5, SyncCollab.Publish(root, "file-1", Writer, Write(scratch, "m.json", "m"), Write(scratch, "e.dwg", "e"), syncHome));
     }
 
+    [Fact]
+    public void AKeptCopyWhoseContentIsLoggedIsDroppedAndAnotherIsShown()
+    {
+        using var folder = new TemporaryFolder();
+        using var home = new TemporaryFolder();
+        string root = folder.Folder("Erin");
+        SyncCollab.Register(root, Path.Combine(root, "plan.dwg"), "file-1", "", "v1", DateTimeOffset.UtcNow, Writer);
+        string log = Path.Combine(SyncCollab.FileRoot(root, "file-1"), "log", Writer);
+        Directory.CreateDirectory(log);
+        Pack(Path.Combine(log, "00000001.cgacs"), "old m1", "old e1");
+        Pack(Path.Combine(log, "00000004.cgacs"), "new m", "new e");
+        // The partner's copies: the reused 1 (its content is now 4) and one nothing else holds.
+        Pack(Path.Combine(log, "00000001 (зөрүүтэй abc 20261026-2150).cgacs"), "new m", "new e");
+        Pack(Path.Combine(log, "00000002 (зөрүүтэй abc 20261026-2150).cgacs"), "only here", "only here");
+
+        SyncCollabStatus status = SyncCollab.Status(root, new SyncHome(home.Path), "file-1");
+
+        Assert.False(File.Exists(Path.Combine(log, "00000001 (зөрүүтэй abc 20261026-2150).cgacs")));
+        Assert.True(File.Exists(Path.Combine(log, "00000002 (зөрүүтэй abc 20261026-2150).cgacs")));
+        Assert.Contains("(1)", status.LastError);
+    }
+
     private static void Unpacked(SyncHome home, int seq, string manifest, string entities)
     {
         string directory = Path.Combine(home.Root, "collab", "file-1", "in", Writer, seq.ToString("D8"));

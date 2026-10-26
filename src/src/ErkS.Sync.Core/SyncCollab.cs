@@ -472,7 +472,8 @@ public static class SyncCollab
 
     /// <summary>
     /// A changeset that came twice under one name (a number reused before 0.001.103) is kept beside
-    /// it as a conflict copy, never over it. A copy with the same bytes as the file is dropped.
+    /// it as a conflict copy, never over it. A copy whose content (manifest and entities, not the zip
+    /// bytes) is already in the writer's log under some number loses nothing and is dropped.
     /// </summary>
     private static int ConflictCopies(string fileRoot)
     {
@@ -480,27 +481,61 @@ public static class SyncCollab
         if (!Directory.Exists(logs))
             return 0;
         int left = 0;
-        foreach (string copy in Directory.EnumerateFiles(logs, "*" + Extension, SearchOption.AllDirectories))
+        foreach (string log in Directory.EnumerateDirectories(logs))
         {
-            string stem = Path.GetFileNameWithoutExtension(copy);
-            if (long.TryParse(stem, out _))
+            string[] copies = Directory.EnumerateFiles(log, "*" + Extension)
+                .Where(path => !long.TryParse(Path.GetFileNameWithoutExtension(path), out _))
+                .ToArray();
+            if (copies.Length == 0)
                 continue;
-            int cut = stem.IndexOf(' ');
-            string original = Path.Combine(Path.GetDirectoryName(copy)!, (cut > 0 ? stem[..cut] : stem) + Extension);
-            try
+            HashSet<string> logged = Directory.EnumerateFiles(log, "*" + Extension)
+                .Where(path => long.TryParse(Path.GetFileNameWithoutExtension(path), out _))
+                .Select(ContentKey)
+                .Where(key => key.Length > 0)
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (string copy in copies)
             {
-                if (File.Exists(original) && Sha256Of(original) == Sha256Of(copy))
+                try
                 {
-                    File.Delete(copy);
-                    continue;
+                    string key = ContentKey(copy);
+                    if (key.Length > 0 && logged.Contains(key))
+                    {
+                        File.Delete(copy);
+                        continue;
+                    }
                 }
+                catch (IOException)
+                {
+                }
+                left++;
             }
-            catch (IOException)
-            {
-            }
-            left++;
         }
         return left;
+    }
+
+    /// <summary>What a changeset carries - its manifest and entities - whatever zip wrapped them; empty when unreadable.</summary>
+    private static string ContentKey(string changeset)
+    {
+        try
+        {
+            using ZipArchive zip = ZipFile.OpenRead(changeset);
+            using var sha = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+            foreach (string name in new[] { "manifest.json", "entities.dwg" })
+            {
+                if (zip.GetEntry(name) is not { } entry)
+                    return "";
+                using Stream stream = entry.Open();
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                sha.AppendData(BitConverter.GetBytes(buffer.Length));
+                sha.AppendData(buffer.ToArray());
+            }
+            return Convert.ToHexStringLower(sha.GetHashAndReset());
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return "";
+        }
     }
 
     // A changeset found to hold what CGA took back is not unpacked again on every pass.
