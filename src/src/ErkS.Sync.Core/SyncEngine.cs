@@ -587,11 +587,20 @@ public sealed class SyncEngine : IAsyncDisposable
                 else
                 {
                     SyncIndex theirs = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
-                    SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                     error = "";
                     peer = peer with { Route = "server" };
-                    peer = await TransferAsync(folderId, physical, mine, theirs,
-                        (file, chunk, token) => RelayChunkAsync(relay.AccessToken, folderId, file, chunk, token), peer, window.Token);
+                    if (SyncLagging.IsLagging(device, DateTimeOffset.UtcNow, relay.MinSyncClientVersion))
+                    {
+                        // Long offline or not updated: its index is no source here (the stored copy is
+                        // not refreshed from it either, so nothing is planned against it).
+                        error = "Хоцорсон гишүүн — шинэчлэгдэж, онлайн болох хүртэл түүнээс файл авахгүй.";
+                    }
+                    else
+                    {
+                        SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
+                        peer = await TransferAsync(folderId, physical, mine, theirs,
+                            (file, chunk, token) => RelayChunkAsync(relay.AccessToken, folderId, file, chunk, token), peer, window.Token);
+                    }
                 }
             }
             catch (Exception exception) when (exception is SyncServerException or HttpRequestException or IOException or OperationCanceledException or InvalidDataException or System.Text.Json.JsonException)

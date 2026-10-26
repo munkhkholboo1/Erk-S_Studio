@@ -74,7 +74,7 @@ internal sealed class SyncTray : ApplicationContext
         {
             // Studio creates the device key on first sign-in; until then the engine reports why it idles.
             _device ??= CngSyncDevice.TryOpen();
-            await using (var engine = new SyncEngine(_home, new SyncServerClient(http), _device))
+            await using (var engine = new SyncEngine(_home, new SyncServerClient(http) { ClientVersion = SyncLagging.InstalledRelease(AppContext.BaseDirectory) }, _device))
             {
                 _engine = engine;
                 engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);

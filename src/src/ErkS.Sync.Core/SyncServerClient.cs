@@ -28,11 +28,13 @@ public sealed record SyncServerDevice(
     string BotId,
     DateTimeOffset AttachedAtUtc,
     DateTimeOffset LastSeenAtUtc,
-    string SeatId = "");
+    string SeatId = "",
+    string ClientVersion = "");
 
 public sealed record SyncServerDeviceFolder(SyncServerFolder Folder, IReadOnlyList<SyncServerDevice> Devices);
 
-public sealed record SyncDeviceSession(string AccessToken, DateTimeOffset AccessTokenExpiresAtUtc, string DeviceKeyId);
+/// <param name="MinSyncClientVersion">The lowest SYN the server lets write (SRV, 2026-10-26); empty from an older server.</param>
+public sealed record SyncDeviceSession(string AccessToken, DateTimeOffset AccessTokenExpiresAtUtc, string DeviceKeyId, string MinSyncClientVersion = "");
 
 /// <summary>A refusal the server named: its code, its sentence, the HTTP status.</summary>
 public sealed class SyncServerException(HttpStatusCode status, string code, string message)
@@ -108,12 +110,19 @@ public sealed class SyncServerClient(HttpClient http)
         return Base64UrlDecode(response?.Nonce ?? "");
     }
 
+    /// <summary>
+    /// This SYN's release («0.001.108») - sent with every session so the server can refuse writes from a
+    /// client older than the shared minimum (owner, 2026-10-26: «программаа шинэчлээгүй … удсан гишүүн
+    /// бусад гишүүдийн ажиллагаанд нөлөөлөх учиргүй»).
+    /// </summary>
+    public string ClientVersion { get; init; } = "";
+
     public Task<SyncDeviceSession> DeviceSessionAsync(string deviceKeyId, byte[] nonce, byte[] signature, CancellationToken cancellationToken = default) =>
         SendAsync<SyncDeviceSession>(
             HttpMethod.Post,
             "/api/cloud-era/v1/sync/device/session",
             null,
-            new { deviceKeyId, nonce = Base64UrlEncode(nonce), signature = Convert.ToBase64String(signature) },
+            new { deviceKeyId, nonce = Base64UrlEncode(nonce), signature = Convert.ToBase64String(signature), clientVersion = ClientVersion },
             cancellationToken)!;
 
     public async Task<IReadOnlyList<SyncServerDeviceFolder>> DeviceFoldersAsync(string deviceToken, CancellationToken cancellationToken = default)
