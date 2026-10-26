@@ -77,7 +77,7 @@ public sealed class SyncEngine : IAsyncDisposable
     /// The server's redactions for a folder - fetched once per session and again only when a redact
     /// is recorded here (no clock). An older server without the route answers nothing.
     /// </summary>
-    private async Task<IReadOnlyList<SyncRedaction>> ServerRedactionsAsync(string folderId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<SyncRedaction>> ServerRedactionsAsync(string folderId, string physical, CancellationToken cancellationToken)
     {
         if (_session is not { } relay)
             return [];
@@ -90,6 +90,17 @@ public sealed class SyncEngine : IAsyncDisposable
         try
         {
             list = await _server.RedactionsAsync(relay.AccessToken, folderId, cancellationToken);
+            // What this machine recorded while the server could not take it (an older server, offline)
+            // goes now - the server then cleans every index and drops the old pieces.
+            {
+                foreach (SyncRedaction mine in SyncRedactions.Load(physical).Where(entry =>
+                             entry.By.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase) &&
+                             !list.Any(known => known.Old.Equals(entry.Old, StringComparison.OrdinalIgnoreCase) && known.Path.Equals(entry.Path, StringComparison.OrdinalIgnoreCase))))
+                {
+                    await _server.PostRedactionAsync(relay.AccessToken, folderId, mine, cancellationToken);
+                    list = [.. list, mine];
+                }
+            }
         }
         catch (Exception exception) when (exception is SyncServerException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
@@ -411,7 +422,7 @@ public sealed class SyncEngine : IAsyncDisposable
         }
         // Redactions first (owner, 2026-10-26): a content redacted anywhere leaves this machine
         // before it is indexed or uploaded - the server's list too, for a machine back from offline.
-        IReadOnlyList<SyncRedaction> redactions = SyncRedactions.Load(physical, await ServerRedactionsAsync(folder.FolderId, cancellationToken));
+        IReadOnlyList<SyncRedaction> redactions = SyncRedactions.Load(physical, await ServerRedactionsAsync(folder.FolderId, physical, cancellationToken));
         SyncRedactions.Apply(physical, _home, redactions);
         IReadOnlySet<string> redactedOld = SyncRedactions.OldHashes(redactions);
         lock (_gate)
@@ -431,8 +442,15 @@ public sealed class SyncEngine : IAsyncDisposable
                 {
                     Entries = index.Entries
                         .Where(item => !redactedOld.Contains(item.Sha256))
-                        .Select(item => item.Version is { } chain && chain.History.Any(redactedOld.Contains)
-                            ? item with { Version = chain with { History = chain.History.Where(sha => !redactedOld.Contains(sha)).ToList() } }
+                        .Select(item => item.Version is { } chain && (chain.History.Any(redactedOld.Contains) || chain.Overrode.Any(redactedOld.Contains))
+                            ? item with
+                            {
+                                Version = chain with
+                                {
+                                    History = chain.History.Where(sha => !redactedOld.Contains(sha)).ToList(),
+                                    Overrode = chain.Overrode.Where(sha => !redactedOld.Contains(sha)).ToList(),
+                                },
+                            }
                             : item)
                         .ToList(),
                 };
@@ -593,6 +611,11 @@ public sealed class SyncEngine : IAsyncDisposable
             return peer with { LastError = error };
         SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirsKnown);
         SyncCarriedDifference carried = SyncIndexComparison.CompareCarried(mine, theirsKnown, HeldOf(folderId));
+        // What this machine still needs from this partner (owner, 2026-10-26: «онлайн гишүүний зөвхөн
+        // өөрийнх нь файл хэдэн хувь синк хийгдсэн нь чухал») - what the partner still needs from here
+        // is its own number, not this machine's.
+        SyncTransferPlan needed = PlanFor(folderId, physical, mine, theirsKnown, SyncVersionLedgerStore.Load(_home.LedgerPath(folderId)));
+        long neededBytes = needed.Actions.Where(action => action.Kind != SyncTransferKind.KeepBoth).Sum(action => action.Theirs.Size);
         return peer with
         {
             Transferring = false,
@@ -602,6 +625,9 @@ public sealed class SyncEngine : IAsyncDisposable
             SyncedPercent = carried.Difference.SyncedPercent,
             SyncedBytes = carried.Difference.SameBytes,
             UnionBytes = carried.Difference.UnionBytes,
+            NeededFiles = needed.Actions.Count(action => action.Kind != SyncTransferKind.KeepBoth),
+            NeededBytes = neededBytes,
+            HereBytes = mine.Entries.Sum(entry => entry.Size),
             NotCarriedCount = carried.NotCarriedCount,
             NotCarriedBytes = carried.NotCarriedBytes,
             LastError = error.Length > 0 ? error : peer.LastError,
@@ -620,6 +646,21 @@ public sealed class SyncEngine : IAsyncDisposable
     /// 1.2: the files of <paramref name="theirs"/> this machine should take, taken over the
     /// already verified session - fetched, replaced or kept beside, never overwritten blind.
     /// </summary>
+    /// <summary>What a partner's index means here - the one planning both the transfer and the «needed here» count use.</summary>
+    private SyncTransferPlan PlanFor(string folderId, string physical, SyncIndex mine, SyncIndex theirs, SyncVersionLedger ledger)
+    {
+        // A DWG shared block by block (CGA К1) never travels as bytes - its changesets do.
+        IReadOnlySet<string> held = HeldOf(folderId);
+        if (held.Count > 0)
+            theirs = theirs with { Entries = theirs.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
+        (IReadOnlySet<string> Old, IReadOnlySet<string> New) redacted;
+        lock (_gate)
+            redacted = _redacted.GetValueOrDefault(folderId, (new HashSet<string>(), new HashSet<string>()));
+        var authoritative = new HashSet<string>(SyncCollab.Restored(physical), StringComparer.OrdinalIgnoreCase);
+        authoritative.UnionWith(redacted.New);
+        return SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)), authoritative, redacted.Old);
+    }
+
     private async Task<SyncPeerState> TransferAsync(
         string folderId,
         string physical,
@@ -631,16 +672,7 @@ public sealed class SyncEngine : IAsyncDisposable
     {
         string ledgerPath = _home.LedgerPath(folderId);
         SyncVersionLedger ledger = SyncVersionLedgerStore.Load(ledgerPath);
-        // A DWG shared block by block (CGA К1) never travels as bytes - its changesets do.
-        IReadOnlySet<string> held = HeldOf(folderId);
-        if (held.Count > 0)
-            theirs = theirs with { Entries = theirs.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
-        (IReadOnlySet<string> Old, IReadOnlySet<string> New) redacted;
-        lock (_gate)
-            redacted = _redacted.GetValueOrDefault(folderId, (new HashSet<string>(), new HashSet<string>()));
-        var authoritative = new HashSet<string>(SyncCollab.Restored(physical), StringComparer.OrdinalIgnoreCase);
-        authoritative.UnionWith(redacted.New);
-        SyncTransferPlan plan = SyncTransferPlanner.Plan(mine, theirs, ledger, SyncDecisionStore.Load(_home.DecisionsPath(folderId)), authoritative, redacted.Old);
+        SyncTransferPlan plan = PlanFor(folderId, physical, mine, theirs, ledger);
         int received = 0, kept = 0, waiting = 0;
         long bytes = 0;
         string lastError = "";

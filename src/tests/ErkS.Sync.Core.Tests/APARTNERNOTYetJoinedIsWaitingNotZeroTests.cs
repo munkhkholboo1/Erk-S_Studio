@@ -22,5 +22,5 @@ public sealed class APARTNERNOTYetJoinedIsWaitingNotZeroTests
 
     [Fact]
     public void AKnownPartnerBehindStillShowsItsPercent() =>
-        Assert.Equal("40% синк хийгдсэн", SyncInStep.Words([new SyncPeerState { SyncedPercent = 40, ExchangedAtUtc = DateTimeOffset.UtcNow }]));
+        Assert.Equal("40% синк хийгдсэн", SyncInStep.Words([new SyncPeerState { HereBytes = 40, NeededBytes = 60, NeededFiles = 3, ExchangedAtUtc = DateTimeOffset.UtcNow }]));
 }

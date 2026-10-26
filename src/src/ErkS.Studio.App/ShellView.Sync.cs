@@ -102,13 +102,9 @@ internal sealed partial class ShellView
             return;
         }
 
-        bool transferring = folder.Peers.Any(peer => peer.Transferring);
-        string stepWord = folder.Peers.Count == 0
-            ? ""
-            : transferring
-                ? " · синк хийж байна"
-                : " · " + SyncInStep.Words(folder.Peers) +
-                  string.Concat(SyncInStep.Behind(folder.Peers).Select(line => " · " + line));
+        // The short account first (owner, 2026-10-26: «эхлээд хураангуйгаар хардаг байна»); members,
+        // files on the way and the rest follow below as details.
+        string stepWord = folder.Peers.Count == 0 ? "" : " · " + SyncSummary.Of(folder, sync?.ServerStatus is "ok" or "" or null).StateWords;
         projectSyncSummary.Text = folder.PresentHere
             ? $"{folder.CanonicalPath} · {folder.FileCount} файл, {SyncSize(folder.TotalBytes)}{stepWord} · шалгасан {folder.IndexedAtUtc?.ToLocalTime():yyyy-MM-dd HH:mm}" +
               (folder.ConflictCount > 0 ? $" · ⚠ шийдвэр хүлээж буй зөрчлийн хуулбар {folder.ConflictCount}" : "")

@@ -506,27 +506,6 @@ Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
 # Studio: a library both carry keeps Studio's copy (Studio's graph includes Sync's, so it is the
 # newer), only Sync's own files and what Studio lacks come from Sync's folder. The applier (net48,
 # present on every Windows) sits in «updater» and runs from a temporary copy after Studio closes.
-$UpdaterPublishArguments = @(
-    "publish", (Join-Path $SourceRoot "src\ErkS.Updates.Apply\ErkS.Updates.Apply.csproj"),
-    "-c", "Release",
-    "--nologo",
-    "-p:DebugType=None",
-    "-p:DebugSymbols=false",
-    "-p:GenerateDocumentationFile=false",
-    "--artifacts-path", $BuildArtifactsDirectory,
-    "-o", (Join-Path $PublishDirectory "updater")
-)
-function Get-ErkSFileVersion {
-    param([string]$Path)
-    try {
-        return [Reflection.AssemblyName]::GetAssemblyName($Path).Version
-    }
-    catch {
-        $Info = [Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
-        return New-Object Version($Info.FileMajorPart, $Info.FileMinorPart, $Info.FileBuildPart, $Info.FilePrivatePart)
-    }
-}
-
 foreach ($SyncFile in Get-ChildItem -LiteralPath $SyncPublishDirectory -Recurse -File) {
     $Relative = $SyncFile.FullName.Substring($SyncPublishDirectory.TrimEnd([char]92).Length + 1)
     $Target = Join-Path $PublishDirectory $Relative
@@ -569,12 +548,20 @@ foreach ($DepsFile in @("ErkS.Studio.deps.json", "ErkS.Sync.deps.json")) {
     }
 }
 
-& dotnet @UpdaterPublishArguments
+# ErkS.Updates and its applier come from the package signed ONCE per library version
+# (scripts/Publish-ErkS-Updates.ps1, _shared\erks-updates\<version>): the same bytes in every release
+# and every product, so an update never re-fetches them (Master/PFA, 2026-10-26).
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptRoot "Publish-ErkS-Updates.ps1") -CodeSigningThumbprint $SigningContext.Certificate.Thumbprint
 if ($LASTEXITCODE -ne 0) {
-    throw "Erk-S updater publish амжилтгүй боллоо."
+    throw "ErkS.Updates package failed."
 }
-Remove-Item -LiteralPath $BuildArtifactsDirectory -Recurse -Force
-Get-ChildItem -LiteralPath (Join-Path $PublishDirectory "updater") -File -Filter "*.xml" | Remove-Item -Force
+[xml]$UpdatesProject = Get-Content -Raw -LiteralPath (Join-Path $SourceRoot "src\ErkS.Updates\ErkS.Updates.csproj")
+$UpdatesVersion = ($UpdatesProject.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ }) | Select-Object -First 1
+$UpdatesPackage = Join-Path "E:\Erk-S Platform\_shared\erks-updates" $UpdatesVersion
+New-Item -ItemType Directory -Path (Join-Path $PublishDirectory "updater") -Force | Out-Null
+Copy-Item -Path (Join-Path $UpdatesPackage "updater\*") -Destination (Join-Path $PublishDirectory "updater") -Force
+Copy-Item -LiteralPath (Join-Path $UpdatesPackage "net8.0\ErkS.Updates.dll") -Destination (Join-Path $PublishDirectory "ErkS.Updates.dll") -Force
+Get-ChildItem -LiteralPath $PublishDirectory -File -Filter "ErkS.Updates.xml" | Remove-Item -Force
 
 Copy-Item -LiteralPath (Join-Path $InstallerRoot "Uninstall-ErkS-Studio.ps1") -Destination $PublishDirectory -Force
 Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File -Filter "*.pdb" | Remove-Item -Force
@@ -684,7 +671,9 @@ $PublishedUpdaterExe = Join-Path $PublishDirectory "updater\ErkS.Updates.Apply.e
 if (-not (Test-Path -LiteralPath $PublishedUpdaterExe -PathType Leaf)) {
     throw "Release gate: updater\ErkS.Updates.Apply.exe үүссэнгүй."
 }
-Invoke-ErkSCodeSign -Path $PublishedUpdaterExe -SigningContext $SigningContext
+if ((Get-AuthenticodeSignature -LiteralPath $PublishedUpdaterExe).Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+    throw "Release gate: updater\ErkS.Updates.Apply.exe is not validly signed (the ErkS.Updates package is)."
+}
 Invoke-ReleaseArtifactGate `
     -Path $PublishedExe `
     -ReportName "published-exe-trust.json"

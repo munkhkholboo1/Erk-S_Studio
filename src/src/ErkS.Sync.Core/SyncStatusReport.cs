@@ -183,9 +183,11 @@ public static class SyncInStep
         (peer.ExchangedAtUtc is { } exchanged && now - exchanged <= OfflineAfter);
 
     /// <summary>
-    /// The lowest percentage over ONLINE partners whose index is known - an offline partner cannot
-    /// catch up, so it does not hold the number down (owner, 2026-10-26: «99.2% … яагаад нэмэгдэхгүй
-    /// байна»); it is named in <see cref="Behind"/>. With every partner offline, over all known.
+    /// How much of what this machine needs has arrived, over ONLINE partners only (owner,
+    /// 2026-10-26: «оффлайн гишүүний файл хэдэн хувьтай байгаа нь онлайн гишүүний файлын хувьд нөлөөлж
+    /// болохгуй. онлайн гишүүнийн зөвхөн өөрийнх нь файл хэдэн хувь синк хийгдсэн нь чухал»): what a
+    /// partner still needs from here, or an offline partner's copies, never hold it down. With no
+    /// partner online there is nothing to wait for: 100.
     /// </summary>
     public static (double? Percent, int Waiting) Of(IEnumerable<SyncPeerState> peers, DateTimeOffset? now = null)
     {
@@ -193,8 +195,7 @@ public static class SyncInStep
         SyncPeerState[] known = all.Where(peer => peer.ExchangedAtUtc is not null).ToArray();
         DateTimeOffset at = now ?? DateTimeOffset.UtcNow;
         SyncPeerState[] online = known.Where(peer => IsOnline(peer, at)).ToArray();
-        SyncPeerState[] counted = online.Length > 0 ? online : known;
-        return (counted.Length == 0 ? null : counted.Min(peer => peer.SyncedPercent), all.Length - known.Length);
+        return (known.Length == 0 ? null : online.Length == 0 ? 100 : online.Min(peer => peer.InPercent), all.Length - known.Length);
     }
 
     /// <summary>
@@ -207,10 +208,10 @@ public static class SyncInStep
         var lines = new List<string>();
         foreach (SyncPeerState peer in peers ?? [])
         {
-            if (peer.ExchangedAtUtc is null || peer.SyncedPercent >= 100)
+            if (peer.ExchangedAtUtc is null || peer.NeededFiles == 0)
                 continue;
-            int files = peer.OnlyHereCount + peer.OnlyThereCount + peer.DifferentCount;
-            long bytes = Math.Max(0, peer.UnionBytes - peer.SyncedBytes);
+            int files = peer.NeededFiles;
+            long bytes = peer.NeededBytes;
             string state = IsOnline(peer, at)
                 ? "онлайн"
                 : peer.ServerLastSeenAtUtc is { } seen ? $"офлайн ({seen.ToLocalTime():MM/dd HH:mm}-өөс)" : "офлайн";

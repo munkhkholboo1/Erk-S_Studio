@@ -26,12 +26,21 @@ public static class LiveOverlay
     private static readonly ConcurrentDictionary<string, (long Length, DateTime Written, string Sha)> Hashed = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, (long Length, DateTime Written, UpdateManifest? Manifest)> Verified = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The overlay of a product: <c>%LOCALAPPDATA%\Erk-S\&lt;product&gt;\overlay</c>, or under <paramref name="baseDirectory"/> (tests).</summary>
-    public static string Root(string productCode, string? baseDirectory = null) =>
-        Path.Combine(
+    /// <summary>
+    /// The overlay of a product and channel: <c>%LOCALAPPDATA%\Erk-S\&lt;product&gt;[\&lt;channel&gt;]\overlay</c>
+    /// (or under <paramref name="baseDirectory"/>, tests). One code base installed for several hosts
+    /// (Revit/AutoCAD 2026, 2027) has one overlay per channel, so one year's full install never clears
+    /// another's (Master, 2026-10-26). An empty channel is the product's single one.
+    /// </summary>
+    public static string Root(string productCode, string? baseDirectory = null, string? channel = null)
+    {
+        string product = Path.Combine(
             baseDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Erk-S"),
-            Safe(productCode),
-            "overlay");
+            Safe(productCode));
+        return string.IsNullOrWhiteSpace(channel)
+            ? Path.Combine(product, "overlay")
+            : Path.Combine(product, Safe(channel!.Trim()), "overlay");
+    }
 
     /// <summary>Whether this process can write the install folder (else the live files go to the overlay).</summary>
     public static bool CanWrite(string installDirectory)
@@ -69,7 +78,7 @@ public static class LiveOverlay
         {
             throw new InvalidDataException("Overlay-ийн манифест шинэчлэлийн хувилбартай таарахгүй байна.");
         }
-        string root = Root(productCode, baseDirectory);
+        string root = Root(productCode, baseDirectory, verified.Channel);
         string version = Path.Combine(root, Safe(verified.Version));
         var result = new LiveApplyResult();
         Directory.CreateDirectory(version);
@@ -99,21 +108,15 @@ public static class LiveOverlay
     /// The file a host loads for <paramref name="relativePath"/>: the overlay copy while it is the
     /// signed manifest's live content for a version newer than the installed one, else the installed file.
     /// </summary>
-    public static string Resolve(string installDirectory, string productCode, string relativePath, string? baseDirectory = null, string pinnedThumbprint = ManifestSignature.ErkSThumbprint)
+    /// <param name="channel">The host's channel (Revit/AutoCAD year) - the one its updates were published under.</param>
+    public static string Resolve(string installDirectory, string productCode, string relativePath, string? baseDirectory = null, string pinnedThumbprint = ManifestSignature.ErkSThumbprint, string? channel = null)
     {
         string installed = InstallManifest.Local(installDirectory, relativePath.Replace('\\', '/'));
         try
         {
-            string root = Root(productCode, baseDirectory);
-            string current = Path.Combine(root, CurrentName);
-            if (!File.Exists(current))
+            if (Current(installDirectory, productCode, baseDirectory, pinnedThumbprint, channel) is not { } overlay)
                 return installed;
-            string version = File.ReadAllText(current).Trim();
-            string folder = Path.Combine(root, Safe(version));
-            // An install as new as the overlay (or newer) carries the files itself.
-            if (InstallManifest.TryReadVersion(installDirectory) is { } installedVersion && Compare(installedVersion, version) >= 0)
-                return installed;
-            UpdateManifest? manifest = VerifiedManifest(Path.Combine(folder, SignedManifestName), pinnedThumbprint);
+            (string folder, UpdateManifest? manifest) = overlay;
             string normal = relativePath.Replace('\\', '/');
             UpdateFile? entry = manifest?.Files.FirstOrDefault(file => file.IsLive && file.Path.Equals(normal, StringComparison.OrdinalIgnoreCase));
             if (entry is null)
@@ -129,8 +132,41 @@ public static class LiveOverlay
         }
     }
 
-    /// <summary>The next full or elevated install carries everything: the overlay goes.</summary>
-    public static void Clear(string productCode, string? baseDirectory = null) => TryDelete(Root(productCode, baseDirectory));
+    /// <summary>
+    /// The version the host is at once its live files are counted: the verified overlay's version when
+    /// it is newer than the install (a live-only update moved it), else null - the install's own
+    /// version stands (PFA, 2026-10-26: after a live-only update the check kept offering the same version).
+    /// </summary>
+    public static string? TryReadVersion(string installDirectory, string productCode, string? baseDirectory = null, string pinnedThumbprint = ManifestSignature.ErkSThumbprint, string? channel = null)
+    {
+        try
+        {
+            return Current(installDirectory, productCode, baseDirectory, pinnedThumbprint, channel) is { Manifest: { } manifest } ? manifest.Version : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The overlay that counts: its folder and verified manifest, when its version is newer than the install's.</summary>
+    private static (string Folder, UpdateManifest? Manifest)? Current(string installDirectory, string productCode, string? baseDirectory, string pinnedThumbprint, string? channel)
+    {
+        string root = Root(productCode, baseDirectory, channel);
+        string current = Path.Combine(root, CurrentName);
+        if (!File.Exists(current))
+            return null;
+        string version = File.ReadAllText(current).Trim();
+        // An install as new as the overlay (or newer) carries the files itself.
+        if (InstallManifest.TryReadVersion(installDirectory) is { } installedVersion && Compare(installedVersion, version) >= 0)
+            return null;
+        string folder = Path.Combine(root, Safe(version));
+        UpdateManifest? manifest = VerifiedManifest(Path.Combine(folder, SignedManifestName), pinnedThumbprint);
+        return manifest is not null && manifest.Version.Equals(version, StringComparison.OrdinalIgnoreCase) ? (folder, manifest) : null;
+    }
+
+    /// <summary>The next full or elevated install carries everything: that channel's overlay goes.</summary>
+    public static void Clear(string productCode, string? baseDirectory = null, string? channel = null) => TryDelete(Root(productCode, baseDirectory, channel));
 
     private static UpdateManifest? VerifiedManifest(string path, string pinnedThumbprint)
     {

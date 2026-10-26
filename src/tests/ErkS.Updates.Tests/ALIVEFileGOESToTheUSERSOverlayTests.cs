@@ -46,6 +46,8 @@ public sealed class ALIVEFileGOESToTheUSERSOverlayTests : IDisposable
         Assert.Equal("template 1", File.ReadAllText(Path.Combine(install, "Templates", "sheet.json"))); // the install is not touched
         string loaded = LiveOverlay.Resolve(install, "ErkS.CGM", "Templates/sheet.json", local, certificate.Thumbprint);
         Assert.Equal(clean, File.ReadAllText(loaded));
+        // The host knows it is at v0.001.2 now (PFA): no «new version» for what is already in the overlay.
+        Assert.Equal("v0.001.2", LiveOverlay.TryReadVersion(install, "ErkS.CGM", local, certificate.Thumbprint));
         // A file the manifest does not name as live comes from the install.
         Assert.StartsWith(install, LiveOverlay.Resolve(install, "ErkS.CGM", "ErkS.CGM.dll", local, certificate.Thumbprint));
 
@@ -61,6 +63,20 @@ public sealed class ALIVEFileGOESToTheUSERSOverlayTests : IDisposable
 
         LiveOverlay.Clear("ErkS.CGM", local);
         Assert.False(Directory.Exists(LiveOverlay.Root("ErkS.CGM", local)));
+    }
+
+    [Fact]
+    public void EachChannelHasItsOwnOverlay()
+    {
+        string local = Dir("local");
+        Assert.NotEqual(LiveOverlay.Root("ErkS.PFR", local, "2026"), LiveOverlay.Root("ErkS.PFR", local, "2027"));
+        Directory.CreateDirectory(LiveOverlay.Root("ErkS.PFR", local, "2026"));
+        Directory.CreateDirectory(LiveOverlay.Root("ErkS.PFR", local, "2027"));
+
+        LiveOverlay.Clear("ErkS.PFR", local, "2027"); // a full 2027 install
+
+        Assert.True(Directory.Exists(LiveOverlay.Root("ErkS.PFR", local, "2026")));
+        Assert.Equal(Path.Combine(local, "ErkS.PFR", "overlay"), LiveOverlay.Root("ErkS.PFR", local));
     }
 
     [Fact]

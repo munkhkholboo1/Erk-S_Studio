@@ -60,21 +60,9 @@ internal sealed class SyncTray : ApplicationContext
                 _baseNoticeShown.Remove(collab.FileId);
             }
         }
-        SyncPeerState[] peers = state.Folders.SelectMany(folder => folder.Peers).ToArray();
-        SyncPeerState? moving = peers.FirstOrDefault(peer => peer.Transferring);
-        SyncFolderState? sending = state.Folders.FirstOrDefault(folder => folder.Uploading);
-        string text = moving is null && sending is not null
-            ? $"Erk-S Sync — серверт илгээж байна {(sending.UploadPendingBytes == 0 ? 100 : sending.UploadedBytes * 100.0 / sending.UploadPendingBytes):0}%" +
-              (sending.UploadBytesPerSecond > 0 ? $" · {sending.UploadBytesPerSecond / (1 << 20):0.0} МБ/с" : "")
-            : moving is not null
-            ? $"Erk-S Sync — хүлээн авч байна {(moving.TransferTotalBytes == 0 ? 100 : moving.TransferDoneBytes * 100.0 / moving.TransferTotalBytes):0}%" +
-              (moving.TransferBytesPerSecond > 0 ? $" · {moving.TransferBytesPerSecond / (1 << 20):0.0} МБ/с" : "")
-            : peers.Length == 0
-                ? "Erk-S Sync"
-                : "Erk-S Sync — " + SyncInStep.Words(peers);
-        IReadOnlyList<string> behind = moving is null && sending is null ? SyncInStep.Behind(peers) : [];
-        if (behind.Count > 0)
-            text += "\n" + string.Join("\n", behind);
+        // One summary line, never a list of members (owner, 2026-10-26: «синк дээрх мэдээллийг цомхон
+        // ойлгомжтой хураангуй болгоорой … эхлээд хураангуйгаар хардаг байна»). Details: «Төлөв».
+        string text = "Erk-S Sync — " + SyncSummary.Line(SyncSummary.Projects(state), state.ServerStatus);
         _icon.Text = text.Length > 127 ? text[..126] + "…" : text;
     }
 

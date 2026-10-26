@@ -93,6 +93,17 @@ public sealed record SyncPeerState
     /// </summary>
     public double SyncedPercent { get; init; }
 
+    /// <summary>Files this machine still needs from this partner, and their bytes - what «синк хийгдсэн %» counts.</summary>
+    public int NeededFiles { get; init; }
+
+    public long NeededBytes { get; init; }
+
+    /// <summary>This machine's folder in bytes, for the share still to come.</summary>
+    public long HereBytes { get; init; }
+
+    /// <summary>How much of what this partner holds for this machine is here: 100 when nothing is needed.</summary>
+    public double InPercent => NeededBytes <= 0 ? 100 : Math.Round(HereBytes * 100.0 / (HereBytes + NeededBytes), 1);
+
     public long SyncedBytes { get; init; }
 
     public long UnionBytes { get; init; }
