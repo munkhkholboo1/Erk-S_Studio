@@ -136,6 +136,7 @@ public sealed class AnUPDATEFetchesOnlyWHATChangedTests : IDisposable
         Assert.Equal(untouched, File.GetLastWriteTimeUtc(Path.Combine(install, "runtime", "big.dll")));
         Assert.Equal("a person's own file", File.ReadAllText(Path.Combine(install, "user-notes.txt")));
         Assert.Equal("2", InstallManifest.LoadOrScan(install, "ErkS.Studio", "?").Version);
+        Assert.False(Directory.Exists(Path.Combine(install, UpdateApplier.RollbackFolder))); // the old files are not kept in the install
 
         // A staged file gone bad: nothing moves, the install stays as it was.
         File.WriteAllText(DeltaDownloader.StagedPath(staging, plan.Changed[0].Sha256), "damaged");

@@ -60,6 +60,10 @@ public static class UpdateApplier
         }
         // Everything is in place now: a user's live overlay of an older version would only shadow it.
         LiveOverlay.Clear(plan.Target.ProductCode, channel: plan.Target.Channel);
+        // The old files are not kept in the install (Master, 2026-10-27: «.rollback» stayed beside the
+        // program after every update). One still held open (an old library mapped by a process that
+        // is going) is left - the next apply clears it first.
+        RemoveRollback(rollback);
     }
 
     /// <summary>
@@ -105,6 +109,17 @@ public static class UpdateApplier
             installed.Version = plan.Target.Version;
         InstallManifest.Save(root, installed);
         return result;
+    }
+
+    private static void RemoveRollback(string rollback)
+    {
+        try
+        {
+            Directory.Delete(rollback, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private static string Keep(string root, string rollback, string target)
