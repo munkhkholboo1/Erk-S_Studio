@@ -134,6 +134,16 @@ public sealed class SyncLanExchange : IAsyncDisposable
     private readonly Func<string, string, string, int, byte[]?> _readChunk;
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _stop = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (SyncLanSession Session, TaskCompletionSource Done)> _reverse = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _inbound = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether this partner opened a verified connection to us in the last 10 minutes (then it needs no offer back).</summary>
+    public bool ReachedUsLately(string peerDeviceKeyId) =>
+        _inbound.TryGetValue(peerDeviceKeyId, out DateTimeOffset at) && DateTimeOffset.UtcNow - at < TimeSpan.FromMinutes(10);
+
+    /// <summary>A partner here opened a connection and offered it back (its firewall lets it reach us, ours not it): run a pass.</summary>
+    public event Action? ReverseOffered;
 
     /// <param name="allowedDevices">Device key ids the server lists for a folder id.</param>
     /// <param name="indexJson">This machine's index of a folder, serialized, or null when it holds none.</param>
@@ -247,44 +257,109 @@ public sealed class SyncLanExchange : IAsyncDisposable
                     },
                     timeout.Token);
                 string remote = KeyIdOf(tls.RemoteCertificate);
-                // One connection carries the index and then pieces; each request is checked
-                // against the folder's list again, and the connection lives while it is used.
-                while (true)
-                {
-                    byte[]? frame = await TryReadFrameAsync(tls, timeout.Token);
-                    if (frame is null)
-                        return;
-                    timeout.CancelAfter(TimeSpan.FromMinutes(2));
-                    ExchangeRequest? request = JsonSerializer.Deserialize<ExchangeRequest>(frame, Json);
-                    string? refusal =
-                        request is null || string.IsNullOrWhiteSpace(request.FolderId) ? "sync_lan_bad_request" :
-                        remote.Length == 0 || !_allowedDevices(request.FolderId).Contains(remote) ? "sync_lan_peer_not_attached" :
-                        null;
-                    if (refusal is not null)
-                    {
-                        await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(refusal, null), Json), timeout.Token);
-                        return;
-                    }
-                    if (request!.Kind == "chunk")
-                    {
-                        byte[]? piece = request.Path is { Length: > 0 } path && request.Sha256 is { Length: > 0 } sha && request.Chunk >= 0
-                            ? _readChunk(request.FolderId, path, sha, request.Chunk)
-                            : null;
-                        await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(piece is null ? "sync_lan_no_chunk" : null, null), Json), timeout.Token);
-                        if (piece is not null)
-                            await WriteFrameAsync(tls, piece, timeout.Token);
-                        continue;
-                    }
-                    ExchangeResponse response = _indexJson(request.FolderId) is { } index
-                        ? new ExchangeResponse(null, index)
-                        : new ExchangeResponse("sync_lan_no_index", null);
-                    await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(response, Json), timeout.Token);
-                }
+                if (remote.Length > 0)
+                    _inbound[remote] = DateTimeOffset.UtcNow;
+                string? reverseFolder = await ServeRequestsAsync(tls, remote, timeout, acceptReverse: true);
+                if (reverseFolder is null)
+                    return;
+                // The partner offered this connection back: this machine asks on it now (its own pass
+                // takes it), the partner serves; the connection closes when the pass is done with it.
+                var session = new SyncLanSession(null, tls, reverseFolder, ownsTls: false);
+                var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                string key = remote + "|" + reverseFolder;
+                if (_reverse.TryRemove(key, out var stale))
+                    stale.Done.TrySetResult();
+                _reverse[key] = (session, done);
+                ReverseOffered?.Invoke();
+                await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromMinutes(5), cancellationToken));
+                _reverse.TryRemove(new KeyValuePair<string, (SyncLanSession, TaskCompletionSource)>(key, (session, done)));
             }
             catch (Exception exception) when (exception is IOException or AuthenticationException or JsonException or OperationCanceledException or SocketException or InvalidDataException)
             {
                 // A peer that cannot complete the handshake or the request simply gets nothing.
             }
+        }
+    }
+
+    /// <summary>
+    /// Answers requests on a verified connection until it closes. Returns the folder of a «reverse»
+    /// offer when <paramref name="acceptReverse"/> (this side then asks), else null.
+    /// </summary>
+    private async Task<string?> ServeRequestsAsync(SslStream tls, string remote, CancellationTokenSource timeout, bool acceptReverse)
+    {
+        // One connection carries the index and then pieces; each request is checked
+        // against the folder's list again, and the connection lives while it is used.
+        while (true)
+        {
+            byte[]? frame = await TryReadFrameAsync(tls, timeout.Token);
+            if (frame is null)
+                return null;
+            timeout.CancelAfter(TimeSpan.FromMinutes(2));
+            ExchangeRequest? request = JsonSerializer.Deserialize<ExchangeRequest>(frame, Json);
+            string? refusal =
+                request is null || string.IsNullOrWhiteSpace(request.FolderId) ? "sync_lan_bad_request" :
+                remote.Length == 0 || !_allowedDevices(request.FolderId).Contains(remote) ? "sync_lan_peer_not_attached" :
+                null;
+            if (refusal is not null)
+            {
+                await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(refusal, null), Json), timeout.Token);
+                return null;
+            }
+            if (request!.Kind == "reverse" && acceptReverse)
+            {
+                await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(null, null, Reverse: true), Json), timeout.Token);
+                return request.FolderId;
+            }
+            if (request.Kind == "chunk")
+            {
+                byte[]? piece = request.Path is { Length: > 0 } path && request.Sha256 is { Length: > 0 } sha && request.Chunk >= 0
+                    ? _readChunk(request.FolderId, path, sha, request.Chunk)
+                    : null;
+                await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(new ExchangeResponse(piece is null ? "sync_lan_no_chunk" : null, null), Json), timeout.Token);
+                if (piece is not null)
+                    await WriteFrameAsync(tls, piece, timeout.Token);
+                continue;
+            }
+            ExchangeResponse response = _indexJson(request.FolderId) is { } index
+                ? new ExchangeResponse(null, index)
+                : new ExchangeResponse("sync_lan_no_index", null);
+            await WriteFrameAsync(tls, JsonSerializer.SerializeToUtf8Bytes(response, Json), timeout.Token);
+        }
+    }
+
+    /// <summary>
+    /// The partner's connection offered back to this machine, when there is one for the folder: this
+    /// side asks on it as on its own. <see cref="Release"/> it when done.
+    /// </summary>
+    public SyncLanSession? TakeReverse(string peerDeviceKeyId, string folderId) =>
+        _reverse.TryGetValue(peerDeviceKeyId + "|" + folderId, out var offered) ? offered.Session : null;
+
+    public void Release(string peerDeviceKeyId, string folderId)
+    {
+        if (_reverse.TryRemove(peerDeviceKeyId + "|" + folderId, out var offered))
+            offered.Done.TrySetResult();
+    }
+
+    /// <summary>
+    /// After this machine took what it needed on <paramref name="session"/>, offer the connection back so
+    /// the partner - which may not be able to open one to us (a firewall on this side) - asks on it too
+    /// (Erk-S Sync, 2026-10-26: LAN worked one way only). This side serves until the partner closes it.
+    /// An older partner answers with its index instead: then nothing happens.
+    /// </summary>
+    public async Task OfferBackAsync(SyncLanSession session, string peerDeviceKeyId, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        ExchangeResponse answer = await session.AskAsync(new ExchangeRequest(session.FolderId, "reverse"), timeout.Token);
+        if (answer.Reverse != true)
+            return;
+        try
+        {
+            await ServeRequestsAsync(session.Tls, peerDeviceKeyId, timeout, acceptReverse: false);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or OperationCanceledException or InvalidDataException)
+        {
+            // The partner went: what it took, it took.
         }
     }
 
@@ -346,23 +421,30 @@ public sealed class SyncLanExchange : IAsyncDisposable
     /// <summary>«index» (or none, as 1.1 sent it) or «chunk» with the file, its hash and the piece.</summary>
     internal sealed record ExchangeRequest(string FolderId, string? Kind = null, string? Path = null, string? Sha256 = null, int Chunk = -1);
 
-    internal sealed record ExchangeResponse(string? Error, string? Index);
+    /// <param name="Reverse">The offer of a «reverse» was taken: the asking side serves from now on.</param>
+    internal sealed record ExchangeResponse(string? Error, string? Index, bool? Reverse = null);
 }
 
 /// <summary>An open, verified connection to one machine of one folder.</summary>
 public sealed class SyncLanSession : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private readonly TcpClient _client;
+    private readonly TcpClient? _client;
     private readonly SslStream _tls;
     private readonly string _folderId;
+    private readonly bool _ownsTls;
 
-    internal SyncLanSession(TcpClient client, SslStream tls, string folderId)
+    internal SyncLanSession(TcpClient? client, SslStream tls, string folderId, bool ownsTls = true)
     {
         _client = client;
         _tls = tls;
         _folderId = folderId;
+        _ownsTls = ownsTls;
     }
+
+    internal SslStream Tls => _tls;
+
+    internal string FolderId => _folderId;
 
     public async Task<SyncIndex> FetchIndexAsync(CancellationToken cancellationToken)
     {
@@ -383,7 +465,7 @@ public sealed class SyncLanSession : IAsyncDisposable
         return await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken);
     }
 
-    private async Task<SyncLanExchange.ExchangeResponse> AskAsync(SyncLanExchange.ExchangeRequest request, CancellationToken cancellationToken)
+    internal async Task<SyncLanExchange.ExchangeResponse> AskAsync(SyncLanExchange.ExchangeRequest request, CancellationToken cancellationToken)
     {
         await SyncLanExchange.WriteFrameAsync(_tls, JsonSerializer.SerializeToUtf8Bytes(request, Json), cancellationToken);
         return JsonSerializer.Deserialize<SyncLanExchange.ExchangeResponse>(await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken), Json)
@@ -392,8 +474,10 @@ public sealed class SyncLanSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (!_ownsTls)
+            return; // a connection offered back: its owner closes it
         await _tls.DisposeAsync();
-        _client.Dispose();
+        _client?.Dispose();
     }
 }
 

@@ -360,6 +360,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     AllowedDevices,
                     IndexJson,
                     ReadChunk);
+                _exchange.ReverseOffered += Poke;
                 _discovery = new SyncLanDiscovery(_device.DeviceKeyId);
                 _discovery.IndexChanged += (_, _) => Debounced();
             }
@@ -669,13 +670,42 @@ public sealed partial class SyncEngine : IAsyncDisposable
         SyncLanPeer? heard = _discovery?.Find(device.DeviceKeyId);
         string error = "";
         bool viaLan = false;
-        if (heard is not null && heard.FolderIds.Contains(folderId, StringComparer.OrdinalIgnoreCase) && _exchange is not null)
+        // The partner opened a connection to us and offered it back (our firewall-free side reaches it,
+        // its side cannot reach us): ask on it as on our own.
+        if (_exchange?.TakeReverse(device.DeviceKeyId, folderId) is { } offered)
         {
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TransferWindow);
+                SyncIndex theirs = await offered.FetchIndexAsync(timeout.Token);
+                SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
+                peer = peer with { LanAddress = heard?.Endpoint.ToString() ?? "", Route = "lan" };
+                viaLan = true;
+                peer = await TransferAsync(folderId, physical, mine, theirs,
+                    (file, chunk, token) => offered.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token);
+            }
+            catch (Exception exception) when (exception is SyncLanException or IOException or OperationCanceledException or InvalidDataException)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    throw;
+                viaLan = false;
+                error = exception is SyncLanException lan ? lan.Message : "LAN-аар холбогдож чадсангүй.";
+            }
+            finally
+            {
+                _exchange.Release(device.DeviceKeyId, folderId);
+            }
+        }
+        else if (heard is not null && heard.FolderIds.Contains(folderId, StringComparer.OrdinalIgnoreCase) && _exchange is not null)
+        {
+            SyncLanSession? session = null;
+            bool handedOff = false;
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(TimeSpan.FromSeconds(30));
-                await using SyncLanSession session = await _exchange.OpenAsync(heard.Endpoint, device.DeviceKeyId, folderId, timeout.Token);
+                session = await _exchange.OpenAsync(heard.Endpoint, device.DeviceKeyId, folderId, timeout.Token);
                 SyncIndex theirs = await session.FetchIndexAsync(timeout.Token);
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                 peer = peer with { LanAddress = heard.Endpoint.ToString(), Route = "lan" };
@@ -683,12 +713,29 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 timeout.CancelAfter(TransferWindow);
                 peer = await TransferAsync(folderId, physical, mine, theirs,
                     (file, chunk, token) => session.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token);
+                // A partner that has not reached us lately (its firewall, or ours) gets this connection
+                // back to ask on - served in the background, so neither pass waits for the other.
+                if (!_exchange.ReachedUsLately(device.DeviceKeyId))
+                {
+                    SyncLanSession back = session;
+                    handedOff = true;
+                    _ = Task.Run(async () =>
+                    {
+                        await using (back)
+                            await _exchange.OfferBackAsync(back, device.DeviceKeyId, cancellationToken);
+                    }, CancellationToken.None);
+                }
             }
             catch (Exception exception) when (exception is SyncLanException or IOException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException or OperationCanceledException or InvalidDataException)
             {
                 if (cancellationToken.IsCancellationRequested)
                     throw;
                 error = exception is SyncLanException lan ? lan.Message : "LAN-аар холбогдож чадсангүй.";
+            }
+            finally
+            {
+                if (!handedOff && session is not null)
+                    await session.DisposeAsync();
             }
         }
         else if (heard is null)

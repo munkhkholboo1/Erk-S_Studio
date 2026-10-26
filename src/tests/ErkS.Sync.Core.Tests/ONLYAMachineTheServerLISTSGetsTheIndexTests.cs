@@ -72,6 +72,37 @@ public sealed class ONLYAMachineTheServerLISTSGetsTheIndexTests
         Assert.Equal("sync_lan_peer_not_attached", refusal.Code);
     }
 
+    /// <summary>
+    /// Erk-S Sync, 2026-10-26: LAN worked one way - the laptop reached the desktop, the desktop not
+    /// the laptop (its firewall). The connection the laptop opened is offered back: the desktop asks
+    /// on it for the laptop's index as on its own.
+    /// </summary>
+    [Fact]
+    public async Task AConnectionOfferedBackCarriesTheOtherWay()
+    {
+        using Device desktop = new();
+        using Device laptop = new();
+        var attached = new HashSet<string> { desktop.KeyId, laptop.KeyId };
+        const string laptopIndex = "{\"folderId\":\"f-1\",\"entries\":[{\"relativePath\":\"laptop.dwg\",\"size\":1,\"lastWriteUtc\":\"2026-10-26T00:00:00Z\",\"kind\":0,\"sha256\":\"aa\",\"chunkSha256\":[\"aa\"]}]}";
+        await using var atDesktop = new SyncLanExchange(desktop.Identity, _ => attached, _ => "{\"folderId\":\"f-1\",\"entries\":[]}");
+        await using var atLaptop = new SyncLanExchange(laptop.Identity, _ => attached, id => id == "f-1" ? laptopIndex : null);
+        var offered = new TaskCompletionSource();
+        atDesktop.ReverseOffered += () => offered.TrySetResult();
+
+        await using SyncLanSession session = await atLaptop.OpenAsync(new IPEndPoint(IPAddress.Loopback, atDesktop.Port), desktop.KeyId, "f-1", Timeout());
+        await session.FetchIndexAsync(Timeout());
+        Assert.True(atDesktop.ReachedUsLately(laptop.KeyId));
+        Task serving = atLaptop.OfferBackAsync(session, desktop.KeyId, Timeout());
+        await offered.Task.WaitAsync(Timeout());
+
+        SyncLanSession back = Assert.IsType<SyncLanSession>(atDesktop.TakeReverse(laptop.KeyId, "f-1"));
+        SyncIndex received = await back.FetchIndexAsync(Timeout());
+        atDesktop.Release(laptop.KeyId, "f-1");
+        await serving.WaitAsync(Timeout());
+
+        Assert.Equal(["laptop.dwg"], received.Entries.Select(entry => entry.RelativePath));
+    }
+
     [Fact]
     public void TheSessionSignatureCoversTheDomainTheNonceAndTheKey()
     {
