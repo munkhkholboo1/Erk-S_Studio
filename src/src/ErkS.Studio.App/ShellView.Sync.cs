@@ -288,15 +288,26 @@ internal sealed partial class ShellView
         void Changed(object? sender, FileSystemEventArgs args)
         {
             // Several events per write; one read after they settle, and only for a page on screen.
-            if (Interlocked.Exchange(ref projectSyncRefreshQueued, 1) == 1)
-                return;
-            _ = Root.Dispatcher.InvokeAsync(async () =>
+            // This runs on a thread-pool thread: anything thrown here ends the process (the
+            // 0.001.97 install smoke test died on a NullReferenceException while Studio closed).
+            try
             {
-                await Task.Delay(300);
+                if (Root?.Dispatcher is not { HasShutdownStarted: false } dispatcher)
+                    return;
+                if (Interlocked.Exchange(ref projectSyncRefreshQueued, 1) == 1)
+                    return;
+                _ = dispatcher.InvokeAsync(async () =>
+                {
+                    await Task.Delay(300);
+                    Interlocked.Exchange(ref projectSyncRefreshQueued, 0);
+                    if (section.IsVisible && state.HasOpenProject)
+                        RefreshProjectSyncSection();
+                });
+            }
+            catch (Exception)
+            {
                 Interlocked.Exchange(ref projectSyncRefreshQueued, 0);
-                if (section.IsVisible && state.HasOpenProject)
-                    RefreshProjectSyncSection();
-            });
+            }
         }
         projectSyncWatcher.Changed += Changed;
         projectSyncWatcher.Created += Changed;
