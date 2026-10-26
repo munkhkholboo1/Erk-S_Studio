@@ -5,6 +5,10 @@ Older implementation work predates this repository and is not represented as fab
 
 ## [Unreleased]
 
+## [0.001.99] - 2026-10-26 (test release)
+
+- A computer with a bot seat no longer gets in the way of whoever is signed in: anybody signed in works as themselves - no lock, no PIN, and the other Erk-S products are never told «bot locked» (only the seat's owner may manage the seat). Studio also says nothing about the seat until the saved sign-in has been tried.
+
 ## [0.001.98] - 2026-10-26 (test release)
 
 - CGA shared file, central and local: each computer works in its own local beside the central (it never travels); a checkpoint is taken from that local and the central follows it; a central saved directly is never written over - it is kept aside and reported.

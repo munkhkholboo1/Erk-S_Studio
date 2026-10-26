@@ -33,7 +33,7 @@ public sealed class THEOWNERONASeatedMachineSeesTheirOwnProjectsTests
     [InlineData(true, Owner, Owner, false)]
     [InlineData(true, Owner, "OWNER@Erk-S.MN", false)]
     // 🔴 seated, a DIFFERENT owner signed in: the seat's rights are not theirs
-    [InlineData(true, Owner, Stranger, true)]
+    [InlineData(true, Owner, Stranger, false)] // 2026-10-26: anybody signed in acts as themselves
     // ⚠ seated by a build that never recorded its owner: the older behaviour
     [InlineData(true, "", Owner, false)]
     public void THEBOTIsActingUnlessTHATOwnerIsHere(

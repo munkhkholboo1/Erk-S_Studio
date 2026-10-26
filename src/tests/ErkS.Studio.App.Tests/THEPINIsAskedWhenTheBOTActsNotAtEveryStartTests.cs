@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using ErkS.Studio;
 
 namespace ErkS.Studio.App.Tests;
@@ -37,7 +37,7 @@ public sealed class THEPINIsAskedWhenTheBOTActsNotAtEveryStartTests
     // 🔴 THE POSITIVE CONTROLS. Without these three a mutation that answered «never
     // lock» would satisfy the owner's sentence and pass - and the PIN would be gone.
     [InlineData(true, Owner, null, true)]
-    [InlineData(true, Owner, OtherOwner, true)]
+    [InlineData(true, Owner, OtherOwner, false)] // 2026-10-26: anybody signed in acts as themselves
     [InlineData(true, null, null, true)]
     public void WHOIsActingDecidesWhetherTheLockBelongs(
         bool seated, string? seatOwner, string? signedIn, bool expectLock)
@@ -52,7 +52,11 @@ public sealed class THEPINIsAskedWhenTheBOTActsNotAtEveryStartTests
         // эрхтэй хольж хутгаж болохгуй шүү». The discriminator is «is it THAT owner»,
         // never «did somebody sign in» - so relaxing the release to account.IsSignedIn
         // would hand a seated machine to any account that can reach the sign-in door.
-        Assert.True(StudioBotActor.IsTheBotActing(true, Owner, OtherOwner));
+        // Owner, 2026-10-26: «үндсэн хэрэглэгчээр нэвтэрсэн л бол энэ бот бидэнд ямар ч утгаараа
+        // гай болмооргүй байна». Anybody signed in acts as THEMSELVES - with their own rights, not
+        // the seat's, so nothing is mixed - and only the seat's owner may manage the seat.
+        Assert.False(StudioBotActor.IsTheBotActing(true, Owner, OtherOwner));
+        Assert.False(StudioBotActor.MayManageSeats(true, Owner, OtherOwner));
         Assert.False(StudioBotActor.IsTheBotActing(true, Owner, Owner));
 
         // ⚠ AND THE KNOWN HOLE IS ASSERTED RATHER THAN LEFT TO BE REDISCOVERED: a seat

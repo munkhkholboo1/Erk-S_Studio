@@ -51,25 +51,15 @@ internal static class StudioBotActor
         if (signedIn.Length == 0)
             return true;
 
-        // 🔴 IT IS NOT «SOMEBODY SIGNED IN», IT IS «THAT OWNER». The owner drew
-        // the line themselves: «өөр эзэмшигчийн ботыг өөр эзэмшигчийн эрхтэй хольж
-        // хутгаж болохгуй шүү». A seat belongs to the licence holder who created it;
-        // for anybody else it must not exist at all, so a different owner signing in
-        // here leaves the machine acting as the bot and takes none of its rights.
-        string seatOwner = Normalise(seatEnteredByEmail);
-
-        // ⚠ AND WHEN THE SEAT NEVER RECORDED ITS OWNER, THIS CANNOT ASK. The field
-        // existed from 2026-09-04 and was written for the first time on 2026-09-12:
-        // it had been read out of the account AFTER the transition that erases the
-        // account, so every seat made before that fix carries an empty string.
-        // Failing closed there would answer «the bot is acting» to the owner on their
-        // own machine - the exact fault fixed hours ago, reinstated. So an unrecorded
-        // seat keeps the older behaviour, and every seat made from now on can answer.
-        // This is a known hole with a known shape, not an oversight.
-        if (seatOwner.Length == 0)
-            return false;
-
-        return !seatOwner.Equals(signedIn, StringComparison.Ordinal);
+        // 🔴 SOMEBODY SIGNED IN IS ACTING - THE BOT NEVER IS (owner, 2026-10-26: «үндсэн
+        // хэрэглэгчээр нэвтэрсэн л бол энэ бот бидэнд ямар ч утгаараа гай болмооргүй байна»).
+        // Whoever signed in works with their OWN rights; the seat's rights are never mixed in
+        // (the 2026-09 rule «өөр эзэмшигчийн ботыг өөр эзэмшигчийн эрхтэй хольж хутгаж болохгуй»
+        // still holds - nobody gets the bot's rights by signing in), and nothing locks, asks for
+        // a PIN or tells the other products «bot locked». The bot acts only when nobody is
+        // signed in, and only after a person chose it and opened it with the PIN.
+        _ = seatEnteredByEmail;
+        return false;
     }
 
     /// <summary>
@@ -101,8 +91,19 @@ internal static class StudioBotActor
     public static bool MayManageSeats(
         bool deviceHoldsBotSeat,
         string? seatEnteredByEmail,
-        string? signedInEmail) =>
-        !IsTheBotActing(deviceHoldsBotSeat, seatEnteredByEmail, signedInEmail);
+        string? signedInEmail)
+    {
+        // Who ACTS and who may MANAGE the seat are two questions since 2026-10-26: anybody signed
+        // in acts as themselves, but only the owner who made the seat may release or rename it
+        // (a seat that never recorded its owner stays permissive, as before).
+        if (!deviceHoldsBotSeat)
+            return true;
+        string signedIn = Normalise(signedInEmail);
+        if (signedIn.Length == 0)
+            return false;
+        string seatOwner = Normalise(seatEnteredByEmail);
+        return seatOwner.Length == 0 || seatOwner.Equals(signedIn, StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Whether THIS machine may be asked to give its own seat up.

@@ -123,6 +123,10 @@ internal sealed partial class ShellView : IDisposable
     };
     private bool accountInitialized;
 
+    // Until the saved sign-in has been tried, «nobody signed in» is not yet true: a seated machine
+    // must not tell the other products «bot locked» in that moment (owner, 2026-10-26).
+    private bool accountRestoreTried;
+
     /// <summary>
     /// Completed once the start-up session restore has finished and who is acting is known.
     /// Anything that asks «owner or bot?» on behalf of a request that can arrive at start-up
@@ -1581,6 +1585,7 @@ internal sealed partial class ShellView : IDisposable
                 _ = CheckForProductUpdateAsync(interactive: false);
         };
         bool restored = await account.TryRestoreAsync();
+        accountRestoreTried = true;
         UpdateAccountUi();
         if (restored)
         {
@@ -2622,10 +2627,12 @@ internal sealed partial class ShellView : IDisposable
         // and the machine's seat, and the record is the pair. Publishing
         // from either side alone would keep overwriting the other.
         (string? ssoBotId, string? ssoOrganizationId) = SsoSeat(seatedAs);
-        bool ssoPublished = account.PublishSsoIdentity(
-            ssoBotId,
-            ssoOrganizationId,
-            unlockedSeatIdentity is not null);
+        bool ssoPublished = !accountRestoreTried && session is null && unlockedSeatIdentity is null
+            ? ssoIdentityPublished // nothing said before the saved sign-in is tried
+            : account.PublishSsoIdentity(
+                ssoBotId,
+                ssoOrganizationId,
+                unlockedSeatIdentity is not null);
         if (!ssoPublished && ssoIdentityPublished)
         {
             // Said once, on the way down. A device that cannot publish its
