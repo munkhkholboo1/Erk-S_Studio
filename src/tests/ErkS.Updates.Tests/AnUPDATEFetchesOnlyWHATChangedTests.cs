@@ -96,6 +96,21 @@ public sealed class AnUPDATEFetchesOnlyWHATChangedTests : IDisposable
         Assert.False(File.Exists(DeltaDownloader.StagedPath(staging2, target.Files[0].Sha256)));
     }
 
+    /// <summary>CGA, 2026-10-27: an install this user cannot write (Program Files) threw and the whole package was fetched.</summary>
+    [Fact]
+    public void AnUNWRITABLEInstallStillGivesItsScan()
+    {
+        string install = Dir("unwritable");
+        Put(install, "ErkS.CityGen.dll", "app 1");
+        // The manifest's temporary file cannot be written (a folder of that name: access denied, as Program Files).
+        Directory.CreateDirectory(Path.Combine(install, InstallManifest.FileName + ".tmp"));
+
+        UpdateManifest installed = InstallManifest.LoadOrScan(install, "ErkS.CityGen.AutoCAD", "v0.062");
+
+        Assert.Equal("ErkS.CityGen.dll", Assert.Single(installed.Files).Path);
+        Assert.False(File.Exists(Path.Combine(install, InstallManifest.FileName)));
+    }
+
     [Fact]
     public async Task ApplyReplacesOnlyChangedFilesAndAFailurePutsEverythingBack()
     {

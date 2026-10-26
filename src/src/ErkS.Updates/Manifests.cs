@@ -109,11 +109,19 @@ public static class InstallManifest
                 }
             }
         }
-        catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException)
+        catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
         }
         UpdateManifest scanned = Scan(installDirectory, productCode, version, include);
-        Save(installDirectory, scanned);
+        try
+        {
+            Save(installDirectory, scanned);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // An install this user cannot write (Program Files, CGA, 2026-10-27): the scan is still the
+            // answer - only it is not kept, so the next check hashes again. The update stays a delta.
+        }
         return scanned;
     }
 
