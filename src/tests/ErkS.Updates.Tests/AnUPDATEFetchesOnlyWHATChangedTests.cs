@@ -176,6 +176,21 @@ public sealed class AnUPDATEFetchesOnlyWHATChangedTests : IDisposable
         Assert.True(UpdatePlanner.Plan(installed, target).NeedsRestart);
     }
 
+    [Fact]
+    public void AnInstallManifestTheFolderNoLongerMatchesIsMadeAgain()
+    {
+        string install = Dir("install");
+        Put(install, "ErkS.App.dll", "app 1");
+        Assert.Equal("1", InstallManifest.LoadOrScan(install, "ErkS.App", "1").Version);
+        // A full installer replaced the file and did not write the manifest.
+        Put(install, "ErkS.App.dll", "app 2 longer");
+
+        UpdateManifest now = InstallManifest.LoadOrScan(install, "ErkS.App", "2");
+
+        Assert.Equal("2", now.Version);
+        Assert.Equal("app 2 longer".Length, now.Files.Single().Size);
+    }
+
     /// <summary>Serves whichever body has the requested hash.</summary>
     private sealed class FakeBySha(byte[][] bodies) : HttpMessageHandler
     {

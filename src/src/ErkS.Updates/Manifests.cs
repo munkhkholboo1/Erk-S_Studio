@@ -100,8 +100,13 @@ public static class InstallManifest
             if (File.Exists(path))
             {
                 UpdateManifest saved = UpdateManifest.FromJson(File.ReadAllText(path, Encoding.UTF8));
-                if (saved.Files.Count > 0 && saved.ProductCode.Equals(productCode, StringComparison.OrdinalIgnoreCase))
+                // Trusted only while it still describes the folder: a full installer or a copied
+                // package changes files without writing it (PFR, 2026-10-26) - a size off means rescan.
+                if (saved.Files.Count > 0 && saved.ProductCode.Equals(productCode, StringComparison.OrdinalIgnoreCase) &&
+                    saved.Files.All(file => File.Exists(Local(installDirectory, file.Path)) && new FileInfo(Local(installDirectory, file.Path)).Length == file.Size))
+                {
                     return saved;
+                }
             }
         }
         catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException)
