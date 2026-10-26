@@ -79,6 +79,7 @@ internal sealed class SyncTray : ApplicationContext
                 _engine = engine;
                 engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);
                 engine.CollabArrived += Broadcast;
+                engine.ReleasePublished += AnnounceRelease;
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
                 engine.StateWritten += state => ThreadPool.QueueUserWorkItem(_ => _mounts?.Follow(state));
                 if (_device is not null)
@@ -117,7 +118,18 @@ internal sealed class SyncTray : ApplicationContext
                     // CGA keeps this one connection: a line per changeset that arrives (plan §4).
                     await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
                     heldOpen = true;
-                    _ = HoldSubscriberAsync(pipe, reader, writer, cancellationToken);
+                    _ = HoldSubscriberAsync(pipe, reader, writer, _subscribers, cancellationToken);
+                    continue;
+                }
+                if (request?.Verb == "release-subscribe")
+                {
+                    // Studio (and any program here) keeps this connection: a line per published version,
+                    // first the ones already known (owner, 2026-10-26: told when published, not polled).
+                    await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
+                    foreach ((string product, string version) in _engine?.Releases ?? new Dictionary<string, string>())
+                        await writer.WriteLineAsync(ReleaseLine(product, version));
+                    heldOpen = true;
+                    _ = HoldSubscriberAsync(pipe, reader, writer, _releaseSubscribers, cancellationToken);
                     continue;
                 }
                 SyncPipeResponse response = request is null
@@ -145,12 +157,18 @@ internal sealed class SyncTray : ApplicationContext
     }
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, StreamWriter> _subscribers = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, StreamWriter> _releaseSubscribers = new();
 
-    /// <summary>A collab-subscribe connection lives until CGA closes it; the line it is sent is all it needs.</summary>
-    private async Task HoldSubscriberAsync(System.IO.Pipes.NamedPipeServerStream pipe, StreamReader reader, StreamWriter writer, CancellationToken cancellationToken)
+    /// <summary>A subscribe connection lives until its program closes it; the lines it is sent are all it needs.</summary>
+    private async Task HoldSubscriberAsync(
+        System.IO.Pipes.NamedPipeServerStream pipe,
+        StreamReader reader,
+        StreamWriter writer,
+        System.Collections.Concurrent.ConcurrentDictionary<Guid, StreamWriter> subscribers,
+        CancellationToken cancellationToken)
     {
         Guid id = Guid.NewGuid();
-        _subscribers[id] = writer;
+        subscribers[id] = writer;
         try
         {
             while (await reader.ReadLineAsync(cancellationToken) is not null)
@@ -163,7 +181,7 @@ internal sealed class SyncTray : ApplicationContext
         }
         finally
         {
-            _subscribers.TryRemove(id, out _);
+            subscribers.TryRemove(id, out _);
             writer.Dispose();
             reader.Dispose();
             await pipe.DisposeAsync();
@@ -171,10 +189,18 @@ internal sealed class SyncTray : ApplicationContext
     }
 
     /// <summary>Each other member's changeset that arrived, to every CGA listening: it only says so - Generate takes it in.</summary>
-    private void Broadcast(SyncCollabArrival arrival)
+    private void Broadcast(SyncCollabArrival arrival) =>
+        Send(_subscribers, SyncProtocol.Serialize(new { @event = "collab-arrived", fileId = arrival.FileId, writer = arrival.Writer, seq = arrival.Seq, path = arrival.Path }));
+
+    private static string ReleaseLine(string product, string version) =>
+        SyncProtocol.Serialize(new { @event = "release", productCode = product, version });
+
+    /// <summary>A published version, to every program here that listens (Studio shows «Шинэчлэлт бэлэн»).</summary>
+    private void AnnounceRelease(string product, string version) => Send(_releaseSubscribers, ReleaseLine(product, version));
+
+    private static void Send(System.Collections.Concurrent.ConcurrentDictionary<Guid, StreamWriter> subscribers, string line)
     {
-        string line = SyncProtocol.Serialize(new { @event = "collab-arrived", fileId = arrival.FileId, writer = arrival.Writer, seq = arrival.Seq, path = arrival.Path });
-        foreach ((Guid id, StreamWriter writer) in _subscribers)
+        foreach ((Guid id, StreamWriter writer) in subscribers)
         {
             try
             {
@@ -183,7 +209,7 @@ internal sealed class SyncTray : ApplicationContext
             }
             catch (Exception exception) when (exception is IOException or ObjectDisposedException)
             {
-                _subscribers.TryRemove(id, out _);
+                subscribers.TryRemove(id, out _);
             }
         }
     }

@@ -42,6 +42,7 @@ internal sealed partial class ShellView : IDisposable
     private readonly AppState state = new();
     private readonly StudioAccountService account = new();
     private readonly StudioUpdateService productUpdates = new();
+    private readonly CancellationTokenSource releaseListening = new();
     private readonly StudioOperationDiagnosticLog operationDiagnosticLog = new();
     private readonly Dictionary<string, StudioOperationDiagnosticIdentity> operationDiagnosticIdentities =
         new(StringComparer.Ordinal);
@@ -562,6 +563,7 @@ internal sealed partial class ShellView : IDisposable
         albumPdfViewer.Dispose();
         state.Dispose();
         account.Dispose();
+        releaseListening.Cancel();
         productUpdates.Dispose();
         productCatalog.Dispose();
         siteImages.Dispose();
@@ -1580,6 +1582,10 @@ internal sealed partial class ShellView : IDisposable
         // Once at start, never on a clock (owner, 2026-10-26: «цаг тутам бишээ … шинэ хувилбар
         // нийтлэхэд л мэдэгддэг байх хэрэгтэй»).
         _ = CheckForProductUpdateAsync(interactive: false);
+        // Then only when the server says a new Studio is published (through Erk-S Sync).
+        _ = StudioReleaseListener.RunAsync(
+            version => dispatcher.BeginInvoke(new Action(() => OnStudioPublished(version))),
+            releaseListening.Token);
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();
@@ -1731,6 +1737,20 @@ internal sealed partial class ShellView : IDisposable
             productUpdateButton.IsEnabled = true;
             RefreshProductUpdateIndicator();
         }
+    }
+
+    /// <summary>A Studio version was published: one check now, so the button shows «Шинэчлэлт бэлэн» at once.</summary>
+    private void OnStudioPublished(string version)
+    {
+        static string Plain(string? text) => (text ?? "").Trim().TrimStart('v', 'V');
+        string published = Plain(version);
+        if (published.Length == 0 ||
+            published.Equals(Plain(StudioDeltaUpdate.InstalledVersion ?? StudioReleaseInfo.ShortVersion), StringComparison.OrdinalIgnoreCase) ||
+            published.Equals(Plain(availableProductUpdate?.Version), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        _ = CheckForProductUpdateAsync(interactive: false);
     }
 
     private void ShowProductUpdateDialog(StudioUpdateLatestResponse update)

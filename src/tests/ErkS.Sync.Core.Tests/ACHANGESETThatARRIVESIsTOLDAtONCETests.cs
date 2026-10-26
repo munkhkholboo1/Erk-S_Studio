@@ -66,6 +66,24 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         await run;
     }
 
+    /// <summary>Erk-S Sync, 2026-10-27: an open Studio kept saying «no update» - the server's «release» event is told on at once.</summary>
+    [Fact]
+    public async Task APUBLISHEDVersionIsToldWhenItIsPublished()
+    {
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
+        var told = new List<(string Product, string Version)>();
+        engine.ReleasePublished += (product, version) => told.Add((product, version));
+
+        engine.Heard("{\"type\":\"release\",\"productCode\":\"ErkS.Studio\",\"version\":\"v0.001.122\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"release\",\"productCode\":\"ErkS.Studio\"}"u8.ToArray()); // no version: nothing
+
+        Assert.Equal([("ErkS.Studio", "v0.001.122")], told);
+        Assert.Equal("v0.001.122", engine.Releases["ErkS.Studio"]);
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);

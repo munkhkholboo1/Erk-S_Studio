@@ -29,6 +29,24 @@ public sealed partial class SyncEngine
     /// <summary>Raised for each changeset of another member that arrived since the last pass.</summary>
     public event Action<SyncCollabArrival>? CollabArrived;
 
+    private readonly Dictionary<string, string> _releases = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A product's new version was published (product code, version) - told by the server the moment it
+    /// is published, never polled for (owner, 2026-10-26: «шинэ хувилбар нийтлэхэд л мэдэгддэг байх хэрэгтэй»).
+    /// </summary>
+    public event Action<string, string>? ReleasePublished;
+
+    /// <summary>The newest version the server announced per product since this SYN started.</summary>
+    public IReadOnlyDictionary<string, string> Releases
+    {
+        get
+        {
+            lock (_gate)
+                return new Dictionary<string, string>(_releases, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     /// <summary>Whether the server's events reach this machine now (Twin, status).</summary>
     public bool EventsConnected => _eventsConnected;
 
@@ -219,10 +237,11 @@ public sealed partial class SyncEngine
 
     /// <summary>
     /// One server event (SRV 195fefa): «index» - a partner put a new index: a pass; «redactions» - the
-    /// server's list grew: read it again, then a pass; «hello» - connected (a pass already runs).
-    /// Only ids and hashes travel in them.
+    /// server's list grew: read it again, then a pass; «hello» - connected (a pass already runs);
+    /// «release» - a product's version was published (also sent once on connect for each product):
+    /// told on to Studio and the other programs here. Only ids, hashes and versions travel in them.
     /// </summary>
-    private void Heard(byte[] json)
+    internal void Heard(byte[] json)
     {
         try
         {
@@ -235,6 +254,14 @@ public sealed partial class SyncEngine
             }
             if (type is "index" or "redactions")
                 Poke();
+            if (type == "release" &&
+                document.RootElement.TryGetProperty("productCode", out var product) && product.GetString() is { Length: > 0 } productCode &&
+                document.RootElement.TryGetProperty("version", out var version) && version.GetString() is { Length: > 0 } released)
+            {
+                lock (_gate)
+                    _releases[productCode] = released;
+                ReleasePublished?.Invoke(productCode, released);
+            }
         }
         catch (System.Text.Json.JsonException)
         {
