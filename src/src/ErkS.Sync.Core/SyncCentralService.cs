@@ -276,3 +276,36 @@ public sealed class SyncCentralService(SyncHome home, Func<CancellationToken, Ta
         }
     }
 }
+
+/// <summary>
+/// Which side of Erk-S Central a path is on, from SYN's own list - not from its name or drive (PFR,
+/// 2026-10-27: «central-info»). Read only: no lock, no transaction.
+/// </summary>
+public static class SyncCentralRoles
+{
+    /// <returns>«host» (this machine serves it), «member» (reached from another machine), or «none».</returns>
+    public static string Of(SyncState? state, string path, SyncPathMap paths)
+    {
+        if (state is null || string.IsNullOrWhiteSpace(path))
+            return "none";
+        string wanted;
+        try
+        {
+            wanted = Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return "none";
+        }
+        foreach (SyncFolderState folder in state.Folders.Where(folder => folder.PresentHere))
+        {
+            string root = paths.Physical(folder.CanonicalPath);
+            foreach (SyncCentralState central in folder.Centrals)
+            {
+                if (string.Equals(Path.GetFullPath(Path.Combine(root, central.RelativePath)), wanted, StringComparison.OrdinalIgnoreCase))
+                    return central.Role is "host" or "member" ? central.Role : "none";
+            }
+        }
+        return "none";
+    }
+}

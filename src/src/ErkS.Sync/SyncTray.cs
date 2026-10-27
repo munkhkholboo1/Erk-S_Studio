@@ -257,6 +257,9 @@ internal sealed class SyncTray : ApplicationContext
                 // «Гарах» does, and the updater starts it again when the files are in place.
                 Post(ExitThread);
                 return new SyncPipeResponse(true, "Хаагдаж байна.");
+            case "central-info":
+                // PFR: is this file a central here, and which side - from SYN's list, read only.
+                return new SyncPipeResponse(true, SyncCentralRoles.Of(_engine?.LastState, request.Path, new SyncPathMap()));
             case "central-begin":
             case "central-end":
                 // PFR around Revit's synchronize: the host commits only a synchronize that finished.
