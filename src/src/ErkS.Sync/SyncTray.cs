@@ -296,7 +296,7 @@ internal sealed class SyncTray : ApplicationContext
                 return new SyncPipeResponse(true, "Хаагдаж байна.");
             case "central-info":
                 // PFR: is this file a central here, and which side - from SYN's list, read only.
-                return new SyncPipeResponse(true, SyncCentralRoles.Of(_engine?.LastState, request.Path, new SyncPathMap()));
+                return new SyncPipeResponse(true, SyncCentralRoles.Of(KnownState(), request.Path, new SyncPathMap()));
             case "central-begin":
             case "central-end":
                 // PFR around Revit's synchronize: the host commits only a synchronize that finished.
@@ -518,6 +518,14 @@ internal sealed class SyncTray : ApplicationContext
         }
     }
 
+    /// <summary>
+    /// The folders as last known: the running engine's once its first pass is done, the saved state
+    /// before that - a question right after SYN starts (an update, a sign-in) is not told «not a sync
+    /// folder» (Erk-S Sync, 2026-10-27).
+    /// </summary>
+    private SyncState KnownState() =>
+        _engine?.LastState is { Folders.Count: > 0 } live ? live : SyncStateStore.TryLoad(_home) ?? _engine?.LastState ?? new SyncState();
+
     /// <summary>The sync folder (on this machine's disk) that holds <paramref name="path"/>.</summary>
     private string? FolderRootOf(string path)
     {
@@ -525,8 +533,7 @@ internal sealed class SyncTray : ApplicationContext
             return null;
         string full = Path.GetFullPath(path);
         var map = new SyncPathMap();
-        SyncState state = _engine?.LastState ?? SyncStateStore.TryLoad(_home) ?? new SyncState();
-        return state.Folders
+        return KnownState().Folders
             .Select(folder => Path.GetFullPath(map.Physical(folder.CanonicalPath)))
             .FirstOrDefault(root => SyncPath.IsSameOrInside(root, full));
     }
