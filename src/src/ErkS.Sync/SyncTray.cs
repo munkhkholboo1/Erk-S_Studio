@@ -13,6 +13,9 @@ internal sealed class SyncTray : ApplicationContext
     private readonly NotifyIcon _icon;
     private readonly CancellationTokenSource _stop = new();
     private readonly SyncHome _home = SyncHome.Default();
+
+    /// <summary>The folders as saved by the SYN that ran before: the engine's first writes have none yet.</summary>
+    private readonly SyncState? _savedAtStart = SyncStateStore.TryLoad(SyncHome.Default());
     private readonly SynchronizationContext _ui;
     private SyncEngine? _engine;
     private CngSyncDevice? _device;
@@ -519,12 +522,15 @@ internal sealed class SyncTray : ApplicationContext
     }
 
     /// <summary>
-    /// The folders as last known: the running engine's once its first pass is done, the saved state
-    /// before that - a question right after SYN starts (an update, a sign-in) is not told «not a sync
-    /// folder» (Erk-S Sync, 2026-10-27).
+    /// The folders as last known: the running engine's once it has them, before that what the previous
+    /// SYN saved - a question right after SYN starts (an update, a sign-in) is not told «not a sync
+    /// folder» (Erk-S Sync, 2026-10-27). The state file itself is no help then: the new engine's first
+    /// writes carry no folders yet.
     /// </summary>
     private SyncState KnownState() =>
-        _engine?.LastState is { Folders.Count: > 0 } live ? live : SyncStateStore.TryLoad(_home) ?? _engine?.LastState ?? new SyncState();
+        _engine?.LastState is { Folders.Count: > 0 } live ? live
+        : _savedAtStart is { Folders.Count: > 0 } saved ? saved
+        : _engine?.LastState ?? new SyncState();
 
     /// <summary>The sync folder (on this machine's disk) that holds <paramref name="path"/>.</summary>
     private string? FolderRootOf(string path)
