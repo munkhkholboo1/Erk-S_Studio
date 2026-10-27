@@ -912,6 +912,17 @@ public sealed partial class SyncEngine : IAsyncDisposable
         IReadOnlySet<string> held = HeldOf(folderId);
         if (held.Count > 0)
             theirs = theirs with { Entries = theirs.Entries.Where(entry => !held.Contains(entry.RelativePath)).ToList() };
+        // A shared file's checkpoints travel only to the machine that needs the newest one (lazy).
+        IReadOnlySet<string> asked;
+        lock (_gate)
+        {
+            // An ask is done once the newest checkpoint is placed here.
+            _checkpointsAsked.RemoveWhere(fileId => SyncCollab.Local(_home, fileId).PlacedCheckpoint >= Math.Max(1, SyncCollab.NewestCheckpoint(physical, fileId)));
+            asked = new HashSet<string>(_checkpointsAsked, StringComparer.OrdinalIgnoreCase);
+        }
+        IReadOnlySet<string> notWanted = SyncCollab.CheckpointsNotWanted(physical, _home, theirs.Entries, asked);
+        if (notWanted.Count > 0)
+            theirs = theirs with { Entries = theirs.Entries.Where(entry => !notWanted.Contains(entry.RelativePath)).ToList() };
         (IReadOnlySet<string> Old, IReadOnlySet<string> New) redacted;
         lock (_gate)
             redacted = _redacted.GetValueOrDefault(folderId, (new HashSet<string>(), new HashSet<string>()));
@@ -1116,6 +1127,16 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// go on the server, so a partner on any network can take them. A Revit central model never
     /// goes; a piece that changed since the index is skipped until the next pass.
     /// </summary>
+    private readonly HashSet<string> _checkpointsAsked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>CGA needs the newest checkpoint of this shared file here (a new local): it is fetched on the next pass.</summary>
+    public void AskCheckpoint(string fileId)
+    {
+        lock (_gate)
+            _checkpointsAsked.Add(fileId);
+        Poke();
+    }
+
     private readonly Dictionary<string, HashSet<string>> _ownOnServer = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _peersOnServer = new(StringComparer.OrdinalIgnoreCase);
 

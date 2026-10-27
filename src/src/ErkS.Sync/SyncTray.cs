@@ -329,6 +329,9 @@ internal sealed class SyncTray : ApplicationContext
         if (root is null)
             return new SyncPipeResponse(false, "DWG нь энэ машины Erk-S Sync хавтсанд алга.");
         string fileId = Arg("fileId");
+        // CGA is about to make a new local: the newest checkpoint comes here (checkpoints are lazy).
+        if (fileId.Length > 0 && Arg("wantCheckpoint").Equals("true", StringComparison.OrdinalIgnoreCase))
+            _engine?.AskCheckpoint(fileId);
         // The writer is the Studio seat (P2P stage 1) - this device's, unless CGA names one.
         SyncCollabWhoAmI? who = _engine?.WhoAmI(root);
         string writer = Arg("writer").Length > 0 ? Arg("writer") : who?.Writer ?? "";

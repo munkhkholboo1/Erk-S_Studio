@@ -965,9 +965,7 @@ public static class SyncCollab
             }
         }
         string checkpoints = Path.Combine(FileRoot(folderRoot, fileId), "checkpoints");
-        int checkpoint = Directory.Exists(checkpoints)
-            ? Directory.EnumerateFiles(checkpoints, "*.dwg").Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) ? n : 0).DefaultIfEmpty(0).Max()
-            : 0;
+        int checkpoint = CheckpointNumbers(checkpoints).DefaultIfEmpty(0).Max();
         var versions = new List<SyncCollabVersion>();
         string versionRoot = Path.Combine(FileRoot(folderRoot, fileId), "versions");
         if (Directory.Exists(versionRoot))
@@ -1128,7 +1126,7 @@ public static class SyncCollab
     {
         // Anyone may checkpoint, but never backwards: a DWG that holds less of some writer than the
         // newest checkpoint does is not a newer base - that checkpoint stands.
-        if (LatestCheckpoint(folderRoot, fileId) is { } newest &&
+        if (NewestNote(folderRoot, fileId) is { } newest &&
             newest.Through.Any(pair => pair.Value > through.FirstOrDefault(given => Safe(given.Key).Equals(Safe(pair.Key), StringComparison.OrdinalIgnoreCase)).Value))
             return newest.Number;
         int made = MakeCheckpoint(folderRoot, fileId, dwgFullPath, through);
@@ -1142,9 +1140,7 @@ public static class SyncCollab
     {
         string checkpoints = Path.Combine(FileRoot(folderRoot, fileId), "checkpoints");
         Directory.CreateDirectory(checkpoints);
-        int next = Directory.EnumerateFiles(checkpoints, "*.dwg")
-            .Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) ? n : 0)
-            .DefaultIfEmpty(0).Max() + 1;
+        int next = CheckpointNumbers(checkpoints).DefaultIfEmpty(0).Max() + 1;
         string name = next.ToString("D6");
         WriteOnce(Path.Combine(checkpoints, name + ".json"), JsonSerializer.SerializeToUtf8Bytes(new { checkpoint = next, through }, Json));
         string temporary = Path.Combine(checkpoints, $".{Guid.NewGuid():N}.tmp");
@@ -1157,6 +1153,64 @@ public static class SyncCollab
 
     /// <summary>How many checkpoints each shared file keeps; older ones are retired.</summary>
     public const int CheckpointsKept = 3;
+
+    /// <summary>Every checkpoint number of a file - its note or its DWG (a DWG not fetched here still has its note).</summary>
+    private static IEnumerable<int> CheckpointNumbers(string checkpoints) =>
+        Directory.Exists(checkpoints)
+            ? Directory.EnumerateFiles(checkpoints, "*.json").Concat(Directory.EnumerateFiles(checkpoints, "*.dwg"))
+                .Select(path => int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) ? n : 0)
+                .Where(n => n > 0)
+            : [];
+
+    /// <summary>The newest checkpoint's number and what it holds, from its note - whether or not its DWG is here.</summary>
+    private static (int Number, Dictionary<string, long> Through)? NewestNote(string folderRoot, string fileId)
+    {
+        string checkpoints = Path.Combine(FileRoot(folderRoot, fileId), "checkpoints");
+        foreach (int n in CheckpointNumbers(checkpoints).Distinct().OrderDescending())
+        {
+            try
+            {
+                CheckpointNote? note = JsonSerializer.Deserialize<CheckpointNote>(File.ReadAllText(Path.Combine(checkpoints, n.ToString("D6") + ".json")), Json);
+                return (n, new Dictionary<string, long>(note?.Through ?? [], StringComparer.OrdinalIgnoreCase));
+            }
+            catch (Exception exception) when (exception is IOException or JsonException)
+            {
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The newest checkpoint number of a shared file known here (by its note), 0 when none.</summary>
+    public static int NewestCheckpoint(string folderRoot, string fileId) => NewestNote(folderRoot, fileId)?.Number ?? 0;
+
+    /// <summary>
+    /// The relative paths of a shared file's checkpoint DWGs this machine should NOT fetch (Erk-S Sync,
+    /// 2026-10-27: a 200–500 MB checkpoint went to every member each time a local was saved). Older
+    /// checkpoints never travel; the newest only to a machine that needs it - one with no local placed
+    /// from it yet, one whose local is behind changesets already retired, or one CGA asked for.
+    /// </summary>
+    public static IReadOnlySet<string> CheckpointsNotWanted(string folderRoot, SyncHome home, IEnumerable<SyncIndexEntry> theirs, IReadOnlySet<string> asked)
+    {
+        var skip = new HashSet<string>(SyncPath.Comparer);
+        foreach (IGrouping<string, (string Path, string FileId, int Number)> file in theirs
+                     .Select(entry => (entry.RelativePath, Parts: entry.RelativePath.Split('\\', '/')))
+                     .Where(item => item.Parts.Length == 4 && item.Parts[0].Equals(DirectoryName, StringComparison.OrdinalIgnoreCase) &&
+                                    item.Parts[2].Equals("checkpoints", StringComparison.OrdinalIgnoreCase) &&
+                                    item.Parts[3].EndsWith(".dwg", StringComparison.OrdinalIgnoreCase))
+                     .Select(item => (item.RelativePath, FileId: item.Parts[1], Number: int.TryParse(Path.GetFileNameWithoutExtension(item.Parts[3]), out int n) ? n : 0))
+                     .GroupBy(item => item.FileId, StringComparer.OrdinalIgnoreCase))
+        {
+            int newest = file.Max(item => item.Number);
+            SyncCollabLocal local = Local(home, file.Key);
+            bool wanted = local.PlacedCheckpoint == 0 || local.NeedsBase || asked.Contains(file.Key);
+            foreach ((string path, _, int number) in file)
+            {
+                if (number < newest || !wanted)
+                    skip.Add(path);
+            }
+        }
+        return skip;
+    }
 
     private sealed record CheckpointNote(int Checkpoint, Dictionary<string, long> Through);
 
