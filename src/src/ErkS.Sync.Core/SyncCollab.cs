@@ -61,6 +61,9 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
     /// <summary>A checkpoint of this file is being fetched right now (CGA waits before making a local from it).</summary>
     public bool CheckpointArriving { get; init; }
 
+    /// <summary>How much of the arriving checkpoint is here, 0–100 (while <see cref="CheckpointArriving"/>).</summary>
+    public int CheckpointPercent { get; init; }
+
     /// <summary>
     /// Per writer, the highest number whose changeset is whole on the server - from there every member
     /// takes it even with its author offline (owner, 2026-10-27). Absent while SYN has not met the server.
@@ -925,9 +928,10 @@ public static class SyncCollab
     /// The status with what the server holds whole (<see cref="SyncEngine.OnServer"/>): per writer, the
     /// unbroken run of its changesets there; this machine's own changesets not there yet.
     /// </summary>
-    public static SyncCollabStatus WithServer(SyncCollabStatus status, string folderRoot, IReadOnlySet<string> onServer)
+    /// <param name="serverKnown">False while SYN has not met the server yet: nothing is said rather than «nothing is there».</param>
+    public static SyncCollabStatus WithServer(SyncCollabStatus status, string folderRoot, IReadOnlySet<string> onServer, bool serverKnown = true)
     {
-        if (onServer.Count == 0)
+        if (!serverKnown)
             return status;
         var through = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         string logs = Path.Combine(FileRoot(folderRoot, status.FileId), "log");
@@ -938,7 +942,7 @@ public static class SyncCollab
             long reached = first - 1;
             for (long seq = first; seq <= writer.LastInLog; seq++)
             {
-                if (!onServer.Contains(Path.GetRelativePath(folderRoot, Path.Combine(folder, seq.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".cgacs"))))
+                if (!onServer.Contains(Path.GetRelativePath(folderRoot, Path.Combine(folder, seq.ToString("D8") + Extension))))
                     break;
                 reached = seq;
             }

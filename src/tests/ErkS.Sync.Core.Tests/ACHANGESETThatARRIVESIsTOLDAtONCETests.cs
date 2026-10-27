@@ -66,6 +66,51 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         await run;
     }
 
+    /// <summary>
+    /// CGA v0.078 (Erk-S Sync, 2026-10-27): no polling - SYN says when the author's changesets are whole on
+    /// the server, and when a checkpoint is put in place of the central on a machine that needed it.
+    /// </summary>
+    [Fact]
+    public async Task ONServerAndCHECKPOINTPlacedAreToldWhenTheyHappen()
+    {
+        using var rootA = new TemporaryFolder();
+        using var rootB = new TemporaryFolder();
+        using var homeA = new TemporaryFolder();
+        using var homeB = new TemporaryFolder();
+        using var scratch = new TemporaryFolder();
+        using var a = new FakeDevice();
+        using var b = new FakeDevice();
+        var server = new FakeServer(Canonical, [a, b]) { Relay = true, DropChunkPuts = true };
+        string folderA = rootA.Folder("Erin"), folderB = rootB.Folder("Erin");
+        var identity = new SyncFolderIdentity { FolderId = "f-1", ProjectCode = "ERIN-2026", CanonicalPath = Canonical };
+        SyncFolderMarker.Write(folderA, identity);
+        SyncFolderMarker.Write(folderB, identity);
+        File.WriteAllText(Path.Combine(folderA, "plan.dwg"), "base");
+        var syncHomeA = new SyncHome(homeA.Path);
+        await using var engineA = new SyncEngine(syncHomeA, server.Client(), a, new SyncPathMap(@"D:\Cloud Work=>" + rootA.Path));
+        await using var engineB = new SyncEngine(new SyncHome(homeB.Path), server.Client(), b, new SyncPathMap(@"D:\Cloud Work=>" + rootB.Path));
+        var onServer = new List<long>();
+        engineA.CollabOnServer += (_, unsent) => onServer.Add(unsent);
+        var placed = new List<int>();
+        engineB.CollabCheckpointPlaced += (_, checkpoint) => placed.Add(checkpoint);
+
+        SyncCollab.Register(folderA, Path.Combine(folderA, "plan.dwg"), "file-1", "", "v1", DateTimeOffset.UtcNow, "seat-a_d1");
+        SyncCollab.Publish(folderA, "file-1", "seat-a_d1", Write(scratch, "m1.json", "m1"), Write(scratch, "e1.dwg", "e1"), syncHomeA);
+        await engineA.PassAsync(CancellationToken.None); // the pieces cannot go
+        Assert.True(onServer.Count > 0 && onServer[^1] > 0);
+
+        server.DropChunkPuts = false;
+        SyncCollab.Checkpoint(folderA, "file-1", Path.Combine(folderA, "plan.dwg"), new Dictionary<string, long> { ["seat-a_d1"] = 1 }, syncHomeA);
+        await engineA.PassAsync(CancellationToken.None);
+        Assert.Equal(0, onServer[^1]); // all whole on the server
+
+        // B is a new member: the newest checkpoint comes and is put in place - told once.
+        await engineB.PassAsync(CancellationToken.None);
+        await engineB.PassAsync(CancellationToken.None);
+        Assert.Equal([1], placed);
+        Assert.Equal("base", File.ReadAllText(Path.Combine(folderB, "plan.dwg")));
+    }
+
     /// <summary>Erk-S Sync, 2026-10-27: an open Studio kept saying «no update» - the server's «release» event is told on at once.</summary>
     [Fact]
     public async Task APUBLISHEDVersionIsToldWhenItIsPublished()

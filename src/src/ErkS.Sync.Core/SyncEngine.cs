@@ -582,7 +582,16 @@ public sealed partial class SyncEngine : IAsyncDisposable
         IReadOnlySet<string> redactedOld = SyncRedactions.OldHashes(redactions);
         lock (_gate)
             _redacted[folder.FolderId] = (redactedOld, SyncRedactions.NewHashes(redactions));
+        Dictionary<string, int> placedBefore = SyncCollab.Files(physical)
+            .ToDictionary(file => file.FileId, file => SyncCollab.Local(_home, file.FileId).PlacedCheckpoint, StringComparer.OrdinalIgnoreCase);
         IReadOnlySet<string> retired = SyncCollab.Maintain(physical, _home, path => knownHere.GetValueOrDefault(path), _device!.DeviceKeyId, PartnerHashes);
+        // A checkpoint just put in place of the central (checked, atomic): CGA makes its local now.
+        foreach ((string fileId, int placedEarlier) in placedBefore)
+        {
+            int placed = SyncCollab.Local(_home, fileId).PlacedCheckpoint;
+            if (placed > placedEarlier)
+                CollabCheckpointPlaced?.Invoke(fileId, placed);
+        }
         SyncIndex index;
         try
         {
@@ -653,6 +662,20 @@ public sealed partial class SyncEngine : IAsyncDisposable
         string uploadError = "";
         if (entry.Devices.Any(device => !device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase)))
             uploadError = await UploadAsync(folder.FolderId, index, cancellationToken);
+        // This machine's own changesets whole on the server: CGA says «Илгээгдлээ ✓ (серверт)» and drops
+        // its closing warning - told when the count changes, never polled.
+        foreach (SyncCollabFile shared in SyncCollab.Files(physical))
+        {
+            long unsent = SyncCollab.WithServer(SyncCollab.Status(physical, _home, shared.FileId, WhoAmI(physical)?.Writer ?? ""), physical, OnServer(folder.FolderId), ServerKnown(folder.FolderId)).UnsentToServer;
+            bool changed;
+            lock (_gate)
+            {
+                changed = !_unsentTold.TryGetValue(shared.FileId, out long told) || told != unsent;
+                _unsentTold[shared.FileId] = unsent;
+            }
+            if (changed)
+                CollabOnServer?.Invoke(shared.FileId, unsent);
+        }
 
         var peers = new List<SyncPeerState>();
         foreach (SyncServerDevice device in entry.Devices)
@@ -680,7 +703,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             LastError = uploadError,
             Centrals = centrals,
             Collabs = SyncCollab.Files(physical)
-                .Select(file => SyncCollab.WithServer(SyncCollab.Status(physical, _home, file.FileId, WhoAmI(physical)?.Writer ?? ""), physical, OnServer(folder.FolderId)))
+                .Select(file => SyncCollab.WithServer(SyncCollab.Status(physical, _home, file.FileId, WhoAmI(physical)?.Writer ?? ""), physical, OnServer(folder.FolderId), ServerKnown(folder.FolderId)))
                 .ToList(),
             UploadedBytes = shown?.UploadedBytes ?? 0,
             UploadPendingBytes = shown?.UploadPendingBytes ?? 0,
@@ -1027,6 +1050,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 received++;
                 if (SyncCollab.IsChangesetPath(file.RelativePath))
                     NoteLatency(folderId, DateTime.UtcNow - file.LastWriteUtc);
+                // A checkpoint arrived: the next pass puts it in place now, not at the fallback period.
+                if (file.RelativePath.Contains(Path.DirectorySeparatorChar + "checkpoints" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                    file.RelativePath.EndsWith(".dwg", StringComparison.OrdinalIgnoreCase))
+                    Poke();
             }
             SyncVersionLedgerStore.Save(ledger, ledgerPath);
         }
@@ -1132,6 +1159,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// goes; a piece that changed since the index is skipped until the next pass.
     /// </summary>
     private readonly HashSet<string> _checkpointsAsked = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, long> _unsentTold = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A shared file's own changesets not yet whole on the server changed (file id, how many are left; 0 = all there).</summary>
+    public event Action<string, long>? CollabOnServer;
+
+    /// <summary>A shared file's checkpoint was put in place of its central here (file id, checkpoint number).</summary>
+    public event Action<string, int>? CollabCheckpointPlaced;
 
     /// <summary>CGA needs the newest checkpoint of this shared file here (a new local): it is fetched on the next pass.</summary>
     public void AskCheckpoint(string fileId)
@@ -1163,6 +1197,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
             }
             return known;
         }
+    }
+
+    /// <summary>Whether SYN has met the server for this folder (sent its index, or read a partner's there).</summary>
+    public bool ServerKnown(string folderId)
+    {
+        lock (_gate)
+            return _ownOnServer.ContainsKey(folderId) || _peersOnServer.ContainsKey(folderId);
     }
 
     /// <summary>This machine's own files not yet whole on the server, per folder - what an unexpected shutdown would keep from the others.</summary>
@@ -1302,6 +1343,18 @@ public sealed partial class SyncEngine : IAsyncDisposable
             using var lanes = new SemaphoreSlim(UploadLanes);
             var sending = new List<Task>();
             var notThere = missing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            void MarkOnServer()
+            {
+                lock (_gate)
+                {
+                    _ownOnServer[folderId] = index.Entries.Where(entry => SyncTransferPlanner.IsCarried(entry.Kind))
+                        .Where(entry => entry.ChunkSha256.All(sha => !notThere.Contains(sha)))
+                        .Select(entry => entry.RelativePath)
+                        .ToHashSet(SyncPath.Comparer);
+                }
+            }
+            // Known before a piece goes: if the upload breaks off, what is still missing is said, not hidden.
+            MarkOnServer();
             try
             {
                 foreach (string sha in missing)
@@ -1344,13 +1397,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             // What is on the server now, whole: the index names it and every piece of it is there
             // (owner, 2026-10-27: a member who sent and went offline must not make others wait - the
             // server is the member that stays; its author needs to know when that is true).
-            lock (_gate)
-            {
-                _ownOnServer[folderId] = index.Entries.Where(entry => SyncTransferPlanner.IsCarried(entry.Kind))
-                    .Where(entry => entry.ChunkSha256.All(sha => !notThere.Contains(sha)))
-                    .Select(entry => entry.RelativePath)
-                    .ToHashSet(SyncPath.Comparer);
-            }
+            MarkOnServer();
             ReportFolder(folderId, folder => folder with
             {
                 Uploading = false,

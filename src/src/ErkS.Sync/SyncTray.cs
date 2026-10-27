@@ -83,6 +83,10 @@ internal sealed class SyncTray : ApplicationContext
                 engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);
                 engine.StateWritten += state => _ui.Post(_ => _guard.Follow(state), null);
                 engine.CollabArrived += Broadcast;
+                engine.CollabOnServer += (fileId, unsent) =>
+                    Send(_subscribers, SyncProtocol.Serialize(new { @event = "collab-on-server", fileId, unsentToServer = unsent }));
+                engine.CollabCheckpointPlaced += (fileId, checkpoint) =>
+                    Send(_subscribers, SyncProtocol.Serialize(new { @event = "collab-checkpoint-placed", fileId, checkpoint }));
                 engine.ReleasePublished += AnnounceRelease;
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
                 engine.StateWritten += state => ThreadPool.QueueUserWorkItem(_ => _mounts?.Follow(state));
@@ -315,9 +319,11 @@ internal sealed class SyncTray : ApplicationContext
         if (folder is null)
             return status;
         string checkpoints = Path.Combine(SyncCollab.DirectoryName, status.FileId, "checkpoints");
-        return SyncCollab.WithServer(status, root, engine.OnServer(folder.FolderId)) with
+        SyncPeerState? arriving = folder.Peers.FirstOrDefault(peer => peer.Transferring && peer.CurrentFile.StartsWith(checkpoints, StringComparison.OrdinalIgnoreCase));
+        return SyncCollab.WithServer(status, root, engine.OnServer(folder.FolderId), engine.ServerKnown(folder.FolderId)) with
         {
-            CheckpointArriving = folder.Peers.Any(peer => peer.Transferring && peer.CurrentFile.StartsWith(checkpoints, StringComparison.OrdinalIgnoreCase)),
+            CheckpointArriving = arriving is not null,
+            CheckpointPercent = arriving is { CurrentFileBytes: > 0 } peer ? (int)Math.Clamp(100 * peer.CurrentFileDoneBytes / peer.CurrentFileBytes, 0, 100) : 0,
         };
     }
 

@@ -50,13 +50,13 @@ public sealed class THESERVERIsTheMemberWhoSTAYSTests
         string log = Path.Combine(root.Path, SyncCollab.DirectoryName, "file-1", "log", "seat-a");
         Directory.CreateDirectory(log);
         foreach (int seq in new[] { 1, 2, 3, 4 })
-            File.WriteAllText(Path.Combine(log, seq + ".cgacs"), "x");
+            File.WriteAllText(Path.Combine(log, seq.ToString("D8") + ".cgacs"), "x");
         var status = new SyncCollabStatus("file-1", 0, [new SyncCollabWriter("seat-a", 4, 4, 0, false)]) { OwnWriter = "seat-a" };
         var onServer = new HashSet<string>(SyncPath.Comparer)
         {
-            Path.Combine(SyncCollab.DirectoryName, "file-1", "log", "seat-a", "1.cgacs"),
-            Path.Combine(SyncCollab.DirectoryName, "file-1", "log", "seat-a", "2.cgacs"),
-            Path.Combine(SyncCollab.DirectoryName, "file-1", "log", "seat-a", "4.cgacs"),
+            Path.Combine(SyncCollab.DirectoryName, "file-1", "log", "seat-a", "00000001.cgacs"),
+            Path.Combine(SyncCollab.DirectoryName, "file-1", "log", "seat-a", "00000002.cgacs"),
+            Path.Combine(SyncCollab.DirectoryName, "file-1", "log", "seat-a", "00000004.cgacs"),
         };
 
         SyncCollabStatus seen = SyncCollab.WithServer(status, root.Path, onServer);
