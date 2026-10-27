@@ -122,34 +122,14 @@ internal sealed class SyncTray : ApplicationContext
             {
                 pipe = SyncProtocol.CreateServer();
                 await pipe.WaitForConnectionAsync(cancellationToken);
-                var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-                var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-                SyncPipeRequest? request = SyncProtocol.Deserialize<SyncPipeRequest>(await reader.ReadLineAsync(cancellationToken));
-                if (request?.Verb == "collab-subscribe")
-                {
-                    // CGA keeps this one connection: a line per changeset that arrives (plan §4).
-                    await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
-                    heldOpen = true;
-                    _ = HoldSubscriberAsync(pipe, reader, writer, _subscribers, cancellationToken);
-                    continue;
-                }
-                if (request?.Verb == "release-subscribe")
-                {
-                    // Studio (and any program here) keeps this connection: a line per published version,
-                    // first the ones already known (owner, 2026-10-26: told when published, not polled).
-                    await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
-                    foreach (SyncRelease release in _engine?.Releases ?? [])
-                        await writer.WriteLineAsync(ReleaseLine(release));
-                    heldOpen = true;
-                    _ = HoldSubscriberAsync(pipe, reader, writer, _releaseSubscribers, cancellationToken);
-                    continue;
-                }
-                SyncPipeResponse response = request is null
-                    ? new SyncPipeResponse(false, "Хүсэлт уншигдсангүй.")
-                    : await HandleAsync(request, cancellationToken);
-                await writer.WriteLineAsync(SyncProtocol.Serialize(response));
-                writer.Dispose();
-                reader.Dispose();
+                System.IO.Pipes.NamedPipeServerStream connected = pipe;
+                // Never an empty answer: a caller (CGA) takes silence for an old SYN (Erk-S Sync, 2026-10-27).
+                heldOpen = await SyncPipeServer.ServeAsync(
+                    pipe,
+                    (request, reader, writer) => HoldAsync(connected, request, reader, writer, cancellationToken),
+                    HandleAsync,
+                    PipeFault,
+                    cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -165,6 +145,50 @@ internal sealed class SyncTray : ApplicationContext
                 if (!heldOpen && pipe is not null)
                     await pipe.DisposeAsync();
             }
+        }
+    }
+
+    /// <summary>The subscribe verbs keep their connection; every other verb is answered once.</summary>
+    private async Task<bool> HoldAsync(
+        System.IO.Pipes.NamedPipeServerStream pipe,
+        SyncPipeRequest request,
+        StreamReader reader,
+        StreamWriter writer,
+        CancellationToken cancellationToken)
+    {
+        if (request.Verb == "collab-subscribe")
+        {
+            // CGA keeps this one connection: a line per changeset that arrives (plan §4).
+            await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
+            _ = HoldSubscriberAsync(pipe, reader, writer, _subscribers, cancellationToken);
+            return true;
+        }
+        if (request.Verb == "release-subscribe")
+        {
+            // Studio (and any program here) keeps this connection: a line per published version,
+            // first the ones already known (owner, 2026-10-26: told when published, not polled).
+            await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
+            foreach (SyncRelease release in _engine?.Releases ?? [])
+                await writer.WriteLineAsync(ReleaseLine(release));
+            _ = HoldSubscriberAsync(pipe, reader, writer, _releaseSubscribers, cancellationToken);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>A request that failed inside SYN, kept on this machine (the last 200 lines) for whoever looks into it.</summary>
+    private void PipeFault(string verb, Exception exception)
+    {
+        try
+        {
+            string path = Path.Combine(_home.Root, "pipe-faults.log");
+            Directory.CreateDirectory(_home.Root);
+            var lines = File.Exists(path) ? File.ReadAllLines(path).TakeLast(199).ToList() : [];
+            lines.Add($"{DateTime.UtcNow:O} {verb} {exception.GetType().FullName}: {exception.Message} | {exception.StackTrace?.Replace(Environment.NewLine, " / ")}");
+            File.WriteAllLines(path, lines);
+        }
+        catch (Exception logging) when (logging is IOException or UnauthorizedAccessException)
+        {
         }
     }
 
