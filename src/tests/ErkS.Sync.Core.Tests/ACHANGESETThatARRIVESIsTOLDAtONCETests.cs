@@ -111,6 +111,23 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         Assert.Equal("base", File.ReadAllText(Path.Combine(folderB, "plan.dwg")));
     }
 
+    /// <summary>
+    /// Erk-S Sync, 2026-10-27: right after a restart the first pass lists folders one at a time; until a
+    /// whole pass has run the tray also answers from the folders the previous SYN saved.
+    /// </summary>
+    [Fact]
+    public async Task AWHOLEPassIsKnownOnlyOnceItHASRun()
+    {
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
+
+        Assert.False(engine.FirstPassDone);
+        await engine.PassAsync(CancellationToken.None);
+        Assert.True(engine.FirstPassDone);
+    }
+
     /// <summary>Erk-S Sync, 2026-10-27: an open Studio kept saying «no update» - the server's «release» event is told on at once.</summary>
     [Fact]
     public async Task APUBLISHEDVersionIsToldWhenItIsPublished()

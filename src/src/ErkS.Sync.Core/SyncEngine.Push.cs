@@ -30,6 +30,7 @@ public sealed partial class SyncEngine
     private readonly List<(long Target, TaskCompletionSource Done)> _passWaiters = [];
     private Timer? _debounce;
     private long _passesStarted;
+    private long _passesFinished;
     private volatile bool _eventsConnected;
 
     /// <summary>Raised for each changeset of another member that arrived since the last pass.</summary>
@@ -72,9 +73,13 @@ public sealed partial class SyncEngine
 
     private void PassStarted() => Interlocked.Increment(ref _passesStarted);
 
+    /// <summary>A whole pass has run: <see cref="LastState"/> lists every folder, not only the ones reached so far.</summary>
+    public bool FirstPassDone => Interlocked.Read(ref _passesFinished) > 0;
+
     private void PassFinished()
     {
         long finished = Interlocked.Read(ref _passesStarted);
+        Interlocked.Increment(ref _passesFinished);
         List<TaskCompletionSource> ready;
         lock (_gate)
         {

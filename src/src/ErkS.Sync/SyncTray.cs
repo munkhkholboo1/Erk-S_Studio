@@ -522,15 +522,21 @@ internal sealed class SyncTray : ApplicationContext
     }
 
     /// <summary>
-    /// The folders as last known: the running engine's once it has them, before that what the previous
-    /// SYN saved - a question right after SYN starts (an update, a sign-in) is not told «not a sync
-    /// folder» (Erk-S Sync, 2026-10-27). The state file itself is no help then: the new engine's first
-    /// writes carry no folders yet.
+    /// The folders as last known: the running engine's once a whole pass has run, before that what it
+    /// has reached so far together with what the previous SYN saved - a question right after SYN starts
+    /// (an update, a sign-in) is not told «not a sync folder» (Erk-S Sync, 2026-10-27). The state file
+    /// itself is no help then: the first pass rewrites it a folder at a time.
     /// </summary>
-    private SyncState KnownState() =>
-        _engine?.LastState is { Folders.Count: > 0 } live ? live
-        : _savedAtStart is { Folders.Count: > 0 } saved ? saved
-        : _engine?.LastState ?? new SyncState();
+    private SyncState KnownState()
+    {
+        SyncState live = _engine?.LastState ?? new SyncState();
+        if (_engine is { FirstPassDone: true } || _savedAtStart is null)
+            return live;
+        List<SyncFolderState> folders = [.. live.Folders];
+        folders.AddRange(_savedAtStart.Folders.Where(saved =>
+            !folders.Any(folder => folder.FolderId.Equals(saved.FolderId, StringComparison.OrdinalIgnoreCase))));
+        return live with { Folders = folders };
+    }
 
     /// <summary>The sync folder (on this machine's disk) that holds <paramref name="path"/>.</summary>
     private string? FolderRootOf(string path)
