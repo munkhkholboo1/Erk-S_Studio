@@ -48,6 +48,13 @@ internal sealed class SyncCentralMounts(SyncHome home, Func<(Uri Server, string 
         }
     }
 
+    /// <summary>Dokany may have just been installed: the next state tries it at once.</summary>
+    public void RetryDokany()
+    {
+        if (_dokan is null)
+            _dokanTriedUtc = DateTime.MinValue;
+    }
+
     private void TryMount(string key, SyncFolderState folder, SyncCentralState central)
     {
         if (_dokan is null)

@@ -370,6 +370,50 @@ internal sealed partial class ShellView
                 projectSyncPanel.Children.Add(Line("   ⚠ " + problem));
         }
 
+        // A member reaches a central through Dokany: Studio installs it (one UAC answer), never by hand.
+        if (folder.Centrals.Any(central => central.Role != "host"))
+        {
+            string installed = StudioDokany.InstalledVersion;
+            if (!StudioDokany.NeedsInstall)
+            {
+                projectSyncPanel.Children.Add(Line($"Dokany: суусан {installed}"));
+            }
+            else
+            {
+                projectSyncPanel.Children.Add(Line(installed.Length == 0
+                    ? "Dokany: суулгах шаардлагатай (central-ыг энэ машинаас нээхэд)"
+                    : $"Dokany: {installed} хуучин — {SyncDokany.PinnedVersion} болгох шаардлагатай"));
+                var install = new Button
+                {
+                    Content = dokanyInstalling ? "Dokany суулгаж байна…" : "Dokany суулгах",
+                    IsEnabled = !dokanyInstalling,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(12, 2, 0, 4),
+                    Padding = new Thickness(10, 3, 10, 3),
+                    ToolTip = $"Албан ёсны Dokany {SyncDokany.PinnedVersion}-г татаж (хэш, гарын үсгийг шалгаад) суулгана. Windows нэг удаа зөвшөөрөл асууна.",
+                };
+                install.Click += async (_, _) => await InstallDokanyAsync();
+                projectSyncPanel.Children.Add(install);
+                if (!dokanyAsked)
+                {
+                    dokanyAsked = true;
+                    _ = dispatcher.BeginInvoke(new Action(async () =>
+                    {
+                        if (StudioMessageDialog.Show(
+                                Window.GetWindow(Root),
+                                "Энэ төслийн Revit central-ыг энэ машинаас нээж ажиллахад Dokany драйвер хэрэгтэй.\n\n" +
+                                $"Албан ёсны Dokany {SyncDokany.PinnedVersion}-г одоо суулгах уу? (Windows нэг удаа зөвшөөрөл асууна.)",
+                                "Erk-S Central",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question) == MessageBoxResult.Yes)
+                        {
+                            await InstallDokanyAsync();
+                        }
+                    }));
+                }
+            }
+        }
+
         static TextBlock Line(string text, bool bold = false) => new()
         {
             Text = text,
@@ -378,6 +422,29 @@ internal sealed partial class ShellView
             FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
             Foreground = bold ? StudioTheme.TextBrush : StudioTheme.MutedTextBrush,
         };
+    }
+
+    private bool dokanyAsked;
+    private bool dokanyInstalling;
+
+    /// <summary>The «Dokany суулгах» button, the one-time question and the bridge's «dokany-install» all run this.</summary>
+    private async Task<StudioDokany.Result> InstallDokanyAsync()
+    {
+        if (dokanyInstalling)
+            return new StudioDokany.Result(StudioDokany.Outcome.Failed, "Dokany аль хэдийн суулгаж байна.");
+        dokanyInstalling = true;
+        RefreshProjectSyncSection();
+        try
+        {
+            StudioDokany.Result result = await StudioDokany.InstallAsync(new WindowsAuthenticodeTrustVerifier(), CancellationToken.None);
+            SetStatus(result.MessageMn);
+            return result;
+        }
+        finally
+        {
+            dokanyInstalling = false;
+            RefreshProjectSyncSection();
+        }
     }
 
     private static string SyncDuration(double? seconds) => seconds switch

@@ -219,6 +219,7 @@ internal sealed class SyncTray : ApplicationContext
         switch (request.Verb)
         {
             case "rescan":
+                _mounts?.RetryDokany(); // Studio just installed it: try again now, not in five minutes
                 _engine?.Poke();
                 return new SyncPipeResponse(true, "Дахин шалгаж байна.");
             case "status":

@@ -113,6 +113,15 @@ internal sealed partial class ShellView
                     .Select(folder => new { folder = folder.FolderId, project = folder.ProjectCode, collabs = folder.Collabs })
                     .Where(item => item.collabs.Count > 0)
                     .ToList());
+            case "dokany-install":
+            {
+                if (!StudioDokany.NeedsInstall)
+                    return StudioBridgeProtocol.Accept(request.Id, new { installed = StudioDokany.InstalledVersion }, $"Dokany {StudioDokany.InstalledVersion} аль хэдийн суусан.");
+                StudioDokany.Result result = await InstallDokanyAsync();
+                return result.Outcome == StudioDokany.Outcome.Installed
+                    ? StudioBridgeProtocol.Accept(request.Id, new { installed = StudioDokany.InstalledVersion }, result.MessageMn)
+                    : StudioBridgeProtocol.Refuse(request.Id, result.Outcome == StudioDokany.Outcome.Declined ? "declined" : "dokany_failed", result.MessageMn);
+            }
             case "team-invitations":
                 return await BridgeTeamInvitationsAsync(request);
             case "team-accept":

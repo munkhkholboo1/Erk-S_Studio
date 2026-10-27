@@ -102,6 +102,9 @@ public sealed record SyncStatusReport(
     int LanPort,
     IReadOnlyList<SyncStatusFolder> Folders)
 {
+    /// <summary>The installed Dokany («2.3.1.1000»), "" when none - Erk-S Central's mount needs it (Twin).</summary>
+    public string DokanyVersion { get; init; } = "";
+
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -177,7 +180,10 @@ public sealed record SyncStatusReport(
                 collab.VersionMismatch,
                 collab.Versions,
                 collab.CentralEdited)).ToList(),
-        }).ToList());
+        }).ToList())
+    {
+        DokanyVersion = SyncDokany.InstalledVersion(),
+    };
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>
     public static void Write(string path, SyncStatusReport report)
