@@ -17,6 +17,7 @@ internal sealed class SyncTray : ApplicationContext
     private SyncEngine? _engine;
     private CngSyncDevice? _device;
     private SyncCentralMounts? _mounts;
+    private readonly SyncShutdownGuard _guard;
 
     public SyncTray(SyncPipeRequest? firstRequest)
     {
@@ -26,7 +27,7 @@ internal sealed class SyncTray : ApplicationContext
         menu.Items.Add("Дахин шалгах", null, (_, _) => _engine?.Poke());
         menu.Items.Add("Erk-S Studio нээх", null, (_, _) => OpenStudio());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Гарах", null, (_, _) => ExitThread());
+        menu.Items.Add("Гарах", null, (_, _) => ExitAsked());
         _icon = new NotifyIcon
         {
             Icon = LoadIcon(),
@@ -35,6 +36,8 @@ internal sealed class SyncTray : ApplicationContext
             ContextMenuStrip = menu,
         };
         _icon.DoubleClick += (_, _) => ShowStatus(null);
+        _guard = new SyncShutdownGuard(() => _engine?.LastState, () => _engine?.Poke());
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         _ = RunEngineAsync(_stop.Token);
         _ = ServePipeAsync(_stop.Token);
@@ -78,6 +81,7 @@ internal sealed class SyncTray : ApplicationContext
             {
                 _engine = engine;
                 engine.StateWritten += state => _ui.Post(_ => ShowProgress(state), null);
+                engine.StateWritten += state => _ui.Post(_ => _guard.Follow(state), null);
                 engine.CollabArrived += Broadcast;
                 engine.ReleasePublished += AnnounceRelease;
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
@@ -246,6 +250,7 @@ internal sealed class SyncTray : ApplicationContext
             case "collab-whoami":
             case "collab-central-reset":
             case "collab-checkpoint-prune":
+            case "collab-report":
                 // A Generate takes the newest work: what the server or the LAN has is fetched first, at most 2 s.
                 if (request.Verb == "collab-pull" && _engine is { } engine)
                     await engine.RefreshAsync(TimeSpan.FromSeconds(2), cancellationToken);
@@ -297,6 +302,25 @@ internal sealed class SyncTray : ApplicationContext
     /// CGA's shared file (К1, _shared/cga-collab-one-file-design-2026-10-24.md §4.5): CGA hands its
     /// changesets here and takes the others' from here; SYN carries them, never opens them.
     /// </summary>
+    /// <summary>
+    /// A shared file's status with what only the running engine knows: which changesets are whole on the
+    /// server, and whether a checkpoint of it is arriving right now (CGA waits before a new local).
+    /// </summary>
+    private SyncCollabStatus Fresh(SyncCollabStatus status, string root)
+    {
+        if (_engine is not { } engine)
+            return status;
+        SyncFolderState? folder = engine.LastState.Folders.FirstOrDefault(item =>
+            item.PresentHere && SyncPath.Same(new SyncPathMap().Physical(item.CanonicalPath), root));
+        if (folder is null)
+            return status;
+        string checkpoints = Path.Combine(SyncCollab.DirectoryName, status.FileId, "checkpoints");
+        return SyncCollab.WithServer(status, root, engine.OnServer(folder.FolderId)) with
+        {
+            CheckpointArriving = folder.Peers.Any(peer => peer.Transferring && peer.CurrentFile.StartsWith(checkpoints, StringComparison.OrdinalIgnoreCase)),
+        };
+    }
+
     private SyncPipeResponse Collab(SyncPipeRequest request)
     {
         Dictionary<string, string> args = request.Args ?? [];
@@ -371,9 +395,20 @@ internal sealed class SyncTray : ApplicationContext
                         .Where(file => fileId.Length > 0
                             ? file.FileId.Equals(fileId, StringComparison.OrdinalIgnoreCase)
                             : relativeAsked is null || !SyncCollab.Files(root).Any(any => SyncPath.Comparer.Equals(any.RelativePath, relativeAsked)) || SyncPath.Comparer.Equals(file.RelativePath, relativeAsked))
-                        .Select(file => SyncCollab.Status(root, _home, file.FileId, writer))
+                        .Select(file => Fresh(SyncCollab.Status(root, _home, file.FileId, writer), root))
                         .ToList();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(statuses));
+                }
+                case "collab-report":
+                {
+                    // CGA's account of its drawing (applied changesets + a digest): kept in the shared folder,
+                    // so every machine sees whether the drawings agree (Erk-S Sync, 2026-10-27).
+                    Dictionary<string, long> applied = Arg("applied").Length > 0
+                        ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("applied")) ?? []
+                        : [];
+                    SyncCollab.Report(root, fileId, writer, applied, Arg("digest"), DateTimeOffset.UtcNow);
+                    _engine?.Poke();
+                    return new SyncPipeResponse(true, "", SyncProtocol.Serialize(SyncCollab.HealthOf(root, fileId, writer)));
                 }
                 case "collab-central-reset":
                 {
@@ -459,6 +494,25 @@ internal sealed class SyncTray : ApplicationContext
             .FirstOrDefault(root => SyncPath.IsSameOrInside(root, full));
     }
 
+    /// <summary>Sleep cannot be held off: the person is at least told what has not reached the server.</summary>
+    private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs args)
+    {
+        if (args.Mode == Microsoft.Win32.PowerModes.Suspend && SyncShutdownGuard.Unsent(_engine?.LastState) is { } reason)
+            Post(() => _icon.ShowBalloonTip(10000, "Erk-S Sync", reason, ToolTipIcon.Warning));
+    }
+
+    /// <summary>«Гарах» while work is still on its way to the server asks first; leaving is the person's choice.</summary>
+    private void ExitAsked()
+    {
+        if (SyncShutdownGuard.Unsent(_engine?.LastState) is { } reason &&
+            MessageBox.Show(reason + "\n\nОдоо гарах уу?", "Erk-S Sync", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        {
+            _engine?.Poke();
+            return;
+        }
+        ExitThread();
+    }
+
     protected override void ExitThreadCore()
     {
         _stop.Cancel();
@@ -471,6 +525,8 @@ internal sealed class SyncTray : ApplicationContext
     {
         if (disposing)
         {
+            Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            _guard.Dispose();
             _icon.Dispose();
             _device?.Dispose();
             _stop.Dispose();

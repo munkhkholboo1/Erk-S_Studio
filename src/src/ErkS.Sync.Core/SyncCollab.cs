@@ -48,6 +48,24 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
     /// <summary>The central DWG was saved directly (requirement 7) - for status and Twin.</summary>
     public bool CentralEdited { get; init; }
 
+    /// <summary>The checkpoint SYN last placed as this machine's DWG; <see cref="Checkpoint"/> is the newest known.</summary>
+    public int PlacedCheckpoint { get; init; }
+
+    /// <summary>A checkpoint of this file is being fetched right now (CGA waits before making a local from it).</summary>
+    public bool CheckpointArriving { get; init; }
+
+    /// <summary>
+    /// Per writer, the highest number whose changeset is whole on the server - from there every member
+    /// takes it even with its author offline (owner, 2026-10-27). Absent while SYN has not met the server.
+    /// </summary>
+    public IReadOnlyDictionary<string, long> OnServerThrough { get; init; } = new Dictionary<string, long>();
+
+    /// <summary>This machine's own changesets not yet whole on the server.</summary>
+    public long UnsentToServer { get; init; }
+
+    /// <summary>The other machines' drawings beside this one's, from their reports (collab-report).</summary>
+    public IReadOnlyList<SyncCollabHealth> Health { get; init; } = [];
+
     /// <summary>The CGA each writer registered with (CGA: «0.0xx+rg&lt;RoadGenerationOutputVersion&gt;»).</summary>
     public IReadOnlyList<SyncCollabVersion> Versions { get; init; } = [];
 
@@ -56,6 +74,19 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
 }
 
 public sealed record SyncCollabVersion(string Writer, string CgaVersion);
+
+/// <summary>
+/// What a machine's CGA last reported of its drawing (Erk-S Sync, 2026-10-27: four machines showed
+/// four drawings): the changesets it has in (writer → number) and a digest of the result.
+/// </summary>
+public sealed record SyncCollabReport(string Writer, IReadOnlyDictionary<string, long> Applied, string Digest, DateTimeOffset AtUtc);
+
+/// <summary>
+/// Another machine's drawing beside this one's: «same»; «diverged» - the same changesets, a different
+/// result (a real fault); «behind» - it has not taken everything this one has (its Generate is due);
+/// «ahead» - this one is behind; «different» - each has something the other lacks; «unknown».
+/// </summary>
+public sealed record SyncCollabHealth(string Writer, string State, DateTimeOffset AtUtc);
 
 /// <summary>
 /// A writer is a Studio SEAT, not a machine (P2P stage 1: «бичигч нь суудал, гарын үсэг нь
@@ -812,6 +843,102 @@ public static class SyncCollab
     /// <param name="ownWriter">This machine's writer (whoami), used until it has published: the
     /// writer it published as comes first. Its own changesets are neither waiting nor applied here.</param>
     public static SyncCollabStatus Status(string folderRoot, SyncHome home, string fileId, string ownWriter = "")
+    {
+        SyncCollabStatus status = StatusCore(folderRoot, home, fileId, ownWriter);
+        return status with
+        {
+            PlacedCheckpoint = Local(home, fileId).PlacedCheckpoint,
+            Health = HealthOf(folderRoot, fileId, status.OwnWriter),
+        };
+    }
+
+    /// <summary>A machine's report of its drawing - written in the shared folder, so every partner reads it.</summary>
+    public static void Report(string folderRoot, string fileId, string writer, IReadOnlyDictionary<string, long> applied, string digest, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(writer))
+            throw new InvalidOperationException("Энэ машины бичигч тодорхойгүй — эхлээд collab-register.");
+        string path = Path.Combine(FileRoot(folderRoot, fileId), "health", Safe(writer) + ".json");
+        WriteIfChanged(path, JsonSerializer.SerializeToUtf8Bytes(new SyncCollabReport(Safe(writer), applied, digest ?? "", now), Json));
+    }
+
+    public static IReadOnlyList<SyncCollabHealth> HealthOf(string folderRoot, string fileId, string ownWriter)
+    {
+        string folder = Path.Combine(FileRoot(folderRoot, fileId), "health");
+        if (!Directory.Exists(folder))
+            return [];
+        var reports = new List<SyncCollabReport>();
+        foreach (string path in Directory.EnumerateFiles(folder, "*.json").Order(StringComparer.Ordinal))
+        {
+            try
+            {
+                if (JsonSerializer.Deserialize<SyncCollabReport>(File.ReadAllText(path), Json) is { Writer.Length: > 0 } report)
+                    reports.Add(report);
+            }
+            catch (Exception exception) when (exception is IOException or JsonException)
+            {
+            }
+        }
+        SyncCollabReport? mine = reports.FirstOrDefault(report => report.Writer.Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase));
+        return reports
+            .Where(report => !report.Writer.Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase))
+            .Select(report => new SyncCollabHealth(report.Writer, Compare(mine, report), report.AtUtc))
+            .ToList();
+    }
+
+    /// <summary>One machine's drawing against this one's (see <see cref="SyncCollabHealth"/>).</summary>
+    public static string Compare(SyncCollabReport? mine, SyncCollabReport theirs)
+    {
+        if (mine is null)
+            return "unknown";
+        IEnumerable<string> writers = mine.Applied.Keys.Union(theirs.Applied.Keys, StringComparer.OrdinalIgnoreCase);
+        bool theyLack = false, weLack = false;
+        foreach (string writer in writers)
+        {
+            long ours = mine.Applied.GetValueOrDefault(writer), others = theirs.Applied.GetValueOrDefault(writer);
+            theyLack |= others < ours;
+            weLack |= ours < others;
+        }
+        return (theyLack, weLack) switch
+        {
+            (false, false) => string.Equals(mine.Digest, theirs.Digest, StringComparison.OrdinalIgnoreCase) ? "same" : "diverged",
+            (true, false) => "behind",
+            (false, true) => "ahead",
+            _ => "different",
+        };
+    }
+
+    /// <summary>
+    /// The status with what the server holds whole (<see cref="SyncEngine.OnServer"/>): per writer, the
+    /// unbroken run of its changesets there; this machine's own changesets not there yet.
+    /// </summary>
+    public static SyncCollabStatus WithServer(SyncCollabStatus status, string folderRoot, IReadOnlySet<string> onServer)
+    {
+        if (onServer.Count == 0)
+            return status;
+        var through = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        string logs = Path.Combine(FileRoot(folderRoot, status.FileId), "log");
+        foreach (SyncCollabWriter writer in status.Writers)
+        {
+            string folder = Path.Combine(logs, writer.Writer);
+            long first = Directory.Exists(folder) ? Numbers(folder).DefaultIfEmpty(1).Min() : 1;
+            long reached = first - 1;
+            for (long seq = first; seq <= writer.LastInLog; seq++)
+            {
+                if (!onServer.Contains(Path.GetRelativePath(folderRoot, Path.Combine(folder, seq.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".cgacs"))))
+                    break;
+                reached = seq;
+            }
+            through[writer.Writer] = Math.Max(0, reached);
+        }
+        long ownLast = status.Writers.FirstOrDefault(writer => writer.Writer.Equals(status.OwnWriter, StringComparison.OrdinalIgnoreCase))?.LastInLog ?? 0;
+        return status with
+        {
+            OnServerThrough = through,
+            UnsentToServer = Math.Max(0, ownLast - through.GetValueOrDefault(status.OwnWriter)),
+        };
+    }
+
+    private static SyncCollabStatus StatusCore(string folderRoot, SyncHome home, string fileId, string ownWriter = "")
     {
         Dictionary<string, long> applied = Applied(home, fileId);
         SyncCollabLocal local = Local(home, fileId);

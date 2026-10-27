@@ -84,7 +84,20 @@ public sealed record SyncStatusCollab(
     string LastError,
     bool VersionMismatch = false,
     IReadOnlyList<SyncCollabVersion>? Versions = null,
-    bool CentralEdited = false);
+    bool CentralEdited = false)
+{
+    /// <summary>This machine's changesets not yet whole on the server (an unexpected shutdown would keep them from the others).</summary>
+    public long UnsentToServer { get; init; }
+
+    /// <summary>Writers with changesets in the folder that are not yet whole on the server (their author may be offline) - information only, nobody waits.</summary>
+    public int WritersNotOnServer { get; init; }
+
+    /// <summary>Machines with the same changesets and a different drawing - a real fault.</summary>
+    public int DivergedCount { get; init; }
+
+    /// <summary>Machines that have not taken everything this one has - their Generate is due.</summary>
+    public int BehindCount { get; init; }
+}
 
 /// <summary>
 /// SYN's account of itself for whoever watches from outside: the bridge's «sync-status» answer
@@ -179,7 +192,15 @@ public sealed record SyncStatusReport(
                 collab.LastError,
                 collab.VersionMismatch,
                 collab.Versions,
-                collab.CentralEdited)).ToList(),
+                collab.CentralEdited)
+            {
+                UnsentToServer = collab.UnsentToServer,
+                WritersNotOnServer = collab.OnServerThrough.Count == 0
+                    ? 0
+                    : collab.Writers.Count(writer => writer.LastInLog > collab.OnServerThrough.GetValueOrDefault(writer.Writer)),
+                DivergedCount = collab.Health.Count(health => health.State == "diverged"),
+                BehindCount = collab.Health.Count(health => health.State == "behind"),
+            }).ToList(),
         }).ToList())
     {
         DokanyVersion = SyncDokany.InstalledVersion(),

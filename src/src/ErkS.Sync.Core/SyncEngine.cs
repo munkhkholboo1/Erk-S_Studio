@@ -680,7 +680,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             LastError = uploadError,
             Centrals = centrals,
             Collabs = SyncCollab.Files(physical)
-                .Select(file => SyncCollab.Status(physical, _home, file.FileId, WhoAmI(physical)?.Writer ?? ""))
+                .Select(file => SyncCollab.WithServer(SyncCollab.Status(physical, _home, file.FileId, WhoAmI(physical)?.Writer ?? ""), physical, OnServer(folder.FolderId)))
                 .ToList(),
             UploadedBytes = shown?.UploadedBytes ?? 0,
             UploadPendingBytes = shown?.UploadPendingBytes ?? 0,
@@ -833,6 +833,12 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     SyncIndex theirs = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
                     error = "";
                     peer = peer with { Route = "server" };
+                    lock (_gate)
+                    {
+                        if (!_peersOnServer.TryGetValue(folderId, out var byPeer))
+                            _peersOnServer[folderId] = byPeer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+                        byPeer[device.DeviceKeyId] = theirs.Entries.Select(entry => entry.RelativePath).ToHashSet(SyncPath.Comparer);
+                    }
                     if (peer.Lagging)
                     {
                         // Long offline or not updated: its index is no source here (the stored copy is
@@ -1110,6 +1116,41 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// go on the server, so a partner on any network can take them. A Revit central model never
     /// goes; a piece that changed since the index is skipped until the next pass.
     /// </summary>
+    private readonly Dictionary<string, HashSet<string>> _ownOnServer = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _peersOnServer = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Files of a folder known to be whole on the server: this machine's, sent with every piece, and
+    /// those a partner's server index names (the server shows an index only with its pieces, SRV).
+    /// Empty until the first pass with the server.
+    /// </summary>
+    public IReadOnlySet<string> OnServer(string folderId)
+    {
+        lock (_gate)
+        {
+            var known = new HashSet<string>(SyncPath.Comparer);
+            if (_ownOnServer.TryGetValue(folderId, out var own))
+                known.UnionWith(own);
+            if (_peersOnServer.TryGetValue(folderId, out var byPeer))
+            {
+                foreach (HashSet<string> paths in byPeer.Values)
+                    known.UnionWith(paths);
+            }
+            return known;
+        }
+    }
+
+    /// <summary>This machine's own files not yet whole on the server, per folder - what an unexpected shutdown would keep from the others.</summary>
+    public int UnsentToServer(string folderId, SyncIndex index)
+    {
+        lock (_gate)
+        {
+            if (!_ownOnServer.TryGetValue(folderId, out var own))
+                return index.Entries.Count(entry => SyncTransferPlanner.IsCarried(entry.Kind));
+            return index.Entries.Count(entry => SyncTransferPlanner.IsCarried(entry.Kind) && !own.Contains(entry.RelativePath));
+        }
+    }
+
     /// <summary>Connections opened to a LAN partner for the pieces of a transfer (the index uses the first).</summary>
     public int LanStreams { get; init; } = 3;
 
@@ -1235,6 +1276,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             DateTimeOffset piecesStarted = DateTimeOffset.UtcNow;
             using var lanes = new SemaphoreSlim(UploadLanes);
             var sending = new List<Task>();
+            var notThere = missing.ToHashSet(StringComparer.OrdinalIgnoreCase);
             try
             {
                 foreach (string sha in missing)
@@ -1251,7 +1293,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         {
                             await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, window.Token);
                             lock (_gate)
+                            {
                                 done += piece.Length;
+                                notThere.Remove(sha);
+                            }
                             lock (rate)
                                 Report();
                         }
@@ -1271,6 +1316,16 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 // The window closed: the rest go on the next pass.
             }
             double seconds = (DateTimeOffset.UtcNow - piecesStarted).TotalSeconds;
+            // What is on the server now, whole: the index names it and every piece of it is there
+            // (owner, 2026-10-27: a member who sent and went offline must not make others wait - the
+            // server is the member that stays; its author needs to know when that is true).
+            lock (_gate)
+            {
+                _ownOnServer[folderId] = index.Entries.Where(entry => SyncTransferPlanner.IsCarried(entry.Kind))
+                    .Where(entry => entry.ChunkSha256.All(sha => !notThere.Contains(sha)))
+                    .Select(entry => entry.RelativePath)
+                    .ToHashSet(SyncPath.Comparer);
+            }
             ReportFolder(folderId, folder => folder with
             {
                 Uploading = false,
