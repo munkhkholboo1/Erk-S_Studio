@@ -18,6 +18,7 @@ internal sealed class SyncTray : ApplicationContext
     private CngSyncDevice? _device;
     private SyncCentralMounts? _mounts;
     private readonly SyncShutdownGuard _guard;
+    private readonly SyncSelfUpdate _selfUpdate;
 
     public SyncTray(SyncPipeRequest? firstRequest)
     {
@@ -37,6 +38,7 @@ internal sealed class SyncTray : ApplicationContext
         };
         _icon.DoubleClick += (_, _) => ShowStatus(null);
         _guard = new SyncShutdownGuard(() => _engine?.LastState, () => _engine?.Poke());
+        _selfUpdate = new SyncSelfUpdate(() => _engine?.LastState, () => Post(ExitThread));
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         _ = RunEngineAsync(_stop.Token);
@@ -88,6 +90,8 @@ internal sealed class SyncTray : ApplicationContext
                 engine.CollabCheckpointPlaced += (fileId, checkpoint) =>
                     Send(_subscribers, SyncProtocol.Serialize(new { @event = "collab-checkpoint-placed", fileId, checkpoint }));
                 engine.ReleasePublished += AnnounceRelease;
+                engine.ReleasePublished += _selfUpdate.Heard;
+                engine.StateWritten += _ => _selfUpdate.Try();
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
                 engine.StateWritten += state => ThreadPool.QueueUserWorkItem(_ => _mounts?.Follow(state));
                 if (_device is not null)

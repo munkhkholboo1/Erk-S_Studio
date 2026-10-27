@@ -35,7 +35,7 @@ internal sealed record StudioDeltaResult(
 internal static class StudioDeltaUpdate
 {
     /// <summary>The applier ships inside the install, in its own folder, and runs from a temporary copy.</summary>
-    public const string UpdaterFolder = "updater";
+    public const string UpdaterFolder = ProductUpdate.UpdaterFolder;
 
     public static string InstallRoot => AppContext.BaseDirectory;
 
@@ -101,43 +101,18 @@ internal static class StudioDeltaUpdate
         IProgress<StudioUpdateProgress>? progress,
         CancellationToken cancellationToken)
     {
-        if (InstalledVersion is null || !File.Exists(Path.Combine(InstallRoot, UpdaterFolder, "ErkS.Updates.Apply.exe")))
-            return StudioDeltaResult.None;
-
-        var downloader = new DeltaDownloader(http, server, StudioReleaseInfo.ProductCode);
-        UpdateManifest? target;
-        try
-        {
-            target = await downloader.GetManifestAsync(update.Version, null, cancellationToken).ConfigureAwait(true);
-        }
-        catch (HttpRequestException)
-        {
-            return StudioDeltaResult.None; // the full installer still works
-        }
-        if (target is null)
-            return StudioDeltaResult.None;
-
-        UpdateManifest installed = InstallManifest.LoadOrScan(InstallRoot, StudioReleaseInfo.ProductCode, InstalledVersion ?? "?");
-        // The installer is compressed: comparing with the uncompressed layout keeps the delta whenever it is plainly smaller.
-        UpdatePlan plan = UpdatePlanner.Plan(installed, target, fullInstallerBytes: target.TotalBytes);
-        if (plan.UseFullInstaller || plan.IsEmpty)
-            return StudioDeltaResult.None;
-
-        string staging = Path.Combine(
-            UpdatesRoot,
-            "delta-" + string.Concat(target.Version.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character)));
-        Directory.CreateDirectory(staging);
+        // The one product update (ErkS.Updates.ProductUpdate) - Erk-S Sync runs the same while Studio is closed.
         var bytes = new Progress<UpdateProgress>(value => progress?.Report(new StudioUpdateProgress(value.Percent, "Өөрчлөгдсөн хэсгийг татаж байна: " + value.Text)));
-        await downloader.DownloadAsync(plan, staging, bytes, cancellationToken).ConfigureAwait(true);
-        File.WriteAllText(Path.Combine(staging, "target.json"), target.ToJson());
-
-        LiveApplyResult live = LiveOverlay.ApplyLive(InstallRoot, staging, plan, downloader.LastSignedManifestJson ?? "");
-        if (live.Applied.Count > 0)
-            ReloadRequested?.Invoke(live.Applied);
-        if (plan.NeedsRestart || live.Deferred.Count > 0)
-            return new StudioDeltaResult(StudioDeltaOutcome.ReadyToRestart, staging, live.Applied, live.Deferred);
-        UpdateStaging.Finished(staging); // all in place: the staged files are not kept
-        return new StudioDeltaResult(StudioDeltaOutcome.AppliedLive, staging, live.Applied, live.Deferred);
+        ProductUpdateStage stage = await ProductUpdate.StageAsync(
+            http, server, StudioReleaseInfo.ProductCode, InstallRoot, update.Version, UpdatesRoot, bytes, cancellationToken).ConfigureAwait(true);
+        if (stage.Live.Count > 0)
+            ReloadRequested?.Invoke(stage.Live);
+        return stage.Outcome switch
+        {
+            ProductUpdateOutcome.AppliedLive => new StudioDeltaResult(StudioDeltaOutcome.AppliedLive, stage.Staging, stage.Live, stage.Deferred),
+            ProductUpdateOutcome.ReadyToRestart => new StudioDeltaResult(StudioDeltaOutcome.ReadyToRestart, stage.Staging, stage.Live, stage.Deferred),
+            _ => StudioDeltaResult.None,
+        };
     }
 
     /// <summary>
@@ -153,58 +128,14 @@ internal static class StudioDeltaUpdate
     {
         if (ApplierLaunched)
             return;
-        string source = Path.Combine(InstallRoot, UpdaterFolder);
-        string copy = Path.Combine(Path.GetTempPath(), "ErkS-Updates-Apply-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(copy);
-        foreach (string file in Directory.EnumerateFiles(source))
-            File.Copy(file, Path.Combine(copy, Path.GetFileName(file)), overwrite: true);
-        // The update's own applier when it carries a newer one (checked against the signed manifest
-        // like every staged file): a fix in the applier works on the very update that brings it.
-        try
-        {
-            UpdateManifest target = UpdateManifest.FromJson(File.ReadAllText(Path.Combine(staging, "target.json")));
-            foreach (UpdateFile file in target.Files.Where(file => file.Path.StartsWith(UpdaterFolder + "/", StringComparison.OrdinalIgnoreCase) && !file.Path[(UpdaterFolder.Length + 1)..].Contains('/')))
-            {
-                string staged = DeltaDownloader.StagedPath(staging, file.Sha256);
-                if (File.Exists(staged) && Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(staged))).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
-                    File.Copy(staged, Path.Combine(copy, file.Path[(UpdaterFolder.Length + 1)..]), overwrite: true);
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
-        {
-            // The installed applier still does the work.
-        }
-
         string syncExe = Path.Combine(InstallRoot, "ErkS.Sync.exe");
         bool syncWasRunning = SyncProtocol.TrySend(new SyncPipeRequest("quit", "")) is not null;
-        var start = new ProcessStartInfo
-        {
-            FileName = Path.Combine(copy, "ErkS.Updates.Apply.exe"),
-            WorkingDirectory = copy,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (string argument in new[]
-        {
-            "--install", InstallRoot.TrimEnd(Path.DirectorySeparatorChar),
-            "--staging", staging,
-            "--wait", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "--close", "ErkS.Sync",
-        })
-        {
-            start.ArgumentList.Add(argument);
-        }
+        var launch = new List<string>();
         if (syncWasRunning && File.Exists(syncExe))
-        {
-            start.ArgumentList.Add("--launch");
-            start.ArgumentList.Add("ErkS.Sync.exe");
-        }
+            launch.Add("ErkS.Sync.exe");
         if (relaunchStudio)
-        {
-            start.ArgumentList.Add("--launch");
-            start.ArgumentList.Add("ErkS.Studio.exe");
-        }
-        _ = Process.Start(start) ?? throw new InvalidOperationException("Шинэчлэгч эхэлсэнгүй.");
+            launch.Add("ErkS.Studio.exe");
+        _ = ProductUpdate.LaunchApplier(InstallRoot, staging, [Environment.ProcessId], ["ErkS.Sync"], launch);
         ApplierLaunched = true;
     }
 }

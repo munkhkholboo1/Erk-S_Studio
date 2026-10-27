@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ErkS.Sync.Core\ErkS.Sync.Core.csproj" />
+    <ProjectReference Include="..\ErkS.Updates\ErkS.Updates.csproj" />
   </ItemGroup>
 
   <ItemGroup>
