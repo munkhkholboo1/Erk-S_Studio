@@ -33,11 +33,19 @@ public sealed record SyncCentralState
 /// (Master's safeguard 1, 2026-10-24: the first tests run on a COPY; the owner's real central is
 /// served only with the owner's separate consent). central/enabled.json under the Sync home.
 /// </summary>
+/// <summary>
+/// Which centrals this machine serves. ON by default (owner, 2026-10-27: «Синк хавтсан дахь Revit
+/// central-ыг асаах товчгүйгээр багийн гишүүдэд автоматаар нээлттэй болгоно — эхний холболтын өмнө нөөц
+/// авна»): only the centrals a person turned OFF are written down («disabled.json»). The earlier
+/// opt-in list («enabled.json») is no longer read - everything is on unless turned off.
+/// </summary>
 public static class SyncCentralSwitch
 {
-    public static string PathOf(SyncHome home) => System.IO.Path.Combine(home.Root, "central", "enabled.json");
+    public static string PathOf(SyncHome home) => System.IO.Path.Combine(home.Root, "central", "disabled.json");
 
-    public static IReadOnlySet<string> Enabled(SyncHome home)
+    public static bool IsOn(SyncHome home, string centralId) => !Disabled(home).Contains(centralId);
+
+    public static IReadOnlySet<string> Disabled(SyncHome home)
     {
         try
         {
@@ -54,13 +62,13 @@ public static class SyncCentralSwitch
 
     public static void Set(SyncHome home, string centralId, bool on)
     {
-        HashSet<string> enabled = Enabled(home).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> disabled = Disabled(home).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (on)
-            enabled.Add(centralId);
+            disabled.Remove(centralId);
         else
-            enabled.Remove(centralId);
+            disabled.Add(centralId);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PathOf(home))!);
-        File.WriteAllText(PathOf(home), System.Text.Json.JsonSerializer.Serialize(enabled.Order(StringComparer.Ordinal).ToList()));
+        File.WriteAllText(PathOf(home), System.Text.Json.JsonSerializer.Serialize(disabled.Order(StringComparer.Ordinal).ToList()));
     }
 }
 
@@ -94,18 +102,18 @@ public sealed class SyncCentralService(SyncHome home, Func<CancellationToken, Ta
             .Select(entry => entry.RelativePath)
             .ToHashSet(SyncPath.Comparer);
         var states = new List<SyncCentralState>();
-        IReadOnlySet<string> enabled = SyncCentralSwitch.Enabled(home);
+        IReadOnlySet<string> disabled = SyncCentralSwitch.Disabled(home);
         lock (_gate)
         {
             foreach (string relative in here)
             {
                 string id = SyncCentralIds.Of(relative);
                 string key = folderId + "|" + id;
-                if (!enabled.Contains(id))
+                if (disabled.Contains(id))
                 {
                     if (_hosts.Remove(key, out HostRun? stopped))
                         stopped.Stop.Cancel();
-                    states.Add(new SyncCentralState { CentralId = id, RelativePath = relative, Role = "host", LastError = "Хамтын ажиллагаа асаагүй — эзэн зөвшөөрвөл асна." });
+                    states.Add(new SyncCentralState { CentralId = id, RelativePath = relative, Role = "host", LastError = "Хамтын ажиллагааг энэ машин дээр унтраасан." });
                     continue;
                 }
                 if (!_hosts.TryGetValue(key, out HostRun? run))
@@ -121,7 +129,7 @@ public sealed class SyncCentralService(SyncHome home, Func<CancellationToken, Ta
                 }
                 states.Add(run.State());
             }
-            foreach ((string key, HostRun run) in _hosts.Where(pair => pair.Value.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase) && (!here.Contains(pair.Value.RelativePath) || !enabled.Contains(pair.Value.CentralId))).ToArray())
+            foreach ((string key, HostRun run) in _hosts.Where(pair => pair.Value.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase) && (!here.Contains(pair.Value.RelativePath) || disabled.Contains(pair.Value.CentralId))).ToArray())
             {
                 run.Stop.Cancel();
                 _hosts.Remove(key);

@@ -50,11 +50,15 @@ public sealed class APARTNERONAnotherNetworkSYNCSThroughTheServerTests
         // Erk-S Central: A serves its central; B, which has none, reaches it as a member.
         SyncCentralState served = engineA.LastState.Folders.Single().Centrals.Single();
         Assert.Equal(("host", "NP.rvt"), (served.Role, served.RelativePath));
-        // Not served until a person turns it on (Master's safeguard 1: the real central needs the owner's consent).
-        Assert.Contains("асаагүй", served.LastError, StringComparison.Ordinal);
+        // Served without any button (owner, 2026-10-27: «асаах товчгүйгээр … автоматаар нээлттэй»);
+        // a person may turn it off, and on again.
+        Assert.Equal("", served.LastError);
+        SyncCentralSwitch.Set(new SyncHome(homeA.Path), served.CentralId, on: false);
+        await engineA.PassAsync(CancellationToken.None);
+        Assert.Contains("унтраасан", engineA.LastState.Folders.Single().Centrals.Single().LastError, StringComparison.Ordinal);
         SyncCentralSwitch.Set(new SyncHome(homeA.Path), served.CentralId, on: true);
         await engineA.PassAsync(CancellationToken.None);
-        Assert.DoesNotContain("асаагүй", engineA.LastState.Folders.Single().Centrals.Single().LastError, StringComparison.Ordinal);
+        Assert.Equal("", engineA.LastState.Folders.Single().Centrals.Single().LastError);
         SyncCentralState reached = engineB.LastState.Folders.Single().Centrals.Single();
         Assert.Equal(("member", served.CentralId), (reached.Role, reached.CentralId));
         Assert.Equal(2, seen.ReceivedCount);

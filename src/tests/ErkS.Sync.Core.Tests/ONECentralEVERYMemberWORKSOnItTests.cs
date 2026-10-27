@@ -72,23 +72,27 @@ public sealed class ONECentralEVERYMemberWORKSOnItTests
         using var host = new SyncCentralHost(folder.Path, "NP.rvt", snapshots.Path, keepSnapshots: 2);
         var member = new SyncCentralClient(new SyncCentralLocalChannel(host, 1));
 
-        // Reading takes no snapshot.
+        // A member's first connection takes a copy before anything is served (owner, 2026-10-27:
+        // «эхний холболтын өмнө нөөц авна») - even a read.
         Assert.True((await member.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" })).Ok);
-        Assert.Empty(Directory.GetDirectories(snapshots.Path));
-
-        SyncCentralResponse open = await member.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Open, Path = "NP.rvt", Access = FileAccess.ReadWrite, Share = FileShare.Read });
-        await member.WriteAsync(open.Handle, 0, "AFTER!"u8.ToArray());
-
         string taken = Directory.GetDirectories(snapshots.Path).Single();
         Assert.Equal("before", File.ReadAllText(Path.Combine(taken, "NP.rvt")));
         Assert.Equal("data", File.ReadAllText(Path.Combine(taken, "NP_backup", "1.rws")));
         Assert.NotNull(host.LastSnapshotUtc);
 
-        // Later sessions, minutes apart: only the last two are kept.
+        SyncCentralResponse open = await member.CallAsync(new SyncCentralRequest { Op = SyncCentralOp.Open, Path = "NP.rvt", Access = FileAccess.ReadWrite, Share = FileShare.Read });
+        await member.WriteAsync(open.Handle, 0, "AFTER!"u8.ToArray());
+        Assert.Single(Directory.GetDirectories(snapshots.Path)); // the same minute: the copy before is the way back
+
+        // Later sessions, minutes apart: the changed central is copied, an unchanged one is not; the last two are kept.
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        for (int session = 2; session <= 4; session++)
-            host.Handle(session, new SyncCentralRequest { Op = SyncCentralOp.SetInfo, Path = "NP.rvt" }, ReadOnlyMemory<byte>.Empty, now.AddMinutes(session * 2), out _);
+        host.Handle(2, new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" }, ReadOnlyMemory<byte>.Empty, now.AddMinutes(4), out _);
         Assert.Equal(2, Directory.GetDirectories(snapshots.Path).Length);
+        host.Handle(3, new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" }, ReadOnlyMemory<byte>.Empty, now.AddMinutes(6), out _);
+        Assert.Equal(2, Directory.GetDirectories(snapshots.Path).Length); // unchanged since the last copy
+        host.Handle(4, new SyncCentralRequest { Op = SyncCentralOp.SetInfo, Path = "NP.rvt" }, ReadOnlyMemory<byte>.Empty, now.AddMinutes(8), out _);
+        host.Handle(5, new SyncCentralRequest { Op = SyncCentralOp.Stat, Path = "NP.rvt" }, ReadOnlyMemory<byte>.Empty, now.AddMinutes(10), out _);
+        Assert.Equal(2, Directory.GetDirectories(snapshots.Path).Length); // a write since: copied again, the oldest goes
     }
 
     [Fact]

@@ -115,7 +115,7 @@ internal sealed class SyncCentralMounts(SyncHome home, Func<(Uri Server, string 
         if (reach.Error == SyncCentralErrors.HostUnreachable)
         {
             _problems[central.CentralId] = channel.LastRefusal == "sync_central_host_offline" || channel.LastRefusal.Length == 0
-                ? "Central-ын эзэн машин унтарсан эсвэл хамтын ажиллагааг асаагаагүй байна."
+                ? "Central-ын эзэн машин унтарсан, хамтын ажиллагааг унтраасан, эсвэл түүний Studio хуучин (0.001.134-өөс өмнөх) байна — эзэн машины Studio-г шинэчилнэ үү."
                 : "Сервер татгалзлаа: " + channel.LastRefusal;
             channel.DisposeAsync().AsTask().GetAwaiter().GetResult();
             return;

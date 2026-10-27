@@ -346,14 +346,14 @@ internal sealed partial class ShellView
             projectSyncPanel.Children.Add(Line(line, bold: true));
             if (central.Role == "host")
             {
-                bool on = SyncCentralSwitch.Enabled(SyncHome.Default()).Contains(central.CentralId);
+                bool on = SyncCentralSwitch.IsOn(SyncHome.Default(), central.CentralId);
                 var toggle = new Button
                 {
                     Content = on ? "Хамтын ажиллагааг унтраах" : "Хамтын ажиллагааг асаах",
                     HorizontalAlignment = HorizontalAlignment.Left,
                     Margin = new Thickness(12, 2, 0, 4),
                     Padding = new Thickness(10, 3, 10, 3),
-                    ToolTip = "Асаавал багийн гишүүд энэ central дээр өөрсдийн машинаас ижил замаар ажиллана. Эхний туршилтыг central-ын хуулбар дээр хийнэ.",
+                    ToolTip = "Анхдагчаар багийн гишүүд энэ central дээр өөрсдийн машинаас ижил замаар ажиллана. Хүсвэл энд унтраана.",
                 };
                 string id = central.CentralId;
                 toggle.Click += (_, _) =>
@@ -363,6 +363,29 @@ internal sealed partial class ShellView
                     RefreshProjectSyncSection();
                 };
                 projectSyncPanel.Children.Add(toggle);
+                // The way back: copies taken before a member's first connection and first write (the last 10).
+                string snapshots = Path.Combine(SyncHome.Default().Root, "central", id, "snapshots");
+                var openSnapshots = new Button
+                {
+                    Content = "Нөөцийн хавтас нээх (сүүлийн 10)",
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(12, 0, 0, 4),
+                    Padding = new Thickness(10, 3, 10, 3),
+                    ToolTip = "Гишүүн анх холбогдох, анх бичихээс өмнө авсан central + _backup-ийн хуулбар. Сэргээхдээ Revit-ийг хааж, хуулбарыг central-ын байранд хуулна.",
+                    IsEnabled = Directory.Exists(snapshots),
+                };
+                openSnapshots.Click += (_, _) =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(snapshots) { UseShellExecute = true });
+                    }
+                    catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException)
+                    {
+                        SetStatus("Нөөцийн хавтас нээгдсэнгүй: " + exception.Message);
+                    }
+                };
+                projectSyncPanel.Children.Add(openSnapshots);
             }
             if (central.LastError.Length > 0)
                 projectSyncPanel.Children.Add(Line("   ⚠ " + central.LastError));

@@ -204,8 +204,17 @@ public sealed class SyncCentralHost : IDisposable
 
     public SyncCentralResponse Handle(long session, SyncCentralRequest request, ReadOnlyMemory<byte> data, DateTimeOffset now, out byte[]? reply)
     {
-        Session state = _sessions.GetOrAdd(session, _ => new Session());
+        bool first = false;
+        Session state = _sessions.GetOrAdd(session, _ =>
+        {
+            first = true;
+            return new Session();
+        });
         state.LastSeenUtc = now;
+        // Before a member is served anything, the central as it is now is kept (owner, 2026-10-27:
+        // «эхний холболтын өмнө нөөц авна»); its first write takes one again if the copy is old.
+        if (first)
+            Snapshot(now);
         lock (state)
         {
             if (request.Seq > 0 && state.Answered(request.Seq) is { } done)
@@ -225,6 +234,7 @@ public sealed class SyncCentralHost : IDisposable
         reply = null;
         if (Mutates(request))
         {
+            _writtenSinceSnapshot = true;
             if (!state.Writing)
             {
                 state.Writing = true;
@@ -445,6 +455,12 @@ public sealed class SyncCentralHost : IDisposable
     /// A copy of the central and its _backup before a member's first write - the way back if a
     /// synchronize breaks the central. Read with sharing, so an open central is copied as it is.
     /// </summary>
+    /// <summary>The central's write time a snapshot was taken from - the next copy is skipped while it is unchanged.</summary>
+    private const string SourceMark = ".erks-source-write";
+
+    /// <summary>A member wrote since the last copy (the file's time moves only when Revit closes it).</summary>
+    private volatile bool _writtenSinceSnapshot;
+
     private void Snapshot(DateTimeOffset now)
     {
         if (_snapshots is null)
@@ -453,6 +469,18 @@ public sealed class SyncCentralHost : IDisposable
         {
             if (LastSnapshotUtc is { } last && now - last < TimeSpan.FromMinutes(1))
                 return;
+            // A member that connects again and again does not copy an unchanged central each time:
+            // the newest copy already holds this very write of it.
+            string central = System.IO.Path.Combine(_folder, _centralFileName);
+            string written = File.Exists(central) ? File.GetLastWriteTimeUtc(central).Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+            if (!_writtenSinceSnapshot &&
+                Directory.Exists(_snapshots) &&
+                Directory.EnumerateDirectories(_snapshots).OrderByDescending(path => path, StringComparer.Ordinal).FirstOrDefault() is { } newest &&
+                File.Exists(System.IO.Path.Combine(newest, SourceMark)) &&
+                File.ReadAllText(System.IO.Path.Combine(newest, SourceMark)) == written)
+            {
+                return;
+            }
             string stem = System.IO.Path.GetFileNameWithoutExtension(_centralFileName);
             string target = System.IO.Path.Combine(_snapshots, now.UtcDateTime.ToString("yyyyMMdd-HHmmss-fff"));
             Directory.CreateDirectory(target);
@@ -465,7 +493,9 @@ public sealed class SyncCentralHost : IDisposable
                     foreach (string file in Directory.EnumerateFiles(backup, "*", SearchOption.AllDirectories))
                         CopyShared(file, System.IO.Path.Combine(target, stem + "_backup", System.IO.Path.GetRelativePath(backup, file)));
                 }
+                File.WriteAllText(System.IO.Path.Combine(target, SourceMark), written);
                 LastSnapshotUtc = now;
+                _writtenSinceSnapshot = false;
             }
             catch (IOException)
             {
