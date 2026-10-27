@@ -18,6 +18,13 @@ public sealed record SyncCollabFile
     public string CgaVersion { get; init; } = "";
 
     public DateTimeOffset RegisteredAtUtc { get; init; }
+
+    /// <summary>
+    /// The DWG's bytes when it was made shared («Төв файл болгох»): the drawing before any checkpoint.
+    /// A central still holding them was not edited - the first checkpoint replaces it (kept aside), no
+    /// «centralEdited» (Erk-S Sync, 2026-10-27: every newly shared file raised a false warning).
+    /// </summary>
+    public string BaseSha256 { get; init; } = "";
 }
 
 /// <summary>One changeset waiting for this machine: the writer, its number, and where CGA reads it.</summary>
@@ -324,7 +331,14 @@ public static class SyncCollab
         }
         if (shared is not null)
             return shared;
-        var file = new SyncCollabFile { FileId = fileId, RelativePath = relative, CgaVersion = cgaVersion, RegisteredAtUtc = now };
+        var file = new SyncCollabFile
+        {
+            FileId = fileId,
+            RelativePath = relative,
+            CgaVersion = cgaVersion,
+            RegisteredAtUtc = now,
+            BaseSha256 = File.Exists(dwgFullPath) ? Sha256Of(dwgFullPath) : "",
+        };
         string root = FileRoot(folderRoot, fileId);
         Directory.CreateDirectory(root);
         WriteOnce(Path.Combine(root, "collab.json"), JsonSerializer.SerializeToUtf8Bytes(file, Json));
@@ -1311,6 +1325,7 @@ public static class SyncCollab
                 string sha = Sha256Of(dwg);
                 string checkpoints = Path.Combine(fileRoot, "checkpoints");
                 bool fromCheckpoint = sha.Equals(local.PlacedSha256, StringComparison.OrdinalIgnoreCase) ||
+                                      (file.BaseSha256.Length > 0 && sha.Equals(file.BaseSha256, StringComparison.OrdinalIgnoreCase)) ||
                                       Directory.EnumerateFiles(checkpoints, "*.dwg").Any(path => Sha256Of(path).Equals(sha, StringComparison.OrdinalIgnoreCase)) ||
                                       partnerHashes(file.RelativePath).Contains(sha) ||
                                       (known(file.RelativePath) is { Version: { } version } entry && entry.Sha256.Equals(sha, StringComparison.OrdinalIgnoreCase) &&

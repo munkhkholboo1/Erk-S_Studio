@@ -17,7 +17,7 @@ public sealed class THESERVERIsTheMemberWhoSTAYSTests
         using var homeB = new TemporaryFolder();
         using var a = new FakeDevice();
         using var b = new FakeDevice();
-        var server = new FakeServer(Canonical, [a, b]) { Relay = true, DropChunkPuts = true };
+        var server = new FakeServer(Canonical, [a, b]) { Relay = true, DropChunkPuts = true, MarksIncomplete = true };
         string folderA = rootA.Folder("Erin");
         string folderB = rootB.Folder("Erin");
         SyncFolderMarker.Write(folderA, Identity());
@@ -32,6 +32,7 @@ public sealed class THESERVERIsTheMemberWhoSTAYSTests
         await engineB.PassAsync(CancellationToken.None);
         Assert.False(File.Exists(Path.Combine(folderB, "plan.dwg"))); // nothing half-arrived
         Assert.Empty(Directory.EnumerateFiles(folderB, "*.dwg", SearchOption.AllDirectories));
+        Assert.Equal(1, engineB.LastState.Folders.Single().Peers.Single().ServerIncompleteCount); // said, not waited for
 
         // The author is back online: the pieces go, and from now on the others take it even with A gone.
         server.DropChunkPuts = false;
@@ -39,6 +40,7 @@ public sealed class THESERVERIsTheMemberWhoSTAYSTests
         Assert.Contains("plan.dwg", engineA.OnServer("f-1"));
         await engineB.PassAsync(CancellationToken.None);
         Assert.Equal("the author's work", File.ReadAllText(Path.Combine(folderB, "plan.dwg")));
+        Assert.Equal(0, engineB.LastState.Folders.Single().Peers.Single().ServerIncompleteCount);
     }
 
     [Fact]

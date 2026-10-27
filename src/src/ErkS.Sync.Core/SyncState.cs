@@ -138,6 +138,9 @@ public sealed record SyncPeerState
     /// <summary>The average speed of the last finished transfer from this peer.</summary>
     public double LastTransferBytesPerSecond { get; init; }
 
+    /// <summary>This partner's files the server holds only in part (its upload broke off) - waited for, never taken half.</summary>
+    public int ServerIncompleteCount { get; init; }
+
     /// <summary>The last transfer's time waiting for pieces, hashing, writing (seconds), and the connections it used.</summary>
     public double LastTransferWaitSeconds { get; init; }
 

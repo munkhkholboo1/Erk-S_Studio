@@ -830,9 +830,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 }
                 else
                 {
-                    SyncIndex theirs = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
+                    SyncIndex served = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
+                    // What is not whole on the server yet is left as if unseen - not taken, not a deletion
+                    // (owner, 2026-10-27: its author may have gone offline mid-upload; the others go on).
+                    int incomplete = served.Entries.Count(entry => entry.Incomplete);
+                    SyncIndex theirs = incomplete == 0 ? served : served with { Entries = served.Entries.Where(entry => !entry.Incomplete).ToList() };
                     error = "";
-                    peer = peer with { Route = "server" };
+                    peer = peer with { Route = "server", ServerIncompleteCount = incomplete };
                     lock (_gate)
                     {
                         if (!_peersOnServer.TryGetValue(folderId, out var byPeer))

@@ -33,6 +33,9 @@ public sealed record SyncStatusPeer(
     public double LastDiskSeconds { get; init; }
 
     public int LastStreams { get; init; }
+
+    /// <summary>This partner's files not yet whole on the server (its author may be offline) - information, nobody waits.</summary>
+    public int ServerIncomplete { get; init; }
 }
 
 public sealed record SyncStatusFolder(
@@ -170,6 +173,7 @@ public sealed record SyncStatusReport(
                 LastHashSeconds = peer.LastTransferHashSeconds,
                 LastDiskSeconds = peer.LastTransferDiskSeconds,
                 LastStreams = peer.LastTransferStreams,
+                ServerIncomplete = peer.ServerIncompleteCount,
             }).ToList(),
             folder.ConflictCount,
             SyncInStep.Of(folder.Peers).Percent ?? 100)

@@ -53,6 +53,9 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
 
     public int IndexPuts { get; private set; }
 
+    /// <summary>A partner's index names entries not yet whole as «incomplete» (SRV 18200f7).</summary>
+    public bool MarksIncomplete { get; set; }
+
     /// <summary>Piece uploads fail (the author's network cut mid-upload): the index arrives, the pieces do not.</summary>
     public bool DropChunkPuts { get; set; }
 
@@ -105,9 +108,20 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                 if (rest.StartsWith("/devices/", StringComparison.Ordinal) && rest.EndsWith("/index", StringComparison.Ordinal))
                 {
                     string key = Uri.UnescapeDataString(rest["/devices/".Length..^"/index".Length]);
-                    return _indexes.TryGetValue("t-" + key, out string? index)
-                        ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(index) }
-                        : new HttpResponseMessage(HttpStatusCode.NotFound);
+                    if (!_indexes.TryGetValue("t-" + key, out string? index))
+                        return new HttpResponseMessage(HttpStatusCode.NotFound);
+                    if (MarksIncomplete)
+                    {
+                        // SRV 18200f7: an entry whose last piece has not arrived is marked, not dropped.
+                        var node = System.Text.Json.Nodes.JsonNode.Parse(index)!;
+                        foreach (var entry in node["entries"]!.AsArray())
+                        {
+                            if (entry!["chunkSha256"]!.AsArray().Any(sha => !_chunks.ContainsKey(sha!.GetValue<string>())))
+                                entry["incomplete"] = true;
+                        }
+                        index = node.ToJsonString();
+                    }
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(index) };
                 }
                 if (rest == "/redactions" && RedactionsRoute)
                 {

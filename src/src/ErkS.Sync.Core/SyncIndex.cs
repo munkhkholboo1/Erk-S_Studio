@@ -17,6 +17,13 @@ public sealed record SyncIndexEntry(
 {
     /// <summary>The file's place in its version chain (1.2), from this machine's ledger.</summary>
     public SyncFileVersion? Version { get; init; }
+
+    /// <summary>
+    /// Set by the server (SRV 18200f7) on a partner's entry whose last piece has not arrived: never
+    /// fetched, never used - and not a deletion either. Never written by SYN itself.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Incomplete { get; init; }
 }
 
 /// <summary>
