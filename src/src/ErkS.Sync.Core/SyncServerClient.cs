@@ -45,6 +45,12 @@ public sealed class SyncServerException(HttpStatusCode status, string code, stri
     public HttpStatusCode Status { get; } = status;
 
     public string Code { get; } = code;
+
+    /// <summary>How long the server asked to wait (Retry-After) when it limited the rate; null when it did not say.</summary>
+    public TimeSpan? RetryAfter { get; init; }
+
+    /// <summary>The server limited the rate (429 / sync_rate_limited): wait and go on, not a failure.</summary>
+    public bool RateLimited => Status == (HttpStatusCode)429 || Code == "sync_rate_limited";
 }
 
 /// <summary>
@@ -264,10 +270,16 @@ public sealed class SyncServerClient(HttpClient http)
             catch (Exception exception) when (exception is JsonException or NotSupportedException)
             {
             }
+            TimeSpan? retryAfter = response.Headers.RetryAfter is { } after
+                ? after.Delta ?? (after.Date is { } at ? at - DateTimeOffset.UtcNow : null)
+                : null;
             return new SyncServerException(
                 response.StatusCode,
                 string.IsNullOrWhiteSpace(code) ? $"http_{(int)response.StatusCode}" : code,
-                string.IsNullOrWhiteSpace(message) ? $"Сервер татгалзлаа ({(int)response.StatusCode})." : message);
+                string.IsNullOrWhiteSpace(message) ? $"Сервер татгалзлаа ({(int)response.StatusCode})." : message)
+            {
+                RetryAfter = retryAfter is { } wait && wait > TimeSpan.Zero ? wait : null,
+            };
         }
     }
 

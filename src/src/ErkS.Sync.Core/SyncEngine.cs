@@ -350,6 +350,56 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
     }
 
+    private CancellationTokenSource _hurry = new();
+    private DateTimeOffset? _longSince;
+
+    /// <summary>
+    /// A small thing that must travel now (owner, 2026-10-26: a changeset «үүсмэгц шууд») while a long upload or
+    /// download holds the pass (Erk-S Sync, 2026-10-28: 14 GB of AC/2026/01 would hold Nairamdal's changesets
+    /// for 10+ minutes): the long transfer stops where it is - what went stays - and a new pass starts, the
+    /// shared-file folders and their changesets first; the long one goes on after. <paramref name="after"/>:
+    /// how long the long work runs before it gives way (a partner's index changing often must not stop it
+    /// over and over); a changeset made here gives way at once.
+    /// </summary>
+    public void Hurry(TimeSpan? after = null)
+    {
+        Poke();
+        lock (_gate)
+        {
+            if (_longSince is not { } since)
+                return;
+            TimeSpan wait = (after ?? TimeSpan.Zero) - (DateTimeOffset.UtcNow - since);
+            if (wait <= TimeSpan.Zero)
+                _hurry.Cancel();
+            else
+                _hurry.CancelAfter(wait);
+        }
+    }
+
+    /// <summary>A long transfer begins (or ends): it may be asked to give way while it runs.</summary>
+    private CancellationToken LongWork(bool begins)
+    {
+        lock (_gate)
+        {
+            _longSince = begins ? DateTimeOffset.UtcNow : null;
+            return _hurry.Token;
+        }
+    }
+
+    private bool Hurried
+    {
+        get
+        {
+            lock (_gate)
+                return _hurry.IsCancellationRequested;
+        }
+    }
+
+    /// <summary>Paths in the shared-file area (changesets, checkpoints, notes) - they go before everything else.</summary>
+    private static bool IsCollabPath(string relativePath) =>
+        relativePath.StartsWith(SyncCollab.DirectoryName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+        relativePath.StartsWith(SyncCollab.DirectoryName + "/", StringComparison.OrdinalIgnoreCase);
+
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         if (_device is not null)
@@ -398,6 +448,12 @@ public sealed partial class SyncEngine : IAsyncDisposable
 
     public async Task PassAsync(CancellationToken cancellationToken)
     {
+        lock (_gate)
+        {
+            _hurry.Dispose();
+            _hurry = new CancellationTokenSource();
+            _longSince = null;
+        }
         PassStarted();
         try
         {
@@ -456,7 +512,9 @@ public sealed partial class SyncEngine : IAsyncDisposable
             known = _folders;
 
         var states = new List<SyncFolderState>();
-        foreach (SyncServerDeviceFolder entry in known)
+        // Folders with shared files first: their changesets are what must not wait behind a big folder.
+        foreach (SyncServerDeviceFolder entry in known.OrderBy(item =>
+            Directory.Exists(Path.Combine(_paths.Physical(item.Folder.CanonicalPath), SyncCollab.DirectoryName)) ? 0 : 1))
             states.Add(WithRedactions(await FolderPassAsync(entry, cancellationToken)));
 
         if (_discovery is not null && _exchange is not null)
@@ -760,8 +818,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                 peer = peer with { LanAddress = heard?.Endpoint.ToString() ?? "", Route = "lan" };
                 viaLan = true;
-                peer = await TransferAsync(folderId, physical, mine, theirs,
-                    (file, chunk, token) => offered.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token);
+                using (var work = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, LongWork(begins: true)))
+                    peer = await TransferAsync(folderId, physical, mine, theirs,
+                        (file, chunk, token) => offered.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, work.Token);
+                LongWork(begins: false);
             }
             catch (Exception exception) when (exception is SyncLanException or IOException or OperationCanceledException or InvalidDataException)
             {
@@ -769,6 +829,11 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     throw;
                 viaLan = false;
                 error = exception is SyncLanException lan ? lan.Message : "LAN-аар холбогдож чадсангүй.";
+                if (exception is OperationCanceledException && Hurried)
+                {
+                    viaLan = true; // gave way to a changeset mid-transfer: not a failure, and not the server road now
+                    error = "";
+                }
             }
             finally
             {
@@ -813,8 +878,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     }
                 }
                 SyncLanSession[] lanes = [session, .. extraSessions];
-                peer = await TransferAsync(folderId, physical, mine, theirs,
-                    (file, chunk, token) => lanes[chunk % lanes.Length].FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, timeout.Token, lanes.Length);
+                using (var work = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, LongWork(begins: true)))
+                    peer = await TransferAsync(folderId, physical, mine, theirs,
+                        (file, chunk, token) => lanes[chunk % lanes.Length].FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, work.Token, lanes.Length);
+                LongWork(begins: false);
                 // A partner that has not reached us lately (its firewall, or ours) gets this connection
                 // back to ask on - served in the background, so neither pass waits for the other.
                 if (!_exchange.ReachedUsLately(device.DeviceKeyId))
@@ -838,6 +905,11 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         _lanHintMissed[device.DeviceKeyId] = DateTimeOffset.UtcNow;
                 }
                 error = exception is SyncLanException lan ? lan.Message : "LAN-аар холбогдож чадсангүй.";
+                if (exception is OperationCanceledException && Hurried)
+                {
+                    viaLan = true; // gave way to a changeset mid-transfer: not a failure, and not the server road now
+                    error = "";
+                }
             }
             finally
             {
@@ -859,7 +931,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         {
             try
             {
-                using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, LongWork(begins: true));
                 window.CancelAfter(TransferWindow);
                 Stage($"хамтрагч {who}: серверээс индекс авч байна");
                 string? json = await _server.GetIndexAsync(relay.AccessToken, folderId, device.DeviceKeyId, window.Token);
@@ -910,6 +982,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     throw;
                 error = exception is SyncServerException refused
                     ? "Сервероор дамжуулж чадсангүй: " + refused.Message
+                    : exception is OperationCanceledException && Hurried
+                        ? "" // gave way to a changeset; it goes on in the next pass
                     : exception is OperationCanceledException
                         ? "Сервероор дамжуулалт энэ удаад хугацаандаа багтсангүй — дараагийн шалгалтаар үргэлжилнэ."
                         : "Сервероор дамжуулж чадсангүй: " + NetworkFailure.Explain(exception).Message;
@@ -1025,7 +1099,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 TransferSecondsLeft = rate.SecondsLeft(totalBytes, doneBytes),
             });
         }
-        foreach (SyncTransferAction action in plan.Actions)
+        // The shared files' changesets first; the order is otherwise the plan's.
+        foreach (SyncTransferAction action in plan.Actions.OrderBy(action => IsCollabPath(action.Theirs.RelativePath) ? 0 : 1))
         {
             SyncIndexEntry file = action.Theirs;
             SyncApplyResult result;
@@ -1168,7 +1243,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
     {
         if (chunk < 0 || chunk >= file.ChunkSha256.Count)
             throw new SyncLanException("sync_chunk_none", "Файлын хэсэг индекст алга.");
-        return await _server.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], cancellationToken)
+        return await PatientAsync(next => _server.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], next), cancellationToken)
             ?? throw new SyncLanException("sync_chunk_none", "Файлын хэсэг серверт хараахан ирээгүй — дараагийн шалгалтаар.");
     }
 
@@ -1278,6 +1353,38 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// A server call that waits out a rate limit and goes on (Erk-S Sync, 2026-10-28: a 14 GB upload hit
+    /// sync_rate_limited and then sat until the fallback pass): the server's Retry-After, else 5 s doubling
+    /// to 30 s - until <paramref name="cancellationToken"/> (the upload's window) ends.
+    /// </summary>
+    internal static async Task<T> PatientAsync<T>(Func<CancellationToken, Task<T>> call, CancellationToken cancellationToken, Func<TimeSpan, CancellationToken, Task>? wait = null)
+    {
+        wait ??= Task.Delay;
+        TimeSpan next = TimeSpan.FromSeconds(5);
+        while (true)
+        {
+            try
+            {
+                return await call(cancellationToken);
+            }
+            catch (SyncServerException limited) when (limited.RateLimited)
+            {
+                TimeSpan pause;
+                if (limited.RetryAfter is { } asked)
+                {
+                    pause = TimeSpan.FromSeconds(Math.Min(asked.TotalSeconds, 120));
+                }
+                else
+                {
+                    pause = next;
+                    next = TimeSpan.FromSeconds(Math.Min(next.TotalSeconds * 2, 30));
+                }
+                await wait(pause, cancellationToken);
+            }
+        }
+    }
+
     private async Task<string> UploadAsync(string folderId, SyncIndex index, CancellationToken cancellationToken)
     {
         if (_session is not { } relay)
@@ -1313,7 +1420,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 unnamed = 0;
                 foreach (string[] batch in pieces.Keys.Chunk(1000))
                 {
-                    (IReadOnlyList<string> lacking, IReadOnlyList<string> notNamed) = await _server.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, cancellationToken);
+                    (IReadOnlyList<string> lacking, IReadOnlyList<string> notNamed) = await PatientAsync(
+                        token => _server.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, token), cancellationToken);
                     missing.AddRange(lacking);
                     unnamed += notNamed.Count;
                 }
@@ -1341,7 +1449,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
             // the next, and the partner starts taking them while the upload goes on.
             missing = missing
                 .Where(pieces.ContainsKey)
-                .OrderBy(sha => pieces[sha].Entry.Size)
+                .OrderBy(sha => IsCollabPath(pieces[sha].Entry.RelativePath) ? 0 : 1)
+                .ThenBy(sha => pieces[sha].Entry.Size)
                 .ThenBy(sha => pieces[sha].Entry.RelativePath, StringComparer.Ordinal)
                 .ThenBy(sha => pieces[sha].Chunk)
                 .ToList();
@@ -1368,7 +1477,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             }
             if (pending > 0)
                 Report(force: true);
-            using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, LongWork(begins: true));
             window.CancelAfter(UploadWindow);
             // The rate counts the pieces' own time - not the index and the questions before them
             // (Erk-S Sync, 2026-10-26: «6.1 KB/s» for small files) - and pieces go four at a time,
@@ -1403,7 +1512,11 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     {
                         try
                         {
-                            await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, window.Token);
+                            await PatientAsync(async token =>
+                            {
+                                await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, token);
+                                return true;
+                            }, window.Token);
                             lock (_gate)
                             {
                                 done += piece.Length;
@@ -1427,6 +1540,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             {
                 // The window closed: the rest go on the next pass.
             }
+            LongWork(begins: false);
             double seconds = (DateTimeOffset.UtcNow - piecesStarted).TotalSeconds;
             // What is on the server now, whole: the index names it and every piece of it is there
             // (owner, 2026-10-27: a member who sent and went offline must not make others wait - the
@@ -1457,9 +1571,12 @@ public sealed partial class SyncEngine : IAsyncDisposable
         {
             return "Серверийн синкийн сан дүүрсэн — зай гартал хүлээнэ.";
         }
-        catch (SyncServerException exception) when (exception.Code == "sync_rate_limited")
+        catch (SyncServerException exception) when (exception.RateLimited)
         {
-            return "Сервер түр хязгаарлалаа — дараагийн шалгалтаар үргэлжилнэ.";
+            // The index itself was limited: the next pass comes after the wait, not after the fallback period.
+            TimeSpan after = exception.RetryAfter ?? TimeSpan.FromSeconds(15);
+            _ = Task.Delay(after, cancellationToken).ContinueWith(_ => Poke(), TaskScheduler.Default);
+            return $"Сервер түр хязгаарлалаа — {Math.Ceiling(after.TotalSeconds)} с-ийн дараа үргэлжилнэ.";
         }
         catch (SyncServerException exception) when (exception.Status == HttpStatusCode.NotFound && exception.Code.StartsWith("http_", StringComparison.Ordinal))
         {

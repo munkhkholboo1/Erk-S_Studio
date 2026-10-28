@@ -268,7 +268,11 @@ public sealed partial class SyncEngine
                 lock (_gate)
                     _serverRedactions.Remove(folderId);
             }
-            if (type is "index" or "redactions")
+            // A partner's index changed - perhaps a changeset: a long transfer gives way after 20 s, not at
+            // every event of a big upload's progress.
+            if (type == "index")
+                Hurry(TimeSpan.FromSeconds(20));
+            if (type == "redactions")
                 Poke();
             if (type == "release" &&
                 document.RootElement.TryGetProperty("productCode", out var product) && product.GetString() is { Length: > 0 } productCode &&

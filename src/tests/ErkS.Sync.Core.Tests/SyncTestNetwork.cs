@@ -65,6 +65,9 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     /// <summary>Every piece put, in the order it arrived.</summary>
     public List<string> ChunkPutOrder { get; } = [];
 
+    /// <summary>Each piece put takes this long (a slow uplink).</summary>
+    public TimeSpan PutDelay { get; set; }
+
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
@@ -161,6 +164,18 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                     string sha = Uri.UnescapeDataString(rest["/chunks/".Length..]);
                     if (request.Method == HttpMethod.Put)
                     {
+                        if (PutDelay > TimeSpan.Zero)
+                        {
+                            Monitor.Exit(_gate);
+                            try
+                            {
+                                Thread.Sleep(PutDelay);
+                            }
+                            finally
+                            {
+                                Monitor.Enter(_gate);
+                            }
+                        }
                         if (DropChunkPuts)
                             return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
                         if (!Convert.ToHexStringLower(SHA256.HashData(content)).Equals(sha, StringComparison.OrdinalIgnoreCase))

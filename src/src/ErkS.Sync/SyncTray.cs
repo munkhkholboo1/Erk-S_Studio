@@ -397,7 +397,7 @@ internal sealed class SyncTray : ApplicationContext
                     long seq = SyncCollab.Publish(root, fileId, writer, Arg("manifest"), Arg("entities"), _home,
                         int.TryParse(Arg("blocks"), out int blocks) ? blocks : null,
                         int.TryParse(Arg("myBlocks"), out int mine) ? mine : null);
-                    _engine?.Poke();
+                    _engine?.Hurry(); // a changeset goes now, before any long transfer
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { writer, seq }));
                 }
                 case "collab-pull":
@@ -476,7 +476,7 @@ internal sealed class SyncTray : ApplicationContext
                     int checkpoint = Arg("source").Length > 0
                         ? SyncCollab.CheckpointFromLocal(root, fileId, request.Path, Arg("source"), through)
                         : SyncCollab.Checkpoint(root, fileId, request.Path, through, _home);
-                    _engine?.Poke();
+                    _engine?.Hurry();
                     return new SyncPipeResponse(true, "", SyncProtocol.Serialize(new { checkpoint }));
                 }
             }
