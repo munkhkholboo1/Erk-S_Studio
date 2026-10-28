@@ -49,6 +49,9 @@ public sealed class SyncServerException(HttpStatusCode status, string code, stri
     /// <summary>How long the server asked to wait (Retry-After) when it limited the rate; null when it did not say.</summary>
     public TimeSpan? RetryAfter { get; init; }
 
+    /// <summary>Which of the server's limits it was (X-ErkS-Rate-Limit, e.g. «sync-relay-missing»).</summary>
+    public string LimitName { get; init; } = "";
+
     /// <summary>The server limited the rate (429 / sync_rate_limited): wait and go on, not a failure.</summary>
     public bool RateLimited => Status == (HttpStatusCode)429 || Code == "sync_rate_limited";
 }
@@ -279,6 +282,7 @@ public sealed class SyncServerClient(HttpClient http)
                 string.IsNullOrWhiteSpace(message) ? $"Сервер татгалзлаа ({(int)response.StatusCode})." : message)
             {
                 RetryAfter = retryAfter is { } wait && wait > TimeSpan.Zero ? wait : null,
+                LimitName = response.Headers.TryGetValues("X-ErkS-Rate-Limit", out IEnumerable<string>? limits) ? limits.FirstOrDefault() ?? "" : "",
             };
         }
     }

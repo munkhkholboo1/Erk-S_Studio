@@ -4,7 +4,7 @@ namespace ErkS.Sync.Core.Tests;
 
 /// <summary>
 /// Erk-S Sync, 2026-10-28: the 14 GB upload hit sync_rate_limited at 10:39 and then waited for the fallback
-/// pass. A rate limit is waited out - the server's Retry-After, else 5 s doubling to 30 s - and the call goes on.
+/// pass. A rate limit is waited out - the server's Retry-After, else 30 s then 60 s - and the call goes on.
 /// </summary>
 public sealed class ARATELimitIsWAITEDOutNotAStopTests
 {
@@ -28,7 +28,7 @@ public sealed class ARATELimitIsWAITEDOutNotAStopTests
             });
 
         Assert.Equal(42, answer);
-        Assert.Equal([2, 5, 10, 20], waits.Select(pause => pause.TotalSeconds));
+        Assert.Equal([2, 30, 60, 60], waits.Select(pause => pause.TotalSeconds));
     }
 
     [Fact]
@@ -38,5 +38,18 @@ public sealed class ARATELimitIsWAITEDOutNotAStopTests
             _ => throw new SyncServerException(HttpStatusCode.Conflict, "sync_conflict", "no"),
             CancellationToken.None,
             (_, _) => throw new InvalidOperationException("must not wait")));
+    }
+}
+
+/// <summary>SRV, 2026-10-28: the server allows ~20 pieces a second per device - SYN keeps under it, shared by every caller.</summary>
+public sealed class APACERSpreadsCallsTests
+{
+    [Fact]
+    public async Task CALLSAreSpreadAtTheRATE()
+    {
+        var pacer = new SyncPacer(20);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        await Task.WhenAll(Enumerable.Range(0, 21).Select(_ => pacer.WaitAsync(CancellationToken.None)));
+        Assert.True(clock.Elapsed >= TimeSpan.FromMilliseconds(900), $"21 calls at 20/s took {clock.ElapsedMilliseconds} ms");
     }
 }

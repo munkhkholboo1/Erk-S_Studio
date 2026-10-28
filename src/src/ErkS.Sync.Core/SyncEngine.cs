@@ -350,6 +350,18 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
     }
 
+    // Kept under the server's per-device limits (SRV 18200f7: 12000 pieces and 1200 questions per 10 minutes),
+    // so a big folder is not refused halfway (Erk-S Sync, 2026-10-28).
+    private readonly SyncPacer _pieces = new(15);
+    private readonly SyncPacer _questions = new(1.5);
+
+    /// <summary>Pieces a second to and from the server (shared by every folder and partner); 15 by default.</summary>
+    public double PiecesPerSecond { init => _pieces = new SyncPacer(value); }
+
+    /// <summary>The server limited us: said in the pass's stage, so the Twin and the person see why it waits.</summary>
+    private void Limited(SyncServerException refused, TimeSpan pause) =>
+        Stage($"сервер хязгаарлав ({(refused.LimitName.Length > 0 ? refused.LimitName : refused.Code)}) — {Math.Ceiling(pause.TotalSeconds)} с хүлээж үргэлжилнэ");
+
     private CancellationTokenSource _hurry = new();
     private DateTimeOffset? _longSince;
 
@@ -1243,7 +1255,11 @@ public sealed partial class SyncEngine : IAsyncDisposable
     {
         if (chunk < 0 || chunk >= file.ChunkSha256.Count)
             throw new SyncLanException("sync_chunk_none", "Файлын хэсэг индекст алга.");
-        return await PatientAsync(next => _server.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], next), cancellationToken)
+        return await PatientAsync(async next =>
+            {
+                await _pieces.WaitAsync(next);
+                return await _server.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], next);
+            }, cancellationToken, limited: Limited)
             ?? throw new SyncLanException("sync_chunk_none", "Файлын хэсэг серверт хараахан ирээгүй — дараагийн шалгалтаар.");
     }
 
@@ -1358,28 +1374,34 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// sync_rate_limited and then sat until the fallback pass): the server's Retry-After, else 5 s doubling
     /// to 30 s - until <paramref name="cancellationToken"/> (the upload's window) ends.
     /// </summary>
-    internal static async Task<T> PatientAsync<T>(Func<CancellationToken, Task<T>> call, CancellationToken cancellationToken, Func<TimeSpan, CancellationToken, Task>? wait = null)
+    internal static async Task<T> PatientAsync<T>(
+        Func<CancellationToken, Task<T>> call,
+        CancellationToken cancellationToken,
+        Func<TimeSpan, CancellationToken, Task>? wait = null,
+        Action<SyncServerException, TimeSpan>? limited = null)
     {
         wait ??= Task.Delay;
-        TimeSpan next = TimeSpan.FromSeconds(5);
+        // Without Retry-After: 30 s, then 60 (SRV, 2026-10-28 - its windows are minutes long).
+        TimeSpan next = TimeSpan.FromSeconds(30);
         while (true)
         {
             try
             {
                 return await call(cancellationToken);
             }
-            catch (SyncServerException limited) when (limited.RateLimited)
+            catch (SyncServerException refused) when (refused.RateLimited)
             {
                 TimeSpan pause;
-                if (limited.RetryAfter is { } asked)
+                if (refused.RetryAfter is { } asked)
                 {
-                    pause = TimeSpan.FromSeconds(Math.Min(asked.TotalSeconds, 120));
+                    pause = TimeSpan.FromSeconds(Math.Min(asked.TotalSeconds, 300));
                 }
                 else
                 {
                     pause = next;
-                    next = TimeSpan.FromSeconds(Math.Min(next.TotalSeconds * 2, 30));
+                    next = TimeSpan.FromSeconds(Math.Min(next.TotalSeconds * 2, 60));
                 }
+                limited?.Invoke(refused, pause);
                 await wait(pause, cancellationToken);
             }
         }
@@ -1418,10 +1440,16 @@ public sealed partial class SyncEngine : IAsyncDisposable
             {
                 missing.Clear();
                 unnamed = 0;
-                foreach (string[] batch in pieces.Keys.Chunk(1000))
+                foreach (string[] batch in pieces.Keys.Chunk(4096))
                 {
                     (IReadOnlyList<string> lacking, IReadOnlyList<string> notNamed) = await PatientAsync(
-                        token => _server.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, token), cancellationToken);
+                        async token =>
+                        {
+                            await _questions.WaitAsync(token);
+                            return await _server.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, token);
+                        },
+                        cancellationToken,
+                        limited: Limited);
                     missing.AddRange(lacking);
                     unnamed += notNamed.Count;
                 }
@@ -1514,9 +1542,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         {
                             await PatientAsync(async token =>
                             {
+                                await _pieces.WaitAsync(token);
                                 await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, token);
                                 return true;
-                            }, window.Token);
+                            }, window.Token, limited: Limited);
                             lock (_gate)
                             {
                                 done += piece.Length;
