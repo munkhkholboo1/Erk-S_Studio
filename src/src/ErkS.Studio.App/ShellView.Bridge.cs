@@ -80,6 +80,8 @@ internal sealed partial class ShellView
             case "notices":
                 return StudioBridgeProtocol.Accept(request.Id, null, notices: StudioBridgeQuietMode.Shared.Drain());
             case "projects":
+                // The server's projects not yet on this device are listed too (cloudOnly), so an agent sees
+                // what open-project / sync-make can bring here.
                 return StudioBridgeProtocol.Accept(
                     request.Id,
                     new LocalProjectCatalog().ListProjects()
@@ -91,7 +93,17 @@ internal sealed partial class ShellView
                             stage = item.StageName,
                             path = item.ProjectPath,
                             syncStatus = item.SyncStatus,
+                            cloudOnly = false,
                         })
+                        .Concat(projectRows.Where(row => row.IsCloudOnly).Select(row => new
+                        {
+                            code = row.Code,
+                            name = row.Name,
+                            stage = row.Stage,
+                            path = "",
+                            syncStatus = "",
+                            cloudOnly = true,
+                        }))
                         .ToList());
             case "open-project":
                 return await BridgeOpenProjectAsync(request);
@@ -358,16 +370,41 @@ internal sealed partial class ShellView
         };
     }
 
+    /// <summary>
+    /// The local workspace of a project by its code - and when it is only on the server (made on another
+    /// machine, another company the person belongs to), brought here first exactly as clicking its
+    /// «Cloud · Mirror үүсээгүй» card does (Master, 2026-10-28: a project the owner made on the laptop was
+    /// «project_not_found» on the desktop, so its folder could not become a sync folder). Null when this
+    /// account has no such project.
+    /// </summary>
+    private async Task<string?> ProjectPathByCodeAsync(string code)
+    {
+        static string? Local(Func<ProjectCatalogItem, bool> match) =>
+            new LocalProjectCatalog().ListProjects().FirstOrDefault(match)?.ProjectPath;
+
+        if (Local(item => item.ProjectCode.Equals(code, StringComparison.OrdinalIgnoreCase)) is { } here)
+            return here;
+        ProjectRow? CloudRow() => projectRows.FirstOrDefault(row =>
+            row.IsCloudOnly && row.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+        ProjectRow? cloud = CloudRow();
+        if (cloud is null)
+        {
+            await RefreshProjectsAsync(refreshNotifications: false);
+            cloud = CloudRow();
+        }
+        if (cloud is null)
+            return null;
+        await OpenCloudProjectAsync(cloud);
+        // Its folder may carry another code when one of that name was already here (a fork) - found by id.
+        return Local(item => item.ProjectId.Equals(cloud.ServerProjectId, StringComparison.OrdinalIgnoreCase));
+    }
+
     private async Task<StudioBridgeResponse> BridgeOpenProjectAsync(StudioBridgeRequest request)
     {
         string? path = request.Arg("path");
         string? code = request.Arg("code");
         if (path is null && code is not null)
-        {
-            path = new LocalProjectCatalog().ListProjects()
-                .FirstOrDefault(item => item.ProjectCode.Equals(code, StringComparison.OrdinalIgnoreCase))
-                ?.ProjectPath;
-        }
+            path = await ProjectPathByCodeAsync(code);
         if (string.IsNullOrWhiteSpace(path))
             return StudioBridgeProtocol.Refuse(request.Id, "project_not_found", "Төсөл олдсонгүй: path эсвэл code заана уу.");
 

@@ -601,10 +601,10 @@ internal sealed partial class ShellView
                 outcome = await SyncFolders.UnlinkAsync(path);
                 break;
             case "make" when request.Arg("project") is { } code:
-                string? projectPath = new LocalProjectCatalog().ListProjects()
-                    .FirstOrDefault(item => item.ProjectCode.Equals(code, StringComparison.OrdinalIgnoreCase))?.ProjectPath;
+                // A project only on the server is brought to this device first (as its card does).
+                string? projectPath = await ProjectPathByCodeAsync(code);
                 outcome = projectPath is null
-                    ? StudioSyncOutcome.Refused("project_not_found", $"«{code}» төсөл энэ төхөөрөмж дээр алга.")
+                    ? StudioSyncOutcome.Refused("project_not_found", $"«{code}» төсөл энэ бүртгэлд алга (энэ төхөөрөмж ч, сервер ч).")
                     : await MakeSyncFolderAsync(path, projectPath);
                 break;
             case "join" when request.Arg("folder") is { } folderId:
