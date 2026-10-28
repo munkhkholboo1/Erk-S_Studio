@@ -156,6 +156,9 @@ public sealed record SyncPeerState
     /// <summary>The size of those files (what this machine still waits for from the server).</summary>
     public long ServerIncompleteBytes { get; init; }
 
+    /// <summary>The bytes the last transfer carried (a delta carries only the changed pieces); <see cref="BytesReceived"/> is the total since joining.</summary>
+    public long LastTransferBytes { get; init; }
+
     /// <summary>The last transfer's time waiting for pieces, hashing, writing (seconds), and the connections it used.</summary>
     public double LastTransferWaitSeconds { get; init; }
 
@@ -294,3 +297,6 @@ public static class SyncStateStore
         }
     }
 }
+
+/// <summary>All that came from one partner into one folder since it joined - files, files kept beside, bytes, the last.</summary>
+public sealed record SyncReceived(int Count, int Kept, long Bytes, DateTimeOffset? AtUtc);

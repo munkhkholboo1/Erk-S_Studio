@@ -207,7 +207,9 @@ public sealed record SyncStatusReport(
                 peer.UnrelatedCount,
                 peer.BytesReceived,
                 peer.LastReceivedAtUtc,
-                peer.SyncedPercent,
+                // ONE percent (Erk-S Sync, 2026-10-28: two that disagreed): what this machine needs from the
+                // partner that is here (owner, 2026-10-26) - the summary, the Twin and this row say the same.
+                peer.InPercent,
                 peer.Transferring,
                 peer.TransferTotalBytes,
                 peer.TransferDoneBytes,

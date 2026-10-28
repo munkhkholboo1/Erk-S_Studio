@@ -257,7 +257,7 @@ public sealed class AFILEArrivesWHOLEAndNEVEROverwritesTests
         await RunUntilAsync(server, homeA, homeB, rootA, rootB, () =>
             File.ReadAllBytes(Path.Combine(folderB, "model.rvt")).SequenceEqual(model),
             engineB => bSawA = engineB.LastState.Folders.SingleOrDefault()?.Peers.FirstOrDefault() ?? bSawA);
-        Assert.Equal(SyncIndex.ChunkSize, bSawA!.BytesReceived);
+        Assert.Equal(SyncIndex.ChunkSize, bSawA!.LastTransferBytes); // one piece over the wire
 
         // 2b. «хэдэн хувьтай синк хийгдсэн»: once both hold the same, the peer reads 100%.
         SyncPeerState? inStep = null;

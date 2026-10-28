@@ -66,6 +66,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
     private readonly Dictionary<string, SyncIndex> _indexes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _roots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SyncPeerState> _lastReceipts = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>What came from each partner (folder|device), counted file by file and kept across restarts (received.json).</summary>
+    private Dictionary<string, SyncReceived>? _received;
+
+    /// <summary>Files that arrived from a partner during this pass (folder|device → path|sha): the pass's own «%» counts them.</summary>
+    private readonly Dictionary<string, HashSet<string>> _arrivedThisPass = new(StringComparer.OrdinalIgnoreCase);
+    private DateTimeOffset _receivedSavedAt;
     private readonly object _gate = new();
     private IReadOnlyList<SyncServerDeviceFolder> _folders = [];
     private SyncDeviceSession? _session;
@@ -1011,7 +1018,15 @@ public sealed partial class SyncEngine : IAsyncDisposable
         // өөрийнх нь файл хэдэн хувь синк хийгдсэн нь чухал») - what the partner still needs from here
         // is its own number, not this machine's.
         SyncTransferPlan needed = PlanFor(folderId, physical, mine, theirsKnown, SyncVersionLedgerStore.Load(_home.LedgerPath(folderId)));
-        long neededBytes = needed.Actions.Where(action => action.Kind != SyncTransferKind.KeepBoth).Sum(action => action.Theirs.Size);
+        // This machine's index is from the start of the pass: what arrived since is here, not still needed.
+        HashSet<string> cameNow;
+        lock (_gate)
+            cameNow = _arrivedThisPass.Remove(folderId + "|" + device.DeviceKeyId, out HashSet<string>? came) ? came : [];
+        SyncTransferAction[] stillNeeded = needed.Actions
+            .Where(action => action.Kind != SyncTransferKind.KeepBoth && !cameNow.Contains(action.Theirs.RelativePath + "|" + action.Theirs.Sha256))
+            .ToArray();
+        long cameBytes = needed.Actions.Where(action => cameNow.Contains(action.Theirs.RelativePath + "|" + action.Theirs.Sha256)).Sum(action => action.Theirs.Size);
+        long neededBytes = stillNeeded.Sum(action => action.Theirs.Size);
         return WithReceipt(folderId, peer) with
         {
             Transferring = false,
@@ -1021,9 +1036,9 @@ public sealed partial class SyncEngine : IAsyncDisposable
             SyncedPercent = carried.Difference.SyncedPercent,
             SyncedBytes = carried.Difference.SameBytes,
             UnionBytes = carried.Difference.UnionBytes,
-            NeededFiles = needed.Actions.Count(action => action.Kind != SyncTransferKind.KeepBoth),
+            NeededFiles = stillNeeded.Length,
             NeededBytes = neededBytes,
-            HereBytes = mine.Entries.Sum(entry => entry.Size),
+            HereBytes = mine.Entries.Sum(entry => entry.Size) + cameBytes,
             NotCarriedCount = carried.NotCarriedCount,
             NotCarriedBytes = carried.NotCarriedBytes,
             LastError = error.Length > 0 ? error : peer.LastError,
@@ -1110,9 +1125,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 CurrentFileDoneBytes = done,
                 TransferBytesPerSecond = rate.BytesPerSecond,
                 TransferSecondsLeft = rate.SecondsLeft(totalBytes, doneBytes),
-                // «%» moves while the files come, not only at the next pass.
+                // «%» and what arrived move while the files come, not only at the end of the pass.
                 HereBytes = hereBefore + doneBytes,
                 NeededBytes = Math.Max(0, totalBytes - doneBytes),
+                ReceivedCount = Totals(folderId, peer.DeviceKeyId).Count,
+                KeptBothCount = Totals(folderId, peer.DeviceKeyId).Kept,
+                BytesReceived = Totals(folderId, peer.DeviceKeyId).Bytes,
+                LastReceivedAtUtc = Totals(folderId, peer.DeviceKeyId).AtUtc,
             });
         }
         try
@@ -1155,16 +1174,27 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     continue;
                 }
                 filesDone++;
-                bytes += (long)result.ChunksFetched * SyncIndex.ChunkSize;
+                // The bytes that travelled (a small file is not a whole 4 MiB piece).
+                long fetched = Math.Min(file.Size, (long)result.ChunksFetched * SyncIndex.ChunkSize);
+                bytes += fetched;
                 if (action.Kind == SyncTransferKind.KeepBoth)
                 {
                     ledger.Keep(file.RelativePath, file.Sha256);
                     kept++;
+                    CountArrival(folderId, peer.DeviceKeyId, 0, 1, fetched);
                 }
                 else
                 {
                     ledger.Applied(file.RelativePath, file.Version!);
                     received++;
+                    CountArrival(folderId, peer.DeviceKeyId, 1, 0, fetched);
+                    lock (_gate)
+                    {
+                        string key = folderId + "|" + peer.DeviceKeyId;
+                        if (!_arrivedThisPass.TryGetValue(key, out HashSet<string>? arrived))
+                            _arrivedThisPass[key] = arrived = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        arrived.Add(file.RelativePath + "|" + file.Sha256);
+                    }
                     if (SyncCollab.IsChangesetPath(file.RelativePath))
                         NoteLatency(folderId, DateTime.UtcNow - file.LastWriteUtc);
                     // A checkpoint arrived: the next pass puts it in place now, not at the fallback period.
@@ -1192,9 +1222,67 @@ public sealed partial class SyncEngine : IAsyncDisposable
         };
     }
 
+    private string ReceivedPath => Path.Combine(_home.Root, "received.json");
+
+    private Dictionary<string, SyncReceived> ReceivedTotals()
+    {
+        if (_received is not null)
+            return _received;
+        try
+        {
+            _received = File.Exists(ReceivedPath)
+                ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, SyncReceived>>(File.ReadAllText(ReceivedPath)) ?? []
+                : [];
+        }
+        catch (Exception exception) when (exception is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            _received = [];
+        }
+        _received = new Dictionary<string, SyncReceived>(_received, StringComparer.OrdinalIgnoreCase);
+        return _received;
+    }
+
+    /// <summary>All that came from <paramref name="deviceKeyId"/> into this folder since it joined (Erk-S Sync, 2026-10-28: a restart started the count at 0).</summary>
+    private SyncReceived Totals(string folderId, string deviceKeyId)
+    {
+        lock (_gate)
+            return ReceivedTotals().GetValueOrDefault(folderId + "|" + deviceKeyId) ?? new SyncReceived(0, 0, 0, null);
+    }
+
+    /// <summary>One file arrived: counted at once, written down every few seconds and at the end of the transfer.</summary>
+    private void CountArrival(string folderId, string deviceKeyId, int count, int kept, long bytes)
+    {
+        lock (_gate)
+        {
+            Dictionary<string, SyncReceived> totals = ReceivedTotals();
+            SyncReceived was = totals.GetValueOrDefault(folderId + "|" + deviceKeyId) ?? new SyncReceived(0, 0, 0, null);
+            totals[folderId + "|" + deviceKeyId] = new SyncReceived(was.Count + count, was.Kept + kept, was.Bytes + bytes, DateTimeOffset.UtcNow);
+            if (DateTimeOffset.UtcNow - _receivedSavedAt > TimeSpan.FromSeconds(5))
+                SaveReceived();
+        }
+    }
+
+    private void SaveReceived()
+    {
+        if (_received is null)
+            return;
+        try
+        {
+            Directory.CreateDirectory(_home.Root);
+            File.WriteAllText(ReceivedPath + ".tmp", System.Text.Json.JsonSerializer.Serialize(_received));
+            File.Move(ReceivedPath + ".tmp", ReceivedPath, overwrite: true);
+            _receivedSavedAt = DateTimeOffset.UtcNow;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     /// <summary>What arrived from a partner in a transfer, kept until something else arrives (a pass with nothing to take keeps it).</summary>
     private void NoteReceipt(string folderId, string deviceKeyId, int received, int kept, long bytes, DateTimeOffset started, SyncApplyTimings timings, int streams)
     {
+        lock (_gate)
+            SaveReceived();
         if (received + kept == 0)
             return;
         double seconds = (DateTimeOffset.UtcNow - started).TotalSeconds;
@@ -1210,6 +1298,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 ReceivedCount = received,
                 KeptBothCount = kept,
                 BytesReceived = bytes,
+                LastTransferBytes = bytes,
                 LastReceivedAtUtc = DateTimeOffset.UtcNow,
             };
         }
@@ -1221,17 +1310,19 @@ public sealed partial class SyncEngine : IAsyncDisposable
         SyncPeerState receipt;
         lock (_gate)
             receipt = _lastReceipts.GetValueOrDefault(folderId + "|" + peer.DeviceKeyId) ?? new SyncPeerState();
+        SyncReceived total = Totals(folderId, peer.DeviceKeyId);
         return peer with
         {
-            ReceivedCount = receipt.ReceivedCount,
-            KeptBothCount = receipt.KeptBothCount,
-            BytesReceived = receipt.BytesReceived,
-            LastReceivedAtUtc = receipt.LastReceivedAtUtc,
+            ReceivedCount = total.Count,
+            KeptBothCount = total.Kept,
+            BytesReceived = total.Bytes,
+            LastReceivedAtUtc = total.AtUtc,
             LastTransferBytesPerSecond = receipt.LastTransferBytesPerSecond,
             LastTransferWaitSeconds = receipt.LastTransferWaitSeconds,
             LastTransferHashSeconds = receipt.LastTransferHashSeconds,
             LastTransferDiskSeconds = receipt.LastTransferDiskSeconds,
             LastTransferStreams = receipt.LastTransferStreams,
+            LastTransferBytes = receipt.LastTransferBytes,
         };
     }
 

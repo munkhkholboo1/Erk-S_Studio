@@ -41,5 +41,15 @@ public sealed class WHATArrivesThroughTheSERVERIsCOUNTEDTests
         Assert.InRange(arrived, 1, 3); // cut off midway
         Assert.Equal(arrived, row.ReceivedCount);
         Assert.Equal("server", row.Route);
+        Assert.True(row.BytesReceived is > 0 and < 1000, $"{row.BytesReceived} bytes"); // the files' bytes, not 4 MiB pieces
+
+        // A restart does not start the count again (Erk-S Sync, 2026-10-28).
+        await using var again = new SyncEngine(homeOfB, server.Client(), b, new SyncPathMap(@"D:\Cloud Work=>" + rootB.Path));
+        server.GetDelay = TimeSpan.Zero;
+        await again.PassAsync(CancellationToken.None);
+        SyncPeerState after = again.LastState.Folders.Single().Peers.Single();
+        Assert.Equal(4, Directory.GetFiles(folderB, "sheet-*.pdf").Length);
+        Assert.Equal(4, after.ReceivedCount);
+        Assert.Equal(100, SyncStatusReport.Of(again.LastState, running: true).Folders.Single().Peers.Single().SyncedPercent);
     }
 }
