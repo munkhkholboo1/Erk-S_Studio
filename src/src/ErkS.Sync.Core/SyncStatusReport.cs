@@ -39,6 +39,12 @@ public sealed record SyncStatusPeer(
 
     /// <summary>Their size - what this machine still waits for from the server.</summary>
     public long ServerIncompleteBytes { get; init; }
+
+    /// <summary>«lan» or «server» - the road the last exchange with this partner took; "" before any.</summary>
+    public string Route { get; init; } = "";
+
+    /// <summary>How much of what this partner holds for this machine is here (what «%» means).</summary>
+    public double InPercent { get; init; }
 }
 
 public sealed record SyncStatusFolder(
@@ -214,6 +220,8 @@ public sealed record SyncStatusReport(
                 LastStreams = peer.LastTransferStreams,
                 ServerIncomplete = peer.ServerIncompleteCount,
                 ServerIncompleteBytes = peer.ServerIncompleteBytes,
+                Route = peer.Route,
+                InPercent = peer.InPercent,
             }).ToList(),
             folder.ConflictCount,
             SyncInStep.Of(folder.Peers).Percent ?? 100)

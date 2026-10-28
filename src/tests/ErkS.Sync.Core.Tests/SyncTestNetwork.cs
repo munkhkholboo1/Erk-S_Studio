@@ -68,6 +68,9 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     /// <summary>Each piece put takes this long (a slow uplink).</summary>
     public TimeSpan PutDelay { get; set; }
 
+    /// <summary>Each piece fetched takes this long (a slow downlink).</summary>
+    public TimeSpan GetDelay { get; set; }
+
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
@@ -183,6 +186,18 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                         _chunks[sha] = content;
                         ChunkPutOrder.Add(sha);
                         return new HttpResponseMessage(HttpStatusCode.NoContent);
+                    }
+                    if (GetDelay > TimeSpan.Zero)
+                    {
+                        Monitor.Exit(_gate);
+                        try
+                        {
+                            Thread.Sleep(GetDelay);
+                        }
+                        finally
+                        {
+                            Monitor.Enter(_gate);
+                        }
                     }
                     return _chunks.TryGetValue(sha, out byte[]? held)
                         ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(held) }

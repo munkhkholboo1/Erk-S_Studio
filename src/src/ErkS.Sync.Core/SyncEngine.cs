@@ -1012,7 +1012,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         // is its own number, not this machine's.
         SyncTransferPlan needed = PlanFor(folderId, physical, mine, theirsKnown, SyncVersionLedgerStore.Load(_home.LedgerPath(folderId)));
         long neededBytes = needed.Actions.Where(action => action.Kind != SyncTransferKind.KeepBoth).Sum(action => action.Theirs.Size);
-        return peer with
+        return WithReceipt(folderId, peer) with
         {
             Transferring = false,
             CurrentFile = "",
@@ -1086,6 +1086,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         long bytes = 0;
         string lastError = "";
         long totalBytes = plan.Actions.Sum(action => action.Theirs.Size), doneBytes = 0;
+        long hereBefore = mine.Entries.Sum(entry => entry.Size);
         int filesDone = 0;
         DateTime lastReport = DateTime.MinValue;
         var rate = new SyncTransferRate();
@@ -1109,89 +1110,117 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 CurrentFileDoneBytes = done,
                 TransferBytesPerSecond = rate.BytesPerSecond,
                 TransferSecondsLeft = rate.SecondsLeft(totalBytes, doneBytes),
+                // «%» moves while the files come, not only at the next pass.
+                HereBytes = hereBefore + doneBytes,
+                NeededBytes = Math.Max(0, totalBytes - doneBytes),
             });
         }
-        // The shared files' changesets first; the order is otherwise the plan's.
-        foreach (SyncTransferAction action in plan.Actions.OrderBy(action => IsCollabPath(action.Theirs.RelativePath) ? 0 : 1))
+        try
         {
-            SyncIndexEntry file = action.Theirs;
-            SyncApplyResult result;
-            long fileDone = 0;
-            Report(file.RelativePath, file.Size, 0, force: true);
-            try
+            // The shared files' changesets first; the order is otherwise the plan's.
+            foreach (SyncTransferAction action in plan.Actions.OrderBy(action => IsCollabPath(action.Theirs.RelativePath) ? 0 : 1))
             {
-                result = await SyncFileAssembler.ApplyAsync(
-                    physical,
-                    action,
-                    mine,
-                    (chunk, token) => fetch(file, chunk, token),
-                    DateTimeOffset.UtcNow,
-                    cancellationToken,
-                    piece =>
-                    {
-                        fileDone += piece;
-                        doneBytes += piece;
-                        Report(file.RelativePath, file.Size, fileDone);
-                    },
-                    timings);
+                SyncIndexEntry file = action.Theirs;
+                SyncApplyResult result;
+                long fileDone = 0;
+                Report(file.RelativePath, file.Size, 0, force: true);
+                try
+                {
+                    result = await SyncFileAssembler.ApplyAsync(
+                        physical,
+                        action,
+                        mine,
+                        (chunk, token) => fetch(file, chunk, token),
+                        DateTimeOffset.UtcNow,
+                        cancellationToken,
+                        piece =>
+                        {
+                            fileDone += piece;
+                            doneBytes += piece;
+                            Report(file.RelativePath, file.Size, fileDone);
+                        },
+                        timings);
+                }
+                catch (SyncLanException exception)
+                {
+                    // The peer changed the file since its index: it comes with the next index.
+                    waiting++;
+                    lastError = exception.Message;
+                    continue;
+                }
+                if (result.Outcome == SyncApplyOutcome.Waiting)
+                {
+                    waiting++;
+                    doneBytes += file.Size - fileDone;
+                    continue;
+                }
+                filesDone++;
+                bytes += (long)result.ChunksFetched * SyncIndex.ChunkSize;
+                if (action.Kind == SyncTransferKind.KeepBoth)
+                {
+                    ledger.Keep(file.RelativePath, file.Sha256);
+                    kept++;
+                }
+                else
+                {
+                    ledger.Applied(file.RelativePath, file.Version!);
+                    received++;
+                    if (SyncCollab.IsChangesetPath(file.RelativePath))
+                        NoteLatency(folderId, DateTime.UtcNow - file.LastWriteUtc);
+                    // A checkpoint arrived: the next pass puts it in place now, not at the fallback period.
+                    if (file.RelativePath.Contains(Path.DirectorySeparatorChar + "checkpoints" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                        file.RelativePath.EndsWith(".dwg", StringComparison.OrdinalIgnoreCase))
+                        Poke();
+                }
+                SyncVersionLedgerStore.Save(ledger, ledgerPath);
             }
-            catch (SyncLanException exception)
-            {
-                // The peer changed the file since its index: it comes with the next index.
-                waiting++;
-                lastError = exception.Message;
-                continue;
-            }
-            if (result.Outcome == SyncApplyOutcome.Waiting)
-            {
-                waiting++;
-                doneBytes += file.Size - fileDone;
-                continue;
-            }
-            filesDone++;
-            bytes += (long)result.ChunksFetched * SyncIndex.ChunkSize;
-            if (action.Kind == SyncTransferKind.KeepBoth)
-            {
-                ledger.Keep(file.RelativePath, file.Sha256);
-                kept++;
-            }
-            else
-            {
-                ledger.Applied(file.RelativePath, file.Version!);
-                received++;
-                if (SyncCollab.IsChangesetPath(file.RelativePath))
-                    NoteLatency(folderId, DateTime.UtcNow - file.LastWriteUtc);
-                // A checkpoint arrived: the next pass puts it in place now, not at the fallback period.
-                if (file.RelativePath.Contains(Path.DirectorySeparatorChar + "checkpoints" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
-                    file.RelativePath.EndsWith(".dwg", StringComparison.OrdinalIgnoreCase))
-                    Poke();
-            }
-            SyncVersionLedgerStore.Save(ledger, ledgerPath);
+        }
+        finally
+        {
+            // A transfer cut off by its window or by a changeset still counts what arrived (Erk-S Sync,
+            // 2026-10-28: 601 files came through the server and the row said 0).
+            NoteReceipt(folderId, peer.DeviceKeyId, received, kept, bytes, started, timings, streams);
         }
         // What arrived stays reported until something else arrives: the pass right after a
         // transfer has nothing to take, and a count that flickers back to 0 tells nobody anything.
-        string receiptKey = folderId + "|" + peer.DeviceKeyId;
-        SyncPeerState receipt;
+        return WithReceipt(folderId, peer) with
+        {
+            WaitingCount = waiting,
+            AheadHereCount = plan.AheadHere,
+            UnrelatedCount = plan.Unrelated,
+            LastError = lastError,
+        };
+    }
+
+    /// <summary>What arrived from a partner in a transfer, kept until something else arrives (a pass with nothing to take keeps it).</summary>
+    private void NoteReceipt(string folderId, string deviceKeyId, int received, int kept, long bytes, DateTimeOffset started, SyncApplyTimings timings, int streams)
+    {
+        if (received + kept == 0)
+            return;
+        double seconds = (DateTimeOffset.UtcNow - started).TotalSeconds;
         lock (_gate)
         {
-            if (received + kept > 0)
+            _lastReceipts[folderId + "|" + deviceKeyId] = new SyncPeerState
             {
-                double seconds = (DateTimeOffset.UtcNow - started).TotalSeconds;
-                _lastReceipts[receiptKey] = new SyncPeerState
-                {
-                    LastTransferBytesPerSecond = seconds > 0 ? bytes / seconds : 0,
-                    LastTransferWaitSeconds = timings.WaitSeconds,
-                    LastTransferHashSeconds = timings.HashSeconds,
-                    LastTransferDiskSeconds = timings.DiskSeconds,
-                    LastTransferStreams = streams,
-                    ReceivedCount = received,
-                    KeptBothCount = kept,
-                    BytesReceived = bytes,
-                    LastReceivedAtUtc = DateTimeOffset.UtcNow,
-                };
-            }
-            receipt = _lastReceipts.GetValueOrDefault(receiptKey) ?? new SyncPeerState();
+                LastTransferBytesPerSecond = seconds > 0 ? bytes / seconds : 0,
+                LastTransferWaitSeconds = timings.WaitSeconds,
+                LastTransferHashSeconds = timings.HashSeconds,
+                LastTransferDiskSeconds = timings.DiskSeconds,
+                LastTransferStreams = streams,
+                ReceivedCount = received,
+                KeptBothCount = kept,
+                BytesReceived = bytes,
+                LastReceivedAtUtc = DateTimeOffset.UtcNow,
+            };
         }
+    }
+
+    /// <summary>A peer's row with the last transfer's receipt - LAN or server, finished or cut off.</summary>
+    private SyncPeerState WithReceipt(string folderId, SyncPeerState peer)
+    {
+        SyncPeerState receipt;
+        lock (_gate)
+            receipt = _lastReceipts.GetValueOrDefault(folderId + "|" + peer.DeviceKeyId) ?? new SyncPeerState();
         return peer with
         {
             ReceivedCount = receipt.ReceivedCount,
@@ -1203,10 +1232,6 @@ public sealed partial class SyncEngine : IAsyncDisposable
             LastTransferHashSeconds = receipt.LastTransferHashSeconds,
             LastTransferDiskSeconds = receipt.LastTransferDiskSeconds,
             LastTransferStreams = receipt.LastTransferStreams,
-            WaitingCount = waiting,
-            AheadHereCount = plan.AheadHere,
-            UnrelatedCount = plan.Unrelated,
-            LastError = lastError,
         };
     }
 
