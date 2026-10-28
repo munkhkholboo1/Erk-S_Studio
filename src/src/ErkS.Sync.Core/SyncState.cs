@@ -240,6 +240,9 @@ public sealed record SyncState
 
     public string ServerMessage { get; init; } = "";
 
+    /// <summary>Why the server is out of reach (tls, dns, connect, refused, proxy, timeout, other); "" when it answered.</summary>
+    public string ServerReason { get; init; } = "";
+
     public int LanPort { get; init; }
 
     public IReadOnlyList<SyncFolderState> Folders { get; init; } = [];

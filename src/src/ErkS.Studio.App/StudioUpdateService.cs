@@ -87,7 +87,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly HttpClient httpClient = new() { Timeout = TimeSpan.FromMinutes(30) };
+    private readonly HttpClient httpClient = ErkS.Updates.NetworkFailure.CreateClient(TimeSpan.FromMinutes(30));
     private readonly IAuthenticodeTrustVerifier authenticodeVerifier;
 
     public StudioUpdateService()

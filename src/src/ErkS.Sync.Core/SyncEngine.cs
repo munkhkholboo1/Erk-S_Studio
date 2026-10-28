@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
+using ErkS.Updates;
 
 namespace ErkS.Sync.Core;
 
@@ -172,8 +173,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
     private static string Describe(Exception exception) => exception switch
     {
         SyncServerException refused => $"{(int)refused.Status} {refused.Code}".Trim(),
-        TaskCanceledException => "хугацаа хэтэрсэн",
-        _ => "сүлжээ",
+        // Why the connection failed, in the member's words (TLS, DNS, firewall, clock) - not «network».
+        _ => NetworkFailure.Explain(exception).Message,
     };
 
     /// <summary>The folder's state with what is still unsent of its redactions, and why.</summary>
@@ -422,6 +423,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
 
         string serverStatus = "ok";
         string serverMessage = "";
+        string serverReason = "";
         try
         {
             _server.LanEndpoints = SyncLanAddresses.Own(_exchange?.Port ?? 0);
@@ -440,8 +442,12 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
+            // Erk-S Sync / Master, 2026-10-28: a partner whose TLS failed was told «offline» - the reason is
+            // said (clock, antivirus, root store, DNS …), and that the LAN still works while the server does not.
+            NetworkFailureReason reason = NetworkFailure.Explain(exception);
             serverStatus = "offline";
-            serverMessage = "Сервертэй холбогдож чадсангүй — сүүлд мэдсэн хавтсуудаар ажиллаж байна.";
+            serverReason = reason.Code;
+            serverMessage = reason.Message + " LAN-аар ажилласаар байна; сервер хэрэгтэй (өөр сүлжээний) хамтрагчид хүрэхгүй.";
         }
 
         IReadOnlyList<SyncServerDeviceFolder> known;
@@ -483,6 +489,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             DeviceKeyId = _device.DeviceKeyId,
             ServerStatus = serverStatus,
             ServerMessage = serverMessage,
+            ServerReason = serverReason,
             LanPort = _exchange?.Port ?? 0,
             Folders = states,
         });
@@ -888,7 +895,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     ? "Сервероор дамжуулж чадсангүй: " + refused.Message
                     : exception is OperationCanceledException
                         ? "Сервероор дамжуулалт энэ удаад хугацаандаа багтсангүй — дараагийн шалгалтаар үргэлжилнэ."
-                        : "Сервероор дамжуулж чадсангүй (сүлжээ).";
+                        : "Сервероор дамжуулж чадсангүй: " + NetworkFailure.Explain(exception).Message;
             }
         }
 
@@ -1435,7 +1442,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         {
             if (cancellationToken.IsCancellationRequested)
                 throw;
-            return "Серверт илгээж чадсангүй: " + exception.Message;
+            return "Серверт илгээж чадсангүй: " + (exception is SyncServerException ? exception.Message : NetworkFailure.Explain(exception).Message);
         }
     }
 

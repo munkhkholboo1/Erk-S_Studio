@@ -113,6 +113,12 @@ internal sealed partial class ShellView
                     .Select(folder => new { folder = folder.FolderId, project = folder.ProjectCode, collabs = folder.Collabs })
                     .Where(item => item.collabs.Count > 0)
                     .ToList());
+            case "net-diag":
+            {
+                string report = await StudioNetDiag.RunAsync(
+                    request.Arg("server") ?? account.SuggestedServerUrl);
+                return StudioBridgeProtocol.Accept(request.Id, new { report, reason = StudioNetworkFailureLog.Last?.Code ?? "", detail = StudioNetworkFailureLog.Last?.Detail ?? "" }, report);
+            }
             case "dokany-install":
             {
                 if (!StudioDokany.NeedsInstall)

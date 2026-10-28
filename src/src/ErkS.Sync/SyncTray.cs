@@ -76,7 +76,7 @@ internal sealed class SyncTray : ApplicationContext
 
     private async Task RunEngineAsync(CancellationToken cancellationToken)
     {
-        var http = new HttpClient { BaseAddress = Program.ServerUrl(), Timeout = TimeSpan.FromSeconds(60) };
+        HttpClient http = ErkS.Updates.NetworkFailure.CreateClient(TimeSpan.FromSeconds(60), Program.ServerUrl());
         http.DefaultRequestHeaders.UserAgent.ParseAdd("ErkS.Sync/1.1");
         while (!cancellationToken.IsCancellationRequested)
         {

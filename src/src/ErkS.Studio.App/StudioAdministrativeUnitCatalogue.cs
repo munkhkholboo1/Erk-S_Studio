@@ -307,7 +307,7 @@ internal sealed class StudioAdministrativeUnitCatalogue : IAdministrativeUnitCat
 
     private static Func<Uri, CancellationToken, Task<HttpResponseMessage>> CreateHttpSender()
     {
-        HttpClient client = new() { Timeout = TimeSpan.FromSeconds(30) };
+        HttpClient client = ErkS.Updates.NetworkFailure.CreateClient(TimeSpan.FromSeconds(30));
         // Without this the route answers 403 - Cloudflare refuses a request with
         // no User-Agent, and .NET sends none. Measured against production.
         StudioHttpIdentity.Identify(client);

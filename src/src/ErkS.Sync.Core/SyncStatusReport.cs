@@ -121,6 +121,12 @@ public sealed record SyncStatusReport(
     /// <summary>The installed Dokany («2.3.1.1000»), "" when none - Erk-S Central's mount needs it (Twin).</summary>
     public string DokanyVersion { get; init; } = "";
 
+    /// <summary>Whether the server answered the last pass (Erk-S Sync, 2026-10-28).</summary>
+    public bool ServerReachable => ServerStatus is "ok" or "server_refused" or "session_refused";
+
+    /// <summary>tls | dns | connect | refused | proxy | timeout | other when the server was not reached.</summary>
+    public string ServerReason { get; init; } = "";
+
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -146,7 +152,9 @@ public sealed record SyncStatusReport(
             folder.IndexedAtUtc,
             folder.LastError,
             folder.Peers.Count,
-            folder.Peers.Sum(peer => peer.DifferentCount),
+            // A lagging member's old files are no difference for the others (owner, 2026-10-26) - its own
+            // row still says them, the folder's count and the Twin do not (Erk-S Sync, 2026-10-28).
+            folder.Peers.Where(peer => !peer.Lagging).Sum(peer => peer.DifferentCount),
             folder.Peers.Select(peer => new SyncStatusPeer(
                 peer.DeviceKeyId,
                 peer.ServerLastSeenAtUtc,
@@ -208,6 +216,7 @@ public sealed record SyncStatusReport(
         }).ToList())
     {
         DokanyVersion = SyncDokany.InstalledVersion(),
+        ServerReason = state?.ServerReason ?? "",
     };
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>

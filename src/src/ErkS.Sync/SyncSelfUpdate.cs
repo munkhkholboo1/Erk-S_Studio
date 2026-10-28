@@ -49,7 +49,7 @@ internal sealed class SyncSelfUpdate(Func<SyncState?> state, Action stepAside)
     {
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+            using HttpClient http = NetworkFailure.CreateClient(TimeSpan.FromMinutes(10));
             ProductUpdateStage stage = await ProductUpdate.StageAsync(
                 http, Program.ServerUrl(), ProductCode, InstallRoot, release.Version, UpdatesRoot, null, CancellationToken.None);
             _pending = null;

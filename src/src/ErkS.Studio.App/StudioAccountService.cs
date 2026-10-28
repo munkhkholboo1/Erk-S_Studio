@@ -193,7 +193,9 @@ internal sealed class StudioAccountService :
         ICloudEraContractClient? cloudEraClient)
     {
         this.credentialStore = credentialStore ?? throw new ArgumentNullException(nameof(credentialStore));
-        httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        // The partner whose TLS failed saw only «The SSL connection could not be established» (EE / Master,
+        // 2026-10-28): every failure of this client now says its cause (clock, antivirus, root store, DNS).
+        httpClient = ErkS.Updates.NetworkFailure.CreateClient(TimeSpan.FromMinutes(5));
         StudioHttpIdentity.Identify(httpClient);
         this.cloudEraClient = cloudEraClient ?? new CloudEraGeneratedContractClient(httpClient);
     }
@@ -237,11 +239,15 @@ internal sealed class StudioAccountService :
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or StudioAccountException or Win32Exception)
         {
+            if (exception is HttpRequestException or TaskCanceledException)
+                StudioNetworkFailureLog.Note(ErkS.Updates.NetworkFailure.Explain(exception));
             if (IsSessionEpochCurrent(transition.Epoch))
             {
                 Current = null;
                 CurrentCapabilities = null;
-                LastError = exception.Message;
+                LastError = exception is HttpRequestException or TaskCanceledException
+                    ? ErkS.Updates.NetworkFailure.Explain(exception).Message
+                    : exception.Message;
                 StateChanged?.Invoke();
             }
             return false;
@@ -2036,7 +2042,7 @@ internal sealed class StudioAccountService :
     {
         try
         {
-            using CloudEraCapabilitiesClient client = new(new Uri(NormalizeServerUrl(serverUrl)));
+            using CloudEraCapabilitiesClient client = new(new Uri(NormalizeServerUrl(serverUrl)), ErkS.Updates.NetworkFailure.CreateHandler());
             CloudEraCapabilitiesSnapshot capabilities = await client.GetAsync(cancellationToken).ConfigureAwait(true);
             CloudEraCapabilityPolicy.Require(capabilities, CloudEraFeatures.Projects);
             CloudEraCapabilityPolicy.Require(capabilities, CloudEraFeatures.AlbumRevisions);
@@ -2049,7 +2055,15 @@ internal sealed class StudioAccountService :
         {
             return CreateLegacyLoopbackCapabilities();
         }
-        catch (Exception error) when (error is CloudEraContractMismatchException or HttpRequestException or TaskCanceledException)
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
+        {
+            // The first call of every sign-in: a connection that failed is not a contract mismatch - the
+            // partner whose TLS failed was told «contract тохирохгүй» (EE / Master, 2026-10-28).
+            ErkS.Updates.NetworkFailureReason reason = ErkS.Updates.NetworkFailure.Explain(error, new Uri(NormalizeServerUrl(serverUrl)).Host);
+            StudioNetworkFailureLog.Note(reason);
+            throw new StudioAccountException(reason.Message);
+        }
+        catch (CloudEraContractMismatchException error)
         {
             throw new StudioAccountException("Cloud ERA API contract тохирохгүй байна. " + error.Message);
         }
@@ -3412,11 +3426,8 @@ internal sealed class StudioAccountService :
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         StudioAccountSession session = Current
             ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
-        var http = new HttpClient
-        {
-            BaseAddress = new Uri(session.ServerUrl.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(60),
-        };
+        HttpClient http = ErkS.Updates.NetworkFailure.CreateClient(TimeSpan.FromSeconds(60), new Uri(session.ServerUrl.TrimEnd('/') + "/"));
+        StudioHttpIdentity.Identify(http);
         return (new ErkS.Sync.Core.SyncServerClient(http), session.AccessToken);
     }
 

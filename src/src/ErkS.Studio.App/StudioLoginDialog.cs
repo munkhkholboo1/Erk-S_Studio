@@ -98,6 +98,10 @@ internal sealed class StudioLoginDialog : Window
         cancel.Click += (_, _) => DialogResult = false;
         loginButton.IsDefault = true;
         loginButton.Click += async (_, _) => await SignInAsync();
+        var check = StudioWidgets.CreateButton("Холболт шалгах");
+        check.ToolTip = "Энэ компьютерээс сервер рүү холбогдох байдлыг шалгана: цаг, прокси, DNS, SSL гэрчилгээ.";
+        check.Click += async (_, _) => await CheckConnectionAsync(check);
+        actions.Children.Add(check);
         actions.Children.Add(register);
         actions.Children.Add(cancel);
         actions.Children.Add(loginButton);
@@ -335,6 +339,22 @@ internal sealed class StudioLoginDialog : Window
         visiblePasswordBox.Clear();
     }
 
+    /// <summary>The same check as the bridge's «net-diag»: what stands between this machine and the server.</summary>
+    private async Task CheckConnectionAsync(Button check)
+    {
+        check.IsEnabled = false;
+        statusText.Foreground = StudioTheme.MutedTextBrush;
+        statusText.Text = "Холболтыг шалгаж байна...";
+        try
+        {
+            statusText.Text = await StudioNetDiag.RunAsync(serverBox.Text);
+        }
+        finally
+        {
+            check.IsEnabled = true;
+        }
+    }
+
     private async Task SignInAsync()
     {
         loginButton.IsEnabled = false;
@@ -352,6 +372,8 @@ internal sealed class StudioLoginDialog : Window
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException or Win32Exception)
         {
+            if (exception is HttpRequestException or TaskCanceledException)
+                StudioNetworkFailureLog.Note(ErkS.Updates.NetworkFailure.Explain(exception));
             statusText.Foreground = StudioTheme.DangerBrush;
             statusText.Text = exception is TaskCanceledException
                 ? "Cloud ERA үйлчилгээ хариу өгөх хугацаа хэтэрлээ."
