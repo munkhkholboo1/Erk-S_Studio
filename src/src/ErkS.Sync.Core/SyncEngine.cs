@@ -835,7 +835,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         string error = "";
         bool viaLan = false;
         string who = device.DeviceKeyId.Length >= 8 ? device.DeviceKeyId[..8] : device.DeviceKeyId;
-        Stage($"хамтрагч {who}: LAN");
+        Stage($"хамтрагч {who}: LAN-ийг оролдож байна");
         // The partner opened a connection to us and offered it back (our firewall-free side reaches it,
         // its side cannot reach us): ask on it as on our own.
         if (_exchange?.TakeReverse(device.DeviceKeyId, folderId) is { } offered)
@@ -848,6 +848,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                 peer = peer with { LanAddress = heard?.Endpoint.ToString() ?? "", Route = "lan" };
                 viaLan = true;
+                Stage($"хамтрагч {who}: LAN-аар татаж байна");
                 using (var work = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, LongWork(begins: true)))
                     peer = await TransferAsync(folderId, physical, mine, theirs,
                         (file, chunk, token) => offered.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, work.Token);
@@ -890,6 +891,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         _lanHintMissed.Remove(device.DeviceKeyId);
                 }
                 viaLan = true;
+                Stage($"хамтрагч {who}: LAN-аар татаж байна");
                 timeout.CancelAfter(TransferWindow);
                 // More connections for the pieces when there is something to take: one TCP stream over
                 // Wi-Fi used a quarter of it (Erk-S Sync, 2026-10-27). Pieces go round them in turn.
@@ -1139,6 +1141,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 // «%» and what arrived move while the files come, not only at the end of the pass.
                 HereBytes = hereBefore + doneBytes,
                 NeededBytes = Math.Max(0, totalBytes - doneBytes),
+                NeededFiles = Math.Max(0, plan.Actions.Count - filesDone),
+                LastTransferBytes = bytes,
                 ReceivedCount = Totals(folderId, peer.DeviceKeyId).Count,
                 KeptBothCount = Totals(folderId, peer.DeviceKeyId).Kept,
                 BytesReceived = Totals(folderId, peer.DeviceKeyId).Bytes,

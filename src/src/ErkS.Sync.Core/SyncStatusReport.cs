@@ -40,6 +40,15 @@ public sealed record SyncStatusPeer(
     /// <summary>Their size - what this machine still waits for from the server.</summary>
     public long ServerIncompleteBytes { get; init; }
 
+    /// <summary>
+    /// What this machine still needs from this partner that it CAN take now - whole on the server or on the
+    /// LAN (Erk-S Sync, 2026-10-28: to tell «waits for the upload» from «takes slowly»). Files still being
+    /// sent are <see cref="ServerIncomplete"/>.
+    /// </summary>
+    public int NeededFiles { get; init; }
+
+    public long NeededBytes { get; init; }
+
     /// <summary>The bytes the last transfer carried over the wire (a delta: only the changed pieces).</summary>
     public long LastTransferBytes { get; init; }
 
@@ -227,6 +236,8 @@ public sealed record SyncStatusReport(
                 ServerIncompleteBytes = peer.ServerIncompleteBytes,
                 Route = peer.Route,
                 LastTransferBytes = peer.LastTransferBytes,
+                NeededFiles = peer.NeededFiles,
+                NeededBytes = peer.NeededBytes,
                 InPercent = peer.InPercent,
             }).ToList(),
             folder.ConflictCount,
