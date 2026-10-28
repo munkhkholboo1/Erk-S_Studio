@@ -72,6 +72,9 @@ public static class SyncSummary
         {
             SyncPeerState[] online = folder.Peers.Where(peer => SyncInStep.IsOnline(peer, at)).ToArray();
             double percent = SyncInStep.Of(folder.Peers, at).Percent ?? 100;
+            // Sending to the server is syncing too, and says how far (Erk-S Sync, 2026-10-28: 14 GB going up read «✓»).
+            if (folder.Uploading && folder.UploadPendingBytes > 0)
+                percent = Math.Min(percent, Math.Round(100.0 * folder.UploadedBytes / folder.UploadPendingBytes, 1));
             SyncPeerState? moving = folder.Peers.FirstOrDefault(peer => peer.Transferring);
             double rate = moving?.TransferBytesPerSecond ?? (folder.Uploading ? folder.UploadBytesPerSecond : 0);
             double? left = moving?.TransferSecondsLeft ?? (folder.Uploading ? folder.UploadSecondsLeft : null);

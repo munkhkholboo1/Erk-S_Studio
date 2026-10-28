@@ -104,8 +104,20 @@ public sealed record SyncPeerState
     /// <summary>This machine's folder in bytes, for the share still to come.</summary>
     public long HereBytes { get; init; }
 
-    /// <summary>How much of what this partner holds for this machine is here: 100 when nothing is needed.</summary>
-    public double InPercent => NeededBytes <= 0 ? 100 : Math.Round(HereBytes * 100.0 / (HereBytes + NeededBytes), 1);
+    /// <summary>
+    /// How much of what this partner holds for this machine is here: 100 when nothing is needed. Files the
+    /// partner is still sending to the server count as needed - they are on their way, not absent.
+    /// </summary>
+    public double InPercent
+    {
+        get
+        {
+            long needed = NeededBytes + ServerIncompleteBytes;
+            if (needed <= 0 && ServerIncompleteCount == 0)
+                return 100;
+            return HereBytes + needed <= 0 ? 0 : Math.Min(99.9, Math.Round(HereBytes * 100.0 / (HereBytes + needed), 1));
+        }
+    }
 
     public long SyncedBytes { get; init; }
 
@@ -140,6 +152,9 @@ public sealed record SyncPeerState
 
     /// <summary>This partner's files the server holds only in part (its upload broke off) - waited for, never taken half.</summary>
     public int ServerIncompleteCount { get; init; }
+
+    /// <summary>The size of those files (what this machine still waits for from the server).</summary>
+    public long ServerIncompleteBytes { get; init; }
 
     /// <summary>The last transfer's time waiting for pieces, hashing, writing (seconds), and the connections it used.</summary>
     public double LastTransferWaitSeconds { get; init; }
@@ -239,6 +254,11 @@ public sealed record SyncState
     public string ServerStatus { get; init; } = "";
 
     public string ServerMessage { get; init; } = "";
+
+    /// <summary>What the running pass is doing («хамтрагч 0a55efd7: серверээр татаж байна», «дууссан») and since when.</summary>
+    public string PassStage { get; init; } = "";
+
+    public DateTimeOffset? PassStageAtUtc { get; init; }
 
     /// <summary>Why the server is out of reach (tls, dns, connect, refused, proxy, timeout, other); "" when it answered.</summary>
     public string ServerReason { get; init; } = "";

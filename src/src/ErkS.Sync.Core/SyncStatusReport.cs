@@ -36,6 +36,9 @@ public sealed record SyncStatusPeer(
 
     /// <summary>This partner's files not yet whole on the server (its author may be offline) - information, nobody waits.</summary>
     public int ServerIncomplete { get; init; }
+
+    /// <summary>Their size - what this machine still waits for from the server.</summary>
+    public long ServerIncompleteBytes { get; init; }
 }
 
 public sealed record SyncStatusFolder(
@@ -56,6 +59,20 @@ public sealed record SyncStatusFolder(
 {
     /// <summary>CGA shared files (К1) for Twin - counts only, no file names.</summary>
     public IReadOnlyList<SyncStatusCollab> Collab { get; init; } = [];
+
+    /// <summary>
+    /// This machine sending its files to the server (Erk-S Sync, 2026-10-28: the Twin and the tray said
+    /// «nothing moves» while 14 GB were going up): how much, how fast, how long.
+    /// </summary>
+    public bool Uploading { get; init; }
+
+    public long UploadedBytes { get; init; }
+
+    public long UploadPendingBytes { get; init; }
+
+    public double UploadBytesPerSecond { get; init; }
+
+    public double? UploadSecondsLeft { get; init; }
 
     /// <summary>Redactions recorded here the server does not hold yet, and why (Twin).</summary>
     public int RedactionsUnsent { get; init; }
@@ -136,6 +153,11 @@ public sealed record SyncStatusReport(
     /// <summary>tls | dns | connect | refused | proxy | timeout | other when the server was not reached.</summary>
     public string ServerReason { get; init; } = "";
 
+    /// <summary>What the pass is doing now and since when - a pass stuck at one stage shows where.</summary>
+    public string PassStage { get; init; } = "";
+
+    public DateTimeOffset? PassStageAtUtc { get; init; }
+
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -191,10 +213,16 @@ public sealed record SyncStatusReport(
                 LastDiskSeconds = peer.LastTransferDiskSeconds,
                 LastStreams = peer.LastTransferStreams,
                 ServerIncomplete = peer.ServerIncompleteCount,
+                ServerIncompleteBytes = peer.ServerIncompleteBytes,
             }).ToList(),
             folder.ConflictCount,
             SyncInStep.Of(folder.Peers).Percent ?? 100)
         {
+            Uploading = folder.Uploading,
+            UploadedBytes = folder.UploadedBytes,
+            UploadPendingBytes = folder.UploadPendingBytes,
+            UploadBytesPerSecond = folder.UploadBytesPerSecond,
+            UploadSecondsLeft = folder.UploadSecondsLeft,
             RedactionsUnsent = folder.RedactionsUnsent,
             ChangesetLatencyP50Seconds = folder.ChangesetLatencyP50Seconds,
             ChangesetLatencyP95Seconds = folder.ChangesetLatencyP95Seconds,
@@ -228,6 +256,8 @@ public sealed record SyncStatusReport(
     {
         DokanyVersion = SyncDokany.InstalledVersion(),
         ServerReason = state?.ServerReason ?? "",
+        PassStage = state?.PassStage ?? "",
+        PassStageAtUtc = state?.PassStageAtUtc,
     };
 
     /// <summary>tmp → replace, so a reader holding the file with share-delete never sees half of it.</summary>

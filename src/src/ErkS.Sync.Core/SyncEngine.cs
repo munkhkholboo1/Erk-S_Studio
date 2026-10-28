@@ -424,6 +424,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         string serverStatus = "ok";
         string serverMessage = "";
         string serverReason = "";
+        Stage("сервертэй холбогдож байна");
         try
         {
             _server.LanEndpoints = SyncLanAddresses.Own(_exchange?.Port ?? 0);
@@ -486,6 +487,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
 
         Write(new SyncState
         {
+            PassStage = "дууссан",
+            PassStageAtUtc = DateTimeOffset.UtcNow,
             DeviceKeyId = _device.DeviceKeyId,
             ServerStatus = serverStatus,
             ServerMessage = serverMessage,
@@ -668,7 +671,10 @@ public sealed partial class SyncEngine : IAsyncDisposable
 
         string uploadError = "";
         if (entry.Devices.Any(device => !device.DeviceKeyId.Equals(_device!.DeviceKeyId, StringComparison.OrdinalIgnoreCase)))
+        {
+            Stage($"«{folder.ProjectCode}»: серверт илгээж байна");
             uploadError = await UploadAsync(folder.FolderId, index, cancellationToken);
+        }
         // This machine's own changesets whole on the server: CGA says «Илгээгдлээ ✓ (серверт)» and drops
         // its closing warning - told when the count changes, never polled.
         foreach (SyncCollabFile shared in SyncCollab.Files(physical))
@@ -740,6 +746,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
         bool hinted = lanEndpoint is not null && !heardHere;
         string error = "";
         bool viaLan = false;
+        string who = device.DeviceKeyId.Length >= 8 ? device.DeviceKeyId[..8] : device.DeviceKeyId;
+        Stage($"хамтрагч {who}: LAN");
         // The partner opened a connection to us and offered it back (our firewall-free side reaches it,
         // its side cannot reach us): ask on it as on our own.
         if (_exchange?.TakeReverse(device.DeviceKeyId, folderId) is { } offered)
@@ -853,7 +861,9 @@ public sealed partial class SyncEngine : IAsyncDisposable
             {
                 using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 window.CancelAfter(TransferWindow);
+                Stage($"хамтрагч {who}: серверээс индекс авч байна");
                 string? json = await _server.GetIndexAsync(relay.AccessToken, folderId, device.DeviceKeyId, window.Token);
+                Stage($"хамтрагч {who}: серверээр татаж байна");
                 if (json is null)
                 {
                     error = "Хамтрагч индексээ серверт хараахан тавиагүй (түүний Erk-S Sync шинэчлэгдээгүй эсвэл унтарсан).";
@@ -865,8 +875,15 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     // (owner, 2026-10-27: its author may have gone offline mid-upload; the others go on).
                     int incomplete = served.Entries.Count(entry => entry.Incomplete);
                     SyncIndex theirs = incomplete == 0 ? served : served with { Entries = served.Entries.Where(entry => !entry.Incomplete).ToList() };
+                    // Not taken, but waited for: a file the partner is still sending that this machine lacks holds
+                    // its «%» below 100 (Erk-S Sync, 2026-10-28: an empty laptop read 100% with 13 339 on the way).
+                    Dictionary<string, string> held = mine.Entries.ToDictionary(entry => entry.RelativePath, entry => entry.Sha256, SyncPath.Comparer);
+                    SyncIndexEntry[] awaited = served.Entries
+                        .Where(entry => entry.Incomplete && SyncTransferPlanner.IsCarried(entry.Kind) &&
+                            !(held.TryGetValue(entry.RelativePath, out string? sha) && sha.Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase)))
+                        .ToArray();
                     error = "";
-                    peer = peer with { Route = "server", ServerIncompleteCount = incomplete };
+                    peer = peer with { Route = "server", ServerIncompleteCount = awaited.Length, ServerIncompleteBytes = awaited.Sum(entry => entry.Size) };
                     lock (_gate)
                     {
                         if (!_peersOnServer.TryGetValue(folderId, out var byPeer))
@@ -1318,6 +1335,16 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 }
             }
 
+            // File by file, the small ones first (Erk-S Sync, 2026-10-28: the server's «missing» came back in
+            // hash order, 4 lanes spread every file thin, and after 1.3 GB not one of 13 339 files was whole - so
+            // the partner, who takes only whole files, took nothing for an hour). Now each file is finished before
+            // the next, and the partner starts taking them while the upload goes on.
+            missing = missing
+                .Where(pieces.ContainsKey)
+                .OrderBy(sha => pieces[sha].Entry.Size)
+                .ThenBy(sha => pieces[sha].Entry.RelativePath, StringComparer.Ordinal)
+                .ThenBy(sha => pieces[sha].Chunk)
+                .ToList();
             long pending = missing.Sum(sha => pieces.TryGetValue(sha, out var at) ? PieceLength(at.Entry, at.Chunk) : 0);
             long done = 0;
             var rate = new SyncTransferRate();
@@ -1456,6 +1483,17 @@ public sealed partial class SyncEngine : IAsyncDisposable
             folder = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase));
         if (folder is not null)
             UpsertFolder(change(folder));
+    }
+
+    /// <summary>
+    /// What the pass is doing now, written at once (Erk-S Sync, 2026-10-28: a laptop's status.json stopped for
+    /// eight minutes and nobody could tell where its pass stood). The Twin sees the stage and since when.
+    /// </summary>
+    private void Stage(string what)
+    {
+        lock (_gate)
+            LastState = LastState with { PassStage = what, PassStageAtUtc = DateTimeOffset.UtcNow };
+        Write(LastState);
     }
 
     /// <summary>Puts <paramref name="folder"/> into the state now and writes it - the pass is still running.</summary>

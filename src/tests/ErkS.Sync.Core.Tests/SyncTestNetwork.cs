@@ -59,6 +59,12 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     /// <summary>Piece uploads fail (the author's network cut mid-upload): the index arrives, the pieces do not.</summary>
     public bool DropChunkPuts { get; set; }
 
+    /// <summary>The missing-pieces answer comes back in reverse (a real server's set order is not the files').</summary>
+    public bool ReverseMissing { get; set; }
+
+    /// <summary>Every piece put, in the order it arrived.</summary>
+    public List<string> ChunkPutOrder { get; } = [];
+
     /// <summary>The cloud relay routes (contract syn-cloud-relay); off, the server is the one SYN 1.2 knew.</summary>
     public bool Relay { get; init; }
 
@@ -146,6 +152,8 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                     using var body = System.Text.Json.JsonDocument.Parse(content);
                     string[] missing = body.RootElement.GetProperty("sha256").EnumerateArray()
                         .Select(item => item.GetString() ?? "").Where(sha => !_chunks.ContainsKey(sha)).ToArray();
+                    if (ReverseMissing)
+                        Array.Reverse(missing);
                     return Json(new { missing });
                 }
                 if (rest.StartsWith("/chunks/", StringComparison.Ordinal))
@@ -158,6 +166,7 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                         if (!Convert.ToHexStringLower(SHA256.HashData(content)).Equals(sha, StringComparison.OrdinalIgnoreCase))
                             return new HttpResponseMessage(HttpStatusCode.BadRequest);
                         _chunks[sha] = content;
+                        ChunkPutOrder.Add(sha);
                         return new HttpResponseMessage(HttpStatusCode.NoContent);
                     }
                     return _chunks.TryGetValue(sha, out byte[]? held)
