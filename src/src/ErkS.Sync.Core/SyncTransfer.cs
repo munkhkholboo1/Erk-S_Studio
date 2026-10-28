@@ -200,8 +200,12 @@ public static class SyncFileAssembler
 
         string scratch = Path.Combine(root, SyncExclusions.MarkerDirectoryName, "tmp");
         Directory.CreateDirectory(scratch);
-        string temporary = Path.Combine(scratch, Guid.NewGuid().ToString("N") + ".part");
+        // Named by the content, kept when the transfer breaks off: the next pass (or a restart) goes on
+        // from the pieces already here (Erk-S Sync, 2026-10-28: a 2.25 MB/s phone link took 674 MB in five
+        // minutes and the folder grew 6 MB - every cut-off threw the half-file away).
+        string temporary = Path.Combine(scratch, theirs.Sha256.ToLowerInvariant() + ".part");
         int fetched = 0, reused = 0;
+        bool done = false;
         Dictionary<string, (string Path, long Offset)> local = LocalPieces(root, mine);
         // The pieces not held here are asked for a few ahead (Erk-S Sync, 2026-10-27: one by one, the
         // LAN ran at a tenth of the Wi-Fi): while one is checked and written, the next are on the way.
@@ -220,9 +224,13 @@ public static class SyncFileAssembler
         try
         {
             using (var whole = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
-            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true))
+            await using (var output = new FileStream(temporary, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1024 * 1024, useAsync: true))
             {
-                for (int index = 0; index < theirs.ChunkSha256.Count; index++)
+                int resumeFrom = await ResumeAsync(output, theirs, whole, cancellationToken);
+                reused += resumeFrom;
+                if (resumeFrom > 0)
+                    progress?.Invoke(Math.Min(theirs.Size, (long)resumeFrom * SyncIndex.ChunkSize));
+                for (int index = resumeFrom; index < theirs.ChunkSha256.Count; index++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     AskAhead(index);
@@ -258,7 +266,10 @@ public static class SyncFileAssembler
                     progress?.Invoke(piece.Length);
                 }
                 if (!Convert.ToHexStringLower(whole.GetHashAndReset()).Equals(theirs.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    done = true; // a wrong whole is not kept to go on from
                     throw new InvalidDataException($"{theirs.RelativePath} did not match its hash after assembly.");
+                }
             }
 
             // Checked again at the last moment: a file opened or saved while the pieces came.
@@ -272,6 +283,7 @@ public static class SyncFileAssembler
                 File.Copy(target, kept, overwrite: true);
             }
             File.Move(temporary, target, overwrite: action.Kind == SyncTransferKind.Replace);
+            done = true;
             return new SyncApplyResult(SyncApplyOutcome.Applied, theirs.RelativePath, fetched, reused);
         }
         finally
@@ -288,14 +300,71 @@ public static class SyncFileAssembler
                 {
                 }
             }
-            try
+            // Broken off: the pieces stay for the next try. Done (or a bad whole), or nothing written: nothing is left.
+            if (done || (File.Exists(temporary) && new FileInfo(temporary).Length == 0))
             {
-                if (File.Exists(temporary))
-                    File.Delete(temporary);
+                try
+                {
+                    if (File.Exists(temporary))
+                        File.Delete(temporary);
+                }
+                catch (IOException)
+                {
+                }
             }
-            catch (IOException)
+        }
+    }
+
+    /// <summary>
+    /// The whole pieces a kept «.part» already holds, each checked against its hash and fed to the file's
+    /// hash; the stream is left after them (a torn last piece is cut off). Returns how many there are.
+    /// </summary>
+    private static async Task<int> ResumeAsync(FileStream part, SyncIndexEntry theirs, IncrementalHash whole, CancellationToken cancellationToken)
+    {
+        int held = (int)Math.Min(theirs.ChunkSha256.Count, part.Length / SyncIndex.ChunkSize);
+        // The last piece of a file is shorter: a part that holds the whole file holds it too.
+        if (part.Length >= theirs.Size && theirs.ChunkSha256.Count > 0)
+            held = theirs.ChunkSha256.Count;
+        part.Position = 0;
+        var buffer = new byte[SyncIndex.ChunkSize];
+        int good = 0;
+        for (; good < held; good++)
+        {
+            int length = (int)Math.Min(SyncIndex.ChunkSize, theirs.Size - (long)good * SyncIndex.ChunkSize);
+            int read = 0;
+            while (read < length)
             {
+                int got = await part.ReadAsync(buffer.AsMemory(read, length - read), cancellationToken);
+                if (got == 0)
+                    break;
+                read += got;
             }
+            if (read < length || !Convert.ToHexStringLower(SHA256.HashData(buffer.AsSpan(0, length))).Equals(theirs.ChunkSha256[good], StringComparison.OrdinalIgnoreCase))
+                break;
+            whole.AppendData(buffer, 0, length);
+        }
+        long keep = Math.Min(part.Length, (long)good * SyncIndex.ChunkSize);
+        part.SetLength(keep);
+        part.Position = keep;
+        return good;
+    }
+
+    /// <summary>Kept halves no transfer came back for in three days are let go.</summary>
+    public static void TidyParts(string root)
+    {
+        try
+        {
+            string scratch = Path.Combine(root, SyncExclusions.MarkerDirectoryName, "tmp");
+            if (!Directory.Exists(scratch))
+                return;
+            foreach (string part in Directory.EnumerateFiles(scratch, "*.part"))
+            {
+                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(part) > TimeSpan.FromDays(3))
+                    File.Delete(part);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
         }
     }
 

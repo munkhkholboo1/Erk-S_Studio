@@ -67,7 +67,7 @@ public static class SyncIndexBuilder
             .GroupBy(entry => entry.RelativePath, SyncPath.Comparer)
             .ToDictionary(group => group.Key, group => group.First(), SyncPath.Comparer);
         var entries = new List<SyncIndexEntry>();
-        Walk(root, root, insideCentralBackup: false, known, entries, cancellationToken);
+        Walk(root, root, insideCentralBackup: false, known, entries, cancellationToken, new SyncIgnore());
         entries.Sort((left, right) => SyncPath.Comparer.Compare(left.RelativePath, right.RelativePath));
         return new SyncIndex
         {
@@ -83,7 +83,8 @@ public static class SyncIndexBuilder
         bool insideCentralBackup,
         Dictionary<string, SyncIndexEntry> known,
         List<SyncIndexEntry> entries,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        SyncIgnore ignore)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string[] files;
@@ -99,6 +100,12 @@ public static class SyncIndexBuilder
         }
 
         string[] fileNames = files.Select(Path.GetFileName).OfType<string>().ToArray();
+        // An EE project's «.erks-sync-ignore» rules this folder and everything below it.
+        if (fileNames.Contains(SyncIgnore.FileName, StringComparer.OrdinalIgnoreCase))
+        {
+            string here = SyncPath.Relative(root, directory);
+            ignore.Add(root, here == "." ? "" : here);
+        }
         string[] directoryNames = directories.Select(Path.GetFileName).OfType<string>().ToArray();
         IReadOnlySet<string> candidates = SyncExclusions.RevitCentrals(fileNames, directoryNames);
         IReadOnlySet<string> locals = SyncExclusions.RevitLocalCopies(fileNames, candidates);
@@ -125,6 +132,8 @@ public static class SyncIndexBuilder
             }
 
             string relative = SyncPath.Relative(root, file);
+            if (ignore.Ignores(relative))
+                continue;
             SyncFileKind kind = SyncFileKinds.Of(relative, centrals.Contains(name), insideCentralBackup);
             DateTime written = info.LastWriteTimeUtc;
             if (known.TryGetValue(relative, out SyncIndexEntry? previous) &&
@@ -144,7 +153,7 @@ public static class SyncIndexBuilder
         foreach (string child in directories)
         {
             string name = Path.GetFileName(child);
-            if (SyncExclusions.IsExcludedDirectory(name) || locals.Contains(name))
+            if (SyncExclusions.IsExcludedDirectory(name) || locals.Contains(name) || ignore.Ignores(SyncPath.Relative(root, child), isDirectory: true))
                 continue;
             try
             {
@@ -155,7 +164,7 @@ public static class SyncIndexBuilder
             {
                 continue;
             }
-            Walk(root, child, insideCentralBackup || centralBackups.Contains(name), known, entries, cancellationToken);
+            Walk(root, child, insideCentralBackup || centralBackups.Contains(name), known, entries, cancellationToken, ignore);
         }
     }
 

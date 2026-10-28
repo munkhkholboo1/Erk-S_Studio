@@ -124,6 +124,13 @@ public sealed partial class SyncEngine
     private void Felt(string physical, string fullPath)
     {
         string relative = Path.GetRelativePath(physical, fullPath);
+        // An EE project's «.erks-sync-ignore» written or changed: what it excludes stops now - a running
+        // upload or download gives way and the next pass leaves it out (EE / Erk-S Sync, 2026-10-28).
+        if (Path.GetFileName(fullPath).Equals(SyncIgnore.FileName, StringComparison.OrdinalIgnoreCase))
+        {
+            Hurry();
+            return;
+        }
         // SYN's own bookkeeping, and the shared-file folder SYN itself writes (a publish pokes on its own).
         if (relative.StartsWith(SyncExclusions.MarkerDirectoryName, StringComparison.OrdinalIgnoreCase) ||
             relative.StartsWith(SyncCollab.DirectoryName, StringComparison.OrdinalIgnoreCase) ||
@@ -268,10 +275,11 @@ public sealed partial class SyncEngine
                 lock (_gate)
                     _serverRedactions.Remove(folderId);
             }
-            // A partner's index changed - perhaps a changeset: a long transfer gives way after 20 s, not at
-            // every event of a big upload's progress.
+            // A partner's index changed: a pass after the running one - never a cut-off (Erk-S Sync, 2026-10-28:
+            // a big upload's index events every 5 s cut the laptop's download every 20 s). Only a changeset
+            // made here hurries.
             if (type == "index")
-                Hurry(TimeSpan.FromSeconds(20));
+                Poke();
             if (type == "redactions")
                 Poke();
             if (type == "release" &&

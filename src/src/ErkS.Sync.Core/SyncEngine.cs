@@ -417,6 +417,17 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>The «.erks-sync-ignore» rules of this machine's copy of a folder (its EE projects).</summary>
+    private static SyncIgnore IgnoreOf(string physical, SyncIndex mine) =>
+        SyncIgnore.Of(physical, mine.Entries.Where(entry => IsIgnoreMarker(entry.RelativePath)).Select(entry => entry.RelativePath));
+
+    private static bool IsIgnoreMarker(string relativePath) =>
+        Path.GetFileName(relativePath).Equals(SyncIgnore.FileName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A partner's index without what this folder does not carry: never taken, never «different», never in «%».</summary>
+    private static SyncIndex Carried(SyncIndex theirs, SyncIgnore ignore) =>
+        ignore.IsEmpty ? theirs : theirs with { Entries = theirs.Entries.Where(entry => !ignore.Ignores(entry.RelativePath)).ToList() };
+
     /// <summary>Paths in the shared-file area (changesets, checkpoints, notes) - they go before everything else.</summary>
     private static bool IsCollabPath(string relativePath) =>
         relativePath.StartsWith(SyncCollab.DirectoryName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
@@ -722,6 +733,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 _roots[folder.FolderId] = physical;
             }
             Watch(physical);
+            SyncFileAssembler.TidyParts(physical);
             lock (_gate)
             {
                 _held[folder.FolderId] = held;
@@ -835,6 +847,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         string error = "";
         bool viaLan = false;
         string who = device.DeviceKeyId.Length >= 8 ? device.DeviceKeyId[..8] : device.DeviceKeyId;
+        SyncIgnore ignore = IgnoreOf(physical, mine);
         Stage($"хамтрагч {who}: LAN-ийг оролдож байна");
         // The partner opened a connection to us and offered it back (our firewall-free side reaches it,
         // its side cannot reach us): ask on it as on our own.
@@ -845,12 +858,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(TransferWindow);
                 SyncIndex theirs = await offered.FetchIndexAsync(timeout.Token);
+                SyncIndex taken = Carried(theirs, ignore);
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                 peer = peer with { LanAddress = heard?.Endpoint.ToString() ?? "", Route = "lan" };
                 viaLan = true;
                 Stage($"хамтрагч {who}: LAN-аар татаж байна");
                 using (var work = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, LongWork(begins: true)))
-                    peer = await TransferAsync(folderId, physical, mine, theirs,
+                    peer = await TransferAsync(folderId, physical, mine, taken,
                         (file, chunk, token) => offered.FetchChunkAsync(file.RelativePath, file.Sha256, chunk, token), peer, work.Token);
                 LongWork(begins: false);
             }
@@ -882,7 +896,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 // An address only the server named may be on another network: a short try, then the server road.
                 timeout.CancelAfter(hinted ? TimeSpan.FromSeconds(4) : TimeSpan.FromSeconds(30));
                 session = await _exchange.OpenAsync(lanEndpoint, device.DeviceKeyId, folderId, timeout.Token);
-                SyncIndex theirs = await session.FetchIndexAsync(timeout.Token);
+                SyncIndex theirs = Carried(await session.FetchIndexAsync(timeout.Token), ignore);
                 SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
                 peer = peer with { LanAddress = lanEndpoint.ToString(), Route = "lan" };
                 if (hinted)
@@ -974,7 +988,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 }
                 else
                 {
-                    SyncIndex served = SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index");
+                    SyncIndex served = Carried(SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index"), ignore);
                     // What is not whole on the server yet is left as if unseen - not taken, not a deletion
                     // (owner, 2026-10-27: its author may have gone offline mid-upload; the others go on).
                     int incomplete = served.Entries.Count(entry => entry.Incomplete);
@@ -1022,7 +1036,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             }
         }
 
-        SyncIndex? theirsKnown = SyncIndexStore.TryLoad(stored);
+        SyncIndex? theirsKnown = SyncIndexStore.TryLoad(stored) is { } known ? Carried(known, ignore) : null;
         if (theirsKnown is null)
             return peer with { LastError = error };
         SyncIndexDifference difference = SyncIndexComparison.Compare(mine, theirsKnown);
@@ -1152,9 +1166,13 @@ public sealed partial class SyncEngine : IAsyncDisposable
         try
         {
             // The shared files' changesets first; the order is otherwise the plan's.
-            foreach (SyncTransferAction action in plan.Actions.OrderBy(action => IsCollabPath(action.Theirs.RelativePath) ? 0 : 1))
+            SyncIgnore landed = new();
+        foreach (SyncTransferAction action in plan.Actions.OrderBy(action =>
+            IsCollabPath(action.Theirs.RelativePath) || IsIgnoreMarker(action.Theirs.RelativePath) ? 0 : 1))
             {
-                SyncIndexEntry file = action.Theirs;
+                if (!landed.IsEmpty && landed.Ignores(action.Theirs.RelativePath))
+                continue; // an EE project's marker that just arrived: not carried
+            SyncIndexEntry file = action.Theirs;
                 SyncApplyResult result;
                 long fileDone = 0;
                 Report(file.RelativePath, file.Size, 0, force: true);
@@ -1202,6 +1220,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 {
                     ledger.Applied(file.RelativePath, file.Version!);
                     received++;
+                    if (IsIgnoreMarker(file.RelativePath))
+                        landed.Add(physical, Path.GetDirectoryName(file.RelativePath) ?? "");
                     // The file's bytes: pieces fetched in a pass that was cut off are part of what came.
                     CountArrival(folderId, peer.DeviceKeyId, 1, 0, file.Size);
                     SyncIndexEntry? before = mine.Entries.FirstOrDefault(entry => SyncPath.Comparer.Equals(entry.RelativePath, file.RelativePath));
