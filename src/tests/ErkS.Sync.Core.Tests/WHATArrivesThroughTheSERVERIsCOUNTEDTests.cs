@@ -41,7 +41,11 @@ public sealed class WHATArrivesThroughTheSERVERIsCOUNTEDTests
         Assert.InRange(arrived, 1, 3); // cut off midway
         Assert.Equal(arrived, row.ReceivedCount);
         Assert.Equal("server", row.Route);
-        Assert.True(row.BytesReceived is > 0 and < 1000, $"{row.BytesReceived} bytes"); // the files' bytes, not 4 MiB pieces
+        long sizes = Directory.GetFiles(folderB, "sheet-*.pdf").Sum(path => new FileInfo(path).Length);
+        Assert.Equal(sizes, row.BytesReceived); // the files' bytes, not 4 MiB pieces
+        SyncFolderState shown = engineB.LastState.Folders.Single();
+        Assert.Equal(arrived, Directory.GetFiles(folderB, "sheet-*.pdf").Length);
+        Assert.True(shown.FileCount >= arrived, $"folder shows {shown.FileCount} files, {arrived} came"); // counted as they came
 
         // A restart does not start the count again (Erk-S Sync, 2026-10-28).
         await using var again = new SyncEngine(homeOfB, server.Client(), b, new SyncPathMap(@"D:\Cloud Work=>" + rootB.Path));

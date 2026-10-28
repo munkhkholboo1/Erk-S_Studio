@@ -70,6 +70,9 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// <summary>What came from each partner (folder|device), counted file by file and kept across restarts (received.json).</summary>
     private Dictionary<string, SyncReceived>? _received;
 
+    /// <summary>What arrived in a folder during this pass beyond its index (new files, bytes added): the folder's counts show it at once.</summary>
+    private readonly Dictionary<string, (int Files, long Bytes)> _folderArrivals = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Files that arrived from a partner during this pass (folder|device → path|sha): the pass's own «%» counts them.</summary>
     private readonly Dictionary<string, HashSet<string>> _arrivedThisPass = new(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset _receivedSavedAt;
@@ -729,6 +732,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
             return state with { PresentHere = true, LastError = "Индекс үүсгэж чадсангүй: " + exception.Message };
         }
 
+        lock (_gate)
+            _folderArrivals.Remove(folder.FolderId);
         // Shown before the peers are asked, so a long first transfer has a folder to report into -
         // with what the last pass knew, so a pass stopped midway does not report less than before.
         SyncFolderState? before = LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folder.FolderId, StringComparison.OrdinalIgnoreCase));
@@ -801,10 +806,16 @@ public sealed partial class SyncEngine : IAsyncDisposable
             ConflictCount = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId)).Kept.Values.Sum(list => list.Count),
             PresentHere = true,
             IndexedAtUtc = index.BuiltAtUtc,
-            FileCount = index.Entries.Count,
-            TotalBytes = index.Entries.Sum(entry => entry.Size),
+            FileCount = index.Entries.Count + Arrivals(folder.FolderId).Files,
+            TotalBytes = index.Entries.Sum(entry => entry.Size) + Arrivals(folder.FolderId).Bytes,
             Peers = peers,
         };
+    }
+
+    private (int Files, long Bytes) Arrivals(string folderId)
+    {
+        lock (_gate)
+            return _folderArrivals.GetValueOrDefault(folderId);
     }
 
     private async Task<SyncPeerState> PeerPassAsync(string folderId, string physical, SyncServerDevice device, SyncIndex mine, CancellationToken cancellationToken)
@@ -1181,13 +1192,20 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 {
                     ledger.Keep(file.RelativePath, file.Sha256);
                     kept++;
-                    CountArrival(folderId, peer.DeviceKeyId, 0, 1, fetched);
+                    CountArrival(folderId, peer.DeviceKeyId, 0, 1, file.Size);
                 }
                 else
                 {
                     ledger.Applied(file.RelativePath, file.Version!);
                     received++;
-                    CountArrival(folderId, peer.DeviceKeyId, 1, 0, fetched);
+                    // The file's bytes: pieces fetched in a pass that was cut off are part of what came.
+                    CountArrival(folderId, peer.DeviceKeyId, 1, 0, file.Size);
+                    SyncIndexEntry? before = mine.Entries.FirstOrDefault(entry => SyncPath.Comparer.Equals(entry.RelativePath, file.RelativePath));
+                    lock (_gate)
+                    {
+                        (int files, long added) = _folderArrivals.GetValueOrDefault(folderId);
+                        _folderArrivals[folderId] = (files + (before is null ? 1 : 0), added + file.Size - (before?.Size ?? 0));
+                    }
                     lock (_gate)
                     {
                         string key = folderId + "|" + peer.DeviceKeyId;
@@ -1781,7 +1799,18 @@ public sealed partial class SyncEngine : IAsyncDisposable
             return;
         var peers = folder.Peers.Where(item => !item.DeviceKeyId.Equals(peer.DeviceKeyId, StringComparison.OrdinalIgnoreCase)).ToList();
         peers.Add(peer);
-        UpsertFolder(folder with { Peers = peers });
+        SyncIndex? index;
+        lock (_gate)
+            index = _indexes.GetValueOrDefault(folderId);
+        // The folder's counts move with what arrives (Erk-S Sync, 2026-10-28: a 20-minute pass showed 789 files of 1528).
+        UpsertFolder(index is null
+            ? folder with { Peers = peers }
+            : folder with
+            {
+                Peers = peers,
+                FileCount = index.Entries.Count + Arrivals(folderId).Files,
+                TotalBytes = index.Entries.Sum(entry => entry.Size) + Arrivals(folderId).Bytes,
+            });
     }
 
     private IReadOnlySet<string> AllowedDevices(string folderId)
