@@ -79,6 +79,18 @@ public sealed record SyncCollabStatus(string FileId, int Checkpoint, IReadOnlyLi
     /// <summary>The CGA each writer registered with (CGA: «0.0xx+rg&lt;RoadGenerationOutputVersion&gt;»).</summary>
     public IReadOnlyList<SyncCollabVersion> Versions { get; init; } = [];
 
+    /// <summary>
+    /// A changeset may carry its objects in the manifest alone (CGA v0.081 «inline», schema 2): CGA then
+    /// publishes with no entities file and SYN carries the manifest by itself (Erk-S Sync, 2026-10-28).
+    /// </summary>
+    public bool EntitiesOptional => true;
+
+    /// <summary>
+    /// Changesets of other writers held back from this machine because its CGA is older than they need
+    /// (schema 2 needs CGA ≥ <see cref="SyncCollab.InlineSchemaMinCga"/>) - «CGA хоцорсон»; nobody else waits.
+    /// </summary>
+    public int HeldForNewerCga { get; init; }
+
     /// <summary>Writers on different CGA builds - Generate would not give the same result (design §3).</summary>
     public bool VersionMismatch => Versions.Select(version => version.CgaVersion).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1;
 }
@@ -260,6 +272,12 @@ public sealed record SyncCollabLocal
 
     /// <summary>The prune floor whose «purge kept-aside centrals» was done here.</summary>
     public int PurgedFloor { get; init; }
+
+    /// <summary>At the last collab-pull: changesets held back because this machine's CGA is too old for them.</summary>
+    public int HeldForNewerCga { get; init; }
+
+    /// <summary>The CGA this machine last said it runs (collab-pull «cgaVersion»).</summary>
+    public string CgaVersion { get; init; } = "";
 }
 
 /// <summary>
@@ -616,7 +634,7 @@ public static class SyncCollab
                 continue;
             string manifest = Path.Combine(directory, "manifest.json");
             string entities = Path.Combine(directory, "entities.dwg");
-            if (!File.Exists(manifest) || !File.Exists(entities))
+            if (!File.Exists(manifest))
                 continue;
             Directory.CreateDirectory(log);
             string path = Path.Combine(log, seq.ToString("D8") + Extension);
@@ -700,7 +718,12 @@ public static class SyncCollab
             foreach (string name in new[] { "manifest.json", "entities.dwg" })
             {
                 if (zip.GetEntry(name) is not { } entry)
-                    return "";
+                {
+                    if (name == "manifest.json")
+                        return "";
+                    sha.AppendData(BitConverter.GetBytes(-1L)); // a manifest-only changeset (schema 2)
+                    continue;
+                }
                 using Stream stream = entry.Open();
                 using var buffer = new MemoryStream();
                 stream.CopyTo(buffer);
@@ -718,19 +741,24 @@ public static class SyncCollab
     // A changeset found to hold what CGA took back is not unpacked again on every pass.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Length, DateTime Written)> Verified = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The manifest, and the entities when there are any (schema 2 carries simple objects inline).</summary>
     private static void Pack(string path, string manifestPath, string entitiesPath)
     {
         using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
         zip.CreateEntryFromFile(manifestPath, "manifest.json", CompressionLevel.Optimal);
-        zip.CreateEntryFromFile(entitiesPath, "entities.dwg", CompressionLevel.Optimal);
+        if (HasEntities(entitiesPath))
+            zip.CreateEntryFromFile(entitiesPath, "entities.dwg", CompressionLevel.Optimal);
     }
+
+    private static bool HasEntities(string entitiesPath) => !string.IsNullOrEmpty(entitiesPath) && File.Exists(entitiesPath);
 
     private static bool Holds(string changeset, string manifestPath, string entitiesPath)
     {
         try
         {
             using ZipArchive zip = ZipFile.OpenRead(changeset);
-            return SameEntry(zip, "manifest.json", manifestPath) && SameEntry(zip, "entities.dwg", entitiesPath);
+            return SameEntry(zip, "manifest.json", manifestPath) &&
+                (HasEntities(entitiesPath) ? SameEntry(zip, "entities.dwg", entitiesPath) : zip.GetEntry("entities.dwg") is null);
         }
         catch (InvalidDataException)
         {
@@ -775,8 +803,25 @@ public static class SyncCollab
     /// never past a missing number; unpacked under the Sync home for CGA to read. This machine's own
     /// writer is not given back. <paramref name="ack"/> first records what CGA applied.
     /// </summary>
-    public static IReadOnlyList<SyncCollabChangeset> Pull(string folderRoot, SyncHome home, string fileId, string ownWriter, IReadOnlyDictionary<string, long>? ack = null)
+    public static IReadOnlyList<SyncCollabChangeset> Pull(string folderRoot, SyncHome home, string fileId, string ownWriter, IReadOnlyDictionary<string, long>? ack = null) =>
+        Pull(folderRoot, home, fileId, ownWriter, ack, "", out _);
+
+    /// <summary>
+    /// <see cref="Pull(string, SyncHome, string, string, IReadOnlyDictionary{string, long}?)"/> for a CGA of
+    /// <paramref name="cgaVersion"/> ("" = the one it last said, or registered with). A changeset of schema 2
+    /// or later is not given to a CGA older than <see cref="InlineSchemaMinCga"/>, nor to one whose version
+    /// is not known: its writer's log stops there (a gap - nothing after it either), so an old CGA never
+    /// moves its ack past objects it cannot read (Erk-S Sync, 2026-10-28). <paramref name="held"/> says how
+    /// many wait for a newer CGA.
+    /// </summary>
+    public static IReadOnlyList<SyncCollabChangeset> Pull(string folderRoot, SyncHome home, string fileId, string ownWriter, IReadOnlyDictionary<string, long>? ack, string cgaVersion, out int held)
     {
+        held = 0;
+        if (string.IsNullOrWhiteSpace(cgaVersion))
+            cgaVersion = Local(home, fileId).CgaVersion is { Length: > 0 } said ? said : RegisteredVersion(folderRoot, fileId, ownWriter);
+        else if (!cgaVersion.Trim().Equals(Local(home, fileId).CgaVersion, StringComparison.OrdinalIgnoreCase))
+            SaveLocal(home, fileId, Local(home, fileId) with { CgaVersion = cgaVersion.Trim() });
+        bool readsInline = CgaAtLeast(cgaVersion, InlineSchemaMinCga);
         Dictionary<string, long> applied = Applied(home, fileId);
         // The DWG is the truth (К5, 2026-10-26): the ack is what the DWG holds now, so it SETS the
         // cursor - a DWG closed without saving comes back lower, and what it lost is given again.
@@ -808,18 +853,129 @@ public static class SyncCollab
             HashSet<long> present = Numbers(log).ToHashSet();
             for (long seq = applied.GetValueOrDefault(writer) + 1; present.Contains(seq); seq++)
             {
+                string changeset = Path.Combine(log, seq.ToString("D8") + Extension);
+                if (!readsInline && SchemaOf(changeset) >= InlineSchema)
+                {
+                    // This writer stops here for this machine; what follows waits with it.
+                    for (long rest = seq; present.Contains(rest); rest++)
+                        held++;
+                    break;
+                }
                 string unpacked = Path.Combine(home.Root, "collab", Safe(fileId), "in", writer, seq.ToString("D8"));
                 string manifest = Path.Combine(unpacked, "manifest.json");
                 string entities = Path.Combine(unpacked, "entities.dwg");
-                if (!File.Exists(manifest) || !File.Exists(entities))
+                if (!File.Exists(manifest) || !File.Exists(entities) && CarriesEntities(changeset))
                 {
                     Directory.CreateDirectory(unpacked);
-                    ZipFile.ExtractToDirectory(Path.Combine(log, seq.ToString("D8") + Extension), unpacked, overwriteFiles: true);
+                    ZipFile.ExtractToDirectory(changeset, unpacked, overwriteFiles: true);
                 }
-                pending.Add(new SyncCollabChangeset(writer, seq, manifest, entities));
+                pending.Add(new SyncCollabChangeset(writer, seq, manifest, File.Exists(entities) ? entities : ""));
             }
         }
+        if (Local(home, fileId).HeldForNewerCga != held)
+            SaveLocal(home, fileId, Local(home, fileId) with { HeldForNewerCga = held });
         return pending;
+    }
+
+    /// <summary>The first changeset schema CGA older than <see cref="InlineSchemaMinCga"/> cannot read (objects inline).</summary>
+    public const int InlineSchema = 2;
+
+    /// <summary>The first CGA that reads schema 2 (Erk-S Sync / CGA v0.081, 2026-10-28).</summary>
+    public const string InlineSchemaMinCga = "0.081";
+
+    /// <summary>«0.081», «v0.081», «0.081+rg12» against <paramref name="minimum"/>; an unknown version is not enough.</summary>
+    public static bool CgaAtLeast(string version, string minimum)
+    {
+        static int[]? Parts(string text)
+        {
+            string core = text.Trim().TrimStart('v', 'V');
+            int cut = core.IndexOfAny(['+', '-', ' ']);
+            if (cut >= 0)
+                core = core[..cut];
+            string[] pieces = core.Split('.');
+            var numbers = new int[pieces.Length];
+            for (int index = 0; index < pieces.Length; index++)
+                if (!int.TryParse(pieces[index], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out numbers[index]))
+                    return null;
+            return numbers;
+        }
+        if (Parts(version ?? "") is not { Length: > 0 } have || Parts(minimum) is not { } need)
+            return false;
+        for (int index = 0; index < Math.Max(have.Length, need.Length); index++)
+        {
+            int left = index < have.Length ? have[index] : 0, right = index < need.Length ? need[index] : 0;
+            if (left != right)
+                return left > right;
+        }
+        return true;
+    }
+
+    /// <summary>The CGA a writer registered with on this file ("" when it never said).</summary>
+    private static string RegisteredVersion(string folderRoot, string fileId, string writer)
+    {
+        if (writer.Length == 0)
+            return "";
+        string path = Path.Combine(FileRoot(folderRoot, fileId), "versions", Safe(writer) + ".json");
+        try
+        {
+            return File.Exists(path) ? JsonSerializer.Deserialize<SyncCollabVersion>(File.ReadAllText(path), Json)?.CgaVersion ?? "" : "";
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            return "";
+        }
+    }
+
+    // A changeset never changes once written: its schema is read once per file.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Length, DateTime Written, int Schema)> Schemas = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The manifest's «schema» (1 when absent or unreadable - every changeset before CGA v0.081).</summary>
+    public static int SchemaOf(string changeset)
+    {
+        try
+        {
+            var info = new FileInfo(changeset);
+            if (Schemas.TryGetValue(changeset, out var known) && known.Length == info.Length && known.Written == info.LastWriteTimeUtc)
+                return known.Schema;
+            int schema = 1;
+            using (ZipArchive zip = ZipFile.OpenRead(changeset))
+            {
+                if (zip.GetEntry("manifest.json") is { } entry)
+                {
+                    using Stream stream = entry.Open();
+                    try
+                    {
+                        using JsonDocument document = JsonDocument.Parse(stream);
+                        if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                            document.RootElement.TryGetProperty("schema", out JsonElement value) &&
+                            value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number))
+                            schema = number;
+                    }
+                    catch (JsonException)
+                    {
+                    }
+                }
+            }
+            Schemas[changeset] = (info.Length, info.LastWriteTimeUtc, schema);
+            return schema;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return 1;
+        }
+    }
+
+    private static bool CarriesEntities(string changeset)
+    {
+        try
+        {
+            using ZipArchive zip = ZipFile.OpenRead(changeset);
+            return zip.GetEntry("entities.dwg") is not null;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException)
+        {
+            return true;
+        }
     }
 
     /// <summary>
@@ -865,6 +1021,7 @@ public static class SyncCollab
         return status with
         {
             PlacedCheckpoint = Local(home, fileId).PlacedCheckpoint,
+            HeldForNewerCga = Local(home, fileId).HeldForNewerCga,
             Health = HealthOf(folderRoot, fileId, status.OwnWriter),
         };
     }
@@ -898,8 +1055,34 @@ public static class SyncCollab
         SyncCollabReport? mine = reports.FirstOrDefault(report => report.Writer.Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase));
         return reports
             .Where(report => !report.Writer.Equals(Safe(ownWriter), StringComparison.OrdinalIgnoreCase))
-            .Select(report => new SyncCollabHealth(report.Writer, Compare(mine, report), report.AtUtc))
+            .Select(report => new SyncCollabHealth(
+                report.Writer,
+                CgaBehind(folderRoot, fileId, report) ? "cga-behind" : Compare(mine, report),
+                report.AtUtc))
             .ToList();
+    }
+
+    /// <summary>
+    /// A machine whose CGA cannot read changesets it has not applied yet (schema 2 on CGA older than
+    /// <see cref="InlineSchemaMinCga"/>, or a CGA that never said its version) - «CGA хоцорсон».
+    /// </summary>
+    private static bool CgaBehind(string folderRoot, string fileId, SyncCollabReport report)
+    {
+        if (CgaAtLeast(RegisteredVersion(folderRoot, fileId, report.Writer), InlineSchemaMinCga))
+            return false;
+        string logs = Path.Combine(FileRoot(folderRoot, fileId), "log");
+        if (!Directory.Exists(logs))
+            return false;
+        foreach (string log in Directory.EnumerateDirectories(logs))
+        {
+            string writer = Path.GetFileName(log);
+            if (writer.Equals(report.Writer, StringComparison.OrdinalIgnoreCase))
+                continue;
+            long applied = report.Applied.GetValueOrDefault(writer);
+            if (Numbers(log).Where(seq => seq > applied).Any(seq => SchemaOf(Path.Combine(log, seq.ToString("D8") + Extension)) >= InlineSchema))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>One machine's drawing against this one's (see <see cref="SyncCollabHealth"/>).</summary>

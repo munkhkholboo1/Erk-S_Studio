@@ -405,14 +405,17 @@ internal sealed class SyncTray : ApplicationContext
                     Dictionary<string, long>? ack = Arg("ack").Length > 0
                         ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(Arg("ack"))
                         : null;
-                    IReadOnlyList<SyncCollabChangeset> pending = SyncCollab.Pull(root, _home, fileId, writer, ack);
+                    // A schema-2 changeset (objects inline) is not given to a CGA older than 0.081 or one that
+                    // does not say its version: that writer stops there, the others go on (Erk-S Sync, 2026-10-28).
+                    IReadOnlyList<SyncCollabChangeset> pending = SyncCollab.Pull(root, _home, fileId, writer, ack, Arg("cgaVersion"), out int held);
                     bool needsCheckpoint = SyncCollab.NeedsCheckpoint(root, _home, fileId, ack);
                     var newLocal = needsCheckpoint ? SyncCollab.LatestCheckpointFile(root, fileId) : null;
+                    string heldNote = held > 0 ? $"Хамтрагчийн {held} өөрчлөлт шинэ CGA (≥ {SyncCollab.InlineSchemaMinCga}) шаардана — CGA-гаа шинэчилнэ үү." : "";
                     // CGA v0.043 reads {items, needsCheckpoint} when a base is needed, the plain
                     // list otherwise (as every CGA before it did).
                     return new SyncPipeResponse(
                         true,
-                        needsCheckpoint ? "Шинэ local: хамтын файлын хамгийн сүүлийн checkpoint-оос эхэлнэ (Create New Local)." : "",
+                        string.Join(" ", new[] { needsCheckpoint ? "Шинэ local: хамтын файлын хамгийн сүүлийн checkpoint-оос эхэлнэ (Create New Local)." : "", heldNote }.Where(text => text.Length > 0)),
                         needsCheckpoint
                             ? SyncProtocol.Serialize(new
                             {

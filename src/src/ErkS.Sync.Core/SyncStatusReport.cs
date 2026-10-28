@@ -100,6 +100,15 @@ public sealed record SyncStatusCollab(
 
     /// <summary>Machines that have not taken everything this one has - their Generate is due.</summary>
     public int BehindCount { get; init; }
+
+    /// <summary>
+    /// «CGA хоцорсон» (Erk-S Sync, 2026-10-28): changesets held from THIS machine because its CGA is older than
+    /// they need (schema 2 needs ≥ 0.081) - only this machine waits; the others go on.
+    /// </summary>
+    public int HeldForNewerCga { get; init; }
+
+    /// <summary>Partner machines whose CGA cannot read changesets they still need.</summary>
+    public int CgaBehindCount { get; init; }
 }
 
 /// <summary>
@@ -212,6 +221,8 @@ public sealed record SyncStatusReport(
                     : collab.Writers.Count(writer => writer.LastInLog > collab.OnServerThrough.GetValueOrDefault(writer.Writer)),
                 DivergedCount = collab.Health.Count(health => health.State == "diverged"),
                 BehindCount = collab.Health.Count(health => health.State == "behind"),
+                HeldForNewerCga = collab.HeldForNewerCga,
+                CgaBehindCount = collab.Health.Count(health => health.State == "cga-behind"),
             }).ToList(),
         }).ToList())
     {
