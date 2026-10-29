@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using ErkS.Platform.Contracts;
 using ErkS.Platform.Core;
@@ -416,6 +416,31 @@ public sealed class SheetPackageSecurityTests : IDisposable
         (PackageFiles package, string auditPath) = RejectedOnce("older-reader");
         var line = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllLines(auditPath)[0])!.AsObject();
         line["readerSchemaVersion"] = SheetPackageManifest.CurrentSchemaVersion - 1;
+        File.WriteAllText(auditPath, line.ToJsonString() + Environment.NewLine);
+
+        using var intake = new SheetIntakeService(new SheetLibrary());
+        intake.WatchFolder(Path.GetDirectoryName(package.ManifestPath)!, scanExisting: false);
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Equal(0, scan.SkippedKnownRejectedManifestCount);
+        Assert.Equal(2, File.ReadAllLines(auditPath).Length);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(null)]
+    public void ARejectionByAReaderThatKnewANOTHERSheetInfoIsVerifiedAgain(int? offset)
+    {
+        // 🔴 Erin, 2026-10-30: Studio 158 refused a package whose sheet info was
+        // v2. The package schema did not change, so 159 - which reads v2 -
+        // skipped it as already refused and the split solar sheets never came.
+        // null: a record written before the sheet-info version was kept.
+        (PackageFiles package, string auditPath) = RejectedOnce("older-sheet-info" + offset);
+        var line = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllLines(auditPath)[0])!.AsObject();
+        if (offset is null)
+            line.Remove("readerSheetInfoSchemaVersion");
+        else
+            line["readerSheetInfoSchemaVersion"] = SheetInfoDocument.CurrentSchemaVersion + offset;
         File.WriteAllText(auditPath, line.ToJsonString() + Environment.NewLine);
 
         using var intake = new SheetIntakeService(new SheetLibrary());

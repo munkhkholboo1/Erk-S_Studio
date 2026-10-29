@@ -19,6 +19,14 @@ public sealed class RejectedSheetPackage
     /// <summary>The reader that refused it: a newer Studio may accept it.</summary>
     public int? ReaderSchemaVersion { get; init; }
 
+    /// <summary>
+    /// The `erks-sheet-info` version that reader knew. The package schema can
+    /// stay while the sheet info moves on: Studio 158 refused Erin's v2 sheet
+    /// info under package schema 8, and 159 - which reads it - skipped the
+    /// package as already refused, so the solar sheets never arrived.
+    /// </summary>
+    public int? ReaderSheetInfoSchemaVersion { get; init; }
+
     /// <summary>The manifest's last write when refused: a re-export must be looked at again.</summary>
     public long? ManifestLastWriteUtcTicks { get; init; }
 }
@@ -745,6 +753,7 @@ public sealed class SheetIntakeService : IDisposable
                 string.Equals(record.ManifestPath, fullPath, StringComparison.OrdinalIgnoreCase) &&
                 record.ManifestLastWriteUtcTicks == lastWrite &&
                 record.ReaderSchemaVersion == SheetPackageManifest.CurrentSchemaVersion &&
+                record.ReaderSheetInfoSchemaVersion == SheetInfoDocument.CurrentSchemaVersion &&
                 string.Equals(record.SourceId ?? "", registration.SourceId ?? "", StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception exception) when (
@@ -797,6 +806,7 @@ public sealed class SheetIntakeService : IDisposable
             Issues = result.Issues.ToList(),
             SourceId = registration.SourceId,
             ReaderSchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
+            ReaderSheetInfoSchemaVersion = SheetInfoDocument.CurrentSchemaVersion,
             ManifestLastWriteUtcTicks = File.Exists(fullManifestPath)
                 ? File.GetLastWriteTimeUtc(fullManifestPath).Ticks
                 : null,
