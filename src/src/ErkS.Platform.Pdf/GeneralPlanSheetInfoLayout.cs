@@ -181,3 +181,100 @@ internal static class GeneralPlanSheetInfoLayout
         _ => "____",
     };
 }
+
+/// <summary>
+/// How a legend line sample is drawn, in paper millimetres: v1's thin line,
+/// or v2's width, dash and heads - the movement scheme's lane band, dots and
+/// entries as CGA draws them (owner, 2026-10-29: the movement legend follows
+/// the scheme CGA sends).
+/// </summary>
+internal sealed record LegendLineStyle(
+    double WidthMm,
+    double[]? DashMm,
+    bool HeadAtStart,
+    bool HeadAtEnd,
+    double HeadLengthMm,
+    double HeadHalfWidthMm)
+{
+    public const double DefaultWidthMm = 0.35;
+
+    /// <param name="boxHeightMm">The swatch's height: a band or a head never spills into the next row.</param>
+    public static LegendLineStyle Of(SheetInfoSample sample, double boxHeightMm)
+    {
+        double width = Math.Min(sample.WidthMm ?? DefaultWidthMm, boxHeightMm * 0.6);
+        bool both = sample.Heads == "both";
+        bool end = both || sample.Heads == "end" || sample.Arrow == true;
+
+        // CGA's lane head is 2.75 band widths long and 1.6 wide; a thin line
+        // keeps v1's 1.6 x 2 mm head.
+        double halfWidth = Math.Min(Math.Max(1.0, width * 0.8), boxHeightMm / 2);
+        double length = Math.Max(1.6, width * 2.75);
+        return new LegendLineStyle(width, sample.DashMm, both, end, length, halfWidth);
+    }
+}
+
+/// <summary>
+/// North on every general-plan sheet (owner, 2026-10-29: «ерөнхий төлөвлөгөөний
+/// хуудаснууд дээр хойд зүгийн тэмдэглэгээ нэмээрэй»): where the mark stands and
+/// which way it points, as data.
+/// </summary>
+internal static class GeneralPlanNorth
+{
+    public const double SizeMm = 16;
+    public const double InsetMm = 4;
+
+    /// <summary>What the solar sheet's note gives up at the strip's right end.</summary>
+    public const double StripReserveMm = SizeMm + 6;
+
+    /// <summary>Up the page: a general plan's model +Y is north.</summary>
+    public const double UpDegrees = 90;
+
+    /// <summary>
+    /// Where north points on the paper (degrees from +X, counter-clockwise), from
+    /// the largest viewport the AutoCAD platform measured - its twist already in.
+    /// No viewports: up the page.
+    /// </summary>
+    public static double OnPaper(IReadOnlyList<SheetViewportGeometry>? viewports)
+    {
+        SheetViewportGeometry? largest = (viewports ?? [])
+            .Where(view => double.IsFinite(view.NorthAngleDegrees) &&
+                           view.PaperWidthMm > 0 && view.PaperHeightMm > 0)
+            .OrderByDescending(view => view.PaperWidthMm * view.PaperHeightMm)
+            .FirstOrDefault();
+        if (largest is null)
+            return UpDegrees;
+        double angle = largest.NorthAngleDegrees % 360;
+        return angle < 0 ? angle + 360 : angle;
+    }
+
+    /// <summary>
+    /// The plan sheets: the drawing area's top-right corner. The solar sheet's
+    /// drawing is a grid of small plans with their hours over them, so its mark
+    /// stands at the right end of the strip beside the corner table.
+    /// </summary>
+    public static PageRectMm Area(string slot, PageRectMm drawingArea, PageRectMm strip)
+    {
+        if (slot == "solar-study" && strip.Height >= SizeMm * 0.6 && strip.Width > StripReserveMm * 2)
+        {
+            double size = Math.Min(SizeMm, strip.Height - 2);
+            return new PageRectMm
+            {
+                X = strip.X + strip.Width - StripReserveMm + (StripReserveMm - size) / 2,
+                Y = strip.Y + (strip.Height - size) / 2,
+                Width = size,
+                Height = size,
+            };
+        }
+
+        return new PageRectMm
+        {
+            X = drawingArea.X + drawingArea.Width - SizeMm - InsetMm,
+            Y = drawingArea.Y + InsetMm,
+            Width = SizeMm,
+            Height = SizeMm,
+        };
+    }
+
+    /// <summary>The clockwise page rotation that turns an up-pointing mark to <paramref name="northOnPaper"/>.</summary>
+    public static double PageRotation(double northOnPaper) => UpDegrees - northOnPaper;
+}

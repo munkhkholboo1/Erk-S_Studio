@@ -474,6 +474,16 @@ public sealed class SheetPackageEntry
     public List<SheetFrontMatterArea>? FrontMatterAreas { get; set; }
 
     /// <summary>
+    /// Where each viewport sits on the page and which way north points there,
+    /// as the AutoCAD platform measured it (its <c>StudioViewportGeometry</c>).
+    /// Null when the producer sends none. Not written when null, as with
+    /// <see cref="Roles"/>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SheetViewportGeometry>? Viewports { get; set; }
+
+    /// <summary>
     /// One-based page in <see cref="PdfFileName"/> represented by this logical
     /// sheet. Schema 5 producers must set this value. Schema 1-4 readers ignore
     /// it and retain their legacy whole-PDF behavior.
@@ -538,6 +548,33 @@ public sealed class PageFormatSpec
 }
 
 /// <summary>One reserved front-matter frame on a source sheet.</summary>
+/// <summary>
+/// One viewport of a sheet, as the AutoCAD platform writes it. Only what Studio
+/// draws from is read; the producer's other members are ignored.
+/// </summary>
+public sealed class SheetViewportGeometry
+{
+    /// <summary>Millimetres from the page's top-left.</summary>
+    public double PaperX { get; set; }
+
+    public double PaperY { get; set; }
+
+    public double PaperWidthMm { get; set; }
+
+    public double PaperHeightMm { get; set; }
+
+    public double ScaleDenominator { get; set; }
+
+    /// <summary>
+    /// Where north points on the paper: degrees from the paper's +X axis,
+    /// counter-clockwise, 90 = up the page. The viewport's twist is already in.
+    /// </summary>
+    public double NorthAngleDegrees { get; set; }
+
+    /// <summary>"assumed" when model +Y was only taken to be north.</summary>
+    public string NorthSource { get; set; } = "";
+}
+
 public sealed class SheetFrontMatterArea
 {
     /// <summary>One of <see cref="SheetFrontMatterKinds"/>.</summary>

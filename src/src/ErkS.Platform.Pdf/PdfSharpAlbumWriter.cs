@@ -849,6 +849,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             borderPen,
             finePen);
         DrawGeneralPlanStrip(gfx, buildPage, regions, borderPen, finePen);
+        DrawGeneralPlanNorth(gfx, buildPage, regions);
         double stampWidth = Math.Min(79, Math.Max(0, regions.Frame.Width - 2));
         DrawFittedText(
             gfx,

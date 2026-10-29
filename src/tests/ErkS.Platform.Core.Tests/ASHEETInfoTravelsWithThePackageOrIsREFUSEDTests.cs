@@ -135,10 +135,58 @@ public sealed class ASHEETInfoTravelsWithThePackageOrIsREFUSEDTests : IDisposabl
     public void AnotherSchemaOrANewerVersionIsRefused()
     {
         string other = WriteSample(document => document["schema"] = "erks-sheets", "other");
-        string newer = WriteSample(document => document["schemaVersion"] = 2, "newer");
+        string newer = WriteSample(document => document["schemaVersion"] = 3, "newer");
 
         Assert.Contains(SheetInfoReader.Load(other).Issues, issue => issue.Contains("erks-sheets", StringComparison.Ordinal));
-        Assert.Contains(SheetInfoReader.Load(newer).Issues, issue => issue.Contains("version 2", StringComparison.Ordinal));
+        Assert.Contains(SheetInfoReader.Load(newer).Issues, issue => issue.Contains("version 3", StringComparison.Ordinal));
+    }
+
+    // ---- v2: the legend drawn as the drawing draws it -----------------
+
+    [Fact]
+    public void Version2CarriesTheMovementSchemesOwnLines()
+    {
+        // Owner, 2026-10-29: the movement legend follows CGA's scheme - a lane
+        // is a wide red band, a parking entry is driven both ways, walking is dots.
+        string path = WriteSample(document =>
+        {
+            document["schemaVersion"] = 2;
+            JsonObject sample = document["legends"]!["traffic-scheme"]![0]!["sample"]!.AsObject();
+            sample["widthMm"] = 1.0;
+            sample["dashMm"] = new JsonArray(1.6, 0.6);
+            sample["heads"] = "both";
+            JsonObject symbol = document["legends"]!["traffic-scheme"]![1]!["sample"]!.AsObject();
+            symbol["kind"] = "symbol";
+            symbol["shape"] = "triangle";
+        });
+
+        SheetInfoLoadResult result = SheetInfoReader.Load(path);
+
+        Assert.True(result.IsLossless, string.Join("; ", result.Issues));
+        SheetInfoSample lane = result.Document!.Legends["traffic-scheme"][0].Sample;
+        Assert.Equal(1.0, lane.WidthMm);
+        Assert.Equal([1.6, 0.6], lane.DashMm);
+        Assert.Equal("both", lane.Heads);
+    }
+
+    [Theory]
+    [InlineData(1, "widthMm", "1.0", "schema version 2")]
+    [InlineData(2, "heads", "\"start\"", "start")]
+    [InlineData(2, "shape", "\"star\"", "star")]
+    [InlineData(2, "widthMm", "0", "widthMm")]
+    [InlineData(2, "dashMm", "[1.6]", "dashMm")]
+    public void Version2LinesAreRefusedBYNAMEWhenWrong(int version, string member, string json, string named)
+    {
+        string path = WriteSample(document =>
+        {
+            document["schemaVersion"] = version;
+            document["legends"]!["traffic-scheme"]![0]!["sample"]![member] = JsonNode.Parse(json);
+        });
+
+        SheetInfoLoadResult result = SheetInfoReader.Load(path);
+
+        Assert.False(result.IsLossless);
+        Assert.Contains(result.Issues, issue => issue.Contains(named, StringComparison.Ordinal));
     }
 
     // ---- the package ---------------------------------------------------

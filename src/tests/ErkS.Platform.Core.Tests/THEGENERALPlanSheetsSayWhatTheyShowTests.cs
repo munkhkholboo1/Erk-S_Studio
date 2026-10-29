@@ -61,6 +61,71 @@ public sealed class THEGENERALPlanSheetsSayWhatTheyShowTests
         Assert.Equal("", item.QuantityText);
     }
 
+    [Fact]
+    public void AV2LineIsDrawnAtItsOwnWidthDashAndHeads()
+    {
+        var band = new SheetInfoSample { Kind = "line", Color = "#E11E1E", WidthMm = 1.0, DashMm = [1.6, 0.6], Heads = "both" };
+        var thin = new SheetInfoSample { Kind = "line", Color = "#FF0000", Arrow = true };
+
+        LegendLineStyle lane = LegendLineStyle.Of(band, boxHeightMm: 2.6);
+        LegendLineStyle v1 = LegendLineStyle.Of(thin, boxHeightMm: 2.6);
+
+        Assert.Equal(1.0, lane.WidthMm);
+        Assert.True(lane.HeadAtStart && lane.HeadAtEnd);
+        Assert.True(lane.HeadHalfWidthMm <= 1.3);
+        Assert.Equal(LegendLineStyle.DefaultWidthMm, v1.WidthMm);
+        Assert.False(v1.HeadAtStart);
+        Assert.True(v1.HeadAtEnd);
+        // A band wider than its row is held to the row.
+        Assert.True(LegendLineStyle.Of(new SheetInfoSample { Kind = "line", Color = "#000000", WidthMm = 5 }, 2.6).WidthMm < 2.6);
+    }
+
+    // ---- north ---------------------------------------------------------
+
+    [Fact]
+    public void NorthFollowsTheLargestViewportAndIsUpWithoutOne()
+    {
+        SheetViewportGeometry Viewport(double width, double north) =>
+            new() { PaperWidthMm = width, PaperHeightMm = 100, NorthAngleDegrees = north };
+
+        Assert.Equal(GeneralPlanNorth.UpDegrees, GeneralPlanNorth.OnPaper(null));
+        Assert.Equal(120, GeneralPlanNorth.OnPaper([Viewport(50, 90), Viewport(400, 120)]));
+        Assert.Equal(330, GeneralPlanNorth.OnPaper([Viewport(400, -30)]));
+        // Twisted 30 degrees anticlockwise: the mark turns 30 degrees anticlockwise.
+        Assert.Equal(-30, GeneralPlanNorth.PageRotation(120));
+    }
+
+    [Fact]
+    public void NorthStandsTopRightOfThePlanAndInTheSolarSheetsStrip()
+    {
+        var drawing = new PageRectMm { X = 15, Y = 14, Width = 400, Height = 250 };
+        var strip = new PageRectMm { X = 15, Y = 264, Width = 210, Height = 28 };
+
+        PageRectMm plan = GeneralPlanNorth.Area("traffic-scheme", drawing, strip);
+        PageRectMm solar = GeneralPlanNorth.Area("solar-study", drawing, strip);
+
+        Assert.Equal(drawing.X + drawing.Width - GeneralPlanNorth.InsetMm, plan.X + plan.Width, 6);
+        Assert.Equal(drawing.Y + GeneralPlanNorth.InsetMm, plan.Y, 6);
+        Assert.InRange(solar.X, strip.X + strip.Width - GeneralPlanNorth.StripReserveMm, strip.X + strip.Width);
+        Assert.InRange(solar.Y, strip.Y, strip.Y + strip.Height - solar.Height);
+    }
+
+    [Fact]
+    public void TheManifestsViewportsReachTheEntry()
+    {
+        const string json = """
+            { "sheetId": "a", "viewports": [ { "paperX": 15, "paperY": 14, "paperWidthMm": 400, "paperHeightMm": 250,
+              "modelMinX": 0, "twistAngleDegrees": 30, "northAngleDegrees": 120, "northSource": "grid", "scaleDenominator": 2000 } ] }
+            """;
+
+        SheetPackageEntry entry = JsonSerializer.Deserialize<SheetPackageEntry>(json, SheetPackageJson.Options)!;
+
+        SheetViewportGeometry viewport = Assert.Single(entry.Viewports!);
+        Assert.Equal(120, viewport.NorthAngleDegrees);
+        Assert.Equal(2000, viewport.ScaleDenominator);
+        Assert.DoesNotContain("viewports", JsonSerializer.Serialize(new SheetPackageEntry(), SheetPackageJson.Options));
+    }
+
     // ---- ТЭЗ, schedule, basis -----------------------------------------
 
     [Fact]
@@ -138,6 +203,7 @@ public sealed class THEGENERALPlanSheetsSayWhatTheyShowTests
         Assert.Contains("DrawGeneralPlanStrip(gfx, buildPage, regions, borderPen, finePen);", writer, StringComparison.Ordinal);
         Assert.Contains("if (DrawMasterPlanHeaderColumns(gfx, project, buildPage, xApproval, x1, y0, y1, borderPen))", writer, StringComparison.Ordinal);
         Assert.Contains("warnings.AddRange(GeneralPlanInformationWarnings(buildPage));", writer, StringComparison.Ordinal);
+        Assert.Contains("DrawGeneralPlanNorth(gfx, buildPage, regions);", writer, StringComparison.Ordinal);
     }
 
     private static string WriterSource(string fileName)

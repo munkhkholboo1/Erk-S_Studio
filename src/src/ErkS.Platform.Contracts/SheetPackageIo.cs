@@ -511,11 +511,11 @@ public static class SheetPackageReader
                 $"{SheetPackageManifest.FirstSheetInfoSchemaVersion} or newer.");
             return;
         }
-        if (reference.SchemaVersion != SheetInfoDocument.CurrentSchemaVersion)
+        if (!SheetInfoDocument.IsKnownVersion(reference.SchemaVersion))
         {
             result.Issues.Add(
                 $"Sheet info schema version {reference.SchemaVersion} is unsupported; " +
-                $"this reader knows version {SheetInfoDocument.CurrentSchemaVersion}.");
+                $"this reader knows versions {SheetInfoDocument.OldestSchemaVersion}-{SheetInfoDocument.CurrentSchemaVersion}.");
             return;
         }
         if (!SheetPackagePathSecurity.TryResolvePackageFile(directory, reference.File, out var path, out var pathIssue))

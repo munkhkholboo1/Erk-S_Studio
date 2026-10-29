@@ -68,10 +68,11 @@ public sealed partial class PdfSharpAlbumWriter
                 "ТАЙЛБАР",
                 new XRect(stripRect.Left + Mm(2), stripRect.Top + Mm(0.5), stripRect.Width - Mm(4), Mm(4)));
             info.Notes.TryGetValue(slot, out string? note);
+            // The right end holds north (DrawGeneralPlanNorth).
             DrawTopAlignedFittedText(
                 gfx,
                 note,
-                new XRect(stripRect.Left + Mm(2), stripRect.Top + Mm(5), stripRect.Width - Mm(4), stripRect.Height - Mm(6)),
+                new XRect(stripRect.Left + Mm(2), stripRect.Top + Mm(5), stripRect.Width - Mm(4 + GeneralPlanNorth.StripReserveMm), stripRect.Height - Mm(6)),
                 BuildingArchitectureConceptPageLayout.CornerTextHeightMm,
                 1.5,
                 bold: false);
@@ -95,6 +96,59 @@ public sealed partial class PdfSharpAlbumWriter
         }
 
         DrawGeneralPlanLegend(gfx, rows ?? [], legendArea, finePen);
+    }
+
+    /// <summary>
+    /// North on a general-plan sheet, whether or not it carries an information
+    /// document: a circle, the arrow half black, «Х» beyond its tip, upright.
+    /// </summary>
+    private static void DrawGeneralPlanNorth(
+        XGraphics gfx,
+        AlbumBuildPage buildPage,
+        BuildingArchitectureConceptPageRegions regions)
+    {
+        string? slot = GeneralPlanSlot(buildPage);
+        if (slot is null)
+            return;
+
+        PageRectMm area = GeneralPlanNorth.Area(slot, regions.DrawingArea, GeneralPlanStrip(regions));
+        double northOnPaper = GeneralPlanNorth.OnPaper(buildPage.Sheet?.Entry.Viewports);
+        double radius = Mm(area.Width / 2);
+        double letter = Mm(2.6);
+        // The letter stands clear of the tip and still inside the mark's square, whichever way north points.
+        double markRadius = radius - letter * 1.3;
+        double cx = Mm(area.X) + radius;
+        double cy = Mm(area.Y) + radius;
+
+        var ink = new XPen(XColors.Black, Mm(0.18));
+        XGraphicsState state = gfx.Save();
+        gfx.TranslateTransform(cx, cy);
+        gfx.RotateTransform(GeneralPlanNorth.PageRotation(northOnPaper));
+        gfx.DrawEllipse(ink, -markRadius * 0.82, -markRadius * 0.82, markRadius * 1.64, markRadius * 1.64);
+        var tip = new XPoint(0, -markRadius);
+        var notch = new XPoint(0, markRadius * 0.35);
+        XPoint[] left = [tip, new(-markRadius * 0.36, markRadius * 0.72), notch];
+        XPoint[] right = [tip, new(markRadius * 0.36, markRadius * 0.72), notch];
+        gfx.DrawPolygon(ink, XBrushes.Black, left, XFillMode.Winding);
+        gfx.DrawPolygon(ink, XBrushes.White, right, XFillMode.Winding);
+        gfx.Restore(state);
+
+        // The letter beyond the tip, along north, and upright.
+        double radians = northOnPaper * Math.PI / 180;
+        double reach = markRadius + letter * 0.75;
+        double lx = cx + Math.Cos(radians) * reach;
+        double ly = cy - Math.Sin(radians) * reach;
+        DrawFittedText(
+            gfx,
+            "Х",
+            lx - letter,
+            ly - letter / 2,
+            letter * 2,
+            letter,
+            letter * 1.15,
+            true,
+            XStringFormats.Center,
+            WorkingDrawingFontName);
     }
 
     private static void DrawGeneralPlanLegend(
@@ -167,37 +221,58 @@ public sealed partial class PdfSharpAlbumWriter
         {
             case "line":
             {
-                var pen = new XPen(colour, Mm(0.35))
+                LegendLineStyle style = LegendLineStyle.Of(sample, box.Height / PointsPerMillimeter);
+                double width = Mm(style.WidthMm);
+                var pen = new XPen(colour, width);
+                if (style.DashMm is { } dash)
                 {
-                    DashStyle = sample.Dash switch
+                    // In the pen's widths, as the drawing's linetype is in paper
+                    // millimetres: a zero dash with round caps is a dot.
+                    pen.DashStyle = XDashStyle.Custom;
+                    pen.LineCap = dash[0] <= 0 ? XLineCap.Round : XLineCap.Flat;
+                    pen.DashPattern = [Math.Max(dash[0], 0.001) / style.WidthMm, dash[1] / style.WidthMm];
+                }
+                else
+                {
+                    pen.DashStyle = sample.Dash switch
                     {
                         "dashed" => XDashStyle.Dash,
                         "dotted" => XDashStyle.Dot,
                         _ => XDashStyle.Solid,
-                    },
-                };
-                double y = box.Top + box.Height / 2;
-                gfx.DrawLine(pen, box.Left, y, box.Right, y);
-                if (sample.Arrow == true)
-                {
-                    double size = Mm(1.0);
-                    gfx.DrawPolygon(
-                        new XSolidBrush(colour),
-                        new[]
-                        {
-                            new XPoint(box.Right, y),
-                            new XPoint(box.Right - size * 1.6, y - size),
-                            new XPoint(box.Right - size * 1.6, y + size),
-                        },
-                        XFillMode.Winding);
+                    };
                 }
+
+                double y = box.Top + box.Height / 2;
+                double headLength = Mm(style.HeadLengthMm);
+                double left = style.HeadAtStart ? box.Left + headLength * 0.5 : box.Left;
+                double right = style.HeadAtEnd ? box.Right - headLength * 0.5 : box.Right;
+                gfx.DrawLine(pen, left, y, right, y);
+                var brush = new XSolidBrush(colour);
+                if (style.HeadAtEnd)
+                    DrawLegendHead(gfx, brush, box.Right, y, -1, headLength, Mm(style.HeadHalfWidthMm));
+                if (style.HeadAtStart)
+                    DrawLegendHead(gfx, brush, box.Left, y, 1, headLength, Mm(style.HeadHalfWidthMm));
                 break;
             }
             case "symbol":
             {
                 double d = Math.Min(box.Width, box.Height);
-                var circle = new XRect(box.Left + (box.Width - d) / 2, box.Top + (box.Height - d) / 2, d, d);
-                gfx.DrawEllipse(new XPen(outline, Mm(0.15)), new XSolidBrush(colour), circle);
+                var square = new XRect(box.Left + (box.Width - d) / 2, box.Top + (box.Height - d) / 2, d, d);
+                if (sample.Shape == "triangle")
+                {
+                    // CGA's building-entrance mark: a filled head pointing in.
+                    XPoint[] triangle =
+                    [
+                        new(square.Right, square.Top + d / 2),
+                        new(square.Left, square.Top),
+                        new(square.Left, square.Bottom),
+                    ];
+                    gfx.DrawPolygon(new XSolidBrush(colour), triangle, XFillMode.Winding);
+                    if (sample.Outline is not null)
+                        gfx.DrawPolygon(new XPen(outline, Mm(0.15)), triangle);
+                    break;
+                }
+                gfx.DrawEllipse(new XPen(outline, Mm(0.15)), new XSolidBrush(colour), square);
                 break;
             }
             default:
@@ -224,6 +299,19 @@ public sealed partial class PdfSharpAlbumWriter
                 break;
             }
         }
+    }
+
+    private static void DrawLegendHead(XGraphics gfx, XBrush brush, double tipX, double y, int back, double length, double halfWidth)
+    {
+        gfx.DrawPolygon(
+            brush,
+            new[]
+            {
+                new XPoint(tipX, y),
+                new XPoint(tipX + back * length, y - halfWidth),
+                new XPoint(tipX + back * length, y + halfWidth),
+            },
+            XFillMode.Winding);
     }
 
     private static XColor ParseHexColour(string? hex, XColor fallback)

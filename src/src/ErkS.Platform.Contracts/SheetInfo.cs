@@ -18,7 +18,7 @@ public sealed class SheetInfoReference
 }
 
 /// <summary>
-/// `erks-sheet-info` v1: what a general-plan sheet says besides its drawing -
+/// `erks-sheet-info` v1-v2: what a general-plan sheet says besides its drawing -
 /// legends with quantities, the building schedule, the ТЭЗ summary, the basis
 /// lines and norm text. CGA writes it beside its drawing, PFA packs it with the
 /// sheets, Studio draws it (_shared/erks-sheet-info-contract-2026-10-19.md).
@@ -31,7 +31,16 @@ public sealed class SheetInfoReference
 public sealed class SheetInfoDocument
 {
     public const string SchemaName = "erks-sheet-info";
-    public const int CurrentSchemaVersion = 1;
+    /// <summary>
+    /// v2 (2026-10-29) adds the legend sample's paper width, dash, heads and
+    /// symbol shape, so the movement legend can be drawn as CGA draws the scheme.
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
+
+    public const int OldestSchemaVersion = 1;
+
+    public static bool IsKnownVersion(int version) =>
+        version >= OldestSchemaVersion && version <= CurrentSchemaVersion;
 
     public string Schema { get; set; } = "";
 
@@ -145,7 +154,23 @@ public sealed class SheetInfoSample
     /// <summary>dashed or dotted; absent for a continuous line.</summary>
     public string? Dash { get; set; }
 
+    /// <summary>A head at the line's end. v1's only head; <see cref="Heads"/> says more.</summary>
     public bool? Arrow { get; set; }
+
+    /// <summary>v2: the line's width on paper, mm - a lane band is a wide line.</summary>
+    public double? WidthMm { get; set; }
+
+    /// <summary>
+    /// v2: the dash as [dash, gap] in paper mm, as the drawing's linetype has it;
+    /// a zero dash is a round dot. Overrides <see cref="Dash"/>.
+    /// </summary>
+    public double[]? DashMm { get; set; }
+
+    /// <summary>v2: end or both - a parking entry is driven both ways.</summary>
+    public string? Heads { get; set; }
+
+    /// <summary>v2, symbol: circle or triangle.</summary>
+    public string? Shape { get; set; }
 }
 
 public static class SheetInfoVocabulary
@@ -178,6 +203,18 @@ public static class SheetInfoVocabulary
     {
         "dashed",
         "dotted",
+    };
+
+    public static IReadOnlySet<string> Heads { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "end",
+        "both",
+    };
+
+    public static IReadOnlySet<string> Shapes { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "circle",
+        "triangle",
     };
 }
 
@@ -231,11 +268,11 @@ public static partial class SheetInfoReader
     {
         if (!string.Equals(document.Schema, SheetInfoDocument.SchemaName, StringComparison.Ordinal))
             issues.Add($"Sheet info schema '{document.Schema}' is not '{SheetInfoDocument.SchemaName}'.");
-        if (document.SchemaVersion != SheetInfoDocument.CurrentSchemaVersion)
+        if (!SheetInfoDocument.IsKnownVersion(document.SchemaVersion))
         {
             issues.Add(
                 $"Sheet info schema version {document.SchemaVersion} is unsupported; " +
-                $"this reader knows version {SheetInfoDocument.CurrentSchemaVersion}.");
+                $"this reader knows versions {SheetInfoDocument.OldestSchemaVersion}-{SheetInfoDocument.CurrentSchemaVersion}.");
         }
 
         document.Basis ??= [];
@@ -271,6 +308,7 @@ public static partial class SheetInfoReader
                 CheckColour(sample.Outline, where, issues, required: false);
                 if (sample.Dash is not null && !SheetInfoVocabulary.Dashes.Contains(sample.Dash))
                     issues.Add($"Sheet info: {where} has dash '{sample.Dash}'; known: dashed, dotted.");
+                CheckVersion2Sample(document.SchemaVersion, sample, where, issues);
             }
         }
 
@@ -279,6 +317,31 @@ public static partial class SheetInfoReader
             if (!SheetInfoVocabulary.Slots.Contains(slot))
                 issues.Add($"Sheet info: a note for '{slot}' names no general-plan sheet.");
         }
+    }
+
+    private static void CheckVersion2Sample(int version, SheetInfoSample sample, string where, List<string> issues)
+    {
+        bool any = sample.WidthMm is not null || sample.DashMm is not null || sample.Heads is not null || sample.Shape is not null;
+        if (!any)
+            return;
+        if (version < 2)
+        {
+            // A v1 reader refuses these members by name; a v1 document carrying
+            // them was written by a producer that skipped the bump.
+            issues.Add($"Sheet info: {where} uses widthMm/dashMm/heads/shape, which need schema version 2.");
+            return;
+        }
+        if (sample.WidthMm is { } width && (!double.IsFinite(width) || width <= 0 || width > 10))
+            issues.Add($"Sheet info: {where} has widthMm {width}; expected 0 < widthMm <= 10.");
+        if (sample.DashMm is { } dash &&
+            (dash.Length != 2 || !dash.All(double.IsFinite) || dash[0] < 0 || dash[1] <= 0))
+        {
+            issues.Add($"Sheet info: {where} has dashMm [{string.Join(", ", dash)}]; expected [dash >= 0, gap > 0].");
+        }
+        if (sample.Heads is not null && !SheetInfoVocabulary.Heads.Contains(sample.Heads))
+            issues.Add($"Sheet info: {where} has heads '{sample.Heads}'; known: end, both.");
+        if (sample.Shape is not null && !SheetInfoVocabulary.Shapes.Contains(sample.Shape))
+            issues.Add($"Sheet info: {where} has shape '{sample.Shape}'; known: circle, triangle.");
     }
 
     private static void CheckStage(string? stage, string where, List<string> issues, bool required)
