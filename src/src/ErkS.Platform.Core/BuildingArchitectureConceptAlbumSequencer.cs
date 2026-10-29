@@ -180,13 +180,27 @@ public static class BuildingArchitectureConceptAlbumSequencer
         var nextDrawingNumber = Math.Max(0, adjustedMaximumReservedNumber + 1);
         var result = new List<ConceptAlbumSourcePage>(candidates.Count);
 
+        // A fixed slot may hold more than one sheet: the solar study split into
+        // its 3/22 and 9/22 pages (owner, 2026-10-29). Each extra page takes the
+        // next number and pushes every later page along, so no two pages share
+        // a number.
+        int extraFixedPages = 0;
+        string? previousSlotId = null;
         foreach (var candidate in fixedPages)
         {
+            string? slotId = candidate.Slot?.Id;
+            if (slotId is not null &&
+                string.Equals(slotId, previousSlotId, StringComparison.OrdinalIgnoreCase))
+            {
+                extraFixedPages++;
+            }
+            previousSlotId = slotId;
             var automaticNumber = TryParseFixedNumber(candidate.Slot?.Number, out var fixedNumber)
-                ? (fixedNumber + generatedPageOffset).ToString($"D{numberWidth}", CultureInfo.InvariantCulture)
-                : (nextDrawingNumber++).ToString($"D{numberWidth}", CultureInfo.InvariantCulture);
+                ? (fixedNumber + generatedPageOffset + extraFixedPages).ToString($"D{numberWidth}", CultureInfo.InvariantCulture)
+                : (nextDrawingNumber++ + extraFixedPages).ToString($"D{numberWidth}", CultureInfo.InvariantCulture);
             result.Add(candidate.ToSequenceItem(automaticNumber));
         }
+        nextDrawingNumber += extraFixedPages;
 
         foreach (var candidate in drawingPages)
         {

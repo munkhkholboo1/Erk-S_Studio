@@ -37,6 +37,32 @@ public sealed class ConceptGeneralPlanSheetOrderTests
     }
 
     [Fact]
+    public void ASolarStudySplitIntoTwoDaysTakesTwoNumbersAndPushesTheGeneralPlanOn()
+    {
+        // Owner, 2026-10-29: a wide site's solar sheet may become two - 3/22 and
+        // 9/22 - with the four hours on each. Both land in the one solar slot;
+        // sharing its number would print «07» twice.
+        AlbumDefinition album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("test");
+        AlbumPageDefinition[] pages =
+        [
+            new() { SheetKey = "pfa:solar-03", TemplateSlotId = "solar-study" },
+            new() { SheetKey = "pfa:solar-09", TemplateSlotId = "solar-study" },
+            new() { SheetKey = "pfa:master", TemplateSlotId = "master-plan" },
+            new() { SheetKey = "pfa:green", TemplateSlotId = "landscaping" },
+        ];
+
+        IReadOnlyList<ConceptAlbumSourcePage> sequence = BuildingArchitectureConceptAlbumSequencer.Create(
+            album,
+            pages,
+            new SheetLibrary(),
+            []);
+
+        Assert.Equal(
+            ["pfa:green 06", "pfa:solar-03 07", "pfa:solar-09 08", "pfa:master 09"],
+            sequence.Select(item => $"{item.Page.SheetKey} {item.AutomaticNumber}").ToArray());
+    }
+
+    [Fact]
     public void ReorderingThemNeedsMoreThanAnOpinion()
     {
         AlbumDefinition album = BuildingArchitectureConceptAlbumTemplate.CreateDefinition("test");
