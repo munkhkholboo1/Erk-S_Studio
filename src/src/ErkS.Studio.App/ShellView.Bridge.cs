@@ -560,20 +560,30 @@ internal sealed partial class ShellView
         if (!CanEditProjectContent())
             return StudioBridgeProtocol.Refuse(request.Id, "forbidden", statusText.Text);
 
+        // Every file is there before anything changes (2026-10-29: the folder went away mid-replace and the
+        // album was left with no images at all).
+        List<string> missing = files.Where(file => !File.Exists(file)).Select(Path.GetFileName).OfType<string>().ToList();
+        if (missing.Count > 0)
+            return StudioBridgeProtocol.Refuse(request.Id, "file_not_found", "Зураг олдсонгүй, юу ч өөрчлөгдсөнгүй: " + string.Join(", ", missing));
+
+        VisualizationAddResult result = AddVisualizationImageFiles(files);
         int excluded = 0;
         if (replace)
         {
+            if (result.Failed.Count > 0)
+            {
+                // The old images stay in the album: a replace is all of the new ones or nothing taken away.
+                return StudioBridgeProtocol.Refuse(
+                    request.Id,
+                    "replace_incomplete",
+                    $"{result.Failed.Count} зураг нэмэгдсэнгүй — хуучин зургууд альбумд хэвээр: " + string.Join("; ", result.Failed));
+            }
             HashSet<string> incoming = files.Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            excluded = ExcludeVisualizationImages(CurrentProjectVisualizationImages()
-                .Where(image => !incoming.Contains(image.LinkedSourcePath ?? "")));
-        }
-        VisualizationAddResult result = AddVisualizationImageFiles(files);
-        if (replace)
-        {
-            // An image already here (same file or content) was only skipped: bring it back if it was out.
-            HashSet<string> incoming = files.Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // An image already here (same file) was only skipped: bring it back if it was out.
             IncludeVisualizationImages(CurrentProjectVisualizationImages()
                 .Where(image => incoming.Contains(image.LinkedSourcePath ?? "")));
+            excluded = ExcludeVisualizationImages(CurrentProjectVisualizationImages()
+                .Where(image => !incoming.Contains(image.LinkedSourcePath ?? "")));
         }
         IReadOnlyList<ProjectVisualizationImage> now = CurrentProjectVisualizationImages();
         return StudioBridgeProtocol.Accept(
