@@ -2644,6 +2644,8 @@ internal sealed partial class ShellView
         documentGroup.Children.Add(frontMatter);
         documentGroup.Children.Add(frontMatterLayout);
         documentGroup.Children.Add(open);
+        documentGroup.Children.Add(CreateAlbumPdfSaveButton());
+        documentGroup.Children.Add(albumSplitViewCheck);
         autoRebuildCheck.Content = "Auto шинэчлэлт";
         autoRebuildCheck.ToolTip = "Эх үүсвэр өөрчлөгдөхөд альбумыг автоматаар шинэчилнэ.";
         autoRebuildCheck.Margin = new Thickness(8, 0, 0, 0);
@@ -5128,6 +5130,8 @@ internal sealed partial class ShellView
         var navigationSerial = ++albumPdfNavigationSerial;
         var targetPdfPath = Path.GetFullPath(pdfPath);
         var targetPage = Math.Max(1, pageNumber);
+        shownAlbumPdfPath = targetPdfPath;
+        shownAlbumPdfPage = targetPage;
 
         albumPreviewHost.Children.Clear();
         if (albumPdfViewer.Parent is Panel currentParent)
@@ -5157,7 +5161,13 @@ internal sealed partial class ShellView
                 return;
             }
 
-            string previewPdfPath = await PdfPreviewFileCache.GetPreviewPathAsync(targetPdfPath);
+            // «Хуваалт харах»: the same pages with the A3 cuts drawn over them.
+            string shownPdfPath = await ResolveShownAlbumPdfAsync(targetPdfPath);
+            if (navigationSerial != albumPdfNavigationSerial)
+            {
+                return;
+            }
+            string previewPdfPath = await PdfPreviewFileCache.GetPreviewPathAsync(shownPdfPath);
             if (navigationSerial != albumPdfNavigationSerial)
             {
                 return;

@@ -56,7 +56,7 @@ public sealed class THESTUDIOIsDrivenFromOutsideThroughTheBRIDGETests
 
         Assert.Equal(actions.Count, actions.Select(action => action.Name).Distinct().Count());
         Assert.All(actions, action => Assert.False(string.IsNullOrWhiteSpace(action.DescriptionMn)));
-        foreach (string required in new[] { "actions", "status", "open-project", "check-sources", "rebuild-album", "sync-preview", "sync", "relink-source", "import-front-matter", "visualizations", "visualization-add", "visualizations-replace", "visualization-exclude", "visualization-include", "notices", "close" })
+        foreach (string required in new[] { "actions", "status", "open-project", "check-sources", "rebuild-album", "sync-preview", "sync", "relink-source", "import-front-matter", "album-save", "album-split-view", "visualizations", "visualization-add", "visualizations-replace", "visualization-exclude", "visualization-include", "notices", "close" })
             Assert.Contains(actions, action => action.Name == required);
         Assert.True(StudioBridgeActionCatalog.Find("sync")!.Mutates);
         Assert.False(StudioBridgeActionCatalog.Find("status")!.Mutates);

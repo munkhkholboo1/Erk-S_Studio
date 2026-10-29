@@ -188,6 +188,10 @@ internal sealed partial class ShellView
                 return BridgeRelinkSource(request);
             case "import-front-matter":
                 return BridgeImportFrontMatter(request);
+            case "album-save":
+                return BridgeAlbumSave(request);
+            case "album-split-view":
+                return BridgeAlbumSplitView(request);
             case "visualizations":
                 return BridgeVisualizations(request);
             case "visualization-add":
