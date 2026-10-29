@@ -357,10 +357,29 @@ internal sealed partial class ShellView
         if (dialog.ShowDialog(Window.GetWindow(Root)) != true)
             return;
 
+        AddVisualizationImageFiles(dialog.FileNames);
+    }
+
+    /// <summary>What «Зураг нэмэх» did with the files it was given.</summary>
+    private sealed record VisualizationAddResult(int Added, int Updated, int Skipped, IReadOnlyList<string> Failed);
+
+    /// <summary>
+    /// «Зураг нэмэх» after the picker: the files, in the order given, become images of the
+    /// «Харагдах байдал» source (the bridge's visualization-add / visualizations-replace call this too).
+    /// </summary>
+    private VisualizationAddResult AddVisualizationImageFiles(IEnumerable<string> sourcePaths)
+    {
+        var failed = new List<string>();
+        if (!EnsureProjectContentPermission() || state.ProjectPath is null)
+            return new VisualizationAddResult(0, 0, 0, failed);
+
+        ProjectVisualizationSource visualizationSource = CurrentProjectVisualizationSource();
+        visualizationSource.ConfigureForProject(state.Project.ProjectId);
+
         int added = 0;
         int updated = 0;
         int skipped = 0;
-        foreach (string sourcePath in dialog.FileNames)
+        foreach (string sourcePath in sourcePaths)
         {
             try
             {
@@ -460,6 +479,7 @@ internal sealed partial class ShellView
                     UnauthorizedAccessException or InvalidOperationException)
             {
                 SetStatus($"{Path.GetFileName(sourcePath)} зураг нэмэгдсэнгүй: {exception.Message}");
+                failed.Add($"{Path.GetFileName(sourcePath)}: {exception.Message}");
             }
         }
 
@@ -467,7 +487,7 @@ internal sealed partial class ShellView
         {
             if (skipped > 0)
                 SetStatus($"Сонгосон {skipped} зураг өмнө нь нэмэгдсэн байна.");
-            return;
+            return new VisualizationAddResult(0, 0, skipped, failed);
         }
 
         visualizationSource.Normalize(state.Project.ProjectId);
@@ -478,6 +498,7 @@ internal sealed partial class ShellView
             silent: false,
             statusPrefix: $"Харагдах байдалд {added} зураг нэмэгдэж, {updated} зураг шинэчлэгдлээ" +
                           (skipped > 0 ? $", {skipped} давхардлыг алгасав" : ""));
+        return new VisualizationAddResult(added, updated, skipped, failed);
     }
 
     private void RelinkSelectedVisualizationImage()
@@ -551,18 +572,22 @@ internal sealed partial class ShellView
         }
     }
 
-    private void ExcludeSelectedVisualizationImages()
+    private void ExcludeSelectedVisualizationImages() =>
+        ExcludeVisualizationImages(visualizationImagesWorkspaceList.SelectedItems
+            .Cast<VisualizationImageWorkspaceItem>()
+            .Select(item => item.Image));
+
+    /// <summary>«Хуудаснаас хасах»: the images stay in the source, inactive. Returns how many changed.</summary>
+    private int ExcludeVisualizationImages(IEnumerable<ProjectVisualizationImage> images)
     {
         if (!EnsureProjectContentPermission())
-            return;
-        ProjectVisualizationImage[] selectedImages = visualizationImagesWorkspaceList.SelectedItems
-            .Cast<VisualizationImageWorkspaceItem>()
-            .Select(item => item.Image)
+            return 0;
+        ProjectVisualizationImage[] selectedImages = images
             .Where(image => IsLocalVisualizationImage(image) &&
                 image.IsIncludedInAlbum)
             .ToArray();
         if (selectedImages.Length == 0)
-            return;
+            return 0;
 
         foreach (ProjectVisualizationImage image in selectedImages)
             image.IsIncludedInAlbum = false;
@@ -572,20 +597,25 @@ internal sealed partial class ShellView
         UpdateAlbum(
             silent: false,
             statusPrefix: $"{selectedImages.Length} зураг хуудаснаас хасагдлаа. Эх үүсвэрт идэвхгүй төлөвөөр хадгалагдсан");
+        return selectedImages.Length;
     }
 
-    private void IncludeSelectedVisualizationImages()
+    private void IncludeSelectedVisualizationImages() =>
+        IncludeVisualizationImages(visualizationImagesWorkspaceList.SelectedItems
+            .Cast<VisualizationImageWorkspaceItem>()
+            .Select(item => item.Image));
+
+    /// <summary>«Хуудсанд оруулах»: inactive images back into the album's pages. Returns how many changed.</summary>
+    private int IncludeVisualizationImages(IEnumerable<ProjectVisualizationImage> images)
     {
         if (!EnsureProjectContentPermission())
-            return;
-        ProjectVisualizationImage[] selectedImages = visualizationImagesWorkspaceList.SelectedItems
-            .Cast<VisualizationImageWorkspaceItem>()
-            .Select(item => item.Image)
+            return 0;
+        ProjectVisualizationImage[] selectedImages = images
             .Where(image => IsLocalVisualizationImage(image) &&
                 !image.IsIncludedInAlbum)
             .ToArray();
         if (selectedImages.Length == 0)
-            return;
+            return 0;
 
         foreach (ProjectVisualizationImage image in selectedImages)
             image.IsIncludedInAlbum = true;
@@ -595,6 +625,7 @@ internal sealed partial class ShellView
         UpdateAlbum(
             silent: false,
             statusPrefix: $"{selectedImages.Length} зураг альбумын хуудаслалтад буцаан орлоо");
+        return selectedImages.Length;
     }
 
     private void EditVisualizationAlbumPages()

@@ -188,6 +188,14 @@ internal sealed partial class ShellView
                 return BridgeRelinkSource(request);
             case "import-front-matter":
                 return BridgeImportFrontMatter(request);
+            case "visualizations":
+                return BridgeVisualizations(request);
+            case "visualization-add":
+            case "visualizations-replace":
+                return BridgeVisualizationAdd(request, replace: action == "visualizations-replace");
+            case "visualization-exclude":
+            case "visualization-include":
+                return BridgeVisualizationInclusion(request, include: action == "visualization-include");
         }
 
         return StudioBridgeProtocol.Refuse(request.Id, "not_implemented", $"«{action}» гүүрт бүртгэгдсэн боловч хэрэгжээгүй.");
@@ -488,6 +496,119 @@ internal sealed partial class ShellView
         return RelinkNativeSource(source, authority.OwnerEmail, path)
             ? StudioBridgeProtocol.Accept(request.Id, new { source = source.Id, path = source.NativeDocumentPath }, statusText.Text)
             : StudioBridgeProtocol.Refuse(request.Id, "relink_refused", statusText.Text);
+    }
+
+    /// <summary>«Харагдах байдал»: every image of the source - id, name, file, linked source, in the album or not.</summary>
+    private StudioBridgeResponse BridgeVisualizations(StudioBridgeRequest request)
+    {
+        IReadOnlyList<ProjectVisualizationImage> images = CurrentProjectVisualizationImages();
+        return StudioBridgeProtocol.Accept(
+            request.Id,
+            new
+            {
+                imagesPerPage = CurrentProjectVisualizationSource().ImagesPerPage,
+                images = images.Select((image, index) => new
+                {
+                    order = index + 1,
+                    id = image.Id,
+                    name = image.OriginalFileName,
+                    stored = image.RelativePath,
+                    source = image.LinkedSourcePath,
+                    inAlbum = image.IsIncludedInAlbum,
+                    available = image.IsAvailable,
+                    local = IsLocalVisualizationImage(image),
+                    width = image.PixelWidth,
+                    height = image.PixelHeight,
+                }).ToList(),
+            },
+            $"Харагдах байдал: {images.Count} зураг, альбумд {images.Count(image => image.IsAvailable && image.IsIncludedInAlbum)}.");
+    }
+
+    /// <summary>
+    /// «Зураг нэмэх» with the files named (path=, or folder= with pattern=, in name order). replace: first
+    /// «Хуудаснаас хасах» on every image now in the album - they stay in the source, inactive, never deleted
+    /// (Studio has no delete; the owner's work is only ever added to).
+    /// </summary>
+    private StudioBridgeResponse BridgeVisualizationAdd(StudioBridgeRequest request, bool replace)
+    {
+        string? path = request.Arg("path");
+        string? folder = request.Arg("folder");
+        List<string> files;
+        if (folder is not null)
+        {
+            if (!Directory.Exists(folder))
+                return StudioBridgeProtocol.Refuse(request.Id, "folder_not_found", "Хавтас олдсонгүй: " + folder);
+            string pattern = request.Arg("pattern") ?? "*.png";
+            files = Directory.EnumerateFiles(folder, pattern, SearchOption.TopDirectoryOnly)
+                .Where(file => Path.GetExtension(file).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg")
+                .OrderBy(file => Path.GetFileName(file), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        else if (path is not null && !replace)
+        {
+            if (!File.Exists(path))
+                return StudioBridgeProtocol.Refuse(request.Id, "file_not_found", "Файл олдсонгүй: " + path);
+            files = [path];
+        }
+        else
+        {
+            return StudioBridgeProtocol.Refuse(request.Id, "bad_request",
+                replace ? "folder=<хавтас> [pattern=*.png] заана уу." : "path=<зураг> эсвэл folder=<хавтас> [pattern=*.png] заана уу.");
+        }
+        if (files.Count == 0)
+            return StudioBridgeProtocol.Refuse(request.Id, "no_images", "Тохирох PNG/JPEG зураг алга.");
+        if (!CanEditProjectContent())
+            return StudioBridgeProtocol.Refuse(request.Id, "forbidden", statusText.Text);
+
+        int excluded = 0;
+        if (replace)
+        {
+            HashSet<string> incoming = files.Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            excluded = ExcludeVisualizationImages(CurrentProjectVisualizationImages()
+                .Where(image => !incoming.Contains(image.LinkedSourcePath ?? "")));
+        }
+        VisualizationAddResult result = AddVisualizationImageFiles(files);
+        if (replace)
+        {
+            // An image already here (same file or content) was only skipped: bring it back if it was out.
+            HashSet<string> incoming = files.Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            IncludeVisualizationImages(CurrentProjectVisualizationImages()
+                .Where(image => incoming.Contains(image.LinkedSourcePath ?? "")));
+        }
+        IReadOnlyList<ProjectVisualizationImage> now = CurrentProjectVisualizationImages();
+        return StudioBridgeProtocol.Accept(
+            request.Id,
+            new
+            {
+                files = files.Count,
+                added = result.Added,
+                updated = result.Updated,
+                skipped = result.Skipped,
+                excluded,
+                failed = result.Failed,
+                inAlbum = now.Count(image => image.IsAvailable && image.IsIncludedInAlbum),
+                album = lastAlbumPath,
+            },
+            statusText.Text);
+    }
+
+    /// <summary>«Хуудаснаас хасах» / «Хуудсанд оруулах» on the images named (id=<id[,id]> or id=all).</summary>
+    private StudioBridgeResponse BridgeVisualizationInclusion(StudioBridgeRequest request, bool include)
+    {
+        string? ids = request.Arg("id");
+        if (string.IsNullOrWhiteSpace(ids))
+            return StudioBridgeProtocol.Refuse(request.Id, "bad_request", "id=<зургийн id[,id]> эсвэл id=all заана уу.");
+        HashSet<string> wanted = ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        List<ProjectVisualizationImage> images = CurrentProjectVisualizationImages()
+            .Where(image => wanted.Contains("all") || wanted.Contains(image.Id))
+            .ToList();
+        if (images.Count == 0)
+            return StudioBridgeProtocol.Refuse(request.Id, "image_not_found", "Зураг олдсонгүй: " + ids);
+        if (!CanEditProjectContent())
+            return StudioBridgeProtocol.Refuse(request.Id, "forbidden", statusText.Text);
+        int changed = include ? IncludeVisualizationImages(images) : ExcludeVisualizationImages(images);
+        return StudioBridgeProtocol.Accept(request.Id, new { changed, album = lastAlbumPath }, statusText.Text);
     }
 
     private StudioBridgeResponse BridgeImportFrontMatter(StudioBridgeRequest request)
