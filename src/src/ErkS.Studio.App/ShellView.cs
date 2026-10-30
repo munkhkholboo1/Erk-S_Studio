@@ -5280,6 +5280,7 @@ internal sealed partial class ShellView : IDisposable
                             code,
                             currentAuthority))
                     .ToList();
+            RememberSyncRefusedComponents(allPendingAlbumComponents, authorizedPendingAlbumComponents);
             IReadOnlyList<string> confirmedPendingAlbumComponents = [];
             IReadOnlyList<string> deferredPendingAlbumComponents = [];
             bool hasUnauthorizedPendingChanges =

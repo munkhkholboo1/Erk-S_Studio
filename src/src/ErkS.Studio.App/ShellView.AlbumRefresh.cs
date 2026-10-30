@@ -186,6 +186,24 @@ internal sealed partial class ShellView
     }
 
     private string pendingSplitSignature = "\u0000";
+    private HashSet<string> syncRefusedComponentCodes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The waiting components the last sync's own authority would not send from this device:
+    /// read-only here (another device's ATD, a page without its scans). They are counted as
+    /// blocked, never as «хүлээгдэж буй» (Мастер, 2026-10-31: Erin read «⚠ Альбум бүрэн бус —
+    /// 1 хэсэг илгээгдээгүй» for an ATD component the Cloud holds whole). The indicator's own
+    /// quicker rule could not see it: it does not hash payloads, and the sync does.
+    /// </summary>
+    private void RememberSyncRefusedComponents(
+        IReadOnlyList<string> pending,
+        IReadOnlyList<string> authorized)
+    {
+        syncRefusedComponentCodes = pending
+            .Except(authorized, StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        pendingSplitSignature = "\u0000";
+    }
     private int cachedSendableCount;
     private int cachedBlockedCount;
 
@@ -241,7 +259,7 @@ internal sealed partial class ShellView
         int blocked = 0;
         foreach (string code in pending)
         {
-            if (renderable.Contains(code))
+            if (renderable.Contains(code) && !syncRefusedComponentCodes.Contains(code))
                 sendable++;
             else
                 blocked++;
