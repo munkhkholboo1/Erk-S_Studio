@@ -681,14 +681,18 @@ internal sealed partial class ShellView
             }
 
             var patches = new List<AlbumComponentPdfPatch>();
+            // Cut in one reading of the local album, not one per component.
+            AlbumComponentPdfExtractor.ExtractMany(
+                localBuild.OutputPath,
+                selected
+                    .Select((component, index) => (
+                        (IEnumerable<int>)component.PageNumbers,
+                        Path.Combine(workFolder, $"component-{index:D2}.pdf")))
+                    .ToList());
             for (int index = 0; index < selected.Count; index++)
             {
                 StudioCloudAlbumSection component = selected[index];
                 string componentPdfPath = Path.Combine(workFolder, $"component-{index:D2}.pdf");
-                AlbumComponentPdfExtractor.Extract(
-                    localBuild.OutputPath,
-                    component.PageNumbers,
-                    componentPdfPath);
                 patches.Add(new AlbumComponentPdfPatch(
                     component.Code,
                     StudioCanonicalAlbumComponentSlotPolicy.ResolveOrder(
@@ -1580,14 +1584,17 @@ internal sealed partial class ShellView
             }
 
             var uploads = new List<StudioAlbumComponentUpload>();
+            AlbumComponentPdfExtractor.ExtractMany(
+                build.OutputPath,
+                selected
+                    .Select((component, index) => (
+                        (IEnumerable<int>)component.PageNumbers,
+                        Path.Combine(workFolder, $"component-{index:D2}.pdf")))
+                    .ToList());
             for (int index = 0; index < selected.Count; index++)
             {
                 StudioCloudAlbumSection component = selected[index];
                 string outputPath = Path.Combine(workFolder, $"component-{index:D2}.pdf");
-                AlbumComponentPdfExtractor.Extract(
-                    build.OutputPath,
-                    component.PageNumbers,
-                    outputPath);
                 uploads.Add(new StudioAlbumComponentUpload(
                     component.Code,
                     component.Label,
