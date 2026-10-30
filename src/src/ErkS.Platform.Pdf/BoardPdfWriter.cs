@@ -544,7 +544,7 @@ public static class BoardPdfWriter
         // A PDF page is placed as a form, so it stays vector at any board size.
         if (Path.GetExtension(card.SourcePath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
         {
-            var form = XPdfForm.FromFile(card.SourcePath);
+            var form = SourcePdfContentFlattener.OpenForm(card.SourcePath);
             form.PageNumber = Math.Max(1, card.SourcePageNumber);
             return form;
         }

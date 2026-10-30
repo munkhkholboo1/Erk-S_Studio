@@ -114,7 +114,8 @@ public sealed class THEOTHERRasterPathsAreCountedNotAssumedTests
         // around it into pixels too. The writers say so in their own words.
         string portfolio = ReadPdfSource("PortfolioPdfWriter.cs");
 
-        Assert.Contains("XPdfForm.FromFile(item.SourcePath)", portfolio, StringComparison.Ordinal);
+        // Imported through the stream-joining cache, which keeps the page vector (2026-10-31).
+        Assert.Contains("SourcePdfContentFlattener.OpenForm(item.SourcePath)", portfolio, StringComparison.Ordinal);
         Assert.Contains("stays vector", portfolio, StringComparison.Ordinal);
     }
 

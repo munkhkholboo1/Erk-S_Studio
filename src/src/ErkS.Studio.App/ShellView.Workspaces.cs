@@ -436,6 +436,9 @@ internal sealed partial class ShellView
         sourceRefreshInProgress = true;
         RefreshSyncUi();
         var selectedSourceId = (designSourcesWorkspaceList.SelectedItem as SourceWorkspaceItem)?.SelectionKey;
+        // Each step timed and written beside the result, so a slow refresh says where it went
+        // (Мастер, 2026-10-30: «алхам бүрийн хугацаа, явц алга»).
+        var timings = new StudioOperationTimings();
         SheetIntakeScanResult scan;
         ProjectAssetSourceReconciliationResult assetScan;
         CityGenProjectSiteReconciliationResult siteScan;
@@ -480,10 +483,18 @@ internal sealed partial class ShellView
                     "source_refresh_scanning_local_sources",
                     $"Локал эх үүсвэрийн өөрчлөлт шалгаж байна: {ownedSources.Count} source...");
             }
-            assetScan = state.ReconcileProjectAssetSources();
-            siteScan = state.ReconcileCityGenProjectSite(ownedSources);
-            RefreshLocalPdfSources(ownedSources);
-            scan = state.Intake.RescanFolders(SourceInboxFolders(ownedSources));
+            assetScan = timings.Measure("эх файл", () => state.ReconcileProjectAssetSources());
+            siteScan = timings.Measure("талбай", () => state.ReconcileCityGenProjectSite(ownedSources));
+            timings.Measure("локал PDF", () => RefreshLocalPdfSources(ownedSources));
+            scan = timings.Measure(
+                "багц шалгалт",
+                () => state.Intake.RescanFolders(SourceInboxFolders(ownedSources)));
+            RecordDiagnosticOperation(
+                operationId,
+                "source_refresh",
+                "progress",
+                "source_refresh_scan_timed",
+                $"{scan.ManifestCount} package шалгав ({timings}).");
         }
         catch (Exception exception)
         {
@@ -519,16 +530,17 @@ internal sealed partial class ShellView
 
                 RefreshSourceWorkspace(selectedSourceId);
                 RefreshAlbumWorkspace();
-                bool updated = UpdateAlbum(
+                bool updated = timings.Measure("альбум угсралт", () => UpdateAlbum(
                     silent: false,
                     statusPrefix: BuildSourceRefreshSummary(
                         scan,
                         assetScan,
                         siteScan,
                         metadataUpgrade),
-                    origin: StudioWorkspaceOperation.SourceRefresh);
+                    origin: StudioWorkspaceOperation.SourceRefresh));
                 if (updated)
                 {
+                    statusText.Text += $" — хугацаа: {timings}";
                     RecordDiagnosticOperation(
                         operationId,
                         "source_refresh",

@@ -4332,8 +4332,17 @@ internal sealed partial class ShellView : IDisposable
                     collectUi,
                     reconcileLinkedProjectAssets);
             }
+            // The review (магадлал) is the working-drawing stage's, read from the
+            // project's stage - a concept or ХЕТ album shows none and logs none.
+            bool reviewed = AlbumReviewChecklist.AppliesTo(
+                state.Project.Identity.ProjectType,
+                state.Project.Identity.StageCode);
+            if (!reviewed)
+                result.Warnings.RemoveAll(warning =>
+                    (warning ?? "").StartsWith(AlbumReviewChecklist.Prefix, StringComparison.Ordinal));
             lastAlbumBuildWarnings = result.Warnings.ToList();
-            RecordAlbumReview(result.Warnings);
+            if (reviewed)
+                RecordAlbumReview(result.Warnings);
             // A count leaves somebody to find which sheet across thirty-odd
             // pages, so the first one is named and the rest counted.
             var warningSuffix = result.Warnings.Count switch

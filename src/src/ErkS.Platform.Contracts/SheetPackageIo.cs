@@ -479,7 +479,7 @@ public static class SheetPackageReader
             }
             else if (!recordedPackageBytes)
             {
-                VerifyPdfStructure(manifest, sheet, pdfPath, result.Issues, pdfStructureCache);
+                VerifyPdfStructure(manifest, sheet, pdfPath, result.Issues, pdfStructureCache, hashCache);
             }
             try
             {
@@ -948,20 +948,34 @@ public static class SheetPackageReader
         SheetPackageEntry sheet,
         string pdfPath,
         ICollection<string> issues,
-        IDictionary<string, VerifiedPdfStructure> structureCache)
+        IDictionary<string, VerifiedPdfStructure> structureCache,
+        IDictionary<string, string> hashCache)
     {
         try
         {
             if (!structureCache.TryGetValue(pdfPath, out VerifiedPdfStructure? structure))
             {
-                using var document = PdfReader.Open(pdfPath, PdfDocumentOpenMode.Import);
-                structure = new VerifiedPdfStructure(
-                    document.Pages
-                        .Cast<PdfSharp.Pdf.PdfPage>()
-                        .Select(page => new VerifiedPdfPageSize(
-                            page.Width.Millimeter,
-                            page.Height.Millimeter))
-                        .ToArray());
+                // Keyed by the bytes' own hash, just computed, so an unchanged package is not
+                // parsed again on every rescan (97 packages re-read for 44 s of an Erin refresh
+                // that changed nothing, 2026-10-31) and a changed byte is always parsed afresh.
+                string? contentHash = hashCache.TryGetValue(pdfPath, out string? hashed) ? hashed : null;
+                if (contentHash is null || !VerifiedStructures.TryGetValue(contentHash, out structure))
+                {
+                    using var document = PdfReader.Open(pdfPath, PdfDocumentOpenMode.Import);
+                    structure = new VerifiedPdfStructure(
+                        document.Pages
+                            .Cast<PdfSharp.Pdf.PdfPage>()
+                            .Select(page => new VerifiedPdfPageSize(
+                                page.Width.Millimeter,
+                                page.Height.Millimeter))
+                            .ToArray());
+                    if (contentHash is not null)
+                    {
+                        if (VerifiedStructures.Count >= VerifiedStructureLimit)
+                            VerifiedStructures.Clear();
+                        VerifiedStructures[contentHash] = structure;
+                    }
+                }
                 structureCache[pdfPath] = structure;
             }
 
@@ -1011,6 +1025,12 @@ public static class SheetPackageReader
 
     private static bool NearlyEqual(double left, double right, double tolerance = PageSizeToleranceMm) =>
         Math.Abs(left - right) <= tolerance;
+
+    private const int VerifiedStructureLimit = 4096;
+
+    /// <summary>Page geometry of every PDF already parsed in this process, by content SHA-256.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, VerifiedPdfStructure>
+        VerifiedStructures = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed record VerifiedPdfStructure(IReadOnlyList<VerifiedPdfPageSize> Pages)
     {

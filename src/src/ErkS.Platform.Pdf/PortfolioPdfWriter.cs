@@ -276,7 +276,7 @@ public static class PortfolioPdfWriter
         // A PDF page is placed as a form, so it stays vector.
         if (Path.GetExtension(item.SourcePath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
         {
-            var form = XPdfForm.FromFile(item.SourcePath);
+            var form = SourcePdfContentFlattener.OpenForm(item.SourcePath);
             form.PageNumber = Math.Max(1, item.SourcePageNumber);
             return form;
         }

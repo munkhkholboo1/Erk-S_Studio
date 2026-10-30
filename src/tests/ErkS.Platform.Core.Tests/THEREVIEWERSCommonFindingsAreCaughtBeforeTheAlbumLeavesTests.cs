@@ -94,6 +94,24 @@ public sealed class THEREVIEWERSCommonFindingsAreCaughtBeforeTheAlbumLeavesTests
         Assert.Empty(AlbumReviewChecklist.Review(request));
     }
 
+    /// <summary>
+    /// The review is for the working-drawing stage only - a concept (загвар зураг) or ХЕТ
+    /// project is reviewed by other bodies and gets no «магадлал» at all, not even a
+    /// clean one (owner, 2026-10-30: «магадлал бол ажлын түвшинд шалгах зүйл»).
+    /// </summary>
+    [Theory]
+    [InlineData("building-design", "working-drawings", true)]
+    [InlineData("building-design", "WORKING-DRAWINGS", true)]
+    [InlineData("building-design", "model-design", false)]
+    [InlineData("building-design", "ConceptDesign", false)]
+    [InlineData("building-design", "", false)]
+    [InlineData("urban-planning", "working-drawings", false)]
+    [InlineData(null, null, false)]
+    public void OnlyAWorkingDrawingProjectIsReviewed(string? projectType, string? stageCode, bool reviewed)
+    {
+        Assert.Equal(reviewed, AlbumReviewChecklist.AppliesTo(projectType, stageCode));
+    }
+
     private static WorkingDrawingFrontMatter CompleteNote() => new()
     {
         ExplanatoryNote =

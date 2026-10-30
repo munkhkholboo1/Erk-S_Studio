@@ -27,6 +27,15 @@ public static partial class AlbumReviewChecklist
         ("Ногоон байгууламж", ["НОГООН БАЙГУУЛАМЖ", "ДЕНДРО"]),
     ];
 
+    /// <summary>
+    /// Whether the project's stage is reviewed at all: only a building project at the
+    /// working-drawing stage. Concept (загвар зураг) and ХЕТ albums are approved by other
+    /// bodies and carry no «магадлал» - no findings and no review row (owner, 2026-10-30:
+    /// «эрин бол загвар зургийн түвшинд байгаа төсөл … магадлал бол ажлын түвшинд шалгах зүйл»).
+    /// </summary>
+    public static bool AppliesTo(string? projectType, string? stageCode) =>
+        BuildingWorkingDrawingAlbumTemplate.Supports(projectType, stageCode);
+
     public static IReadOnlyList<string> Review(AlbumBuildRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

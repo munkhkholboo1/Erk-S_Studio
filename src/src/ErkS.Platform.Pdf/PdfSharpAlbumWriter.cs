@@ -288,16 +288,13 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         AlbumProject project,
         AlbumBuildPage buildPage)
     {
-        int sourcePageCount;
-        using (var source = PdfReader.Open(buildPage.Sheet.PdfPath, PdfDocumentOpenMode.Import))
-        {
-            sourcePageCount = source.PageCount;
-        }
+        // One open, not two: the form knows its page count, and a received sheet can be 20 MB.
+        using var form = SourcePdfContentFlattener.OpenForm(buildPage.Sheet.PdfPath);
+        int sourcePageCount = form.PageCount;
 
         IEnumerable<int> sourcePageNumbers = buildPage.Sheet.Entry.PdfPageNumber > 0
             ? [buildPage.Sheet.Entry.PdfPageNumber]
             : Enumerable.Range(1, sourcePageCount);
-        using var form = XPdfForm.FromFile(buildPage.Sheet.PdfPath);
         foreach (int sourcePageNumber in sourcePageNumbers)
         {
             if (sourcePageNumber > sourcePageCount)
@@ -3707,7 +3704,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
         {
             if (Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             {
-                using var form = XPdfForm.FromFile(path);
+                using var form = SourcePdfContentFlattener.OpenForm(path);
                 form.PageNumber = documentPage.SourcePageNumber;
                 DrawContainedImage(gfx, form, imageArea);
             }

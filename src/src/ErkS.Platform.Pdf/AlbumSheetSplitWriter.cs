@@ -32,7 +32,7 @@ public static class AlbumSheetSplitWriter
         RefuseSameFile(sourcePdf, outputPdf);
         int sourcePages, outputPages = 0, splitPages = 0;
         using (var output = new PdfDocument())
-        using (XPdfForm form = XPdfForm.FromFile(sourcePdf))
+        using (XPdfForm form = SourcePdfContentFlattener.OpenForm(sourcePdf))
         {
             sourcePages = form.PageCount;
             for (int number = 1; number <= sourcePages; number++)

@@ -251,7 +251,7 @@ public sealed partial class PdfSharpAlbumWriter
         if (active.Count == 0 || !File.Exists(sheet.PdfPath))
             return;
 
-        using XPdfForm form = XPdfForm.FromFile(sheet.PdfPath);
+        using XPdfForm form = SourcePdfContentFlattener.OpenForm(sheet.PdfPath);
         form.PageNumber = Math.Max(1, sheet.Entry.PdfPageNumber);
         double width = Math.Max(1, form.PointWidth);
         double height = Math.Max(1, form.PointHeight);
