@@ -44,6 +44,12 @@ public sealed partial class SyncEngine
     /// </summary>
     public event Action<SyncRelease>? ReleasePublished;
 
+    /// <summary>
+    /// A project's chat changed on the server (its id only): told on to Studio, which reads the chat
+    /// then instead of on a clock (Мастер, 2026-10-31).
+    /// </summary>
+    public event Action<string>? ProjectChatChanged;
+
     /// <summary>The newest version the server announced per product and channel since this SYN started.</summary>
     public IReadOnlyList<SyncRelease> Releases
     {
@@ -282,6 +288,12 @@ public sealed partial class SyncEngine
                 Poke();
             if (type == "redactions")
                 Poke();
+            if (type == "project-chat" &&
+                document.RootElement.TryGetProperty("projectId", out var chatProject) &&
+                chatProject.GetString() is { Length: > 0 } chatProjectId)
+            {
+                ProjectChatChanged?.Invoke(chatProjectId);
+            }
             if (type == "release" &&
                 document.RootElement.TryGetProperty("productCode", out var product) && product.GetString() is { Length: > 0 } productCode &&
                 document.RootElement.TryGetProperty("version", out var version) && version.GetString() is { Length: > 0 } released)

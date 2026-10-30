@@ -151,6 +151,23 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         Assert.Contains(new SyncRelease("ErkS.CityGen.AutoCAD", "2026", "v0.056"), engine.Releases);
     }
 
+    /// <summary>Мастер, 2026-10-31: Studio read a project's chat every 12 s; the server says when it changed.</summary>
+    [Fact]
+    public async Task APROJECTSChatChangeIsToldOnWithItsIdOnly()
+    {
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
+        var told = new List<string>();
+        engine.ProjectChatChanged += told.Add;
+
+        engine.Heard("{\"type\":\"project-chat\",\"projectId\":\"a1da1b71\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"project-chat\"}"u8.ToArray()); // no project: nothing
+
+        Assert.Equal(["a1da1b71"], told);
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);

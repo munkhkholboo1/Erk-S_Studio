@@ -120,7 +120,7 @@ internal sealed partial class ShellView
             }
             catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
             {
-                SetStatus("Төсөл устгагдсангүй: " + exception.Message);
+                ReportWriteRefusal("Төсөл устгагдсангүй", exception);
             }
             return;
         }
@@ -145,7 +145,7 @@ internal sealed partial class ShellView
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            SetStatus("Төслөөс гарах хүсэлт илгээгдсэнгүй: " + exception.Message);
+            ReportWriteRefusal("Төслөөс гарах хүсэлт илгээгдсэнгүй", exception);
         }
     }
 
@@ -762,7 +762,7 @@ internal sealed partial class ShellView
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            SetStatus("Төслийн архитектор томилогдсонгүй: " + exception.Message);
+            ReportWriteRefusal("Төслийн архитектор томилогдсонгүй", exception);
         }
         finally
         {
@@ -860,7 +860,7 @@ internal sealed partial class ShellView
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            SetStatus("Багийн урилга илгээж чадсангүй: " + exception.Message);
+            ReportWriteRefusal("Багийн урилга илгээж чадсангүй", exception);
         }
     }
 
@@ -931,7 +931,7 @@ internal sealed partial class ShellView
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            SetStatus("Гишүүний role шинэчлэгдсэнгүй: " + exception.Message);
+            ReportWriteRefusal("Гишүүний role шинэчлэгдсэнгүй", exception);
         }
         finally
         {
@@ -1000,7 +1000,7 @@ internal sealed partial class ShellView
         {
             if (!IsOperationContextCurrent(operationContext))
                 return;
-            SetStatus("Багийн өөрчлөлт хийгдсэнгүй: " + exception.Message);
+            ReportWriteRefusal("Багийн өөрчлөлт хийгдсэнгүй", exception);
         }
     }
 
@@ -1032,7 +1032,7 @@ internal sealed partial class ShellView
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
-            SetStatus("Төслөөс гарах хүсэлт илгээгдсэнгүй: " + exception.Message);
+            ReportWriteRefusal("Төслөөс гарах хүсэлт илгээгдсэнгүй", exception);
         }
     }
 
@@ -1425,5 +1425,22 @@ internal sealed partial class ShellView
         }
 
         return deleted;
+    }
+
+    /// <summary>
+    /// A team or project write the server refused: on the status line AND in a window, in words
+    /// (StudioWriteRefusal). The owner took a refused invitation for a sent one when it was only a
+    /// status line the next one replaced (Мастер, 2026-10-31).
+    /// </summary>
+    private void ReportWriteRefusal(string whatFailedMn, Exception exception)
+    {
+        string text = StudioWriteRefusal.Describe(whatFailedMn, exception);
+        SetStatus(text);
+        StudioMessageDialog.Show(
+            Window.GetWindow(Root),
+            text,
+            "Erk-S Studio",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
     }
 }

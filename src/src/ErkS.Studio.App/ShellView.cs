@@ -342,7 +342,6 @@ internal sealed partial class ShellView : IDisposable
     };
 
     private readonly DispatcherTimer notificationRefreshTimer;
-    private readonly DispatcherTimer projectChatRefreshTimer;
     private bool suppressAutomaticAlbumRebuild;
     private bool assetSourceChangePendingDuringSync;
     private readonly List<SheetPackageLoadResult> deferredPackageResults = [];
@@ -459,12 +458,6 @@ internal sealed partial class ShellView : IDisposable
                 System.Diagnostics.Trace.TraceWarning("Studio background refresh failed: " + exception.Message);
             }
         };
-        projectChatRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
-        projectChatRefreshTimer.Tick += async (_, _) =>
-        {
-            if (state.HasOpenProject && account.IsSignedIn)
-                await RefreshProjectChatAsync(silent: true);
-        };
 
         // A seated machine opens into its bot tile rather than the shell. The
         // shell is built either way and sits behind the lock, so unlocking is
@@ -556,7 +549,6 @@ internal sealed partial class ShellView : IDisposable
     {
         StopBridge();
         notificationRefreshTimer.Stop();
-        projectChatRefreshTimer.Stop();
         projectChatLoadCancellation?.Cancel();
         projectChatLoadCancellation?.Dispose();
         projectThumbnailLoadCancellation?.Cancel();
@@ -1588,7 +1580,8 @@ internal sealed partial class ShellView : IDisposable
         // Then only when the server says a new Studio is published (through Erk-S Sync).
         _ = StudioReleaseListener.RunAsync(
             version => dispatcher.BeginInvoke(new Action(() => OnStudioPublished(version))),
-            releaseListening.Token);
+            releaseListening.Token,
+            projectId => dispatcher.BeginInvoke(new Action(() => OnProjectChatChanged(projectId))));
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();

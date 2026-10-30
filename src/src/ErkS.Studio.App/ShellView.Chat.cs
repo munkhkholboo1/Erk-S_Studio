@@ -423,6 +423,20 @@ internal sealed partial class ShellView
         return root;
     }
 
+    /// <summary>
+    /// The server said a project's chat changed (through Erk-S Sync): the open project's chat is
+    /// read now. It replaced a 12 s clock (Мастер, 2026-10-31).
+    /// </summary>
+    private void OnProjectChatChanged(string projectId)
+    {
+        if (state.HasOpenProject &&
+            account.IsSignedIn &&
+            projectId.Equals(state.Project.Cloud.ServerProjectId ?? "", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = RefreshProjectChatAsync(silent: true);
+        }
+    }
+
     private void UpdateProjectChatWidgetVisibility()
     {
         bool available = projectWorkspaceOpen &&
@@ -432,7 +446,6 @@ internal sealed partial class ShellView
         projectChatWidgetHost.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         if (!available)
         {
-            projectChatRefreshTimer.Stop();
             projectChatDock.Visibility = Visibility.Collapsed;
             projectChatLauncherLayer.Visibility = Visibility.Visible;
             AttachProjectChatDockToOverlay();
@@ -443,7 +456,6 @@ internal sealed partial class ShellView
         string previousProjectId = projectChatBoundProjectId;
         long previousAccountEpoch = projectChatBoundAccountEpoch;
         ResetProjectChatForCurrentProject();
-        projectChatRefreshTimer.Start();
         if (!projectChatBoundProjectId.Equals(previousProjectId, StringComparison.Ordinal) ||
             projectChatBoundAccountEpoch != previousAccountEpoch)
         {

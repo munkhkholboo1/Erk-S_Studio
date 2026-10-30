@@ -17,7 +17,14 @@ internal static class StudioReleaseListener
 {
     private static readonly TimeSpan LongestWait = TimeSpan.FromMinutes(10);
 
-    public static async Task RunAsync(Action<string> studioPublished, CancellationToken cancellationToken)
+    /// <param name="projectChatChanged">
+    /// A project's chat changed on the server (its id): read it then, not on a clock (owner,
+    /// 2026-10-24: «өөрчлөлтийг мэдэрч уншдаг болгохгуй бол дэмий ачаалал үүсгэнэ»).
+    /// </param>
+    public static async Task RunAsync(
+        Action<string> studioPublished,
+        CancellationToken cancellationToken,
+        Action<string>? projectChatChanged = null)
     {
         TimeSpan wait = TimeSpan.FromSeconds(5);
         while (!cancellationToken.IsCancellationRequested)
@@ -36,6 +43,8 @@ internal static class StudioReleaseListener
                     {
                         if (StudioVersionIn(line) is { } version)
                             studioPublished(version);
+                        else if (ChatProjectIn(line) is { } projectId)
+                            projectChatChanged?.Invoke(projectId);
                     }
                 }
                 else
@@ -63,6 +72,24 @@ internal static class StudioReleaseListener
     }
 
     /// <summary>The version in a «release» line for Studio, or null for any other line.</summary>
+    /// <summary>The project whose chat changed, from Sync's «project-chat» line; null for any other line.</summary>
+    internal static string? ChatProjectIn(string line)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+            JsonElement root = document.RootElement;
+            return root.TryGetProperty("event", out JsonElement kind) && kind.GetString() == "project-chat" &&
+                root.TryGetProperty("projectId", out JsonElement project) && project.GetString() is { Length: > 0 } id
+                ? id
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     internal static string? StudioVersionIn(string line)
     {
         try

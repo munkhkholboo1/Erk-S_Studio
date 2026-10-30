@@ -93,6 +93,9 @@ internal sealed class SyncTray : ApplicationContext
                 engine.CollabCheckpointPlaced += (fileId, checkpoint) =>
                     Send(_subscribers, SyncProtocol.Serialize(new { @event = "collab-checkpoint-placed", fileId, checkpoint }));
                 engine.ReleasePublished += AnnounceRelease;
+                // On the line Studio already holds: a project's chat changed, by id only.
+                engine.ProjectChatChanged += projectId =>
+                    Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "project-chat", projectId }));
                 engine.ReleasePublished += _selfUpdate.Heard;
                 engine.StateWritten += _ => _selfUpdate.Try();
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
