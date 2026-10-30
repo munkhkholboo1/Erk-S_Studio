@@ -77,4 +77,28 @@ public readonly record struct StudioPendingWork(
             cloud.BuildingCompositionPending ? 1 : 0,
             cloud.CanonicalTitleBlockPending ? 1 : 0);
     }
+
+    /// <summary>
+    /// The project-level buckets the signed-in account may not send: the canonical ones need a
+    /// project admin, the building composition needs concept.write - the same rules the sync
+    /// plan applies. Album components are judged one by one elsewhere and are not counted here.
+    /// </summary>
+    /// <remarks>
+    /// Erin, 2026-10-31: only components were counted as blocked, so a title block waiting on an
+    /// admin made «6 blocked of 7» and the refresh read as a failure on a complete album.
+    /// </remarks>
+    public static StudioPendingWork BlockedByPermission(ProjectWorkspace project, string? accountEmail)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        StudioPendingWork pending = Of(project);
+        bool canonical = ProjectCloudSyncAuthority.CanManageCanonicalMetadata(project.Cloud, accountEmail);
+        bool composition = ProjectCloudSyncAuthority.CanEditBuildingComposition(project.Cloud, accountEmail);
+        return new StudioPendingWork(
+            0,
+            0,
+            canonical ? 0 : pending.ProjectInformation,
+            canonical ? 0 : pending.CompanyAssignment,
+            composition ? 0 : pending.BuildingComposition,
+            canonical ? 0 : pending.CanonicalTitleBlock);
+    }
 }

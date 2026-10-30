@@ -94,7 +94,11 @@ public sealed record AlbumRefreshSummaryCounts(
     int SheetCount,
     int PdfPageCount,
     int? CloudRevisionNumber,
-    int PendingCount);
+    int PendingCount)
+{
+    /// <summary>Of the pending, how many wait on a permission this account does not hold.</summary>
+    public int BlockedCount { get; init; }
+}
 
 /// <summary>
 /// What the one action did, in numbers, including what it did not manage to do.
@@ -199,16 +203,23 @@ public sealed record AlbumRefreshReport
             .Select(step => step.Count)
             .FirstOrDefault();
         facts.Add($"илгээсэн {sent} хэсэг");
-        facts.Add($"хүлээгдэж буй {counts.PendingCount}");
+        int blocked = Math.Clamp(counts.BlockedCount, 0, Math.Max(0, counts.PendingCount));
+        int waiting = Math.Max(0, counts.PendingCount - blocked);
+        facts.Add($"хүлээгдэж буй {waiting}");
         string tail = string.Join(", ", facts);
+        // Work waiting on a permission is not this run failing: said for what it is, after a
+        // verdict that stays ready (Erin, 2026-10-31: R63 complete, «⚠ бүрэн бус» on 7 blocked).
+        string permission = blocked > 0
+            ? $" · {blocked} өөрчлөлт эрх хүлээж байна (төслийн админ)"
+            : "";
 
-        if (!AnyStepFailed && !StoppedEarly && counts.PendingCount == 0)
-            return "✓ Альбум бэлэн — " + tail;
+        if (!AnyStepFailed && !StoppedEarly && waiting == 0)
+            return "✓ Альбум бэлэн — " + tail + permission;
 
         string missing = AnyStepFailed || StoppedEarly
             ? ClosingLineMn.TrimEnd('.')
-            : $"{counts.PendingCount} хэсэг илгээгдээгүй";
-        return $"⚠ Альбум бүрэн бус — {missing} — {tail}";
+            : $"{waiting} хэсэг илгээгдээгүй";
+        return $"⚠ Альбум бүрэн бус — {missing} — {tail}{permission}";
     }
 
     public string ClosingLineMn

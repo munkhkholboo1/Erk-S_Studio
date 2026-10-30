@@ -80,3 +80,61 @@ public sealed class THEREFRESHEndsInOneLineThePersonCanReadTests
         Assert.Contains("5 хуудас (6 PDF хуудас)", line, StringComparison.Ordinal);
     }
 }
+
+/// <summary>
+/// Erin, 2026-10-31: the album was R63, complete, and the line read «⚠ Альбум бүрэн бус — Таны
+/// оруулгыг үүл рүү өгч чадсангүй … хүлээгдэж буй 7». All seven were waiting on a project-admin
+/// permission the account did not hold; one of them, the title block, was not counted as blocked
+/// at all, so «6 blocked of 7» read as a failure. Work waiting on a permission is not a failure
+/// of this run, and it is said as what it is.
+/// </summary>
+public sealed class WORKWaitingOnAPermissionIsSaidAsSuchTests
+{
+    [Fact]
+    public void ACanonicalBucketTheAccountCannotSendIsCountedBlocked()
+    {
+        var project = new ProjectWorkspace();
+        project.Cloud.CanonicalTitleBlockPending = true;
+        project.Cloud.PendingProjectInformation = new PendingProjectInformationUpdate();
+        project.Cloud.BuildingCompositionPending = true;
+        project.Cloud.PermissionSnapshotAccountEmail = "a@b.mn";
+        project.Cloud.CurrentUserScopes = ["project.read", "concept.write"];
+
+        StudioPendingWork blocked = StudioPendingWork.BlockedByPermission(project, "a@b.mn");
+
+        Assert.Equal(1, blocked.CanonicalTitleBlock);
+        Assert.Equal(1, blocked.ProjectInformation);
+        Assert.Equal(0, blocked.BuildingComposition);
+        Assert.Equal(2, blocked.Total);
+    }
+
+    [Fact]
+    public void AnAdminHasNothingBlocked()
+    {
+        var project = new ProjectWorkspace();
+        project.Cloud.CanonicalTitleBlockPending = true;
+        project.Cloud.PermissionSnapshotAccountEmail = "a@b.mn";
+        project.Cloud.CurrentUserScopes = ["project.metadata.write", "concept.write"];
+
+        Assert.Equal(0, StudioPendingWork.BlockedByPermission(project, "a@b.mn").Total);
+    }
+
+    [Fact]
+    public void AllWaitingOnAPermissionStillReadsReadyAndSaysWhy()
+    {
+        AlbumRefreshReport report = AlbumRefreshReport.Create(
+            [
+                AlbumRefreshReport.SourcesRead(98, 0),
+                AlbumRefreshReport.ContributionBlocked(7),
+                AlbumRefreshReport.CloudFetched(false, ""),
+                AlbumRefreshReport.PagesRecomposed(17, 0),
+            ],
+            AlbumOnScreen.CloudCanonical);
+
+        string line = report.SummaryLineMn(new AlbumRefreshSummaryCounts(17, 44, 63, 7) { BlockedCount = 7 });
+
+        Assert.StartsWith("✓ Альбум бэлэн — 17 хуудас (44 PDF хуудас), Cloud R63", line, StringComparison.Ordinal);
+        Assert.Contains("7 өөрчлөлт эрх хүлээж байна", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("чадсангүй", line, StringComparison.Ordinal);
+    }
+}

@@ -156,6 +156,9 @@ internal sealed partial class ShellView
             !string.IsNullOrWhiteSpace(cloud.ServerProjectId);
 
         (int sendableComponents, int blocked) = PendingSplit(cloud);
+        // The project-level buckets this account may not send count as blocked too: a title
+        // block waiting on an admin is not this device failing (Erin, 2026-10-31).
+        blocked += StudioPendingWork.BlockedByPermission(state.Project, CurrentCloudOwnerEmail()).Total;
 
         // 🔴 THE INDICATOR USED TO READ ONE BUCKET OF SIX. It counted album
         // components and nothing else, so a project with two changed sources
@@ -589,7 +592,10 @@ internal sealed partial class ShellView
             string.IsNullOrWhiteSpace(cloud.ServerProjectId) || cloud.LastReceivedAlbumRevisionNumber <= 0
                 ? null
                 : cloud.LastReceivedAlbumRevisionNumber,
-            StudioPendingWork.Of(state.Project).Total);
+            StudioPendingWork.Of(state.Project).Total)
+        {
+            BlockedCount = CurrentCloudAlbumStatus().BlockedCount,
+        };
         SetStatus(report.SummaryLineMn(counts));
         statusText.ToolTip = report.ComposeMn();
         RefreshCloudAlbumIndicator();
