@@ -437,6 +437,49 @@ internal sealed partial class ShellView
         }
     }
 
+    /// <summary>
+    /// The server says this account's access to a project changed (SRV db93505, «project-access»):
+    /// the open project's access is checked, or the project list re-read on the Projects page.
+    /// It replaced the 45 s clock (Мастер, 2026-10-31).
+    /// </summary>
+    private async Task OnProjectAccessChangedAsync(string projectId)
+    {
+        if (!account.IsSignedIn)
+            return;
+        try
+        {
+            if (projectWorkspaceOpen &&
+                state.HasOpenProject &&
+                projectId.Equals(state.Project.Cloud.ServerProjectId ?? "", StringComparison.OrdinalIgnoreCase) &&
+                CurrentWorkspaceLifecycleDecision().Allowed)
+            {
+                await CheckCurrentProjectAccessAsync();
+            }
+            else if (activePage == StudioPage.Projects)
+            {
+                await RefreshProjectsAsync(refreshNotifications: false);
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // An event never ends Studio: whatever the server does, the open work stays.
+            System.Diagnostics.Trace.TraceWarning("Studio project access refresh failed: " + exception.Message);
+        }
+    }
+
+    /// <summary>A member of a project came online or went quiet (SRV db93505, «presence»).</summary>
+    private void OnPresenceChanged(string projectId)
+    {
+        if (state.HasOpenProject &&
+            account.IsSignedIn &&
+            projectId.Equals(state.Project.Cloud.ServerProjectId ?? "", StringComparison.OrdinalIgnoreCase))
+        {
+            // The server said it changed: read now, not after the read-again interval.
+            lastPresenceFetchUtc = DateTimeOffset.MinValue;
+            _ = RefreshTeamPresenceIfVisibleAsync();
+        }
+    }
+
     private void UpdateProjectChatWidgetVisibility()
     {
         bool available = projectWorkspaceOpen &&

@@ -56,6 +56,15 @@ public sealed partial class SyncEngine
     /// </summary>
     public event Action<string>? NotificationsChanged;
 
+    /// <summary>
+    /// This account's access to a project changed - participants, role, scope, validity, status
+    /// or deletion (SRV db93505: «project-access», the project id only).
+    /// </summary>
+    public event Action<string>? ProjectAccessChanged;
+
+    /// <summary>A member of a project came online or went quiet (SRV db93505: «presence», the project id only).</summary>
+    public event Action<string>? PresenceChanged;
+
     /// <summary>The newest version the server announced per product and channel since this SYN started.</summary>
     public IReadOnlyList<SyncRelease> Releases
     {
@@ -301,6 +310,16 @@ public sealed partial class SyncEngine
                         ? kindElement.GetString() ?? ""
                         : "";
                 NotificationsChanged?.Invoke(notificationKind);
+            }
+            if ((type == "project-access" || type == "presence") &&
+                document.RootElement.TryGetProperty("projectId", out var eventProject) &&
+                eventProject.ValueKind == System.Text.Json.JsonValueKind.String &&
+                eventProject.GetString() is { Length: > 0 } eventProjectId)
+            {
+                if (type == "project-access")
+                    ProjectAccessChanged?.Invoke(eventProjectId);
+                else
+                    PresenceChanged?.Invoke(eventProjectId);
             }
             if (type == "project-chat" &&
                 document.RootElement.TryGetProperty("projectId", out var chatProject) &&

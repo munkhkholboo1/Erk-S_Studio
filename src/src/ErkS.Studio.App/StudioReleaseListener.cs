@@ -25,7 +25,9 @@ internal static class StudioReleaseListener
         Action<string> studioPublished,
         CancellationToken cancellationToken,
         Action<string>? projectChatChanged = null,
-        Action<string>? notificationsChanged = null)
+        Action<string>? notificationsChanged = null,
+        Action<string>? projectAccessChanged = null,
+        Action<string>? presenceChanged = null)
     {
         TimeSpan wait = TimeSpan.FromSeconds(5);
         while (!cancellationToken.IsCancellationRequested)
@@ -48,6 +50,10 @@ internal static class StudioReleaseListener
                             projectChatChanged?.Invoke(projectId);
                         else if (NotificationsKindIn(line) is { } notificationKind)
                             notificationsChanged?.Invoke(notificationKind);
+                        else if (ProjectIn(line, "project-access") is { } accessProjectId)
+                            projectAccessChanged?.Invoke(accessProjectId);
+                        else if (ProjectIn(line, "presence") is { } presenceProjectId)
+                            presenceChanged?.Invoke(presenceProjectId);
                     }
                 }
                 else
@@ -87,6 +93,26 @@ internal static class StudioReleaseListener
             return root.TryGetProperty("kind", out JsonElement value) && value.ValueKind == JsonValueKind.String
                 ? value.GetString() ?? ""
                 : "";
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The project of a Sync line of the named event; null for any other line.</summary>
+    internal static string? ProjectIn(string line, string eventName)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+            JsonElement root = document.RootElement;
+            return root.TryGetProperty("event", out JsonElement kind) && kind.GetString() == eventName &&
+                root.TryGetProperty("projectId", out JsonElement project) &&
+                project.ValueKind == JsonValueKind.String &&
+                project.GetString() is { Length: > 0 } id
+                ? id
+                : null;
         }
         catch (JsonException)
         {

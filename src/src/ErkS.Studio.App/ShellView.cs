@@ -341,7 +341,6 @@ internal sealed partial class ShellView : IDisposable
         FontWeight = FontWeights.SemiBold,
     };
 
-    private readonly DispatcherTimer notificationRefreshTimer;
     private bool suppressAutomaticAlbumRebuild;
     private bool assetSourceChangePendingDuringSync;
     private readonly List<SheetPackageLoadResult> deferredPackageResults = [];
@@ -432,34 +431,6 @@ internal sealed partial class ShellView : IDisposable
         // time the answer had been to add one. There is one now: the cloud they
         // already had. Its colour says whether it is worth pressing.
         cloudSyncButton.Click += async (_, _) => await RefreshAlbumAsync();
-        notificationRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
-        notificationRefreshTimer.Tick += async (_, _) =>
-        {
-            // A background poll never ends Studio: whatever the server or the
-            // network does, the owner's open work stays (2026-10-20, a 502
-            // here closed Studio while the front-matter editor was open).
-            try
-            {
-                // Invitations are read when the server says they changed (the «notifications»
-                // event through Erk-S Sync, SRV 8e4f05e), at sign-in and on the Projects page -
-                // not on this clock (Мастер, 2026-10-31).
-                await RefreshTeamPresenceIfVisibleAsync();
-                if (projectWorkspaceOpen &&
-                    state.HasOpenProject &&
-                    CurrentWorkspaceLifecycleDecision().Allowed)
-                {
-                    await CheckCurrentProjectAccessAsync();
-                }
-                else if (activePage == StudioPage.Projects)
-                {
-                    await RefreshProjectsAsync(refreshNotifications: false);
-                }
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-                System.Diagnostics.Trace.TraceWarning("Studio background refresh failed: " + exception.Message);
-            }
-        };
 
         // A seated machine opens into its bot tile rather than the shell. The
         // shell is built either way and sits behind the lock, so unlocking is
@@ -550,7 +521,6 @@ internal sealed partial class ShellView : IDisposable
     public void Dispose()
     {
         StopBridge();
-        notificationRefreshTimer.Stop();
         projectChatLoadCancellation?.Cancel();
         projectChatLoadCancellation?.Dispose();
         projectThumbnailLoadCancellation?.Cancel();
@@ -1574,7 +1544,6 @@ internal sealed partial class ShellView : IDisposable
         if (accountInitialized)
             return;
         accountInitialized = true;
-        notificationRefreshTimer.Start();
         await dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
         // Once at start, never on a clock (owner, 2026-10-26: «цаг тутам бишээ … шинэ хувилбар
         // нийтлэхэд л мэдэгддэг байх хэрэгтэй»).
@@ -1584,7 +1553,9 @@ internal sealed partial class ShellView : IDisposable
             version => dispatcher.BeginInvoke(new Action(() => OnStudioPublished(version))),
             releaseListening.Token,
             projectId => dispatcher.BeginInvoke(new Action(() => OnProjectChatChanged(projectId))),
-            notificationKind => dispatcher.BeginInvoke(new Action(() => _ = RefreshNotificationsAsync())));
+            notificationKind => dispatcher.BeginInvoke(new Action(() => _ = RefreshNotificationsAsync())),
+            projectId => dispatcher.BeginInvoke(new Action(() => _ = OnProjectAccessChangedAsync(projectId))),
+            projectId => dispatcher.BeginInvoke(new Action(() => OnPresenceChanged(projectId))));
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();

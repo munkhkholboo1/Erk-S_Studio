@@ -99,6 +99,10 @@ internal sealed class SyncTray : ApplicationContext
                 // And that the account's invitations changed, by kind only.
                 engine.NotificationsChanged += kind =>
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "notifications", kind }));
+                engine.ProjectAccessChanged += projectId =>
+                    Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "project-access", projectId }));
+                engine.PresenceChanged += projectId =>
+                    Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "presence", projectId }));
                 engine.ReleasePublished += _selfUpdate.Heard;
                 engine.StateWritten += _ => _selfUpdate.Try();
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);

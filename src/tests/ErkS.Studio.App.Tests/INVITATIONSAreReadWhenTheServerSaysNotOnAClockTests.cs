@@ -25,15 +25,25 @@ public sealed class INVITATIONSAreReadWhenTheServerSaysNotOnAClockTests
         Assert.Null(StudioReleaseListener.NotificationsKindIn("not json"));
     }
 
+    /// <summary>
+    /// The 45 s clock read invitations, team presence and project access. All three are now
+    /// server events (SRV 8e4f05e, db93505), and the clock is gone.
+    /// </summary>
     [Fact]
-    public void TheClockNoLongerReadsInvitations()
+    public void NoClockReadsTheServer()
     {
         string shell = ReadAppSource("ShellView.cs");
-        int tick = shell.IndexOf("notificationRefreshTimer.Tick +=", StringComparison.Ordinal);
-        int end = shell.IndexOf("};", tick, StringComparison.Ordinal);
 
-        Assert.True(tick > 0 && end > tick);
-        Assert.DoesNotContain("RefreshNotificationsAsync", shell[tick..end], StringComparison.Ordinal);
+        Assert.DoesNotContain("notificationRefreshTimer", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AccessAndPresenceLinesNameTheirProject()
+    {
+        Assert.Equal("p1", StudioReleaseListener.ProjectIn("{\"event\":\"project-access\",\"projectId\":\"p1\"}", "project-access"));
+        Assert.Equal("p2", StudioReleaseListener.ProjectIn("{\"event\":\"presence\",\"projectId\":\"p2\"}", "presence"));
+        Assert.Null(StudioReleaseListener.ProjectIn("{\"event\":\"presence\",\"projectId\":\"p2\"}", "project-access"));
+        Assert.Null(StudioReleaseListener.ProjectIn("{\"event\":\"presence\"}", "presence"));
     }
 
     private static string ReadAppSource(string fileName)

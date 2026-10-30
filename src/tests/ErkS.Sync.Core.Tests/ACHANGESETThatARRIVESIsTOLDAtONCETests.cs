@@ -185,6 +185,27 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         Assert.Equal(["bot-invitation"], told);
     }
 
+    /// <summary>SRV db93505: a project's access or its members' presence changed, told by id only.</summary>
+    [Fact]
+    public async Task ACCESSAndPresenceChangesAreToldOnWithTheProjectOnly()
+    {
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
+        var access = new List<string>();
+        var presence = new List<string>();
+        engine.ProjectAccessChanged += access.Add;
+        engine.PresenceChanged += presence.Add;
+
+        engine.Heard("{\"type\":\"project-access\",\"projectId\":\"p1\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"presence\",\"projectId\":\"p2\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"presence\"}"u8.ToArray()); // no project: nothing
+
+        Assert.Equal(["p1"], access);
+        Assert.Equal(["p2"], presence);
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);
