@@ -163,6 +163,9 @@ public sealed class AlbumBuilder
             // The state review's repeated findings (магадлал), reported the
             // same way - _shared/magadlal-ba-review-rules-2026-10-20.md.
             result.Warnings.AddRange(AlbumReviewChecklist.Review(request));
+            // Received sheets heavy enough to slow every build, preview and sync, named so
+            // their source can lighten them (Мастер, 2026-10-31).
+            result.Warnings.AddRange(HeavySheetSurvey.Review(request));
 
             // No warning here for an unappointed architect, though it was
             // tried. A project without one yet is an ordinary early state, not
