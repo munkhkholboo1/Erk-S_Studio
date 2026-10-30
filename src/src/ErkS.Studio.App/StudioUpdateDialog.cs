@@ -175,6 +175,7 @@ internal sealed class StudioUpdateDialog : Window
 
     private static void ExitStudioForUpdate()
     {
+        AppDomain.CurrentDomain.SetData("ErkS.Studio.ExitReason", "update dialog: closing for the update");
         var failSafeExit = new Thread(() =>
         {
             Thread.Sleep(TimeSpan.FromSeconds(3));

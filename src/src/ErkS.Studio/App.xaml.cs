@@ -47,6 +47,8 @@ public partial class App : Application
             return;
         }
 
+        StudioExitLog.Watch(this);
+
         var window = new StudioHostWindow();
         MainWindow = window;
         window.Show();

@@ -145,6 +145,7 @@ internal sealed partial class ShellView
             case "team-accept":
                 return await BridgeTeamAcceptAsync(request);
             case "close":
+                AppDomain.CurrentDomain.SetData("ErkS.Studio.ExitReason", "bridge: close");
                 _ = Root.Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(Root)?.Close()));
                 return StudioBridgeProtocol.Accept(request.Id, null, "Studio хаагдаж байна.");
         }

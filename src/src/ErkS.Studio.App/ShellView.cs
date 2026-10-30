@@ -1657,6 +1657,7 @@ internal sealed partial class ShellView : IDisposable
             };
             if (dialog.ShowDialog() != true)
             {
+                AppDomain.CurrentDomain.SetData("ErkS.Studio.ExitReason", "companion licence dialog declined");
                 Application.Current?.Shutdown();
                 return;
             }
