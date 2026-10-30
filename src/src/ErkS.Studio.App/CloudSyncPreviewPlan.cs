@@ -525,6 +525,15 @@ internal static class CloudSyncPreviewPlanner
                         : site.Message);
         }
 
+        if (OrganizationDocumentsMissingHere(project, code, hasVerifiedDocumentPayload))
+        {
+            return new ComponentAuthority(
+                false,
+                ComponentTitle(code),
+                "Байгууллагын гэрчилгээ/тусгай зөвшөөрлийн хуулбар энэ төхөөрөмжид алга. " +
+                "Cloud дахь хуудсыг хуулбаргүй хуудсаар дарахгүй — Cloud хувилбар хадгалагдана.");
+        }
+
         if (IsAuxiliaryComponentCode(code))
         {
             bool hasExactLocalPayload =
@@ -664,6 +673,47 @@ internal static class CloudSyncPreviewPlanner
 
         string identity = normalized["source:".Length..].Trim();
         return StudioLegacySourceResolver.Resolve(project, identity);
+    }
+
+    /// <summary>
+    /// Whether this device would draw the company certificate or licence page from nothing while
+    /// the Cloud album already holds one. Erin, 2026-10-31: the owner's desktop had no copy of
+    /// either scan, redrew both pages as «Хуулбар оруулаагүй» and sent them, and R64 lost the
+    /// three scanned pages R63 carried; a laptop without the scans redrew them the same way.
+    /// The scans live in the organisation; until they reach this device, the Cloud page stands.
+    /// A project with no Cloud page yet still gets one, placeholder or not.
+    /// </summary>
+    internal static bool OrganizationDocumentsMissingHere(
+        ProjectWorkspace project,
+        string code,
+        Func<ProjectFileReference, bool> hasVerifiedDocumentPayload)
+    {
+        CompanyProfile company = project.Foundation.DesignCompany.OrganizationSnapshot;
+        List<ProjectFileReference>? documents =
+            code.Equals(ProjectCloudSyncMetadata.CompanyRegistrationComponentCode, StringComparison.OrdinalIgnoreCase)
+                ? company.RegistrationCertificateDocuments
+                : code.Equals(ProjectCloudSyncMetadata.CompanyLicenseComponentCode, StringComparison.OrdinalIgnoreCase)
+                    ? company.DesignLicenseDocuments
+                    : null;
+        if (documents is null)
+            return false;
+
+        bool complete = documents.Count > 0 &&
+            documents.All(document => document.IsAvailable && hasVerifiedDocumentPayload(document));
+        if (complete)
+            return false;
+
+        return (project.Cloud.SharedAlbumComponents ?? []).Any(component =>
+            component.Code.Equals(code, StringComparison.OrdinalIgnoreCase) &&
+            !IsRetiredComponent(component.Status));
+    }
+
+    private static bool IsRetiredComponent(string? status)
+    {
+        string normalized = (status ?? "").Trim();
+        return normalized.Equals("Retired", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("Removed", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("Deleted", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsAuxiliaryComponentCode(string code)

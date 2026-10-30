@@ -1686,7 +1686,18 @@ internal sealed partial class ShellView
                     projectConcurrencyToken,
                     uploads);
             if (!ReferenceEquals(merged, currentRevision))
+            {
+                // Мастер, 2026-10-31: which components a device sent was nowhere in its log, so
+                // R64's placeholder company pages could not be traced to the Studio that sent them.
+                RecordDiagnosticOperation(
+                    StudioOperationDiagnosticLog.CreateOperationId(),
+                    "cloud_album_component_merge",
+                    "completed",
+                    "component_merge_sent",
+                    $"R{currentRevision.RevisionNumber} → R{merged.RevisionNumber} ({merged.PageCount} хуудас): " +
+                    string.Join(", ", uploads.Select(upload => (upload.Remove ? "−" : "") + upload.Code)));
                 AdoptLocalMerge(serverAlbum, currentRevision, merged, uploads, ownerEmail);
+            }
             IReadOnlyList<string> confirmedPendingCodes =
                 StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
                     pendingCodeMap,
