@@ -2370,7 +2370,9 @@ public sealed class SheetPackageTests : IDisposable
 
         Assert.Equal(0, result.SheetCount);
         Assert.Equal(5, result.PageCount);
-        Assert.Empty(result.Warnings);
+        // No documents: the only warnings are the pages that will print «Хуулбар оруулаагүй».
+        Assert.All(result.Warnings, warning =>
+            Assert.StartsWith(MissingDocumentCopySurvey.Prefix, warning, StringComparison.Ordinal));
         using var document = PdfReader.Open(outputPath, PdfDocumentOpenMode.Import);
         Assert.Equal(5, document.PageCount);
         foreach (var page in document.Pages.Cast<PdfPage>())

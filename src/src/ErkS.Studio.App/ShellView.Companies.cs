@@ -450,7 +450,9 @@ internal sealed partial class ShellView
                     // could carry them, and every colleague on the same
                     // project has been looking at an empty certificate page
                     // ever since.
-                    await SendOrganizationDocumentsAsync(cloud, old?.Profile, profile);
+                    bool documentsStillPending =
+                        await SendOrganizationDocumentsAsync(cloud, old?.Profile, profile) ??
+                        old?.DocumentsPendingCloudSync == true;
 
                     merged.Add(new CompanyCatalogEntry
                     {
@@ -459,7 +461,7 @@ internal sealed partial class ShellView
                         CanManage = cloud.CanManage,
                         CurrentUserRole = cloud.CurrentUserRole,
                         SyncStatus = CompanySyncStatuses.Cloud,
-                        DocumentsPendingCloudSync = old?.DocumentsPendingCloudSync == true,
+                        DocumentsPendingCloudSync = documentsStillPending,
                     });
                 }
                 List<CompanyCatalogEntry> stillPending = [.. cached.Where(item =>
@@ -1759,25 +1761,38 @@ internal sealed partial class ShellView
     /// a name, and sending one company's licence to another is not a mistake
     /// anyone would find quickly.
     /// </summary>
-    private async Task SendOrganizationDocumentsAsync(
+    /// <returns>
+    /// Whether scans of this device are still not on the server; null when this device cannot
+    /// tell (no local copy of the company, or no right to send). Мастер, 2026-10-31: the flag
+    /// «баримтын cloud sync хүлээгдэж байна» was only ever set, so two companies whose scans
+    /// reached the server in July still read as waiting three months later.
+    /// </returns>
+    private async Task<bool?> SendOrganizationDocumentsAsync(
         StudioCloudOrganization cloud,
         CompanyProfile? local,
         CompanyProfile merged)
     {
         if (local is null || string.IsNullOrWhiteSpace(cloud.OrganizationId))
-            return;
+            return null;
         if (!local.OrganizationId.Equals(cloud.OrganizationId, StringComparison.OrdinalIgnoreCase))
-            return;
+            return null;
+        if (!cloud.CanManage)
+            return null;
 
+        List<string> serverHashes = cloud.RegistrationCertificateDocuments
+            .Concat(cloud.DesignLicenseDocuments)
+            .Select(document => document.Sha256)
+            .ToList();
         IReadOnlyList<CompanyDocumentUpload> uploads = CompanyDocumentUploadPlan.Decide(
             local.RegistrationCertificateDocuments,
             local.DesignLicenseDocuments,
-            cloud.RegistrationCertificateDocuments
-                .Concat(cloud.DesignLicenseDocuments)
-                .Select(document => document.Sha256),
+            serverHashes,
             cloud.CanManage);
         if (uploads.Count == 0)
-            return;
+        {
+            MarkDocumentsOnServer(merged, serverHashes);
+            return false;
+        }
 
         var failures = new List<string>();
         int sent = 0;
@@ -1802,6 +1817,8 @@ internal sealed partial class ShellView
                         upload.Document.ContentType,
                         bytes);
                 upload.Document.ServerDocumentId = stored.DocumentId;
+                upload.Document.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Synced;
+                serverHashes.Add(upload.Document.Sha256);
                 sent++;
             }
             catch (Exception exception) when (
@@ -1828,6 +1845,22 @@ internal sealed partial class ShellView
             SetStatus("Байгууллагын баримт илгээгдсэнгүй — " + string.Join("; ", failures));
         else if (sent > 0)
             SetStatus($"Байгууллагын {sent} хуулбар Cloud ERA руу илгээгдлээ.");
+
+        MarkDocumentsOnServer(merged, serverHashes);
+        return failures.Count > 0;
+    }
+
+    /// <summary>A scan whose fingerprint the server holds is synced, whatever it was marked before.</summary>
+    private static void MarkDocumentsOnServer(CompanyProfile profile, IEnumerable<string> serverHashes)
+    {
+        var known = new HashSet<string>(
+            serverHashes.Where(hash => !string.IsNullOrWhiteSpace(hash)).Select(hash => hash.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+        foreach (ProjectFileReference document in profile.RegistrationCertificateDocuments.Concat(profile.DesignLicenseDocuments))
+        {
+            if (known.Contains((document.Sha256 ?? "").Trim()))
+                document.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Synced;
+        }
     }
 
     /// <summary>

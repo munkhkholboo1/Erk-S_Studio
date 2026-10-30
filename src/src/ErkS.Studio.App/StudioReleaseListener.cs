@@ -24,7 +24,8 @@ internal static class StudioReleaseListener
     public static async Task RunAsync(
         Action<string> studioPublished,
         CancellationToken cancellationToken,
-        Action<string>? projectChatChanged = null)
+        Action<string>? projectChatChanged = null,
+        Action<string>? notificationsChanged = null)
     {
         TimeSpan wait = TimeSpan.FromSeconds(5);
         while (!cancellationToken.IsCancellationRequested)
@@ -45,6 +46,8 @@ internal static class StudioReleaseListener
                             studioPublished(version);
                         else if (ChatProjectIn(line) is { } projectId)
                             projectChatChanged?.Invoke(projectId);
+                        else if (NotificationsKindIn(line) is { } notificationKind)
+                            notificationsChanged?.Invoke(notificationKind);
                     }
                 }
                 else
@@ -72,6 +75,25 @@ internal static class StudioReleaseListener
     }
 
     /// <summary>The version in a «release» line for Studio, or null for any other line.</summary>
+    /// <summary>The kind from Sync's «notifications» line («» when the server named none); null for any other line.</summary>
+    internal static string? NotificationsKindIn(string line)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+            JsonElement root = document.RootElement;
+            if (!root.TryGetProperty("event", out JsonElement kind) || kind.GetString() != "notifications")
+                return null;
+            return root.TryGetProperty("kind", out JsonElement value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString() ?? ""
+                : "";
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>The project whose chat changed, from Sync's «project-chat» line; null for any other line.</summary>
     internal static string? ChatProjectIn(string line)
     {

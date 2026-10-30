@@ -440,7 +440,9 @@ internal sealed partial class ShellView : IDisposable
             // here closed Studio while the front-matter editor was open).
             try
             {
-                await RefreshNotificationsAsync();
+                // Invitations are read when the server says they changed (the «notifications»
+                // event through Erk-S Sync, SRV 8e4f05e), at sign-in and on the Projects page -
+                // not on this clock (Мастер, 2026-10-31).
                 await RefreshTeamPresenceIfVisibleAsync();
                 if (projectWorkspaceOpen &&
                     state.HasOpenProject &&
@@ -1581,7 +1583,8 @@ internal sealed partial class ShellView : IDisposable
         _ = StudioReleaseListener.RunAsync(
             version => dispatcher.BeginInvoke(new Action(() => OnStudioPublished(version))),
             releaseListening.Token,
-            projectId => dispatcher.BeginInvoke(new Action(() => OnProjectChatChanged(projectId))));
+            projectId => dispatcher.BeginInvoke(new Action(() => OnProjectChatChanged(projectId))),
+            notificationKind => dispatcher.BeginInvoke(new Action(() => _ = RefreshNotificationsAsync())));
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();

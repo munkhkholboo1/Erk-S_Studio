@@ -166,6 +166,8 @@ public sealed class AlbumBuilder
             // Received sheets heavy enough to slow every build, preview and sync, named so
             // their source can lighten them (Мастер, 2026-10-31).
             result.Warnings.AddRange(HeavySheetSurvey.Review(request));
+            // Document pages that will print a placeholder instead of the scan (Мастер, 2026-10-31).
+            result.Warnings.AddRange(MissingDocumentCopySurvey.Review(request));
 
             // No warning here for an unappointed architect, though it was
             // tried. A project without one yet is an ordinary early state, not

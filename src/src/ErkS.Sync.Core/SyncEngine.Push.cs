@@ -50,6 +50,12 @@ public sealed partial class SyncEngine
     /// </summary>
     public event Action<string>? ProjectChatChanged;
 
+    /// <summary>
+    /// The account's invitations changed on the server (SRV 8e4f05e: «notifications», with the
+    /// kind only - project-membership-invitation or bot-invitation).
+    /// </summary>
+    public event Action<string>? NotificationsChanged;
+
     /// <summary>The newest version the server announced per product and channel since this SYN started.</summary>
     public IReadOnlyList<SyncRelease> Releases
     {
@@ -288,6 +294,14 @@ public sealed partial class SyncEngine
                 Poke();
             if (type == "redactions")
                 Poke();
+            if (type == "notifications")
+            {
+                string notificationKind =
+                    document.RootElement.TryGetProperty("kind", out var kindElement) && kindElement.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? kindElement.GetString() ?? ""
+                        : "";
+                NotificationsChanged?.Invoke(notificationKind);
+            }
             if (type == "project-chat" &&
                 document.RootElement.TryGetProperty("projectId", out var chatProject) &&
                 chatProject.GetString() is { Length: > 0 } chatProjectId)

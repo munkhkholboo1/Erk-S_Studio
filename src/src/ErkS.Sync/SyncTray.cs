@@ -96,6 +96,9 @@ internal sealed class SyncTray : ApplicationContext
                 // On the line Studio already holds: a project's chat changed, by id only.
                 engine.ProjectChatChanged += projectId =>
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "project-chat", projectId }));
+                // And that the account's invitations changed, by kind only.
+                engine.NotificationsChanged += kind =>
+                    Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "notifications", kind }));
                 engine.ReleasePublished += _selfUpdate.Heard;
                 engine.StateWritten += _ => _selfUpdate.Try();
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);

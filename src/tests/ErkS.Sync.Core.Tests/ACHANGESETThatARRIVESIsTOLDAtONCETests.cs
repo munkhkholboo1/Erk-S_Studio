@@ -168,6 +168,23 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         Assert.Equal(["a1da1b71"], told);
     }
 
+    /// <summary>Мастер, 2026-10-31: invitations were read every 45 s; the server says when they changed.</summary>
+    [Fact]
+    public async Task ANINVITATIONChangeIsToldOnWithItsKindOnly()
+    {
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
+        var told = new List<string>();
+        engine.NotificationsChanged += told.Add;
+
+        engine.Heard("{\"type\":\"notifications\",\"kind\":\"bot-invitation\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"project-chat\",\"projectId\":\"x\"}"u8.ToArray()); // not an invitation
+
+        Assert.Equal(["bot-invitation"], told);
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);
