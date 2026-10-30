@@ -7658,7 +7658,12 @@ internal sealed partial class ShellView : IDisposable
         }
     }
 
-    private void SetStatus(string message) => statusText.Text = message;
+    private void SetStatus(string message)
+    {
+        statusText.Text = message;
+        // A detail tooltip belongs to the line it was written for.
+        statusText.ToolTip = null;
+    }
 
     private sealed record StudioOperationDiagnosticIdentity(
         string ProjectId,

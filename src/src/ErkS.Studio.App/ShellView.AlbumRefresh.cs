@@ -579,10 +579,19 @@ internal sealed partial class ShellView
     {
         AlbumRefreshReport report = AlbumRefreshReport.Create(steps, CurrentAlbumOnScreen());
         lastAlbumRefreshReport = report;
-        // The whole line, numbers included. The verdict alone is what the three
-        // old commands already said, and it is what made a run that did
-        // something indistinguishable from one that did not.
-        SetStatus(report.StatusLineMn);
+        // One readable line - ready or not, with the counts a person checks against the
+        // album; the four steps, numbers included, are on the tooltip (Мастер, 2026-10-30:
+        // the owner read the step line, with its revision id, and asked what was wrong).
+        ProjectCloudLink cloud = state.Project.Cloud;
+        var counts = new AlbumRefreshSummaryCounts(
+            state.Album.Pages.Count,
+            Math.Max(0, BridgePdfPageCount(ResolveCurrentProjectAlbumPath())),
+            string.IsNullOrWhiteSpace(cloud.ServerProjectId) || cloud.LastReceivedAlbumRevisionNumber <= 0
+                ? null
+                : cloud.LastReceivedAlbumRevisionNumber,
+            StudioPendingWork.Of(state.Project).Total);
+        SetStatus(report.SummaryLineMn(counts));
+        statusText.ToolTip = report.ComposeMn();
         RefreshCloudAlbumIndicator();
     }
 

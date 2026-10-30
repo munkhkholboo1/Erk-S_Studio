@@ -82,7 +82,19 @@ public enum AlbumOnScreen
 public sealed record AlbumRefreshStepResult(
     AlbumRefreshStep Step,
     AlbumRefreshStepOutcome Outcome,
-    string DetailMn);
+    string DetailMn)
+{
+    /// <summary>Components the send step gave to the cloud; zero for every other step.</summary>
+    public int Count { get; init; }
+}
+
+/// <summary>What the summary line counts: the album's entries and printed pages, the cloud
+/// revision on screen (null for a project not in the cloud), and work still waiting.</summary>
+public sealed record AlbumRefreshSummaryCounts(
+    int SheetCount,
+    int PdfPageCount,
+    int? CloudRevisionNumber,
+    int PendingCount);
 
 /// <summary>
 /// What the one action did, in numbers, including what it did not manage to do.
@@ -167,6 +179,38 @@ public sealed record AlbumRefreshReport
     /// from the outcomes rather than passed in, so no call site can write
     /// "дууслаа" over a run that did not.
     /// </summary>
+    /// <summary>
+    /// The one line the status bar ends on: ready or not, with the counts a person checks
+    /// against the album - no ids, no step wording (Мастер, 2026-10-30: the owner read the old
+    /// line and asked whether something was wrong). The steps stay in <see cref="ComposeMn"/>.
+    /// </summary>
+    public string SummaryLineMn(AlbumRefreshSummaryCounts counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+        var facts = new List<string>
+        {
+            $"{counts.SheetCount} хуудас ({counts.PdfPageCount} PDF хуудас)",
+        };
+        if (counts.CloudRevisionNumber is int revision && revision > 0)
+            facts.Add($"Cloud R{revision}");
+        int sent = Steps
+            .Where(step => step.Step == AlbumRefreshStep.SendOwnContribution &&
+                           step.Outcome == AlbumRefreshStepOutcome.Done)
+            .Select(step => step.Count)
+            .FirstOrDefault();
+        facts.Add($"илгээсэн {sent} хэсэг");
+        facts.Add($"хүлээгдэж буй {counts.PendingCount}");
+        string tail = string.Join(", ", facts);
+
+        if (!AnyStepFailed && !StoppedEarly && counts.PendingCount == 0)
+            return "✓ Альбум бэлэн — " + tail;
+
+        string missing = AnyStepFailed || StoppedEarly
+            ? ClosingLineMn.TrimEnd('.')
+            : $"{counts.PendingCount} хэсэг илгээгдээгүй";
+        return $"⚠ Альбум бүрэн бус — {missing} — {tail}";
+    }
+
     public string ClosingLineMn
     {
         get
@@ -311,7 +355,10 @@ public sealed record AlbumRefreshReport
             componentCount > 0 ? AlbumRefreshStepOutcome.Done : AlbumRefreshStepOutcome.NothingToDo,
             componentCount > 0
                 ? $"Таны оруулга: {componentCount} хэсэг үүл рүү өгөв."
-                : "Таны оруулга: өгөх шинэ хэсэг байсангүй.");
+                : "Таны оруулга: өгөх шинэ хэсэг байсангүй.")
+        {
+            Count = Math.Max(0, componentCount),
+        };
 
     /// <summary>
     /// Nothing was sent because nothing waiting is this device's to send.
