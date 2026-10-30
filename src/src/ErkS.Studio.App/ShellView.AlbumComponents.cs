@@ -1685,6 +1685,8 @@ internal sealed partial class ShellView
                     currentRevision.RevisionId,
                     projectConcurrencyToken,
                     uploads);
+            if (!ReferenceEquals(merged, currentRevision))
+                AdoptLocalMerge(serverAlbum, currentRevision, merged, uploads, ownerEmail);
             IReadOnlyList<string> confirmedPendingCodes =
                 StudioAlbumComponentAcknowledgementPolicy.ConfirmedPendingCodes(
                     pendingCodeMap,

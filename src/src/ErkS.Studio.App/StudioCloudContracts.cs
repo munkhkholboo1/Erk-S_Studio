@@ -968,6 +968,12 @@ internal sealed class StudioCloudAlbumRevision
     public DateTimeOffset CreatedAtUtc { get; set; }
     public int BuildingCompositionVersion { get; set; }
     public List<StudioCloudAlbumSection> SectionManifest { get; set; } = [];
+
+    /// <summary>
+    /// The shared merge's version the server made this revision with (SRV b0f9260); 0 for a
+    /// reflow or an older server - then the revision is downloaded as it always was.
+    /// </summary>
+    public int MergeAlgorithmVersion { get; set; }
 }
 
 internal sealed class StudioCloudAlbumSection

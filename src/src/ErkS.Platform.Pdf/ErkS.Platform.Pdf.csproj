@@ -19,6 +19,24 @@
     <InternalsVisibleTo Include="ErkS.Platform.Core.Tests" />
   </ItemGroup>
 
+  <!--
+    The album component merge is ONE function, the server's (owner, CLAUDE.md §1: «жинхэнэ нь
+    серверт, төхөөрөмж бүрт түүний үүлэн хуулбар — ижил код, ижил хувилбар»). Its files are
+    compiled in from the server's Shared folder, never copied, so Studio's merge of the same
+    inputs is the server's byte for byte (_shared/album-merge-shared-library-2026-10-31.md).
+    A checkout of this repository alone (CI) has no server beside it: it builds without the
+    local merge, and Studio then downloads every merged album as it always did.
+  -->
+  <PropertyGroup>
+    <ErkSAlbumMergeFolder>$(MSBuildThisFileDirectory)..\..\..\..\Erk-S-Server\src\Shared\ErkS.AlbumMerge\</ErkSAlbumMergeFolder>
+  </PropertyGroup>
+  <PropertyGroup Condition="Exists('$(ErkSAlbumMergeFolder)AlbumComponentMerge.cs')">
+    <DefineConstants>$(DefineConstants);ERKS_ALBUM_MERGE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(ErkSAlbumMergeFolder)AlbumComponentMerge.cs')">
+    <Compile Include="$(ErkSAlbumMergeFolder)*.cs" LinkBase="AlbumMerge" />
+  </ItemGroup>
+
   <ItemGroup>
     <!--
       The album's Mongolian technical fonts belong to this repository.
