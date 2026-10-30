@@ -73,6 +73,9 @@ internal sealed class PdfPageImageCache
             {
                 DestinationWidth = pixelWidth,
                 DestinationHeight = pixelHeight,
+                // BMP, not the default PNG: the image is decoded straight back below, and
+                // compressing then inflating a large sheet was time spent for nothing.
+                BitmapEncoderId = Windows.Graphics.Imaging.BitmapEncoder.BmpEncoderId,
             };
             await page.RenderToStreamAsync(output, options);
             cancellationToken.ThrowIfCancellationRequested();

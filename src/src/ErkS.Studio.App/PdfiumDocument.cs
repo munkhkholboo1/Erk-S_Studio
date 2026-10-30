@@ -37,6 +37,8 @@ internal sealed class PdfiumDocument : IDisposable
 
     /// <summary>Least recently rendered first; what Retain evicts from.</summary>
     private readonly List<PageKey> order = [];
+    private IntPtr heldPage;
+    private int heldPageNumber;
     private GCHandle pinnedBytes;
     private IntPtr document;
     private bool disposed;
@@ -222,11 +224,10 @@ internal sealed class PdfiumDocument : IDisposable
             if (rendered.TryGetValue(key, out BitmapSource? cached))
                 return cached;
 
-            IntPtr page = PdfiumInterop.LoadPage(document, pageNumber - 1);
+            IntPtr page = HeldPage(pageNumber);
             if (page == IntPtr.Zero)
                 return null;
 
-            try
             {
                 float width = PdfiumInterop.GetPageWidth(page);
                 float height = PdfiumInterop.GetPageHeight(page);
@@ -289,11 +290,104 @@ internal sealed class PdfiumDocument : IDisposable
                     pixels.Free();
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// A part of a page drawn as it would sit in a full page <paramref name="fullWidthPx"/> wide:
+    /// the zoomed preview draws what is on screen instead of the whole sheet. Not kept - the view
+    /// moves on - so the budget is spent on whole pages, which are looked at again.
+    /// </summary>
+    public BitmapSource? RenderRegion(int pageNumber, int fullWidthPx, int x, int y, int width, int height)
+    {
+        if (fullWidthPx <= 0 || width <= 0 || height <= 0)
+            return null;
+
+        lock (gate)
+        {
+            if (disposed || pageNumber < 1 || pageNumber > PageCount)
+                return null;
+
+            IntPtr page = HeldPage(pageNumber);
+            if (page == IntPtr.Zero)
+                return null;
+
+            float pageWidth = PdfiumInterop.GetPageWidth(page);
+            if (pageWidth <= 0)
+                return null;
+            float scale = fullWidthPx / pageWidth;
+
+            int stride = width * 4;
+            var buffer = new byte[(long)stride * height];
+            GCHandle pixels = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+            try
+            {
+                IntPtr bitmap = PdfiumInterop.BitmapCreate(
+                    width,
+                    height,
+                    PdfiumInterop.FPDFBitmapBgra,
+                    pixels.AddrOfPinnedObject(),
+                    stride);
+                if (bitmap == IntPtr.Zero)
+                    return null;
+
+                try
+                {
+                    PdfiumInterop.BitmapFillRect(bitmap, 0, 0, width, height, 0xFFFFFFFF);
+                    var matrix = new PdfiumInterop.FsMatrix { A = scale, D = scale, E = -x, F = -y };
+                    var clip = new PdfiumInterop.FsRectF { Left = 0, Top = 0, Right = width, Bottom = height };
+                    PdfiumInterop.RenderPageBitmapWithMatrix(
+                        bitmap,
+                        page,
+                        ref matrix,
+                        ref clip,
+                        PdfiumInterop.FpdfAnnot | PdfiumInterop.FpdfLcdText);
+                }
+                finally
+                {
+                    PdfiumInterop.BitmapDestroy(bitmap);
+                }
+
+                BitmapSource image = BitmapSource.Create(
+                    width,
+                    height,
+                    96,
+                    96,
+                    PixelFormats.Bgra32,
+                    palette: null,
+                    buffer,
+                    stride);
+                image.Freeze();
+                return image;
+            }
             finally
             {
-                PdfiumInterop.ClosePage(page);
+                pixels.Free();
             }
         }
+    }
+
+    /// <summary>
+    /// The last page asked for, kept loaded: loading parses the whole content stream, and a CGA
+    /// sheet's is tens of megabytes, so zooming one page must not parse it again per render.
+    /// Called with the lock held.
+    /// </summary>
+    private IntPtr HeldPage(int pageNumber)
+    {
+        if (heldPage != IntPtr.Zero && heldPageNumber == pageNumber)
+            return heldPage;
+        ReleaseHeldPage();
+        heldPage = PdfiumInterop.LoadPage(document, pageNumber - 1);
+        heldPageNumber = heldPage == IntPtr.Zero ? 0 : pageNumber;
+        return heldPage;
+    }
+
+    private void ReleaseHeldPage()
+    {
+        if (heldPage != IntPtr.Zero)
+            PdfiumInterop.ClosePage(heldPage);
+        heldPage = IntPtr.Zero;
+        heldPageNumber = 0;
     }
 
     /// <summary>
@@ -369,7 +463,7 @@ internal sealed class PdfiumDocument : IDisposable
     /// </remarks>
     private void Retain(PageKey key, BitmapSource image)
     {
-        const long budgetBytes = 700L * 1024 * 1024;
+        const long budgetBytes = 320L * 1024 * 1024;
 
         rendered[key] = image;
         order.Remove(key);
@@ -398,6 +492,7 @@ internal sealed class PdfiumDocument : IDisposable
             disposed = true;
             rendered.Clear();
             order.Clear();
+            ReleaseHeldPage();
             if (document != IntPtr.Zero)
             {
                 PdfiumInterop.CloseDocument(document);

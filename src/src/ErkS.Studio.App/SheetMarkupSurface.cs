@@ -35,6 +35,24 @@ internal sealed class SheetMarkupSurface : Grid
     private double pageWidthPoints;
     private int renderedWidthPx;
     private int renderGeneration;
+
+    /// <summary>
+    /// The sharp part of a zoomed page, laid over the whole-page image. Placed in fractions of
+    /// the page so a zoom step moves and scales it at once, before its sharper redraw lands.
+    /// </summary>
+    private readonly Image detailImage = new()
+    {
+        Stretch = Stretch.Fill,
+        IsHitTestVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Top,
+    };
+    private Rect detailFraction = Rect.Empty;
+    private int detailGeneration;
+    private readonly System.Windows.Threading.DispatcherTimer detailTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(120),
+    };
     private const double ComposerWidth = 330;
 
     private readonly StudioAccountService account;
@@ -163,6 +181,7 @@ internal sealed class SheetMarkupSurface : Grid
         document = null;
         albumPdfPath = "";
         pageImage.Source = null;
+        ClearDetail();
         hasFitted = false;
     }
 
@@ -194,6 +213,7 @@ internal sealed class SheetMarkupSurface : Grid
         root.Children.Add(threads);
 
         pageHost.Children.Add(pageImage);
+        pageHost.Children.Add(detailImage);
         pageHost.Children.Add(markupLayer);
         pageHost.Children.Add(overlayLayer);
         markupLayer.MouseLeftButtonDown += OnSurfacePressed;
@@ -201,6 +221,14 @@ internal sealed class SheetMarkupSurface : Grid
         markupLayer.MouseLeftButtonUp += OnSurfaceReleased;
         surfaceScroll.Content = pageHost;
         surfaceScroll.PreviewMouseWheel += OnWheel;
+        // A pan or zoom settles before the visible part is drawn sharp: one render per pause,
+        // not one per wheel notch or scroll tick.
+        surfaceScroll.ScrollChanged += (_, _) => ScheduleDetail();
+        detailTimer.Tick += (_, _) =>
+        {
+            detailTimer.Stop();
+            RefreshDetail();
+        };
         // The page is fitted the first time the surface has a real width. Until
         // then there is nothing to fit it to, and opening at an arbitrary zoom
         // would leave the reviewer hunting for the drawing.
@@ -320,6 +348,7 @@ internal sealed class SheetMarkupSurface : Grid
         pageAspect = document.GetPageAspect(albumPageNumber);
         pageWidthPoints = document.GetPageWidthPoints(albumPageNumber);
         renderedWidthPx = 0;
+        ClearDetail();
         pageImage.Source = document.RenderPage(
             albumPageNumber,
             PreviewRenderResolution.FirstPassWidthPx);
@@ -351,9 +380,17 @@ internal sealed class SheetMarkupSurface : Grid
         // sheet covers half again as many real pixels, and rendering to the
         // DIP count would leave it soft on exactly the screens people run.
         double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        int wanted = PreviewRenderResolution.ForDisplay(
+        // Held at a ceiling: past it the visible part is drawn by RefreshDetail, so a deep zoom
+        // costs what is on screen, not 34 MP of paper (2026-10-30).
+        int wanted = PreviewViewportRegion.FullPageWidth(
             pageWidthPoints,
             pageHost.Width * (dpiScale > 0 ? dpiScale : 1d));
+        if (wanted <= renderedWidthPx)
+            return;
+        // Straight to the ceiling, not one quantised step per zoom notch: each whole-page
+        // render of a CGA sheet costs seconds however few pixels it has (PDFium walks every
+        // path), and the steps queued one behind another behind the global lock.
+        wanted = PreviewViewportRegion.FullPageWidth(pageWidthPoints, 1_000_000d);
         if (wanted <= renderedWidthPx)
             return;
 
@@ -367,6 +404,87 @@ internal sealed class SheetMarkupSurface : Grid
 
         pageImage.Source = sharper;
         renderedWidthPx = wanted;
+    }
+
+    private void ScheduleDetail()
+    {
+        detailTimer.Stop();
+        detailTimer.Start();
+    }
+
+    private void ClearDetail()
+    {
+        detailGeneration++;
+        detailTimer.Stop();
+        detailImage.Source = null;
+        detailFraction = Rect.Empty;
+    }
+
+    /// <summary>Puts the sharp part where its page fractions fall at the current zoom.</summary>
+    private void PlaceDetail()
+    {
+        if (detailFraction.IsEmpty || detailImage.Source is null)
+            return;
+        detailImage.Margin = new Thickness(
+            detailFraction.X * pageHost.Width,
+            detailFraction.Y * pageHost.Height,
+            0,
+            0);
+        detailImage.Width = detailFraction.Width * pageHost.Width;
+        detailImage.Height = detailFraction.Height * pageHost.Height;
+    }
+
+    /// <summary>
+    /// Draws the part of the page on screen, with a margin, at the zoom's own density - only
+    /// once the whole-page image holds fewer pixels than the screen shows. Off the UI thread,
+    /// the soft image staying until the sharp one lands; a newer pan or zoom discards it.
+    /// </summary>
+    private async void RefreshDetail()
+    {
+        if (document is null || pageHost.Width <= 0 || pageHost.Height <= 0 ||
+            surfaceScroll.ViewportWidth <= 0 || surfaceScroll.ViewportHeight <= 0)
+            return;
+
+        Point topLeft = surfaceScroll.TranslatePoint(new Point(0, 0), pageHost);
+        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        PreviewRegion? region = PreviewViewportRegion.For(
+            pageHost.Width,
+            pageHost.Height,
+            topLeft.X,
+            topLeft.Y,
+            surfaceScroll.ViewportWidth,
+            surfaceScroll.ViewportHeight,
+            dpiScale,
+            pageWidthPoints,
+            renderedWidthPx);
+        int generation = ++detailGeneration;
+        if (region is null)
+        {
+            detailImage.Source = null;
+            detailFraction = Rect.Empty;
+            return;
+        }
+
+        PdfiumDocument open = document;
+        int pageNumber = albumPageNumber;
+        BitmapSource? sharp = await Task.Run(() => open.RenderRegion(
+            pageNumber,
+            region.FullWidthPx,
+            region.X,
+            region.Y,
+            region.Width,
+            region.Height));
+        if (sharp is null || generation != detailGeneration)
+            return;
+
+        double fullHeightPx = region.FullWidthPx * pageAspect;
+        detailFraction = new Rect(
+            (double)region.X / region.FullWidthPx,
+            region.Y / fullHeightPx,
+            (double)region.Width / region.FullWidthPx,
+            region.Height / fullHeightPx);
+        detailImage.Source = sharp;
+        PlaceDetail();
     }
 
     /// <summary>
@@ -398,6 +516,8 @@ internal sealed class SheetMarkupSurface : Grid
         pageHost.Width = width;
         pageHost.Height = Math.Max(120d, width * pageAspect);
         zoomText.Text = $"{Math.Round(zoom * 100)}%";
+        PlaceDetail();
+        ScheduleDetail();
         RefreshPageResolution();
         RenderMarkups();
         RepositionComposer();

@@ -89,6 +89,28 @@ internal static class PdfiumInterop
         int rotate,
         int flags);
 
+    /// <summary>FS_MATRIX: device = page (top-left origin, points) × this.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FsMatrix
+    {
+        public float A, B, C, D, E, F;
+    }
+
+    /// <summary>FS_RECTF in device pixels.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FsRectF
+    {
+        public float Left, Top, Right, Bottom;
+    }
+
+    [DllImport(Library, EntryPoint = "FPDF_RenderPageBitmapWithMatrix", CharSet = CharSet.Ansi)]
+    public static extern void RenderPageBitmapWithMatrix(
+        IntPtr bitmap,
+        IntPtr page,
+        ref FsMatrix matrix,
+        ref FsRectF clipping,
+        int flags);
+
     [DllImport(Library, EntryPoint = "FPDF_GetLastError", CharSet = CharSet.Ansi)]
     public static extern uint GetLastError();
 
