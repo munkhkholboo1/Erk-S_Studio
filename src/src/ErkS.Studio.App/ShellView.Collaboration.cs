@@ -156,13 +156,24 @@ internal sealed partial class ShellView
         string knownToken = !string.IsNullOrWhiteSpace(cloud.LastServerConcurrencyToken)
             ? cloud.LastServerConcurrencyToken
             : cloud.ServerSnapshot.ConcurrencyToken;
+        // ⚠ The project's ETag follows the project, not the caller's rights: a permission the
+        // server changes on its own (the platform Owner's, 2026-10-31) leaves the project
+        // unchanged, the answer 304, and the cached scopes stale for good. So the first look at
+        // a project in each signed-in session fetches it whole; later ones may use the ETag.
+        string permissionKey = $"{account.SessionEpoch}|{projectId}";
         bool forceFullRefresh =
             CloudMirrorNeedsFullRefresh() ||
-            !cloud.PermissionSnapshotBelongsTo(account.Current?.Email);
-        return forceFullRefresh
+            !cloud.PermissionSnapshotBelongsTo(account.Current?.Email) ||
+            !permissionsFetchedThisSession.Contains(permissionKey);
+        StudioCloudProjectRefreshResult result = forceFullRefresh
             ? new StudioCloudProjectRefreshResult(true, await account.GetProjectAsync(projectId))
             : await account.GetProjectChangesAsync(projectId, knownToken);
+        permissionsFetchedThisSession.Add(permissionKey);
+        return result;
     }
+
+    /// <summary>Projects whose rights were read whole in the current signed-in session.</summary>
+    private readonly HashSet<string> permissionsFetchedThisSession = new(StringComparer.OrdinalIgnoreCase);
 
     private async Task<bool> RefreshCurrentProjectCloudAccessAsync(
         bool reportResult = false,
