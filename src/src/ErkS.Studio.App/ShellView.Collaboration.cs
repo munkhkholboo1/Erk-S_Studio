@@ -1223,6 +1223,8 @@ internal sealed partial class ShellView
         if (profile is null || !state.HasOpenProject || state.ProjectPath is null)
             return;
 
+        await SendProjectOrganizationDocumentsMissingFromServerAsync(profile);
+
         (StudioCloudOrganizationDocument Cloud, List<ProjectFileReference> Target)[] wanted =
         [
             .. profile.RegistrationCertificateDocuments.Select(document =>
@@ -1255,8 +1257,16 @@ internal sealed partial class ShellView
 
             string fileName = document.DocumentId + extension;
             string fullPath = Path.Combine(assetsFolder, fileName);
-            if (File.Exists(fullPath) && local.IsAvailable)
+            // A scan replaced on the server under the same id (a page that came in sideways
+            // and was set upright, 2026-10-31) has a new fingerprint; the copy on disk is
+            // then the old one and is fetched again.
+            bool sameScan = string.IsNullOrWhiteSpace(document.Sha256) ||
+                string.Equals(document.Sha256.Trim(), (local.Sha256 ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
+            if (File.Exists(fullPath) && local.IsAvailable && sameScan &&
+                StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(state.ProjectPath, local))
+            {
                 continue;
+            }
 
             try
             {
@@ -1283,6 +1293,11 @@ internal sealed partial class ShellView
 
                 local.RelativePath = Path.GetRelativePath(projectFolder, fullPath);
                 local.ContentType = content.ContentType;
+                if (!string.IsNullOrWhiteSpace(document.Sha256))
+                    local.Sha256 = document.Sha256.Trim().ToUpperInvariant();
+                local.SizeBytes = content.Bytes.LongLength;
+                if (document.PageCount > 0)
+                    local.PageCount = document.PageCount;
                 local.IsAvailable = true;
                 local.IsCloudPlaceholder = false;
                 fetched++;
@@ -1304,6 +1319,93 @@ internal sealed partial class ShellView
             SetStatus("Байгууллагын баримт татагдсангүй — " + string.Join("; ", failures));
         else if (fetched > 0)
             SetStatus($"Байгууллагын {fetched} хуулбар татагдаж, альбомд орлоо.");
+    }
+
+    private readonly HashSet<string> organizationDocumentUploadsRefused = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Puts a scan this project holds, and its organisation on the server does not, into that
+    /// organisation, so every member's album can draw it.
+    ///
+    /// Мастер, 2026-10-31: NANUTO's certificate and licence lived only in Studio's own copy of
+    /// the company while the album was put together on one machine; when the company moved to
+    /// the server the scans did not move with it, and an update must not make work a person
+    /// already did disappear. Matched by fingerprint, so a scan the server holds is never sent
+    /// twice. Without the right to manage the organisation the server refuses; the person is
+    /// told who can add it, once per scan and session, instead of being asked on every sync.
+    /// </summary>
+    private async Task SendProjectOrganizationDocumentsMissingFromServerAsync(
+        StudioCloudOrganizationRenderProfile profile)
+    {
+        CompanyProfile snapshot = state.Project.Foundation.DesignCompany.OrganizationSnapshot;
+        if (string.IsNullOrWhiteSpace(profile.OrganizationId) ||
+            !profile.OrganizationId.Equals(snapshot.OrganizationId, StringComparison.OrdinalIgnoreCase) ||
+            state.ProjectPath is null)
+        {
+            return;
+        }
+
+        string projectPath = state.ProjectPath;
+        string projectFolder = ProjectWorkspacePaths.GetProjectFolder(projectPath);
+        string projectId = state.Project.ProjectId;
+        IReadOnlyList<CompanyDocumentUpload> uploads = CompanyDocumentUploadPlan.Decide(
+                snapshot.RegistrationCertificateDocuments,
+                snapshot.DesignLicenseDocuments,
+                profile.RegistrationCertificateDocuments
+                    .Concat(profile.DesignLicenseDocuments)
+                    .Select(document => document.Sha256),
+                canManage: true)
+            .Where(upload =>
+                !organizationDocumentUploadsRefused.Contains(profile.OrganizationId + "|" + upload.Document.Sha256) &&
+                StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(projectPath, upload.Document))
+            .ToList();
+        if (uploads.Count == 0)
+            return;
+
+        int sent = 0;
+        var refused = new List<string>();
+        foreach (CompanyDocumentUpload upload in uploads)
+        {
+            string path = Path.IsPathRooted(upload.Document.RelativePath)
+                ? upload.Document.RelativePath
+                : Path.Combine(projectFolder, upload.Document.RelativePath);
+            try
+            {
+                byte[] bytes = await File.ReadAllBytesAsync(path);
+                StudioCloudOrganizationDocument stored = await account.UploadOrganizationDocumentAsync(
+                    profile.OrganizationId,
+                    ToServerDocumentCategory(upload.Category),
+                    upload.Document.Title,
+                    upload.Document.OriginalFileName,
+                    upload.Document.ContentType,
+                    bytes);
+                if (!state.HasOpenProject ||
+                    !state.Project.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+                upload.Document.ServerDocumentId = stored.DocumentId;
+                upload.Document.CloudSyncStatus = ProjectDocumentCloudSyncStatuses.Synced;
+                sent++;
+            }
+            catch (Exception exception) when (
+                exception is StudioAccountException or HttpRequestException or
+                    TaskCanceledException or IOException or UnauthorizedAccessException)
+            {
+                organizationDocumentUploadsRefused.Add(profile.OrganizationId + "|" + upload.Document.Sha256);
+                refused.Add(exception is StudioAccountException { StatusCode: System.Net.HttpStatusCode.Forbidden }
+                    ? $"{upload.Document.Title}: байгууллагын админ (удирдах эрхтэй гишүүн) оруулах хэрэгтэй"
+                    : $"{upload.Document.Title}: {exception.Message}");
+            }
+        }
+
+        if (sent > 0)
+        {
+            state.SaveProject();
+            SetStatus($"Төслийн {sent} байгууллагын хуулбар серверт байгаагүй тул байгууллагад нь орууллаа.");
+        }
+        if (refused.Count > 0)
+            SetStatus("Төслийн байгууллагын хуулбар серверт ороогүй — " + string.Join("; ", refused));
     }
 
     /// <summary>

@@ -35,6 +35,27 @@ public sealed class AREADOnlyComponentIsNotCountedAsWaitingTests
         Assert.Contains("if (MarkCompanyPagesWhoseCopiesArrived() || fetched > 0)", collaboration, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AScanOnlyTheProjectHoldsIsPutIntoItsOrganisation()
+    {
+        string collaboration = ReadAppSource("ShellView.Collaboration.cs");
+
+        int send = collaboration.IndexOf("await SendProjectOrganizationDocumentsMissingFromServerAsync(profile);", StringComparison.Ordinal);
+        int early = collaboration.IndexOf("if (wanted.Length == 0)", StringComparison.Ordinal);
+        Assert.True(send > 0 && send < early, "the scans go up before an organisation with none returns early");
+        Assert.Contains("canManage: true)", collaboration, StringComparison.Ordinal);
+        Assert.Contains("organizationDocumentUploadsRefused.Add(", collaboration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AScanReplacedUnderTheSameIdIsFetchedAgain()
+    {
+        string collaboration = ReadAppSource("ShellView.Collaboration.cs");
+
+        Assert.Contains("if (File.Exists(fullPath) && local.IsAvailable && sameScan &&", collaboration, StringComparison.Ordinal);
+        Assert.Contains("local.Sha256 = document.Sha256.Trim().ToUpperInvariant();", collaboration, StringComparison.Ordinal);
+    }
+
     private static string ReadAppSource(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
