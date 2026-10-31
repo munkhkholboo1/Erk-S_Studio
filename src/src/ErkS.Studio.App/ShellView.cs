@@ -4698,6 +4698,7 @@ internal sealed partial class ShellView : IDisposable
         try
         {
             RequireOperationContext(operationContext, "cloud_sync_prepare");
+            MarkCompanyPagesWhoseCopiesArrived();
             state.SaveProject();
             int retiredSourceCount =
                 await ProcessPendingDesignSourceRemovalsAsync(
@@ -4795,6 +4796,15 @@ internal sealed partial class ShellView : IDisposable
                     StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(
                         state.ProjectPath,
                         image));
+            // What the plan refuses is read-only here before anyone approves it, so
+            // a run that stops at the preview still counts it as blocked, not failed.
+            IReadOnlyList<string> pendingAtPreview =
+                ProjectCloudSyncMetadata.PendingAlbumComponents(state.Project);
+            RememberSyncRefusedComponents(
+                pendingAtPreview,
+                pendingAtPreview
+                    .Except(plan.Blocked.Select(item => item.Code), StringComparer.OrdinalIgnoreCase)
+                    .ToList());
             // The bridge decides here instead of a person (docs/STU-BRIDGE.md);
             // the plan is the same one the dialog would have shown.
             bool approved;

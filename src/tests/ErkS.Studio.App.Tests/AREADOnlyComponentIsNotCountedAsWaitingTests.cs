@@ -17,6 +17,24 @@ public sealed class AREADOnlyComponentIsNotCountedAsWaitingTests
         Assert.Contains("renderable.Contains(code) && !syncRefusedComponentCodes.Contains(code)", refresh, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ThePreviewAloneRecordsWhatItRefuses()
+    {
+        string shell = ReadAppSource("ShellView.cs");
+
+        Assert.Contains(".Except(plan.Blocked.Select(item => item.Code), StringComparer.OrdinalIgnoreCase)", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EverySyncFirstMarksCompanyPagesWhoseScansArrived()
+    {
+        string shell = ReadAppSource("ShellView.cs");
+        string collaboration = ReadAppSource("ShellView.Collaboration.cs");
+
+        Assert.Contains("RequireOperationContext(operationContext, \"cloud_sync_prepare\");\n            MarkCompanyPagesWhoseCopiesArrived();", shell.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.Contains("if (MarkCompanyPagesWhoseCopiesArrived() || fetched > 0)", collaboration, StringComparison.Ordinal);
+    }
+
     private static string ReadAppSource(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

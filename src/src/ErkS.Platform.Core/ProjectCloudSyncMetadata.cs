@@ -287,6 +287,59 @@ public static class ProjectCloudSyncMetadata
         MarkPending(project);
     }
 
+    /// <summary>
+    /// Marks a company page (certificate, licence) to be drawn and sent when this device
+    /// holds every one of its scans and has not sent the page with that set of scans yet.
+    ///
+    /// Erin, 2026-10-31: the scans reached the server after the album was published with
+    /// «Хуулбар оруулаагүй» pages. They downloaded onto the desktop, the page drew right
+    /// locally, but nothing had changed on the page as far as sync knew, so the Cloud kept
+    /// the placeholder. A placeholder giving way to the real scan is not overwriting anyone.
+    /// True when a page was marked.
+    /// </summary>
+    public static bool MarkCompanyPagesWhoseCopiesArrived(
+        ProjectWorkspace project,
+        Func<ProjectFileReference, bool> hasVerifiedDocumentPayload)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(hasVerifiedDocumentPayload);
+        CompanyProfile company = project.Foundation.DesignCompany.OrganizationSnapshot;
+        project.Cloud.CompanyDocumentKeysSent ??= [];
+        var marked = new List<string>();
+        foreach ((string code, List<ProjectFileReference>? documents) in new[]
+                 {
+                     (CompanyRegistrationComponentCode, company.RegistrationCertificateDocuments),
+                     (CompanyLicenseComponentCode, company.DesignLicenseDocuments),
+                 })
+        {
+            List<ProjectFileReference> present = documents ?? [];
+            if (present.Count == 0 ||
+                !present.All(document => document.IsAvailable && hasVerifiedDocumentPayload(document)))
+            {
+                continue;
+            }
+
+            string key = string.Join(
+                ",",
+                present
+                    .Select(document => (document.Sha256 ?? "").Trim().ToUpperInvariant())
+                    .OrderBy(sha => sha, StringComparer.Ordinal));
+            if (project.Cloud.CompanyDocumentKeysSent.TryGetValue(code, out string? sent) &&
+                string.Equals(sent, key, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            project.Cloud.CompanyDocumentKeysSent[code] = key;
+            marked.Add(code);
+        }
+
+        if (marked.Count == 0)
+            return false;
+        MarkAlbumComponentsPending(project, marked);
+        return true;
+    }
+
     public static void MarkAlbumComponentPendingForBinding(
         ProjectWorkspace project,
         string componentCode,

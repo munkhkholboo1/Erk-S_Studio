@@ -231,6 +231,12 @@ public sealed class ProjectCloudLink
     public string LastReceivedClientLogoKey { get; set; } = "";
     public string LastReceivedDesignOrganizationLogoKey { get; set; } = "";
     /// <summary>
+    /// Per company page (registration certificate, licence): the fingerprints of the scans
+    /// this device last marked that page to be drawn and sent with. A device the scans reach
+    /// later sends the page once, so a placeholder in the Cloud gives way to the real copy.
+    /// </summary>
+    public Dictionary<string, string> CompanyDocumentKeysSent { get; set; } = [];
+    /// <summary>
     /// True when canonical project/company metadata must be repainted on the
     /// complete shared album, including components owned by other members.
     /// </summary>

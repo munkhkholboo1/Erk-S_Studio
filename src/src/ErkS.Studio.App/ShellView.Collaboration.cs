@@ -1295,7 +1295,7 @@ internal sealed partial class ShellView
             }
         }
 
-        if (fetched > 0)
+        if (MarkCompanyPagesWhoseCopiesArrived() || fetched > 0)
             state.SaveProject();
 
         // A scan that did not arrive leaves a placeholder page in a printed
@@ -1304,6 +1304,24 @@ internal sealed partial class ShellView
             SetStatus("Байгууллагын баримт татагдсангүй — " + string.Join("; ", failures));
         else if (fetched > 0)
             SetStatus($"Байгууллагын {fetched} хуулбар татагдаж, альбомд орлоо.");
+    }
+
+    /// <summary>
+    /// A company page whose scans are now all on this device is drawn and sent once, so the
+    /// Cloud album's placeholder gives way to the copy (ProjectCloudSyncMetadata).
+    /// </summary>
+    private bool MarkCompanyPagesWhoseCopiesArrived()
+    {
+        if (!state.HasOpenProject || state.ProjectPath is null)
+            return false;
+        string projectPath = state.ProjectPath;
+        if (!ProjectCloudSyncMetadata.MarkCompanyPagesWhoseCopiesArrived(
+                state.Project,
+                document => StudioAuxiliarySourceLocalityPolicy.HasVerifiedPayload(projectPath, document)))
+        {
+            return false;
+        }
+        return true;
     }
 
     private async Task ApplyCloudClientLogoAsync(StudioCloudProjectDetail cloud)
