@@ -145,11 +145,11 @@ public sealed partial class SyncEngine
     private void Felt(string physical, string fullPath)
     {
         string relative = Path.GetRelativePath(physical, fullPath);
-        // An EE project's «.erks-sync-ignore» written or changed: what it excludes stops now - a running
+        // A «.erks-sync-ignore» (an EE project's, or the folder's own) written or changed: what it excludes stops now - a running
         // upload or download gives way and the next pass leaves it out (EE / Erk-S Sync, 2026-10-28).
         if (Path.GetFileName(fullPath).Equals(SyncIgnore.FileName, StringComparison.OrdinalIgnoreCase))
         {
-            Hurry();
+            RulesChanged();
             return;
         }
         // SYN's own bookkeeping, and the shared-file folder SYN itself writes (a publish pokes on its own).

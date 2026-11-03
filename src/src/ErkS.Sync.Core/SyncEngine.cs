@@ -398,6 +398,47 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
     }
 
+    private CancellationTokenSource _rulesChanged = new();
+
+    /// <summary>
+    /// A «.erks-sync-ignore» was written or changed (a person's «Синк хийхгүй болгох», an EE project's rule): an index
+    /// being built stops reading at once - a big file just left out is not read to its end (owner, 2026-11-03: «зарим
+    /// хэрэггүй том файлууд уншаад дуусахгүй байна») - and is built again under the new rules; a long transfer gives way.
+    /// </summary>
+    public void RulesChanged()
+    {
+        lock (_gate)
+            _rulesChanged.Cancel();
+        Hurry();
+    }
+
+    /// <summary>The folder's index; started again from where the hashes stand when the rules change while it is read.</summary>
+    private async Task<SyncIndex> BuildIndexAsync(string physical, string folderId, SyncIndex? previous, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            CancellationToken rules;
+            lock (_gate)
+            {
+                if (_rulesChanged.IsCancellationRequested)
+                {
+                    _rulesChanged.Dispose();
+                    _rulesChanged = new CancellationTokenSource();
+                }
+                rules = _rulesChanged.Token;
+            }
+            using var both = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, rules);
+            try
+            {
+                return await Task.Run(() => SyncIndexBuilder.Build(physical, folderId, previous, both.Token), both.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && rules.IsCancellationRequested)
+            {
+                Stage("синкийн хасалт өөрчлөгдлөө — индексийг шинэ дүрмээр үүсгэж байна");
+            }
+        }
+    }
+
     /// <summary>A long transfer begins (or ends): it may be asked to give way while it runs.</summary>
     private CancellationToken LongWork(bool begins)
     {
@@ -696,7 +737,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
         SyncIndex index;
         try
         {
-            index = await Task.Run(() => SyncIndexBuilder.Build(physical, folder.FolderId, previous, cancellationToken), cancellationToken);
+            index = await BuildIndexAsync(physical, folder.FolderId, previous, cancellationToken);
             SyncVersionLedger ledger = SyncVersionLedgerStore.Load(_home.LedgerPath(folder.FolderId));
             ledger.Adopt(SyncDecisionStore.Load(_home.DecisionsPath(folder.FolderId)));
             // A CGA changeset's kept copy is the shared file's own business (its status says «дугаар

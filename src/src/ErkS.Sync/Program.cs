@@ -11,12 +11,14 @@ namespace ErkS.Sync;
 /// ErkS.Sync.exe join "path"  → Explorer «Erk-S Sync фолдерт холбох»
 /// ErkS.Sync.exe status "path"→ Explorer «Erk-S Sync — төлөв»
 /// ErkS.Sync.exe unlink "path"→ Explorer «Холболт салгах»
+/// ErkS.Sync.exe exclude "path"→ Explorer «Синк хийхгүй болгох» (a file or folder inside a sync folder)
+/// ErkS.Sync.exe include "path"→ Explorer «Синкт буцааж оруулах»
 /// ErkS.Sync.exe rescan       → Studio asks for a pass now
 /// A verb goes to the running tray process; when none runs, this process becomes it.
 /// </summary>
 internal static class Program
 {
-    public static readonly string[] Verbs = ["make", "join", "status", "unlink", "rescan", "quit"];
+    public static readonly string[] Verbs = ["make", "join", "status", "unlink", "exclude", "include", "rescan", "quit"];
 
     [STAThread]
     private static int Main(string[] args)

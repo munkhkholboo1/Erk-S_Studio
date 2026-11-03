@@ -155,6 +155,15 @@ internal sealed class SyncStatusForm : Form
                 lines.Add($"  {collab.FileId[..Math.Min(8, collab.FileId.Length)]} · checkpoint {collab.Checkpoint} · энд хүлээгдэж буй {collab.Waiting} · бусдад очоогүй {collab.PendingOut}");
         }
 
+        // What a person left out with Explorer «Синк хийхгүй болгох».
+        IReadOnlyList<string> chosen = Chosen(folder);
+        if (chosen.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("Синкээс хассан (буцаахдаа баруун товч «Синкт буцааж оруулах»):");
+            lines.AddRange(chosen.Select(path => "  " + path));
+        }
+
         // Members: online / offline - an offline member never counts in the percent.
         if (folder.Peers.Count > 0)
         {
@@ -179,6 +188,18 @@ internal sealed class SyncStatusForm : Form
         lines.Add("");
         lines.Add($"Шинэчилсэн: {_state.UpdatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
         _details.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    private static IReadOnlyList<string> Chosen(SyncFolderState folder)
+    {
+        try
+        {
+            return SyncIgnore.Chosen(Path.GetFullPath(new SyncPathMap().Physical(folder.CanonicalPath)));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return [];
+        }
     }
 
     private static string Name(SyncPeerState peer)

@@ -300,6 +300,9 @@ internal sealed class SyncTray : ApplicationContext
                 if (request.Verb == "collab-pull" && _engine is { } engine)
                     await engine.RefreshAsync(TimeSpan.FromSeconds(2), cancellationToken);
                 return Collab(request);
+            case "exclude":
+            case "include":
+                return Choose(request);
             case "redact":
                 return await RedactAsync(request, cancellationToken);
             case "quit":
@@ -495,6 +498,46 @@ internal sealed class SyncTray : ApplicationContext
         {
             return new SyncPipeResponse(false, exception.Message);
         }
+    }
+
+    /// <summary>
+    /// Explorer «Синк хийхгүй болгох» / «Синкт буцааж оруулах» (owner, 2026-11-03: «фолдер болон файлыг сонгож синк
+    /// хийгддэггүй болгодог болгох хэрэгтэй»): a line in the sync folder's «.erks-sync-ignore», which travels, so the
+    /// whole team stops carrying it. What a member already has stays; nothing is deleted anywhere.
+    /// </summary>
+    private SyncPipeResponse Choose(SyncPipeRequest request)
+    {
+        string? root = FolderRootOf(request.Path);
+        if (root is null)
+            return new SyncPipeResponse(false, "Энэ файл, хавтас Erk-S Sync хавтсанд алга.");
+        string full = Path.GetFullPath(request.Path).TrimEnd(Path.DirectorySeparatorChar);
+        string name = Path.GetFileName(full);
+        bool exclude = request.Verb == "exclude";
+        SyncIgnoreChange change;
+        try
+        {
+            string relative = Path.GetRelativePath(root, full);
+            bool directory = Directory.Exists(full);
+            change = exclude ? SyncIgnore.Exclude(root, relative, directory) : SyncIgnore.Include(root, relative, directory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new SyncPipeResponse(false, "Синкийн дүрмийг бичиж чадсангүй: " + exception.Message);
+        }
+        if (change is SyncIgnoreChange.Added or SyncIgnoreChange.Removed)
+            _engine?.RulesChanged();
+        (bool ok, string message) = change switch
+        {
+            SyncIgnoreChange.Added => (true, $"«{name}» синкээс хасагдлаа — цаашид хамтрагчид руу явахгүй, тэднээс ирэхгүй. Хэнд ч байгаа хуулбар устахгүй."),
+            SyncIgnoreChange.Removed => (true, $"«{name}» дахин синк хийгдэнэ."),
+            SyncIgnoreChange.AlreadyExcluded => (true, $"«{name}» аль хэдийн синкээс хасагдсан байна."),
+            SyncIgnoreChange.NotExcluded => (true, $"«{name}» синкээс хасагдаагүй байна."),
+            SyncIgnoreChange.ExcludedByRule => (false, $"«{name}» дээд хавтас эсвэл EE-ийн дүрмээр хасагдсан тул дангаар нь буцааж оруулах боломжгүй — дээд хавтсыг нь буцааж оруулна уу."),
+            _ => (false, "Синк хавтсыг бүхэлд нь эсвэл Erk-S Sync-ийн өөрийн файлыг синкээс хасах боломжгүй."),
+        };
+        if (ok)
+            Post(() => _icon.ShowBalloonTip(6000, "Erk-S Sync", message, ToolTipIcon.Info));
+        return new SyncPipeResponse(ok, ok ? "" : message);
     }
 
     /// <summary>
