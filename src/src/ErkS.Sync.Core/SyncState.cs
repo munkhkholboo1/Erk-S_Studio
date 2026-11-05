@@ -266,6 +266,9 @@ public sealed record SyncState
     /// <summary>Why the server is out of reach (tls, dns, connect, refused, proxy, timeout, other); "" when it answered.</summary>
     public string ServerReason { get; init; } = "";
 
+    /// <summary>How pieces reach the server: «loopback» (this machine is the server, proved - SRV 95f332a) or «server».</summary>
+    public string RelayRoute { get; init; } = "";
+
     public int LanPort { get; init; }
 
     public IReadOnlyList<SyncFolderState> Folders { get; init; } = [];

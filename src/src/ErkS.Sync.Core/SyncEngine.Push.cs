@@ -300,7 +300,17 @@ public sealed partial class SyncEngine
             // a big upload's index events every 5 s cut the laptop's download every 20 s). Only a changeset
             // made here hurries.
             if (type == "index")
+            {
+                // Remembered per partner too: a transfer from that partner still running takes the files that just
+                // became whole on the server in the same pass (Erk-S Sync, 2026-11-05 - SRV 95f332a).
+                if (document.RootElement.TryGetProperty("folderId", out var indexFolder) && indexFolder.ValueKind == System.Text.Json.JsonValueKind.String &&
+                    document.RootElement.TryGetProperty("deviceKeyId", out var indexDevice) && indexDevice.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    lock (_gate)
+                        _indexHeard.Add(indexFolder.GetString() + "|" + indexDevice.GetString());
+                }
                 Poke();
+            }
             if (type == "redactions")
                 Poke();
             if (type == "notifications")
@@ -344,6 +354,15 @@ public sealed partial class SyncEngine
         {
             Poke(); // something happened - look
         }
+    }
+
+    private readonly HashSet<string> _indexHeard = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether the server said a partner's index changed in this folder since the last ask - and forgets it.</summary>
+    private bool TakeIndexHeard(string folderId, string deviceKeyId)
+    {
+        lock (_gate)
+            return _indexHeard.Remove(folderId + "|" + deviceKeyId);
     }
 
     /// <summary>A short stamp of a folder's index (its paths and hashes), announced on the LAN so a partner here takes a change at once.</summary>

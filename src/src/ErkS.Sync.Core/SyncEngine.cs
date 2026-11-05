@@ -360,13 +360,79 @@ public sealed partial class SyncEngine : IAsyncDisposable
         }
     }
 
-    // Kept under the server's per-device limits (SRV 18200f7: 12000 pieces and 1200 questions per 10 minutes),
-    // so a big folder is not refused halfway (Erk-S Sync, 2026-10-28).
-    private readonly SyncPacer _pieces = new(15);
-    private readonly SyncPacer _questions = new(1.5);
+    // Kept under the server's per-device limits, a fifth to spare (SRV 346a798: 60000 piece puts, 60000 piece
+    // gets and 6000 questions per 10 minutes - 100/s, 100/s, 10/s), so a big folder is not refused halfway; the
+    // old 15/s and 1.5/s were for SRV 18200f7's 12000/1200 (Erk-S Sync, 2026-11-05).
+    private readonly SyncPacer _puts = new(80);
+    private readonly SyncPacer _gets = new(80);
+    private readonly SyncPacer _questions = new(8);
 
-    /// <summary>Pieces a second to and from the server (shared by every folder and partner); 15 by default.</summary>
-    public double PiecesPerSecond { init => _pieces = new SyncPacer(value); }
+    /// <summary>Pieces a second to the server, and as many from it (shared by every folder and partner); 80 by default.</summary>
+    public double PiecesPerSecond
+    {
+        init
+        {
+            _puts = new SyncPacer(value);
+            _gets = new SyncPacer(value);
+        }
+    }
+
+    private SyncServerClient? _local;
+    private string _localProvenFor = "";
+    private DateTimeOffset _localTriedAtUtc = DateTimeOffset.MinValue;
+
+    /// <summary>Whether to try the loopback when this machine is the server (tests of the tunnel road turn it off).</summary>
+    public bool UseLoopback { get; init; } = true;
+
+    /// <summary>Makes the client of a proven loopback address - tests point it at their own server.</summary>
+    public Func<Uri, SyncServerClient>? LoopbackClient { get; init; }
+
+    /// <summary>«loopback» when the pieces go over this machine's own server port, «server» otherwise.</summary>
+    private string ServerRoute => _local is null ? "server" : "loopback";
+
+    /// <summary>
+    /// Once a session (a new token), and again at most every 10 minutes while unproven: is this machine the server?
+    /// (SyncLoopback - SRV 95f332a; Erk-S Sync, 2026-11-05.)
+    /// </summary>
+    private async Task ProveLoopbackAsync(CancellationToken cancellationToken)
+    {
+        if (!UseLoopback || _session is not { } session)
+            return;
+        bool newToken = !string.Equals(_localProvenFor, session.AccessToken, StringComparison.Ordinal);
+        if (!newToken && (_local is not null || DateTimeOffset.UtcNow - _localTriedAtUtc < TimeSpan.FromMinutes(10)))
+            return;
+        _localTriedAtUtc = DateTimeOffset.UtcNow;
+        _localProvenFor = session.AccessToken;
+        _local = await SyncLoopback.ProveAsync(
+            _server,
+            session.AccessToken,
+            LoopbackClient ?? (address => SyncLoopback.Client(address, _server.ClientVersion)),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// A piece route (chunk put/get, missing) over the proven loopback, else the server's own address. The
+    /// loopback failing on the network (the server restarted, the port moved) drops it silently and the call
+    /// goes the normal road at once; the next session proves it again.
+    /// </summary>
+    private async Task<T> ViaRelayAsync<T>(Func<SyncServerClient, Task<T>> call, CancellationToken cancellationToken)
+    {
+        SyncServerClient? local = _local;
+        if (local is null)
+            return await call(_server);
+        try
+        {
+            return await call(local);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested &&
+            (exception is HttpRequestException or TaskCanceledException ||
+             exception is SyncServerException { Status: HttpStatusCode.NotFound } refused && refused.Code.StartsWith("http_", StringComparison.Ordinal)))
+        {
+            if (ReferenceEquals(_local, local))
+                _local = null;
+            return await call(_server);
+        }
+    }
 
     /// <summary>The server limited us: said in the pass's stage, so the Twin and the person see why it waits.</summary>
     private void Limited(SyncServerException refused, TimeSpan pause) =>
@@ -563,6 +629,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             lock (_gate)
                 _folders = folders;
             await _server.DeviceHeartbeatAsync(_session.AccessToken, cancellationToken);
+            await ProveLoopbackAsync(cancellationToken);
         }
         catch (SyncServerException exception)
         {
@@ -625,6 +692,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             ServerStatus = serverStatus,
             ServerMessage = serverMessage,
             ServerReason = serverReason,
+            RelayRoute = serverStatus == "ok" ? ServerRoute : "",
             LanPort = _exchange?.Port ?? 0,
             Folders = states,
         });
@@ -1021,6 +1089,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, LongWork(begins: true));
                 window.CancelAfter(TransferWindow);
                 Stage($"хамтрагч {who}: серверээс индекс авч байна");
+                TakeIndexHeard(folderId, device.DeviceKeyId); // what is heard from here on is newer than this read
                 string? json = await _server.GetIndexAsync(relay.AccessToken, folderId, device.DeviceKeyId, window.Token);
                 Stage($"хамтрагч {who}: серверээр татаж байна");
                 if (json is null)
@@ -1029,37 +1098,57 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 }
                 else
                 {
-                    SyncIndex served = Carried(SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index"), ignore);
-                    // What is not whole on the server yet is left as if unseen - not taken, not a deletion
-                    // (owner, 2026-10-27: its author may have gone offline mid-upload; the others go on).
-                    int incomplete = served.Entries.Count(entry => entry.Incomplete);
-                    SyncIndex theirs = incomplete == 0 ? served : served with { Entries = served.Entries.Where(entry => !entry.Incomplete).ToList() };
-                    // Not taken, but waited for: a file the partner is still sending that this machine lacks holds
-                    // its «%» below 100 (Erk-S Sync, 2026-10-28: an empty laptop read 100% with 13 339 on the way).
-                    Dictionary<string, string> held = mine.Entries.ToDictionary(entry => entry.RelativePath, entry => entry.Sha256, SyncPath.Comparer);
-                    SyncIndexEntry[] awaited = served.Entries
-                        .Where(entry => entry.Incomplete && SyncTransferPlanner.IsCarried(entry.Kind) &&
-                            !(held.TryGetValue(entry.RelativePath, out string? sha) && sha.Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase)))
-                        .ToArray();
-                    error = "";
-                    peer = peer with { Route = "server", ServerIncompleteCount = awaited.Length, ServerIncompleteBytes = awaited.Sum(entry => entry.Size) };
-                    lock (_gate)
+                    // Files the server makes whole while this runs (SRV 95f332a tells them at most every 5 s) are taken in
+                    // the same transfer, after what is already on its way - not at the end of the whole pass, and never by
+                    // cutting off the running file (Erk-S Sync, 2026-11-05).
+                    for (int round = 0; ; round++)
                     {
-                        if (!_peersOnServer.TryGetValue(folderId, out var byPeer))
-                            _peersOnServer[folderId] = byPeer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-                        byPeer[device.DeviceKeyId] = theirs.Entries.Select(entry => entry.RelativePath).ToHashSet(SyncPath.Comparer);
-                    }
-                    if (peer.Lagging)
-                    {
-                        // Long offline or not updated: its index is no source here (the stored copy is
-                        // not refreshed from it either, so nothing is planned against it).
-                        error = "Хоцорсон гишүүн — шинэчлэгдэж, онлайн болох хүртэл түүнээс файл авахгүй.";
-                    }
-                    else
-                    {
-                        SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
-                        peer = await TransferAsync(folderId, physical, mine, theirs,
-                            (file, chunk, token) => RelayChunkAsync(relay.AccessToken, folderId, file, chunk, token), peer, window.Token);
+                        SyncIndex served = Carried(SyncIndexStore.Deserialize(json) ?? throw new InvalidDataException("bad index"), ignore);
+                        // What is not whole on the server yet is left as if unseen - not taken, not a deletion
+                        // (owner, 2026-10-27: its author may have gone offline mid-upload; the others go on).
+                        int incomplete = served.Entries.Count(entry => entry.Incomplete);
+                        SyncIndex theirs = incomplete == 0 ? served : served with { Entries = served.Entries.Where(entry => !entry.Incomplete).ToList() };
+                        // Not taken, but waited for: a file the partner is still sending that this machine lacks holds
+                        // its «%» below 100 (Erk-S Sync, 2026-10-28: an empty laptop read 100% with 13 339 on the way).
+                        Dictionary<string, string> held = mine.Entries.ToDictionary(entry => entry.RelativePath, entry => entry.Sha256, SyncPath.Comparer);
+                        SyncIndexEntry[] awaited = served.Entries
+                            .Where(entry => entry.Incomplete && SyncTransferPlanner.IsCarried(entry.Kind) &&
+                                !(held.TryGetValue(entry.RelativePath, out string? sha) && sha.Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase)))
+                            .ToArray();
+                        error = "";
+                        peer = peer with { Route = ServerRoute, ServerIncompleteCount = awaited.Length, ServerIncompleteBytes = awaited.Sum(entry => entry.Size) };
+                        lock (_gate)
+                        {
+                            if (!_peersOnServer.TryGetValue(folderId, out var byPeer))
+                                _peersOnServer[folderId] = byPeer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+                            byPeer[device.DeviceKeyId] = theirs.Entries.Select(entry => entry.RelativePath).ToHashSet(SyncPath.Comparer);
+                        }
+                        if (peer.Lagging)
+                        {
+                            // Long offline or not updated: its index is no source here (the stored copy is
+                            // not refreshed from it either, so nothing is planned against it).
+                            error = "Хоцорсон гишүүн — шинэчлэгдэж, онлайн болох хүртэл түүнээс файл авахгүй.";
+                        }
+                        else
+                        {
+                            SyncIndexStore.Save(theirs with { BuiltAtUtc = DateTimeOffset.UtcNow }, stored);
+                            // A file already taken earlier in this pass is not taken again (this machine's index is from the pass's start).
+                            if (round > 0)
+                            {
+                                HashSet<string> came;
+                                lock (_gate)
+                                    came = _arrivedThisPass.TryGetValue(folderId + "|" + device.DeviceKeyId, out HashSet<string>? arrived) ? [.. arrived] : [];
+                                theirs = theirs with { Entries = theirs.Entries.Where(entry => !came.Contains(entry.RelativePath + "|" + entry.Sha256)).ToList() };
+                            }
+                            peer = await TransferAsync(folderId, physical, mine, theirs,
+                                (file, chunk, token) => RelayChunkAsync(relay.AccessToken, folderId, file, chunk, token), peer, window.Token);
+                        }
+                        if (peer.Lagging || window.IsCancellationRequested || !TakeIndexHeard(folderId, device.DeviceKeyId))
+                            break;
+                        Stage($"хамтрагч {who}: серверт бүрэн болсон файлуудыг татаж байна");
+                        json = await _server.GetIndexAsync(relay.AccessToken, folderId, device.DeviceKeyId, window.Token);
+                        if (json is null)
+                            break;
                     }
                 }
             }
@@ -1456,8 +1545,8 @@ public sealed partial class SyncEngine : IAsyncDisposable
             throw new SyncLanException("sync_chunk_none", "Файлын хэсэг индекст алга.");
         return await PatientAsync(async next =>
             {
-                await _pieces.WaitAsync(next);
-                return await _server.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], next);
+                await _gets.WaitAsync(next);
+                return await ViaRelayAsync(relay => relay.GetChunkAsync(token, folderId, file.ChunkSha256[chunk], next), next);
             }, cancellationToken, limited: Limited)
             ?? throw new SyncLanException("sync_chunk_none", "Файлын хэсэг серверт хараахан ирээгүй — дараагийн шалгалтаар.");
     }
@@ -1620,6 +1709,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 indexSent = _uploadedIndex.TryGetValue(folderId, out string? sent) && sent == shape;
             if (!indexSent)
             {
+                Stage($"{UploadWho(folderId)}: индексээ серверт илгээж байна ({index.Entries.Count} файл)");
                 await _server.PutIndexAsync(relay.AccessToken, folderId, json, cancellationToken);
                 lock (_gate)
                     _uploadedIndex[folderId] = shape;
@@ -1645,7 +1735,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         async token =>
                         {
                             await _questions.WaitAsync(token);
-                            return await _server.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, token);
+                            return await ViaRelayAsync(road => road.MissingAndUnnamedAsync(relay.AccessToken, folderId, batch, token), token);
                         },
                         cancellationToken,
                         limited: Limited);
@@ -1653,6 +1743,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
                     unnamed += notNamed.Count;
                 }
             }
+            Stage($"{UploadWho(folderId)}: серверт юу дутууг асууж байна ({pieces.Count} хэсэг)");
             await AskAsync();
             if (unnamed > 0)
             {
@@ -1682,6 +1773,11 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 .ThenBy(sha => pieces[sha].Chunk)
                 .ToList();
             long pending = missing.Sum(sha => pieces.TryGetValue(sha, out var at) ? PieceLength(at.Entry, at.Chunk) : 0);
+            // Said, so a pass that sends nothing is not read as hung (Erk-S Sync, 2026-11-05: the laptop's NIC sent nothing
+            // for 4 minutes under «серверт илгээж байна»).
+            Stage(missing.Count == 0
+                ? $"{UploadWho(folderId)}: серверт илгээх зүйлгүй — бүгд серверт байна"
+                : $"{UploadWho(folderId)}: серверт илгээж байна — {missing.Count} хэсэг ({pending / (1024.0 * 1024.0):0.#} МБ), {ServerRoute}");
             long done = 0;
             var rate = new SyncTransferRate();
             DateTimeOffset started = DateTimeOffset.UtcNow;
@@ -1741,8 +1837,12 @@ public sealed partial class SyncEngine : IAsyncDisposable
                         {
                             await PatientAsync(async token =>
                             {
-                                await _pieces.WaitAsync(token);
-                                await _server.PutChunkAsync(relay.AccessToken, folderId, sha, piece, token);
+                                await _puts.WaitAsync(token);
+                                await ViaRelayAsync(async road =>
+                                {
+                                    await road.PutChunkAsync(relay.AccessToken, folderId, sha, piece, token);
+                                    return true;
+                                }, token);
                                 return true;
                             }, window.Token, limited: Limited);
                             lock (_gate)
@@ -1816,6 +1916,14 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 throw;
             return "Серверт илгээж чадсангүй: " + (exception is SyncServerException ? exception.Message : NetworkFailure.Explain(exception).Message);
         }
+    }
+
+    private string UploadWho(string folderId)
+    {
+        lock (_gate)
+            return LastState.Folders.FirstOrDefault(item => item.FolderId.Equals(folderId, StringComparison.OrdinalIgnoreCase)) is { ProjectCode.Length: > 0 } folder
+                ? $"«{folder.ProjectCode}»"
+                : "синк хавтас";
     }
 
     private static long PieceLength(SyncIndexEntry entry, int chunk) =>

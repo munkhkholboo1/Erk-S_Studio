@@ -151,6 +151,23 @@ public sealed class SyncServerClient(HttpClient http)
     public Task DeviceHeartbeatAsync(string deviceToken, CancellationToken cancellationToken = default) =>
         SendAsync<object>(HttpMethod.Post, "/api/cloud-era/v1/sync/device/heartbeat", deviceToken, new { lanEndpoints = LanEndpoints }, cancellationToken);
 
+    /// <summary>
+    /// The server's HMAC of <paramref name="nonce"/> under its process secret, and where it listens on its own machine
+    /// (SRV 95f332a) - asked through erk-s.mn, authenticated, so the loopback can be proved before a token goes there.
+    /// </summary>
+    public async Task<(string Proof, string LoopbackUrl)> InstanceProofAsync(string deviceToken, string nonce, CancellationToken cancellationToken = default)
+    {
+        InstanceProofResponse? response = await SendAsync<InstanceProofResponse>(HttpMethod.Post, "/api/cloud-era/v1/sync/device/instance-proof", deviceToken, new { nonce }, cancellationToken);
+        return (response?.Proof ?? "", response?.LoopbackUrl ?? "");
+    }
+
+    /// <summary>The same HMAC from the loopback port - no token is sent with it.</summary>
+    public async Task<string> LocalProofAsync(string nonce, CancellationToken cancellationToken = default)
+    {
+        InstanceProofResponse? response = await SendAsync<InstanceProofResponse>(HttpMethod.Get, "/api/cloud-era/v1/sync/device/local-proof?nonce=" + Escape(nonce), null, null, cancellationToken);
+        return response?.Proof ?? "";
+    }
+
     // ---- relay (device token): a partner anywhere -----------------------------------------
 
     private static string Relay(string folderId) => $"/api/cloud-era/v1/sync/device/folders/{Escape(folderId)}";
@@ -304,6 +321,8 @@ public sealed class SyncServerClient(HttpClient http)
     private sealed record MissingResponse(List<string>? Missing, List<string>? Unnamed);
 
     private sealed record ChallengeResponse(string? Nonce);
+
+    private sealed record InstanceProofResponse(string? Proof, string? LoopbackUrl);
 
     private sealed record FoldersResponse(List<SyncServerFolder>? Folders);
 

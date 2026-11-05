@@ -171,6 +171,9 @@ public sealed record SyncStatusReport(
     /// <summary>tls | dns | connect | refused | proxy | timeout | other when the server was not reached.</summary>
     public string ServerReason { get; init; } = "";
 
+    /// <summary>«loopback» when this machine is the server and the pieces go over its own port, «server» otherwise.</summary>
+    public string RelayRoute { get; init; } = "";
+
     /// <summary>What the pass is doing now and since when - a pass stuck at one stage shows where.</summary>
     public string PassStage { get; init; } = "";
 
@@ -281,6 +284,7 @@ public sealed record SyncStatusReport(
     {
         DokanyVersion = SyncDokany.InstalledVersion(),
         ServerReason = state?.ServerReason ?? "",
+        RelayRoute = state?.RelayRoute ?? "",
         PassStage = state?.PassStage ?? "",
         PassStageAtUtc = state?.PassStageAtUtc,
     };

@@ -91,11 +91,75 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
 
     public SyncServerClient Client() => new(new HttpClient(this, disposeHandler: false) { BaseAddress = new Uri("https://erk-s.test") });
 
+    /// <summary>
+    /// This server runs on the test's own machine (SRV 95f332a): instance-proof names «http://127.0.0.1:5055», and
+    /// local-proof there answers the same HMAC - unless <see cref="ImpostorOnLoopback"/>, another process on the port.
+    /// </summary>
+    public bool OnThisMachine { get; init; }
+
+    public bool ImpostorOnLoopback { get; init; }
+
+    /// <summary>Piece routes over the loopback fail on the network (the server restarted, the port moved).</summary>
+    public bool LoopbackDown { get; set; }
+
+    /// <summary>Piece requests (put, get, missing) that came over the loopback.</summary>
+    public int LoopbackPieceRequests { get; private set; }
+
+    /// <summary>Piece requests that came over the public address.</summary>
+    public int PublicPieceRequests { get; private set; }
+
+    /// <summary>Runs once, at the first piece fetched - a test changes the server mid-transfer.</summary>
+    public Action? OnFirstChunkGet { get; set; }
+
+    public string IndexOf(string token)
+    {
+        lock (_gate)
+            return _indexes[token];
+    }
+
+    public void SetIndex(string token, string json)
+    {
+        lock (_gate)
+            _indexes[token] = json;
+    }
+
+    public SyncServerClient LoopbackClient(Uri address) => new(new HttpClient(this, disposeHandler: false) { BaseAddress = address });
+
+    private static readonly byte[] Secret = "fake-server-process-secret"u8.ToArray();
+
+    private static string Proof(string nonce, bool impostor) =>
+        Convert.ToBase64String(HMACSHA256.HashData(impostor ? "someone-else"u8.ToArray() : Secret, System.Text.Encoding.UTF8.GetBytes(nonce)));
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         string path = request.RequestUri!.AbsolutePath;
         string token = request.Headers.Authorization?.Parameter ?? "";
         const string relay = "/api/cloud-era/v1/sync/device/folders/f-1";
+        bool loopback = request.RequestUri.IsLoopback;
+        if (OnThisMachine && path == "/api/cloud-era/v1/sync/device/instance-proof" && !loopback && token.Length > 0)
+        {
+            using var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            return Json(new { proof = Proof(body.RootElement.GetProperty("nonce").GetString() ?? "", impostor: false), loopbackUrl = "http://127.0.0.1:5055" });
+        }
+        if (OnThisMachine && path == "/api/cloud-era/v1/sync/device/local-proof" && loopback)
+        {
+            if (token.Length > 0)
+                return new HttpResponseMessage(HttpStatusCode.BadRequest); // no token ever goes with the proof
+            string nonce = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["nonce"] ?? "";
+            return Json(new { proof = Proof(nonce, ImpostorOnLoopback) });
+        }
+        if (Relay && path.StartsWith(relay + "/chunks", StringComparison.Ordinal))
+        {
+            if (loopback && LoopbackDown)
+                throw new HttpRequestException("connection refused");
+            lock (_gate)
+            {
+                if (loopback)
+                    LoopbackPieceRequests++;
+                else
+                    PublicPieceRequests++;
+            }
+        }
         if (path == "/api/cloud-era/v1/sync/device/session")
         {
             using var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
@@ -191,6 +255,11 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                         return new HttpResponseMessage(HttpStatusCode.NoContent);
                     }
                     ChunkGets++;
+                    if (OnFirstChunkGet is { } first)
+                    {
+                        OnFirstChunkGet = null;
+                        first();
+                    }
                     if (GetDelay > TimeSpan.Zero)
                     {
                         Monitor.Exit(_gate);
