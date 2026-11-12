@@ -603,6 +603,61 @@ internal sealed class StudioAccountService :
             relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
     }
 
+    /// <summary>The «Найзаас сонгох» invite: the friend's key goes, never an address (SRV ea75fe6).</summary>
+    public async Task<StudioProjectMembershipInvitation> InviteProjectFriendAsync(
+        string projectId,
+        string friendKey,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioProjectMembershipInvitationCreateRequest, StudioProjectMembershipInvitation>(
+            "/api/cloud-era/v1/projects/" + Uri.EscapeDataString(projectId) + "/membership-invitations",
+            new StudioProjectMembershipInvitationCreateRequest
+            {
+                FriendKey = friendKey,
+                Roles = roles.Where(role => !string.IsNullOrWhiteSpace(role)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            },
+            cancellationToken,
+            relationshipBoundaryAcknowledged: true).ConfigureAwait(true);
+    }
+
+    // ---- friends (SRV ea75fe6) ----------------------------------------------------------------
+
+    /// <summary>The person's friends, the requests waiting on them and the ones they sent.</summary>
+    public async Task<StudioFriendsResponse> ListFriendsAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await GetAuthorizedAsync<StudioFriendsResponse>("/api/cloud-era/v1/friends", cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>Asks a registered account (its e-mail, typed by the person) to be a friend.</summary>
+    public async Task<StudioFriendActionResult> RequestFriendAsync(string accountEmail, CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioFriendRequestCreate, StudioFriendActionResult>(
+            "/api/cloud-era/v1/friends/requests",
+            new StudioFriendRequestCreate { Account = NormalizeEmail(accountEmail) },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<StudioFriendActionResult> AnswerFriendRequestAsync(string friendKey, bool accept, CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        return await PostAuthorizedAsync<StudioFriendActionResult>(
+            "/api/cloud-era/v1/friends/requests/" + Uri.EscapeDataString(friendKey) + (accept ? "/accept" : "/decline"),
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task RemoveFriendAsync(string friendKey, CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        await SendAuthorizedNoContentAsync(
+            HttpMethod.Delete,
+            "/api/cloud-era/v1/friends/" + Uri.EscapeDataString(friendKey),
+            cancellationToken).ConfigureAwait(true);
+    }
+
     public async Task<StudioCloudProjectDetail> AcceptMembershipInvitationAsync(
         string invitationId,
         CancellationToken cancellationToken = default)

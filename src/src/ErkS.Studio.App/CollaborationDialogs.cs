@@ -4,7 +4,12 @@ using System.Windows.Controls;
 
 namespace ErkS.Studio;
 
-internal sealed record ProjectInvitationDraft(string Email, IReadOnlyList<string> Roles);
+/// <param name="FriendKey">A friend picked from «Найзаас сонгох» - then <paramref name="Email"/> is empty and the friend's name is <paramref name="FriendName"/>.</param>
+internal sealed record ProjectInvitationDraft(string Email, IReadOnlyList<string> Roles, string FriendKey = "", string FriendName = "")
+{
+    /// <summary>Who the invitation goes to, as the person sees it: the friend's name, else the address they typed.</summary>
+    public string Counterparty => FriendKey.Length > 0 ? FriendName : Email;
+}
 internal sealed record ProjectMemberRoleDraft(IReadOnlyList<string> Roles);
 
 internal sealed class ProjectMemberInvitationDialog : Window
@@ -19,7 +24,10 @@ internal sealed class ProjectMemberInvitationDialog : Window
     };
     private readonly StackPanel rolesPanel = new();
     private readonly Button inviteButton;
+    private readonly ComboBox friendsBox = new() { DisplayMemberPath = nameof(StudioFriend.Name), IsEnabled = false };
     private string verifiedEmail = "";
+    private StudioFriend? pickedFriend;
+    private bool pickingFriend;
 
     public ProjectInvitationDraft? Draft { get; private set; }
 
@@ -44,10 +52,59 @@ internal sealed class ProjectMemberInvitationDialog : Window
         emailBox.TextChanged += (_, _) =>
         {
             verifiedEmail = "";
-            inviteButton.IsEnabled = false;
-            accountResult.Text = "И-мэйлийг серверийн бүртгэлээс шалгана.";
+            if (!pickingFriend)
+            {
+                pickedFriend = null;
+                friendsBox.SelectedItem = null;
+            }
+            inviteButton.IsEnabled = pickedFriend is not null;
+            if (pickedFriend is null)
+                accountResult.Text = "И-мэйлийг серверийн бүртгэлээс шалгана.";
         };
+        friendsBox.SelectionChanged += (_, _) => PickFriend(friendsBox.SelectedItem as StudioFriend);
         Content = BuildContent();
+        Loaded += async (_, _) => await LoadFriendsAsync();
+    }
+
+    /// <summary>
+    /// «Найзаас сонгох» (owner, 2026-11-12: «найзуудаа хялбархан урьдаг болгоорой»): the person's friends, by name only -
+    /// their addresses never reach Studio (SRV ea75fe6). An older server without the route leaves the list off.
+    /// </summary>
+    private async Task LoadFriendsAsync()
+    {
+        try
+        {
+            StudioFriendsResponse friends = await account.ListFriendsAsync();
+            friendsBox.ItemsSource = friends.Friends.OrderBy(friend => friend.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            friendsBox.IsEnabled = friends.Friends.Count > 0;
+            friendsBox.ToolTip = friends.Friends.Count > 0
+                ? "Найзаа сонгоход и-мэйл бичих шаардлагагүй."
+                : "Найз алга — «Мэдэгдэл» › «Найзууд»-аас найз нэмнэ.";
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            friendsBox.IsEnabled = false;
+            friendsBox.ToolTip = "Найзын жагсаалтыг авч чадсангүй: " + exception.Message;
+        }
+    }
+
+    private void PickFriend(StudioFriend? friend)
+    {
+        pickedFriend = friend;
+        if (friend is null)
+            return;
+        pickingFriend = true;
+        try
+        {
+            emailBox.Text = "";
+        }
+        finally
+        {
+            pickingFriend = false;
+        }
+        verifiedEmail = "";
+        inviteButton.IsEnabled = true;
+        accountResult.Text = $"Найз: {friend.Name}";
     }
 
     private UIElement BuildContent()
@@ -77,7 +134,8 @@ internal sealed class ProjectMemberInvitationDialog : Window
         DockPanel.SetDock(search, Dock.Right);
         lookupRow.Children.Add(search);
         lookupRow.Children.Add(emailBox);
-        form.Children.Add(StudioWidgets.CreateFormRow("Бүртгэлийн и-мэйл", lookupRow));
+        form.Children.Add(StudioWidgets.CreateFormRow("Найзаас сонгох", friendsBox));
+        form.Children.Add(StudioWidgets.CreateFormRow("Эсвэл бүртгэлийн и-мэйл", lookupRow));
         var resultBorder = new Border
         {
             Background = StudioTheme.PanelAltBrush,
@@ -156,9 +214,9 @@ internal sealed class ProjectMemberInvitationDialog : Window
             .Select(item => item.Tag as string ?? "")
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToList();
-        if (string.IsNullOrWhiteSpace(verifiedEmail))
+        if (pickedFriend is null && string.IsNullOrWhiteSpace(verifiedEmail))
         {
-            StudioMessageDialog.Show(this, "Эхлээд бүртгэлтэй хэрэглэгчийг хайж баталгаажуулна уу.");
+            StudioMessageDialog.Show(this, "Найзаа сонгох эсвэл бүртгэлтэй хэрэглэгчийг хайж баталгаажуулна уу.");
             return;
         }
         if (selectedRoles.Count == 0)
@@ -166,7 +224,9 @@ internal sealed class ProjectMemberInvitationDialog : Window
             StudioMessageDialog.Show(this, "Дор хаяж нэг role сонгоно уу.");
             return;
         }
-        Draft = new ProjectInvitationDraft(verifiedEmail, selectedRoles);
+        Draft = pickedFriend is { } friend
+            ? new ProjectInvitationDraft("", selectedRoles, friend.FriendKey, friend.Name)
+            : new ProjectInvitationDraft(verifiedEmail, selectedRoles);
         DialogResult = true;
     }
 
@@ -285,6 +345,7 @@ internal sealed class StudioNotificationsDialog : Window
     private StudioProjectMembershipInvitationListResponse invitationData;
     private StudioProjectMembershipExitRequestListResponse exitRequestData;
     private StudioCloudBotInvitationListResponse botInvitationData;
+    private StudioFriendsResponse friendData;
 
     public bool ProjectsChanged { get; private set; }
 
@@ -292,12 +353,14 @@ internal sealed class StudioNotificationsDialog : Window
         StudioAccountService account,
         StudioProjectMembershipInvitationListResponse invitations,
         StudioProjectMembershipExitRequestListResponse exitRequests,
-        StudioCloudBotInvitationListResponse botInvitations)
+        StudioCloudBotInvitationListResponse botInvitations,
+        StudioFriendsResponse? friends = null)
     {
         this.account = account;
         invitationData = invitations;
         exitRequestData = exitRequests;
         botInvitationData = botInvitations;
+        friendData = friends ?? new StudioFriendsResponse();
         Title = "Мэдэгдэл";
         Width = 820;
         Height = 540;
@@ -320,6 +383,10 @@ internal sealed class StudioNotificationsDialog : Window
         declineButton.Click += async (_, _) => await DeclineSelectedAsync();
         var close = StudioWidgets.CreateButton("Хаах");
         close.IsCancel = true;
+        var friendsButton = StudioWidgets.CreateButton("Найзууд");
+        friendsButton.ToolTip = "Найзаа нэмэх, хүсэлтэд хариулах, хасах";
+        friendsButton.Click += (_, _) => ShowFriends();
+        actions.Children.Add(friendsButton);
         actions.Children.Add(acceptButton);
         actions.Children.Add(declineButton);
         actions.Children.Add(close);
@@ -396,6 +463,16 @@ internal sealed class StudioNotificationsDialog : Window
                 null,
                 null,
                 item)));
+        // A friend request waiting on this person (SRV ea75fe6): by name only, never an address.
+        rows.AddRange(friendData.Incoming.Select(friend => new NotificationRow(
+            "Найзын хүсэлт",
+            friend.Name,
+            "Найз болох хүсэлт илгээсэн",
+            "",
+            null,
+            null,
+            null,
+            friend)));
         notifications.ItemsSource = rows;
         status.Text = rows.Count == 0
             ? "Шинэ мэдэгдэл алга."
@@ -408,7 +485,8 @@ internal sealed class StudioNotificationsDialog : Window
         NotificationRow? selected = notifications.SelectedItem as NotificationRow;
         bool decisionSelected = selected?.Invitation is not null ||
             selected?.ExitRequest is not null ||
-            selected?.BotInvitation is not null;
+            selected?.BotInvitation is not null ||
+            selected?.FriendRequest is not null;
         acceptButton.IsEnabled = decisionSelected;
         declineButton.IsEnabled = decisionSelected;
     }
@@ -421,6 +499,11 @@ internal sealed class StudioNotificationsDialog : Window
         if (selected?.BotInvitation is { } botInvitation)
         {
             await AcceptBotInvitationAsync(botInvitation);
+            return;
+        }
+        if (selected?.FriendRequest is { } friendRequest)
+        {
+            await AnswerFriendRequestAsync(friendRequest, accept: true);
             return;
         }
         if (invitation is null && exitRequest is null)
@@ -474,6 +557,11 @@ internal sealed class StudioNotificationsDialog : Window
         if (selected?.BotInvitation is { } botInvitation)
         {
             await DeclineBotInvitationAsync(botInvitation);
+            return;
+        }
+        if (selected?.FriendRequest is { } friendRequest)
+        {
+            await AnswerFriendRequestAsync(friendRequest, accept: false);
             return;
         }
         if (invitation is null && exitRequest is null)
@@ -592,6 +680,36 @@ internal sealed class StudioNotificationsDialog : Window
         }
     }
 
+    private async Task AnswerFriendRequestAsync(StudioFriend friend, bool accept)
+    {
+        SetBusy(true, accept ? "Найзын хүсэлтийг зөвшөөрч байна..." : "Найзын хүсэлтээс татгалзаж байна...");
+        try
+        {
+            await account.AnswerFriendRequestAsync(friend.FriendKey, accept);
+            friendData.Incoming.RemoveAll(item => item.FriendKey.Equals(friend.FriendKey, StringComparison.Ordinal));
+            if (accept)
+                friendData.Friends.Add(friend);
+            RefreshRows();
+            status.Text = accept ? $"«{friend.Name}» таны найз боллоо." : $"«{friend.Name}»-ийн хүсэлтээс татгалзлаа.";
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = "Шийдвэрийг хадгалж чадсангүй: " + exception.Message;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private void ShowFriends()
+    {
+        var dialog = new StudioFriendsDialog(account, friendData) { Owner = this };
+        dialog.ShowDialog();
+        friendData = dialog.Friends;
+        RefreshRows();
+    }
+
     private sealed record NotificationRow(
         string Type,
         string Title,
@@ -599,7 +717,195 @@ internal sealed class StudioNotificationsDialog : Window
         string Expires,
         StudioProjectMembershipInvitation? Invitation,
         StudioProjectMembershipExitRequest? ExitRequest,
-        StudioCloudBotInvitation? BotInvitation = null);
+        StudioCloudBotInvitation? BotInvitation = null,
+        StudioFriend? FriendRequest = null);
+}
+
+/// <summary>
+/// «Найзууд» (owner, 2026-11-12: «бидний бүртгэлд найзууд болдог функц нэмээрэй»; SRV ea75fe6): the person's friends
+/// (remove), requests waiting on them (accept, decline), the ones they sent, and a new request by a registered
+/// e-mail. Friends appear by name only - an address is typed to ask, never shown back.
+/// </summary>
+internal sealed class StudioFriendsDialog : Window
+{
+    private readonly StudioAccountService account;
+    private readonly ListView list = new();
+    private readonly TextBox emailBox = new();
+    private readonly TextBlock status = new() { Foreground = StudioTheme.MutedTextBrush, TextWrapping = TextWrapping.Wrap };
+    private readonly Button acceptButton = StudioWidgets.CreatePrimaryButton("Зөвшөөрөх");
+    private readonly Button declineButton = StudioWidgets.CreateButton("Татгалзах");
+    private readonly Button removeButton = StudioWidgets.CreateButton("Найзаас хасах");
+
+    public StudioFriendsResponse Friends { get; private set; }
+
+    public StudioFriendsDialog(StudioAccountService account, StudioFriendsResponse friends)
+    {
+        this.account = account;
+        Friends = friends;
+        Title = "Найзууд";
+        Width = 620;
+        Height = 520;
+        MinWidth = 520;
+        MinHeight = 420;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        StudioTheme.Apply(this);
+        Content = BuildContent();
+        Refresh();
+        Loaded += async (_, _) => await ReloadAsync();
+    }
+
+    private UIElement BuildContent()
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var title = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        title.Children.Add(StudioWidgets.CreateTitle("Найзууд"));
+        title.Children.Add(StudioWidgets.CreateHint(
+            "Найзаа төслийн багт и-мэйл бичилгүй шууд урина. Найзын и-мэйл хаяг хэзээ ч харагдахгүй."));
+        var addRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var send = StudioWidgets.CreatePrimaryButton("Хүсэлт илгээх");
+        send.Margin = new Thickness(8, 0, 0, 0);
+        send.Click += async (_, _) => await RequestAsync(send);
+        DockPanel.SetDock(send, Dock.Right);
+        addRow.Children.Add(send);
+        addRow.Children.Add(emailBox);
+        title.Children.Add(StudioWidgets.CreateFormRow("Найз нэмэх (бүртгэлийн и-мэйл)", addRow));
+        DockPanel.SetDock(title, Dock.Top);
+        root.Children.Add(title);
+
+        var footer = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        acceptButton.Click += async (_, _) => await AnswerAsync(accept: true);
+        declineButton.Click += async (_, _) => await AnswerAsync(accept: false);
+        removeButton.Click += async (_, _) => await RemoveAsync();
+        var close = StudioWidgets.CreateButton("Хаах");
+        close.IsCancel = true;
+        actions.Children.Add(acceptButton);
+        actions.Children.Add(declineButton);
+        actions.Children.Add(removeButton);
+        actions.Children.Add(close);
+        DockPanel.SetDock(actions, Dock.Right);
+        footer.Children.Add(actions);
+        status.VerticalAlignment = VerticalAlignment.Center;
+        footer.Children.Add(status);
+        DockPanel.SetDock(footer, Dock.Bottom);
+        root.Children.Add(footer);
+
+        var view = new GridView();
+        view.Columns.Add(new GridViewColumn { Header = "Нэр", Width = 300, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(FriendRow.Name)) });
+        view.Columns.Add(new GridViewColumn { Header = "Төлөв", Width = 220, DisplayMemberBinding = new System.Windows.Data.Binding(nameof(FriendRow.State)) });
+        list.View = view;
+        list.SelectionChanged += (_, _) => RefreshActions();
+        root.Children.Add(list);
+        return root;
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            Friends = await account.ListFriendsAsync();
+            Refresh();
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = "Найзын жагсаалтыг шинэчилж чадсангүй: " + exception.Message;
+        }
+    }
+
+    private void Refresh()
+    {
+        list.ItemsSource = FriendRows(Friends);
+        status.Text = $"{Friends.Friends.Count} найз · {Friends.Incoming.Count} хүсэлт хүлээж байна";
+        RefreshActions();
+    }
+
+    /// <summary>Requests waiting on the person first, then friends by name, then the requests they sent.</summary>
+    internal static List<FriendRow> FriendRows(StudioFriendsResponse friends)
+    {
+        var rows = new List<FriendRow>();
+        rows.AddRange(friends.Incoming.Select(friend => new FriendRow(friend.Name, "Танд хүсэлт илгээсэн", friend, FriendRowKind.Incoming)));
+        rows.AddRange(friends.Friends.OrderBy(friend => friend.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(friend => new FriendRow(friend.Name, "Найз", friend, FriendRowKind.Friend)));
+        rows.AddRange(friends.Outgoing.Select(friend => new FriendRow(friend.Name, "Хүсэлт илгээсэн — хариу хүлээж байна", friend, FriendRowKind.Outgoing)));
+        return rows;
+    }
+
+    private void RefreshActions()
+    {
+        FriendRow? row = list.SelectedItem as FriendRow;
+        acceptButton.IsEnabled = row?.Kind == FriendRowKind.Incoming;
+        declineButton.IsEnabled = row?.Kind == FriendRowKind.Incoming;
+        removeButton.IsEnabled = row?.Kind == FriendRowKind.Friend;
+    }
+
+    private async Task RequestAsync(Button send)
+    {
+        string email = emailBox.Text.Trim();
+        if (email.Length == 0 || !email.Contains('@'))
+        {
+            status.Text = "Найзынхаа бүртгэлийн и-мэйлийг бичнэ үү.";
+            return;
+        }
+        send.IsEnabled = false;
+        try
+        {
+            StudioFriendActionResult result = await account.RequestFriendAsync(email);
+            emailBox.Text = "";
+            status.Text = string.IsNullOrWhiteSpace(result.Message) ? "Найзын хүсэлт илгээлээ." : result.Message;
+            await ReloadAsync();
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = "Хүсэлт илгээж чадсангүй: " + exception.Message;
+        }
+        finally
+        {
+            send.IsEnabled = true;
+        }
+    }
+
+    private async Task AnswerAsync(bool accept)
+    {
+        if (list.SelectedItem is not FriendRow { Kind: FriendRowKind.Incoming } row)
+            return;
+        try
+        {
+            await account.AnswerFriendRequestAsync(row.Friend.FriendKey, accept);
+            status.Text = accept ? $"«{row.Name}» таны найз боллоо." : $"«{row.Name}»-ийн хүсэлтээс татгалзлаа.";
+            await ReloadAsync();
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = "Шийдвэрийг хадгалж чадсангүй: " + exception.Message;
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        if (list.SelectedItem is not FriendRow { Kind: FriendRowKind.Friend } row)
+            return;
+        if (StudioMessageDialog.Show(this, $"«{row.Name}»-ийг найзаас хасах уу?", "Найзууд", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            await account.RemoveFriendAsync(row.Friend.FriendKey);
+            status.Text = $"«{row.Name}»-ийг найзаас хаслаа.";
+            await ReloadAsync();
+        }
+        catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
+        {
+            status.Text = "Найзаас хасаж чадсангүй: " + exception.Message;
+        }
+    }
+
+    internal enum FriendRowKind
+    {
+        Incoming,
+        Friend,
+        Outgoing,
+    }
+
+    internal sealed record FriendRow(string Name, string State, StudioFriend Friend, FriendRowKind Kind);
 }
 
 internal sealed class ProjectDeletionDialog : Window

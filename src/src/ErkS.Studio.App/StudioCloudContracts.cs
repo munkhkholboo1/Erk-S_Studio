@@ -753,8 +753,41 @@ internal sealed class StudioCloudAccountLookupResponse
 internal sealed class StudioProjectMembershipInvitationCreateRequest
 {
     public string TargetEmail { get; set; } = "";
+
+    /// <summary>A friend picked from GET /friends, in place of TargetEmail (SRV ea75fe6) - no address is sent or shown.</summary>
+    public string FriendKey { get; set; } = "";
     public string[] Roles { get; set; } = [];
     public int ExpiresInDays { get; set; } = 14;
+}
+
+/// <summary>
+/// One of the person's friends, or a request to or from one (SRV ea75fe6, owner 2026-11-12: «бидний бүртгэлд найзууд
+/// болдог функц нэмээрэй … урьдаг хэсгүүд дээр найзуудаа хялбархан урьдаг болгоорой»). The key is a per-holder hash,
+/// meaningful only among this person's own friends; no e-mail address ever comes with it.
+/// </summary>
+internal sealed class StudioFriend
+{
+    public string FriendKey { get; set; } = "";
+    public string Name { get; set; } = "";
+}
+
+internal sealed class StudioFriendsResponse
+{
+    public List<StudioFriend> Friends { get; set; } = [];
+    public List<StudioFriend> Incoming { get; set; } = [];
+    public List<StudioFriend> Outgoing { get; set; } = [];
+}
+
+internal sealed class StudioFriendRequestCreate
+{
+    public string Account { get; set; } = "";
+}
+
+internal sealed class StudioFriendActionResult
+{
+    public bool Ok { get; set; }
+    public string Message { get; set; } = "";
+    public string? FriendKey { get; set; }
 }
 
 internal sealed class StudioProjectMembershipInvitationListResponse

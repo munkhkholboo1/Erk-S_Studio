@@ -49,6 +49,7 @@ internal sealed partial class ShellView
         "Сонгосон төслийг устгах эсвэл гарах хүсэлт илгээх");
     private StudioProjectMembershipInvitationListResponse notificationInvitations = new();
     private StudioCloudBotInvitationListResponse notificationBotInvitations = new();
+    private StudioFriendsResponse notificationFriends = new();
     private StudioProjectMembershipExitRequestListResponse notificationExitRequests = new();
     private long notificationAccountEpoch = -1;
     private bool refreshingNotifications;
@@ -416,9 +417,24 @@ internal sealed partial class ShellView
                 await account.ListMyBotInvitationsAsync();
             if (!IsOperationContextCurrent(operationContext))
                 return;
+            // Friend requests waiting on this person (SRV ea75fe6; the device event «friend-request» brings this
+            // refresh). An older server without the route (404), or a seated bot token (403 friends_seat_forbidden), has none -
+            // not a failure of the rest.
+            StudioFriendsResponse friends;
+            try
+            {
+                friends = await account.ListFriendsAsync();
+            }
+            catch (StudioAccountException exception) when (exception.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+            {
+                friends = new StudioFriendsResponse();
+            }
+            if (!IsOperationContextCurrent(operationContext))
+                return;
             notificationInvitations = invitations;
             notificationExitRequests = exitRequests;
             notificationBotInvitations = botInvitations;
+            notificationFriends = friends;
             notificationAccountEpoch = account.SessionEpoch;
             UpdateNotificationsButton();
         }
@@ -449,6 +465,7 @@ internal sealed partial class ShellView
         notificationExitRequests =
             new StudioProjectMembershipExitRequestListResponse();
         notificationBotInvitations = new StudioCloudBotInvitationListResponse();
+        notificationFriends = new StudioFriendsResponse();
         UpdateNotificationsButton();
     }
 
@@ -462,7 +479,8 @@ internal sealed partial class ShellView
                 item.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)) +
             notificationBotInvitations.Items.Count(item =>
                 item.State.Equals("Sent", StringComparison.OrdinalIgnoreCase) &&
-                item.ExpiresAtUtc > DateTimeOffset.UtcNow);
+                item.ExpiresAtUtc > DateTimeOffset.UtcNow) +
+            notificationFriends.Incoming.Count;
         notificationsButton.IsEnabled = account.IsSignedIn;
         notificationsRailButton.IsEnabled = account.IsSignedIn;
         notificationsRailBadgeText.Text = count > 99
@@ -507,7 +525,8 @@ internal sealed partial class ShellView
             account,
             notificationInvitations,
             notificationExitRequests,
-            notificationBotInvitations)
+            notificationBotInvitations,
+            notificationFriends)
         {
             Owner = Window.GetWindow(Root),
         };
@@ -852,11 +871,14 @@ internal sealed partial class ShellView
             if (!StudioRelationshipBoundary.Confirm(
                     Window.GetWindow(Root),
                     StudioRelationshipAction.InviteProjectMember,
-                    dialog.Draft.Email))
+                    dialog.Draft.Counterparty))
             {
                 return;
             }
-            await SendTeamInvitationAsync(dialog.Draft.Email, dialog.Draft.Roles);
+            if (dialog.Draft.FriendKey.Length > 0)
+                await SendTeamInvitationToFriendAsync(dialog.Draft.FriendKey, dialog.Draft.FriendName, dialog.Draft.Roles);
+            else
+                await SendTeamInvitationAsync(dialog.Draft.Email, dialog.Draft.Roles);
         }
         catch (Exception exception) when (exception is StudioAccountException or HttpRequestException or TaskCanceledException)
         {
@@ -875,6 +897,17 @@ internal sealed partial class ShellView
         SetStatus(
             $"{invitation.TargetEmail} бүртгэлд урилга илгээлээ. Accept хийх хүртэл төсөлд нэвтрэхгүй.");
         return invitation;
+    }
+
+    /// <summary>
+    /// «Найзаас сонгох»: the invitation goes by the friend's key; what is said here is the friend's name - the address the
+    /// server answers with is never shown (SRV ea75fe6, Мастер 2026-11-12: «имэйл хаяг хэзээ ч ил гарахгүй»).
+    /// </summary>
+    private async Task SendTeamInvitationToFriendAsync(string friendKey, string friendName, IReadOnlyList<string> roles)
+    {
+        await account.InviteProjectFriendAsync(state.Project.Cloud.ServerProjectId, friendKey, roles);
+        await RefreshProjectTeamAsync();
+        SetStatus($"Найз «{friendName}»-д урилга илгээлээ. Accept хийх хүртэл төсөлд нэвтрэхгүй.");
     }
 
     private async Task EditSelectedTeamMemberRolesAsync()
