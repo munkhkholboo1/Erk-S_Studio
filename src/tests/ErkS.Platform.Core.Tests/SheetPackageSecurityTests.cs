@@ -451,6 +451,30 @@ public sealed class SheetPackageSecurityTests : IDisposable
         Assert.Equal(2, File.ReadAllLines(auditPath).Length);
     }
 
+    [Theory]
+    [InlineData("0123456789abcdef0123456789abcdef")]
+    [InlineData(null)]
+    public void ARejectionByANOTHERBuildOfTheSameReaderIsVerifiedAgain(string? build)
+    {
+        // 🔴 ART-07/2026, 2026-11-16: a v3 reader refused CGA's sport-court label and legend area; the next
+        // build read both, and - the versions unchanged - skipped the package as already refused, so Бэлх's
+        // 51 sheets never arrived. null: a record written before the build was kept.
+        (PackageFiles package, string auditPath) = RejectedOnce("other-build" + build);
+        var line = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllLines(auditPath)[0])!.AsObject();
+        if (build is null)
+            line.Remove("readerBuild");
+        else
+            line["readerBuild"] = build;
+        File.WriteAllText(auditPath, line.ToJsonString() + Environment.NewLine);
+
+        using var intake = new SheetIntakeService(new SheetLibrary());
+        intake.WatchFolder(Path.GetDirectoryName(package.ManifestPath)!, scanExisting: false);
+        SheetIntakeScanResult scan = intake.Rescan();
+
+        Assert.Equal(0, scan.SkippedKnownRejectedManifestCount);
+        Assert.Equal(2, File.ReadAllLines(auditPath).Length);
+    }
+
     [Fact]
     public void AnInboxRegisteredForANOTHERSourceLooksAgain()
     {

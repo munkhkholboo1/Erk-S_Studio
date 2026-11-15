@@ -27,6 +27,13 @@ public sealed class RejectedSheetPackage
     /// </summary>
     public int? ReaderSheetInfoSchemaVersion { get; init; }
 
+    /// <summary>
+    /// The exact contracts build that refused it. A reader can widen its rules without a version number
+    /// moving: ART-07/2026, 2026-11-16 - a v3 reader refused CGA's sport-court label and legend area, the next
+    /// build accepted both, and it skipped the package as already refused, so the 51 sheets never arrived.
+    /// </summary>
+    public string? ReaderBuild { get; init; }
+
     /// <summary>The manifest's last write when refused: a re-export must be looked at again.</summary>
     public long? ManifestLastWriteUtcTicks { get; init; }
 }
@@ -743,6 +750,10 @@ public sealed class SheetIntakeService : IDisposable
     /// 94 lines for six folders. The audit is the memory now. Nothing is moved
     /// or deleted: a relink, a re-export or a newer reader all look again.
     /// </remarks>
+    /// <summary>The contracts build reading packages here: every new build looks at its refusals once more.</summary>
+    internal static string ReaderBuild { get; } =
+        typeof(SheetPackageManifest).Assembly.ManifestModule.ModuleVersionId.ToString("N");
+
     private bool IsKnownRejected(string manifestPath, WatcherRegistration registration)
     {
         try
@@ -754,6 +765,7 @@ public sealed class SheetIntakeService : IDisposable
                 record.ManifestLastWriteUtcTicks == lastWrite &&
                 record.ReaderSchemaVersion == SheetPackageManifest.CurrentSchemaVersion &&
                 record.ReaderSheetInfoSchemaVersion == SheetInfoDocument.CurrentSchemaVersion &&
+                string.Equals(record.ReaderBuild ?? "", ReaderBuild, StringComparison.Ordinal) &&
                 string.Equals(record.SourceId ?? "", registration.SourceId ?? "", StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception exception) when (
@@ -807,6 +819,7 @@ public sealed class SheetIntakeService : IDisposable
             SourceId = registration.SourceId,
             ReaderSchemaVersion = SheetPackageManifest.CurrentSchemaVersion,
             ReaderSheetInfoSchemaVersion = SheetInfoDocument.CurrentSchemaVersion,
+            ReaderBuild = ReaderBuild,
             ManifestLastWriteUtcTicks = File.Exists(fullManifestPath)
                 ? File.GetLastWriteTimeUtc(fullManifestPath).Ticks
                 : null,

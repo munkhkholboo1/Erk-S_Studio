@@ -154,7 +154,8 @@ public sealed class ASHEETInfoTravelsWithThePackageOrIsREFUSEDTests : IDisposabl
             building["totalAreaM2"] = 8640.0;
             building["capacity"] = new JsonObject { ["value"] = 96, ["unit"] = "айл" };
             building["handles"] = new JsonArray("5E1A", "5E1B");
-            document["sportCourts"] = new JsonArray(new JsonObject { ["name"] = "Сагсан бөмбөг", ["areaM2"] = 420.0, ["handle"] = "6A01" });
+            document["sportCourts"] = new JsonArray(new JsonObject { ["name"] = "Erk-S_Sports_Basketball", ["label"] = "Сагсан бөмбөгийн талбай", ["areaM2"] = 420.0, ["handle"] = "6A01" });
+            document["legends"]!["master-plan"]![0]!["areaM2"] = 31250.0;
             document["parks"] = new JsonArray(new JsonObject { ["name"] = "Цэцэрлэгт хүрээлэн", ["label"] = "НЭН-1", ["areaM2"] = 3200.0, ["zoneId"] = "z7" });
         });
 
@@ -165,7 +166,8 @@ public sealed class ASHEETInfoTravelsWithThePackageOrIsREFUSEDTests : IDisposabl
         Assert.Equal(540.0, first.FootprintM2);
         Assert.Equal("айл", first.Capacity!.Unit);
         Assert.Equal(["5E1A", "5E1B"], first.Handles!);
-        Assert.Equal(420.0, Assert.Single(result.Document.SportCourts).AreaM2);
+        Assert.Equal("Сагсан бөмбөгийн талбай", Assert.Single(result.Document.SportCourts).Label);
+        Assert.Equal(31250.0, result.Document.Legends["master-plan"][0].AreaM2);
         Assert.Equal("z7", Assert.Single(result.Document.Parks).ZoneId);
     }
 

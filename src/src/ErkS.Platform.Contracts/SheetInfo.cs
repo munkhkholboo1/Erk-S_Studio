@@ -145,7 +145,11 @@ public sealed class SheetInfoCapacity
 
 public sealed class SheetInfoSportCourt
 {
+    /// <summary>The court's block name in the drawing.</summary>
     public string Name { get; set; } = "";
+
+    /// <summary>What the schedule prints («Сагсан бөмбөгийн талбай»).</summary>
+    public string? Label { get; set; }
 
     public double? AreaM2 { get; set; }
 
@@ -191,6 +195,11 @@ public sealed class SheetInfoLegendRow
 
     /// <summary>v3, <c>zoning</c> only: the labels of the zones the sub-zone row covers.</summary>
     public List<string>? Zones { get; set; }
+
+    /// <summary>
+    /// v3: the area a counted row covers, m² (68 parcels, and their area) - beside a quantity in pieces.
+    /// </summary>
+    public double? AreaM2 { get; set; }
 }
 
 public sealed class SheetInfoSample
@@ -408,6 +417,9 @@ public static partial class SheetInfoReader
                 string where = $"legend '{slot}' row '{row.Key}'";
                 if (row.Zones is not null && slot != "zoning")
                     issues.Add($"Sheet info: {where} carries zones, which only a 'zoning' legend row has.");
+                if ((row.Zones is not null || row.AreaM2 is not null) && document.SchemaVersion < 3)
+                    issues.Add($"Sheet info: {where} uses zones/areaM2, which need schema version 3.");
+                CheckArea(row.AreaM2, $"{where} areaM2", issues);
                 CheckStage(row.Stage, where, issues, required: false);
                 SheetInfoSample sample = row.Sample ?? new SheetInfoSample();
                 if (!SheetInfoVocabulary.SampleKinds.Contains(sample.Kind))
