@@ -47,6 +47,17 @@ public sealed class AMULTISITEPlanGroupsItsSheetsByLocationTests
     }
 
     [Fact]
+    public void ALOCATIONSubCoverOpensThePlanNotABuilding()
+    {
+        Assert.Equal(
+            "/ ХЭСЭГЧИЛСЭН ЕРӨНХИЙ ТӨЛӨВЛӨГӨӨ /",
+            ErkS.Platform.Pdf.PdfSharpAlbumWriter.SubCoverSubtitle(UrbanPlanningAlbumTemplate.CreateDefinition("partial-plan")));
+        Assert.Equal(
+            "/ БАРИЛГЫН ЗУРАГ /",
+            ErkS.Platform.Pdf.PdfSharpAlbumWriter.SubCoverSubtitle(BuildingArchitectureConceptAlbumTemplate.CreateDefinition("")));
+    }
+
+    [Fact]
     public void THEPackagesCategoryIsRead()
     {
         var entry = System.Text.Json.JsonSerializer.Deserialize<SheetPackageEntry>(

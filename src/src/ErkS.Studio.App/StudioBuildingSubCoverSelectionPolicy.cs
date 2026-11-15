@@ -35,6 +35,16 @@ internal static class StudioBuildingSubCoverSelectionPolicy
                 .Where(component => component is not null)
                 .Select(component => component.Code)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // A location's sub-cover (a multi-site urban-planning album, ART-07/2026) is drawn with that
+            // location's sheets: it goes whenever they go, or the album arrives without it.
+            if (selected.Any(component => component is not null && StudioAlbumComponentIdentity.IsSourceComponent(component)))
+            {
+                foreach (StudioCloudAlbumSection cover in rendered.Where(component =>
+                             ProjectCloudSyncMetadata.IsCategorySubCoverComponentCode(component.Code)))
+                {
+                    chosen.Add(cover.Code);
+                }
+            }
             return new StudioBuildingSubCoverSelection(
                 rendered.Where(component => chosen.Contains(component.Code)).ToList(),
                 []);

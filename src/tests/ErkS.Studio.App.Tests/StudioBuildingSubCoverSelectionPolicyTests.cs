@@ -175,6 +175,33 @@ public sealed class StudioBuildingSubCoverSelectionPolicyTests
     }
 
     [Fact]
+    public void ALOCATIONSubCoverTravelsWithItsSheetsInAnUrbanPlanningAlbum()
+    {
+        // ART-07/2026, 2026-11-15: the album built 45 pages - cover, list, site context and Бэлх's 41 sheets -
+        // but no Бэлх sub-cover: the selection kept only what was pending, and a location's cover never is.
+        StudioCloudAlbumSection source = Component(
+            StudioAlbumComponentIdentity.SourceCode("architect@example.com", "belkh-autocad"),
+            "architect@example.com",
+            "belkh-autocad",
+            "Source");
+        StudioCloudAlbumSection cover = Component(
+            ProjectCloudSyncMetadata.CategorySubCoverComponentCodePrefix + "Бэлх",
+            "architect@example.com",
+            "",
+            "Generated");
+
+        StudioBuildingSubCoverSelection selection =
+            StudioBuildingSubCoverSelectionPolicy.IncludeRequiredCovers(
+                Project(),
+                ErkS.Platform.Core.ProjectTypes.UrbanPlanning.UrbanPlanningAlbumTemplate.CreateDefinition("partial-plan"),
+                [cover, source],
+                [source]);
+
+        Assert.Equal([cover.Code, source.Code], selection.Components.Select(component => component.Code));
+        Assert.Empty(selection.MissingRequiredCoverCodes);
+    }
+
+    [Fact]
     public void APendingSubCoverIsOwedOnlyByAnAlbumThatDrawsThem()
     {
         // Read from source, as the WPF view's neighbours are: a pending

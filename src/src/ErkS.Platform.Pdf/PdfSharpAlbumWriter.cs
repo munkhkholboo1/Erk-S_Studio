@@ -2470,7 +2470,7 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             XStringFormats.Center);
         DrawCoverText(
             gfx,
-            "/ БАРИЛГЫН ЗУРАГ /",
+            SubCoverSubtitle(project.Album),
             CoverCenteredRect(210.0, 143.0, 130.0, 8.0),
             2.5,
             false,
@@ -2492,6 +2492,21 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     }
 
 
+
+    /// <summary>
+    /// What a sub-cover says it opens: a building's drawings in a concept album; in an urban-planning album the
+    /// plan itself - a location of a multi-site plan is not «БАРИЛГЫН ЗУРАГ» (ART-07/2026, 2026-11-15).
+    /// </summary>
+    internal static string SubCoverSubtitle(AlbumDefinition album)
+    {
+        if (!ErkS.Platform.Core.ProjectTypes.UrbanPlanning.UrbanPlanningAlbumTemplate.IsUrbanPlanningTemplate(album?.TemplateId))
+            return "/ БАРИЛГЫН ЗУРАГ /";
+        string title = (album!.Title ?? "").Trim();
+        int abbreviation = title.LastIndexOf(" (", StringComparison.Ordinal);
+        if (abbreviation > 0)
+            title = title[..abbreviation].Trim();
+        return title.Length == 0 ? "" : "/ " + title.ToUpper(System.Globalization.CultureInfo.GetCultureInfo("mn-MN")) + " /";
+    }
 
     private static void DrawCanonicalA3ApprovalCoverPage(
         PdfDocument document,

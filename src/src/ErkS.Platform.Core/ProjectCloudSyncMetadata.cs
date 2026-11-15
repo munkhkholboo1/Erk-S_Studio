@@ -550,7 +550,7 @@ public static class ProjectCloudSyncMetadata
             .ToList();
         List<string> existingCodes = (project.Cloud.SharedAlbumComponents ?? [])
             .Select(component => component.Code?.Trim() ?? "")
-            .Where(IsBuildingSubCoverComponentCode)
+            .Where(code => IsBuildingSubCoverComponentCode(code) && !IsCategorySubCoverComponentCode(code))
             .ToList();
         if (album is not null && !AlbumBuilder.RendersBuildingSubCovers(album))
         {
@@ -571,6 +571,17 @@ public static class ProjectCloudSyncMetadata
         ArgumentNullException.ThrowIfNull(group);
         return BuildingSubCoverComponentCodePrefix + "studio-building:" + group.Id.Trim();
     }
+
+    /// <summary>
+    /// The sub-cover of a package group - a location of a multi-site urban-planning album
+    /// (<c>SheetPackageEntry.Category</c>, ART-07/2026). It is drawn with the group's sheets and travels with them;
+    /// it is not a building's, so building composition never claims or removes it.
+    /// </summary>
+    public const string CategorySubCoverComponentCodePrefix = BuildingSubCoverComponentCodePrefix + "category:";
+
+    public static bool IsCategorySubCoverComponentCode(string? componentCode) =>
+        !string.IsNullOrWhiteSpace(componentCode) &&
+        componentCode.Trim().StartsWith(CategorySubCoverComponentCodePrefix, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsBuildingSubCoverComponentCode(string? componentCode) =>
         !string.IsNullOrWhiteSpace(componentCode) &&
