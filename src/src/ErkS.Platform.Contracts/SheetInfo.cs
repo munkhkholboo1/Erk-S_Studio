@@ -18,7 +18,7 @@ public sealed class SheetInfoReference
 }
 
 /// <summary>
-/// `erks-sheet-info` v1-v2: what a general-plan sheet says besides its drawing -
+/// `erks-sheet-info` v1-v3: what a general-plan sheet says besides its drawing -
 /// legends with quantities, the building schedule, the ТЭЗ summary, the basis
 /// lines and norm text. CGA writes it beside its drawing, PFA packs it with the
 /// sheets, Studio draws it (_shared/erks-sheet-info-contract-2026-10-19.md).
@@ -35,7 +35,11 @@ public sealed class SheetInfoDocument
     /// v2 (2026-10-29) adds the legend sample's paper width, dash, heads and
     /// symbol shape, so the movement legend can be drawn as CGA draws the scheme.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    /// <remarks>
+    /// v3 (2026-11-16, CGA) adds each building's footprint, total area, capacity and handles, and the sport
+    /// courts and parks - the ХЕТ building schedule the owner asked for, which PFA draws on its sheet.
+    /// </remarks>
+    public const int CurrentSchemaVersion = 3;
 
     public const int OldestSchemaVersion = 1;
 
@@ -57,6 +61,12 @@ public sealed class SheetInfoDocument
     public List<SheetInfoBasisLine> Basis { get; set; } = [];
 
     public List<SheetInfoBuilding> Buildings { get; set; } = [];
+
+    /// <summary>v3: the sport courts in the plan.</summary>
+    public List<SheetInfoSportCourt> SportCourts { get; set; } = [];
+
+    /// <summary>v3: the parks (green zones) in the plan.</summary>
+    public List<SheetInfoPark> Parks { get; set; } = [];
 
     public List<SheetInfoSummaryRow> Summary { get; set; } = [];
 
@@ -111,6 +121,46 @@ public sealed class SheetInfoBuilding
     public string? Handle { get; set; }
 
     public int Count { get; set; } = 1;
+
+    /// <summary>v3: one building's footprint, m² (the row's <see cref="Count"/> multiplies it).</summary>
+    public double? FootprintM2 { get; set; }
+
+    /// <summary>v3: one building's total floor area, m².</summary>
+    public double? TotalAreaM2 { get; set; }
+
+    /// <summary>v3: one building's capacity - flats or parking places; null when it has none.</summary>
+    public SheetInfoCapacity? Capacity { get; set; }
+
+    /// <summary>v3: every drawing handle the row stands for.</summary>
+    public List<string>? Handles { get; set; }
+}
+
+public sealed class SheetInfoCapacity
+{
+    public double Value { get; set; }
+
+    /// <summary>"айл" or "машин".</summary>
+    public string Unit { get; set; } = "";
+}
+
+public sealed class SheetInfoSportCourt
+{
+    public string Name { get; set; } = "";
+
+    public double? AreaM2 { get; set; }
+
+    public string? Handle { get; set; }
+}
+
+public sealed class SheetInfoPark
+{
+    public string Name { get; set; } = "";
+
+    public string? Label { get; set; }
+
+    public double? AreaM2 { get; set; }
+
+    public string? ZoneId { get; set; }
 }
 
 public sealed class SheetInfoSummaryRow
@@ -216,6 +266,13 @@ public static class SheetInfoVocabulary
         "circle",
         "triangle",
     };
+
+    /// <summary>v3: what a building's capacity counts.</summary>
+    public static IReadOnlySet<string> CapacityUnits { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "айл",
+        "машин",
+    };
 }
 
 public sealed class SheetInfoLoadResult
@@ -277,6 +334,8 @@ public static partial class SheetInfoReader
 
         document.Basis ??= [];
         document.Buildings ??= [];
+        document.SportCourts ??= [];
+        document.Parks ??= [];
         document.Summary ??= [];
         document.Legends ??= [];
         document.Notes ??= [];
@@ -288,7 +347,27 @@ public static partial class SheetInfoReader
             CheckStage(building.Stage, $"building '{label}'", issues, required: true);
             if (building.Count < 1)
                 issues.Add($"Sheet info: building '{label}' has count {building.Count}; a row counts at least one.");
+            bool version3 = building.FootprintM2 is not null || building.TotalAreaM2 is not null ||
+                            building.Capacity is not null || building.Handles is not null;
+            if (version3 && document.SchemaVersion < 3)
+                issues.Add($"Sheet info: building '{label}' uses footprintM2/totalAreaM2/capacity/handles, which need schema version 3.");
+            CheckArea(building.FootprintM2, $"building '{label}' footprintM2", issues);
+            CheckArea(building.TotalAreaM2, $"building '{label}' totalAreaM2", issues);
+            if (building.Capacity is { } capacity)
+            {
+                if (!SheetInfoVocabulary.CapacityUnits.Contains(capacity.Unit ?? ""))
+                    issues.Add($"Sheet info: building '{label}' has capacity unit '{capacity.Unit}'; known: айл, машин.");
+                if (!double.IsFinite(capacity.Value) || capacity.Value < 0)
+                    issues.Add($"Sheet info: building '{label}' has capacity {capacity.Value}; expected a number >= 0.");
+            }
         }
+
+        if ((document.SportCourts.Count > 0 || document.Parks.Count > 0) && document.SchemaVersion < 3)
+            issues.Add("Sheet info: sportCourts/parks need schema version 3.");
+        foreach (SheetInfoSportCourt court in document.SportCourts)
+            CheckArea(court.AreaM2, $"sport court '{court.Name}' areaM2", issues);
+        foreach (SheetInfoPark park in document.Parks)
+            CheckArea(park.AreaM2, $"park '{park.Name}' areaM2", issues);
 
         foreach ((string slot, List<SheetInfoLegendRow> rows) in document.Legends)
         {
@@ -342,6 +421,12 @@ public static partial class SheetInfoReader
             issues.Add($"Sheet info: {where} has heads '{sample.Heads}'; known: end, both.");
         if (sample.Shape is not null && !SheetInfoVocabulary.Shapes.Contains(sample.Shape))
             issues.Add($"Sheet info: {where} has shape '{sample.Shape}'; known: circle, triangle.");
+    }
+
+    private static void CheckArea(double? area, string where, List<string> issues)
+    {
+        if (area is { } value && (!double.IsFinite(value) || value < 0))
+            issues.Add($"Sheet info: {where} is {value}; expected a number >= 0.");
     }
 
     private static void CheckStage(string? stage, string where, List<string> issues, bool required)

@@ -135,10 +135,56 @@ public sealed class ASHEETInfoTravelsWithThePackageOrIsREFUSEDTests : IDisposabl
     public void AnotherSchemaOrANewerVersionIsRefused()
     {
         string other = WriteSample(document => document["schema"] = "erks-sheets", "other");
-        string newer = WriteSample(document => document["schemaVersion"] = 3, "newer");
+        string newer = WriteSample(document => document["schemaVersion"] = 4, "newer");
 
         Assert.Contains(SheetInfoReader.Load(other).Issues, issue => issue.Contains("erks-sheets", StringComparison.Ordinal));
-        Assert.Contains(SheetInfoReader.Load(newer).Issues, issue => issue.Contains("version 3", StringComparison.Ordinal));
+        Assert.Contains(SheetInfoReader.Load(newer).Issues, issue => issue.Contains("version 4", StringComparison.Ordinal));
+    }
+
+    // ---- v3: the ХЕТ building schedule (CGA, 2026-11-16) ----------------
+
+    [Fact]
+    public void Version3CarriesTheBuildingScheduleTheCourtsAndTheParks()
+    {
+        string path = WriteSample(document =>
+        {
+            document["schemaVersion"] = 3;
+            JsonObject building = document["buildings"]![0]!.AsObject();
+            building["footprintM2"] = 540.0;
+            building["totalAreaM2"] = 8640.0;
+            building["capacity"] = new JsonObject { ["value"] = 96, ["unit"] = "айл" };
+            building["handles"] = new JsonArray("5E1A", "5E1B");
+            document["sportCourts"] = new JsonArray(new JsonObject { ["name"] = "Сагсан бөмбөг", ["areaM2"] = 420.0, ["handle"] = "6A01" });
+            document["parks"] = new JsonArray(new JsonObject { ["name"] = "Цэцэрлэгт хүрээлэн", ["label"] = "НЭН-1", ["areaM2"] = 3200.0, ["zoneId"] = "z7" });
+        });
+
+        SheetInfoLoadResult result = SheetInfoReader.Load(path);
+
+        Assert.True(result.IsLossless, string.Join("; ", result.Issues));
+        SheetInfoBuilding first = result.Document!.Buildings[0];
+        Assert.Equal(540.0, first.FootprintM2);
+        Assert.Equal("айл", first.Capacity!.Unit);
+        Assert.Equal(["5E1A", "5E1B"], first.Handles!);
+        Assert.Equal(420.0, Assert.Single(result.Document.SportCourts).AreaM2);
+        Assert.Equal("z7", Assert.Single(result.Document.Parks).ZoneId);
+    }
+
+    [Theory]
+    [InlineData(2, "footprintM2", "540", "schema version 3")]
+    [InlineData(3, "capacity", "{\"value\":5,\"unit\":\"ш\"}", "capacity unit")]
+    [InlineData(3, "totalAreaM2", "-1", "totalAreaM2")]
+    public void Version3ScheduleIsRefusedBYNAMEWhenWrong(int version, string member, string json, string named)
+    {
+        string path = WriteSample(document =>
+        {
+            document["schemaVersion"] = version;
+            document["buildings"]![0]![member] = JsonNode.Parse(json);
+        });
+
+        SheetInfoLoadResult result = SheetInfoReader.Load(path);
+
+        Assert.False(result.IsLossless);
+        Assert.Contains(result.Issues, issue => issue.Contains(named, StringComparison.Ordinal));
     }
 
     // ---- v2: the legend drawn as the drawing draws it -----------------
