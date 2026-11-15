@@ -2152,22 +2152,41 @@ internal sealed partial class ShellView : IDisposable
         };
         if (dialog.ShowDialog() != true)
             return;
+        StudioCloudOrganization? chosen = dialog.SelectedOrganization;
+        if (chosen is null)
+        {
+            SetStatus("Төсөл үүсгэхэд алдаа: Төсөл үүсгэх байгууллага сонгогдоогүй байна.");
+            return;
+        }
+        await CreateProjectForOrganizationAsync(
+            dialog.CreationRequest,
+            chosen,
+            accountEpoch,
+            counterparty => StudioRelationshipBoundary.Confirm(
+                Window.GetWindow(Root),
+                StudioRelationshipAction.CreateProjectForClient,
+                counterparty));
+    }
+
+    /// <summary>
+    /// «Шинэ төсөл» after its dialog: the project on Cloud ERA and its local mirror. The button and the bridge's
+    /// «create-project» both come here; only the relationship confirmation differs (the dialog, or confirm=true).
+    /// Returns the created project's code, or null - the status line says why.
+    /// </summary>
+    private async Task<string?> CreateProjectForOrganizationAsync(
+        ProjectCreationRequest chosenRequest,
+        StudioCloudOrganization selectedOrganization,
+        long accountEpoch,
+        Func<string, bool> confirmRelationship)
+    {
         try
         {
-            ProjectCreationRequest request = AttachAccountIdentity(dialog.CreationRequest);
-            StudioCloudOrganization? selectedOrganization = dialog.SelectedOrganization;
-            if (selectedOrganization is null)
-                throw new InvalidOperationException("Төсөл үүсгэх байгууллага сонгогдоогүй байна.");
+            ProjectCreationRequest request = AttachAccountIdentity(chosenRequest);
             string relationshipCounterparty = string.IsNullOrWhiteSpace(request.ClientName)
                 ? selectedOrganization.LegalName
                 : request.ClientName;
-            if (!StudioRelationshipBoundary.Confirm(
-                    Window.GetWindow(Root),
-                    StudioRelationshipAction.CreateProjectForClient,
-                    relationshipCounterparty))
-            {
-                return;
-            }
+            if (!confirmRelationship(relationshipCounterparty))
+                return null;
             string localPath = Path.Combine(
                 ProjectWorkspacePaths.DefaultRoot,
                 SafePathSegment(request.Code),
@@ -2199,7 +2218,7 @@ internal sealed partial class ShellView : IDisposable
             {
                 SetStatus(
                     "Төсөл сервер дээр үүссэн боловч бүртгэл солигдсон тул локал mirror үүсгээгүй. Төслийн жагсаалтаа шинэчилнэ үү. [reason: project_create_account_context_changed]");
-                return;
+                return null;
             }
             state.NewProject(request);
             state.LinkCurrentProjectToCloud(
@@ -2212,10 +2231,12 @@ internal sealed partial class ShellView : IDisposable
                 ApplyCompanyToOpenProject(MapCloudCompany(selectedOrganization), rebuildAlbum: false);
             EnterProjectWorkspace(StudioPage.Foundation);
             SetStatus($"Cloud ERA төсөл болон локал mirror үүслээ: {state.ProjectPath}");
+            return request.Code;
         }
         catch (Exception exception)
         {
             SetStatus($"Төсөл үүсгэхэд алдаа: {exception.Message}");
+            return null;
         }
     }
 
@@ -2899,6 +2920,10 @@ internal sealed partial class ShellView : IDisposable
         Code = request.Code,
         Name = request.Name,
         Description = request.Description,
+        ProjectType = request.ProjectType,
+        InitialStageType = request.InitialStageType,
+        InitialStageName = request.InitialStageName,
+        ClientType = request.ClientType,
         Channel = ProjectCreationChannels.Studio,
         InitiatorType = request.InitiatorType,
         InitiatorOrganizationId = request.InitiatorOrganizationId,

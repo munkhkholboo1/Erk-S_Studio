@@ -107,6 +107,8 @@ internal sealed partial class ShellView
                         .ToList());
             case "open-project":
                 return await BridgeOpenProjectAsync(request);
+            case "create-project":
+                return await BridgeCreateProjectAsync(request);
             case "sync-make":
             case "sync-join":
             case "sync-unlink":

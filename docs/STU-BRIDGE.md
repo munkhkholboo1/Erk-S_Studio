@@ -28,6 +28,7 @@ Studio суусан бүх машин дээр (репогүй ч) ижил за
 | Үйлдэл | Товч | Аргумент |
 |---|---|---|
 | `projects` | Төслийн жагсаалт. Серверт л байгаа (энд хараахан татаагүй) төслүүд `cloudOnly: true`-тэй хамт. | — |
+| `create-project` | «Шинэ төсөл»: сонгосон байгууллагад (админ эрхтэй зураг төслийн) Cloud ERA төсөл ба локал mirror үүсгэж нээнэ — товчтой ижил функц, сонгосон төрөл/үе шат/захиалагчийн төрөл хадгалагдана. `confirm=true` нь «Харилцааны нөхцөл»-ийг орлоно. | `org=<нэр/id> code= name= [type=urban-planning] [stage=partial-plan] client-type=citizen\|organization\|government client= [client-email=] [address=] [description=] confirm=true` |
 | `open-project` | Төслийн карт дарах. Серверт л байгаа төслийг (`code=`) эхлээд энэ төхөөрөмжид татаж (локал mirror) нээнэ. | `path=<хавтас/.erksproject>` эсвэл `code=<код>` |
 | `check-sources` | «Эх үүсвэр шалгах» | — |
 | `rebuild-album` | Альбум шинэчлэх | — |

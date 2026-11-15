@@ -122,6 +122,7 @@ internal static class StudioBridgeActionCatalog
         new("status", "Studio-гийн төлөв: нээлттэй төсөл, эх үүсвэрүүд, ажиллаж буй үйлдэл, cloud төлөв.", "", false),
         new("notices", "Гүүрийн үед дэлгэцэнд гарах байсан мэдэгдлүүдийг авч цэвэрлэнэ.", "", false),
         new("projects", "Энэ төхөөрөмж дээрх төслүүдийн жагсаалт (код, нэр, зам).", "", false),
+        new("create-project", "«Шинэ төсөл»: сонгосон байгууллагад Cloud ERA төсөл ба локал mirror үүсгэж нээнэ — диалогийн талбарууд аргумент; confirm=true нь «Харилцааны нөхцөл»-ийг орлоно.", "org=<байгууллага> code=<код> name=<нэр> [type=<төрөл>] [stage=<үе шат>] client-type=citizen|organization|government client=<захиалагч> [client-email=] [address=] [description=] confirm=true", true),
         new("open-project", "Төсөл нээнэ — төслийн картыг дарахтай адил.", "path=<хавтас эсвэл .erksproject> | code=<төслийн код>", true),
         new("check-sources", "«Эх үүсвэр шалгах»: энэ төхөөрөмжийн эх үүсвэрийн шинэ багцыг уншиж альбумыг шинэчилнэ.", "", true),
         new("rebuild-album", "Альбумын PDF-ийг дахин угсарна.", "", true),
