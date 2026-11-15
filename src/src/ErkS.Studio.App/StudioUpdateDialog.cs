@@ -86,9 +86,9 @@ internal sealed class StudioUpdateDialog : Window
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Content = new TextBlock
                 {
-                    Text = string.IsNullOrWhiteSpace(update.ReleaseNotes)
+                    Text = string.IsNullOrWhiteSpace(update.DisplayNotes)
                         ? "Тогтвортой ажиллагаа болон бүтээгдэхүүний шинэчлэлт."
-                        : update.ReleaseNotes,
+                        : update.DisplayNotes,
                     Foreground = StudioTheme.TextBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },

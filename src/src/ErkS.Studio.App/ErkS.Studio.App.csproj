@@ -18,6 +18,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- A development build checks for updates as the release it was last published as (StudioReleaseInfo). -->
+    <AssemblyMetadata Include="StudioPublishedVersion" Value="$(StudioPublishedVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ErkS.CloudEra.Client\ErkS.CloudEra.Client.csproj" />
     <ProjectReference Include="..\ErkS.Platform.Core\ErkS.Platform.Core.csproj" />
     <ProjectReference Include="..\ErkS.Platform.Pdf\ErkS.Platform.Pdf.csproj" />

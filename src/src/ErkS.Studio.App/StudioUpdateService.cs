@@ -21,6 +21,12 @@ internal sealed class StudioUpdateLatestResponse
 
     public string ReleaseNotes { get; set; } = "";
 
+    /// <summary>The Mongolian notes the release was published with («сайт монгол атлаа шинэчлэлийн түүх англиар»).</summary>
+    public string ReleaseNotesMn { get; set; } = "";
+
+    /// <summary>What the update dialog shows: the Mongolian notes, the English ones only when there are none.</summary>
+    public string DisplayNotes => string.IsNullOrWhiteSpace(ReleaseNotesMn) ? ReleaseNotes : ReleaseNotesMn;
+
     public bool IsRequired { get; set; }
 
     public string ServerUrl { get; set; } = "";
@@ -56,6 +62,21 @@ internal static class StudioReleaseInfo
     public static string ShortVersion => DisplayVersion.Split('+')[0];
 
     public static bool IsDevelopmentBuild => DisplayVersion.Contains("-dev", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The release this source tree was last published as (Studio.Version.props). A development build is that
+    /// release plus whatever is not published yet, so it asks for updates as that release: it was offered its
+    /// own published self, signed by a publisher a development build does not trust, and the install failed
+    /// («студио шинэчлэлт хийж чадахгуй байна», 2026-11-15).
+    /// </summary>
+    public static string PublishedCounterpartVersion => typeof(StudioReleaseInfo).Assembly
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(item => item.Key == "StudioPublishedVersion")?.Value?.Trim() ?? "";
+
+    /// <summary>The version the update check reports to the server.</summary>
+    public static string UpdateCheckVersion => IsDevelopmentBuild && PublishedCounterpartVersion.Length > 0
+        ? PublishedCounterpartVersion
+        : ApiVersion;
 
     public static string ExpectedUpdatePublisher => IsDevelopmentBuild
         ? Environment.GetEnvironmentVariable("ERKS_STUDIO_DEV_UPDATE_PUBLISHER")?.Trim()
@@ -138,7 +159,7 @@ internal sealed class StudioUpdateService : IUpdatesClient, IDisposable
         Uri server = ResolveUpdateServer();
         string product = Uri.EscapeDataString(StudioReleaseInfo.ProductCode);
         // A live-only delta moves the installed version without a new exe: the install manifest knows it.
-        string version = Uri.EscapeDataString(StudioDeltaUpdate.InstalledVersion ?? StudioReleaseInfo.ApiVersion);
+        string version = Uri.EscapeDataString(StudioDeltaUpdate.InstalledVersion ?? StudioReleaseInfo.UpdateCheckVersion);
         Uri endpoint = new(server, $"api/updates/latest?productCode={product}&currentVersion={version}");
         using HttpResponseMessage response = await httpClient.GetAsync(endpoint, cancellationToken).ConfigureAwait(true);
         RecordThenThrow(response, "Шинэ хувилбарын мэдээллийг авч чадсангүй");
