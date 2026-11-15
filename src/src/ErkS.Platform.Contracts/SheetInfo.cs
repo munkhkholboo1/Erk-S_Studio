@@ -188,6 +188,9 @@ public sealed class SheetInfoLegendRow
     public double? Quantity { get; set; }
 
     public string? Unit { get; set; }
+
+    /// <summary>v3, <c>zoning</c> only: the labels of the zones the sub-zone row covers.</summary>
+    public List<string>? Zones { get; set; }
 }
 
 public sealed class SheetInfoSample
@@ -232,6 +235,28 @@ public static class SheetInfoVocabulary
         "traffic-scheme",
         "landscaping",
         "solar-study",
+    };
+
+    /// <summary>
+    /// v3: the legends a document may carry. Besides the four sheets Studio draws on, the ХЕТ's zoning and
+    /// planning-phase sheets - PFA draws those legends on its own A1 sheets, Studio only reads them. Kept apart
+    /// from <see cref="Slots"/> so Studio never starts drawing a panel of its own on those sheets.
+    /// </summary>
+    public static IReadOnlySet<string> LegendSlots { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "master-plan",
+        "traffic-scheme",
+        "landscaping",
+        "solar-study",
+        "zoning",
+        "planning-phase",
+    };
+
+    /// <summary>The legends that arrived with schema version 3.</summary>
+    public static IReadOnlySet<string> Version3LegendSlots { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "zoning",
+        "planning-phase",
     };
 
     public static IReadOnlySet<string> Stages { get; } = new HashSet<string>(StringComparer.Ordinal)
@@ -371,14 +396,18 @@ public static partial class SheetInfoReader
 
         foreach ((string slot, List<SheetInfoLegendRow> rows) in document.Legends)
         {
-            if (!SheetInfoVocabulary.Slots.Contains(slot))
+            if (!SheetInfoVocabulary.LegendSlots.Contains(slot))
             {
                 issues.Add($"Sheet info: a legend for '{slot}' names no general-plan sheet.");
                 continue;
             }
+            if (SheetInfoVocabulary.Version3LegendSlots.Contains(slot) && document.SchemaVersion < 3)
+                issues.Add($"Sheet info: a legend for '{slot}' needs schema version 3.");
             foreach (SheetInfoLegendRow row in rows ?? [])
             {
                 string where = $"legend '{slot}' row '{row.Key}'";
+                if (row.Zones is not null && slot != "zoning")
+                    issues.Add($"Sheet info: {where} carries zones, which only a 'zoning' legend row has.");
                 CheckStage(row.Stage, where, issues, required: false);
                 SheetInfoSample sample = row.Sample ?? new SheetInfoSample();
                 if (!SheetInfoVocabulary.SampleKinds.Contains(sample.Kind))

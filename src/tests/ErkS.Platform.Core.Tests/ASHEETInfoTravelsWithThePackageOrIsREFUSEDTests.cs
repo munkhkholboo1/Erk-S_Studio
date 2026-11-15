@@ -169,6 +169,46 @@ public sealed class ASHEETInfoTravelsWithThePackageOrIsREFUSEDTests : IDisposabl
         Assert.Equal("z7", Assert.Single(result.Document.Parks).ZoneId);
     }
 
+    [Fact]
+    public void Version3CarriesTheZoningAndPlanningPhaseLegends()
+    {
+        string path = WriteSample(document =>
+        {
+            document["schemaVersion"] = 3;
+            JsonObject legends = document["legends"]!.AsObject();
+            legends["zoning"] = JsonNode.Parse(
+                """[{"key":"101103","label":"Орон сууцны бүс","stage":"Planned","sample":{"kind":"hatch","color":"#F2C94C","pattern":"SOLID","outline":"#8A6D00"},"quantity":12450.5,"unit":"м²","zones":["ОС-1","ОС-2"]}]""");
+            legends["planning-phase"] = JsonNode.Parse(
+                """[{"key":"phase-1","label":"I ээлж","stage":"Planned","sample":{"kind":"hatch","color":"#9BD08A","pattern":"SOLID"},"quantity":80000,"unit":"м²"}]""");
+        });
+
+        SheetInfoLoadResult result = SheetInfoReader.Load(path);
+
+        Assert.True(result.IsLossless, string.Join("; ", result.Issues));
+        Assert.Equal(["ОС-1", "ОС-2"], result.Document!.Legends["zoning"][0].Zones!);
+        Assert.Equal("I ээлж", result.Document.Legends["planning-phase"][0].Label);
+        // Studio draws its own panel only on its four sheets.
+        Assert.DoesNotContain("zoning", SheetInfoVocabulary.Slots);
+    }
+
+    [Fact]
+    public void AZoningLegendBeforeVersion3OrZonesElsewhereIsRefused()
+    {
+        string early = WriteSample(document =>
+        {
+            document["schemaVersion"] = 2;
+            document["legends"]!["zoning"] = new JsonArray();
+        }, "early");
+        string stray = WriteSample(document =>
+        {
+            document["schemaVersion"] = 3;
+            document["legends"]!["traffic-scheme"]![0]!["zones"] = new JsonArray("ОС-1");
+        }, "stray");
+
+        Assert.Contains(SheetInfoReader.Load(early).Issues, issue => issue.Contains("schema version 3", StringComparison.Ordinal));
+        Assert.Contains(SheetInfoReader.Load(stray).Issues, issue => issue.Contains("zones", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(2, "footprintM2", "540", "schema version 3")]
     [InlineData(3, "capacity", "{\"value\":5,\"unit\":\"ш\"}", "capacity unit")]
