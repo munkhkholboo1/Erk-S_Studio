@@ -429,6 +429,7 @@ public static class ProjectPackageReconciliationService
             // the page must still know what it is when its package is not on
             // this machine.
             page.SourceContentKindSnapshot = (entry.ContentKind ?? "").Trim();
+            page.SourceCategorySnapshot = (entry.Category ?? "").Trim();
             if (usesConceptTemplate)
             {
                 AlbumCompositionItem? slot =

@@ -3,7 +3,11 @@ using ErkS.Platform.Contracts;
 namespace ErkS.Platform.Core;
 
 /// <summary>Consecutive pages of one section, in the order the album stores them.</summary>
-public sealed record AlbumSourceRun(string Title, IReadOnlyList<AlbumPageDefinition> Pages);
+public sealed record AlbumSourceRun(string Title, IReadOnlyList<AlbumPageDefinition> Pages)
+{
+    /// <summary>The package group (a location) this run is, or empty for a run of one album section.</summary>
+    public string Category { get; init; } = "";
+}
 
 public sealed class AlbumBuildException : Exception
 {
@@ -431,7 +435,16 @@ public sealed class AlbumBuilder
         {
             List<AlbumBuildPage> resolved = ResolvePages(run.Pages, library);
             if (resolved.Count > 0)
-                sections.Add(new AlbumBuildSection { Title = run.Title, Pages = resolved });
+            {
+                sections.Add(new AlbumBuildSection
+                {
+                    Key = run.Category.Length > 0 ? "category:" + run.Category : "",
+                    Title = run.Title,
+                    // A group (a location of a multi-site plan) opens with its own sub-cover.
+                    Kind = run.Category.Length > 0 ? AlbumBuildSectionKind.Building : AlbumBuildSectionKind.Standard,
+                    Pages = resolved,
+                });
+            }
         }
 
         return new AlbumBuildRequest { Project = project, Sections = sections };
@@ -447,23 +460,38 @@ public sealed class AlbumBuilder
         Dictionary<Guid, string> titles = album.Sections
             .GroupBy(section => section.Id)
             .ToDictionary(group => group.Key, group => group.First().Title);
-        var runs = new List<(string Title, List<AlbumPageDefinition> Pages)>();
+        var runs = new List<(string Title, string Category, List<AlbumPageDefinition> Pages)>();
+        // A grouped sheet (a location) joins its group wherever the group first appeared, so one location is
+        // one section with one sub-cover however its sheets are interleaved; ungrouped sheets keep their runs.
+        var groups = new Dictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
         foreach (AlbumPageDefinition page in album.Pages)
         {
+            string category = (page.SourceCategorySnapshot ?? "").Trim();
+            if (category.Length > 0)
+            {
+                if (!groups.TryGetValue(category, out int index))
+                {
+                    groups[category] = index = runs.Count;
+                    runs.Add((category, category, []));
+                }
+                runs[index].Pages.Add(page);
+                continue;
+            }
             string title = page.SectionId.HasValue &&
                 titles.TryGetValue(page.SectionId.Value, out string? value)
                     ? value
                     : "";
             if (runs.Count == 0 ||
+                runs[^1].Category.Length > 0 ||
                 !runs[^1].Title.Equals(title, StringComparison.Ordinal))
             {
-                runs.Add((title, []));
+                runs.Add((title, "", []));
             }
             runs[^1].Pages.Add(page);
         }
 
         return runs
-            .Select(run => new AlbumSourceRun(run.Title, run.Pages))
+            .Select(run => new AlbumSourceRun(run.Title, run.Pages) { Category = run.Category })
             .ToList();
     }
 

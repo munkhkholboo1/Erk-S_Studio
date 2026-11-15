@@ -582,6 +582,9 @@ public sealed class AlbumPageDefinition : IAlbumPageRoleOwner
     /// </summary>
     public string SourceContentKindSnapshot { get; set; } = "";
 
+    /// <summary>The package's album group for the sheet (<c>SheetPackageEntry.Category</c>), kept for the same reason.</summary>
+    public string SourceCategorySnapshot { get; set; } = "";
+
     /// <summary>
     /// Non-destructive crop applied while the source PDF is composed. This is
     /// intended for legacy PDFs that already contain another project's frame

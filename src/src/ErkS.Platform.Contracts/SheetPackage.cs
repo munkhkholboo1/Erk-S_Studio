@@ -293,6 +293,13 @@ public sealed class SheetPackageEntry
     /// <summary>Discipline/series code, e.g. "AR", "ST", "citygen".</summary>
     public string Discipline { get; set; } = "";
 
+    /// <summary>
+    /// The album group the sheet belongs to, e.g. a location of a multi-site plan ("Бэлх", "Донгой"). In an
+    /// urban-planning album every group becomes its own section opened by a Studio sub-cover (ART-07/2026,
+    /// 2026-11-15: «байршил бүр тусдаа бүлэг, бүлэг бүр өөрийн жижиг нүүртэй»). Empty: no group.
+    /// </summary>
+    public string Category { get; set; } = "";
+
     public string Revision { get; set; } = "";
 
     /// <summary>Source sheet scale label, for example "1:100", "VARIES" or "NTS".</summary>
