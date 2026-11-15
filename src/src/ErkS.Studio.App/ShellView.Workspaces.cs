@@ -805,30 +805,39 @@ internal sealed partial class ShellView
             return;
         }
 
-        string currentUserEmail = (account.Current?.Email ?? "").Trim();
-        if (!string.IsNullOrWhiteSpace(currentUserEmail))
-        {
-            ProjectCloudSyncMetadata.BindCloudOwner(dialog.ResultSource, currentUserEmail);
-            StudioLocalSourceBindingPolicy.Bind(
-                dialog.ResultSource,
-                currentUserEmail,
-                StudioDeviceIdentity.Fingerprint);
-        }
         if (dialog.BuildingGroupsChanged)
         {
             state.UpdateBuildingComposition(
                 dialog.ResultBuildingGroups,
                 state.Project.SheetBuildingAssignments);
         }
-        state.AddDesignSource(dialog.ResultSource);
-        if (dialog.ResultSource.Kind == DesignSourceKind.Pdf)
+        RegisterDesignSource(dialog.ResultSource);
+    }
+
+    /// <summary>
+    /// «Эх үүсвэр нэмэх» after its dialog: the source is added, a PDF is imported, the list and the status line
+    /// follow. The bridge's «add-source» comes here too.
+    /// </summary>
+    private void RegisterDesignSource(ProjectDesignSource source)
+    {
+        string currentUserEmail = (account.Current?.Email ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(currentUserEmail))
+        {
+            ProjectCloudSyncMetadata.BindCloudOwner(source, currentUserEmail);
+            StudioLocalSourceBindingPolicy.Bind(
+                source,
+                currentUserEmail,
+                StudioDeviceIdentity.Fingerprint);
+        }
+        state.AddDesignSource(source);
+        if (source.Kind == DesignSourceKind.Pdf)
         {
             try
             {
                 LocalPdfSheetPackageImportResult imported =
                     new LocalPdfSheetPackageImporter().Import(
                         state.Project,
-                        dialog.ResultSource);
+                        source);
                 state.SaveProject();
                 state.Intake.Rescan();
                 SetStatus(
@@ -840,21 +849,21 @@ internal sealed partial class ShellView
                 SetStatus($"PDF эх үүсвэр импортлоход алдаа: {exception.Message}");
             }
         }
-        RefreshSourceWorkspace(dialog.ResultSource.Id);
-        if (dialog.ResultSource.Kind != DesignSourceKind.Pdf)
+        RefreshSourceWorkspace(source.Id);
+        if (source.Kind != DesignSourceKind.Pdf)
         {
-            SetStatus(dialog.ResultSource.Kind switch
+            SetStatus(source.Kind switch
             {
                 DesignSourceKind.Revit =>
-                    $"RVT эх үүсвэр холбогдлоо: {dialog.ResultSource.DisplayName}. " +
+                    $"RVT эх үүсвэр холбогдлоо: {source.DisplayName}. " +
                     "Revit-ийн Альбум хэсгээс Studio руу илгээнэ.",
                 // The exporter finds this row by the folder recorded above and
                 // writes into the inbox it names, so the person is told what
                 // makes the connection rather than only that a row appeared.
                 DesignSourceKind.ErkSCad =>
-                    $"Erk-S CAD эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}. " +
+                    $"Erk-S CAD эх үүсвэр нэмэгдлээ: {source.DisplayName}. " +
                     "Erk-S CAD диаграмаа экспортлоход Портфолиод орно.",
-                _ => $"Эх үүсвэр нэмэгдлээ: {dialog.ResultSource.DisplayName}",
+                _ => $"Эх үүсвэр нэмэгдлээ: {source.DisplayName}",
             });
         }
     }

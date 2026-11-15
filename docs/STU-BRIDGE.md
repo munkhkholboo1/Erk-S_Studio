@@ -46,6 +46,7 @@ Studio суусан бүх машин дээр (репогүй ч) ижил за
 | `components` | (унших) синкийн хэсгүүд: локал угсралт, Cloud, хүлээгдэж буй код | — |
 | `sync-preview` | Cloud товч — төлөвлөгөөг харах, илгээхгүй | — |
 | `sync` | Cloud товч + «Sync хийх» | `confirm=true` |
+| `add-source` | «Эх үүсвэр нэмэх»: нээлттэй төсөлд эх үүсвэр бүртгэнэ — товчтой ижил функц. AutoCAD/Revit/CGA нь PFA/PFR холбогдохыг хүлээнэ, PDF импортлогдоно; нэг файлыг хоёр удаа нэмэхгүй. Эх файлыг дараа нь `relink-source`-оор солино. | `kind=autocad\|revit\|citygen\|pdf\|folder\|erkscad path=<эх файл> [name=] [purpose=general-plan] [owner=]` |
 | `relink-source` | «Эх файлыг солих» | `source=<id/нэр> path=<файл>` |
 | `import-front-matter` | «ЕХ мэдээлэл» › ноорог оруулах + хадгалах | `file=<.md>` |
 | `album-save` | «PDF хадгалах» › «Бүтэн форматаар» / «A3-аар хуваасан» (Sheet Splitter-ийн дүрэм: A3 модуль, 12 мм зурвас, A4 сүүл) | `format=full\|split path=<.pdf>` |

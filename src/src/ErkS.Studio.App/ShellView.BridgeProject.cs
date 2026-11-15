@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using ErkS.Platform.Core;
 using ErkS.Platform.Core.ProjectTypes;
@@ -56,6 +57,97 @@ internal sealed partial class ShellView
                 request.Id,
                 new { code, path = state.ProjectPath, organization = built.Organization!.LegalName, type = built.Request!.ProjectType, stage = built.Request.InitialStageName },
                 statusText.Text);
+    }
+}
+
+internal sealed partial class ShellView
+{
+    /// <summary>
+    /// «Эх үүсвэр нэмэх» through the bridge (ART-07/2026, 2026-11-15: PFA could not send - the project had no
+    /// AutoCAD source). The dialog's fields are arguments; the source is registered by the button's own function.
+    /// </summary>
+    private StudioBridgeResponse BridgeAddSource(StudioBridgeRequest request)
+    {
+        if (!EnsureProjectContentPermission())
+            return StudioBridgeProtocol.Refuse(request.Id, "not_allowed", statusText.Text);
+        StudioBridgeSourceCreation.Outcome built = StudioBridgeSourceCreation.Build(
+            request.Args,
+            state.Project.Sources,
+            state.ResolveDefaultSourceFolder);
+        if (built.Refusal is { } refusal)
+            return StudioBridgeProtocol.Refuse(request.Id, refusal.Code, refusal.Message);
+        RegisterDesignSource(built.Source!);
+        return StudioBridgeProtocol.Accept(
+            request.Id,
+            new { id = built.Source!.Id, name = built.Source.Name, kind = built.Source.Kind.ToString(), path = built.Source.NativeDocumentPath, status = built.Source.Status },
+            statusText.Text);
+    }
+}
+
+/// <summary>The bridge's reading of «add-source»'s arguments into the dialog's source (kept apart so it is tested).</summary>
+internal static class StudioBridgeSourceCreation
+{
+    internal sealed record Outcome(ProjectDesignSource? Source, StudioBridgeProjectCreation.Refused? Refusal);
+
+    public static Outcome Build(
+        IReadOnlyDictionary<string, string> args,
+        IEnumerable<ProjectDesignSource> existing,
+        Func<string, string> defaultInbox)
+    {
+        string Arg(string name) => args.TryGetValue(name, out string? value) ? (value ?? "").Trim() : "";
+        Outcome No(string code, string message) => new(null, new StudioBridgeProjectCreation.Refused(code, message));
+
+        DesignSourceKind? kind = Arg("kind").ToLowerInvariant() switch
+        {
+            "autocad" or "dwg" => DesignSourceKind.AutoCad,
+            "revit" or "rvt" => DesignSourceKind.Revit,
+            "citygen" or "cga" => DesignSourceKind.CityGen,
+            "pdf" => DesignSourceKind.Pdf,
+            "folder" => DesignSourceKind.Folder,
+            "erkscad" or "ec" => DesignSourceKind.ErkSCad,
+            _ => null,
+        };
+        if (kind is null)
+            return No("bad_kind", "kind=autocad|revit|citygen|pdf|folder|erkscad");
+        string path = Arg("path");
+        if (kind is not DesignSourceKind.Folder and not DesignSourceKind.ErkSCad && path.Length == 0)
+            return No("bad_request", "path=<эх файлын бүтэн зам> заана уу.");
+        if (kind == DesignSourceKind.Pdf &&
+            (!File.Exists(path) || !Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase)))
+        {
+            return No("bad_request", "PDF эх файл олдсонгүй: " + path);
+        }
+        if (path.Length > 0 && existing.Any(source =>
+                string.Equals(source.NativeDocumentPath?.Trim(), path, StringComparison.OrdinalIgnoreCase)))
+        {
+            return No("already_added", "Энэ файл аль хэдийн эх үүсвэр болсон: " + path);
+        }
+        string name = Arg("name") is { Length: > 0 } given ? given : Path.GetFileNameWithoutExtension(path);
+        if (name.Length == 0)
+            return No("bad_request", "name=<эх үүсвэрийн нэр> заана уу.");
+        ProjectDesignSourcePurpose? purpose = Arg("purpose").ToLowerInvariant() switch
+        {
+            "" => ProjectDesignSourcePurpose.Unspecified,
+            "general-plan" or "et" or "ет" => ProjectDesignSourcePurpose.GeneralPlan,
+            _ => null,
+        };
+        if (purpose is null)
+            return No("bad_purpose", "purpose=general-plan (барилгын эх үүсвэрийг Studio-гийн цонхоор нэмнэ)");
+
+        var source = new ProjectDesignSource
+        {
+            Kind = kind.Value,
+            Name = name,
+            InboxFolder = defaultInbox(name),
+            NativeDocumentTitle = path.Length > 0 ? Path.GetFileName(path) : "",
+            NativeDocumentPath = path,
+            OwnerOrganizationName = Arg("owner"),
+            Status = kind is DesignSourceKind.Pdf or DesignSourceKind.Folder or DesignSourceKind.ErkSCad
+                ? DesignSourceStatuses.Connected
+                : DesignSourceStatuses.WaitingForConnection,
+        };
+        ProjectDesignSourceClassification.SetExplicitPurpose(source, purpose.Value, "");
+        return new Outcome(source, null);
     }
 }
 

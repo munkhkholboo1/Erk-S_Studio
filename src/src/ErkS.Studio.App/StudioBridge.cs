@@ -132,6 +132,7 @@ internal static class StudioBridgeActionCatalog
         new("components", "Альбумын хэсгүүд: энэ төхөөрөмжийн угсралтын хэсэг (код, хуудас), Cloud-ийн хэсэг, хүлээгдэж буй код — синк юуг илгээхийг харах.", "", false),
         new("sync-preview", "Cloud товч: эх үүсвэр уншиж, альбумыг угсраад синкийн төлөвлөгөөг буцаана — илгээхгүй.", "", true),
         new("sync", "Cloud товч + «Sync хийх»: төлөвлөгөөг баталж Cloud руу синк хийнэ.", "confirm=true", true),
+        new("add-source", "«Эх үүсвэр нэмэх»: нээлттэй төсөлд эх үүсвэр бүртгэнэ (AutoCAD/Revit/CGA нь холбогдохыг хүлээнэ, PDF импортлогдоно) — диалогийн талбарууд аргумент.", "kind=autocad|revit|citygen|pdf|folder|erkscad path=<эх файл> [name=<нэр>] [purpose=general-plan] [owner=<байгууллага>]", true),
         new("relink-source", "«Эх файлыг солих»: эх үүсвэрийг өөр локал файлтай холбоно.", "source=<id эсвэл нэр> path=<файл>", true),
         new("import-front-matter", "«ЕХ мэдээлэл» › «Ноорог файлаас оруулах» + «Хадгалах».", "file=<.md>", true),
         new("album-save", "«PDF хадгалах» › «Бүтэн форматаар» / «A3-аар хуваасан» (Erk-S Sheet Splitter-ийн дүрмээр: A3 модуль, 12 мм нийлүүлэх зурвас, A4 сүүл).", "format=full|split path=<.pdf>", true),

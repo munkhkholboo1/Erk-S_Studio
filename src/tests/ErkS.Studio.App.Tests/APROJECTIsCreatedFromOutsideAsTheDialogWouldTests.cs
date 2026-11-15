@@ -92,6 +92,28 @@ public sealed class APROJECTIsCreatedFromOutsideAsTheDialogWouldTests
         Assert.NotNull(StudioBridgeActionCatalog.Find("create-project"));
     }
 
+    [Fact]
+    public void ANAUTOCADSourceIsAddedAsTheDialogWouldAndOnlyOnce()
+    {
+        const string dwg = @"D:\Art Cloud\Arkhangai-UndurUlaan\DWG\BelkhMP-v3.dwg";
+        StudioBridgeSourceCreation.Outcome built = StudioBridgeSourceCreation.Build(
+            Args(("kind", "autocad"), ("path", dwg), ("name", "Бэлх ХЕТ"), ("purpose", "general-plan")),
+            [],
+            name => @"C:\inbox\" + name);
+
+        Assert.Null(built.Refusal);
+        Assert.Equal(DesignSourceKind.AutoCad, built.Source!.Kind);
+        Assert.Equal(dwg, built.Source.NativeDocumentPath);
+        Assert.Equal(DesignSourceStatuses.WaitingForConnection, built.Source.Status);
+        Assert.Equal(@"C:\inbox\Бэлх ХЕТ", built.Source.InboxFolder);
+
+        StudioBridgeSourceCreation.Outcome again = StudioBridgeSourceCreation.Build(
+            Args(("kind", "autocad"), ("path", dwg)),
+            [built.Source],
+            name => name);
+        Assert.Equal("already_added", again.Refusal!.Code);
+    }
+
     private static string ReadAppSource(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

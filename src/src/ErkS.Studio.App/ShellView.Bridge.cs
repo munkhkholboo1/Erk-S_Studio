@@ -187,6 +187,8 @@ internal sealed partial class ShellView
             case "sync-preview":
             case "sync":
                 return await BridgeSyncAsync(request, send: action == "sync");
+            case "add-source":
+                return BridgeAddSource(request);
             case "relink-source":
                 return BridgeRelinkSource(request);
             case "import-front-matter":
