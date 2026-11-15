@@ -13,9 +13,11 @@ public sealed class ADEVELOPMENTBuildIsNotOfferedItsOwnReleaseTests
     [Fact]
     public void ADEVELOPMENTBuildAsksAsItsPublishedRelease()
     {
-        Assert.True(StudioReleaseInfo.IsDevelopmentBuild);
+        // The release gate runs this suite against the release build too, which asks as itself.
         Assert.Matches(@"^\d+\.\d+\.\d+$", StudioReleaseInfo.PublishedCounterpartVersion);
-        Assert.Equal(StudioReleaseInfo.PublishedCounterpartVersion, StudioReleaseInfo.UpdateCheckVersion);
+        Assert.Equal(
+            StudioReleaseInfo.IsDevelopmentBuild ? StudioReleaseInfo.PublishedCounterpartVersion : StudioReleaseInfo.ApiVersion,
+            StudioReleaseInfo.UpdateCheckVersion);
     }
 
     [Fact]
