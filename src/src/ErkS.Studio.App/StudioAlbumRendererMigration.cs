@@ -79,8 +79,11 @@ internal static class StudioAlbumRendererMigration
     ///
     /// 18: a worded scale keeps its spaces («Заасны дагуу»); only a numeric
     /// one is closed up («1 : 100» → «1:100»).
+    ///
+    /// 19: every corner table leaves in its page where each printed name's
+    /// signature belongs, so its holder's device can sign the album it shows.
     /// </summary>
-    public const int CurrentRevision = 18;
+    public const int CurrentRevision = 19;
 
     /// <param name="canManageCanonicalMetadata">
     /// Whether this account may rewrite the album's CANONICAL generated pages -

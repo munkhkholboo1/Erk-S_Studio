@@ -1165,12 +1165,17 @@ internal sealed partial class ShellView
             "cloud-local",
             "titleblock");
         Directory.CreateDirectory(cacheFolder);
+        // The shown copy carries the signed-in person's own signature beside
+        // their name; its key keeps a copy signed with an older one from being
+        // served. The shared album itself is never signed here.
+        IReadOnlyList<TitleBlockSignature> holderSignatures = CurrentTitleBlockSignatures();
         string outputPath = Path.Combine(
             cacheFolder,
-            $"canonical-{inputSha256[..16]}-{signature[..16]}.pdf");
+            $"canonical-{inputSha256[..16]}{SignatureStampSuffix(holderSignatures)}-{signature[..16]}.pdf");
         if (!File.Exists(outputPath))
         {
             string temporaryPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            string signedPath = temporaryPath + ".signed";
             try
             {
                 PdfSharpAlbumWriter.RestampCanonicalTitleBlocks(
@@ -1178,10 +1183,19 @@ internal sealed partial class ShellView
                     canonicalProject,
                     components,
                     temporaryPath);
-                File.Move(temporaryPath, outputPath, overwrite: true);
+                if (holderSignatures.Count > 0)
+                {
+                    TitleBlockSignatureStamper.Stamp(temporaryPath, signedPath, holderSignatures);
+                    File.Move(signedPath, outputPath, overwrite: true);
+                }
+                else
+                {
+                    File.Move(temporaryPath, outputPath, overwrite: true);
+                }
             }
             finally
             {
+                TryDeleteSignatureTemp(signedPath);
                 if (File.Exists(temporaryPath))
                 {
                     try

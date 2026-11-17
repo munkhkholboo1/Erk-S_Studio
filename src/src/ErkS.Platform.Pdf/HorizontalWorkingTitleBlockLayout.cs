@@ -33,6 +33,18 @@ internal static class HorizontalWorkingTitleBlockLayout
     /// <summary>The logo cell, drawn by the writer from the company profile.</summary>
     public static readonly (double X, double Y, double Width, double Height) LogoCellMm = (0, 0, 25, 27);
 
+    /// <summary>
+    /// The «Гарын үсэг» column (45 name | 70 signature | 95) in the three role
+    /// rows, in the order the names come from
+    /// <see cref="PdfSharpAlbumWriter.ResolveCanonicalHorizontalWorkingTitleBlockNames"/>.
+    /// </summary>
+    public static readonly (double X, double Y, double Width, double Height)[] SignatureCellsMm =
+    [
+        (70, 15, 25, LeftRow1 - 15),
+        (70, LeftRow1, 25, LeftRow2 - LeftRow1),
+        (70, LeftRow2, 25, HeightMm - LeftRow2),
+    ];
+
     public static IReadOnlyList<WorkingTitleBlockLine> Lines { get; } =
     [
         // The outer frame is the caller's.

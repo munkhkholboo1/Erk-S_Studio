@@ -1267,6 +1267,13 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
 
         DrawCellText(gfx, "Захиалагч", x1, y3, x2, y4, false, XStringFormats.CenterLeft);
         DrawCellText(gfx, ValueOrDash(clientName), x2, y3, x3, y4, false, XStringFormats.Center);
+
+        // «Гарын үсэг» is the column right of the names (x3 → x4).
+        if (clearCanonicalCells && gfx.PdfPage is { } restamped)
+            TitleBlockSignatureSlots.Clear(restamped);
+        TitleBlockSignatureSlots.Record(gfx, companyRepresentative.Name, TopLeftRect(x3, y1, grid.X4, y2));
+        TitleBlockSignatureSlots.Record(gfx, architect, TopLeftRect(x3, y2, grid.X4, y3));
+        TitleBlockSignatureSlots.Record(gfx, clientName, TopLeftRect(x3, y3, grid.X4, y4));
     }
 
     private static void DrawCornerTableLines(
@@ -1968,6 +1975,40 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             rect,
             sx,
             sy);
+        RecordRoleSignatureCells(
+            gfx,
+            ResolveCanonicalHorizontalWorkingTitleBlockNames(
+                project,
+                buildPage.Definition.RoleAssignments,
+                SheetRolesWithAlbumFallback(buildPage)),
+            HorizontalWorkingTitleBlockLayout.SignatureCellsMm,
+            X,
+            Y,
+            sx,
+            sy);
+    }
+
+    /// <summary>
+    /// Leaves in the page where each printed name's signature belongs, for
+    /// <see cref="TitleBlockSignatureStamper"/> on the device of the person named.
+    /// </summary>
+    private static void RecordRoleSignatureCells(
+        XGraphics gfx,
+        IReadOnlyList<string> names,
+        IReadOnlyList<(double X, double Y, double Width, double Height)> cells,
+        Func<double, double> x,
+        Func<double, double> y,
+        double sx,
+        double sy)
+    {
+        for (int index = 0; index < Math.Min(names.Count, cells.Count); index++)
+        {
+            var cell = cells[index];
+            TitleBlockSignatureSlots.Record(
+                gfx,
+                names[index],
+                new XRect(x(cell.X), y(cell.Y), Mm(cell.Width) * sx, Mm(cell.Height) * sy));
+        }
     }
 
     /// <summary>
@@ -2175,6 +2216,17 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
             SheetRolesWithAlbumFallback(buildPage),
             SheetSourceDate(buildPage));
         PaintWorkingTitleBlockCells(gfx, cells, rect, sx, sy);
+        RecordRoleSignatureCells(
+            gfx,
+            ResolveCanonicalHorizontalWorkingTitleBlockNames(
+                project,
+                buildPage.Definition.RoleAssignments,
+                SheetRolesWithAlbumFallback(buildPage)),
+            VerticalWorkingTitleBlockLayout.SignatureCellsMm,
+            X,
+            Y,
+            sx,
+            sy);
     }
 
     /// <summary>

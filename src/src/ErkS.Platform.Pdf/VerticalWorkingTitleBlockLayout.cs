@@ -56,6 +56,17 @@ internal static class VerticalWorkingTitleBlockLayout
     /// <summary>The logo cell, drawn by the writer from the company profile.</summary>
     public static readonly (double X, double Y, double Width, double Height) LogoCellMm = (0, 5, 25, 25);
 
+    /// <summary>
+    /// The signature column (25 → 48.7, between the role label and the name)
+    /// in the three role rows, in the order of the resolved names.
+    /// </summary>
+    public static readonly (double X, double Y, double Width, double Height)[] SignatureCellsMm =
+    [
+        (25, 35, 23.7, 5),
+        (25, 40, 23.7, 5),
+        (25, 45, 23.7, 5),
+    ];
+
     public static IReadOnlyList<WorkingTitleBlockLine> Lines { get; } =
     [
         // Full-width rules, top to bottom. The outer frame is the caller's.

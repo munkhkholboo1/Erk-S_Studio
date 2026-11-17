@@ -2637,6 +2637,9 @@ internal sealed partial class ShellView : IDisposable
         foreach (MenuItem item in BuildBotMenuItems())
             menu.Items.Add(item);
 
+        if (account.IsSignedIn && !ActingAsBot)
+            menu.Items.Add(BuildSignatureMenuItem());
+
         menu.Items.Add(new Separator());
         var signOut = new MenuItem
         {
@@ -2808,6 +2811,8 @@ internal sealed partial class ShellView : IDisposable
                 requestedProfileImageKey = profileImageKey;
                 _ = LoadAccountAvatarAsync(session, profileImageKey);
             }
+            if (!ActingAsBot)
+                _ = RefreshSignatureFromAccountAsync(session);
         }
         RefreshFoundationEditUi();
         RefreshTeamActionUi();
@@ -4509,6 +4514,9 @@ internal sealed partial class ShellView : IDisposable
             buildInput,
             state.Library,
             outputPath);
+        // The album shown here carries the signed-in person's signature beside
+        // their own name; the pages Studio uploads are built elsewhere.
+        StampHolderSignatureInPlace(result.OutputPath);
         double drewSeconds =
             (double)(System.Diagnostics.Stopwatch.GetTimestamp() - startedTicks) /
             System.Diagnostics.Stopwatch.Frequency;
@@ -4561,6 +4569,7 @@ internal sealed partial class ShellView : IDisposable
             project.Album.Title = album.Title;
             string outputPath = Path.Combine(outputFolder, $"{SafeFileName(album.Title)}.pdf");
             AlbumBuildResult result = state.Builder.Build(project, state.Library, outputPath);
+            StampHolderSignatureInPlace(result.OutputPath);
             album.LastPdfPath = Path.GetRelativePath(state.ResolveProjectFolder(), result.OutputPath);
             album.LastPageCount = result.PageCount;
             album.LastPageSizeSummary = "Studio generated working drawing album";

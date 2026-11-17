@@ -300,6 +300,19 @@ internal interface IProfileImageClient
     Task<byte[]?> GetProfileImageAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// The signed-in person's own prepared signature (a PNG kept with their
+/// account). There is no call that reads anybody else's.
+/// </summary>
+internal interface ISignatureImageClient
+{
+    Task<byte[]?> GetSignatureImageAsync(CancellationToken cancellationToken = default);
+
+    Task UploadSignatureImageAsync(byte[] png, CancellationToken cancellationToken = default);
+
+    Task DeleteSignatureImageAsync(CancellationToken cancellationToken = default);
+}
+
 internal interface IProjectChatClient
 {
     Task<StudioProjectChatResponse> GetProjectChatAsync(

@@ -88,6 +88,7 @@ internal sealed class StudioAccountService :
     IControlledDocumentsClient,
     IAlbumsClient,
     IProfileImageClient,
+    ISignatureImageClient,
     IProjectChatClient,
     IDisposable
 {
@@ -1682,6 +1683,50 @@ internal sealed class StudioAccountService :
         return bytes.Length > 10L * 1024L * 1024L
             ? throw new StudioAccountException("Profile зураг хэт том байна.")
             : bytes;
+    }
+
+    private const string SignatureImagePath = "/api/studio/profile/signature";
+
+    public async Task<byte[]?> GetSignatureImageAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(HttpMethod.Get, BuildUri(session.ServerUrl, SignatureImagePath));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        if (!response.IsSuccessStatusCode)
+            return await ReadResponseAsync<byte[]?>(response, cancellationToken).ConfigureAwait(true);
+        if (response.Content.Headers.ContentLength > StudioSignatureImage.MaxBytes)
+            throw new StudioAccountException("Гарын үсгийн зураг хэт том байна.");
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(true);
+        string? invalid = StudioSignatureImage.Validate(bytes);
+        return invalid is null ? bytes : throw new StudioAccountException(invalid);
+    }
+
+    public async Task UploadSignatureImageAsync(byte[] png, CancellationToken cancellationToken = default)
+    {
+        string? invalid = StudioSignatureImage.Validate(png);
+        if (invalid is not null)
+            throw new StudioAccountException(invalid);
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(HttpMethod.Put, BuildUri(session.ServerUrl, SignatureImagePath))
+        {
+            Content = new ByteArrayContent(png),
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(true);
+        if (!response.IsSuccessStatusCode)
+            await ReadResponseAsync<object>(response, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task DeleteSignatureImageAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        await SendAuthorizedNoContentAsync(HttpMethod.Delete, SignatureImagePath, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task<StudioProjectChatResponse> GetProjectChatAsync(

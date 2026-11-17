@@ -197,6 +197,8 @@ internal sealed partial class ShellView
                 return BridgeAlbumSave(request);
             case "album-roles":
                 return BridgeAlbumRoles(request);
+            case "signature":
+                return await BridgeSignatureAsync(request);
             case "album-split-view":
                 return BridgeAlbumSplitView(request);
             case "visualizations":
