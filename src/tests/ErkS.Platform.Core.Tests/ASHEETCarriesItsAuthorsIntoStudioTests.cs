@@ -191,6 +191,36 @@ public sealed class ASHEETCarriesItsAuthorsIntoStudioTests : IDisposable
     }
 
     [Fact]
+    public void APageThatArrivesLaterSignsWithTheALBUMSDefault()
+    {
+        // Owner, 2026-11-17: names set once for the album must reach the 57
+        // sheets a new source brought in afterwards - those pages have no
+        // assignment of their own. A page's own assignment still wins.
+        AlbumProject project = ProjectWithCompanySigners();
+        project.Album.DefaultRoleAssignments =
+        [
+            new() { RoleCode = AlbumPageRoleCodes.Architect, FullName = "Э.Мөнххолбоо" },
+            new() { RoleCode = AlbumPageRoleCodes.CheckedBy, FullName = "М.Баасанжав" },
+        ];
+
+        IReadOnlyList<string> newPage =
+            PdfSharpAlbumWriter.ResolveCanonicalHorizontalWorkingTitleBlockNames(
+                project,
+                roleAssignments: null,
+                sourceRoles: RevitRoles());
+        IReadOnlyList<string> ownPage =
+            PdfSharpAlbumWriter.ResolveCanonicalHorizontalWorkingTitleBlockNames(
+                project,
+                [new() { RoleCode = AlbumPageRoleCodes.CheckedBy, FullName = "Б.Өөрийн" }],
+                sourceRoles: []);
+
+        Assert.Equal("Э.Мөнххолбоо", newPage[0]);
+        Assert.Equal("М.Будбаясгалан", newPage[1]);
+        Assert.Equal("М.Баасанжав", newPage[2]);
+        Assert.Equal("Б.Өөрийн", ownPage[2]);
+    }
+
+    [Fact]
     public void WithNothingFromTheSheetTheCOMPANYDefaultStillFillsTheTable()
     {
         // Positive control for the old behaviour: a sheet that carries no roles

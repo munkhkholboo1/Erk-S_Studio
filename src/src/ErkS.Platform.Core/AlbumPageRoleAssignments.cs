@@ -29,6 +29,19 @@ public interface IAlbumPageRoleOwner
     List<AlbumPageRoleAssignment> RoleAssignments { get; set; }
 }
 
+/// <summary>
+/// The album's default title-block people seen as one more role owner, so the
+/// same assignment service signs it as it signs a page.
+/// </summary>
+public sealed class AlbumDefaultRoleOwner(AlbumDefinition album) : IAlbumPageRoleOwner
+{
+    public List<AlbumPageRoleAssignment> RoleAssignments
+    {
+        get => album.DefaultRoleAssignments ??= [];
+        set => album.DefaultRoleAssignments = value ?? [];
+    }
+}
+
 public sealed class AlbumPageRoleAssignment
 {
     public string RoleCode { get; set; } = "";

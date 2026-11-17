@@ -19,6 +19,8 @@ internal sealed partial class ShellView
     };
     private readonly Button applyAlbumPageRolesButton =
         StudioWidgets.CreatePrimaryButton("Сонгосон хуудсуудад хэрэглэх");
+    private readonly Button applyAlbumDefaultRolesButton =
+        StudioWidgets.CreateButton("Бүх хуудсанд (шинэ хуудас ч өвлөнө)");
 
     private UIElement BuildAlbumPageRolePanel()
     {
@@ -33,8 +35,12 @@ internal sealed partial class ShellView
         applyAlbumPageRolesButton.Margin = new Thickness(0, 6, 0, 7);
         applyAlbumPageRolesButton.Click += (_, _) => ApplySelectedAlbumPageRoles();
         albumPageRolePanel.Children.Add(applyAlbumPageRolesButton);
+        applyAlbumDefaultRolesButton.Margin = new Thickness(0, 0, 0, 7);
+        applyAlbumDefaultRolesButton.Click += (_, _) => ApplyAlbumDefaultRolesFromPanel();
+        albumPageRolePanel.Children.Add(applyAlbumDefaultRolesButton);
         albumPageRolePanel.Children.Add(StudioWidgets.CreateHint(
             "Ctrl эсвэл Shift дарж ЕТ, ИДБ-ийн хэд хэдэн хуудсыг сонгоод нэг удаа хэрэглэнэ. " +
+            "«Бүх хуудсанд» нь альбумын үндсэн role болж, дараа нэмэгдэх хуудас ч түүнийг өвлөнө. " +
             "Төсөлд нэгдсэн гишүүнийг жагсаалтаас сонгоно; нэгдээгүй хүний нэрийг (ж.нь М.Баасанжав) талбарт гараар бичнэ."));
         foreach (ComboBox box in new[] { albumPageArchitectBox, albumPagePreparedByBox, albumPageCheckedByBox })
         {
@@ -59,7 +65,10 @@ internal sealed partial class ShellView
         if (!supported)
             return;
 
-        IReadOnlyList<IAlbumPageRoleOwner> targets = GetSelectedAlbumPageRoleTargets();
+        IReadOnlyList<IAlbumPageRoleOwner> selectedPages = GetSelectedAlbumPageRoleTargets();
+        IReadOnlyList<IAlbumPageRoleOwner> targets = selectedPages.Count > 0
+            ? selectedPages
+            : [new AlbumDefaultRoleOwner(state.Album)];
         List<AlbumPageRoleParticipantChoice> team = BuildAlbumPageRoleParticipantChoices();
         BindAlbumPageRoleChoice(
             albumPageArchitectBox,
@@ -77,13 +86,13 @@ internal sealed partial class ShellView
             targets,
             team);
 
-        bool enabled = canEditProjectContent && targets.Count > 0;
+        bool enabled = canEditProjectContent;
         albumPageArchitectBox.IsEnabled = enabled;
         albumPagePreparedByBox.IsEnabled = enabled;
         albumPageCheckedByBox.IsEnabled = enabled;
-        albumPageRoleSummaryText.Text = targets.Count switch
+        albumPageRoleSummaryText.Text = selectedPages.Count switch
         {
-            0 => "Role тохируулах хуудас сонгоно уу.",
+            0 => "Хуудас сонгоогүй · альбумын үндсэн role (бүх хуудас, шинэ хуудас ч өвлөнө).",
             1 => "1 хуудас сонгосон · төслийн багаас хүн сонгоно.",
             _ => $"{targets.Count} хуудас сонгосон · сонголт бүх хуудсанд зэрэг үйлчилнэ.",
         };
@@ -175,15 +184,67 @@ internal sealed partial class ShellView
     private void RefreshAlbumPageRoleApplyButton()
     {
         bool hasTargets = GetSelectedAlbumPageRoleTargets().Count > 0;
-        applyAlbumPageRolesButton.IsEnabled =
-            CanEditProjectContent() &&
-            hasTargets &&
-            new[]
-            {
-                ReadAlbumPageRoleChoice(albumPageArchitectBox),
-                ReadAlbumPageRoleChoice(albumPagePreparedByBox),
-                ReadAlbumPageRoleChoice(albumPageCheckedByBox),
-            }.OfType<AlbumPageRoleParticipantChoice>().Any(choice => !choice.KeepCurrentValue);
+        bool anyChoice = new[]
+        {
+            ReadAlbumPageRoleChoice(albumPageArchitectBox),
+            ReadAlbumPageRoleChoice(albumPagePreparedByBox),
+            ReadAlbumPageRoleChoice(albumPageCheckedByBox),
+        }.OfType<AlbumPageRoleParticipantChoice>().Any(choice => !choice.KeepCurrentValue);
+        applyAlbumPageRolesButton.IsEnabled = CanEditProjectContent() && hasTargets && anyChoice;
+        applyAlbumDefaultRolesButton.IsEnabled = CanEditProjectContent() && anyChoice;
+    }
+
+    private void ApplyAlbumDefaultRolesFromPanel()
+    {
+        if (!EnsureProjectContentPermission())
+            return;
+        ApplyAlbumDefaultRoles(
+            ReadAlbumPageRoleChoice(albumPageArchitectBox),
+            ReadAlbumPageRoleChoice(albumPagePreparedByBox),
+            ReadAlbumPageRoleChoice(albumPageCheckedByBox));
+    }
+
+    /// <summary>
+    /// «Бүх хуудсанд»: the choice becomes the album's default and every page
+    /// gives up its own name for that role, so the whole album - and every page
+    /// that arrives later - signs with the one set of names. The panel's button
+    /// and the bridge's «album-roles pages=all» both end here.
+    /// </summary>
+    private int ApplyAlbumDefaultRoles(
+        AlbumPageRoleParticipantChoice? architect,
+        AlbumPageRoleParticipantChoice? preparedBy,
+        AlbumPageRoleParticipantChoice? checkedBy)
+    {
+        IReadOnlyList<IAlbumPageRoleOwner> albumDefault = [new AlbumDefaultRoleOwner(state.Album)];
+        IReadOnlyList<IAlbumPageRoleOwner> pages = GetAllAlbumPageRoleTargets();
+        int changed = 0;
+        foreach ((string role, AlbumPageRoleParticipantChoice? choice) in new[]
+                 {
+                     (AlbumPageRoleCodes.Architect, architect),
+                     (AlbumPageRoleCodes.PreparedBy, preparedBy),
+                     (AlbumPageRoleCodes.CheckedBy, checkedBy),
+                 })
+        {
+            if (choice is null || choice.KeepCurrentValue)
+                continue;
+            changed += ApplyAlbumPageRoleChoice(albumDefault, role, choice);
+            // Pages inherit: an own assignment would hide the album's name.
+            changed += AlbumPageRoleAssignmentService.Apply(pages, role, null);
+        }
+        if (changed == 0)
+        {
+            SetStatus("Альбумын үндсэн role өөрчлөгдөөгүй.");
+            return 0;
+        }
+
+        state.SaveProject();
+        bindingAlbumPage = true;
+        BindAlbumPageRoleControls(canEditProjectContent: true);
+        bindingAlbumPage = false;
+        UpdateAlbum(
+            silent: false,
+            statusPrefix: "Альбумын үндсэн role шинэчлэгдлээ (бүх хуудас)");
+        return changed;
     }
 
     private void ApplySelectedAlbumPageRoles()
@@ -309,28 +370,48 @@ internal sealed partial class ShellView
         {
             if (!EnsureProjectContentPermission())
                 return StudioBridgeProtocol.Refuse(request.Id, "no_permission", "Төслийн агуулга засах эрх алга.");
-            if (targets.Count == 0)
-                return StudioBridgeProtocol.Refuse(request.Id, "no_pages", "Role тохируулах хуудас алга.");
-            changed = ApplyAlbumPageRoles(targets, architect, preparedBy, checkedBy);
+            if (scope == "all")
+            {
+                changed = ApplyAlbumDefaultRoles(architect, preparedBy, checkedBy);
+            }
+            else
+            {
+                if (targets.Count == 0)
+                    return StudioBridgeProtocol.Refuse(request.Id, "no_pages", "Role тохируулах хуудас алга.");
+                changed = ApplyAlbumPageRoles(targets, architect, preparedBy, checkedBy);
+            }
         }
 
-        string Name(IAlbumPageRoleOwner owner, string role) =>
-            AlbumPageRoleAssignmentResolver.ResolveDocumentName(
-                owner.RoleAssignments,
-                role,
-                state.Project.Foundation.DesignCompany.Members.Select(member => new ProjectParticipant
-                {
-                    ParticipantId = member.Id ?? "",
-                    FamilyName = member.FamilyName ?? "",
-                    GivenName = member.GivenName ?? "",
-                    FullName = member.FullName ?? "",
-                })) ?? "";
+        List<ProjectParticipant> participants = state.Project.Foundation.DesignCompany.Members
+            .Select(member => new ProjectParticipant
+            {
+                ParticipantId = member.Id ?? "",
+                FamilyName = member.FamilyName ?? "",
+                GivenName = member.GivenName ?? "",
+                FullName = member.FullName ?? "",
+            })
+            .ToList();
+        var albumDefault = new AlbumDefaultRoleOwner(state.Album);
+        string Own(IAlbumPageRoleOwner owner, string role) =>
+            AlbumPageRoleAssignmentResolver.ResolveDocumentName(owner.RoleAssignments, role, participants) ?? "";
+        // What the page signs with: its own name, else the album's default.
+        string Name(IAlbumPageRoleOwner owner, string role)
+        {
+            string own = Own(owner, role);
+            return own.Length > 0 ? own : Own(albumDefault, role);
+        }
         return StudioBridgeProtocol.Accept(
             request.Id,
             new
             {
                 pages = targets.Count,
                 changed,
+                albumDefault = new
+                {
+                    architect = Own(albumDefault, AlbumPageRoleCodes.Architect),
+                    preparedBy = Own(albumDefault, AlbumPageRoleCodes.PreparedBy),
+                    checkedBy = Own(albumDefault, AlbumPageRoleCodes.CheckedBy),
+                },
                 roles = targets.Select(owner => new
                 {
                     page = owner switch

@@ -38,6 +38,9 @@ internal sealed partial class ShellView
         {
             Title = album.Title,
             TemplateId = album.TemplateId,
+            DefaultRoleAssignments = (album.DefaultRoleAssignments ?? [])
+                .Select(assignment => assignment.Clone())
+                .ToList(),
             // Without this the contributed pages are drawn on a default page
             // instead of the album's own format: the cover and the drawing list
             // came out A4 with a concept corner table, and those are the pages

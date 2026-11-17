@@ -178,7 +178,10 @@ public sealed partial class PdfSharpAlbumWriter
         IEnumerable<(string Owner, IAlbumPageRoleOwner Roles)> owners =
             project.Album.Pages.Select(page => ($"page:{page.Id:N}", (IAlbumPageRoleOwner)page))
                 .Concat(project.Album.Composition.Select(component =>
-                    ($"component:{component.Id}", (IAlbumPageRoleOwner)component)));
+                    ($"component:{component.Id}", (IAlbumPageRoleOwner)component)))
+                // The album default reaches every page that has no name of its
+                // own, so changing it must re-stamp them too.
+                .Append(("album:default", new AlbumDefaultRoleOwner(project.Album)));
         return owners
             .SelectMany(owner => owner.Roles.RoleAssignments.Select(assignment =>
                 string.Join(

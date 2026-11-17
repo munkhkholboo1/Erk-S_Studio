@@ -2049,9 +2049,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
     /// The three names of a working sheet's corner table.
     /// </summary>
     /// <remarks>
-    /// Each role is answered by the first of three sources that has it: an
-    /// assignment the owner made in Studio, then the name the source sheet
-    /// carries, then the company's standing signer. The middle source used to be
+    /// Each role is answered by the first source that has it: an assignment
+    /// the owner made in Studio for this page, then the album's own default
+    /// (set once, inherited by every page that arrives later), then the name
+    /// the source sheet carries, then the company's standing signer. The middle source used to be
     /// missing, so a sheet migrated from Revit - which has no Studio assignments
     /// yet - printed the company's names over the people who actually drew it.
     /// The owner's assignment comes first so that re-exporting never undoes it.
@@ -2068,12 +2069,20 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 roleAssignments,
                 AlbumPageRoleCodes.Architect,
                 project.Participants) ??
+                AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                    project.Album?.DefaultRoleAssignments,
+                    AlbumPageRoleCodes.Architect,
+                    project.Participants) ??
                 SourceSheetName(sourceRoles, AlbumPageRoleCodes.Architect) ??
                 ResolveArchitect(project),
             AlbumPageRoleAssignmentResolver.ResolveDocumentName(
                 roleAssignments,
                 AlbumPageRoleCodes.PreparedBy,
                 project.Participants) ??
+                AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                    project.Album?.DefaultRoleAssignments,
+                    AlbumPageRoleCodes.PreparedBy,
+                    project.Participants) ??
                 SourceSheetName(sourceRoles, AlbumPageRoleCodes.PreparedBy) ??
                 ResolveWorkingDrawingSigner(
                     project.Company.Signers,
@@ -2085,6 +2094,10 @@ public sealed partial class PdfSharpAlbumWriter : IAlbumPdfWriter
                 roleAssignments,
                 AlbumPageRoleCodes.CheckedBy,
                 project.Participants) ??
+                AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                    project.Album?.DefaultRoleAssignments,
+                    AlbumPageRoleCodes.CheckedBy,
+                    project.Participants) ??
                 SourceSheetName(sourceRoles, AlbumPageRoleCodes.CheckedBy) ??
                 ResolveWorkingDrawingSigner(
                     project.Company.Signers,
