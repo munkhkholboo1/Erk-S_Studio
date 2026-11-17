@@ -147,6 +147,29 @@ public sealed class AlbumPageRoleAssignmentTests : IDisposable
             Assert.Single(loaded.Definition.Composition).RoleAssignments.Single().ParticipantId);
     }
 
+    [Fact]
+    public void ApplyManual_SignsAnUnjoinedPersonExactlyAsTyped()
+    {
+        var page = new AlbumPageDefinition
+        {
+            RoleAssignments = [Assignment(AlbumPageRoleCodes.CheckedBy, "member-01")],
+        };
+
+        int changed = AlbumPageRoleAssignmentService.ApplyManual(
+            [page], AlbumPageRoleCodes.CheckedBy, "  М.Баасанжав ");
+        int again = AlbumPageRoleAssignmentService.ApplyManual(
+            [page], AlbumPageRoleCodes.CheckedBy, "М.Баасанжав");
+
+        Assert.Equal(1, changed);
+        Assert.Equal(0, again);
+        AlbumPageRoleAssignment assignment = Assert.Single(page.RoleAssignments);
+        Assert.Equal("", assignment.ParticipantId);
+        Assert.Equal(
+            "М.Баасанжав",
+            AlbumPageRoleAssignmentResolver.ResolveDocumentName(
+                page.RoleAssignments, AlbumPageRoleCodes.CheckedBy, []));
+    }
+
     public void Dispose()
     {
         try

@@ -26,6 +26,29 @@ public sealed class StudioAlbumPageRoleSelectionTests
     }
 
     [Fact]
+    public void Resolve_ReportsAHandWrittenNameAndTellsTwoApart()
+    {
+        AlbumPageRoleAssignment Manual(string name) => new()
+        {
+            RoleCode = AlbumPageRoleCodes.Architect,
+            FullName = name,
+        };
+        var first = new AlbumPageDefinition { RoleAssignments = [Manual("М.Баасанжав")] };
+        var second = new AlbumCompositionItem { RoleAssignments = [Manual("М.Баасанжав")] };
+        var other = new AlbumPageDefinition { RoleAssignments = [Manual("Б.Болд")] };
+
+        StudioAlbumPageRoleSelectionState same = StudioAlbumPageRoleSelection.Resolve(
+            [first, second], AlbumPageRoleCodes.Architect);
+        StudioAlbumPageRoleSelectionState mixed = StudioAlbumPageRoleSelection.Resolve(
+            [first, other], AlbumPageRoleCodes.Architect);
+
+        Assert.False(same.IsMixed);
+        Assert.Null(same.ParticipantId);
+        Assert.Equal("М.Баасанжав", same.ManualName);
+        Assert.True(mixed.IsMixed);
+    }
+
+    [Fact]
     public void Resolve_ReportsMixedWhenSelectedPagesUseDifferentPeopleOrInheritance()
     {
         var assigned = new AlbumPageDefinition

@@ -195,6 +195,8 @@ internal sealed partial class ShellView
                 return BridgeImportFrontMatter(request);
             case "album-save":
                 return BridgeAlbumSave(request);
+            case "album-roles":
+                return BridgeAlbumRoles(request);
             case "album-split-view":
                 return BridgeAlbumSplitView(request);
             case "visualizations":

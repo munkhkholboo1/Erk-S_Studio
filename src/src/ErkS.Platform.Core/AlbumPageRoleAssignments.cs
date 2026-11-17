@@ -104,6 +104,47 @@ public static class AlbumPageRoleAssignmentService
         return changed;
     }
 
+    /// <summary>
+    /// Signs a role with a hand-written name - a person who has not joined the
+    /// project or is not on the platform. The name is printed exactly as typed
+    /// (e.g. "М.Баасанжав"): there is no profile to reformat it from.
+    /// </summary>
+    public static int ApplyManual(
+        IEnumerable<IAlbumPageRoleOwner> targets,
+        string roleCode,
+        string fullName)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        string normalizedRole = AlbumPageRoleCodes.Normalize(roleCode);
+        if (string.IsNullOrWhiteSpace(normalizedRole))
+            throw new ArgumentException("Unsupported album page role.", nameof(roleCode));
+        string name = (fullName ?? "").Trim();
+        if (name.Length == 0)
+            throw new ArgumentException("A hand-written role needs a name.", nameof(fullName));
+
+        var replacement = new AlbumPageRoleAssignment { RoleCode = normalizedRole, FullName = name };
+        int changed = 0;
+        var visited = new HashSet<IAlbumPageRoleOwner>(ReferenceEqualityComparer.Instance);
+        foreach (IAlbumPageRoleOwner target in targets)
+        {
+            if (target is null || !visited.Add(target))
+                continue;
+            target.RoleAssignments ??= [];
+            List<AlbumPageRoleAssignment> existing = target.RoleAssignments
+                .Where(item => AlbumPageRoleCodes.Normalize(item.RoleCode).Equals(
+                    normalizedRole,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (existing.Count == 1 && Equivalent(existing[0], replacement))
+                continue;
+            foreach (AlbumPageRoleAssignment assignment in existing)
+                target.RoleAssignments.Remove(assignment);
+            target.RoleAssignments.Add(replacement.Clone());
+            changed++;
+        }
+        return changed;
+    }
+
     public static void Normalize(IAlbumPageRoleOwner owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
