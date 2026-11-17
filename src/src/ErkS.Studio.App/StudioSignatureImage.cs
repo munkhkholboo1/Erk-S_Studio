@@ -154,6 +154,89 @@ internal static class StudioSignatureImage
         return names;
     }
 
+    private const string HeightKeyword = "ErkS:SignatureHeightMm";
+
+    /// <summary>
+    /// The height the holder chose, on paper (mm), kept inside the PNG itself so
+    /// it travels with the signature to every device; null until chosen.
+    /// </summary>
+    public static double? ReadHeightMm(byte[]? png)
+    {
+        foreach ((string type, int dataOffset, int length) in Chunks(png))
+        {
+            if (type != "tEXt")
+                continue;
+            string text = Encoding.Latin1.GetString(png!, dataOffset, length);
+            int zero = text.IndexOf('\0');
+            if (zero > 0 && text[..zero] == HeightKeyword &&
+                double.TryParse(text[(zero + 1)..], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out double value) &&
+                double.IsFinite(value) && value > 0)
+            {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The same PNG carrying the chosen height (or none).</summary>
+    public static byte[] WithHeightMm(byte[] png, double? heightMm)
+    {
+        using var output = new MemoryStream();
+        output.Write(png, 0, 8);
+        foreach ((string type, int dataOffset, int length) in Chunks(png))
+        {
+            bool ours = type == "tEXt" &&
+                Encoding.Latin1.GetString(png, dataOffset, length).StartsWith(HeightKeyword + "\0", StringComparison.Ordinal);
+            if (type == "IEND" && heightMm is { } height)
+            {
+                byte[] text = Encoding.Latin1.GetBytes(
+                    HeightKeyword + "\0" + Math.Round(height, 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                WriteChunk(output, "tEXt", text);
+            }
+            if (!ours)
+                output.Write(png, dataOffset - 8, length + 12);
+        }
+        return output.ToArray();
+    }
+
+    private static IEnumerable<(string Type, int DataOffset, int Length)> Chunks(byte[]? png)
+    {
+        if (png is null || png.Length < 8)
+            yield break;
+        int offset = 8;
+        while (offset + 12 <= png.Length)
+        {
+            int length = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset, 4));
+            if (length < 0 || offset + 12 + length > png.Length)
+                yield break;
+            string type = Encoding.ASCII.GetString(png, offset + 4, 4);
+            yield return (type, offset + 8, length);
+            if (type == "IEND")
+                yield break;
+            offset += 12 + length;
+        }
+    }
+
+    private static void WriteChunk(Stream output, string type, byte[] data)
+    {
+        byte[] length = new byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(length, data.Length);
+        output.Write(length);
+        byte[] typed = [.. Encoding.ASCII.GetBytes(type), .. data];
+        output.Write(typed);
+        uint crc = 0xffffffff;
+        foreach (byte b in typed)
+        {
+            crc ^= b;
+            for (int k = 0; k < 8; k++)
+                crc = (crc & 1) != 0 ? 0xedb88320 ^ (crc >> 1) : crc >> 1;
+        }
+        byte[] check = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(check, ~crc);
+        output.Write(check);
+    }
+
     public static string CachePath(string folder, string email) =>
         Path.Combine(folder, Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes((email ?? "").Trim().ToLowerInvariant())))[..24].ToLowerInvariant() + ".sig");

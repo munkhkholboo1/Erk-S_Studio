@@ -17,8 +17,22 @@ namespace ErkS.Platform.Pdf;
 /// A signature is placed only beside a name that IS its holder's - never beside
 /// a role, never by guessing who might be meant.
 /// </remarks>
-public sealed record TitleBlockSignature(IReadOnlyList<string> Names, byte[] Png)
+/// <param name="HeightMm">
+/// The holder's one size on paper, as they sign by hand: the same height in
+/// every table, centred on its cell and free to run a little past the lines
+/// (owner, 2026-11-18: «би өөрөө гараар зурахдаа ихэвчлэн нэг л хэмжээгээр
+/// зурдаг»). Null until set: the signature is then fitted inside its cell.
+/// </param>
+public sealed record TitleBlockSignature(IReadOnlyList<string> Names, byte[] Png, double? HeightMm = null)
 {
+    public const double MinHeightMm = 2;
+    public const double MaxHeightMm = 25;
+
+    public double? EffectiveHeightMm =>
+        HeightMm is { } height && double.IsFinite(height) && height > 0
+            ? Math.Clamp(height, MinHeightMm, MaxHeightMm)
+            : null;
+
     /// <summary>Whether the name printed in a cell is this signature's holder.</summary>
     public bool Signs(string? printedName)
     {
@@ -37,6 +51,7 @@ public sealed record TitleBlockSignature(IReadOnlyList<string> Names, byte[] Png
         {
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             hash.AppendData(Png ?? []);
+            hash.AppendData(Encoding.UTF8.GetBytes("|height=" + (EffectiveHeightMm?.ToString("0.0", CultureInfo.InvariantCulture) ?? "fit")));
             foreach (string name in (Names ?? []).Select(Normalize).Where(n => n.Length > 0).Order(StringComparer.Ordinal))
                 hash.AppendData(Encoding.UTF8.GetBytes("|" + name));
             return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
@@ -193,7 +208,7 @@ public static class TitleBlockSignatureStamper
                             image = XImage.FromStream(new MemoryStream(signature!.Png, writable: false));
                             images[signature] = image;
                         }
-                        gfx.DrawImage(image, Fit(image, cell));
+                        gfx.DrawImage(image, Fit(image, cell, signature!.EffectiveHeightMm));
                         stamped++;
                     }
                 }
@@ -253,17 +268,29 @@ public static class TitleBlockSignatureStamper
     }
 
     /// <summary>The picture fitted inside its cell, proportions kept, centred.</summary>
-    internal static XRect Fit(XImage image, XRect cell)
+    internal static XRect Fit(XImage image, XRect cell, double? heightMm = null) =>
+        Fit(image.PixelWidth, image.PixelHeight, cell, heightMm);
+
+    /// <summary>
+    /// Centred on the cell, proportions kept: at the holder's own height when
+    /// set (it may run past the cell), otherwise fitted inside the cell.
+    /// </summary>
+    public static XRect Fit(int pixelWidth, int pixelHeight, XRect cell, double? heightMm)
     {
         double pad = 0.3 * PointsPerMillimetre;
         double maxWidth = Math.Max(1, cell.Width - pad * 2);
         double maxHeight = Math.Max(1, cell.Height - pad * 2);
-        double ratio = image.PixelHeight > 0 ? (double)image.PixelWidth / image.PixelHeight : 3;
+        double ratio = pixelHeight > 0 ? (double)pixelWidth / pixelHeight : 3;
         double width = maxWidth;
         double height = width / ratio;
         if (height > maxHeight)
         {
             height = maxHeight;
+            width = height * ratio;
+        }
+        if (heightMm is { } fixedMm && double.IsFinite(fixedMm) && fixedMm > 0)
+        {
+            height = Math.Clamp(fixedMm, TitleBlockSignature.MinHeightMm, TitleBlockSignature.MaxHeightMm) * PointsPerMillimetre;
             width = height * ratio;
         }
         return new XRect(

@@ -96,6 +96,32 @@ public sealed class StudioSignatureImageTests : IDisposable
         Assert.InRange(h, 20, 26);
     }
 
+    [Fact]
+    public void THEChosenHeightTravelsInsideThePngAndTheImageStaysReadable()
+    {
+        var source = System.Windows.Media.Imaging.BitmapSource.Create(
+            4, 2, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, new byte[4 * 4 * 2], 16);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        byte[] png = stream.ToArray();
+
+        Assert.Null(StudioSignatureImage.ReadHeightMm(png));
+        byte[] nine = StudioSignatureImage.WithHeightMm(png, 9);
+        byte[] eleven = StudioSignatureImage.WithHeightMm(nine, 11.5);
+
+        Assert.Equal(9, StudioSignatureImage.ReadHeightMm(nine));
+        Assert.Equal(11.5, StudioSignatureImage.ReadHeightMm(eleven));
+        Assert.Null(StudioSignatureImage.ReadHeightMm(StudioSignatureImage.WithHeightMm(eleven, null)));
+        Assert.Null(StudioSignatureImage.Validate(eleven));
+        var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
+            new MemoryStream(eleven),
+            System.Windows.Media.Imaging.BitmapCreateOptions.None,
+            System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+        Assert.Equal(4, decoder.Frames[0].PixelWidth);
+    }
+
     private static byte[] Png(uint width, uint height)
     {
         byte[] bytes = new byte[40];

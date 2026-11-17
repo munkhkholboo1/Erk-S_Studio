@@ -185,6 +185,36 @@ public sealed class APREPAREDSignatureSignsOnlyItsHoldersNameTests : IDisposable
         Assert.Equal(3d, placed.Width / placed.Height, 3);
     }
 
+    [Fact]
+    public void ACHOSENHeightIsTheSameOnPaperInEveryTableAndMayRunPastTheCell()
+    {
+        double pt = 72d / 25.4;
+        // Owner, 2026-11-18: «би өөрөө гараар зурахдаа ихэвчлэн нэг л хэмжээгээр зурдаг».
+        XRect working = new(0, 0, 25 * pt, 6 * pt);
+        XRect vertical = new(100, 100, 23.7 * pt, 5 * pt);
+
+        XRect a = TitleBlockSignatureStamper.Fit(300, 100, working, 9);
+        XRect b = TitleBlockSignatureStamper.Fit(300, 100, vertical, 9);
+
+        Assert.Equal(9 * pt, a.Height, 3);
+        Assert.Equal(9 * pt, b.Height, 3);
+        Assert.Equal(27 * pt, a.Width, 3);
+        Assert.True(a.Top < working.Top && a.Bottom > working.Bottom);
+        // Centred on its cell.
+        Assert.Equal(working.Left + working.Width / 2, a.Left + a.Width / 2, 3);
+        Assert.Equal(vertical.Top + vertical.Height / 2, b.Top + b.Height / 2, 3);
+    }
+
+    [Fact]
+    public void ANEWHeightIsANewStampedAlbum()
+    {
+        var fitted = new TitleBlockSignature(["Э.Мөнххолбоо"], Png(60, 20));
+        var nine = fitted with { HeightMm = 9 };
+
+        Assert.NotEqual(fitted.Key, nine.Key);
+        Assert.Equal(nine.Key, (fitted with { HeightMm = 9.0 }).Key);
+    }
+
     private static void DrawHorizontalTable(XGraphics gfx, XRect rect)
     {
         WindowsFontResolver.Register();
