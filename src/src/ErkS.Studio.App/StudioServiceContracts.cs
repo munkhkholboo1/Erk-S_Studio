@@ -1,3 +1,4 @@
+using System.IO;
 using ErkS.CloudEra.Client;
 
 using ErkS.Platform.Core;
@@ -311,6 +312,23 @@ internal interface ISignatureImageClient
     Task UploadSignatureImageAsync(byte[] png, CancellationToken cancellationToken = default);
 
     Task DeleteSignatureImageAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Noorog (erk-s.mn/noorog) packages delivered to a project on the server - read by a member's
+/// Studio and put into the project's source inbox (Ноорог агент, 2026-11-19).
+/// </summary>
+internal interface INoorogDeliveryClient
+{
+    Task<IReadOnlyList<NoorogDelivery>> ListNoorogDeliveriesAsync(string projectId, CancellationToken cancellationToken = default);
+
+    Task CopyNoorogDeliveryFileAsync(
+        string projectId,
+        string packageId,
+        string name,
+        Stream destination,
+        long maxBytes,
+        CancellationToken cancellationToken = default);
 }
 
 internal interface IProjectChatClient

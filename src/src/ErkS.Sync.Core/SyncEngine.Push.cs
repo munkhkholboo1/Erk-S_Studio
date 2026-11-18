@@ -65,6 +65,9 @@ public sealed partial class SyncEngine
     /// <summary>A member of a project came online or went quiet (SRV db93505: «presence», the project id only).</summary>
     public event Action<string>? PresenceChanged;
 
+    /// <summary>A new Noorog package was delivered to a project (SRV: «noorog-delivery», the project id only).</summary>
+    public event Action<string>? NoorogDeliveryArrived;
+
     /// <summary>The newest version the server announced per product and channel since this SYN started.</summary>
     public IReadOnlyList<SyncRelease> Releases
     {
@@ -321,13 +324,15 @@ public sealed partial class SyncEngine
                         : "";
                 NotificationsChanged?.Invoke(notificationKind);
             }
-            if ((type == "project-access" || type == "presence") &&
+            if ((type == "project-access" || type == "presence" || type == "noorog-delivery") &&
                 document.RootElement.TryGetProperty("projectId", out var eventProject) &&
                 eventProject.ValueKind == System.Text.Json.JsonValueKind.String &&
                 eventProject.GetString() is { Length: > 0 } eventProjectId)
             {
                 if (type == "project-access")
                     ProjectAccessChanged?.Invoke(eventProjectId);
+                else if (type == "noorog-delivery")
+                    NoorogDeliveryArrived?.Invoke(eventProjectId);
                 else
                     PresenceChanged?.Invoke(eventProjectId);
             }

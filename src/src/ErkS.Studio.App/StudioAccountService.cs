@@ -89,6 +89,7 @@ internal sealed class StudioAccountService :
     IAlbumsClient,
     IProfileImageClient,
     ISignatureImageClient,
+    INoorogDeliveryClient,
     IProjectChatClient,
     IDisposable
 {
@@ -1727,6 +1728,52 @@ internal sealed class StudioAccountService :
     {
         await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
         await SendAuthorizedNoContentAsync(HttpMethod.Delete, SignatureImagePath, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task<IReadOnlyList<NoorogDelivery>> ListNoorogDeliveriesAsync(
+        string projectId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        NoorogDeliveryListResponse response = await GetAuthorizedAsync<NoorogDeliveryListResponse>(
+            NoorogDeliveryIntake.ListPath(projectId),
+            cancellationToken).ConfigureAwait(true);
+        return response.Deliveries ?? [];
+    }
+
+    public async Task CopyNoorogDeliveryFileAsync(
+        string projectId,
+        string packageId,
+        string name,
+        Stream destination,
+        long maxBytes,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFreshSessionAsync(cancellationToken).ConfigureAwait(true);
+        StudioAccountSession session = Current ?? throw new StudioAccountException("Studio бүртгэлээр нэвтэрнэ үү.");
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            BuildUri(session.ServerUrl, NoorogDeliveryIntake.FilePath(projectId, packageId, name)));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        using HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
+        if (!response.IsSuccessStatusCode)
+        {
+            await ReadResponseAsync<object>(response, cancellationToken).ConfigureAwait(true);
+            throw new StudioAccountException($"Ноорогийн файл татагдсангүй ({(int)response.StatusCode}).");
+        }
+        if (response.Content.Headers.ContentLength > maxBytes)
+            throw new StudioAccountException("Ноорогийн файл хэт том байна: " + name);
+        await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+        byte[] buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = await body.ReadAsync(buffer, cancellationToken).ConfigureAwait(true)) > 0)
+        {
+            total += read;
+            if (total > maxBytes)
+                throw new StudioAccountException("Ноорогийн файл хэт том байна: " + name);
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(true);
+        }
     }
 
     public async Task<StudioProjectChatResponse> GetProjectChatAsync(

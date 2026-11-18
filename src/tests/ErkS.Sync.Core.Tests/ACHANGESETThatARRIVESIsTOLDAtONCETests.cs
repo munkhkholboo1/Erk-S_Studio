@@ -206,6 +206,26 @@ public sealed class ACHANGESETThatARRIVESIsTOLDAtONCETests
         Assert.Equal(["p2"], presence);
     }
 
+    /// <summary>Ноорог агент, 2026-11-19: a Noorog package delivered to a project is told on by the project id only.</summary>
+    [Fact]
+    public async Task ANOOROGDeliveryIsToldOnWithTheProjectOnly()
+    {
+        using var home = new TemporaryFolder();
+        using var a = new FakeDevice();
+        var server = new FakeServer(Canonical, [a]);
+        await using var engine = new SyncEngine(new SyncHome(home.Path), server.Client(), a);
+        var delivered = new List<string>();
+        var presence = new List<string>();
+        engine.NoorogDeliveryArrived += delivered.Add;
+        engine.PresenceChanged += presence.Add;
+
+        engine.Heard("{\"type\":\"noorog-delivery\",\"projectId\":\"p9\"}"u8.ToArray());
+        engine.Heard("{\"type\":\"noorog-delivery\"}"u8.ToArray()); // no project: nothing
+
+        Assert.Equal(["p9"], delivered);
+        Assert.Empty(presence);
+    }
+
     private static string Write(TemporaryFolder scratch, string name, string text)
     {
         string path = Path.Combine(scratch.Path, name);

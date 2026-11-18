@@ -27,7 +27,8 @@ internal static class StudioReleaseListener
         Action<string>? projectChatChanged = null,
         Action<string>? notificationsChanged = null,
         Action<string>? projectAccessChanged = null,
-        Action<string>? presenceChanged = null)
+        Action<string>? presenceChanged = null,
+        Action<string>? noorogDeliveryArrived = null)
     {
         TimeSpan wait = TimeSpan.FromSeconds(5);
         while (!cancellationToken.IsCancellationRequested)
@@ -54,6 +55,8 @@ internal static class StudioReleaseListener
                             projectAccessChanged?.Invoke(accessProjectId);
                         else if (ProjectIn(line, "presence") is { } presenceProjectId)
                             presenceChanged?.Invoke(presenceProjectId);
+                        else if (ProjectIn(line, "noorog-delivery") is { } noorogProjectId)
+                            noorogDeliveryArrived?.Invoke(noorogProjectId);
                     }
                 }
                 else

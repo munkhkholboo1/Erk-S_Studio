@@ -103,6 +103,8 @@ internal sealed class SyncTray : ApplicationContext
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "project-access", projectId }));
                 engine.PresenceChanged += projectId =>
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "presence", projectId }));
+                engine.NoorogDeliveryArrived += projectId =>
+                    Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "noorog-delivery", projectId }));
                 engine.ReleasePublished += _selfUpdate.Heard;
                 engine.StateWritten += _ => _selfUpdate.Try();
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);

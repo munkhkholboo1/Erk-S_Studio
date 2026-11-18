@@ -432,6 +432,9 @@ internal sealed partial class ShellView
             return SourceRefreshOutcome.Blocked(message);
         }
 
+        // Noorog packages are on the server, not in a local file: brought into their inbox first,
+        // so the same scan below takes them (Ноорог агент, 2026-11-19).
+        await FetchNoorogDeliveriesAsync();
         StudioOperationContext operationContext = CaptureOperationContext();
         sourceRefreshInProgress = true;
         RefreshSyncUi();

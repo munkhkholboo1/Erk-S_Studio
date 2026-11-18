@@ -1555,7 +1555,8 @@ internal sealed partial class ShellView : IDisposable
             projectId => dispatcher.BeginInvoke(new Action(() => OnProjectChatChanged(projectId))),
             notificationKind => dispatcher.BeginInvoke(new Action(() => _ = RefreshNotificationsAsync())),
             projectId => dispatcher.BeginInvoke(new Action(() => _ = OnProjectAccessChangedAsync(projectId))),
-            projectId => dispatcher.BeginInvoke(new Action(() => OnPresenceChanged(projectId))));
+            projectId => dispatcher.BeginInvoke(new Action(() => OnPresenceChanged(projectId))),
+            projectId => dispatcher.BeginInvoke(new Action(() => _ = OnNoorogDeliveryArrivedAsync(projectId))));
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();
@@ -3033,6 +3034,8 @@ internal sealed partial class ShellView : IDisposable
                 return;
             await RelinkMovedSourcesAsync();
             await UpdateProjectOpenProgressAsync(100, "Төсөл нээгдлээ.");
+            // What Noorog delivered while the project was closed - after the open, never holding it up.
+            _ = dispatcher.BeginInvoke(new Action(() => _ = FetchNoorogDeliveriesAfterOpenAsync()), DispatcherPriority.ApplicationIdle);
         }
         catch (Exception exception)
         {
