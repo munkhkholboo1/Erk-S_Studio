@@ -115,6 +115,11 @@ public static class ProjectPackageReconciliationService
             project.Identity.StageCode);
         int removedAlbumPageCount = 0;
         var studioComposedSkipped = new List<string>();
+        // Where this source stands among the others, taken before any of its pages are
+        // replaced: a board sent again keeps its place even when every sheet id changed.
+        HashSet<Guid>? urbanPagesBeforeSource = usesUrbanPlanningTemplate
+            ? PagesBeforeSource(album, packageSource, source.Id)
+            : null;
         if (manifest.PackageScope == SheetPackageScope.FullSnapshot &&
             library.IsCurrentAuthoritativeSnapshot(manifest, source.Id))
         {
@@ -243,7 +248,7 @@ public static class ProjectPackageReconciliationService
         }
         else if (usesUrbanPlanningTemplate)
         {
-            OrderUrbanPlanningPages(album, albumSheets, packageSource, source.Id);
+            OrderUrbanPlanningPages(album, albumSheets, packageSource, source.Id, urbanPagesBeforeSource);
         }
 
         return new ProjectPackageReconciliationResult(
@@ -497,7 +502,8 @@ public static class ProjectPackageReconciliationService
         AlbumDefinition album,
         IReadOnlyList<SheetPackageEntry> albumSheets,
         SheetPackageSource packageSource,
-        string projectSourceId)
+        string projectSourceId,
+        HashSet<Guid>? pagesBeforeSource)
     {
         OrderUrbanPlanningPages(
             album,
@@ -507,12 +513,45 @@ public static class ProjectPackageReconciliationService
                 Key = SheetRecord.MakeKey(packageSource, entry, projectSourceId),
                 Index = index,
             })
-            .Select(item => new KeyValuePair<string, int>(item.Key, item.Index)));
+            .Select(item => new KeyValuePair<string, int>(item.Key, item.Index)),
+            pagesBeforeSource,
+            sourceWasInAlbum: pagesBeforeSource is not null);
     }
 
+    /// <summary>
+    /// The pages that stood before the source's first page, or null when the source had none
+    /// in the album yet (it then comes after everything already there).
+    /// </summary>
+    private static HashSet<Guid>? PagesBeforeSource(
+        AlbumDefinition album,
+        SheetPackageSource packageSource,
+        string projectSourceId)
+    {
+        var before = new HashSet<Guid>();
+        foreach (AlbumPageDefinition page in album.Pages)
+        {
+            if (SheetRecord.BelongsToSource(page.SheetKey, packageSource, projectSourceId))
+                return before;
+            before.Add(page.Id);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Orders one source's pages by its package, as one block, and leaves that block where the
+    /// source already stood among the others - Эмээлт, 2026-11-19: the block used to be put in
+    /// front of every other page, so the album's buildings came out newest first and a board
+    /// sent again jumped to the front. A source new to the album comes after everything there.
+    /// </summary>
+    /// <param name="pagesBeforeSource">
+    /// The pages that stood before the source when the reconciliation began; null to read the
+    /// place from where the block's first page stands now.
+    /// </param>
     private static void OrderUrbanPlanningPages(
         AlbumDefinition album,
-        IEnumerable<KeyValuePair<string, int>> orderedSourceSheets)
+        IEnumerable<KeyValuePair<string, int>> orderedSourceSheets,
+        HashSet<Guid>? pagesBeforeSource = null,
+        bool sourceWasInAlbum = true)
     {
         Dictionary<string, int> sourceOrder = orderedSourceSheets
             .GroupBy(item => item.Key, StringComparer.Ordinal)
@@ -521,13 +560,37 @@ public static class ProjectPackageReconciliationService
             .Select((page, index) => new { page.Id, Index = index })
             .ToDictionary(item => item.Id.ToString("N"), item => item.Index, StringComparer.Ordinal);
 
-        List<AlbumPageDefinition> ordered = album.Pages
-            .OrderBy(page => sourceOrder.ContainsKey(page.SheetKey) ? 0 : 1)
-            .ThenBy(page => sourceOrder.TryGetValue(page.SheetKey, out int order) ? order : int.MaxValue)
+        List<AlbumPageDefinition> block = album.Pages
+            .Where(page => sourceOrder.ContainsKey(page.SheetKey))
+            .OrderBy(page => sourceOrder[page.SheetKey])
             .ThenBy(page => originalOrder[page.Id.ToString("N")])
             .ToList();
+        if (block.Count == 0)
+            return;
+        List<AlbumPageDefinition> others = album.Pages
+            .Where(page => !sourceOrder.ContainsKey(page.SheetKey))
+            .ToList();
+
+        int insertAt;
+        if (!sourceWasInAlbum)
+        {
+            insertAt = others.Count;
+        }
+        else if (pagesBeforeSource is not null)
+        {
+            insertAt = others.Count(page => pagesBeforeSource.Contains(page.Id));
+        }
+        else
+        {
+            int firstBlockIndex = album.Pages.FindIndex(page => sourceOrder.ContainsKey(page.SheetKey));
+            insertAt = album.Pages
+                .Take(firstBlockIndex)
+                .Count(page => !sourceOrder.ContainsKey(page.SheetKey));
+        }
+
+        others.InsertRange(insertAt, block);
         album.Pages.Clear();
-        album.Pages.AddRange(ordered);
+        album.Pages.AddRange(others);
     }
 
     private static ProjectInactiveSourceSheetState? CaptureInactiveSheetState(

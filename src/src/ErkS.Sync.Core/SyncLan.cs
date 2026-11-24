@@ -543,6 +543,13 @@ public sealed class SyncLanSession : IAsyncDisposable
             before = _readTail;
             _readTail = mine.Task;
         }
+        catch (ObjectDisposedException closed)
+        {
+            // The other end (or this machine stopping) closed the connection under a request in flight: a broken
+            // LAN like any other, not an error that ends the engine (a loaded test machine, 2026-11-24).
+            _broken = true;
+            throw new IOException("The LAN connection was closed.", closed);
+        }
         catch
         {
             _broken = true;
@@ -565,6 +572,11 @@ public sealed class SyncLanSession : IAsyncDisposable
             if (!string.IsNullOrEmpty(response.Error))
                 throw new SyncLanException(response.Error, "Төхөөрөмж файлын хэсгийг өгсөнгүй (тэр хувилбар өөрчлөгдсөн байж магадгүй).");
             return (response, await SyncLanExchange.ReadFrameAsync(_tls, cancellationToken));
+        }
+        catch (ObjectDisposedException closed)
+        {
+            _broken = true;
+            throw new IOException("The LAN connection was closed.", closed);
         }
         catch (Exception exception) when (exception is not SyncLanException)
         {

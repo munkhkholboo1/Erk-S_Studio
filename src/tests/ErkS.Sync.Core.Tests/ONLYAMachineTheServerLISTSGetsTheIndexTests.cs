@@ -156,6 +156,25 @@ public sealed class ONLYAMachineTheServerLISTSGetsTheIndexTests
         Assert.Equal(100_009, (await after).Length); // a refused piece leaves the connection in step
     }
 
+    /// <summary>
+    /// 2026-11-24: on a loaded machine, the stream was closed under a piece in flight (the partner stopping) and
+    /// the ObjectDisposedException went past every LAN catch and ended the engine. A closed connection is a broken LAN.
+    /// </summary>
+    [Fact]
+    public async Task ACLOSEDConnectionIsABrokenLANNotACrash()
+    {
+        using Device server = new();
+        using Device client = new();
+        var attached = new HashSet<string> { server.KeyId, client.KeyId };
+        await using var serving = new SyncLanExchange(server.Identity, _ => attached, _ => "{}", (_, _, _, chunk) => new byte[10]);
+        await using var asking = new SyncLanExchange(client.Identity, _ => attached, _ => null);
+        SyncLanSession session = await asking.OpenAsync(new IPEndPoint(IPAddress.Loopback, serving.Port), server.KeyId, "f-1", Timeout());
+        await session.DisposeAsync();
+
+        await Assert.ThrowsAsync<IOException>(() => session.FetchChunkAsync("plan.dwg", "aa", 0, Timeout()));
+        await Assert.ThrowsAsync<IOException>(() => session.FetchChunkAsync("plan.dwg", "aa", 1, Timeout()));
+    }
+
     /// <summary>Erk-S Sync, 2026-10-27: one TCP stream used a quarter of the Wi-Fi - pieces go round several connections, the file still arrives whole.</summary>
     [Fact]
     public async Task PiecesOverSEVERALConnectionsMakeOneWHOLEFile()

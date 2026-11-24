@@ -71,6 +71,12 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     /// <summary>Each piece fetched takes this long (a slow downlink).</summary>
     public TimeSpan GetDelay { get; set; }
 
+    /// <summary>
+    /// A piece this says no to is refused (503) and not counted - a link cut off at that piece, without
+    /// a clock: a time window lost the race on a loaded machine before any piece arrived.
+    /// </summary>
+    public Func<string, bool>? RefuseChunk { get; set; }
+
     /// <summary>Pieces handed out - what went over the wire.</summary>
     public int ChunkGets { get; private set; }
 
@@ -254,6 +260,8 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
                         ChunkPutOrder.Add(sha);
                         return new HttpResponseMessage(HttpStatusCode.NoContent);
                     }
+                    if (RefuseChunk is { } refuse && refuse(sha))
+                        return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
                     ChunkGets++;
                     if (OnFirstChunkGet is { } first)
                     {

@@ -30,13 +30,19 @@ public sealed class AHALFFetchedFileGOESOnTests
             await engineA.PassAsync(CancellationToken.None);
 
         var homeOfB = new SyncHome(homeB.Path);
-        server.GetDelay = TimeSpan.FromMilliseconds(400);
-        await using (var cut = new SyncEngine(homeOfB, server.Client(), b, new SyncPathMap(@"D:\Cloud Work=>" + rootB.Path)) { TransferWindow = TimeSpan.FromMilliseconds(3000) })
+        // The link breaks at the fifth piece: pieces 0-3 come, the rest are refused (no clock - a 3 s window
+        // with slow gets lost the race on a loaded machine and left no piece at all).
+        HashSet<string> cutOff = Enumerable.Range(4, 7)
+            .Select(index => Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                bytes.AsSpan(index * SyncIndex.ChunkSize, Math.Min(SyncIndex.ChunkSize, bytes.Length - index * SyncIndex.ChunkSize)))))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        server.RefuseChunk = cutOff.Contains;
+        await using (var cut = new SyncEngine(homeOfB, server.Client(), b, new SyncPathMap(@"D:\Cloud Work=>" + rootB.Path)) { TransferWindow = TimeSpan.FromSeconds(20) })
             await cut.PassAsync(CancellationToken.None);
         Assert.False(File.Exists(Path.Combine(folderB, "model.rvt")));
         Assert.True(Directory.GetFiles(Path.Combine(folderB, SyncExclusions.MarkerDirectoryName, "tmp"), "*.part").Length > 0, $"no part; gets {server.ChunkGets}, tmp has [{string.Join(",", Directory.Exists(Path.Combine(folderB, ".erks-sync", "tmp")) ? Directory.GetFiles(Path.Combine(folderB, ".erks-sync", "tmp")).Select(Path.GetFileName) : [])}]");
 
-        server.GetDelay = TimeSpan.Zero;
+        server.RefuseChunk = null;
         await using (var again = new SyncEngine(homeOfB, server.Client(), b, new SyncPathMap(@"D:\Cloud Work=>" + rootB.Path)))
             await again.PassAsync(CancellationToken.None);
 
