@@ -28,7 +28,8 @@ internal static class StudioReleaseListener
         Action<string>? notificationsChanged = null,
         Action<string>? projectAccessChanged = null,
         Action<string>? presenceChanged = null,
-        Action<string>? noorogDeliveryArrived = null)
+        Action<string>? noorogDeliveryArrived = null,
+        Action? syncDeviceUnknown = null)
     {
         TimeSpan wait = TimeSpan.FromSeconds(5);
         while (!cancellationToken.IsCancellationRequested)
@@ -57,6 +58,8 @@ internal static class StudioReleaseListener
                             presenceChanged?.Invoke(presenceProjectId);
                         else if (ProjectIn(line, "noorog-delivery") is { } noorogProjectId)
                             noorogDeliveryArrived?.Invoke(noorogProjectId);
+                        else if (IsEvent(line, "device-unknown"))
+                            syncDeviceUnknown?.Invoke();
                     }
                 }
                 else
@@ -100,6 +103,21 @@ internal static class StudioReleaseListener
         catch (JsonException)
         {
             return null;
+        }
+    }
+
+    /// <summary>Whether a Sync line is the named event.</summary>
+    internal static bool IsEvent(string line, string eventName)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("event", out JsonElement kind) && kind.GetString() == eventName;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

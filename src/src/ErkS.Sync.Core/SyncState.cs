@@ -253,7 +253,7 @@ public sealed record SyncState
 
     public string DeviceKeyId { get; init; } = "";
 
-    /// <summary>«ok», «no_device_key», «session_refused», «offline» - why the server half may be idle.</summary>
+    /// <summary>«ok», «no_device_key», «device_unknown», «session_refused», «offline» - why the server half may be idle.</summary>
     public string ServerStatus { get; init; } = "";
 
     public string ServerMessage { get; init; } = "";

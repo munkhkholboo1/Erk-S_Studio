@@ -77,6 +77,12 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     /// </summary>
     public Func<string, bool>? RefuseChunk { get; set; }
 
+    /// <summary>The server does not know any device key: every challenge is refused «sync_device_unknown».</summary>
+    public bool DevicesUnknown { get; set; }
+
+    /// <summary>Challenges asked for - each one a request to the server.</summary>
+    public int Challenges { get; private set; }
+
     /// <summary>Pieces handed out - what went over the wire.</summary>
     public int ChunkGets { get; private set; }
 
@@ -140,6 +146,16 @@ internal sealed class FakeServer(string canonicalPath, IReadOnlyList<FakeDevice>
     {
         string path = request.RequestUri!.AbsolutePath;
         string token = request.Headers.Authorization?.Parameter ?? "";
+        if (path == "/api/cloud-era/v1/sync/device/challenge")
+        {
+            Challenges++;
+            if (DevicesUnknown)
+            {
+                var unknown = new HttpResponseMessage(HttpStatusCode.BadRequest);
+                unknown.Headers.Add("X-ErkS-Reason-Code", "sync_device_unknown");
+                return unknown;
+            }
+        }
         const string relay = "/api/cloud-era/v1/sync/device/folders/f-1";
         bool loopback = request.RequestUri.IsLoopback;
         if (OnThisMachine && path == "/api/cloud-era/v1/sync/device/instance-proof" && !loopback && token.Length > 0)

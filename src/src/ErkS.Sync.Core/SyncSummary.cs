@@ -110,6 +110,8 @@ public static class SyncSummary
     {
         if (projects.Count == 0)
             return "Синк хавтас алга";
+        if (serverStatus == "device_unknown")
+            return $"{projects.Count} төсөл · ⏸ түлхүүр серверт бүртгэлгүй (Studio-д нэвтэрнэ үү)";
         if (serverStatus is not ("ok" or ""))
             return $"{projects.Count} төсөл · ⏸ сервертэй холбогдоогүй";
         SyncProjectSummary[] syncing = projects.Where(project => project.Status == SyncProjectStatus.Syncing).ToArray();

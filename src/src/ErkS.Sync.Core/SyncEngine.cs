@@ -347,6 +347,39 @@ public sealed partial class SyncEngine : IAsyncDisposable
     /// <summary>Raised after every state write - the tray follows it instead of asking on a clock.</summary>
     public event Action<SyncState>? StateWritten;
 
+    /// <summary>
+    /// What the tray says while the server does not know this machine's key («sync_device_unknown»).
+    /// </summary>
+    public const string DeviceUnknownMessage = "Энэ машины SYN түлхүүр серверт бүртгэлгүй — Studio-д нэвтэрч нээхэд өөрөө бүртгэгдэнэ.";
+
+    /// <summary>The first wait after «sync_device_unknown»; each refusal after it doubles it, up to <see cref="DeviceUnknownLongestWait"/>.</summary>
+    public TimeSpan DeviceUnknownFirstWait { get; init; } = TimeSpan.FromMinutes(15);
+
+    public TimeSpan DeviceUnknownLongestWait { get; init; } = TimeSpan.FromMinutes(60);
+
+    private TimeSpan _unknownWait = TimeSpan.Zero;
+    private DateTimeOffset _unknownUntil = DateTimeOffset.MinValue;
+    private volatile bool _unknownRetryNow;
+
+    /// <summary>
+    /// The server said it does not know this machine's key - raised each time it says so (at most once per
+    /// wait), so the tray can ask Studio to register the key.
+    /// </summary>
+    public event Action? DeviceUnknown;
+
+    /// <summary>True while the server does not know this machine's key and no new attempt is due.</summary>
+    public bool DeviceUnknownNow => _unknownWait > TimeSpan.Zero;
+
+    /// <summary>
+    /// Studio registered this machine's key (or was signed in): the next pass asks the server again at once,
+    /// instead of waiting out the backoff.
+    /// </summary>
+    public void DeviceKeyRegistered()
+    {
+        _unknownRetryNow = true;
+        Poke();
+    }
+
     /// <summary>Run a pass now (a folder was registered, a verb asked for status).</summary>
     public void Poke()
     {
@@ -621,8 +654,18 @@ public sealed partial class SyncEngine : IAsyncDisposable
         string serverMessage = "";
         string serverReason = "";
         Stage("сервертэй холбогдож байна");
-        try
+        // Erk-S Sync, 2026-11-24: a machine whose key the server does not know asked for a challenge every
+        // pass (865 refusals, two a minute). Until Studio registers the key - or the doubling wait is out -
+        // the server is not asked; the LAN goes on with the folders already known.
+        bool unknownHolds = _unknownWait > TimeSpan.Zero && !_unknownRetryNow && DateTimeOffset.UtcNow < _unknownUntil;
+        if (unknownHolds)
         {
+            serverStatus = "device_unknown";
+            serverMessage = DeviceUnknownMessage;
+        }
+        else try
+        {
+            _unknownRetryNow = false;
             _server.LanEndpoints = SyncLanAddresses.Own(_exchange?.Port ?? 0);
             await EnsureSessionAsync(cancellationToken);
             IReadOnlyList<SyncServerDeviceFolder> folders = await _server.DeviceFoldersAsync(_session!.AccessToken, cancellationToken);
@@ -630,6 +673,17 @@ public sealed partial class SyncEngine : IAsyncDisposable
                 _folders = folders;
             await _server.DeviceHeartbeatAsync(_session.AccessToken, cancellationToken);
             await ProveLoopbackAsync(cancellationToken);
+        }
+        catch (SyncServerException exception) when (exception.Code == "sync_device_unknown")
+        {
+            _session = null;
+            _unknownWait = _unknownWait <= TimeSpan.Zero
+                ? DeviceUnknownFirstWait
+                : TimeSpan.FromTicks(Math.Min(_unknownWait.Ticks * 2, DeviceUnknownLongestWait.Ticks));
+            _unknownUntil = DateTimeOffset.UtcNow + _unknownWait;
+            serverStatus = "device_unknown";
+            serverMessage = DeviceUnknownMessage;
+            DeviceUnknown?.Invoke();
         }
         catch (SyncServerException exception)
         {
@@ -730,6 +784,7 @@ public sealed partial class SyncEngine : IAsyncDisposable
             return;
         byte[] nonce = await _server.DeviceChallengeAsync(_device!.DeviceKeyId, cancellationToken);
         _session = await _server.DeviceSessionAsync(_device.DeviceKeyId, nonce, _device.SignSession(nonce), cancellationToken);
+        _unknownWait = TimeSpan.Zero; // known again
     }
 
     private async Task<SyncFolderState> FolderPassAsync(SyncServerDeviceFolder entry, CancellationToken cancellationToken)

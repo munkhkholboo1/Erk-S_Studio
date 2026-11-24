@@ -1556,7 +1556,8 @@ internal sealed partial class ShellView : IDisposable
             notificationKind => dispatcher.BeginInvoke(new Action(() => _ = RefreshNotificationsAsync())),
             projectId => dispatcher.BeginInvoke(new Action(() => _ = OnProjectAccessChangedAsync(projectId))),
             projectId => dispatcher.BeginInvoke(new Action(() => OnPresenceChanged(projectId))),
-            projectId => dispatcher.BeginInvoke(new Action(() => _ = OnNoorogDeliveryArrivedAsync(projectId))));
+            projectId => dispatcher.BeginInvoke(new Action(() => _ = OnNoorogDeliveryArrivedAsync(projectId))),
+            () => dispatcher.BeginInvoke(new Action(() => _ = OnSyncDeviceUnknownAsync())));
         bool restored = await account.TryRestoreAsync();
         accountRestoreTried = true;
         UpdateAccountUi();

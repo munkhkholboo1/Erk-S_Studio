@@ -166,7 +166,7 @@ public sealed record SyncStatusReport(
     public string DokanyVersion { get; init; } = "";
 
     /// <summary>Whether the server answered the last pass (Erk-S Sync, 2026-10-28).</summary>
-    public bool ServerReachable => ServerStatus is "ok" or "server_refused" or "session_refused";
+    public bool ServerReachable => ServerStatus is "ok" or "server_refused" or "session_refused" or "device_unknown";
 
     /// <summary>tls | dns | connect | refused | proxy | timeout | other when the server was not reached.</summary>
     public string ServerReason { get; init; } = "";

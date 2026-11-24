@@ -114,6 +114,15 @@ public sealed class ANOOROGPackageLANDSInItsBOARDSInboxONCETests : IDisposable
         Assert.Null(StudioReleaseListener.ProjectIn("{\"event\":\"presence\",\"projectId\":\"p7\"}", "noorog-delivery"));
     }
 
+    /// <summary>Erk-S Sync, 2026-11-24: the tray asks Studio to register this machine's key with a «device-unknown» line.</summary>
+    [Fact]
+    public void SYNCSDeviceUnknownLineIsHeard()
+    {
+        Assert.True(StudioReleaseListener.IsEvent("{\"event\":\"device-unknown\"}", "device-unknown"));
+        Assert.False(StudioReleaseListener.IsEvent("{\"event\":\"presence\",\"projectId\":\"p7\"}", "device-unknown"));
+        Assert.False(StudioReleaseListener.IsEvent("not json", "device-unknown"));
+    }
+
     private sealed class FakeClient : INoorogDeliveryClient
     {
         private readonly List<NoorogDelivery> deliveries = [];

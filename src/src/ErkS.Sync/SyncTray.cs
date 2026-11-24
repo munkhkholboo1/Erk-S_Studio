@@ -74,6 +74,9 @@ internal sealed class SyncTray : ApplicationContext
         _icon.Text = text.Length > 127 ? text[..126] + "…" : text;
     }
 
+    /// <summary>Told to Studio when the server does not know this machine's key: Studio registers it and says «device-registered».</summary>
+    private static readonly string DeviceUnknownLine = SyncProtocol.Serialize(new { @event = "device-unknown" });
+
     private async Task RunEngineAsync(CancellationToken cancellationToken)
     {
         HttpClient http = ErkS.Updates.NetworkFailure.CreateClient(TimeSpan.FromSeconds(60), Program.ServerUrl());
@@ -103,18 +106,28 @@ internal sealed class SyncTray : ApplicationContext
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "project-access", projectId }));
                 engine.PresenceChanged += projectId =>
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "presence", projectId }));
+                engine.DeviceUnknown += () => Send(_releaseSubscribers, DeviceUnknownLine);
                 engine.NoorogDeliveryArrived += projectId =>
                     Send(_releaseSubscribers, SyncProtocol.Serialize(new { @event = "noorog-delivery", projectId }));
                 engine.ReleasePublished += _selfUpdate.Heard;
                 engine.StateWritten += _ => _selfUpdate.Try();
                 _mounts ??= new SyncCentralMounts(_home, () => _engine?.CentralRoad);
                 engine.StateWritten += state => ThreadPool.QueueUserWorkItem(_ => _mounts?.Follow(state));
-                if (_device is not null)
+                try
                 {
-                    await engine.RunAsync(cancellationToken);
-                    return;
+                    if (_device is not null)
+                    {
+                        await engine.RunAsync(cancellationToken);
+                        return;
+                    }
+                    await engine.PassAsync(cancellationToken);
                 }
-                await engine.PassAsync(cancellationToken);
+                catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    // 2026-11-24: an exception no pass caught ended the engine for good, and the tray sat idle
+                    // until restarted. It is written down and the engine starts again after the wait below.
+                    PipeFault("engine", exception);
+                }
             }
             try
             {
@@ -185,6 +198,9 @@ internal sealed class SyncTray : ApplicationContext
             await writer.WriteLineAsync(SyncProtocol.Serialize(new SyncPipeResponse(true, "")));
             foreach (SyncRelease release in _engine?.Releases ?? [])
                 await writer.WriteLineAsync(ReleaseLine(release));
+            // A Studio that starts while the server does not know this machine's key is asked to register it.
+            if (_engine?.DeviceUnknownNow == true)
+                await writer.WriteLineAsync(DeviceUnknownLine);
             _ = HoldSubscriberAsync(pipe, reader, writer, _releaseSubscribers, cancellationToken);
             return true;
         }
@@ -269,6 +285,10 @@ internal sealed class SyncTray : ApplicationContext
     {
         switch (request.Verb)
         {
+            case "device-registered":
+                // Studio registered this machine's key: ask the server again now, not after the backoff.
+                _engine?.DeviceKeyRegistered();
+                return new SyncPipeResponse(true, "");
             case "rescan":
                 _mounts?.RetryDokany(); // Studio just installed it: try again now, not in five minutes
                 _engine?.Poke();
